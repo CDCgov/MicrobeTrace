@@ -424,10 +424,10 @@ performance of this software.</pre>
   <script src="node_modules/jszip/dist/jszip.min.js"></script>
   <script src="vendor/shpwrite.js"></script>
   <script src="scripts/common.js"></script>
+  <script src="node_modules/sweetalert/dist/sweetalert.min.js"></script>
   <script>
   $(function(){
     'use strict';
-
     $.getJSON('package.json', function(r){
       app.manifest = r;
       $('#version').html(r.version);
@@ -868,7 +868,7 @@ performance of this software.</pre>
         var ua = window.navigator.userAgent;
         var msie = ua.includes("MSIE");
         // If Internet Explorer, call the alert
-        if (msie) alert("MicrobeTrace does not and will never work on Internet Explorer");
+        if (msie) swal("MicrobeTrace does not and will never work on Internet Explorer");
       }
       msieversion();
   alertify.defaults.transition = 'slide';

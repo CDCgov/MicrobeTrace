@@ -37,6 +37,7 @@
     "plotly.js": "^1.37.1",
     "popper.js": "^1.14.3",
     "screenfull": "^3.3.2",
+    "sweetalert": "^2.1.2",
     "tabulator-tables": "^4.0.5",
     "tn93": "^0.2.2",
     "underscore": "^1.9.0",
