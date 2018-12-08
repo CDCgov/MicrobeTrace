@@ -26,66 +26,68 @@
   <link rel="stylesheet" type="text/css" href="stylesheets/main.css" />
 </head>
 <body>
-  <nav class="navbar fixed-top navbar-expand-xl navbar-light bg-light">
-    <ul class="nav mr-auto">
-      <li class="nav-item dropdown">
-        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">File</a>
-        <div class="dropdown-menu">
-          <a href="#" id="SaveDataTab" class="dropdown-item" data-toggle="modal" data-target="#session-save-modal">Save</a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <input type="file" class="d-none" id="OpenTab" />
-            <label class="mb-0 w-100" for="OpenTab">Open</label>
-          </a>
-          <a href="#" id="FileTab" class="dropdown-item">New</a>
-        </div>
-      </li>
-      <li class="nav-item">
-        <a href="#" class="nav-link py-0" data-toggle="modal" data-target="#global-settings-modal">Settings</a>
-      </li>
-      <li class="nav-item dropdown">
-        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">View</a>
-        <div class="dropdown-menu">
-          <a href="#" class="dropdown-item viewbutton" data-href="2d_network">2D Network</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="3d_network">3D Network</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="histogram">Histogram</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="table">Table</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="bubbles">Bubbles</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="flow_diagram">Flow Diagram</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="scatterplot">Scatterplot</a>
-          <!--a href="#" class="dropdown-item viewbutton" data-href="waterfall">Waterfall</a-->
-          <a href="#" class="dropdown-item viewbutton" data-href="geo_map">Map</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="gantt">Gantt</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="timeline">Timeline</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="heatmap">Heatmap</a>
-          <a href="#" class="dropdown-item viewbutton" data-href="phylogenetic_tree">Phylogenetic Tree</a>
-          <div class="dropdown-divider show-for-seq"></div>
-          <a href="#" class="dropdown-item viewbutton show-for-seq" data-href="sequences">Sequences</a>
-          <a href="#" class="dropdown-item viewbutton show-for-seq" data-href="auditor">Auditor</a>
-        </div>
-      </li>
-      <li class="nav-item dropdown">
-        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Window</a>
-        <div class="dropdown-menu">
-          <a href="#" id="ReloadTab" class="dropdown-item">Reload</a>
-          <div class="dropdown-divider"></div>
-          <a href="#" id="FullScreenTab" class="dropdown-item">Toggle Full Screen</a>
-        </div>
-      </li>
-      <li class="nav-item dropdown">
-        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Help</a>
-        <div class="dropdown-menu">
-          <a href="#" id="HelpTab" class="viewbutton dropdown-item" data-href="help">Help</a>
-          <a href="https://github.com/CDCgov/MicrobeTrace/issues/new" class="dropdown-item ifOnline" target="_blank">Report Bug</a>
-          <div class="dropdown-divider ifOnline"></div>
-          <a href="#" id="AboutTab" class="dropdown-item" data-toggle="modal" data-target="#about-modal">About</a>
-        </div>
-      </li>
-    </ul>
-    <form class="navbar-form navbar-right" role="search">
-      <input type="search" id="search" class="form-control py-0" placeholder="Search" />
-    </form>
-  </nav>
+  <div class="nav-container">
+    <nav class="navbar fixed-top navbar-expand-xl navbar-light bg-light">
+      <ul class="nav mr-auto">
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">File</a>
+          <div class="dropdown-menu">
+            <a href="#" id="SaveDataTab" class="dropdown-item" data-toggle="modal" data-target="#session-save-modal">Save</a>
+            <div class="dropdown-divider"></div>
+            <a href="#" class="dropdown-item">
+              <input type="file" class="d-none" id="OpenTab" />
+              <label class="mb-0 w-100" for="OpenTab">Open</label>
+            </a>
+            <a href="#" id="FileTab" class="dropdown-item">New</a>
+          </div>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link py-0" data-toggle="modal" data-target="#global-settings-modal">Settings</a>
+        </li>
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">View</a>
+          <div class="dropdown-menu">
+            <a href="#" class="dropdown-item viewbutton" data-href="2d_network">2D Network</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="3d_network">3D Network</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="histogram">Histogram</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="table">Table</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="bubbles">Bubbles</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="flow_diagram">Flow Diagram</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="scatterplot">Scatterplot</a>
+            <!--a href="#" class="dropdown-item viewbutton" data-href="waterfall">Waterfall</a-->
+            <a href="#" class="dropdown-item viewbutton" data-href="geo_map">Map</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="gantt">Gantt</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="timeline">Timeline</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="heatmap">Heatmap</a>
+            <a href="#" class="dropdown-item viewbutton" data-href="phylogenetic_tree">Phylogenetic Tree</a>
+            <div class="dropdown-divider show-for-seq"></div>
+            <a href="#" class="dropdown-item viewbutton show-for-seq" data-href="sequences">Sequences</a>
+            <a href="#" class="dropdown-item viewbutton show-for-seq" data-href="auditor">Auditor</a>
+          </div>
+        </li>
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Window</a>
+          <div class="dropdown-menu">
+            <a href="#" id="ReloadTab" class="dropdown-item">Reload</a>
+            <div class="dropdown-divider"></div>
+            <a href="#" id="FullScreenTab" class="dropdown-item">Toggle Full Screen</a>
+          </div>
+        </li>
+        <li class="nav-item dropdown">
+          <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Help</a>
+          <div class="dropdown-menu">
+            <a href="#" id="HelpTab" class="viewbutton dropdown-item" data-href="help">Help</a>
+            <a href="https://github.com/CDCgov/MicrobeTrace/issues/new" class="dropdown-item ifOnline" target="_blank">Report Bug</a>
+            <div class="dropdown-divider ifOnline"></div>
+            <a href="#" id="AboutTab" class="dropdown-item" data-toggle="modal" data-target="#about-modal">About</a>
+          </div>
+        </li>
+      </ul>
+      <form class="navbar-form navbar-right" role="search">
+        <input type="search" id="search" class="form-control py-0" placeholder="Search" />
+      </form>
+    </nav>
+  </div>
 
   <div id="licenseAgreement" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="licenseAgreement">
     <div class="modal-dialog modal-lg" role="document">
@@ -115,6 +117,7 @@ performance of this software.</pre>
     </div><!-- /.modal-dialog -->
   </div><!-- /.modal -->
 
+<div class='body-container'>
   <div id="loading-information-modal" class="modal fade" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
@@ -392,6 +395,8 @@ performance of this software.</pre>
       </div>
     </div>
   </div>
+</div> <!-- .body-container end -->
+
 
   <script src="scripts/polyfills.js"></script>
   <script src="node_modules/underscore/underscore-min.js"></script>
@@ -427,6 +432,13 @@ performance of this software.</pre>
   <script>
   $(function(){
     'use strict';
+
+    if (navigator.userAgent.includes('MSIE') || navigator.appName.includes('Microsoft Internet Explorer')) {
+      const warningDiv = `<div class="ie-warning">
+      your terrible, unsupported, non-standards-compliant browser is rubbish and you should switch to literally anything else
+      </div>`
+      $('.nav-container').append(warningDiv);
+    }
 
     $.getJSON('package.json', function(r){
       app.manifest = r;

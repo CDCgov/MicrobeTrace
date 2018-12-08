@@ -7,11 +7,18 @@ html, body {
   overflow: hidden;
 }
 body {
-  display: flex;
   justify-content: center;
   align-items: center;
   padding-top: 42px;
   background-color: #f8f9fa;
+}
+.nav-container {
+  display: flex;
+
+}
+.body-container {
+  display: flex;
+
 }
 .navbar{
   padding: 0.25rem 0.25rem 0 0;
@@ -538,4 +545,12 @@ stroke: #CCC;
 /* Auditor */
 #auditor-panel{
   padding-top: 50px;
+}
+
+.ie-warning {
+  background-color: red;
+  color: white;
+  padding: 15px;
+  width: 100%;
+  text-align: center;
 }
