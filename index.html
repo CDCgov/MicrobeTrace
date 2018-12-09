@@ -435,7 +435,10 @@ performance of this software.</pre>
 
     if (navigator.userAgent.includes('MSIE') || navigator.appName.includes('Microsoft Internet Explorer')) {
       const warningDiv = `<div class="ie-warning">
-      your terrible, unsupported, non-standards-compliant browser is rubbish and you should switch to literally anything else
+      This page does not support Internet Explorer. To use MicrobeTRACE, please switch to one of the following browsers:
+      <a href='https://www.mozilla.org/en-US/firefox/new/'>Firefox</a> /
+      <a href='https://support.google.com/chrome/answer/95346?co=GENIE.Platform%3DDesktop&hl=en'>Chrome</a> /
+      <a href='https://support.apple.com/downloads/safari'>Safari</a>
       </div>`
       $('.nav-container').append(warningDiv);
     }

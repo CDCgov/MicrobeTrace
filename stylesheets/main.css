@@ -554,3 +554,11 @@ stroke: #CCC;
   width: 100%;
   text-align: center;
 }
+
+.ie-warning>a {
+  color: white;
+}
+
+.ie-warning>a:hover {
+  text-decoration: underline;
+}
