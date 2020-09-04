@@ -76,7 +76,7 @@
     "marked": "^0.7.0",
     "moment": "^2.25.3",
     "open-iconic": "^1.1.1",
-    "papaparse": "^4.6.3",
+    "papaparse": "^5.2.0",
     "patristic": "^0.5.5",
     "pdfmake": "^0.1.65",
     "plotly.js": "^1.54.1",
