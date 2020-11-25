@@ -7,18 +7,36 @@ onmessage = function (e) {
   let seqs = [], currentSeq = {};
   let lines = text.split(/[\r\n]+/g);
   let n = lines.length;
+  let header = true;
+  let firstSeq = true;
   for (let i = 0; i < n; i++) {
     let line = lines[i];
-    if (isblank.test(line) || line[0] == ';') continue;
-    if (line[0] == '#') {
-      if (i > 0) seqs.push(currentSeq);
-      currentSeq = {
-        id: line.slice(1),
-        seq: '#'
-      };
-    } else {
-      currentSeq.seq += line.toUpperCase();
+    if (isblank.test(line)) continue;
+
+    if (header && line.match(/^title/i)) {
+      header = false;
+      continue;
     }
+
+    if (!header) {
+      if (line[0] == "#") {
+
+        if (!firstSeq)
+          seqs.push(currentSeq);
+        else
+          firstSeq = false;
+
+        currentSeq = {
+          id: line.slice(1),
+          seq: '#'
+        };
+
+      } else {
+        currentSeq.seq += line.toUpperCase();
+      }
+    }
+
+
   }
   seqs.push(currentSeq);
   console.log('MEGA Parse time: ', (Date.now() - start).toLocaleString(), 'ms');
