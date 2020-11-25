@@ -16,7 +16,7 @@
         <button type="button" id="sequenceControlsButton" class="btn btn-default btn-nr floater" data-toggle="modal" data-target="#sequence-controls-modal">Sequence Controls</button>
       </div>
       <div class="col text-right">
-        <button id="launch" class="btn btn-success" title="Please select a Network CSV or FASTA File" disabled>Launch</button>
+        <button id="launch" class="btn btn-success" title="Please select a Network CSV, MEGA, or FASTA File" disabled>Launch</button>
       </div>
     </div>
   </div>
@@ -223,9 +223,9 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
               <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
               <div class="col-10">
                 <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
-                  <label class="btn btn-light active col" title="Load Reference from FASTA">
+                  <label class="btn btn-light active col" title="Load Reference from FASTA/MEGA">
                     <input type="radio" name="reference-source" id="reference-source-file" autocomplete="off" checked>
-                    Load From FASTA
+                    Load From FASTA/MEGA
                   </label>
                   <label class="btn btn-light col" title="Use First Sequence as Reference">
                     <input type="radio" name="reference-source" id="reference-source-first" autocomplete="off">
@@ -414,6 +414,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
     function addToTable(file) {
       const extension = file.extension ? file.extension : filterXSS(file.name).split('.').pop().toLowerCase();
       const isFasta = extension.indexOf('fas') > -1;
+      const isMega = extension.indexOf('meg') > -1;
       const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
       const isXL = (extension == 'xlsx' || extension == 'xls');
       const isNode = file.name.toLowerCase().includes('node');
@@ -453,17 +454,20 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
           .append('<span class="p-1">' + file.name + '</span>')
           .append(`
         <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
-          <label class="btn btn-light${!isFasta & !isNewick & !isNode ? ' active' : ''}">
-            <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${!isFasta & !isNewick & !isNode ? ' checked' : ''}>Link
+          <label class="btn btn-light${!isFasta & !isMega & !isNewick & !isNode ? ' active' : ''}">
+            <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${!isFasta & !isMega & !isNewick & !isNode ? ' checked' : ''}>Link
           </label>
-          <label class="btn btn-light${!isFasta & !isNewick & isNode ? ' active' : ''}">
-            <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${!isFasta & !isNewick & isNode ? ' checked' : ''}>Node
+          <label class="btn btn-light${!isFasta & !isMega & !isNewick & isNode ? ' active' : ''}">
+            <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${!isFasta & !isMega & !isNewick & isNode ? ' checked' : ''}>Node
           </label>
           <label class="btn btn-light">
             <input type="radio" name="options-${file.name}" data-type="matrix" autocomplete="off">Matrix
           </label>
           <label class="btn btn-light${isFasta ? ' active' : ''}">
             <input type="radio" name="options-${file.name}" data-type="fasta" autocomplete="off"${isFasta ? ' checked' : ''}>FASTA
+          </label>
+          <label class="btn btn-light${isMega ? ' active' : ''}">
+            <input type="radio" name="options-${file.name}" data-type="mega" autocomplete="off"${isMega ? ' checked' : ''}>MEGA
           </label>
           <label class="btn btn-light${isNewick ? ' active' : ''}">
             <input type="radio" name="options-${file.name}" data-type="newick" autocomplete="off"${isNewick ? ' checked' : ''}>Newick
@@ -474,15 +478,15 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
         let optionsrow = $('<div class="row w-100"></div>');
         let options = '<option>None</option>' + headers.map(h => `<option value="${h}">${MT.titleize(h)}</option>`).join('\n');
         optionsrow.append(`
-      <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
+      <div class='col-4 '${isFasta || isMega || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
         <label for="file-${file.name}-field-1">${isNode ? 'ID' : 'Source'}</label>
         <select id="file-${file.name}-field-1" class="form-control form-control-sm">${options}</select>
       </div>
-      <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
+      <div class='col-4 '${isFasta || isMega || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
         <label for="file-${file.name}-field-2">${isNode ? 'Sequence' : 'Target'}</label>
         <select id="file-${file.name}-field-2" class="form-control form-control-sm">${options}</select>
       </div>
-      <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
+      <div class='col-4 '${isFasta || isMega || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
         <label for="file-${file.name}-field-3">Distance</label>
         <select id="file-${file.name}-field-3" class="form-control form-control-sm">${options}</select>
       </div>
@@ -565,14 +569,35 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       });
     }
 
-    async function readFastas() {
-      const fastas = session.files.filter(f => f.extension.includes('fas'));
+    function sequenceFormat(contents) {
+      if (contents.match(/^\s*#mega$/im)) {
+        return "MEGA";
+      } else if (contents.match(/^\s*>/m)) {
+        return "FASTA";
+      } else {
+        return "UNKNOWN";
+      }
+    }
+
+    async function readSequences() {
+      const seqs = session.files.filter(f => f.extension.includes('fas') | f.extension.includes('meg'));
       const nodeCSVsWithSeqs = session.files.filter(f => f.format == "node" && f.field2 != "None" && f.field2 != "");
-      if (fastas.length == 0 && nodeCSVsWithSeqs.length == 0) return [];
+      if (seqs.length == 0 && nodeCSVsWithSeqs.length == 0) return [];
       let data = [];
-      for(let i = 0; i < fastas.length; i++){
-        let fasta = fastas[i];
-        let nodes = await MT.parseFASTA(fasta.contents);
+      for(let i = 0; i < seqs.length; i++){
+        let seq = seqs[i];
+        let nodes = [];
+
+        switch (sequenceFormat(seq.contents)) {
+          case "MEGA":
+            nodes = await MT.parseMEGA(seq.contents);
+            break;
+          case "FASTA":
+            nodes = await MT.parseFASTA(seq.contents);
+            break;
+          default:
+        }
+        
         data = data.concat(nodes);
       }
       // TODO: Cannot presently preview sequences in Node CSV/XLSX tables.
@@ -648,14 +673,29 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       let reader = new FileReader();
       reader.onloadend = e => {
         if (e.target.readyState == FileReader.DONE) {
-          MT.parseFASTA(e.target.result).then(nodes => {
-            $('#refSeqID')
-              .html(nodes.map((d, i) => `
-                <option value="${filterXSS(d.seq)}" ${i == 0 ? "selected" : ""}>${filterXSS(d.id)}</option>
-              `))
-              .trigger('change');
-          });
-          $('label[for="refSeqFileLoad"]').text(filterXSS(file.name));
+          switch (sequenceFormat(e.target.result)) {
+            case "MEGA":
+              MT.parseMEGA(e.target.result).then(nodes => {
+              $('#refSeqID')
+                .html(nodes.map((d, i) => `
+                  <option value="${filterXSS(d.seq)}" ${i == 0 ? "selected" : ""}>${filterXSS(d.id)}</option>
+                `))
+                .trigger('change');
+              });
+              $('label[for="refSeqFileLoad"]').text(filterXSS(file.name));
+              break;
+            case "FASTA":
+              MT.parseFASTA(e.target.result).then(nodes => {
+              $('#refSeqID')
+                .html(nodes.map((d, i) => `
+                  <option value="${filterXSS(d.seq)}" ${i == 0 ? "selected" : ""}>${filterXSS(d.id)}</option>
+                `))
+                .trigger('change');
+              });
+              $('label[for="refSeqFileLoad"]').text(filterXSS(file.name));
+              break;
+            default:
+          }
         }
       };
       reader.readAsText(file);
@@ -667,7 +707,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
     `).on('change', function(){ session.data.reference = this.value; });
 
     $('#sequenceControlsButton, #alignment-preview').on('click', () => {
-      readFastas().then(data => {
+      readSequences().then(data => {
         if(session.style.widgets['reference-source-first']){
           session.data.reference = nodes[0].seq;
         }
@@ -698,7 +738,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
     };
 
     $('#audit-launcher').on('click', () => {
-      readFastas().then(data => {
+      readSequences().then(data => {
         const start = Date.now();
         const isGaps = /^-+$/;
         const isRNA = /^[ACGURYMKWSBDHVN-]+$/;
@@ -856,10 +896,10 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       const nFiles = session.files.length - 1;
       const check = nFiles > 0;
 
-      const hierarchy = ['newick', 'matrix', 'link', 'node', 'fasta'];
+      const hierarchy = ['newick', 'matrix', 'link', 'node', 'fasta', 'mega'];
       session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
-      session.meta.anySequences = session.files.some(file => (file.format == "fasta") || (file.format == "node" && file.field2 !== "None"));
+      session.meta.anySequences = session.files.some(file => (file.format == "fasta") || (file.format == "mega") || (file.format == "node" && file.field2 !== "None"));
 
       session.files.forEach((file, fileNum) => {
         const start = Date.now();
@@ -882,6 +922,26 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
             }
             console.log('FASTA Merge time:', (Date.now() - start).toLocaleString(), 'ms');
             message(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from FASTA.`);
+            if (fileNum == nFiles) processSequences();
+          });
+
+        } else if (file.format == 'mega') {
+
+          message(`Parsing ${file.name} as MEGA...`);
+          let newNodes = 0;
+          MT.parseMEGA(file.contents).then(seqs => {
+            const n = seqs.length;
+            for (let i = 0; i < n; i++) {
+              let node = seqs[i];
+              if (!node) continue;
+              newNodes += MT.addNode({
+                _id: filterXSS(node.id),
+                seq: filterXSS(node.seq),
+                origin: origin
+              }, check);
+            }
+            console.log('MEGA Merge time:', (Date.now() - start).toLocaleString(), 'ms');
+            message(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from MEGA.`);
             if (fileNum == nFiles) processSequences();
           });
 
