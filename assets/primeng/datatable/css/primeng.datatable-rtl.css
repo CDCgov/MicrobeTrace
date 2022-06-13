@@ -1,0 +1,187 @@
+.primeng-datatable-container {
+    width: 100%;
+}
+
+    .primeng-datatable-container .ui-table div.ui-chkbox-box {
+        display: inline-block !important;
+        position: relative !important;
+        cursor: pointer !important;
+        font-size: 1rem !important;
+        transition: all .3s !important;
+    }
+
+        .primeng-datatable-container .ui-table div.ui-chkbox-box span {
+            display: block;
+            border-radius: 3px;
+            background: 100% 0;
+            position: absolute;
+            right: -3px;
+            height: 18px;
+            width: 18px;
+        }
+
+            .primeng-datatable-container .ui-table div.ui-chkbox-box span.fa-check:before {
+                margin-right: -3px;
+                font-size: 12px !important;
+                top: -2px !important;
+                position: relative;
+            }
+
+    .primeng-datatable-container .ui-table th {
+        font-family: 'Poppins', 'Roboto';
+        border: none !important;
+        padding: 10px 10px 10px 0px !important;
+        text-align: right;
+        font-weight: 600 !important;
+    }
+
+    .primeng-datatable-container .ui-table td {
+        font-family: 'Poppins', 'Roboto';
+        border: none !important;
+        padding: 8px 10px !important;
+    }
+
+    .primeng-datatable-container .ui-table table {
+        table-layout: fixed;
+    }
+
+        .primeng-datatable-container .ui-table table th,
+        .primeng-datatable-container .ui-table table td {
+            overflow-wrap: break-word;
+        }
+
+            .primeng-datatable-container .ui-table table td .dropdown-menu li {
+                white-space: nowrap;
+            }
+
+        .primeng-datatable-container .ui-table table thead tr {
+            vertical-align: middle !important;
+        }
+
+            .primeng-datatable-container .ui-table table thead tr th {
+                font-size: 14px;
+                font-family: Poppins;
+                font-weight: 300;
+                line-height: 21px;
+                vertical-align: middle;
+            }
+
+        .primeng-datatable-container .ui-table table tbody {
+            border: none !important;
+        }
+
+            .primeng-datatable-container .ui-table table tbody tr.ui-widget-content {
+                border: none !important;
+            }
+
+            .primeng-datatable-container .ui-table table tbody tr td:last-child {
+                border-left: 0 !important;
+            }
+
+    .primeng-datatable-container .primeng-paging-container {
+        padding: 6px;
+        border-top: 0;
+    }
+
+        .primeng-datatable-container .primeng-paging-container .ui-paginator {
+            text-align: left;
+            border: none !important;
+        }
+
+            .primeng-datatable-container .primeng-paging-container .ui-paginator span {
+                padding: 0px;
+            }
+
+                .primeng-datatable-container .primeng-paging-container .ui-paginator span a {
+                    padding-top: 8px;
+                    cursor: pointer !important;
+                    margin-left: 5px !important;
+                }
+
+                    .primeng-datatable-container .primeng-paging-container .ui-paginator span a:last-child {
+                        margin-left: 0px !important;
+                    }
+
+            .primeng-datatable-container .primeng-paging-container .ui-paginator a {
+                display: inline-block;
+                cursor: pointer !important;
+                height: 2.25rem;
+                width: 2.25rem;
+                padding: 0;
+                padding-top: 8px;
+                -webkit-border-radius: 50%;
+                -moz-border-radius: 50%;
+                -ms-border-radius: 50%;
+                -o-border-radius: 50%;
+                border-radius: 50%;
+                position: relative;
+                -webkit-justify-content: center;
+                -moz-justify-content: center;
+                -ms-justify-content: center;
+                justify-content: center;
+                -webkit-align-items: center;
+                -moz-align-items: center;
+                -ms-align-items: center;
+                align-items: center;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 1rem;
+                line-height: 1rem;
+                font-weight: 400;
+                opacity: 1 !important;
+            }
+
+                .primeng-datatable-container .primeng-paging-container .ui-paginator a.ui-paginator-first span.fa-step-backward:before {
+                    content: "\f100" !important;
+                }
+
+                .primeng-datatable-container .primeng-paging-container .ui-paginator a.ui-paginator-prev span.fa-backward:before {
+                    content: "\f104" !important;
+                }
+
+                .primeng-datatable-container .primeng-paging-container .ui-paginator a.ui-paginator-next span.fa-forward:before {
+                    content: "\f105" !important;
+                }
+
+                .primeng-datatable-container .primeng-paging-container .ui-paginator a.ui-paginator-last span.fa-step-forward:before {
+                    content: "\f101" !important;
+                }
+
+            .primeng-datatable-container .primeng-paging-container .ui-paginator .ui-paginator-rpp-options {
+                float: right;
+                margin-right: 100px;
+            }
+
+.ui-paginator .ui-paginator-page, .ui-paginator .ui-paginator-pages, .ui-paginator .ui-paginator-next, .ui-paginator .ui-paginator-last, .ui-paginator .ui-paginator-first, .ui-paginator .ui-paginator-prev, .ui-paginator .ui-paginator-current {
+    height: 2.5em;
+}
+
+.primeng-datatable-container .total-records-count {
+    float: right;
+    position: relative;
+    bottom: 26px;
+}
+
+.primeng-datatable-container .ui-table-footer {
+    text-align: right;
+    border-top: 0;
+    padding: .75em 1.25em !important;
+}
+
+.primeng-datatable-container .ui-table-resizable {
+    padding-bottom: 0px !important;
+}
+
+.primeng-datatable-container .ui-table-loading-content {
+    display: none;
+}
+
+.primeng-datatable-container .ui-table-scrollable-header {
+    border: 0;
+}
+
+.primeng-datatable-container .primeng-no-data {
+    border: 1px solid #f4f5f8;
+    padding: 10px;
+    text-align: center;
+}

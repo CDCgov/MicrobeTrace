@@ -1,0 +1,3236 @@
+﻿jurisdiction_com_code,jurisdiction_com_name,subjurisdiction_name,subjurisdiction_code
+AK,Alaska,Aleutians East,013
+AK,Alaska,Aleutians West,016
+AK,Alaska,Anchorage,020
+AK,Alaska,Bethel,050
+AK,Alaska,Bristol Bay,060
+AK,Alaska,Denali,068
+AK,Alaska,Dillingham,070
+AK,Alaska,Fairbanks North Star,090
+AK,Alaska,Haines,100
+AK,Alaska,Hoonah-Angoon,105
+AK,Alaska,Juneau,110
+AK,Alaska,Kenai Peninsula,122
+AK,Alaska,Ketchikan Gateway,130
+AK,Alaska,Kodiak Island,150
+AK,Alaska,Kusilvak,158
+AK,Alaska,Lake and Peninsula,164
+AK,Alaska,Matanuska-Susitna,170
+AK,Alaska,Nome,180
+AK,Alaska,North Slope,185
+AK,Alaska,Northwest Arctic,188
+AK,Alaska,Petersburg,195
+AK,Alaska,Prince of Wales-Hyder,198
+AK,Alaska,Sitka,220
+AK,Alaska,Skagway,230
+AK,Alaska,Southeast Fairbanks,240
+AK,Alaska,Valdez-Cordova,261
+AK,Alaska,Wrangell,275
+AK,Alaska,Yakutat,282
+AK,Alaska,Yukon-Koyukuk,290
+AL,Alabama,Autauga,001
+AL,Alabama,Baldwin,003
+AL,Alabama,Barbour,005
+AL,Alabama,Bibb,007
+AL,Alabama,Blount,009
+AL,Alabama,Bullock,011
+AL,Alabama,Butler,013
+AL,Alabama,Calhoun,015
+AL,Alabama,Chambers,017
+AL,Alabama,Cherokee,019
+AL,Alabama,Chilton,021
+AL,Alabama,Choctaw,023
+AL,Alabama,Clarke,025
+AL,Alabama,Clay,027
+AL,Alabama,Cleburne,029
+AL,Alabama,Coffee,031
+AL,Alabama,Colbert,033
+AL,Alabama,Conecuh,035
+AL,Alabama,Coosa,037
+AL,Alabama,Covington,039
+AL,Alabama,Crenshaw,041
+AL,Alabama,Cullman,043
+AL,Alabama,Dale,045
+AL,Alabama,Dallas,047
+AL,Alabama,DeKalb,049
+AL,Alabama,Elmore,051
+AL,Alabama,Escambia,053
+AL,Alabama,Etowah,055
+AL,Alabama,Fayette,057
+AL,Alabama,Franklin,059
+AL,Alabama,Geneva,061
+AL,Alabama,Greene,063
+AL,Alabama,Hale,065
+AL,Alabama,Henry,067
+AL,Alabama,Houston,069
+AL,Alabama,Jackson,071
+AL,Alabama,Jefferson,073
+AL,Alabama,Lamar,075
+AL,Alabama,Lauderdale,077
+AL,Alabama,Lawrence,079
+AL,Alabama,Lee,081
+AL,Alabama,Limestone,083
+AL,Alabama,Lowndes,085
+AL,Alabama,Macon,087
+AL,Alabama,Madison,089
+AL,Alabama,Marengo,091
+AL,Alabama,Marion,093
+AL,Alabama,Marshall,095
+AL,Alabama,Mobile,097
+AL,Alabama,Monroe,099
+AL,Alabama,Montgomery,101
+AL,Alabama,Morgan,103
+AL,Alabama,Perry,105
+AL,Alabama,Pickens,107
+AL,Alabama,Pike,109
+AL,Alabama,Randolph,111
+AL,Alabama,Russell,113
+AL,Alabama,St. Clair,115
+AL,Alabama,Shelby,117
+AL,Alabama,Sumter,119
+AL,Alabama,Talladega,121
+AL,Alabama,Tallapoosa,123
+AL,Alabama,Tuscaloosa,125
+AL,Alabama,Walker,127
+AL,Alabama,Washington,129
+AL,Alabama,Wilcox,131
+AL,Alabama,Winston,133
+AR,Arkansas,Arkansas,001
+AR,Arkansas,Ashley,003
+AR,Arkansas,Baxter,005
+AR,Arkansas,Benton,007
+AR,Arkansas,Boone,009
+AR,Arkansas,Bradley,011
+AR,Arkansas,Calhoun,013
+AR,Arkansas,Carroll,015
+AR,Arkansas,Chicot,017
+AR,Arkansas,Clark,019
+AR,Arkansas,Clay,021
+AR,Arkansas,Cleburne,023
+AR,Arkansas,Cleveland,025
+AR,Arkansas,Columbia,027
+AR,Arkansas,Conway,029
+AR,Arkansas,Craighead,031
+AR,Arkansas,Crawford,033
+AR,Arkansas,Crittenden,035
+AR,Arkansas,Cross,037
+AR,Arkansas,Dallas,039
+AR,Arkansas,Desha,041
+AR,Arkansas,Drew,043
+AR,Arkansas,Faulkner,045
+AR,Arkansas,Franklin,047
+AR,Arkansas,Fulton,049
+AR,Arkansas,Garland,051
+AR,Arkansas,Grant,053
+AR,Arkansas,Greene,055
+AR,Arkansas,Hempstead,057
+AR,Arkansas,Hot Spring,059
+AR,Arkansas,Howard,061
+AR,Arkansas,Independence,063
+AR,Arkansas,Izard,065
+AR,Arkansas,Jackson,067
+AR,Arkansas,Jefferson,069
+AR,Arkansas,Johnson,071
+AR,Arkansas,Lafayette,073
+AR,Arkansas,Lawrence,075
+AR,Arkansas,Lee,077
+AR,Arkansas,Lincoln,079
+AR,Arkansas,Little River,081
+AR,Arkansas,Logan,083
+AR,Arkansas,Lonoke,085
+AR,Arkansas,Madison,087
+AR,Arkansas,Marion,089
+AR,Arkansas,Miller,091
+AR,Arkansas,Mississippi,093
+AR,Arkansas,Monroe,095
+AR,Arkansas,Montgomery,097
+AR,Arkansas,Nevada,099
+AR,Arkansas,Newton,101
+AR,Arkansas,Ouachita,103
+AR,Arkansas,Perry,105
+AR,Arkansas,Phillips,107
+AR,Arkansas,Pike,109
+AR,Arkansas,Poinsett,111
+AR,Arkansas,Polk,113
+AR,Arkansas,Pope,115
+AR,Arkansas,Prairie,117
+AR,Arkansas,Pulaski,119
+AR,Arkansas,Randolph,121
+AR,Arkansas,St. Francis,123
+AR,Arkansas,Saline,125
+AR,Arkansas,Scott,127
+AR,Arkansas,Searcy,129
+AR,Arkansas,Sebastian,131
+AR,Arkansas,Sevier,133
+AR,Arkansas,Sharp,135
+AR,Arkansas,Stone,137
+AR,Arkansas,Union,139
+AR,Arkansas,Van Buren,141
+AR,Arkansas,Washington,143
+AR,Arkansas,White,145
+AR,Arkansas,Woodruff,147
+AR,Arkansas,Yell,149
+AS,American Samoa,Eastern,010
+AS,American Samoa,Manu'a,020
+AS,American Samoa,Western,050
+AZ,Arizona,Apache,001
+AZ,Arizona,Cochise,003
+AZ,Arizona,Coconino,005
+AZ,Arizona,Gila,007
+AZ,Arizona,Graham,009
+AZ,Arizona,Greenlee,011
+AZ,Arizona,La Paz,012
+AZ,Arizona,Maricopa,013
+AZ,Arizona,Mohave,015
+AZ,Arizona,Navajo,017
+AZ,Arizona,Pima,019
+AZ,Arizona,Pinal,021
+AZ,Arizona,Santa Cruz,023
+AZ,Arizona,Yavapai,025
+AZ,Arizona,Yuma,027
+CA,California,Alameda,001
+CA,California,Alpine,003
+CA,California,Amador,005
+CA,California,Butte,007
+CA,California,Calaveras,009
+CA,California,Colusa,011
+CA,California,Contra Costa,013
+CA,California,Del Norte,015
+CA,California,El Dorado,017
+CA,California,Fresno,019
+CA,California,Glenn,021
+CA,California,Humboldt,023
+CA,California,Imperial,025
+CA,California,Inyo,027
+CA,California,Kern,029
+CA,California,Kings,031
+CA,California,Lake,033
+CA,California,Lassen,035
+CA,California,Los Angeles,037
+CA,California,Madera,039
+CA,California,Marin,041
+CA,California,Mariposa,043
+CA,California,Mendocino,045
+CA,California,Merced,047
+CA,California,Modoc,049
+CA,California,Mono,051
+CA,California,Monterey,053
+CA,California,Napa,055
+CA,California,Nevada,057
+CA,California,Orange,059
+CA,California,Placer,061
+CA,California,Plumas,063
+CA,California,Riverside,065
+CA,California,Sacramento,067
+CA,California,San Benito,069
+CA,California,San Bernardino,071
+CA,California,San Diego,073
+CA,California,San Francisco,075
+CA,California,San Joaquin,077
+CA,California,San Luis Obispo,079
+CA,California,San Mateo,081
+CA,California,Santa Barbara,083
+CA,California,Santa Clara,085
+CA,California,Santa Cruz,087
+CA,California,Shasta,089
+CA,California,Sierra,091
+CA,California,Siskiyou,093
+CA,California,Solano,095
+CA,California,Sonoma,097
+CA,California,Stanislaus,099
+CA,California,Sutter,101
+CA,California,Tehama,103
+CA,California,Trinity,105
+CA,California,Tulare,107
+CA,California,Tuolumne,109
+CA,California,Ventura,111
+CA,California,Yolo,113
+CA,California,Yuba,115
+CHI,Chicago,Cook,031
+CO,Colorado,Adams,001
+CO,Colorado,Alamosa,003
+CO,Colorado,Arapahoe,005
+CO,Colorado,Archuleta,007
+CO,Colorado,Baca,009
+CO,Colorado,Bent,011
+CO,Colorado,Boulder,013
+CO,Colorado,Broomfield,014
+CO,Colorado,Chaffee,015
+CO,Colorado,Cheyenne,017
+CO,Colorado,Clear Creek,019
+CO,Colorado,Conejos,021
+CO,Colorado,Costilla,023
+CO,Colorado,Crowley,025
+CO,Colorado,Custer,027
+CO,Colorado,Delta,029
+CO,Colorado,Denver,031
+CO,Colorado,Dolores,033
+CO,Colorado,Douglas,035
+CO,Colorado,Eagle,037
+CO,Colorado,Elbert,039
+CO,Colorado,El Paso,041
+CO,Colorado,Fremont,043
+CO,Colorado,Garfield,045
+CO,Colorado,Gilpin,047
+CO,Colorado,Grand,049
+CO,Colorado,Gunnison,051
+CO,Colorado,Hinsdale,053
+CO,Colorado,Huerfano,055
+CO,Colorado,Jackson,057
+CO,Colorado,Jefferson,059
+CO,Colorado,Kiowa,061
+CO,Colorado,Kit Carson,063
+CO,Colorado,Lake,065
+CO,Colorado,La Plata,067
+CO,Colorado,Larimer,069
+CO,Colorado,Las Animas,071
+CO,Colorado,Lincoln,073
+CO,Colorado,Logan,075
+CO,Colorado,Mesa,077
+CO,Colorado,Mineral,079
+CO,Colorado,Moffat,081
+CO,Colorado,Montezuma,083
+CO,Colorado,Montrose,085
+CO,Colorado,Morgan,087
+CO,Colorado,Otero,089
+CO,Colorado,Ouray,091
+CO,Colorado,Park,093
+CO,Colorado,Phillips,095
+CO,Colorado,Pitkin,097
+CO,Colorado,Prowers,099
+CO,Colorado,Pueblo,101
+CO,Colorado,Rio Blanco,103
+CO,Colorado,Rio Grande,105
+CO,Colorado,Routt,107
+CO,Colorado,Saguache,109
+CO,Colorado,San Juan,111
+CO,Colorado,San Miguel,113
+CO,Colorado,Sedgwick,115
+CO,Colorado,Summit,117
+CO,Colorado,Teller,119
+CO,Colorado,Washington,121
+CO,Colorado,Weld,123
+CO,Colorado,Yuma,125
+CT,Connecticut,Fairfield,001
+CT,Connecticut,Hartford,003
+CT,Connecticut,Litchfield,005
+CT,Connecticut,Middlesex,007
+CT,Connecticut,New Haven,009
+CT,Connecticut,New London,011
+CT,Connecticut,Tolland,013
+CT,Connecticut,Windham,015
+DC,District of Columbia,District of Columbia,001
+DE,Delaware,Kent,001
+DE,Delaware,New Castle,003
+DE,Delaware,Sussex,005
+FL,Florida,Alachua,001
+FL,Florida,Baker,003
+FL,Florida,Bay,005
+FL,Florida,Bradford,007
+FL,Florida,Brevard,009
+FL,Florida,Broward,011
+FL,Florida,Calhoun,013
+FL,Florida,Charlotte,015
+FL,Florida,Citrus,017
+FL,Florida,Clay,019
+FL,Florida,Collier,021
+FL,Florida,Columbia,023
+FL,Florida,DeSoto,027
+FL,Florida,Dixie,029
+FL,Florida,Duval,031
+FL,Florida,Escambia,033
+FL,Florida,Flagler,035
+FL,Florida,Franklin,037
+FL,Florida,Gadsden,039
+FL,Florida,Gilchrist,041
+FL,Florida,Glades,043
+FL,Florida,Gulf,045
+FL,Florida,Hamilton,047
+FL,Florida,Hardee,049
+FL,Florida,Hendry,051
+FL,Florida,Hernando,053
+FL,Florida,Highlands,055
+FL,Florida,Hillsborough,057
+FL,Florida,Holmes,059
+FL,Florida,Indian River,061
+FL,Florida,Jackson,063
+FL,Florida,Jefferson,065
+FL,Florida,Lafayette,067
+FL,Florida,Lake,069
+FL,Florida,Lee,071
+FL,Florida,Leon,073
+FL,Florida,Levy,075
+FL,Florida,Liberty,077
+FL,Florida,Madison,079
+FL,Florida,Manatee,081
+FL,Florida,Marion,083
+FL,Florida,Martin,085
+FL,Florida,Miami-Dade,086
+FL,Florida,Monroe,087
+FL,Florida,Nassau,089
+FL,Florida,Okaloosa,091
+FL,Florida,Okeechobee,093
+FL,Florida,Orange,095
+FL,Florida,Osceola,097
+FL,Florida,Palm Beach,099
+FL,Florida,Pasco,101
+FL,Florida,Pinellas,103
+FL,Florida,Polk,105
+FL,Florida,Putnam,107
+FL,Florida,St. Johns,109
+FL,Florida,St. Lucie,111
+FL,Florida,Santa Rosa,113
+FL,Florida,Sarasota,115
+FL,Florida,Seminole,117
+FL,Florida,Sumter,119
+FL,Florida,Suwannee,121
+FL,Florida,Taylor,123
+FL,Florida,Union,125
+FL,Florida,Volusia,127
+FL,Florida,Wakulla,129
+FL,Florida,Walton,131
+FL,Florida,Washington,133
+FM,Federated States of Micronesia,NULL,NULL
+GA,Georgia,Appling,001
+GA,Georgia,Atkinson,003
+GA,Georgia,Bacon,005
+GA,Georgia,Baker,007
+GA,Georgia,Baldwin,009
+GA,Georgia,Banks,011
+GA,Georgia,Barrow,013
+GA,Georgia,Bartow,015
+GA,Georgia,Ben Hill,017
+GA,Georgia,Berrien,019
+GA,Georgia,Bibb,021
+GA,Georgia,Bleckley,023
+GA,Georgia,Brantley,025
+GA,Georgia,Brooks,027
+GA,Georgia,Bryan,029
+GA,Georgia,Bulloch,031
+GA,Georgia,Burke,033
+GA,Georgia,Butts,035
+GA,Georgia,Calhoun,037
+GA,Georgia,Camden,039
+GA,Georgia,Candler,043
+GA,Georgia,Carroll,045
+GA,Georgia,Catoosa,047
+GA,Georgia,Charlton,049
+GA,Georgia,Chatham,051
+GA,Georgia,Chattahoochee,053
+GA,Georgia,Chattooga,055
+GA,Georgia,Cherokee,057
+GA,Georgia,Clarke,059
+GA,Georgia,Clay,061
+GA,Georgia,Clayton,063
+GA,Georgia,Clinch,065
+GA,Georgia,Cobb,067
+GA,Georgia,Coffee,069
+GA,Georgia,Colquitt,071
+GA,Georgia,Columbia,073
+GA,Georgia,Cook,075
+GA,Georgia,Coweta,077
+GA,Georgia,Crawford,079
+GA,Georgia,Crisp,081
+GA,Georgia,Dade,083
+GA,Georgia,Dawson,085
+GA,Georgia,Decatur,087
+GA,Georgia,DeKalb,089
+GA,Georgia,Dodge,091
+GA,Georgia,Dooly,093
+GA,Georgia,Dougherty,095
+GA,Georgia,Douglas,097
+GA,Georgia,Early,099
+GA,Georgia,Echols,101
+GA,Georgia,Effingham,103
+GA,Georgia,Elbert,105
+GA,Georgia,Emanuel,107
+GA,Georgia,Evans,109
+GA,Georgia,Fannin,111
+GA,Georgia,Fayette,113
+GA,Georgia,Floyd,115
+GA,Georgia,Forsyth,117
+GA,Georgia,Franklin,119
+GA,Georgia,Fulton,121
+GA,Georgia,Gilmer,123
+GA,Georgia,Glascock,125
+GA,Georgia,Glynn,127
+GA,Georgia,Gordon,129
+GA,Georgia,Grady,131
+GA,Georgia,Greene,133
+GA,Georgia,Gwinnett,135
+GA,Georgia,Habersham,137
+GA,Georgia,Hall,139
+GA,Georgia,Hancock,141
+GA,Georgia,Haralson,143
+GA,Georgia,Harris,145
+GA,Georgia,Hart,147
+GA,Georgia,Heard,149
+GA,Georgia,Henry,151
+GA,Georgia,Houston,153
+GA,Georgia,Irwin,155
+GA,Georgia,Jackson,157
+GA,Georgia,Jasper,159
+GA,Georgia,Jeff Davis,161
+GA,Georgia,Jefferson,163
+GA,Georgia,Jenkins,165
+GA,Georgia,Johnson,167
+GA,Georgia,Jones,169
+GA,Georgia,Lamar,171
+GA,Georgia,Lanier,173
+GA,Georgia,Laurens,175
+GA,Georgia,Lee,177
+GA,Georgia,Liberty,179
+GA,Georgia,Lincoln,181
+GA,Georgia,Long,183
+GA,Georgia,Lowndes,185
+GA,Georgia,Lumpkin,187
+GA,Georgia,McDuffie,189
+GA,Georgia,McIntosh,191
+GA,Georgia,Macon,193
+GA,Georgia,Madison,195
+GA,Georgia,Marion,197
+GA,Georgia,Meriwether,199
+GA,Georgia,Miller,201
+GA,Georgia,Mitchell,205
+GA,Georgia,Monroe,207
+GA,Georgia,Montgomery,209
+GA,Georgia,Morgan,211
+GA,Georgia,Murray,213
+GA,Georgia,Muscogee,215
+GA,Georgia,Newton,217
+GA,Georgia,Oconee,219
+GA,Georgia,Oglethorpe,221
+GA,Georgia,Paulding,223
+GA,Georgia,Peach,225
+GA,Georgia,Pickens,227
+GA,Georgia,Pierce,229
+GA,Georgia,Pike,231
+GA,Georgia,Polk,233
+GA,Georgia,Pulaski,235
+GA,Georgia,Putnam,237
+GA,Georgia,Quitman,239
+GA,Georgia,Rabun,241
+GA,Georgia,Randolph,243
+GA,Georgia,Richmond,245
+GA,Georgia,Rockdale,247
+GA,Georgia,Schley,249
+GA,Georgia,Screven,251
+GA,Georgia,Seminole,253
+GA,Georgia,Spalding,255
+GA,Georgia,Stephens,257
+GA,Georgia,Stewart,259
+GA,Georgia,Sumter,261
+GA,Georgia,Talbot,263
+GA,Georgia,Taliaferro,265
+GA,Georgia,Tattnall,267
+GA,Georgia,Taylor,269
+GA,Georgia,Telfair,271
+GA,Georgia,Terrell,273
+GA,Georgia,Thomas,275
+GA,Georgia,Tift,277
+GA,Georgia,Toombs,279
+GA,Georgia,Towns,281
+GA,Georgia,Treutlen,283
+GA,Georgia,Troup,285
+GA,Georgia,Turner,287
+GA,Georgia,Twiggs,289
+GA,Georgia,Union,291
+GA,Georgia,Upson,293
+GA,Georgia,Walker,295
+GA,Georgia,Walton,297
+GA,Georgia,Ware,299
+GA,Georgia,Warren,301
+GA,Georgia,Washington,303
+GA,Georgia,Wayne,305
+GA,Georgia,Webster,307
+GA,Georgia,Wheeler,309
+GA,Georgia,White,311
+GA,Georgia,Whitfield,313
+GA,Georgia,Wilcox,315
+GA,Georgia,Wilkes,317
+GA,Georgia,Wilkinson,319
+GA,Georgia,Worth,321
+GU,Guam,Guam,010
+HI,Hawaii,Hawaii,001
+HI,Hawaii,Honolulu,003
+HI,Hawaii,Kalawao,005
+HI,Hawaii,Kauai,007
+HI,Hawaii,Maui,009
+IA,Iowa,Adair,001
+IA,Iowa,Adams,003
+IA,Iowa,Allamakee,005
+IA,Iowa,Appanoose,007
+IA,Iowa,Audubon,009
+IA,Iowa,Benton,011
+IA,Iowa,Black Hawk,013
+IA,Iowa,Boone,015
+IA,Iowa,Bremer,017
+IA,Iowa,Buchanan,019
+IA,Iowa,Buena Vista,021
+IA,Iowa,Butler,023
+IA,Iowa,Calhoun,025
+IA,Iowa,Carroll,027
+IA,Iowa,Cass,029
+IA,Iowa,Cedar,031
+IA,Iowa,Cerro Gordo,033
+IA,Iowa,Cherokee,035
+IA,Iowa,Chickasaw,037
+IA,Iowa,Clarke,039
+IA,Iowa,Clay,041
+IA,Iowa,Clayton,043
+IA,Iowa,Clinton,045
+IA,Iowa,Crawford,047
+IA,Iowa,Dallas,049
+IA,Iowa,Davis,051
+IA,Iowa,Decatur,053
+IA,Iowa,Delaware,055
+IA,Iowa,Des Moines,057
+IA,Iowa,Dickinson,059
+IA,Iowa,Dubuque,061
+IA,Iowa,Emmet,063
+IA,Iowa,Fayette,065
+IA,Iowa,Floyd,067
+IA,Iowa,Franklin,069
+IA,Iowa,Fremont,071
+IA,Iowa,Greene,073
+IA,Iowa,Grundy,075
+IA,Iowa,Guthrie,077
+IA,Iowa,Hamilton,079
+IA,Iowa,Hancock,081
+IA,Iowa,Hardin,083
+IA,Iowa,Harrison,085
+IA,Iowa,Henry,087
+IA,Iowa,Howard,089
+IA,Iowa,Humboldt,091
+IA,Iowa,Ida,093
+IA,Iowa,Iowa,095
+IA,Iowa,Jackson,097
+IA,Iowa,Jasper,099
+IA,Iowa,Jefferson,101
+IA,Iowa,Johnson,103
+IA,Iowa,Jones,105
+IA,Iowa,Keokuk,107
+IA,Iowa,Kossuth,109
+IA,Iowa,Lee,111
+IA,Iowa,Linn,113
+IA,Iowa,Louisa,115
+IA,Iowa,Lucas,117
+IA,Iowa,Lyon,119
+IA,Iowa,Madison,121
+IA,Iowa,Mahaska,123
+IA,Iowa,Marion,125
+IA,Iowa,Marshall,127
+IA,Iowa,Mills,129
+IA,Iowa,Mitchell,131
+IA,Iowa,Monona,133
+IA,Iowa,Monroe,135
+IA,Iowa,Montgomery,137
+IA,Iowa,Muscatine,139
+IA,Iowa,O'Brien,141
+IA,Iowa,Osceola,143
+IA,Iowa,Page,145
+IA,Iowa,Palo Alto,147
+IA,Iowa,Plymouth,149
+IA,Iowa,Pocahontas,151
+IA,Iowa,Polk,153
+IA,Iowa,Pottawattamie,155
+IA,Iowa,Poweshiek,157
+IA,Iowa,Ringgold,159
+IA,Iowa,Sac,161
+IA,Iowa,Scott,163
+IA,Iowa,Shelby,165
+IA,Iowa,Sioux,167
+IA,Iowa,Story,169
+IA,Iowa,Tama,171
+IA,Iowa,Taylor,173
+IA,Iowa,Union,175
+IA,Iowa,Van Buren,177
+IA,Iowa,Wapello,179
+IA,Iowa,Warren,181
+IA,Iowa,Washington,183
+IA,Iowa,Wayne,185
+IA,Iowa,Webster,187
+IA,Iowa,Winnebago,189
+IA,Iowa,Winneshiek,191
+IA,Iowa,Woodbury,193
+IA,Iowa,Worth,195
+IA,Iowa,Wright,197
+ID,Idaho,Ada,001
+ID,Idaho,Adams,003
+ID,Idaho,Bannock,005
+ID,Idaho,Bear Lake,007
+ID,Idaho,Benewah,009
+ID,Idaho,Bingham,011
+ID,Idaho,Blaine,013
+ID,Idaho,Boise,015
+ID,Idaho,Bonner,017
+ID,Idaho,Bonneville,019
+ID,Idaho,Boundary,021
+ID,Idaho,Butte,023
+ID,Idaho,Camas,025
+ID,Idaho,Canyon,027
+ID,Idaho,Caribou,029
+ID,Idaho,Cassia,031
+ID,Idaho,Clark,033
+ID,Idaho,Clearwater,035
+ID,Idaho,Custer,037
+ID,Idaho,Elmore,039
+ID,Idaho,Franklin,041
+ID,Idaho,Fremont,043
+ID,Idaho,Gem,045
+ID,Idaho,Gooding,047
+ID,Idaho,Idaho,049
+ID,Idaho,Jefferson,051
+ID,Idaho,Jerome,053
+ID,Idaho,Kootenai,055
+ID,Idaho,Latah,057
+ID,Idaho,Lemhi,059
+ID,Idaho,Lewis,061
+ID,Idaho,Lincoln,063
+ID,Idaho,Madison,065
+ID,Idaho,Minidoka,067
+ID,Idaho,Nez Perce,069
+ID,Idaho,Oneida,071
+ID,Idaho,Owyhee,073
+ID,Idaho,Payette,075
+ID,Idaho,Power,077
+ID,Idaho,Shoshone,079
+ID,Idaho,Teton,081
+ID,Idaho,Twin Falls,083
+ID,Idaho,Valley,085
+ID,Idaho,Washington,087
+IL,Illinois,Adams,001
+IL,Illinois,Alexander,003
+IL,Illinois,Bond,005
+IL,Illinois,Boone,007
+IL,Illinois,Brown,009
+IL,Illinois,Bureau,011
+IL,Illinois,Calhoun,013
+IL,Illinois,Carroll,015
+IL,Illinois,Cass,017
+IL,Illinois,Champaign,019
+IL,Illinois,Christian,021
+IL,Illinois,Clark,023
+IL,Illinois,Clay,025
+IL,Illinois,Clinton,027
+IL,Illinois,Coles,029
+IL,Illinois,Cook,031
+IL,Illinois,Crawford,033
+IL,Illinois,Cumberland,035
+IL,Illinois,DeKalb,037
+IL,Illinois,De Witt,039
+IL,Illinois,Douglas,041
+IL,Illinois,DuPage,043
+IL,Illinois,Edgar,045
+IL,Illinois,Edwards,047
+IL,Illinois,Effingham,049
+IL,Illinois,Fayette,051
+IL,Illinois,Ford,053
+IL,Illinois,Franklin,055
+IL,Illinois,Fulton,057
+IL,Illinois,Gallatin,059
+IL,Illinois,Greene,061
+IL,Illinois,Grundy,063
+IL,Illinois,Hamilton,065
+IL,Illinois,Hancock,067
+IL,Illinois,Hardin,069
+IL,Illinois,Henderson,071
+IL,Illinois,Henry,073
+IL,Illinois,Iroquois,075
+IL,Illinois,Jackson,077
+IL,Illinois,Jasper,079
+IL,Illinois,Jefferson,081
+IL,Illinois,Jersey,083
+IL,Illinois,Jo Daviess,085
+IL,Illinois,Johnson,087
+IL,Illinois,Kane,089
+IL,Illinois,Kankakee,091
+IL,Illinois,Kendall,093
+IL,Illinois,Knox,095
+IL,Illinois,Lake,097
+IL,Illinois,LaSalle,099
+IL,Illinois,Lawrence,101
+IL,Illinois,Lee,103
+IL,Illinois,Livingston,105
+IL,Illinois,Logan,107
+IL,Illinois,McDonough,109
+IL,Illinois,McHenry,111
+IL,Illinois,McLean,113
+IL,Illinois,Macon,115
+IL,Illinois,Macoupin,117
+IL,Illinois,Madison,119
+IL,Illinois,Marion,121
+IL,Illinois,Marshall,123
+IL,Illinois,Mason,125
+IL,Illinois,Massac,127
+IL,Illinois,Menard,129
+IL,Illinois,Mercer,131
+IL,Illinois,Monroe,133
+IL,Illinois,Montgomery,135
+IL,Illinois,Morgan,137
+IL,Illinois,Moultrie,139
+IL,Illinois,Ogle,141
+IL,Illinois,Peoria,143
+IL,Illinois,Perry,145
+IL,Illinois,Piatt,147
+IL,Illinois,Pike,149
+IL,Illinois,Pope,151
+IL,Illinois,Pulaski,153
+IL,Illinois,Putnam,155
+IL,Illinois,Randolph,157
+IL,Illinois,Richland,159
+IL,Illinois,Rock Island,161
+IL,Illinois,St. Clair,163
+IL,Illinois,Saline,165
+IL,Illinois,Sangamon,167
+IL,Illinois,Schuyler,169
+IL,Illinois,Scott,171
+IL,Illinois,Shelby,173
+IL,Illinois,Stark,175
+IL,Illinois,Stephenson,177
+IL,Illinois,Tazewell,179
+IL,Illinois,Union,181
+IL,Illinois,Vermilion,183
+IL,Illinois,Wabash,185
+IL,Illinois,Warren,187
+IL,Illinois,Washington,189
+IL,Illinois,Wayne,191
+IL,Illinois,White,193
+IL,Illinois,Whiteside,195
+IL,Illinois,Will,197
+IL,Illinois,Williamson,199
+IL,Illinois,Winnebago,201
+IL,Illinois,Woodford,203
+IN,Indiana,Adams,001
+IN,Indiana,Allen,003
+IN,Indiana,Bartholomew,005
+IN,Indiana,Benton,007
+IN,Indiana,Blackford,009
+IN,Indiana,Boone,011
+IN,Indiana,Brown,013
+IN,Indiana,Carroll,015
+IN,Indiana,Cass,017
+IN,Indiana,Clark,019
+IN,Indiana,Clay,021
+IN,Indiana,Clinton,023
+IN,Indiana,Crawford,025
+IN,Indiana,Daviess,027
+IN,Indiana,Dearborn,029
+IN,Indiana,Decatur,031
+IN,Indiana,DeKalb,033
+IN,Indiana,Delaware,035
+IN,Indiana,Dubois,037
+IN,Indiana,Elkhart,039
+IN,Indiana,Fayette,041
+IN,Indiana,Floyd,043
+IN,Indiana,Fountain,045
+IN,Indiana,Franklin,047
+IN,Indiana,Fulton,049
+IN,Indiana,Gibson,051
+IN,Indiana,Grant,053
+IN,Indiana,Greene,055
+IN,Indiana,Hamilton,057
+IN,Indiana,Hancock,059
+IN,Indiana,Harrison,061
+IN,Indiana,Hendricks,063
+IN,Indiana,Henry,065
+IN,Indiana,Howard,067
+IN,Indiana,Huntington,069
+IN,Indiana,Jackson,071
+IN,Indiana,Jasper,073
+IN,Indiana,Jay,075
+IN,Indiana,Jefferson,077
+IN,Indiana,Jennings,079
+IN,Indiana,Johnson,081
+IN,Indiana,Knox,083
+IN,Indiana,Kosciusko,085
+IN,Indiana,LaGrange,087
+IN,Indiana,Lake,089
+IN,Indiana,LaPorte,091
+IN,Indiana,Lawrence,093
+IN,Indiana,Madison,095
+IN,Indiana,Marion,097
+IN,Indiana,Marshall,099
+IN,Indiana,Martin,101
+IN,Indiana,Miami,103
+IN,Indiana,Monroe,105
+IN,Indiana,Montgomery,107
+IN,Indiana,Morgan,109
+IN,Indiana,Newton,111
+IN,Indiana,Noble,113
+IN,Indiana,Ohio,115
+IN,Indiana,Orange,117
+IN,Indiana,Owen,119
+IN,Indiana,Parke,121
+IN,Indiana,Perry,123
+IN,Indiana,Pike,125
+IN,Indiana,Porter,127
+IN,Indiana,Posey,129
+IN,Indiana,Pulaski,131
+IN,Indiana,Putnam,133
+IN,Indiana,Randolph,135
+IN,Indiana,Ripley,137
+IN,Indiana,Rush,139
+IN,Indiana,St. Joseph,141
+IN,Indiana,Scott,143
+IN,Indiana,Shelby,145
+IN,Indiana,Spencer,147
+IN,Indiana,Starke,149
+IN,Indiana,Steuben,151
+IN,Indiana,Sullivan,153
+IN,Indiana,Switzerland,155
+IN,Indiana,Tippecanoe,157
+IN,Indiana,Tipton,159
+IN,Indiana,Union,161
+IN,Indiana,Vanderburgh,163
+IN,Indiana,Vermillion,165
+IN,Indiana,Vigo,167
+IN,Indiana,Wabash,169
+IN,Indiana,Warren,171
+IN,Indiana,Warrick,173
+IN,Indiana,Washington,175
+IN,Indiana,Wayne,177
+IN,Indiana,Wells,179
+IN,Indiana,White,181
+IN,Indiana,Whitley,183
+KS,Kansas,Allen,001
+KS,Kansas,Anderson,003
+KS,Kansas,Atchison,005
+KS,Kansas,Barber,007
+KS,Kansas,Barton,009
+KS,Kansas,Bourbon,011
+KS,Kansas,Brown,013
+KS,Kansas,Butler,015
+KS,Kansas,Chase,017
+KS,Kansas,Chautauqua,019
+KS,Kansas,Cherokee,021
+KS,Kansas,Cheyenne,023
+KS,Kansas,Clark,025
+KS,Kansas,Clay,027
+KS,Kansas,Cloud,029
+KS,Kansas,Coffey,031
+KS,Kansas,Comanche,033
+KS,Kansas,Cowley,035
+KS,Kansas,Crawford,037
+KS,Kansas,Decatur,039
+KS,Kansas,Dickinson,041
+KS,Kansas,Doniphan,043
+KS,Kansas,Douglas,045
+KS,Kansas,Edwards,047
+KS,Kansas,Elk,049
+KS,Kansas,Ellis,051
+KS,Kansas,Ellsworth,053
+KS,Kansas,Finney,055
+KS,Kansas,Ford,057
+KS,Kansas,Franklin,059
+KS,Kansas,Geary,061
+KS,Kansas,Gove,063
+KS,Kansas,Graham,065
+KS,Kansas,Grant,067
+KS,Kansas,Gray,069
+KS,Kansas,Greeley,071
+KS,Kansas,Greenwood,073
+KS,Kansas,Hamilton,075
+KS,Kansas,Harper,077
+KS,Kansas,Harvey,079
+KS,Kansas,Haskell,081
+KS,Kansas,Hodgeman,083
+KS,Kansas,Jackson,085
+KS,Kansas,Jefferson,087
+KS,Kansas,Jewell,089
+KS,Kansas,Johnson,091
+KS,Kansas,Kearny,093
+KS,Kansas,Kingman,095
+KS,Kansas,Kiowa,097
+KS,Kansas,Labette,099
+KS,Kansas,Lane,101
+KS,Kansas,Leavenworth,103
+KS,Kansas,Lincoln,105
+KS,Kansas,Linn,107
+KS,Kansas,Logan,109
+KS,Kansas,Lyon,111
+KS,Kansas,McPherson,113
+KS,Kansas,Marion,115
+KS,Kansas,Marshall,117
+KS,Kansas,Meade,119
+KS,Kansas,Miami,121
+KS,Kansas,Mitchell,123
+KS,Kansas,Montgomery,125
+KS,Kansas,Morris,127
+KS,Kansas,Morton,129
+KS,Kansas,Nemaha,131
+KS,Kansas,Neosho,133
+KS,Kansas,Ness,135
+KS,Kansas,Norton,137
+KS,Kansas,Osage,139
+KS,Kansas,Osborne,141
+KS,Kansas,Ottawa,143
+KS,Kansas,Pawnee,145
+KS,Kansas,Phillips,147
+KS,Kansas,Pottawatomie,149
+KS,Kansas,Pratt,151
+KS,Kansas,Rawlins,153
+KS,Kansas,Reno,155
+KS,Kansas,Republic,157
+KS,Kansas,Rice,159
+KS,Kansas,Riley,161
+KS,Kansas,Rooks,163
+KS,Kansas,Rush,165
+KS,Kansas,Russell,167
+KS,Kansas,Saline,169
+KS,Kansas,Scott,171
+KS,Kansas,Sedgwick,173
+KS,Kansas,Seward,175
+KS,Kansas,Shawnee,177
+KS,Kansas,Sheridan,179
+KS,Kansas,Sherman,181
+KS,Kansas,Smith,183
+KS,Kansas,Stafford,185
+KS,Kansas,Stanton,187
+KS,Kansas,Stevens,189
+KS,Kansas,Sumner,191
+KS,Kansas,Thomas,193
+KS,Kansas,Trego,195
+KS,Kansas,Wabaunsee,197
+KS,Kansas,Wallace,199
+KS,Kansas,Washington,201
+KS,Kansas,Wichita,203
+KS,Kansas,Wilson,205
+KS,Kansas,Woodson,207
+KS,Kansas,Wyandotte,209
+KY,Kentucky,Adair,001
+KY,Kentucky,Allen,003
+KY,Kentucky,Anderson,005
+KY,Kentucky,Ballard,007
+KY,Kentucky,Barren,009
+KY,Kentucky,Bath,011
+KY,Kentucky,Bell,013
+KY,Kentucky,Boone,015
+KY,Kentucky,Bourbon,017
+KY,Kentucky,Boyd,019
+KY,Kentucky,Boyle,021
+KY,Kentucky,Bracken,023
+KY,Kentucky,Breathitt,025
+KY,Kentucky,Breckinridge,027
+KY,Kentucky,Bullitt,029
+KY,Kentucky,Butler,031
+KY,Kentucky,Caldwell,033
+KY,Kentucky,Calloway,035
+KY,Kentucky,Campbell,037
+KY,Kentucky,Carlisle,039
+KY,Kentucky,Carroll,041
+KY,Kentucky,Carter,043
+KY,Kentucky,Casey,045
+KY,Kentucky,Christian,047
+KY,Kentucky,Clark,049
+KY,Kentucky,Clay,051
+KY,Kentucky,Clinton,053
+KY,Kentucky,Crittenden,055
+KY,Kentucky,Cumberland,057
+KY,Kentucky,Daviess,059
+KY,Kentucky,Edmonson,061
+KY,Kentucky,Elliott,063
+KY,Kentucky,Estill,065
+KY,Kentucky,Fayette,067
+KY,Kentucky,Fleming,069
+KY,Kentucky,Floyd,071
+KY,Kentucky,Franklin,073
+KY,Kentucky,Fulton,075
+KY,Kentucky,Gallatin,077
+KY,Kentucky,Garrard,079
+KY,Kentucky,Grant,081
+KY,Kentucky,Graves,083
+KY,Kentucky,Grayson,085
+KY,Kentucky,Green,087
+KY,Kentucky,Greenup,089
+KY,Kentucky,Hancock,091
+KY,Kentucky,Hardin,093
+KY,Kentucky,Harlan,095
+KY,Kentucky,Harrison,097
+KY,Kentucky,Hart,099
+KY,Kentucky,Henderson,101
+KY,Kentucky,Henry,103
+KY,Kentucky,Hickman,105
+KY,Kentucky,Hopkins,107
+KY,Kentucky,Jackson,109
+KY,Kentucky,Jefferson,111
+KY,Kentucky,Jessamine,113
+KY,Kentucky,Johnson,115
+KY,Kentucky,Kenton,117
+KY,Kentucky,Knott,119
+KY,Kentucky,Knox,121
+KY,Kentucky,Larue,123
+KY,Kentucky,Laurel,125
+KY,Kentucky,Lawrence,127
+KY,Kentucky,Lee,129
+KY,Kentucky,Leslie,131
+KY,Kentucky,Letcher,133
+KY,Kentucky,Lewis,135
+KY,Kentucky,Lincoln,137
+KY,Kentucky,Livingston,139
+KY,Kentucky,Logan,141
+KY,Kentucky,Lyon,143
+KY,Kentucky,McCracken,145
+KY,Kentucky,McCreary,147
+KY,Kentucky,McLean,149
+KY,Kentucky,Madison,151
+KY,Kentucky,Magoffin,153
+KY,Kentucky,Marion,155
+KY,Kentucky,Marshall,157
+KY,Kentucky,Martin,159
+KY,Kentucky,Mason,161
+KY,Kentucky,Meade,163
+KY,Kentucky,Menifee,165
+KY,Kentucky,Mercer,167
+KY,Kentucky,Metcalfe,169
+KY,Kentucky,Monroe,171
+KY,Kentucky,Montgomery,173
+KY,Kentucky,Morgan,175
+KY,Kentucky,Muhlenberg,177
+KY,Kentucky,Nelson,179
+KY,Kentucky,Nicholas,181
+KY,Kentucky,Ohio,183
+KY,Kentucky,Oldham,185
+KY,Kentucky,Owen,187
+KY,Kentucky,Owsley,189
+KY,Kentucky,Pendleton,191
+KY,Kentucky,Perry,193
+KY,Kentucky,Pike,195
+KY,Kentucky,Powell,197
+KY,Kentucky,Pulaski,199
+KY,Kentucky,Robertson,201
+KY,Kentucky,Rockcastle,203
+KY,Kentucky,Rowan,205
+KY,Kentucky,Russell,207
+KY,Kentucky,Scott,209
+KY,Kentucky,Shelby,211
+KY,Kentucky,Simpson,213
+KY,Kentucky,Spencer,215
+KY,Kentucky,Taylor,217
+KY,Kentucky,Todd,219
+KY,Kentucky,Trigg,221
+KY,Kentucky,Trimble,223
+KY,Kentucky,Union,225
+KY,Kentucky,Warren,227
+KY,Kentucky,Washington,229
+KY,Kentucky,Wayne,231
+KY,Kentucky,Webster,233
+KY,Kentucky,Whitley,235
+KY,Kentucky,Wolfe,237
+KY,Kentucky,Woodford,239
+LA,Louisiana,Acadia,001
+LA,Louisiana,Allen,003
+LA,Louisiana,Ascension,005
+LA,Louisiana,Assumption,007
+LA,Louisiana,Avoyelles,009
+LA,Louisiana,Beauregard,011
+LA,Louisiana,Bienville,013
+LA,Louisiana,Bossier,015
+LA,Louisiana,Caddo,017
+LA,Louisiana,Calcasieu,019
+LA,Louisiana,Caldwell,021
+LA,Louisiana,Cameron,023
+LA,Louisiana,Catahoula,025
+LA,Louisiana,Claiborne,027
+LA,Louisiana,Concordia,029
+LA,Louisiana,De Soto,031
+LA,Louisiana,East Baton Rouge,033
+LA,Louisiana,East Carroll,035
+LA,Louisiana,East Feliciana,037
+LA,Louisiana,Evangeline,039
+LA,Louisiana,Franklin,041
+LA,Louisiana,Grant,043
+LA,Louisiana,Iberia,045
+LA,Louisiana,Iberville,047
+LA,Louisiana,Jackson,049
+LA,Louisiana,Jefferson,051
+LA,Louisiana,Jefferson Davis,053
+LA,Louisiana,Lafayette,055
+LA,Louisiana,Lafourche,057
+LA,Louisiana,La Salle,059
+LA,Louisiana,Lincoln,061
+LA,Louisiana,Livingston,063
+LA,Louisiana,Madison,065
+LA,Louisiana,Morehouse,067
+LA,Louisiana,Natchitoches,069
+LA,Louisiana,Orleans,071
+LA,Louisiana,Ouachita,073
+LA,Louisiana,Plaquemines,075
+LA,Louisiana,Pointe Coupee,077
+LA,Louisiana,Rapides,079
+LA,Louisiana,Red River,081
+LA,Louisiana,Richland,083
+LA,Louisiana,Sabine,085
+LA,Louisiana,St. Bernard,087
+LA,Louisiana,St. Charles,089
+LA,Louisiana,St. Helena,091
+LA,Louisiana,St. James,093
+LA,Louisiana,St. John the Baptist,095
+LA,Louisiana,St. Landry,097
+LA,Louisiana,St. Martin,099
+LA,Louisiana,St. Mary,101
+LA,Louisiana,St. Tammany,103
+LA,Louisiana,Tangipahoa,105
+LA,Louisiana,Tensas,107
+LA,Louisiana,Terrebonne,109
+LA,Louisiana,Union,111
+LA,Louisiana,Vermilion,113
+LA,Louisiana,Vernon,115
+LA,Louisiana,Washington,117
+LA,Louisiana,Webster,119
+LA,Louisiana,West Baton Rouge,121
+LA,Louisiana,West Carroll,123
+LA,Louisiana,West Feliciana,125
+LA,Louisiana,Winn,127
+MA,Massachusetts,Barnstable,001
+MA,Massachusetts,Berkshire,003
+MA,Massachusetts,Bristol,005
+MA,Massachusetts,Dukes,007
+MA,Massachusetts,Essex,009
+MA,Massachusetts,Franklin,011
+MA,Massachusetts,Hampden,013
+MA,Massachusetts,Hampshire,015
+MA,Massachusetts,Middlesex,017
+MA,Massachusetts,Nantucket,019
+MA,Massachusetts,Norfolk,021
+MA,Massachusetts,Plymouth,023
+MA,Massachusetts,Suffolk,025
+MA,Massachusetts,Worcester,027
+MD,Maryland,Allegany,001
+MD,Maryland,Anne Arundel,003
+MD,Maryland,Baltimore,005
+MD,Maryland,Calvert,009
+MD,Maryland,Caroline,011
+MD,Maryland,Carroll,013
+MD,Maryland,Cecil,015
+MD,Maryland,Charles,017
+MD,Maryland,Dorchester,019
+MD,Maryland,Frederick,021
+MD,Maryland,Garrett,023
+MD,Maryland,Harford,025
+MD,Maryland,Howard,027
+MD,Maryland,Kent,029
+MD,Maryland,Montgomery,031
+MD,Maryland,Prince George's,033
+MD,Maryland,Queen Anne's,035
+MD,Maryland,St. Mary's,037
+MD,Maryland,Somerset,039
+MD,Maryland,Talbot,041
+MD,Maryland,Washington,043
+MD,Maryland,Wicomico,045
+MD,Maryland,Worcester,047
+MD,Maryland,Baltimore city,510
+ME,Maine,Androscoggin,001
+ME,Maine,Aroostook,003
+ME,Maine,Cumberland,005
+ME,Maine,Franklin,007
+ME,Maine,Hancock,009
+ME,Maine,Kennebec,011
+ME,Maine,Knox,013
+ME,Maine,Lincoln,015
+ME,Maine,Oxford,017
+ME,Maine,Penobscot,019
+ME,Maine,Piscataquis,021
+ME,Maine,Sagadahoc,023
+ME,Maine,Somerset,025
+ME,Maine,Waldo,027
+ME,Maine,Washington,029
+ME,Maine,York,031
+MH,Marshall Islands,NULL,NULL
+MI,Michigan,Alcona,001
+MI,Michigan,Alger,003
+MI,Michigan,Allegan,005
+MI,Michigan,Alpena,007
+MI,Michigan,Antrim,009
+MI,Michigan,Arenac,011
+MI,Michigan,Baraga,013
+MI,Michigan,Barry,015
+MI,Michigan,Bay,017
+MI,Michigan,Benzie,019
+MI,Michigan,Berrien,021
+MI,Michigan,Branch,023
+MI,Michigan,Calhoun,025
+MI,Michigan,Cass,027
+MI,Michigan,Charlevoix,029
+MI,Michigan,Cheboygan,031
+MI,Michigan,Chippewa,033
+MI,Michigan,Clare,035
+MI,Michigan,Clinton,037
+MI,Michigan,Crawford,039
+MI,Michigan,Delta,041
+MI,Michigan,Dickinson,043
+MI,Michigan,Eaton,045
+MI,Michigan,Emmet,047
+MI,Michigan,Genesee,049
+MI,Michigan,Gladwin,051
+MI,Michigan,Gogebic,053
+MI,Michigan,Grand Traverse,055
+MI,Michigan,Gratiot,057
+MI,Michigan,Hillsdale,059
+MI,Michigan,Houghton,061
+MI,Michigan,Huron,063
+MI,Michigan,Ingham,065
+MI,Michigan,Ionia,067
+MI,Michigan,Iosco,069
+MI,Michigan,Iron,071
+MI,Michigan,Isabella,073
+MI,Michigan,Jackson,075
+MI,Michigan,Kalamazoo,077
+MI,Michigan,Kalkaska,079
+MI,Michigan,Kent,081
+MI,Michigan,Keweenaw,083
+MI,Michigan,Lake,085
+MI,Michigan,Lapeer,087
+MI,Michigan,Leelanau,089
+MI,Michigan,Lenawee,091
+MI,Michigan,Livingston,093
+MI,Michigan,Luce,095
+MI,Michigan,Mackinac,097
+MI,Michigan,Macomb,099
+MI,Michigan,Manistee,101
+MI,Michigan,Marquette,103
+MI,Michigan,Mason,105
+MI,Michigan,Mecosta,107
+MI,Michigan,Menominee,109
+MI,Michigan,Midland,111
+MI,Michigan,Missaukee,113
+MI,Michigan,Monroe,115
+MI,Michigan,Montcalm,117
+MI,Michigan,Montmorency,119
+MI,Michigan,Muskegon,121
+MI,Michigan,Newaygo,123
+MI,Michigan,Oakland,125
+MI,Michigan,Oceana,127
+MI,Michigan,Ogemaw,129
+MI,Michigan,Ontonagon,131
+MI,Michigan,Osceola,133
+MI,Michigan,Oscoda,135
+MI,Michigan,Otsego,137
+MI,Michigan,Ottawa,139
+MI,Michigan,Presque Isle,141
+MI,Michigan,Roscommon,143
+MI,Michigan,Saginaw,145
+MI,Michigan,St. Clair,147
+MI,Michigan,St. Joseph,149
+MI,Michigan,Sanilac,151
+MI,Michigan,Schoolcraft,153
+MI,Michigan,Shiawassee,155
+MI,Michigan,Tuscola,157
+MI,Michigan,Van Buren,159
+MI,Michigan,Washtenaw,161
+MI,Michigan,Wayne,163
+MI,Michigan,Wexford,165
+MN,Minnesota,Aitkin,001
+MN,Minnesota,Anoka,003
+MN,Minnesota,Becker,005
+MN,Minnesota,Beltrami,007
+MN,Minnesota,Benton,009
+MN,Minnesota,Big Stone,011
+MN,Minnesota,Blue Earth,013
+MN,Minnesota,Brown,015
+MN,Minnesota,Carlton,017
+MN,Minnesota,Carver,019
+MN,Minnesota,Cass,021
+MN,Minnesota,Chippewa,023
+MN,Minnesota,Chisago,025
+MN,Minnesota,Clay,027
+MN,Minnesota,Clearwater,029
+MN,Minnesota,Cook,031
+MN,Minnesota,Cottonwood,033
+MN,Minnesota,Crow Wing,035
+MN,Minnesota,Dakota,037
+MN,Minnesota,Dodge,039
+MN,Minnesota,Douglas,041
+MN,Minnesota,Faribault,043
+MN,Minnesota,Fillmore,045
+MN,Minnesota,Freeborn,047
+MN,Minnesota,Goodhue,049
+MN,Minnesota,Grant,051
+MN,Minnesota,Hennepin,053
+MN,Minnesota,Houston,055
+MN,Minnesota,Hubbard,057
+MN,Minnesota,Isanti,059
+MN,Minnesota,Itasca,061
+MN,Minnesota,Jackson,063
+MN,Minnesota,Kanabec,065
+MN,Minnesota,Kandiyohi,067
+MN,Minnesota,Kittson,069
+MN,Minnesota,Koochiching,071
+MN,Minnesota,Lac qui Parle,073
+MN,Minnesota,Lake,075
+MN,Minnesota,Lake of the Woods,077
+MN,Minnesota,Le Sueur,079
+MN,Minnesota,Lincoln,081
+MN,Minnesota,Lyon,083
+MN,Minnesota,McLeod,085
+MN,Minnesota,Mahnomen,087
+MN,Minnesota,Marshall,089
+MN,Minnesota,Martin,091
+MN,Minnesota,Meeker,093
+MN,Minnesota,Mille Lacs,095
+MN,Minnesota,Morrison,097
+MN,Minnesota,Mower,099
+MN,Minnesota,Murray,101
+MN,Minnesota,Nicollet,103
+MN,Minnesota,Nobles,105
+MN,Minnesota,Norman,107
+MN,Minnesota,Olmsted,109
+MN,Minnesota,Otter Tail,111
+MN,Minnesota,Pennington,113
+MN,Minnesota,Pine,115
+MN,Minnesota,Pipestone,117
+MN,Minnesota,Polk,119
+MN,Minnesota,Pope,121
+MN,Minnesota,Ramsey,123
+MN,Minnesota,Red Lake,125
+MN,Minnesota,Redwood,127
+MN,Minnesota,Renville,129
+MN,Minnesota,Rice,131
+MN,Minnesota,Rock,133
+MN,Minnesota,Roseau,135
+MN,Minnesota,St. Louis,137
+MN,Minnesota,Scott,139
+MN,Minnesota,Sherburne,141
+MN,Minnesota,Sibley,143
+MN,Minnesota,Stearns,145
+MN,Minnesota,Steele,147
+MN,Minnesota,Stevens,149
+MN,Minnesota,Swift,151
+MN,Minnesota,Todd,153
+MN,Minnesota,Traverse,155
+MN,Minnesota,Wabasha,157
+MN,Minnesota,Wadena,159
+MN,Minnesota,Waseca,161
+MN,Minnesota,Washington,163
+MN,Minnesota,Watonwan,165
+MN,Minnesota,Wilkin,167
+MN,Minnesota,Winona,169
+MN,Minnesota,Wright,171
+MN,Minnesota,Yellow Medicine,173
+MO,Missouri,Adair,001
+MO,Missouri,Andrew,003
+MO,Missouri,Atchison,005
+MO,Missouri,Audrain,007
+MO,Missouri,Barry,009
+MO,Missouri,Barton,011
+MO,Missouri,Bates,013
+MO,Missouri,Benton,015
+MO,Missouri,Bollinger,017
+MO,Missouri,Boone,019
+MO,Missouri,Buchanan,021
+MO,Missouri,Butler,023
+MO,Missouri,Caldwell,025
+MO,Missouri,Callaway,027
+MO,Missouri,Camden,029
+MO,Missouri,Cape Girardeau,031
+MO,Missouri,Carroll,033
+MO,Missouri,Carter,035
+MO,Missouri,Cass,037
+MO,Missouri,Cedar,039
+MO,Missouri,Chariton,041
+MO,Missouri,Christian,043
+MO,Missouri,Clark,045
+MO,Missouri,Clay,047
+MO,Missouri,Clinton,049
+MO,Missouri,Cole,051
+MO,Missouri,Cooper,053
+MO,Missouri,Crawford,055
+MO,Missouri,Dade,057
+MO,Missouri,Dallas,059
+MO,Missouri,Daviess,061
+MO,Missouri,DeKalb,063
+MO,Missouri,Dent,065
+MO,Missouri,Douglas,067
+MO,Missouri,Dunklin,069
+MO,Missouri,Franklin,071
+MO,Missouri,Gasconade,073
+MO,Missouri,Gentry,075
+MO,Missouri,Greene,077
+MO,Missouri,Grundy,079
+MO,Missouri,Harrison,081
+MO,Missouri,Henry,083
+MO,Missouri,Hickory,085
+MO,Missouri,Holt,087
+MO,Missouri,Howard,089
+MO,Missouri,Howell,091
+MO,Missouri,Iron,093
+MO,Missouri,Jackson,095
+MO,Missouri,Jasper,097
+MO,Missouri,Jefferson,099
+MO,Missouri,Johnson,101
+MO,Missouri,Knox,103
+MO,Missouri,Laclede,105
+MO,Missouri,Lafayette,107
+MO,Missouri,Lawrence,109
+MO,Missouri,Lewis,111
+MO,Missouri,Lincoln,113
+MO,Missouri,Linn,115
+MO,Missouri,Livingston,117
+MO,Missouri,McDonald,119
+MO,Missouri,Macon,121
+MO,Missouri,Madison,123
+MO,Missouri,Maries,125
+MO,Missouri,Marion,127
+MO,Missouri,Mercer,129
+MO,Missouri,Miller,131
+MO,Missouri,Mississippi,133
+MO,Missouri,Moniteau,135
+MO,Missouri,Monroe,137
+MO,Missouri,Montgomery,139
+MO,Missouri,Morgan,141
+MO,Missouri,New Madrid,143
+MO,Missouri,Newton,145
+MO,Missouri,Nodaway,147
+MO,Missouri,Oregon,149
+MO,Missouri,Osage,151
+MO,Missouri,Ozark,153
+MO,Missouri,Pemiscot,155
+MO,Missouri,Perry,157
+MO,Missouri,Pettis,159
+MO,Missouri,Phelps,161
+MO,Missouri,Pike,163
+MO,Missouri,Platte,165
+MO,Missouri,Polk,167
+MO,Missouri,Pulaski,169
+MO,Missouri,Putnam,171
+MO,Missouri,Ralls,173
+MO,Missouri,Randolph,175
+MO,Missouri,Ray,177
+MO,Missouri,Reynolds,179
+MO,Missouri,Ripley,181
+MO,Missouri,St. Charles,183
+MO,Missouri,St. Clair,185
+MO,Missouri,Ste. Genevieve,186
+MO,Missouri,St. Francois,187
+MO,Missouri,St.Â Louis,189
+MO,Missouri,Saline,195
+MO,Missouri,Schuyler,197
+MO,Missouri,Scotland,199
+MO,Missouri,Scott,201
+MO,Missouri,Shannon,203
+MO,Missouri,Shelby,205
+MO,Missouri,Stoddard,207
+MO,Missouri,Stone,209
+MO,Missouri,Sullivan,211
+MO,Missouri,Taney,213
+MO,Missouri,Texas,215
+MO,Missouri,Vernon,217
+MO,Missouri,Warren,219
+MO,Missouri,Washington,221
+MO,Missouri,Wayne,223
+MO,Missouri,Webster,225
+MO,Missouri,Worth,227
+MO,Missouri,Wright,229
+MO,Missouri,St. Louis City,510
+MP,Northern Mariana Islands,Northern Islands,085
+MP,Northern Mariana Islands,Rota,100
+MP,Northern Mariana Islands,Saipan,110
+MP,Northern Mariana Islands,Tinian,120
+MS,Mississippi,Adams,001
+MS,Mississippi,Alcorn,003
+MS,Mississippi,Amite,005
+MS,Mississippi,Attala,007
+MS,Mississippi,Benton,009
+MS,Mississippi,Bolivar,011
+MS,Mississippi,Calhoun,013
+MS,Mississippi,Carroll,015
+MS,Mississippi,Chickasaw,017
+MS,Mississippi,Choctaw,019
+MS,Mississippi,Claiborne,021
+MS,Mississippi,Clarke,023
+MS,Mississippi,Clay,025
+MS,Mississippi,Coahoma,027
+MS,Mississippi,Copiah,029
+MS,Mississippi,Covington,031
+MS,Mississippi,DeSoto,033
+MS,Mississippi,Forrest,035
+MS,Mississippi,Franklin,037
+MS,Mississippi,George,039
+MS,Mississippi,Greene,041
+MS,Mississippi,Grenada,043
+MS,Mississippi,Hancock,045
+MS,Mississippi,Harrison,047
+MS,Mississippi,Hinds,049
+MS,Mississippi,Holmes,051
+MS,Mississippi,Humphreys,053
+MS,Mississippi,Issaquena,055
+MS,Mississippi,Itawamba,057
+MS,Mississippi,Jackson,059
+MS,Mississippi,Jasper,061
+MS,Mississippi,Jefferson,063
+MS,Mississippi,Jefferson Davis,065
+MS,Mississippi,Jones,067
+MS,Mississippi,Kemper,069
+MS,Mississippi,Lafayette,071
+MS,Mississippi,Lamar,073
+MS,Mississippi,Lauderdale,075
+MS,Mississippi,Lawrence,077
+MS,Mississippi,Leake,079
+MS,Mississippi,Lee,081
+MS,Mississippi,Leflore,083
+MS,Mississippi,Lincoln,085
+MS,Mississippi,Lowndes,087
+MS,Mississippi,Madison,089
+MS,Mississippi,Marion,091
+MS,Mississippi,Marshall,093
+MS,Mississippi,Monroe,095
+MS,Mississippi,Montgomery,097
+MS,Mississippi,Neshoba,099
+MS,Mississippi,Newton,101
+MS,Mississippi,Noxubee,103
+MS,Mississippi,Oktibbeha,105
+MS,Mississippi,Panola,107
+MS,Mississippi,Pearl River,109
+MS,Mississippi,Perry,111
+MS,Mississippi,Pike,113
+MS,Mississippi,Pontotoc,115
+MS,Mississippi,Prentiss,117
+MS,Mississippi,Quitman,119
+MS,Mississippi,Rankin,121
+MS,Mississippi,Scott,123
+MS,Mississippi,Sharkey,125
+MS,Mississippi,Simpson,127
+MS,Mississippi,Smith,129
+MS,Mississippi,Stone,131
+MS,Mississippi,Sunflower,133
+MS,Mississippi,Tallahatchie,135
+MS,Mississippi,Tate,137
+MS,Mississippi,Tippah,139
+MS,Mississippi,Tishomingo,141
+MS,Mississippi,Tunica,143
+MS,Mississippi,Union,145
+MS,Mississippi,Walthall,147
+MS,Mississippi,Warren,149
+MS,Mississippi,Washington,151
+MS,Mississippi,Wayne,153
+MS,Mississippi,Webster,155
+MS,Mississippi,Wilkinson,157
+MS,Mississippi,Winston,159
+MS,Mississippi,Yalobusha,161
+MS,Mississippi,Yazoo,163
+MT,Montana,Beaverhead,001
+MT,Montana,Big Horn,003
+MT,Montana,Blaine,005
+MT,Montana,Broadwater,007
+MT,Montana,Carbon,009
+MT,Montana,Carter,011
+MT,Montana,Cascade,013
+MT,Montana,Chouteau,015
+MT,Montana,Custer,017
+MT,Montana,Daniels,019
+MT,Montana,Dawson,021
+MT,Montana,Deer Lodge,023
+MT,Montana,Fallon,025
+MT,Montana,Fergus,027
+MT,Montana,Flathead,029
+MT,Montana,Gallatin,031
+MT,Montana,Garfield,033
+MT,Montana,Glacier,035
+MT,Montana,Golden Valley,037
+MT,Montana,Granite,039
+MT,Montana,Hill,041
+MT,Montana,Jefferson,043
+MT,Montana,Judith Basin,045
+MT,Montana,Lake,047
+MT,Montana,Lewis and Clark,049
+MT,Montana,Liberty,051
+MT,Montana,Lincoln,053
+MT,Montana,McCone,055
+MT,Montana,Madison,057
+MT,Montana,Meagher,059
+MT,Montana,Mineral,061
+MT,Montana,Missoula,063
+MT,Montana,Musselshell,065
+MT,Montana,Park,067
+MT,Montana,Petroleum,069
+MT,Montana,Phillips,071
+MT,Montana,Pondera,073
+MT,Montana,Powder River,075
+MT,Montana,Powell,077
+MT,Montana,Prairie,079
+MT,Montana,Ravalli,081
+MT,Montana,Richland,083
+MT,Montana,Roosevelt,085
+MT,Montana,Rosebud,087
+MT,Montana,Sanders,089
+MT,Montana,Sheridan,091
+MT,Montana,Silver Bow,093
+MT,Montana,Stillwater,095
+MT,Montana,Sweet Grass,097
+MT,Montana,Teton,099
+MT,Montana,Toole,101
+MT,Montana,Treasure,103
+MT,Montana,Valley,105
+MT,Montana,Wheatland,107
+MT,Montana,Wibaux,109
+MT,Montana,Yellowstone,111
+NC,North Carolina,Alamance,001
+NC,North Carolina,Alexander,003
+NC,North Carolina,Alleghany,005
+NC,North Carolina,Anson,007
+NC,North Carolina,Ashe,009
+NC,North Carolina,Avery,011
+NC,North Carolina,Beaufort,013
+NC,North Carolina,Bertie,015
+NC,North Carolina,Bladen,017
+NC,North Carolina,Brunswick,019
+NC,North Carolina,Buncombe,021
+NC,North Carolina,Burke,023
+NC,North Carolina,Cabarrus,025
+NC,North Carolina,Caldwell,027
+NC,North Carolina,Camden,029
+NC,North Carolina,Carteret,031
+NC,North Carolina,Caswell,033
+NC,North Carolina,Catawba,035
+NC,North Carolina,Chatham,037
+NC,North Carolina,Cherokee,039
+NC,North Carolina,Chowan,041
+NC,North Carolina,Clay,043
+NC,North Carolina,Cleveland,045
+NC,North Carolina,Columbus,047
+NC,North Carolina,Craven,049
+NC,North Carolina,Cumberland,051
+NC,North Carolina,Currituck,053
+NC,North Carolina,Dare,055
+NC,North Carolina,Davidson,057
+NC,North Carolina,Davie,059
+NC,North Carolina,Duplin,061
+NC,North Carolina,Durham,063
+NC,North Carolina,Edgecombe,065
+NC,North Carolina,Forsyth,067
+NC,North Carolina,Franklin,069
+NC,North Carolina,Gaston,071
+NC,North Carolina,Gates,073
+NC,North Carolina,Graham,075
+NC,North Carolina,Granville,077
+NC,North Carolina,Greene,079
+NC,North Carolina,Guilford,081
+NC,North Carolina,Halifax,083
+NC,North Carolina,Harnett,085
+NC,North Carolina,Haywood,087
+NC,North Carolina,Henderson,089
+NC,North Carolina,Hertford,091
+NC,North Carolina,Hoke,093
+NC,North Carolina,Hyde,095
+NC,North Carolina,Iredell,097
+NC,North Carolina,Jackson,099
+NC,North Carolina,Johnston,101
+NC,North Carolina,Jones,103
+NC,North Carolina,Lee,105
+NC,North Carolina,Lenoir,107
+NC,North Carolina,Lincoln,109
+NC,North Carolina,McDowell,111
+NC,North Carolina,Macon,113
+NC,North Carolina,Madison,115
+NC,North Carolina,Martin,117
+NC,North Carolina,Mecklenburg,119
+NC,North Carolina,Mitchell,121
+NC,North Carolina,Montgomery,123
+NC,North Carolina,Moore,125
+NC,North Carolina,Nash,127
+NC,North Carolina,New Hanover,129
+NC,North Carolina,Northampton,131
+NC,North Carolina,Onslow,133
+NC,North Carolina,Orange,135
+NC,North Carolina,Pamlico,137
+NC,North Carolina,Pasquotank,139
+NC,North Carolina,Pender,141
+NC,North Carolina,Perquimans,143
+NC,North Carolina,Person,145
+NC,North Carolina,Pitt,147
+NC,North Carolina,Polk,149
+NC,North Carolina,Randolph,151
+NC,North Carolina,Richmond,153
+NC,North Carolina,Robeson,155
+NC,North Carolina,Rockingham,157
+NC,North Carolina,Rowan,159
+NC,North Carolina,Rutherford,161
+NC,North Carolina,Sampson,163
+NC,North Carolina,Scotland,165
+NC,North Carolina,Stanly,167
+NC,North Carolina,Stokes,169
+NC,North Carolina,Surry,171
+NC,North Carolina,Swain,173
+NC,North Carolina,Transylvania,175
+NC,North Carolina,Tyrrell,177
+NC,North Carolina,Union,179
+NC,North Carolina,Vance,181
+NC,North Carolina,Wake,183
+NC,North Carolina,Warren,185
+NC,North Carolina,Washington,187
+NC,North Carolina,Watauga,189
+NC,North Carolina,Wayne,191
+NC,North Carolina,Wilkes,193
+NC,North Carolina,Wilson,195
+NC,North Carolina,Yadkin,197
+NC,North Carolina,Yancey,199
+ND,North Dakota,Adams,001
+ND,North Dakota,Barnes,003
+ND,North Dakota,Benson,005
+ND,North Dakota,Billings,007
+ND,North Dakota,Bottineau,009
+ND,North Dakota,Bowman,011
+ND,North Dakota,Burke,013
+ND,North Dakota,Burleigh,015
+ND,North Dakota,Cass,017
+ND,North Dakota,Cavalier,019
+ND,North Dakota,Dickey,021
+ND,North Dakota,Divide,023
+ND,North Dakota,Dunn,025
+ND,North Dakota,Eddy,027
+ND,North Dakota,Emmons,029
+ND,North Dakota,Foster,031
+ND,North Dakota,Golden Valley,033
+ND,North Dakota,Grand Forks,035
+ND,North Dakota,Grant,037
+ND,North Dakota,Griggs,039
+ND,North Dakota,Hettinger,041
+ND,North Dakota,Kidder,043
+ND,North Dakota,LaMoure,045
+ND,North Dakota,Logan,047
+ND,North Dakota,McHenry,049
+ND,North Dakota,McIntosh,051
+ND,North Dakota,McKenzie,053
+ND,North Dakota,McLean,055
+ND,North Dakota,Mercer,057
+ND,North Dakota,Morton,059
+ND,North Dakota,Mountrail,061
+ND,North Dakota,Nelson,063
+ND,North Dakota,Oliver,065
+ND,North Dakota,Pembina,067
+ND,North Dakota,Pierce,069
+ND,North Dakota,Ramsey,071
+ND,North Dakota,Ransom,073
+ND,North Dakota,Renville,075
+ND,North Dakota,Richland,077
+ND,North Dakota,Rolette,079
+ND,North Dakota,Sargent,081
+ND,North Dakota,Sheridan,083
+ND,North Dakota,Sioux,085
+ND,North Dakota,Slope,087
+ND,North Dakota,Stark,089
+ND,North Dakota,Steele,091
+ND,North Dakota,Stutsman,093
+ND,North Dakota,Towner,095
+ND,North Dakota,Traill,097
+ND,North Dakota,Walsh,099
+ND,North Dakota,Ward,101
+ND,North Dakota,Wells,103
+ND,North Dakota,Williams,105
+NE,Nebraska,Adams,001
+NE,Nebraska,Antelope,003
+NE,Nebraska,Arthur,005
+NE,Nebraska,Banner,007
+NE,Nebraska,Blaine,009
+NE,Nebraska,Boone,011
+NE,Nebraska,Box Butte,013
+NE,Nebraska,Boyd,015
+NE,Nebraska,Brown,017
+NE,Nebraska,Buffalo,019
+NE,Nebraska,Burt,021
+NE,Nebraska,Butler,023
+NE,Nebraska,Cass,025
+NE,Nebraska,Cedar,027
+NE,Nebraska,Chase,029
+NE,Nebraska,Cherry,031
+NE,Nebraska,Cheyenne,033
+NE,Nebraska,Clay,035
+NE,Nebraska,Colfax,037
+NE,Nebraska,Cuming,039
+NE,Nebraska,Custer,041
+NE,Nebraska,Dakota,043
+NE,Nebraska,Dawes,045
+NE,Nebraska,Dawson,047
+NE,Nebraska,Deuel,049
+NE,Nebraska,Dixon,051
+NE,Nebraska,Dodge,053
+NE,Nebraska,Douglas,055
+NE,Nebraska,Dundy,057
+NE,Nebraska,Fillmore,059
+NE,Nebraska,Franklin,061
+NE,Nebraska,Frontier,063
+NE,Nebraska,Furnas,065
+NE,Nebraska,Gage,067
+NE,Nebraska,Garden,069
+NE,Nebraska,Garfield,071
+NE,Nebraska,Gosper,073
+NE,Nebraska,Grant,075
+NE,Nebraska,Greeley,077
+NE,Nebraska,Hall,079
+NE,Nebraska,Hamilton,081
+NE,Nebraska,Harlan,083
+NE,Nebraska,Hayes,085
+NE,Nebraska,Hitchcock,087
+NE,Nebraska,Holt,089
+NE,Nebraska,Hooker,091
+NE,Nebraska,Howard,093
+NE,Nebraska,Jefferson,095
+NE,Nebraska,Johnson,097
+NE,Nebraska,Kearney,099
+NE,Nebraska,Keith,101
+NE,Nebraska,Keya Paha,103
+NE,Nebraska,Kimball,105
+NE,Nebraska,Knox,107
+NE,Nebraska,Lancaster,109
+NE,Nebraska,Lincoln,111
+NE,Nebraska,Logan,113
+NE,Nebraska,Loup,115
+NE,Nebraska,McPherson,117
+NE,Nebraska,Madison,119
+NE,Nebraska,Merrick,121
+NE,Nebraska,Morrill,123
+NE,Nebraska,Nance,125
+NE,Nebraska,Nemaha,127
+NE,Nebraska,Nuckolls,129
+NE,Nebraska,Otoe,131
+NE,Nebraska,Pawnee,133
+NE,Nebraska,Perkins,135
+NE,Nebraska,Phelps,137
+NE,Nebraska,Pierce,139
+NE,Nebraska,Platte,141
+NE,Nebraska,Polk,143
+NE,Nebraska,Red Willow,145
+NE,Nebraska,Richardson,147
+NE,Nebraska,Rock,149
+NE,Nebraska,Saline,151
+NE,Nebraska,Sarpy,153
+NE,Nebraska,Saunders,155
+NE,Nebraska,Scotts Bluff,157
+NE,Nebraska,Seward,159
+NE,Nebraska,Sheridan,161
+NE,Nebraska,Sherman,163
+NE,Nebraska,Sioux,165
+NE,Nebraska,Stanton,167
+NE,Nebraska,Thayer,169
+NE,Nebraska,Thomas,171
+NE,Nebraska,Thurston,173
+NE,Nebraska,Valley,175
+NE,Nebraska,Washington,177
+NE,Nebraska,Wayne,179
+NE,Nebraska,Webster,181
+NE,Nebraska,Wheeler,183
+NE,Nebraska,York,185
+NH,New Hampshire,Belknap,001
+NH,New Hampshire,Carroll,003
+NH,New Hampshire,Cheshire,005
+NH,New Hampshire,Coos,007
+NH,New Hampshire,Grafton,009
+NH,New Hampshire,Hillsborough,011
+NH,New Hampshire,Merrimack,013
+NH,New Hampshire,Rockingham,015
+NH,New Hampshire,Strafford,017
+NH,New Hampshire,Sullivan,019
+NJ,New Jersey,Atlantic,001
+NJ,New Jersey,Bergen,003
+NJ,New Jersey,Burlington,005
+NJ,New Jersey,Camden,007
+NJ,New Jersey,Cape May,009
+NJ,New Jersey,Cumberland,011
+NJ,New Jersey,Essex,013
+NJ,New Jersey,Gloucester,015
+NJ,New Jersey,Hudson,017
+NJ,New Jersey,Hunterdon,019
+NJ,New Jersey,Mercer,021
+NJ,New Jersey,Middlesex,023
+NJ,New Jersey,Monmouth,025
+NJ,New Jersey,Morris,027
+NJ,New Jersey,Ocean,029
+NJ,New Jersey,Passaic,031
+NJ,New Jersey,Salem,033
+NJ,New Jersey,Somerset,035
+NJ,New Jersey,Sussex,037
+NJ,New Jersey,Union,039
+NJ,New Jersey,Warren,041
+NM,New Mexico,Bernalillo,001
+NM,New Mexico,Catron,003
+NM,New Mexico,Chaves,005
+NM,New Mexico,Cibola,006
+NM,New Mexico,Colfax,007
+NM,New Mexico,Curry,009
+NM,New Mexico,De Baca,011
+NM,New Mexico,Dona Ana,013
+NM,New Mexico,Eddy,015
+NM,New Mexico,Grant,017
+NM,New Mexico,Guadalupe,019
+NM,New Mexico,Harding,021
+NM,New Mexico,Hidalgo,023
+NM,New Mexico,Lea,025
+NM,New Mexico,Lincoln,027
+NM,New Mexico,Los Alamos,028
+NM,New Mexico,Luna,029
+NM,New Mexico,McKinley,031
+NM,New Mexico,Mora,033
+NM,New Mexico,Otero,035
+NM,New Mexico,Quay,037
+NM,New Mexico,Rio Arriba,039
+NM,New Mexico,Roosevelt,041
+NM,New Mexico,Sandoval,043
+NM,New Mexico,San Juan,045
+NM,New Mexico,San Miguel,047
+NM,New Mexico,Santa Fe,049
+NM,New Mexico,Sierra,051
+NM,New Mexico,Socorro,053
+NM,New Mexico,Taos,055
+NM,New Mexico,Torrance,057
+NM,New Mexico,Union,059
+NM,New Mexico,Valencia,061
+NV,Nevada,Churchill,001
+NV,Nevada,Clark,003
+NV,Nevada,Douglas,005
+NV,Nevada,Elko,007
+NV,Nevada,Esmeralda,009
+NV,Nevada,Eureka,011
+NV,Nevada,Humboldt,013
+NV,Nevada,Lander,015
+NV,Nevada,Lincoln,017
+NV,Nevada,Lyon,019
+NV,Nevada,Mineral,021
+NV,Nevada,Nye,023
+NV,Nevada,Pershing,027
+NV,Nevada,Storey,029
+NV,Nevada,Washoe,031
+NV,Nevada,White Pine,033
+NV,Nevada,Carson City,510
+NY,New York,Albany,001
+NY,New York,Allegany,003
+NY,New York,Broome,007
+NY,New York,Cattaraugus,009
+NY,New York,Cayuga,011
+NY,New York,Chautauqua,013
+NY,New York,Chemung,015
+NY,New York,Chenango,017
+NY,New York,Clinton,019
+NY,New York,Columbia,021
+NY,New York,Cortland,023
+NY,New York,Delaware,025
+NY,New York,Dutchess,027
+NY,New York,Erie,029
+NY,New York,Essex,031
+NY,New York,Franklin,033
+NY,New York,Fulton,035
+NY,New York,Genesee,037
+NY,New York,Greene,039
+NY,New York,Hamilton,041
+NY,New York,Herkimer,043
+NY,New York,Jefferson,045
+NY,New York,Lewis,049
+NY,New York,Livingston,051
+NY,New York,Madison,053
+NY,New York,Monroe,055
+NY,New York,Montgomery,057
+NY,New York,Nassau,059
+NY,New York,Niagara,063
+NY,New York,Oneida,065
+NY,New York,Onondaga,067
+NY,New York,Ontario,069
+NY,New York,Orange,071
+NY,New York,Orleans,073
+NY,New York,Oswego,075
+NY,New York,Otsego,077
+NY,New York,Putnam,079
+NY,New York,Rensselaer,083
+NY,New York,Rockland,087
+NY,New York,St. Lawrence,089
+NY,New York,Saratoga,091
+NY,New York,Schenectady,093
+NY,New York,Schoharie,095
+NY,New York,Schuyler,097
+NY,New York,Seneca,099
+NY,New York,Steuben,101
+NY,New York,Suffolk,103
+NY,New York,Sullivan,105
+NY,New York,Tioga,107
+NY,New York,Tompkins,109
+NY,New York,Ulster,111
+NY,New York,Warren,113
+NY,New York,Washington,115
+NY,New York,Wayne,117
+NY,New York,Westchester,119
+NY,New York,Wyoming,121
+NY,New York,Yates,123
+NYC,New York City,Bronx,005
+NYC,New York City,Kings,047
+NYC,New York City,New York,061
+NYC,New York City,Queens,081
+NYC,New York City,Richmond,085
+OH,Ohio,Adams,001
+OH,Ohio,Allen,003
+OH,Ohio,Ashland,005
+OH,Ohio,Ashtabula,007
+OH,Ohio,Athens,009
+OH,Ohio,Auglaize,011
+OH,Ohio,Belmont,013
+OH,Ohio,Brown,015
+OH,Ohio,Butler,017
+OH,Ohio,Carroll,019
+OH,Ohio,Champaign,021
+OH,Ohio,Clark,023
+OH,Ohio,Clermont,025
+OH,Ohio,Clinton,027
+OH,Ohio,Columbiana,029
+OH,Ohio,Coshocton,031
+OH,Ohio,Crawford,033
+OH,Ohio,Cuyahoga,035
+OH,Ohio,Darke,037
+OH,Ohio,Defiance,039
+OH,Ohio,Delaware,041
+OH,Ohio,Erie,043
+OH,Ohio,Fairfield,045
+OH,Ohio,Fayette,047
+OH,Ohio,Franklin,049
+OH,Ohio,Fulton,051
+OH,Ohio,Gallia,053
+OH,Ohio,Geauga,055
+OH,Ohio,Greene,057
+OH,Ohio,Guernsey,059
+OH,Ohio,Hamilton,061
+OH,Ohio,Hancock,063
+OH,Ohio,Hardin,065
+OH,Ohio,Harrison,067
+OH,Ohio,Henry,069
+OH,Ohio,Highland,071
+OH,Ohio,Hocking,073
+OH,Ohio,Holmes,075
+OH,Ohio,Huron,077
+OH,Ohio,Jackson,079
+OH,Ohio,Jefferson,081
+OH,Ohio,Knox,083
+OH,Ohio,Lake,085
+OH,Ohio,Lawrence,087
+OH,Ohio,Licking,089
+OH,Ohio,Logan,091
+OH,Ohio,Lorain,093
+OH,Ohio,Lucas,095
+OH,Ohio,Madison,097
+OH,Ohio,Mahoning,099
+OH,Ohio,Marion,101
+OH,Ohio,Medina,103
+OH,Ohio,Meigs,105
+OH,Ohio,Mercer,107
+OH,Ohio,Miami,109
+OH,Ohio,Monroe,111
+OH,Ohio,Montgomery,113
+OH,Ohio,Morgan,115
+OH,Ohio,Morrow,117
+OH,Ohio,Muskingum,119
+OH,Ohio,Noble,121
+OH,Ohio,Ottawa,123
+OH,Ohio,Paulding,125
+OH,Ohio,Perry,127
+OH,Ohio,Pickaway,129
+OH,Ohio,Pike,131
+OH,Ohio,Portage,133
+OH,Ohio,Preble,135
+OH,Ohio,Putnam,137
+OH,Ohio,Richland,139
+OH,Ohio,Ross,141
+OH,Ohio,Sandusky,143
+OH,Ohio,Scioto,145
+OH,Ohio,Seneca,147
+OH,Ohio,Shelby,149
+OH,Ohio,Stark,151
+OH,Ohio,Summit,153
+OH,Ohio,Trumbull,155
+OH,Ohio,Tuscarawas,157
+OH,Ohio,Union,159
+OH,Ohio,Van Wert,161
+OH,Ohio,Vinton,163
+OH,Ohio,Warren,165
+OH,Ohio,Washington,167
+OH,Ohio,Wayne,169
+OH,Ohio,Williams,171
+OH,Ohio,Wood,173
+OH,Ohio,Wyandot,175
+OK,Oklahoma,Adair,001
+OK,Oklahoma,Alfalfa,003
+OK,Oklahoma,Atoka,005
+OK,Oklahoma,Beaver,007
+OK,Oklahoma,Beckham,009
+OK,Oklahoma,Blaine,011
+OK,Oklahoma,Bryan,013
+OK,Oklahoma,Caddo,015
+OK,Oklahoma,Canadian,017
+OK,Oklahoma,Carter,019
+OK,Oklahoma,Cherokee,021
+OK,Oklahoma,Choctaw,023
+OK,Oklahoma,Cimarron,025
+OK,Oklahoma,Cleveland,027
+OK,Oklahoma,Coal,029
+OK,Oklahoma,Comanche,031
+OK,Oklahoma,Cotton,033
+OK,Oklahoma,Craig,035
+OK,Oklahoma,Creek,037
+OK,Oklahoma,Custer,039
+OK,Oklahoma,Delaware,041
+OK,Oklahoma,Dewey,043
+OK,Oklahoma,Ellis,045
+OK,Oklahoma,Garfield,047
+OK,Oklahoma,Garvin,049
+OK,Oklahoma,Grady,051
+OK,Oklahoma,Grant,053
+OK,Oklahoma,Greer,055
+OK,Oklahoma,Harmon,057
+OK,Oklahoma,Harper,059
+OK,Oklahoma,Haskell,061
+OK,Oklahoma,Hughes,063
+OK,Oklahoma,Jackson,065
+OK,Oklahoma,Jefferson,067
+OK,Oklahoma,Johnston,069
+OK,Oklahoma,Kay,071
+OK,Oklahoma,Kingfisher,073
+OK,Oklahoma,Kiowa,075
+OK,Oklahoma,Latimer,077
+OK,Oklahoma,Le Flore,079
+OK,Oklahoma,Lincoln,081
+OK,Oklahoma,Logan,083
+OK,Oklahoma,Love,085
+OK,Oklahoma,McClain,087
+OK,Oklahoma,McCurtain,089
+OK,Oklahoma,McIntosh,091
+OK,Oklahoma,Major,093
+OK,Oklahoma,Marshall,095
+OK,Oklahoma,Mayes,097
+OK,Oklahoma,Murray,099
+OK,Oklahoma,Muskogee,101
+OK,Oklahoma,Noble,103
+OK,Oklahoma,Nowata,105
+OK,Oklahoma,Okfuskee,107
+OK,Oklahoma,Oklahoma,109
+OK,Oklahoma,Okmulgee,111
+OK,Oklahoma,Osage,113
+OK,Oklahoma,Ottawa,115
+OK,Oklahoma,Pawnee,117
+OK,Oklahoma,Payne,119
+OK,Oklahoma,Pittsburg,121
+OK,Oklahoma,Pontotoc,123
+OK,Oklahoma,Pottawatomie,125
+OK,Oklahoma,Pushmataha,127
+OK,Oklahoma,Roger Mills,129
+OK,Oklahoma,Rogers,131
+OK,Oklahoma,Seminole,133
+OK,Oklahoma,Sequoyah,135
+OK,Oklahoma,Stephens,137
+OK,Oklahoma,Texas,139
+OK,Oklahoma,Tillman,141
+OK,Oklahoma,Tulsa,143
+OK,Oklahoma,Wagoner,145
+OK,Oklahoma,Washington,147
+OK,Oklahoma,Washita,149
+OK,Oklahoma,Woods,151
+OK,Oklahoma,Woodward,153
+OR,Oregon,Baker,001
+OR,Oregon,Benton,003
+OR,Oregon,Clackamas,005
+OR,Oregon,Clatsop,007
+OR,Oregon,Columbia,009
+OR,Oregon,Coos,011
+OR,Oregon,Crook,013
+OR,Oregon,Curry,015
+OR,Oregon,Deschutes,017
+OR,Oregon,Douglas,019
+OR,Oregon,Gilliam,021
+OR,Oregon,Grant,023
+OR,Oregon,Harney,025
+OR,Oregon,Hood River,027
+OR,Oregon,Jackson,029
+OR,Oregon,Jefferson,031
+OR,Oregon,Josephine,033
+OR,Oregon,Klamath,035
+OR,Oregon,Lake,037
+OR,Oregon,Lane,039
+OR,Oregon,Lincoln,041
+OR,Oregon,Linn,043
+OR,Oregon,Malheur,045
+OR,Oregon,Marion,047
+OR,Oregon,Morrow,049
+OR,Oregon,Multnomah,051
+OR,Oregon,Polk,053
+OR,Oregon,Sherman,055
+OR,Oregon,Tillamook,057
+OR,Oregon,Umatilla,059
+OR,Oregon,Union,061
+OR,Oregon,Wallowa,063
+OR,Oregon,Wasco,065
+OR,Oregon,Washington,067
+OR,Oregon,Wheeler,069
+OR,Oregon,Yamhill,071
+PA,Pennsylvania,Adams,001
+PA,Pennsylvania,Allegheny,003
+PA,Pennsylvania,Armstrong,005
+PA,Pennsylvania,Beaver,007
+PA,Pennsylvania,Bedford,009
+PA,Pennsylvania,Berks,011
+PA,Pennsylvania,Blair,013
+PA,Pennsylvania,Bradford,015
+PA,Pennsylvania,Bucks,017
+PA,Pennsylvania,Butler,019
+PA,Pennsylvania,Cambria,021
+PA,Pennsylvania,Cameron,023
+PA,Pennsylvania,Carbon,025
+PA,Pennsylvania,Centre,027
+PA,Pennsylvania,Chester,029
+PA,Pennsylvania,Clarion,031
+PA,Pennsylvania,Clearfield,033
+PA,Pennsylvania,Clinton,035
+PA,Pennsylvania,Columbia,037
+PA,Pennsylvania,Crawford,039
+PA,Pennsylvania,Cumberland,041
+PA,Pennsylvania,Dauphin,043
+PA,Pennsylvania,Delaware,045
+PA,Pennsylvania,Elk,047
+PA,Pennsylvania,Erie,049
+PA,Pennsylvania,Fayette,051
+PA,Pennsylvania,Forest,053
+PA,Pennsylvania,Franklin,055
+PA,Pennsylvania,Fulton,057
+PA,Pennsylvania,Greene,059
+PA,Pennsylvania,Huntingdon,061
+PA,Pennsylvania,Indiana,063
+PA,Pennsylvania,Jefferson,065
+PA,Pennsylvania,Juniata,067
+PA,Pennsylvania,Lackawanna,069
+PA,Pennsylvania,Lancaster,071
+PA,Pennsylvania,Lawrence,073
+PA,Pennsylvania,Lebanon,075
+PA,Pennsylvania,Lehigh,077
+PA,Pennsylvania,Luzerne,079
+PA,Pennsylvania,Lycoming,081
+PA,Pennsylvania,McKean,083
+PA,Pennsylvania,Mercer,085
+PA,Pennsylvania,Mifflin,087
+PA,Pennsylvania,Monroe,089
+PA,Pennsylvania,Montgomery,091
+PA,Pennsylvania,Montour,093
+PA,Pennsylvania,Northampton,095
+PA,Pennsylvania,Northumberland,097
+PA,Pennsylvania,Perry,099
+PA,Pennsylvania,Pike,103
+PA,Pennsylvania,Potter,105
+PA,Pennsylvania,Schuylkill,107
+PA,Pennsylvania,Snyder,109
+PA,Pennsylvania,Somerset,111
+PA,Pennsylvania,Sullivan,113
+PA,Pennsylvania,Susquehanna,115
+PA,Pennsylvania,Tioga,117
+PA,Pennsylvania,Union,119
+PA,Pennsylvania,Venango,121
+PA,Pennsylvania,Warren,123
+PA,Pennsylvania,Washington,125
+PA,Pennsylvania,Wayne,127
+PA,Pennsylvania,Westmoreland,129
+PA,Pennsylvania,Wyoming,131
+PA,Pennsylvania,York,133
+PW,Palau,Palau,030
+PHI,Philadelphia,Philadelphia,101
+PR,Puerto Rico,Adjuntas,001
+PR,Puerto Rico,Aguada,003
+PR,Puerto Rico,Aguadilla,005
+PR,Puerto Rico,Aguas Buenas,007
+PR,Puerto Rico,Aibonito,009
+PR,Puerto Rico,Anasco,011
+PR,Puerto Rico,Arecibo,013
+PR,Puerto Rico,Arroyo,015
+PR,Puerto Rico,Barceloneta,017
+PR,Puerto Rico,Barranquitas,019
+PR,Puerto Rico,Bayamon,021
+PR,Puerto Rico,Cabo,023
+PR,Puerto Rico,Caguas,025
+PR,Puerto Rico,Camuy,027
+PR,Puerto Rico,Canovanas,029
+PR,Puerto Rico,Carolina,031
+PR,Puerto Rico,Catano,033
+PR,Puerto Rico,Cayey,035
+PR,Puerto Rico,Ceiba,037
+PR,Puerto Rico,Ciales,039
+PR,Puerto Rico,Cidra,041
+PR,Puerto Rico,Coamo,043
+PR,Puerto Rico,Comerio,045
+PR,Puerto Rico,Corozal,047
+PR,Puerto Rico,Culebra,049
+PR,Puerto Rico,Dorado,051
+PR,Puerto Rico,Fajardo,053
+PR,Puerto Rico,Florida,054
+PR,Puerto Rico,Guanica,055
+PR,Puerto Rico,Guayama,057
+PR,Puerto Rico,Guayanilla,059
+PR,Puerto Rico,Guaynabo,061
+PR,Puerto Rico,Gurabo,063
+PR,Puerto Rico,Hatillo,065
+PR,Puerto Rico,Hormigueros,067
+PR,Puerto Rico,Humacao,069
+PR,Puerto Rico,Isabela,071
+PR,Puerto Rico,Jayuya,073
+PR,Puerto Rico,Juana,075
+PR,Puerto Rico,Juncos,077
+PR,Puerto Rico,Lajas,079
+PR,Puerto Rico,Lares,081
+PR,Puerto Rico,Las Marias,083
+PR,Puerto Rico,Las,085
+PR,Puerto Rico,Loiza,087
+PR,Puerto Rico,Luquillo,089
+PR,Puerto Rico,Manati,091
+PR,Puerto Rico,Maricao,093
+PR,Puerto Rico,Maunabo,095
+PR,Puerto Rico,Mayaguez,097
+PR,Puerto Rico,Moca,099
+PR,Puerto Rico,Morovis,101
+PR,Puerto Rico,Naguabo,103
+PR,Puerto Rico,Naranjito,105
+PR,Puerto Rico,Orocovis,107
+PR,Puerto Rico,Patillas,109
+PR,Puerto Rico,Penuelas,111
+PR,Puerto Rico,Ponce,113
+PR,Puerto Rico,Quebradillas,115
+PR,Puerto Rico,Rincon,117
+PR,Puerto Rico,Rio Grande,119
+PR,Puerto Rico,Sabana Grande,121
+PR,Puerto Rico,Salinas,123
+PR,Puerto Rico,San German,125
+PR,Puerto Rico,San Juan,127
+PR,Puerto Rico,San Lorenzo,129
+PR,Puerto Rico,San Sabastian,131
+PR,Puerto Rico,Santa,133
+PR,Puerto Rico,Toa Alta,135
+PR,Puerto Rico,Toa Baja,137
+PR,Puerto Rico,Trujillo,139
+PR,Puerto Rico,Utuado,141
+PR,Puerto Rico,Vega Alta,143
+PR,Puerto Rico,Vega Baja,145
+PR,Puerto Rico,Vieques,147
+PR,Puerto Rico,Villalba,149
+PR,Puerto Rico,Yabucoa,151
+PR,Puerto Rico,Yauco,153
+RI,Rhode Island,Bristol,001
+RI,Rhode Island,Kent,003
+RI,Rhode Island,Newport,005
+RI,Rhode Island,Providence,007
+RI,Rhode Island,Washington,009
+SC,South Carolina,Abbeville,001
+SC,South Carolina,Aiken,003
+SC,South Carolina,Allendale,005
+SC,South Carolina,Anderson,007
+SC,South Carolina,Bamberg,009
+SC,South Carolina,Barnwell,011
+SC,South Carolina,Beaufort,013
+SC,South Carolina,Berkeley,015
+SC,South Carolina,Calhoun,017
+SC,South Carolina,Charleston,019
+SC,South Carolina,Cherokee,021
+SC,South Carolina,Chester,023
+SC,South Carolina,Chesterfield,025
+SC,South Carolina,Clarendon,027
+SC,South Carolina,Colleton,029
+SC,South Carolina,Darlington,031
+SC,South Carolina,Dillon,033
+SC,South Carolina,Dorchester,035
+SC,South Carolina,Edgefield,037
+SC,South Carolina,Fairfield,039
+SC,South Carolina,Florence,041
+SC,South Carolina,Georgetown,043
+SC,South Carolina,Greenville,045
+SC,South Carolina,Greenwood,047
+SC,South Carolina,Hampton,049
+SC,South Carolina,Horry,051
+SC,South Carolina,Jasper,053
+SC,South Carolina,Kershaw,055
+SC,South Carolina,Lancaster,057
+SC,South Carolina,Laurens,059
+SC,South Carolina,Lee,061
+SC,South Carolina,Lexington,063
+SC,South Carolina,McCormick,065
+SC,South Carolina,Marion,067
+SC,South Carolina,Marlboro,069
+SC,South Carolina,Newberry,071
+SC,South Carolina,Oconee,073
+SC,South Carolina,Orangeburg,075
+SC,South Carolina,Pickens,077
+SC,South Carolina,Richland,079
+SC,South Carolina,Saluda,081
+SC,South Carolina,Spartanburg,083
+SC,South Carolina,Sumter,085
+SC,South Carolina,Union,087
+SC,South Carolina,Williamsburg,089
+SC,South Carolina,York,091
+SD,South Dakota,Aurora,003
+SD,South Dakota,Beadle,005
+SD,South Dakota,Bennett,007
+SD,South Dakota,Bon Homme,009
+SD,South Dakota,Brookings,011
+SD,South Dakota,Brown,013
+SD,South Dakota,Brule,015
+SD,South Dakota,Buffalo,017
+SD,South Dakota,Butte,019
+SD,South Dakota,Campbell,021
+SD,South Dakota,Charles Mix,023
+SD,South Dakota,Clark,025
+SD,South Dakota,Clay,027
+SD,South Dakota,Codington,029
+SD,South Dakota,Corson,031
+SD,South Dakota,Custer,033
+SD,South Dakota,Davison,035
+SD,South Dakota,Day,037
+SD,South Dakota,Deuel,039
+SD,South Dakota,Dewey,041
+SD,South Dakota,Douglas,043
+SD,South Dakota,Edmunds,045
+SD,South Dakota,Fall River,047
+SD,South Dakota,Faulk,049
+SD,South Dakota,Grant,051
+SD,South Dakota,Gregory,053
+SD,South Dakota,Haakon,055
+SD,South Dakota,Hamlin,057
+SD,South Dakota,Hand,059
+SD,South Dakota,Hanson,061
+SD,South Dakota,Harding,063
+SD,South Dakota,Hughes,065
+SD,South Dakota,Hutchinson,067
+SD,South Dakota,Hyde,069
+SD,South Dakota,Jackson,071
+SD,South Dakota,Jerauld,073
+SD,South Dakota,Jones,075
+SD,South Dakota,Kingsbury,077
+SD,South Dakota,Lake,079
+SD,South Dakota,Lawrence,081
+SD,South Dakota,Lincoln,083
+SD,South Dakota,Lyman,085
+SD,South Dakota,McCook,087
+SD,South Dakota,McPherson,089
+SD,South Dakota,Marshall,091
+SD,South Dakota,Meade,093
+SD,South Dakota,Mellette,095
+SD,South Dakota,Miner,097
+SD,South Dakota,Minnehaha,099
+SD,South Dakota,Moody,101
+SD,South Dakota,Oglala Lakota,102
+SD,South Dakota,Pennington,103
+SD,South Dakota,Perkins,105
+SD,South Dakota,Potter,107
+SD,South Dakota,Roberts,109
+SD,South Dakota,Sanborn,111
+SD,South Dakota,Spink,115
+SD,South Dakota,Stanley,117
+SD,South Dakota,Sully,119
+SD,South Dakota,Todd,121
+SD,South Dakota,Tripp,123
+SD,South Dakota,Turner,125
+SD,South Dakota,Union,127
+SD,South Dakota,Walworth,129
+SD,South Dakota,Yankton,135
+SD,South Dakota,Ziebach,137
+TN,Tennessee,Anderson,001
+TN,Tennessee,Bedford,003
+TN,Tennessee,Benton,005
+TN,Tennessee,Bledsoe,007
+TN,Tennessee,Blount,009
+TN,Tennessee,Bradley,011
+TN,Tennessee,Campbell,013
+TN,Tennessee,Cannon,015
+TN,Tennessee,Carroll,017
+TN,Tennessee,Carter,019
+TN,Tennessee,Cheatham,021
+TN,Tennessee,Chester,023
+TN,Tennessee,Claiborne,025
+TN,Tennessee,Clay,027
+TN,Tennessee,Cocke,029
+TN,Tennessee,Coffee,031
+TN,Tennessee,Crockett,033
+TN,Tennessee,Cumberland,035
+TN,Tennessee,Davidson,037
+TN,Tennessee,Decatur,039
+TN,Tennessee,DeKalb,041
+TN,Tennessee,Dickson,043
+TN,Tennessee,Dyer,045
+TN,Tennessee,Fayette,047
+TN,Tennessee,Fentress,049
+TN,Tennessee,Franklin,051
+TN,Tennessee,Gibson,053
+TN,Tennessee,Giles,055
+TN,Tennessee,Grainger,057
+TN,Tennessee,Greene,059
+TN,Tennessee,Grundy,061
+TN,Tennessee,Hamblen,063
+TN,Tennessee,Hamilton,065
+TN,Tennessee,Hancock,067
+TN,Tennessee,Hardeman,069
+TN,Tennessee,Hardin,071
+TN,Tennessee,Hawkins,073
+TN,Tennessee,Haywood,075
+TN,Tennessee,Henderson,077
+TN,Tennessee,Henry,079
+TN,Tennessee,Hickman,081
+TN,Tennessee,Houston,083
+TN,Tennessee,Humphreys,085
+TN,Tennessee,Jackson,087
+TN,Tennessee,Jefferson,089
+TN,Tennessee,Johnson,091
+TN,Tennessee,Knox,093
+TN,Tennessee,Lake,095
+TN,Tennessee,Lauderdale,097
+TN,Tennessee,Lawrence,099
+TN,Tennessee,Lewis,101
+TN,Tennessee,Lincoln,103
+TN,Tennessee,Loudon,105
+TN,Tennessee,McMinn,107
+TN,Tennessee,McNairy,109
+TN,Tennessee,Macon,111
+TN,Tennessee,Madison,113
+TN,Tennessee,Marion,115
+TN,Tennessee,Marshall,117
+TN,Tennessee,Maury,119
+TN,Tennessee,Meigs,121
+TN,Tennessee,Monroe,123
+TN,Tennessee,Montgomery,125
+TN,Tennessee,Moore,127
+TN,Tennessee,Morgan,129
+TN,Tennessee,Obion,131
+TN,Tennessee,Overton,133
+TN,Tennessee,Perry,135
+TN,Tennessee,Pickett,137
+TN,Tennessee,Polk,139
+TN,Tennessee,Putnam,141
+TN,Tennessee,Rhea,143
+TN,Tennessee,Roane,145
+TN,Tennessee,Robertson,147
+TN,Tennessee,Rutherford,149
+TN,Tennessee,Scott,151
+TN,Tennessee,Sequatchie,153
+TN,Tennessee,Sevier,155
+TN,Tennessee,Shelby,157
+TN,Tennessee,Smith,159
+TN,Tennessee,Stewart,161
+TN,Tennessee,Sullivan,163
+TN,Tennessee,Sumner,165
+TN,Tennessee,Tipton,167
+TN,Tennessee,Trousdale,169
+TN,Tennessee,Unicoi,171
+TN,Tennessee,Union,173
+TN,Tennessee,Van Buren,175
+TN,Tennessee,Warren,177
+TN,Tennessee,Washington,179
+TN,Tennessee,Wayne,181
+TN,Tennessee,Weakley,183
+TN,Tennessee,White,185
+TN,Tennessee,Williamson,187
+TN,Tennessee,Wilson,189
+TX,Texas,Anderson,001
+TX,Texas,Andrews,003
+TX,Texas,Angelina,005
+TX,Texas,Aransas,007
+TX,Texas,Archer,009
+TX,Texas,Armstrong,011
+TX,Texas,Atascosa,013
+TX,Texas,Austin,015
+TX,Texas,Bailey,017
+TX,Texas,Bandera,019
+TX,Texas,Bastrop,021
+TX,Texas,Baylor,023
+TX,Texas,Bee,025
+TX,Texas,Bell,027
+TX,Texas,Bexar,029
+TX,Texas,Blanco,031
+TX,Texas,Borden,033
+TX,Texas,Bosque,035
+TX,Texas,Bowie,037
+TX,Texas,Brazoria,039
+TX,Texas,Brazos,041
+TX,Texas,Brewster,043
+TX,Texas,Briscoe,045
+TX,Texas,Brooks,047
+TX,Texas,Brown,049
+TX,Texas,Burleson,051
+TX,Texas,Burnet,053
+TX,Texas,Caldwell,055
+TX,Texas,Calhoun,057
+TX,Texas,Callahan,059
+TX,Texas,Cameron,061
+TX,Texas,Camp,063
+TX,Texas,Carson,065
+TX,Texas,Cass,067
+TX,Texas,Castro,069
+TX,Texas,Chambers,071
+TX,Texas,Cherokee,073
+TX,Texas,Childress,075
+TX,Texas,Clay,077
+TX,Texas,Cochran,079
+TX,Texas,Coke,081
+TX,Texas,Coleman,083
+TX,Texas,Collin,085
+TX,Texas,Collingsworth,087
+TX,Texas,Colorado,089
+TX,Texas,Comal,091
+TX,Texas,Comanche,093
+TX,Texas,Concho,095
+TX,Texas,Cooke,097
+TX,Texas,Coryell,099
+TX,Texas,Cottle,101
+TX,Texas,Crane,103
+TX,Texas,Crockett,105
+TX,Texas,Crosby,107
+TX,Texas,Culberson,109
+TX,Texas,Dallam,111
+TX,Texas,Dallas,113
+TX,Texas,Dawson,115
+TX,Texas,Deaf Smith,117
+TX,Texas,Delta,119
+TX,Texas,Denton,121
+TX,Texas,DeWitt,123
+TX,Texas,Dickens,125
+TX,Texas,Dimmit,127
+TX,Texas,Donley,129
+TX,Texas,Duval,131
+TX,Texas,Eastland,133
+TX,Texas,Ector,135
+TX,Texas,Edwards,137
+TX,Texas,Ellis,139
+TX,Texas,El Paso,141
+TX,Texas,Erath,143
+TX,Texas,Falls,145
+TX,Texas,Fannin,147
+TX,Texas,Fayette,149
+TX,Texas,Fisher,151
+TX,Texas,Floyd,153
+TX,Texas,Foard,155
+TX,Texas,Fort Bend,157
+TX,Texas,Franklin,159
+TX,Texas,Freestone,161
+TX,Texas,Frio,163
+TX,Texas,Gaines,165
+TX,Texas,Galveston,167
+TX,Texas,Garza,169
+TX,Texas,Gillespie,171
+TX,Texas,Glasscock,173
+TX,Texas,Goliad,175
+TX,Texas,Gonzales,177
+TX,Texas,Gray,179
+TX,Texas,Grayson,181
+TX,Texas,Gregg,183
+TX,Texas,Grimes,185
+TX,Texas,Guadalupe,187
+TX,Texas,Hale,189
+TX,Texas,Hall,191
+TX,Texas,Hamilton,193
+TX,Texas,Hansford,195
+TX,Texas,Hardeman,197
+TX,Texas,Hardin,199
+TX,Texas,Harris,201
+TX,Texas,Harrison,203
+TX,Texas,Hartley,205
+TX,Texas,Haskell,207
+TX,Texas,Hays,209
+TX,Texas,Hemphill,211
+TX,Texas,Henderson,213
+TX,Texas,Hidalgo,215
+TX,Texas,Hill,217
+TX,Texas,Hockley,219
+TX,Texas,Hood,221
+TX,Texas,Hopkins,223
+TX,Texas,Houston,225
+TX,Texas,Howard,227
+TX,Texas,Hudspeth,229
+TX,Texas,Hunt,231
+TX,Texas,Hutchinson,233
+TX,Texas,Irion,235
+TX,Texas,Jack,237
+TX,Texas,Jackson,239
+TX,Texas,Jasper,241
+TX,Texas,Jeff Davis,243
+TX,Texas,Jefferson,245
+TX,Texas,Jim Hogg,247
+TX,Texas,Jim Wells,249
+TX,Texas,Johnson,251
+TX,Texas,Jones,253
+TX,Texas,Karnes,255
+TX,Texas,Kaufman,257
+TX,Texas,Kendall,259
+TX,Texas,Kenedy,261
+TX,Texas,Kent,263
+TX,Texas,Kerr,265
+TX,Texas,Kimble,267
+TX,Texas,King,269
+TX,Texas,Kinney,271
+TX,Texas,Kleberg,273
+TX,Texas,Knox,275
+TX,Texas,Lamar,277
+TX,Texas,Lamb,279
+TX,Texas,Lampasas,281
+TX,Texas,La Salle,283
+TX,Texas,Lavaca,285
+TX,Texas,Lee,287
+TX,Texas,Leon,289
+TX,Texas,Liberty,291
+TX,Texas,Limestone,293
+TX,Texas,Lipscomb,295
+TX,Texas,Live Oak,297
+TX,Texas,Llano,299
+TX,Texas,Loving,301
+TX,Texas,Lubbock,303
+TX,Texas,Lynn,305
+TX,Texas,McCulloch,307
+TX,Texas,McLennan,309
+TX,Texas,McMullen,311
+TX,Texas,Madison,313
+TX,Texas,Marion,315
+TX,Texas,Martin,317
+TX,Texas,Mason,319
+TX,Texas,Matagorda,321
+TX,Texas,Maverick,323
+TX,Texas,Medina,325
+TX,Texas,Menard,327
+TX,Texas,Midland,329
+TX,Texas,Milam,331
+TX,Texas,Mills,333
+TX,Texas,Mitchell,335
+TX,Texas,Montague,337
+TX,Texas,Montgomery,339
+TX,Texas,Moore,341
+TX,Texas,Morris,343
+TX,Texas,Motley,345
+TX,Texas,Nacogdoches,347
+TX,Texas,Navarro,349
+TX,Texas,Newton,351
+TX,Texas,Nolan,353
+TX,Texas,Nueces,355
+TX,Texas,Ochiltree,357
+TX,Texas,Oldham,359
+TX,Texas,Orange,361
+TX,Texas,Palo Pinto,363
+TX,Texas,Panola,365
+TX,Texas,Parker,367
+TX,Texas,Parmer,369
+TX,Texas,Pecos,371
+TX,Texas,Polk,373
+TX,Texas,Potter,375
+TX,Texas,Presidio,377
+TX,Texas,Rains,379
+TX,Texas,Randall,381
+TX,Texas,Reagan,383
+TX,Texas,Real,385
+TX,Texas,Red River,387
+TX,Texas,Reeves,389
+TX,Texas,Refugio,391
+TX,Texas,Roberts,393
+TX,Texas,Robertson,395
+TX,Texas,Rockwall,397
+TX,Texas,Runnels,399
+TX,Texas,Rusk,401
+TX,Texas,Sabine,403
+TX,Texas,San Augustine,405
+TX,Texas,San Jacinto,407
+TX,Texas,San Patricio,409
+TX,Texas,San Saba,411
+TX,Texas,Schleicher,413
+TX,Texas,Scurry,415
+TX,Texas,Shackelford,417
+TX,Texas,Shelby,419
+TX,Texas,Sherman,421
+TX,Texas,Smith,423
+TX,Texas,Somervell,425
+TX,Texas,Starr,427
+TX,Texas,Stephens,429
+TX,Texas,Sterling,431
+TX,Texas,Stonewall,433
+TX,Texas,Sutton,435
+TX,Texas,Swisher,437
+TX,Texas,Tarrant,439
+TX,Texas,Taylor,441
+TX,Texas,Terrell,443
+TX,Texas,Terry,445
+TX,Texas,Throckmorton,447
+TX,Texas,Titus,449
+TX,Texas,Tom Green,451
+TX,Texas,Travis,453
+TX,Texas,Trinity,455
+TX,Texas,Tyler,457
+TX,Texas,Upshur,459
+TX,Texas,Upton,461
+TX,Texas,Uvalde,463
+TX,Texas,Val Verde,465
+TX,Texas,Van Zandt,467
+TX,Texas,Victoria,469
+TX,Texas,Walker,471
+TX,Texas,Waller,473
+TX,Texas,Ward,475
+TX,Texas,Washington,477
+TX,Texas,Webb,479
+TX,Texas,Wharton,481
+TX,Texas,Wheeler,483
+TX,Texas,Wichita,485
+TX,Texas,Wilbarger,487
+TX,Texas,Willacy,489
+TX,Texas,Williamson,491
+TX,Texas,Wilson,493
+TX,Texas,Winkler,495
+TX,Texas,Wise,497
+TX,Texas,Wood,499
+TX,Texas,Yoakum,501
+TX,Texas,Young,503
+TX,Texas,Zapata,505
+TX,Texas,Zavala,507
+VI,Virgin Islands,St. Croix,010
+VI,Virgin Islands,St. John,020
+VI,Virgin Islands,St. Thomas,030
+UT,Utah,Beaver,001
+UT,Utah,Box Elder,003
+UT,Utah,Cache,005
+UT,Utah,Carbon,007
+UT,Utah,Daggett,009
+UT,Utah,Davis,011
+UT,Utah,Duchesne,013
+UT,Utah,Emery,015
+UT,Utah,Garfield,017
+UT,Utah,Grand,019
+UT,Utah,Iron,021
+UT,Utah,Juab,023
+UT,Utah,Kane,025
+UT,Utah,Millard,027
+UT,Utah,Morgan,029
+UT,Utah,Piute,031
+UT,Utah,Rich,033
+UT,Utah,Salt Lake,035
+UT,Utah,San Juan,037
+UT,Utah,Sanpete,039
+UT,Utah,Sevier,041
+UT,Utah,Summit,043
+UT,Utah,Tooele,045
+UT,Utah,Uintah,047
+UT,Utah,Utah,049
+UT,Utah,Wasatch,051
+UT,Utah,Washington,053
+UT,Utah,Wayne,055
+UT,Utah,Weber,057
+VA,Virginia,Accomack,001
+VA,Virginia,Albemarle,003
+VA,Virginia,Alleghany,005
+VA,Virginia,Amelia,007
+VA,Virginia,Amherst,009
+VA,Virginia,Appomattox,011
+VA,Virginia,Arlington,013
+VA,Virginia,Augusta,015
+VA,Virginia,Bath,017
+VA,Virginia,Bedford,019
+VA,Virginia,Bland,021
+VA,Virginia,Botetourt,023
+VA,Virginia,Brunswick,025
+VA,Virginia,Buchanan,027
+VA,Virginia,Buckingham,029
+VA,Virginia,Campbell,031
+VA,Virginia,Caroline,033
+VA,Virginia,Carroll,035
+VA,Virginia,Charles City,036
+VA,Virginia,Charlotte,037
+VA,Virginia,Chesterfield,041
+VA,Virginia,Clarke,043
+VA,Virginia,Craig,045
+VA,Virginia,Culpeper,047
+VA,Virginia,Cumberland,049
+VA,Virginia,Dickenson,051
+VA,Virginia,Dinwiddie,053
+VA,Virginia,Essex,057
+VA,Virginia,Fairfax,059
+VA,Virginia,Fauquier,061
+VA,Virginia,Floyd,063
+VA,Virginia,Fluvanna,065
+VA,Virginia,Franklin,067
+VA,Virginia,Frederick,069
+VA,Virginia,Giles,071
+VA,Virginia,Gloucester,073
+VA,Virginia,Goochland,075
+VA,Virginia,Grayson,077
+VA,Virginia,Greene,079
+VA,Virginia,Greensville,081
+VA,Virginia,Halifax,083
+VA,Virginia,Hanover,085
+VA,Virginia,Henrico,087
+VA,Virginia,Henry,089
+VA,Virginia,Highland,091
+VA,Virginia,Isle of Wight,093
+VA,Virginia,James City,095
+VA,Virginia,King and Queen,097
+VA,Virginia,King George,099
+VA,Virginia,King William,101
+VA,Virginia,Lancaster,103
+VA,Virginia,Lee,105
+VA,Virginia,Loudoun,107
+VA,Virginia,Louisa,109
+VA,Virginia,Lunenburg,111
+VA,Virginia,Madison,113
+VA,Virginia,Mathews,115
+VA,Virginia,Mecklenburg,117
+VA,Virginia,Middlesex,119
+VA,Virginia,Montgomery,121
+VA,Virginia,Nelson,125
+VA,Virginia,New Kent,127
+VA,Virginia,Northampton,131
+VA,Virginia,Northumberland,133
+VA,Virginia,Nottoway,135
+VA,Virginia,Orange,137
+VA,Virginia,Page,139
+VA,Virginia,Patrick,141
+VA,Virginia,Pittsylvania,143
+VA,Virginia,Powhatan,145
+VA,Virginia,Prince Edward,147
+VA,Virginia,Prince George,149
+VA,Virginia,Prince William,153
+VA,Virginia,Pulaski,155
+VA,Virginia,Rappahannock,157
+VA,Virginia,Richmond,159
+VA,Virginia,Roanoake,161
+VA,Virginia,Rockbridge,163
+VA,Virginia,Rockingham,165
+VA,Virginia,Russell,167
+VA,Virginia,Scott,169
+VA,Virginia,Shenandoah,171
+VA,Virginia,Smyth,173
+VA,Virginia,Southampton,175
+VA,Virginia,Spotsylvania,177
+VA,Virginia,Stafford,179
+VA,Virginia,Surry,181
+VA,Virginia,Sussex,183
+VA,Virginia,Tazewell,185
+VA,Virginia,Warren,187
+VA,Virginia,Washington,191
+VA,Virginia,Westmoreland,193
+VA,Virginia,Wise,195
+VA,Virginia,Wythe,197
+VA,Virginia,York,199
+VA,Virginia,Alexandria,510
+VA,Virginia,Bristol,520
+VA,Virginia,Buena Vista,530
+VA,Virginia,Charlottesville,540
+VA,Virginia,Chesapeake,550
+VA,Virginia,Colonial Heights,570
+VA,Virginia,Covington,580
+VA,Virginia,Danville,590
+VA,Virginia,Emporia,595
+VA,Virginia,Fairfax city,600
+VA,Virginia,Falls Church,610
+VA,Virginia,Franklin city,620
+VA,Virginia,Fredericksburg,630
+VA,Virginia,Galax,640
+VA,Virginia,Hampton,650
+VA,Virginia,Harrisonburg,660
+VA,Virginia,Hopewell,670
+VA,Virginia,Lexington,678
+VA,Virginia,Lynchburg,680
+VA,Virginia,Manassas,683
+VA,Virginia,Manassas Park,685
+VA,Virginia,Martinsville,690
+VA,Virginia,Newport News,700
+VA,Virginia,Norfolk,710
+VA,Virginia,Norton,720
+VA,Virginia,Petersburg,730
+VA,Virginia,Poquoson,735
+VA,Virginia,Portsmouth,740
+VA,Virginia,Radford,750
+VA,Virginia,Richmond city,760
+VA,Virginia,Roanoke city,770
+VA,Virginia,Salem,775
+VA,Virginia,Staunton,790
+VA,Virginia,Suffolk,800
+VA,Virginia,Virginia Beach,810
+VA,Virginia,Waynesboro,820
+VA,Virginia,Williamsburg,830
+VA,Virginia,Winchester,840
+VT,Vermont,Addison,001
+VT,Vermont,Bennington,003
+VT,Vermont,Caledonia,005
+VT,Vermont,Chittenden,007
+VT,Vermont,Essex,009
+VT,Vermont,Franklin,011
+VT,Vermont,Grand Isle,013
+VT,Vermont,Lamoille,015
+VT,Vermont,Orange,017
+VT,Vermont,Orleans,019
+VT,Vermont,Rutland,021
+VT,Vermont,Washington,023
+VT,Vermont,Windham,025
+VT,Vermont,Windsor,027
+WA,Washington,Adams,001
+WA,Washington,Asotin,003
+WA,Washington,Benton,005
+WA,Washington,Chelan,007
+WA,Washington,Clallam,009
+WA,Washington,Clark,011
+WA,Washington,Columbia,013
+WA,Washington,Cowlitz,015
+WA,Washington,Douglas,017
+WA,Washington,Ferry,019
+WA,Washington,Franklin,021
+WA,Washington,Garfield,023
+WA,Washington,Grant,025
+WA,Washington,Grays Harbor,027
+WA,Washington,Island,029
+WA,Washington,Jefferson,031
+WA,Washington,King,033
+WA,Washington,Kitsap,035
+WA,Washington,Kittitas,037
+WA,Washington,Klickitat,039
+WA,Washington,Lewis,041
+WA,Washington,Lincoln,043
+WA,Washington,Mason,045
+WA,Washington,Okanogan,047
+WA,Washington,Pacific,049
+WA,Washington,Pend Oreille,051
+WA,Washington,Pierce,053
+WA,Washington,San Juan,055
+WA,Washington,Skagit,057
+WA,Washington,Skamania,059
+WA,Washington,Snohomish,061
+WA,Washington,Spokane,063
+WA,Washington,Stevens,065
+WA,Washington,Thurston,067
+WA,Washington,Wahkiakum,069
+WA,Washington,Walla Walla,071
+WA,Washington,Whatcom,073
+WA,Washington,Whitman,075
+WA,Washington,Yakima,077
+WI,Wisconsin,Adams,001
+WI,Wisconsin,Ashland,003
+WI,Wisconsin,Barron,005
+WI,Wisconsin,Bayfield,007
+WI,Wisconsin,Brown,009
+WI,Wisconsin,Buffalo,011
+WI,Wisconsin,Burnett,013
+WI,Wisconsin,Calumet,015
+WI,Wisconsin,Chippewa,017
+WI,Wisconsin,Clark,019
+WI,Wisconsin,Columbia,021
+WI,Wisconsin,Crawford,023
+WI,Wisconsin,Dane,025
+WI,Wisconsin,Dodge,027
+WI,Wisconsin,Door,029
+WI,Wisconsin,Douglas,031
+WI,Wisconsin,Dunn,033
+WI,Wisconsin,Eau Claire,035
+WI,Wisconsin,Florence,037
+WI,Wisconsin,Fond du Lac,039
+WI,Wisconsin,Forest,041
+WI,Wisconsin,Grant,043
+WI,Wisconsin,Green,045
+WI,Wisconsin,Green Lake,047
+WI,Wisconsin,Iowa,049
+WI,Wisconsin,Iron,051
+WI,Wisconsin,Jackson,053
+WI,Wisconsin,Jefferson,055
+WI,Wisconsin,Juneau,057
+WI,Wisconsin,Kenosha,059
+WI,Wisconsin,Kewaunee,061
+WI,Wisconsin,La Crosse,063
+WI,Wisconsin,Lafayette,065
+WI,Wisconsin,Langlade,067
+WI,Wisconsin,Lincoln,069
+WI,Wisconsin,Manitowoc,071
+WI,Wisconsin,Marathon,073
+WI,Wisconsin,Marinette,075
+WI,Wisconsin,Marquette,077
+WI,Wisconsin,Menominee,078
+WI,Wisconsin,Milwaukee,079
+WI,Wisconsin,Monroe,081
+WI,Wisconsin,Oconto,083
+WI,Wisconsin,Oneida,085
+WI,Wisconsin,Outagamie,087
+WI,Wisconsin,Ozaukee,089
+WI,Wisconsin,Pepin,091
+WI,Wisconsin,Pierce,093
+WI,Wisconsin,Polk,095
+WI,Wisconsin,Portage,097
+WI,Wisconsin,Price,099
+WI,Wisconsin,Racine,101
+WI,Wisconsin,Richland,103
+WI,Wisconsin,Rock,105
+WI,Wisconsin,Rusk,107
+WI,Wisconsin,St. Croix,109
+WI,Wisconsin,Sauk,111
+WI,Wisconsin,Sawyer,113
+WI,Wisconsin,Shawano,115
+WI,Wisconsin,Sheboygan,117
+WI,Wisconsin,Taylor,119
+WI,Wisconsin,Trempealeau,121
+WI,Wisconsin,Vernon,123
+WI,Wisconsin,Vilas,125
+WI,Wisconsin,Walworth,127
+WI,Wisconsin,Washburn,129
+WI,Wisconsin,Washington,131
+WI,Wisconsin,Waukesha,133
+WI,Wisconsin,Waupaca,135
+WI,Wisconsin,Waushara,137
+WI,Wisconsin,Winnebago,139
+WI,Wisconsin,Wood,141
+WV,West Virginia,Barbour,001
+WV,West Virginia,Berkeley,003
+WV,West Virginia,Boone,005
+WV,West Virginia,Braxton,007
+WV,West Virginia,Brooke,009
+WV,West Virginia,Cabell,011
+WV,West Virginia,Calhoun,013
+WV,West Virginia,Clay,015
+WV,West Virginia,Doddridge,017
+WV,West Virginia,Fayette,019
+WV,West Virginia,Gilmer,021
+WV,West Virginia,Grant,023
+WV,West Virginia,Greenbrier,025
+WV,West Virginia,Hampshire,027
+WV,West Virginia,Hancock,029
+WV,West Virginia,Hardy,031
+WV,West Virginia,Harrison,033
+WV,West Virginia,Jackson,035
+WV,West Virginia,Jefferson,037
+WV,West Virginia,Kanawha,039
+WV,West Virginia,Lewis,041
+WV,West Virginia,Lincoln,043
+WV,West Virginia,Logan,045
+WV,West Virginia,McDowell,047
+WV,West Virginia,Marion,049
+WV,West Virginia,Marshall,051
+WV,West Virginia,Mason,053
+WV,West Virginia,Mercer,055
+WV,West Virginia,Mineral,057
+WV,West Virginia,Mingo,059
+WV,West Virginia,Monongalia,061
+WV,West Virginia,Monroe,063
+WV,West Virginia,Morgan,065
+WV,West Virginia,Nicholas,067
+WV,West Virginia,Ohio,069
+WV,West Virginia,Pendleton,071
+WV,West Virginia,Pleasants,073
+WV,West Virginia,Pocahontas,075
+WV,West Virginia,Preston,077
+WV,West Virginia,Putnam,079
+WV,West Virginia,Raleigh,081
+WV,West Virginia,Randolph,083
+WV,West Virginia,Ritchie,085
+WV,West Virginia,Roane,087
+WV,West Virginia,Summers,089
+WV,West Virginia,Taylor,091
+WV,West Virginia,Tucker,093
+WV,West Virginia,Tyler,095
+WV,West Virginia,Upshur,097
+WV,West Virginia,Wayne,099
+WV,West Virginia,Webster,101
+WV,West Virginia,Wetzel,103
+WV,West Virginia,Wirt,105
+WV,West Virginia,Wood,107
+WV,West Virginia,Wyoming,109
+WY,Wyoming,Albany,001
+WY,Wyoming,Big Horn,003
+WY,Wyoming,Campbell,005
+WY,Wyoming,Carbon,007
+WY,Wyoming,Converse,009
+WY,Wyoming,Crook,011
+WY,Wyoming,Fremont,013
+WY,Wyoming,Goshen,015
+WY,Wyoming,Hot Springs,017
+WY,Wyoming,Johnson,019
+WY,Wyoming,Laramie,021
+WY,Wyoming,Lincoln,023
+WY,Wyoming,Natrona,025
+WY,Wyoming,Niobrara,027
+WY,Wyoming,Park,029
+WY,Wyoming,Platte,031
+WY,Wyoming,Sheridan,033
+WY,Wyoming,Sublette,035
+WY,Wyoming,Sweetwater,037
+WY,Wyoming,Teton,039
+WY,Wyoming,Uinta,041
+WY,Wyoming,Washakie,043
+WY,Wyoming,Weston,045

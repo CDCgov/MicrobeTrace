@@ -1,0 +1,209 @@
+.primeng-datatable-container {
+    width: 100%;
+
+    .ui-table {
+        div.ui-chkbox-box {
+            display: inline-block !important;
+            position: relative !important;
+            cursor: pointer !important;
+            font-size: 1rem !important;
+            transition: all .3s !important;
+
+            span {
+                display: block;
+                border-radius: 3px;
+                background: 0 0;
+                position: absolute;
+                height: 18px;
+                width: 18px;
+
+                &.fa-check:before {
+                    margin-left: -3px;
+                    font-size: 12px !important;
+                    top: -2px !important;
+                    position: relative;
+                }
+            }
+        }
+
+        th {
+            font-family: 'Poppins', 'Roboto';
+            border: none !important;
+            padding: 10px 0px 10px 10px !important;
+            text-align: left;
+            font-weight: 600 !important;
+        }
+
+        td {
+            font-family: 'Poppins', 'Roboto';
+            border: none !important;
+            padding: 8px 10px !important;
+        }
+
+        table {
+            table-layout: fixed;
+
+            th, td {
+                overflow-wrap: break-word;
+            }
+
+            td .dropdown-menu li {
+                white-space: nowrap;
+            }
+
+            thead {
+                tr {
+                    vertical-align: middle !important;
+
+                    th {
+                        font-size: 14px;
+                        font-family: Poppins;
+                        font-weight: 300;
+                        line-height: 21px;
+                        vertical-align: middle;
+                    }
+                }
+            }
+
+            tbody {
+                border: none !important;
+
+                tr.ui-widget-content {
+                    border: none !important;
+                }
+
+                tr {
+                    td:last-child {
+                        border-right: 0 !important;
+                    }
+                }
+            }
+        }
+    }
+
+    .primeng-paging-container {
+        padding: 6px;
+        border-top: 0;
+
+        .ui-paginator {
+            text-align: right;
+            border: none !important;
+            background-color: transparent;
+
+            span {
+                padding: 0px;
+
+                a {
+                    padding-top: 11px;
+                    cursor: pointer !important;
+                    margin-right: 5px !important;
+
+                    &:last-child {
+                        margin-right: 0px !important;
+                    }
+                }
+            }
+
+            .ui-dropdown {
+                border: 1px solid #d6d6d6;
+                height:35px;
+            }
+
+            a {
+                display: inline-block;
+                cursor: pointer !important;
+                height: 35px;
+                width: 35px;
+                padding: 0;
+                padding-top: 8px;
+                -webkit-border-radius: 50%;
+                -moz-border-radius: 50%;
+                -ms-border-radius: 50%;
+                -o-border-radius: 50%;
+                border-radius: 50%;
+                text-align: center;
+                position: relative;
+                -webkit-justify-content: center;
+                -moz-justify-content: center;
+                -ms-justify-content: center;
+                justify-content: center;
+                -webkit-align-items: center;
+                -moz-align-items: center;
+                -ms-align-items: center;
+                align-items: center;
+                text-align: center;
+                font-size: 1rem;
+                line-height: 1rem;
+                font-weight: 400;
+                opacity: 1 !important;
+
+                &.ui-paginator-first {
+                    span.fa-step-backward:before {
+                        content: "\f100" !important;
+                    }
+                }
+
+                &.ui-paginator-prev {
+                    span.fa-backward:before {
+                        content: "\f104" !important;
+                    }
+                }
+
+                &.ui-paginator-next {
+                    span.fa-forward:before {
+                        content: "\f105" !important;
+                    }
+                }
+
+                &.ui-paginator-last {
+                    span.fa-step-forward:before {
+                        content: "\f101" !important;
+                    }
+                }
+            }
+
+            .ui-paginator-rpp-options {
+                float: left;
+                margin-left: 100px;
+            }
+        }
+    }
+
+    .ui-paginator .ui-paginator-page, .ui-paginator .ui-paginator-pages, .ui-paginator .ui-paginator-next, .ui-paginator .ui-paginator-last, .ui-paginator .ui-paginator-first, .ui-paginator .ui-paginator-prev, .ui-paginator .ui-paginator-current {
+        height: 2.5em;
+    }
+
+    .total-records-count {
+        float: left;
+        position: relative;
+        bottom: 26px;
+    }
+
+    .ui-table-footer {
+        text-align: left;
+        border-top: 0;
+        padding: .75em 1.25em !important;
+    }
+
+    .ui-table-resizable {
+        padding-bottom: 0px !important;
+    }
+
+    .ui-table-loading-content {
+        display: none;
+    }
+
+    .ui-table-scrollable-header {
+        border: 0;
+    }
+
+    .primeng-no-data {
+        border: 1px solid #f4f5f8;
+        padding: 10px;
+        text-align: center;
+    }
+}
+
+.dropdown-menu > .dropdown-item, .dropdown-menu > li > a {
+    white-space: nowrap;
+}

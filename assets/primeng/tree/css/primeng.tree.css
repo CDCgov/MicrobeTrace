@@ -1,0 +1,65 @@
+.ui-tree {
+    width: 100%;
+}
+
+body .ui-widget-content {
+    border: none !important;
+}
+
+span.ui-treenode-label {
+    font-family: Poppins !important;
+    line-height: 24px !important;
+    font-size: 14px !important;
+    padding-left: 5px !important;
+    padding-right: 5px !important;
+}
+
+span.ui-treenode-icon {
+    line-height: 24px !important;
+    font-size: 1.2rem !important;
+}
+
+.ui-tree .ui-chkbox .ui-chkbox-icon {
+    margin-left: 0px;
+}
+
+.ui-tree .ui-treenode-children {
+    padding-left: 20px !important;
+}
+
+.hidden-tree-node {
+    display: none;
+}
+
+p-tree[selectionmode="checkbox"] .ui-tree .ui-tree-container .ui-treenode .ui-treenode-content .ui-treenode-label.ui-state-highlight {
+    background-color: transparent !important;
+    color: #333 !important;
+    font-weight: 300 !important;
+}
+
+span.ui-treenode-label {
+    line-height: 18px !important;
+    font-size: 13px !important;
+}
+
+body .ui-tree .ui-tree-container .ui-treenode .ui-treenode-content .ui-chkbox .ui-chkbox-icon {
+    margin: -1px 0 0 -1px;
+}
+
+body .ui-chkbox .ui-chkbox-box .ui-chkbox-icon {
+    font-size: 16px;
+}
+
+body .ui-chkbox .ui-chkbox-box {
+    width: 16px;
+    height: 16px;
+}
+
+body .ui-chkbox {
+    width: 16px;
+    height: 16px;
+}
+
+body .ui-tree .ui-tree-container .ui-treenode {
+    padding: 0;
+}
