@@ -774,16 +774,20 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       $('#default-distance-metric').val(lsv);
       if (lsv == 'snps') {
         $('#ambiguities-row').slideUp();
-        $('#default-distance-threshold, #link-threshold')
+        if(!session.style.widgets['loaded']) {
+          $('#default-distance-threshold, #link-threshold')
           .attr('step', 1)
           .val(16);
-        session.style.widgets["link-threshold"] = 16;
+          session.style.widgets["link-threshold"] = 16;
+        }
       } else {
         $('#ambiguities-row').slideDown();
-        $('#default-distance-threshold, #link-threshold')
+        if(!session.style.widgets['loaded']) {
+          $('#default-distance-threshold, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
-        session.style.widgets["link-threshold"] = 0.015;
+          session.style.widgets["link-threshold"] = 0.015;
+        }
       }
       session.style.widgets['default-distance-metric'] = lsv;
     });
@@ -793,8 +797,12 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
     });
 
     localforage.getItem('default-distance-metric').then(cachedLSV => {
+      console.log('cached: ');
       if(session.style.widgets['loaded']) {
+        console.log('loaded: ', session.style.widgets['link-threshold']);
         $('#default-distance-metric').val(session.style.widgets['default-distance-metric']).trigger('change');
+        $('#default-distance-threshold').val(session.style.widgets['link-threshold']).trigger('change');
+        $('#link-threshold').val(session.style.widgets['link-threshold']).trigger('change');
       } else if (cachedLSV) {
         $('#default-distance-metric').val(cachedLSV).trigger('change');
       } 
