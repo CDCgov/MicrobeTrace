@@ -451,7 +451,11 @@ $(function() {
 
     function updateThreshold() {
       let xc = d3.mouse(svg.node())[0];
-      session.style.widgets["link-threshold"] = Math.round((xc / width) * range * 1.05 + min);
+      if(session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") {
+        session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
+      } else {
+        session.style.widgets["link-threshold"] = Math.round((xc / width) * range * 1.05 + min);
+      }
       $("#link-threshold").val(parseFloat(session.style.widgets["link-threshold"].toLocaleString()));
     }
 
@@ -462,7 +466,7 @@ $(function() {
 
     svg.on("mouseover", () => {
       let xc = d3.mouse(svg.node())[0];
-      $('#filtering-threshold').prop('title', "Whats the maximum genetic distance you're willing to call a link? " + Math.round(parseFloat(((xc / width) * range * 1.05 + min)).toLocaleString()));
+      $('#filtering-threshold').prop('title', "Whats the maximum genetic distance you're willing to call a link? " + ((session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? parseFloat(((xc / width) * range * 1.05 + min)).toLocaleString() : Math.round(parseFloat(((xc / width) * range * 1.05 + min)).toLocaleString())));
     });
 
     svg.on("mousedown", () => {

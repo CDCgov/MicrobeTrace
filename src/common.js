@@ -103,6 +103,7 @@
     "link-color-table-counts": true,
     "link-color-table-frequencies": false,
     "link-color-variable": "None",
+    "link-decimal-variable" : 2,
     "link-directed": false,
     "link-label-variable": "None",
     "link-length": 0.125,
