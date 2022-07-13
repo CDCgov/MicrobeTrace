@@ -381,13 +381,18 @@ $(function() {
   $("#cluster-minimum-size").on("change", function() {
     let val = parseInt(this.value);
     session.style.widgets["cluster-minimum-size"] = val;
-    MT.setClusterVisibility(true);
+    console.log('min size called');
     MT.setLinkVisibility(true);
-    MT.setNodeVisibility(true);
-    ["cluster", "link", "node"].forEach(thing => {
-      $window.trigger(thing + "-visibility");
+    MT.tagClusters().then(() => {
+      MT.setClusterVisibility(true);
+      MT.setNodeVisibility(true);
+      MT.setLinkVisibility(true);
+      ["cluster", "link", "node"].forEach(thing => {
+        $window.trigger(thing + "-visibility");
+      });
+      MT.updateStatistics();
     });
-    MT.updateStatistics();
+   
     // TODO assess if this needs to be back in
     // if (val > 1) {
     //   $("#filtering-wrapper").slideUp();
@@ -491,6 +496,16 @@ $(function() {
   $("#link-threshold").on("change", function() {
     ga('send', 'event', 'threshold', 'update', this.value);
     session.style.widgets["link-threshold"] = parseFloat(this.value);
+    let minClust = $("#cluster-minimum-size").val();
+    console.log('minclust: ', minClust);
+    if (minClust !== "1" ){
+      console.log('reseting min clust');
+      $("#cluster-minimum-size").val("1");
+      $("#cluster-minimum-size").trigger("change");
+      $("#cluster-minimum-size").val(minClust);
+      $("#cluster-minimum-size").trigger("change");
+
+    } 
     MT.setLinkVisibility(true);
     MT.tagClusters().then(() => {
       MT.setClusterVisibility(true);
