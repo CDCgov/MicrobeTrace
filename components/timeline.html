@@ -162,6 +162,18 @@
         .selectAll("text")
         .attr("x", 6);
 
+        svg
+        .append("g")
+        .attr("class", "axis axis--x")
+        .attr("transform", "translate(10px," + height + ")")
+        .call(
+          d3
+            .axisLeft(y)
+        )
+        .attr("text-anchor", null)
+        .selectAll("text")
+        .attr("x", 6);
+
       brush = d3
         .brushX()
         .extent([[0, 0], [width, height]])
