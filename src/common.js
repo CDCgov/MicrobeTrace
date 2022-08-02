@@ -1358,6 +1358,8 @@
     if (small == "geo map") return "Map";
     if (small == "timeline") return "Epi Curve";
     if (small == "nn") return "Nearest Neighbor";
+    return title;
+    // TODO add back titlize if required
     return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
   };
 
