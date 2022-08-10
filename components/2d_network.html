@@ -777,6 +777,11 @@ Note that this may cause slow performance on larger networks.">
       updateLinkColor();
       scaleLinkWidth();
 
+      // Check if arrows visible and draw them
+      if(settings['link-directed']) {
+        svg.select('g.links').selectAll('line').attr('marker-end', 'url(#end-arrow)');
+      }
+
       let linklabels = svg.select('g.links').selectAll('text').data(getLLinks())
         .join('text')
         .attr('text-anchor', 'middle')
@@ -804,6 +809,9 @@ Note that this may cause slow performance on larger networks.">
               (l.source.y + l.target.y) / 2 + ')'
             );
         }
+
+       
+
       }
 
       let foci = settings['polygons-foci'];
