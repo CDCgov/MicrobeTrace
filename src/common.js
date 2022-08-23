@@ -559,22 +559,9 @@
       session.style,
       oldSession.style
     );
-    console.log('old session layout: ', oldSession.layout);
     session.layout = oldSession.layout;
-    console.log('session layout: ', session.layout);
 
     layout.root.removeChild(layout.root.contentItems[0]);
-    // layout.root.remove(layout.root.contentItems[0]);
-    // let empties = layout.root.contentItems[0].find(item => !item.content);
-    // if (empties) empties.remove();
-    // let empty = layout.contentItems.find(item => item.type == "stack");
-    // if(empty) {
-    //   empty.remove();
-
-    // }
-    // layout.root.contentItems[0].remove();
-    console.log('begin root lay: ', _.cloneDeep(layout.root));
-    console.log('begin lay: ', _.cloneDeep(layout));
 
     session.meta.startTime = Date.now();
     const nodes = oldSession.data.nodes,
@@ -605,7 +592,6 @@
     //     session.style.widgets['link-sort-variable'] = 'snps';
     //   }
     // }
-    console.log('finish true 1');
     MT.finishUp(true);
     $("#network-statistics-show").parent().trigger("click");
   };
@@ -1323,22 +1309,11 @@
     session.meta.loadTime = Date.now() - session.meta.startTime;
     console.log("Total load time:", session.meta.loadTime.toLocaleString(), "ms");
     if (oldSession) {
-
-      // layout.root.contentItems[0].remove();
-
-      // if(layout.root.contentItems) {ß
-      //   console.log('1');
-      //   _.observe(layout.root.contentItems, () => {
-      //     console.log('layout root: ', layout.root.contentItems);
-      //   });
-      // }
-      // console.log('2');
       setTimeout(() => {
         MT.loadLayout(session.layout), 80
       }
       );
     } else {
-      console.log('launch defualt');
       MT.launchView(session.style.widgets['default-view']);
     }
     MT.tagClusters().then(() => {
@@ -1372,41 +1347,8 @@
     $(".hideForHIVTrace").css("display", "flex");
 
     setTimeout(() => {
-      console.log('layout: ', _.cloneDeep(layout));
-      console.log("contentItems: ", _.cloneDeep(layout.contentItems));
-      console.log("root: ", _.cloneDeep(layout.root));
       let files = layout.contentItems.find(item => item.componentName == "files");
-
-      // item with no content 
-      var emptyInd = layout.config.content[0].content.findIndex(item => !item.content);
-
-      // item with no content in root 
-      var emptyInd2 = layout.root.contentItems[0].contentItems.findIndex(item => !item.content);
-
-      if (emptyInd != -1) {
-        console.log('removing');
-        // layout.config.content[0].content.splice(emptyInd,1);
-        // layout.root.config.content[0].content.splice(emptyInd,1);
-      }
-
-      // let empties = layout.root.contentItems[0].contentItems.find(item => !item.content);
-      // if (empties) empties.remove();
-
-
-      if (emptyInd2 != 1) {
-        // console.log('removing2');
-        // layout.root.contentItems[0].contentItems.splice(emptyInd2,1);
-      }
-      console.log('layout1: ', layout);
-      console.log("root2: ", _.cloneDeep(layout.root));
-
-      console.log('empty: ', emptyInd, "here");
-      layout.root.contentItems[0].type = "row";
-      layout.root.contentItems[0].type = "row";
       if (files) files.remove();
-      // if (empties) empties.remove();
-      console.log("root2: ", _.cloneDeep(layout.root));
-
       $("#loading-information-modal").modal("hide");
     }, 1200);
   };
@@ -2801,8 +2743,7 @@
         }
         let lastStack = peek(layout.root.contentItems[0].getItemsByType("stack"));
         if (!lastStack) lastStack = layout.root.contentItems[0];
-
-        if ((view !== "" && view !== "files") || layout.contentItems.length === 0) {
+        
           lastStack.addChild({
             componentName: view,
             componentState: { text: temp.componentCache[view] },
@@ -2812,7 +2753,6 @@
           contentItem = peek(lastStack.contentItems);
           contentItem.on("itemDestroyed", () => layout.contentItems.splice(layout.contentItems.findIndex(item => item === contentItem), 1));
           layout.contentItems.push(contentItem);
-        }
 
       }
 
