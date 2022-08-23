@@ -313,7 +313,11 @@ $(function() {
     $("#exit-modal").modal();
   });
 
-  $("#exit-button").on("click", MT.reset);
+  $("#exit-button").on("click", function(e) {
+    MT.reset;
+    MT.launchView("files");
+    e.preventDefault();
+  });
 
   $(".viewbutton").on("click", function(e){
     e.preventDefault();
@@ -1523,7 +1527,9 @@ $(function() {
     }
   });
 
-  layout.on("stateChanged", () => session.layout = MT.cacheLayout(layout.root.contentItems[0]));
+  layout.on("stateChanged", () => {
+    session.layout = MT.cacheLayout(layout.root.contentItems[0])
+  });
 
   $window
     .on("node-selected", () => $("#numberOfSelectedNodes").text(session.data.nodes.filter(d => d.selected).length.toLocaleString()))

@@ -103,7 +103,7 @@
     "link-color-table-counts": true,
     "link-color-table-frequencies": false,
     "link-color-variable": "None",
-    "link-decimal-variable" : 2,
+    "link-decimal-variable": 2,
     "link-directed": false,
     "link-label-variable": "None",
     "link-length": 0.125,
@@ -559,7 +559,23 @@
       session.style,
       oldSession.style
     );
+    console.log('old session layout: ', oldSession.layout);
     session.layout = oldSession.layout;
+    console.log('session layout: ', session.layout);
+
+    layout.root.removeChild(layout.root.contentItems[0]);
+    // layout.root.remove(layout.root.contentItems[0]);
+    // let empties = layout.root.contentItems[0].find(item => !item.content);
+    // if (empties) empties.remove();
+    // let empty = layout.contentItems.find(item => item.type == "stack");
+    // if(empty) {
+    //   empty.remove();
+
+    // }
+    // layout.root.contentItems[0].remove();
+    console.log('begin root lay: ', _.cloneDeep(layout.root));
+    console.log('begin lay: ', _.cloneDeep(layout));
+
     session.meta.startTime = Date.now();
     const nodes = oldSession.data.nodes,
       links = oldSession.data.links,
@@ -589,6 +605,7 @@
     //     session.style.widgets['link-sort-variable'] = 'snps';
     //   }
     // }
+    console.log('finish true 1');
     MT.finishUp(true);
     $("#network-statistics-show").parent().trigger("click");
   };
@@ -1306,9 +1323,22 @@
     session.meta.loadTime = Date.now() - session.meta.startTime;
     console.log("Total load time:", session.meta.loadTime.toLocaleString(), "ms");
     if (oldSession) {
-      layout.root.contentItems[0].remove();
-      setTimeout(() => MT.loadLayout(session.layout), 80);
+
+      // layout.root.contentItems[0].remove();
+
+      // if(layout.root.contentItems) {ß
+      //   console.log('1');
+      //   _.observe(layout.root.contentItems, () => {
+      //     console.log('layout root: ', layout.root.contentItems);
+      //   });
+      // }
+      // console.log('2');
+      setTimeout(() => {
+        MT.loadLayout(session.layout), 80
+      }
+      );
     } else {
+      console.log('launch defualt');
       MT.launchView(session.style.widgets['default-view']);
     }
     MT.tagClusters().then(() => {
@@ -1340,9 +1370,43 @@
       }
     })
     $(".hideForHIVTrace").css("display", "flex");
+
     setTimeout(() => {
+      console.log('layout: ', _.cloneDeep(layout));
+      console.log("contentItems: ", _.cloneDeep(layout.contentItems));
+      console.log("root: ", _.cloneDeep(layout.root));
       let files = layout.contentItems.find(item => item.componentName == "files");
+
+      // item with no content 
+      var emptyInd = layout.config.content[0].content.findIndex(item => !item.content);
+
+      // item with no content in root 
+      var emptyInd2 = layout.root.contentItems[0].contentItems.findIndex(item => !item.content);
+
+      if (emptyInd != -1) {
+        console.log('removing');
+        // layout.config.content[0].content.splice(emptyInd,1);
+        // layout.root.config.content[0].content.splice(emptyInd,1);
+      }
+
+      // let empties = layout.root.contentItems[0].contentItems.find(item => !item.content);
+      // if (empties) empties.remove();
+
+
+      if (emptyInd2 != 1) {
+        // console.log('removing2');
+        // layout.root.contentItems[0].contentItems.splice(emptyInd2,1);
+      }
+      console.log('layout1: ', layout);
+      console.log("root2: ", _.cloneDeep(layout.root));
+
+      console.log('empty: ', emptyInd, "here");
+      layout.root.contentItems[0].type = "row";
+      layout.root.contentItems[0].type = "row";
       if (files) files.remove();
+      // if (empties) empties.remove();
+      console.log("root2: ", _.cloneDeep(layout.root));
+
       $("#loading-information-modal").modal("hide");
     }, 1200);
   };
@@ -2046,7 +2110,8 @@
       content: []
     });
     layout.contentItems = [];
-    MT.launchView("files");
+    console.log('getting reset');
+    // MT.launchView("files");
   };
 
   MT.getMapData = type => {
@@ -2080,7 +2145,631 @@
 
   let peek = ra => ra[ra.length - 1];
 
+  // TODO refactor loading layout with multuiple views - not this much code needed 
+
+  MT.loadLayoutItem = (component, parent) => {
+
+    switch(component.type) {
+
+      case "row":
+
+        MT.loadRow(component, parent);
+
+        break;
+
+      case "stack":
+
+        MT.loadStack(component, parent);
+
+        break;
+
+      case "column":
+
+        MT.loadColumn(component, parent);
+
+        break;
+
+      // If neither, then view should be launched - canr have row within a row 
+      // type is view 
+      default:        
+        if (!temp.componentCache[component.type]) {
+
+          $.get("components/" + component.type + ".html", response => {
+
+            temp.componentCache[component.type] = response;
+            //This MUST NOT be replace by an arrow function!
+            layout.registerComponent(component.type, function (container, state) {
+              container.getElement().html(state.text);
+            });
+    
+            let viewInfo = {};
+
+            // Get view info from layout
+            layoutDict.forEach(function (item, ind) {
+              if (item.view == component.type) {
+                viewInfo = item;
+              }
+            });
+
+            // console.log('conten root: ', layout.root.contentItems);
+
+            console.log('rotttt: ', layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]]);
+
+            // Add another contentItems
+            layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+              componentName: component.type,
+              componentState: { text: temp.componentCache[component.type] },
+              title: MT.titleize(component.type),
+              type: "component"
+            });
+
+            MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));  
+
+        
+          });
+        } else {
+          let viewInfo = {};
+
+            // Get view info from layout
+            layoutDict.forEach(function (item, ind) {
+              if (item.view == component.type) {
+                viewInfo = item;
+              }
+            });
+
+           // Add another contentItems
+           layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+            componentName: component.type,
+            componentState: { text: temp.componentCache[component.type] },
+            title: MT.titleize(component.type),
+            type: "component"
+          });
+
+          MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"].contentItems]));  
+        }
+      }
+        
+  }
+
+  var contInd = 0;
+  var layoutDict = [];
+
+  MT.loadRow = (component, parent) => {
+
+
+    if(component.type === "row" && component.content && (component.content[0].type === "row" || component.content[0].type === "column" ||component.content[0].type === "stack")) { 
+      // Add row
+      parent.addChild({ type: component.type });
+
+    }
+
+    component.content.forEach(c => {
+
+      switch(c.type) {
+
+        case "column":
+
+          // Add child below row 
+          peek(parent.contentItems).addChild({ type: c.type });
+
+          // Check if child has non layout types (views)
+          c.content.forEach(comp => {
+            // Add column children to current parent
+            MT.loadLayoutItem(comp, peek(parent.contentItems));
+          });
+
+          break;
+
+        case "stack":
+
+         // Add child below row 
+         peek(parent.contentItems).addChild({ type: c.type });
+        
+          c.content.forEach(comp => {
+            // Add stack children to current parent
+            MT.loadLayoutItem(comp, peek(parent.contentItems));
+         })
+
+          break;
+
+        // If neither, then reached view and should be launched
+        // Type is view
+        default:
+          if (!temp.componentCache[c.type]) {
+            $.get("components/" + c.type + ".html", response => {
+              temp.componentCache[c.type] = response;
+              //This MUST NOT be replace by an arrow function!
+              layout.registerComponent(c.type, function (container, state) {
+                container.getElement().html(state.text);
+              });
+  
+              let viewInfo = {};
+  
+              // Get view info from layout
+              layoutDict.forEach(function (item, ind) {
+                if (item.view == c.type) {
+                  viewInfo = item;
+                }
+              });
+
+              // Add another contentItems
+              layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+                componentName: c.type,
+                componentState: { text: temp.componentCache[c.type] },
+                title: MT.titleize(c.type),
+                type: "component"
+              });
+
+              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));  
+          
+            });
+          } else {
+            let viewInfo = {};
+  
+              // Get view info from layout
+              layoutDict.forEach(function (item, ind) {
+                if (item.view == c.type) {
+                  viewInfo = item;
+                }
+              });
+    
+             // Add another contentItems
+             layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+              componentName: c.type,
+              componentState: { text: temp.componentCache[c.type] },
+              title: MT.titleize(c.type),
+              type: "component"
+            });
+
+            MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));  
+
+          }
+
+      }
+    });
+
+  }
+
+  MT.UpdateViewFields = (contentItem, callback) => {
+
+    contentItem.on("itemDestroyed", () => layout.contentItems.splice(layout.contentItems.findIndex(item => item === contentItem), 1));
+    console.log('layout cont: ', layout.contentItems);
+    layout.contentItems.push(contentItem);
+
+    // Update fields for views
+    contentItem.element.find("select.nodeVariables").html(
+      "<option>None</option>" +
+      session.data.nodeFields.map(field => '<option value="' + field + '">' + MT.titleize(field) + "</option>").join("\n")
+    );
+    contentItem.element.find("select.linkVariables").html(
+      "<option>None</option>" +
+      session.data.linkFields.map(field => '<option value="' + field + '">' + MT.titleize(field) + "</option>").join("\n")
+    );
+    contentItem.element.find("select.mixedVariables").html(
+      "<option>None</option>" +
+      session.data.linkFields.map(field => '<option value="links-' + field + '">Links ' + MT.titleize(field) + "</option>").join("\n") +
+      session.data.nodeFields.map(field => '<option value="nodes-' + field + '">Nodes ' + MT.titleize(field) + "</option>").join("\n")
+    );
+    contentItem.element.find("select.branch-variables").html(
+      "<option>None</option>" +
+      ["id", "depth", "height", "length", "value"].map(field => '<option value="' + field + '">' + MT.titleize(field) + "</option>").join("\n")
+    );
+    contentItem.element.find(".launch-color-options").click(() => {
+      $("#style-tab").tab("show");
+      setTimeout(() => $("#global-settings-modal").modal("show"), 250);
+    });
+    contentItem.element.find(".modal-header").on("mousedown", function () {
+      let body = $("body");
+      let parent = $(this).parent().parent().parent();
+      body.on("mousemove", e => {
+        parent
+          .css("top", parseFloat(parent.css("top")) + e.originalEvent.movementY + "px")
+          .css("left", parseFloat(parent.css("left")) + e.originalEvent.movementX + "px");
+      });
+      body.one("mouseup", () => body.off("mousemove"));
+    });
+    if (navigator.onLine) contentItem.element.find(".ifOnline").show();
+    for (let id in session.style.widgets) {
+      let $id = $("#" + id);
+      if ($id.length > 0) {
+        if (["radio", "checkbox"].includes($id[0].type)) {
+          if (session.style.widgets[id]) {
+            if ($(contentItem.element[0]).find($id).length > 0) $id.click();   // issue #182
+          }
+        } else {
+          $id.val(session.style.widgets[id]);
+        }
+      }
+    }
+    if (callback) {
+      callback(contentItem);
+    } else {
+      return contentItem;
+    }
+  }
+
+  MT.loadColumn = (component, parent) => {
+
+    if(component.type === "column" && component.content && (component.content[0].type === "row" || component.content[0].type === "column" ||component.content[0].type === "stack")) { 
+      // Add column
+      parent.addChild({ type: component.type });
+
+    }
+
+    component.content.forEach(c => {
+
+      switch(c.type) {
+
+        case "row":
+
+         // Add child below row 
+         peek(parent.contentItems).addChild({ type: c.type });
+
+          c.content.forEach(comp => {
+            // Add row children to current parent
+            MT.loadLayoutItem(comp, peek(parent.contentItems));
+          });
+
+          break;
+
+        case "stack":
+
+         // Add child below row 
+         peek(parent.contentItems).addChild({ type: c.type });
+
+          c.content.forEach(comp => {
+            // Add stack children to current parent
+            MT.loadLayoutItem(comp, peek(parent.contentItems));
+          });
+
+          break;
+
+        // If neither, then view should be launched - can have row within a row 
+        // type is view 
+        default:
+
+          if (!temp.componentCache[c.type]) {
+            $.get("components/" + c.type + ".html", response => {
+              temp.componentCache[c.type] = response;
+              //This MUST NOT be replace by an arrow function!
+              layout.registerComponent(c.type, function (container, state) {
+                container.getElement().html(state.text);
+              });
+  
+              let viewInfo = {};
+  
+              // Get view info from layout
+              layoutDict.forEach(function (item, ind) {
+                if (item.view == c.type) {
+                  viewInfo = item;
+                }
+              });
+
+              console.log('rotttt: ', layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]]);
+  
+              // Add another contentItems
+              layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+                componentName: c.type,
+                componentState: { text: temp.componentCache[c.type] },
+                title: MT.titleize(c.type),
+                type: "component"
+              });
+
+              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItem));    
+          
+            });
+          } else {
+            let viewInfo = {};
+  
+              // Get view info from layout
+              layoutDict.forEach(function (item, ind) {
+                if (item.view == c.type) {
+                  viewInfo = item;
+                }
+              });
+  
+              // Add another contentItems
+              layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+                componentName: c.type,
+                componentState: { text: temp.componentCache[c.type] },
+                title: MT.titleize(c.type),
+                type: "component"
+              });
+
+            MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));  
+
+          }   
+
+        }
+    });
+     
+  }
+
+  MT.loadStack = (component, parent ) => {
+
+    if(component.type === "stack" && component.content && (component.content[0].type === "row" || component.content[0].type === "column" ||component.content[0].type === "stack")) { 
+      // Add column
+      parent.addChild({ type: component.type });
+
+    }
+
+    component.content.forEach(c => {
+
+      switch(c.type) {
+
+        case "row":
+
+          // Add child below row 
+          peek(parent.contentItems).addChild({ type: c.type });
+
+          c.content.forEach(comp => {
+            // Add row children to current parent
+            MT.loadLayoutItem(comp, peek(parent.contentItems));
+          });
+
+          break;
+
+        case "column":
+
+          // Add child below row 
+          peek(parent.contentItems).addChild({ type: c.type });
+
+          c.content.forEach(comp => {
+            // Add stack children to current parent
+            MT.loadLayoutItem(comp, peek(parent.contentItems));
+          });
+
+          break;
+
+        // If neither, then view should be launched - canr have row within a row 
+        // type is view 
+        default:
+
+          if (!temp.componentCache[c.type]) {
+            $.get("components/" + c.type + ".html", response => {
+              temp.componentCache[c.type] = response;
+              //This MUST NOT be replace by an arrow function!
+              layout.registerComponent(c.type, function (container, state) {
+                container.getElement().html(state.text);
+              });
+  
+              let viewInfo = {};
+  
+              // Get view info from layout
+              layoutDict.forEach(function (item, ind) {
+                if (item.view == c.type) {
+                  viewInfo = item;
+                }
+              });
+
+              console.log('rotttt: ', layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]]);
+  
+              // Add another contentItems
+              layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+                componentName: c.type,
+                componentState: { text: temp.componentCache[c.type] },
+                title: MT.titleize(c.type),
+                type: "component"
+              });
+
+              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItem));    
+          
+            });
+          } else {
+            let viewInfo = {};
+  
+              // Get view info from layout
+              layoutDict.forEach(function (item, ind) {
+                if (item.view == c.type) {
+                  viewInfo = item;
+                }
+              });
+  
+              // Add another contentItems
+              layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+                componentName: c.type,
+                componentState: { text: temp.componentCache[c.type] },
+                title: MT.titleize(c.type),
+                type: "component"
+              });
+
+            MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));  
+
+          }
+      }
+
+    });
+
+  }
+
+  // Count items and create object with properties for view location within layout
+  MT.countContentItems = (contentItems, index, depth) => {
+    let count = 0;
+    contentItems.forEach((item, ind) => {
+      if (item.type !== "row" && item.type !== "column" && item.type !== "stack") {
+
+        layoutDict.push({
+          view: item.type,
+          rootIndex: index,
+          contentIndex: contInd,
+          depth: depth
+        });
+
+        count++;
+        contInd++;
+
+      } else {
+        if(item.content) {
+
+          // need to go deeper to retrieve view, so increase depth
+          if(item.content[0].type !== "row" && item.content[0].type !== "column" && item.content[0].type !== "stack") {
+            depth++;
+          }
+
+          count += MT.countContentItems(item.content, index, depth);
+          
+        } else {
+
+          layoutDict.push({
+            view: item.type,
+            rootIndex: index,
+            contentIndex: contInd, 
+            depth : depth
+          });
+
+          contInd++;
+          count++;
+        }
+      }
+    });
+    
+    return count;
+  };
+
+
+  MT.loadLayout = (component, parent) => {
+
+    if (!parent) {
+      parent = layout.root;
+    }
+
+    console.log('component: ', component);
+
+    switch(component.type) {
+
+      case "row":
+
+      if(component.content && (component.content[0].type !== "row" && component.content[0].type !== "column" && component.content[0].type !== "stack")) {
+        if (["stack", "row", "column"].includes(component.type)) {
+          parent.addChild({ type: component.type });
+          component.content.forEach(c => MT.loadLayout(c, peek(parent.contentItems)));
+        } else {
+          MT.launchView(component.type);
+        }
+
+      } else {
+        component.content.forEach( (c, index) => {
+          // adding number of views for each content 
+          contInd = 0;
+          MT.countContentItems(c.content, index, 0);
+        });
+
+        MT.loadRow(component, parent);
+      }
+        
+
+        break;
+
+      case "stack":
+
+      if (["stack", "row", "column"].includes(component.type)) {
+        parent.addChild({ type: component.type });
+        component.content.forEach(c => MT.loadLayout(c, peek(parent.contentItems)));
+      } else {
+        MT.launchView(component.type);
+      }
+
+        break;
+
+      case "column":
+
+        if(component.content && (component.content[0].type !== "row" && component.content[0].type !== "column" && component.content[0].type !== "stack")) {
+          if (["stack", "row", "column"].includes(component.type)) {
+            parent.addChild({ type: component.type });
+            component.content.forEach(c => MT.loadLayout(c, peek(parent.contentItems)));
+          } else {
+            MT.launchView(component.type);
+          }
+        } else {
+          component.content.forEach( (c, index) => {
+            // adding number of views for each content 
+            contInd = 0;
+            MT.countContentItems(c.content, index, 0);
+      
+          });
+  
+          MT.loadColumn(component, parent);
+  
+        }
+        break;
+
+      // If neither, then view should be launched - canr have row within a row 
+      // type is view 
+      default:
+        MT.launchView(component.type);
+      
+    }
+
+  };
+
+  MT.launchMultipleViews = (views, callback) => {
+
+    let contentItem = layout.contentItems.find(item =>
+      item.componentName === view
+    );
+
+    if (contentItem) {
+
+      contentItem.parent.setActiveContentItem(contentItem);
+
+    // Create  view
+    } else {
+
+      contentItem = peek(layout.root.contentItems[0].contentItems[0]);
+
+    }
+
+    if (!temp.componentCache[c.type]) {
+      $.get("components/" + c.type + ".html", response => {
+        temp.componentCache[c.type] = response;
+        //This MUST NOT be replace by an arrow function!
+        layout.registerComponent(c.type, function (container, state) {
+          container.getElement().html(state.text);
+        });
+
+        let viewInfo = {};
+
+        // Get view info from layout
+        layoutDict.forEach(function (item, ind) {
+          if (item.view == c.type) {
+            viewInfo = item;
+          }
+        });
+
+        // Add another contentItems
+        layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+          componentName: c.type,
+          componentState: { text: temp.componentCache[c.type] },
+          title: MT.titleize(c.type),
+          type: "component"
+        });
+
+    
+      });
+    } else {
+
+      let viewInfo = {};
+
+        // Get view info from layout
+        layoutDict.forEach(function (item, ind) {
+          if (item.view == c.type) {
+            viewInfo = item;
+          }
+        });
+
+       // Add another contentItems
+       layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].addChild({
+        componentName: c.type,
+        componentState: { text: temp.componentCache[c.type] },
+        title: MT.titleize(c.type),
+        type: "component"
+      });
+    }
+
+  }
+
   MT.launchView = (view, callback) => {
+
     if (!temp.componentCache[view]) {
       $.get("components/" + view + ".html", response => {
         temp.componentCache[view] = response;
@@ -2095,25 +2784,39 @@
         }
       });
     } else {
-      let contentItem = layout.contentItems.find(item => item.componentName == view);
+      // Check if view matches the content type
+      let contentItem = layout.contentItems.find(item =>
+        item.componentName === view
+      );
+
+      // If view exists, set active
       if (contentItem) {
+
         contentItem.parent.setActiveContentItem(contentItem);
-      } else {
+
+        // Create  view
+      } else if (!contentItem) {
         if (layout.root.contentItems[0] === undefined) {
           layout.root.addChild({ type: 'stack' });
         }
         let lastStack = peek(layout.root.contentItems[0].getItemsByType("stack"));
         if (!lastStack) lastStack = layout.root.contentItems[0];
-        lastStack.addChild({
-          componentName: view,
-          componentState: { text: temp.componentCache[view] },
-          title: MT.titleize(view),
-          type: "component"
-        });
-        contentItem = peek(lastStack.contentItems);
-        contentItem.on("itemDestroyed", () => layout.contentItems.splice(layout.contentItems.findIndex(item => item === contentItem), 1));
-        layout.contentItems.push(contentItem);
+
+        if ((view !== "" && view !== "files") || layout.contentItems.length === 0) {
+          lastStack.addChild({
+            componentName: view,
+            componentState: { text: temp.componentCache[view] },
+            title: MT.titleize(view),
+            type: "component"
+          });
+          contentItem = peek(lastStack.contentItems);
+          contentItem.on("itemDestroyed", () => layout.contentItems.splice(layout.contentItems.findIndex(item => item === contentItem), 1));
+          layout.contentItems.push(contentItem);
+        }
+
       }
+
+      // Update fields for views
       contentItem.element.find("select.nodeVariables").html(
         "<option>None</option>" +
         session.data.nodeFields.map(field => '<option value="' + field + '">' + MT.titleize(field) + "</option>").join("\n")
@@ -2176,20 +2879,6 @@
     return { type: contentItem.componentName };
   };
 
-  MT.loadLayout = (component, parent) => {
-    if (!parent) {
-      parent = layout.root;
-      try {
-        parent.contentItems[0].remove();
-      } catch (e) { }
-    }
-    if (["stack", "row", "column"].includes(component.type)) {
-      parent.addChild({ type: component.type });
-      component.content.forEach(c => MT.loadLayout(c, peek(parent.contentItems)));
-    } else {
-      MT.launchView(component.type);
-    }
-  };
 
   MT.unparseSVG = svgNode => {
     svgNode.setAttribute("xlink", "http://www.w3.org/1999/xlink");
