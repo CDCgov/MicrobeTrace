@@ -1,0 +1,56 @@
+"layout":{
+      "type":"row",
+      "content":[
+         {
+            "type":"stack",
+            "content":[
+               {
+                  "type":"2d_network"
+               }
+            ]
+         },
+         {
+            "type":"stack",
+            "content":[
+               {
+                  "type":"geo_map"
+               }
+            ]
+         }
+      ]
+   }
+
+   {
+    "type": "row",
+    "content": [
+        {
+            "type": "column",
+            "content": [
+                {
+                    "type": "row",
+                    "content": [
+                        {
+                            "type": "2d_network"
+                        }
+                    ]
+                },
+                {
+                    "type": "stack",
+                    "content": [
+                        {
+                            "type": "table"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "stack",
+            "content": [
+                {
+                    "type": "geo_map"
+                }
+            ]
+        }
+    ]
+}
