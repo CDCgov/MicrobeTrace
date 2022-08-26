@@ -2101,6 +2101,7 @@
 
       case "stack":
 
+      console.log("loading stack");
         MT.loadStack(component, parent);
 
         break;
@@ -2185,6 +2186,8 @@
 
     }
 
+    console.log("row: ", component);
+
     component.content.forEach(c => {
 
       switch(c.type) {
@@ -2204,6 +2207,7 @@
 
         case "stack":
 
+        console.log('in stack');
          // Add child below row 
          peek(parent.contentItems).addChild({ type: c.type });
         
@@ -2344,6 +2348,7 @@
 
         case "row":
 
+        console.log("roww: ", c);
          // Add child below row 
          peek(parent.contentItems).addChild({ type: c.type });
 
@@ -2397,7 +2402,7 @@
                 type: "component"
               });
 
-              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItem));    
+              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));    
           
             });
           } else {
@@ -2435,8 +2440,11 @@
 
     }
 
+    console.log('loadinggg');
+
     component.content.forEach(c => {
 
+      console.log('type: ', c.type);
       switch(c.type) {
 
         case "row":
@@ -2494,7 +2502,7 @@
                 type: "component"
               });
 
-              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItem));    
+              MT.UpdateViewFields(peek(layout.root.contentItems[0].contentItems[viewInfo["rootIndex"]].contentItems));    
           
             });
           } else {
@@ -2726,37 +2734,25 @@
         }
       });
     } else {
-      // Check if view matches the content type
-      let contentItem = layout.contentItems.find(item =>
-        item.componentName === view
-      );
-
-      // If view exists, set active
+      let contentItem = layout.contentItems.find(item => item.componentName == view);
       if (contentItem) {
-
         contentItem.parent.setActiveContentItem(contentItem);
-
-        // Create  view
-      } else if (!contentItem) {
+      } else {
         if (layout.root.contentItems[0] === undefined) {
           layout.root.addChild({ type: 'stack' });
         }
         let lastStack = peek(layout.root.contentItems[0].getItemsByType("stack"));
         if (!lastStack) lastStack = layout.root.contentItems[0];
-        
-          lastStack.addChild({
-            componentName: view,
-            componentState: { text: temp.componentCache[view] },
-            title: MT.titleize(view),
-            type: "component"
-          });
-          contentItem = peek(lastStack.contentItems);
-          contentItem.on("itemDestroyed", () => layout.contentItems.splice(layout.contentItems.findIndex(item => item === contentItem), 1));
-          layout.contentItems.push(contentItem);
-
+        lastStack.addChild({
+          componentName: view,
+          componentState: { text: temp.componentCache[view] },
+          title: MT.titleize(view),
+          type: "component"
+        });
+        contentItem = peek(lastStack.contentItems);
+        contentItem.on("itemDestroyed", () => layout.contentItems.splice(layout.contentItems.findIndex(item => item === contentItem), 1));
+        layout.contentItems.push(contentItem);
       }
-
-      // Update fields for views
       contentItem.element.find("select.nodeVariables").html(
         "<option>None</option>" +
         session.data.nodeFields.map(field => '<option value="' + field + '">' + MT.titleize(field) + "</option>").join("\n")
