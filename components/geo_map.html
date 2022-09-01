@@ -479,37 +479,27 @@
         var cval = session.style.widgets['map-field-county'];
         nodes.forEach(n => {
           var county;
-          if(n[cval]) {
-            county = temp.mapData.counties.features.find(c => {
-            return (c.properties.name.toLowerCase() == n[cval].toLowerCase() ||
+          county = temp.mapData.counties.features.find(c => {
+            return (c.properties.fips == n[cval] ||
               parseFloat(c.properties.fips) == parseFloat(n[cval]));
           });
-          }
-
-          // If no state is associated pick given county
-          if (county && !n['State']) {
-           
+          if (county) {
             n._lat = county.properties._lat;
             n._lon = county.properties._lon;
             return;
-
-          // Check if state exists since can have multiple counties with same name
-          } else if (county && n['State']) {
-            var state = temp.mapData.states.features.find(s => s.properties.usps == n['State'].toUpperCase() || s.properties.name.toLowerCase().includes(n['State'].toLowerCase()));
-
-            county = temp.mapData.counties.features.find(c => {
-              var small = n[cval].toLowerCase();
-              return c.properties.state == state.properties.usps && (
-                c.properties.name.includes(small) ||
-                small.includes(c.properties.name)
-              );
-              });
-              if (county) {
-                n._lat = county.properties._lat;
-                n._lon = county.properties._lon;
-            }
           }
-          
+          var state = temp.mapData.states.features.find(s => s.properties.usps == n[sval].toUpperCase() || s.properties.name.toLowerCase().includes(n[sval].toLowerCase()));
+          county = temp.mapData.counties.features.find(c => {
+            var small = n[cval].toLowerCase();
+            return c.properties.state == state.properties.usps && (
+              c.properties.name.includes(small) ||
+              small.includes(c.properties.name)
+            );
+          });
+          if (county) {
+            n._lat = county.properties._lat;
+            n._lon = county.properties._lon;
+          }
         });
       }
       if (session.style.widgets['map-field-zipcode'] !== 'None') {
