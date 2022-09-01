@@ -69,7 +69,6 @@ self.addEventListener('install', function(event) {
         'img/android-chrome-512x512.png',
         'img/apple-touch-icon.png',
         'img/browserconfig.xml',
-        'img/favicon.svg',
         'img/favicon-16x16.png',
         'img/favicon-32x32.png',
         'img/favicon-48x48.png',
