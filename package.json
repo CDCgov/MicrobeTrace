@@ -84,6 +84,7 @@
     "karma-jasmine-html-reporter": "^0.2.2",
     "leaflet": "^1.5.1",
     "leaflet-image": "0.4.0",
+    "newick-tree-parser": "^1.0.1",
     "papaparse": "^5.2.0",
     "patristic": "^0.5.4",
     "phylocanvas": "^2.8.1",
