@@ -388,8 +388,9 @@
     let sdlinks = session.data.links;
 
     if (temp.matrix[newLink.source][newLink.target]) {
+      
       let oldLink = temp.matrix[newLink.source][newLink.target];
-      let origin = uniq(newLink.origin.concat(oldLink.origin));
+      let myorigin = uniq(newLink.origin.concat(oldLink.origin));
 
       // Ensure new link keeps distance if already defined previously
       if (oldLink.hasDistance) {
@@ -398,7 +399,11 @@
         newLink.distanceOrigin = oldLink.distanceOrigin;
       }
 
-      Object.assign(oldLink, newLink, { origin: origin });
+      oldLink["origin"] = myorigin;
+      newLink["origin"] = myorigin;
+
+      Object.assign(newLink, oldLink);
+
       linkIsNew = 0;
     } else if (temp.matrix[newLink.target][newLink.source]) {
       console.warn("This scope should be unreachable. If you're using this code, something's wrong.");
@@ -407,26 +412,34 @@
       Object.assign(oldLink, newLink, { origin: origin });
       linkIsNew = 0;
     } else {
-      newLink = Object.assign({
-        index: sdlinks.length,
-        source: "",
-        target: "",
-        visible: false,
-        cluster: 1,
-        origin: [],
-        hasDistance: false
-      }, newLink);
-      if ((newLink.source == 'MZ797735' || newLink.target == 'MZ797735') && (newLink.source == 'MZ797519' || newLink.target == 'MZ797519')) {
-        console.log('------ newLink2: ', newLink)
+
+      if (newLink.hasDistance) {
+        newLink = Object.assign({
+          index: sdlinks.length,
+          source: "",
+          target: "",
+          visible: false,
+          cluster: 1,
+          origin: [],
+          hasDistance: true
+        }, newLink);
+      } else {
+        newLink = Object.assign({
+          index: sdlinks.length,
+          source: "",
+          target: "",
+          visible: false,
+          cluster: 1,
+          origin: [],
+          hasDistance: false
+        }, newLink);
       }
+     
+
       temp.matrix[newLink.source][newLink.target] = newLink;
       temp.matrix[newLink.target][newLink.source] = newLink;
       sdlinks.push(newLink);
       linkIsNew = 1;
-    }
-
-    if (newLink.source == 'MZ797735' || newLink.target == 'MZ797735') {
-      // console.log('Links are 2: ', sdlinks);
     }
 
     return linkIsNew;
@@ -1032,6 +1045,7 @@
             }, check);
           }
         }
+        console.log('k is: ', k);
         console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
         resolve(k);
       };
