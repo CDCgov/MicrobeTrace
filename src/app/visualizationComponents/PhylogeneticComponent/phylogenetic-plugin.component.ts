@@ -8,10 +8,11 @@ import Phylocanvas from 'phylocanvas';
 import contextMenu from 'phylocanvas-plugin-context-menu';
 import scalebar from 'phylocanvas-plugin-scalebar';
 import history from 'phylocanvas-plugin-history';
-import * as FigTree from '../../../../vendor/tree';
+import * as FigTree from '../../../../vendor/figtree.esm.js';
 import * as ClipboardJS from 'clipboard';
 import * as saveAs from 'file-saver';
 import * as domToImage from 'dom-to-image-more';
+import * as d3 from 'd3';
 import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
@@ -144,14 +145,45 @@ export class PhylogeneticComponent extends AppComponentBase implements OnInit {
    * @return {} a Phylocanvas tree object
    */
   openTree() {
+    /**
     Phylocanvas.plugin(contextMenu);
     Phylocanvas.plugin(scalebar);
     Phylocanvas.plugin(history);
+    */
     // Call the function that makes a Newick string from the nodes and edges
     const newickString = this.commonService.computeTree();
     newickString.then((x) => {
       this.commonService.visuals.phylogenetic.treeStrings.push(x);
-      this.makeTreeFromNewick(x);
+
+      const tree = FigTree.Tree.parseNewick(x);
+      tree.annotateNode(tree.root, {root: true});
+      const treeSVG = document.getElementById('phylo_svg');
+      console.log(tree.annotations);
+      const layout = FigTree.rectangularLayout;
+      const margins = { top: 10, bottom: 60, left: 10, right: 150};
+      const branchSettings = FigTree.branch().hilightOnHover().reRootOnClick().curve(d3.curveStepBefore);
+      const phyCanv = document.querySelector('#phylocanvas');
+      const canvHeight = this.CalculatedResolutionHeight; // phyCanv.clientHeight * 1.5;
+      const canvWidth = this.CalculatedResolutionHeight; // phyCanv.clientWidth;
+      const settings = {height: '750px', width: '1100px'};
+      const figTree = new FigTree.FigTree(treeSVG, margins, tree, settings)
+        .layout(FigTree.rectangularLayout)
+        .nodes(
+          FigTree.circle()
+          .attr("r",5)
+          .hilightOnHover(10)
+          .rotateOnClick(),
+          FigTree.tipLabel(d=>d.name),
+          FigTree.internalNodeLabel(d=>{d.label})
+
+        )
+        .nodeBackgrounds(
+          FigTree.circle()
+          .attr('r', 7)
+        )
+        .branches(branchSettings);
+
+      // this.makeTreeFromNewick(x);
     });
   }
 

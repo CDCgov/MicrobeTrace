@@ -5,11 +5,5 @@
  * Distributed under terms of the MIT license.
  */
 
-#phylocanavas {
-    height: 100%;
-}
-
-#phylocanvas__canvas {
-    height: 100% !important;
-    background-color: '#ffffff';
+.external-node { color: '#b42391';
 }
