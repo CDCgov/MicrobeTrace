@@ -159,29 +159,13 @@ export class PhylogeneticComponent extends AppComponentBase implements OnInit {
       tree.annotateNode(tree.root, {root: true});
       const treeSVG = document.getElementById('phylo_svg');
       console.log(tree.annotations);
-      const layout = FigTree.rectangularLayout;
-      const margins = { top: 10, bottom: 60, left: 10, right: 150};
-      const branchSettings = FigTree.branch().hilightOnHover().reRootOnClick().curve(d3.curveStepBefore);
       const phyCanv = document.querySelector('#phylocanvas');
       const canvHeight = this.CalculatedResolutionHeight; // phyCanv.clientHeight * 1.5;
       const canvWidth = this.CalculatedResolutionHeight; // phyCanv.clientWidth;
       const settings = {height: '750px', width: '1100px'};
-      const figTree = new FigTree.FigTree(treeSVG, margins, tree, settings)
-        .layout(FigTree.rectangularLayout)
-        .nodes(
-          FigTree.circle()
-          .attr("r",5)
-          .hilightOnHover(10)
-          .rotateOnClick(),
-          FigTree.tipLabel(d=>d.name),
-          FigTree.internalNodeLabel(d=>{d.label})
-
-        )
-        .nodeBackgrounds(
-          FigTree.circle()
-          .attr('r', 7)
-        )
-        .branches(branchSettings);
+      const figTree = this.initializeTree(treeSVG, tree);
+      this.commonService.visuals.phylogenetic.tree = figTree;
+      this.updateStyles();
 
       // this.makeTreeFromNewick(x);
     });
@@ -189,58 +173,52 @@ export class PhylogeneticComponent extends AppComponentBase implements OnInit {
 
   /**
    * Initializes the tree object with default values
-   * @return {} Phylocanvas Tree Object
+   * @return {} FigTree Tree Object
    */
-  initializeTree() {
-    const tree = Phylocanvas.createTree('phylocanvas', {
-      fillCanvas: true,
-      shape: 'circle',
-      showLabels: true,
-      hoverLabels: true,
-      showInternalNodeLabels: true,
-      contextMenu: {
-        branchMenuItems: this.buildBranchMenu(),
-      }
-    });
-    const phyCanv = document.querySelector('#phylocanvas');
-    const canvHeight = phyCanv.clientHeight * 1.5;
-    const canvWidth = phyCanv.clientWidth;
-    tree.setSize(canvWidth, canvHeight);
-    tree.selectedColour = this.visuals.phylogenetic.commonService.GlobalSettingsModel.SelectedColorVariable;
-    return tree;
+  initializeTree(treeSVG: HTMLElement, tree: {}) {
+      const margins = { top: 10, bottom: 60, left: 10, right: 150};
+      const branchSettings = FigTree.branch().hilightOnHover().reRootOnClick().curve(d3.curveStepBefore);
+      const figTree = new FigTree.FigTree(treeSVG, margins, tree) // , settings)
+        .layout(FigTree.rectangularLayout)
+        .nodes(
+          FigTree.circle()
+          .attr('r', 5)
+          .hilightOnHover(10)
+          .rotateOnClick(),
+          FigTree.tipLabel(d => d.name),
+          FigTree.internalNodeLabel(d => d.label)
+
+        )
+        .nodeBackgrounds(
+          FigTree.circle()
+          .attr('r', 7)
+        )
+        .branches(branchSettings);
+      return figTree;
   }
 
 
   /**
-   * Creates a new tree given a Newick string
-   * @param string Newick string
-   * @return {} tree object
+   * Update the styles for the tree object
    */
-  makeTreeFromNewick(newickString) {
-    const tree = this.initializeTree();
-    this.commonService.visuals.phylogenetic.treeStrings.push(newickString);
-    this.visuals.phylogenetic.commonService.session.style.widgets['link-color'] = '#000000';
-    tree.load(newickString);
-    tree.branchColour = this.visuals.phylogenetic.commonService.session.style.widgets['link-color'];
-    tree.setTreeType('rectangular');
-    tree.setNodeSize(this.SelectedLeafSizeVariable);
-    tree.leaves.forEach((y) => {
-      y.setDisplay(this.getTreeStyle());
-    });
-    for (const branch in tree.branches) {
-      if (branch in tree.branches) {
-        tree.branches[branch].interactive = true;
-        tree.branches[branch].internalLabelStyle = {
-          textSize: this.SelectedLeafLabelSizeVariable,
-        };
-      }
-    }
-    this.commonService.visuals.phylogenetic.tree = tree;
-    this.commonService.visuals.phylogenetic.treeStyle = this.getTreeStyle();
-    tree.draw();
+  updateStyles() {
+    const phyloSVG = document.getElementById('phylo_svg');
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    phyloSVG.appendChild(style);
+    style.type = 'text/css';
+    const linkColor = this.visuals.phylogenetic.commonService.session.style.widgets['link-color'];
+    this.commonService.visuals.phylogenetic.tree.branchColour = linkColor;
+    const nodeColor = this.visuals.phylogenetic.commonService.session.style.widgets['node-color'];
+    this.commonService.visuals.phylogenetic.tree.branchColour = linkColor;
+    let styleString = `.branch \{ stroke-width: 2; \}\n .branch.hovered \{ stroke-width: 4; \}\n .branch-path \{ stroke: ${linkColor};\}\n`;
+    this.SelectedNodeColorVariable = nodeColor;
+    styleString = `${styleString} .node-shape \{ fill: ${nodeColor}; stroke: ${nodeColor}; \}\n`;
+    const selectedColor = this.visuals.phylogenetic.commonService.GlobalSettingsModel.SelectedColorVariable;
+    this.commonService.visuals.phylogenetic.tree.selectedColour = selectedColor;
+    styleString = `${styleString} .node-shape.hovered \{ fill: ${selectedColor}; stroke: ${selectedColor}; \}\n`;
+    style.innerHTML = styleString;
 
   }
-
 
   /**
    * Gets an object with the current selections for tree styling
@@ -444,17 +422,15 @@ export class PhylogeneticComponent extends AppComponentBase implements OnInit {
   updateNodeColors() {
     const nodeColor = this.visuals.phylogenetic.commonService.session.style.widgets['node-color'];
     this.SelectedNodeColorVariable = nodeColor;
-    const colorConfig = { leafStyle: { fillStyle: this.SelectedNodeColorVariable } };
-    this.updateLeaves(colorConfig);
     const selectedColor = this.visuals.phylogenetic.commonService.GlobalSettingsModel.SelectedColorVariable;
     this.commonService.visuals.phylogenetic.tree.selectedColour = selectedColor;
-    this.commonService.visuals.phylogenetic.tree.draw();
+    this.updateStyles();
   }
 
   updateLinkColor() {
     const linkColor = this.visuals.phylogenetic.commonService.session.style.widgets['link-color'];
     this.commonService.visuals.phylogenetic.tree.branchColour = linkColor;
-    this.commonService.visuals.phylogenetic.tree.draw();
+    this.updateStyles();
   }
 
   updateLeaves(config) {
