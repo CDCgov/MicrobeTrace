@@ -593,6 +593,26 @@ Note that this may cause slow performance on larger networks.">
     ga('set', 'title', '2D View');
     ga('send', 'pageview');
 
+    // Stores array of custom symbols from JSON
+    let customSymbols = [];
+
+    var customChanged = false;
+
+    // Help function to populate custom symbols array
+    getCustomSymbolsArray = array => {
+      
+      customSymbols = array;
+
+      // Add custom symbols to selectable symbols
+      customSymbols.forEach(symbolFileName => {
+        $('#node-symbol').prepend('<option data-img_src="img/custom-symbols/' + symbolFileName + '" value="' + symbolFileName.split('.').slice(0, -1).join('.') + '"> (' + symbolFileName.split('.').slice(0, -1).join('.') + ')</option>');
+      });
+
+    }
+
+    // Get custom symbols from json file
+    $.getJSON("img/custom-symbols/symbols.json", getCustomSymbolsArray);
+
     $('#tipsTab').show()
     
     if (session.network.allPinned && !$('#pinbutton').hasClass('active')) $('#pinbutton').button('toggle');
@@ -779,6 +799,7 @@ Note that this may cause slow performance on larger networks.">
 
       // Check if arrows visible and draw them
       if(settings['link-directed']) {
+        console.log("in links directed");
         svg.select('g.links').selectAll('line').attr('marker-end', 'url(#end-arrow)');
       }
 
@@ -1350,6 +1371,8 @@ Note that this may cause slow performance on larger networks.">
 
     let isNumber = a => typeof a == "number";
 
+    var customSymbolsChosen = [];
+
     function redrawNodes() {
       //Things to track in the function:
       //* Shapes:     
@@ -1380,16 +1403,142 @@ Note that this may cause slow performance on larger networks.">
           .domain([min, max])
           .range([minWidth, maxWidth]);
       }
+
       nodes = svg.select('g.nodes').selectAll('g').data(session.network.nodes);
+
+      // Initialize storedBoxes to maintain size consistency for custom shapes
+      let storedBoxes = {};
+
+      // Initialize custom symbols displaying to true unless non-custom found
+      let onlyCustomSymbolsDisplaying = true;
+
       nodes.selectAll('path').each(function (d) {
-        if (symbolVariable !== 'None') type = d3[temp.style.nodeSymbolMap(d[symbolVariable])];
-        if (sizeVariable !== 'None') {
+
+        // Check if symbol is custom from variable value - get the index for later use
+        let customSymbolIndex = customSymbols.findIndex(symbol => {
+          return symbol.split('.').slice(0, -1).join('.') == temp?.style.nodeSymbolMap(d[symbolVariable]);
+        } );
+
+        // Update type for individual size based on size value from variable
+        if (symbolVariable !== 'None') {
+          if(customSymbolIndex === -1) {
+            type = d3[temp.style.nodeSymbolMap(d[symbolVariable])];
+          } 
+        } 
+
+        // Get parent to access image property for custom symbols
+        let parent = d3.select(this).node().parentNode;
+
+        // If custom symbol/image already exists
+        if(!d3.select(parent).select('image').empty()){
+
+          // Remove it as the new one will be added on top
+          d3.select(parent).select('image').remove();
+          
+        }
+        
+        // If dynamic sizes based on variable
+        if (sizeVariable !== "None") {
+
+          // Update size
           size = d[sizeVariable];
           if (!isNumber(size)) size = med;
           size = scale(size);
+
+          // Update symbol/path with new size
+          d3.select(this).attr('d', d3.symbol().size(size).type(type));
+
+          // If bounds has not been stored yet
+          if(!storedBoxes[size]){
+
+            // Store to maintain consistency for same sizes
+            storedBoxes[size] = d3.select(this).node().getBBox();
+
+          } 
+
+          // If not a custom symbol
+          if(customSymbolIndex === -1 ) {
+
+             // There is at least one non-custom symbol displaying, so will show color table
+             onlyCustomSymbolsDisplaying = false;
+
+            // Set symbol in d attribute as normal
+            d3.select(this).attr('d', d3.symbol().size(size).type(type));
+          
+          // If using custom symbol
+          } else {
+            
+            // Remove/hide d from path since not being used
+            d3.select(this).attr('d', null);
+
+            // Get translated position offset based on size
+            let trans = "translate(-" + parseFloat(storedBoxes[size].width) + ", -" + parseFloat(storedBoxes[size].height) + ")";
+
+            // Append symbol to parent since not part of path (currently selected)
+            d3.select(parent).append('image')
+            .attr("xlink:href", "img/custom-symbols/" + customSymbols[customSymbolIndex])
+            .attr("width", storedBoxes[size].width * 2)
+            .attr("height", storedBoxes[size].height * 2)
+            .attr("transform", trans);
+
+          }
+
+        // If one size - size variable is None
+        } else {
+ 
+          // Update symbol/path with new size
+          d3.select(this).attr('d', d3.symbol().size(size).type(type));
+
+          // If size has not been used yet
+          if(!storedBoxes[size]){
+
+            // Store box bounds to maintain consistency
+            storedBoxes[size] = d3.select(this).node().getBBox();
+
+          } 
+
+          // If not a custom symbol
+          if(customSymbolIndex === -1) {          
+
+             // There is at least one non-custom symbol displaying, so will show color table
+             onlyCustomSymbolsDisplaying = false;
+
+            // Update symbol normally based on size
+            d3.select(this).attr('d', d3.symbol().size(size).type(type));
+
+          // If a custom symbol
+          } else {
+
+            // Remove/hide d from path since not being used
+            d3.select(this).attr('d', null);
+
+            // Get translated position offset based on size
+            let trans = "translate(-" + parseFloat(storedBoxes[size].width) + ", -" + parseFloat(storedBoxes[size].height) + ")";
+
+            // console.log("img/custom-symbols/" + customSymbols[customSymbolIndex]);
+            // Append symbol to parent since not part of path (currently selected)
+            d3.select(parent).insert('image',":first-child")
+            .attr("xlink:href", "img/custom-symbols/" + customSymbols[customSymbolIndex])
+            .attr("width", storedBoxes[size].width * 2)
+            .attr("height", storedBoxes[size].height * 2)
+            .attr("transform", trans);
+
+            }
+
         }
-        d3.select(this).attr('d', d3.symbol().size(size).type(type));          
+
       });
+      
+      // Hide color table if cannot change color since all symbols are images
+      if(onlyCustomSymbolsDisplaying) {
+
+        $("#node-color-table-hide").parent().click();
+      
+      // Show color table if at least one node symbol can change color
+      } else {
+        $("#node-color-table-show").parent().click();
+      }
+
     }
 
     function redrawNodeBorder(){
@@ -1522,9 +1671,24 @@ Note that this may cause slow performance on larger networks.">
       redrawNodes();
     });
 
+    function custom_template(obj){
+      var data = $(obj.element).data();
+      var text = $(obj.element).text();
+
+      if(data && data['img_src']){
+        img_src = data['img_src'];
+        template = $("<div style=\"display:flex;\"><img src=\"" + img_src + "\"/><div style=\"padding-left:5px;\">" + text + "</div></div>");
+        return template;
+      } else {
+        template = $("<div>" + text + "</div>");
+        return template;
+      }
+    }
+
     $('#node-symbol-variable').on('change', function () {
       if($(this).find("option").length <= 1) return false;    
       let variable = this.value;
+      let oldVariable = settings['node-symbol-variable'];
       settings['node-symbol-variable'] = variable;
       let wrapper = $('#node-symbol-table-wrapper');
       let table = wrapper.find('table');
@@ -1537,12 +1701,28 @@ Note that this may cause slow performance on larger networks.">
         return;
       }
 
+      // Get previous keys to maintain changes
+      let previousKeys = _.cloneDeep(session.style.nodeSymbolsTableKeys[variable]);
+
       let nodeSymbols;
       if(session.style.nodeSymbolsTable[variable]) {
         nodeSymbols = session.style.nodeSymbolsTable[variable];
       } else {
         nodeSymbols = session.style.nodeSymbolsTable[variable] = [...session.style.nodeSymbols];
       }
+
+      // Ensure custom symbols are available in node symbols
+      if (customSymbols.length > 0 ){
+          customSymbols.forEach(symb => {
+
+            let ind = nodeSymbols.findIndex(nodeSymb => nodeSymb == symb.split('.').slice(0, -1).join('.'))
+
+            if (ind == -1){
+              nodeSymbols.push(symb.split('.').slice(0, -1).join('.'));
+            }
+          });
+          session.style.nodeSymbolsTableKeys[variable] = [...nodeSymbols];
+        }
       
       $('#node-symbol-row').slideUp();
       $('#node-symbol-table-row').slideDown();
@@ -1571,11 +1751,71 @@ Note that this may cause slow performance on larger networks.">
         }
         nodeSymbols = symbols;
       }
+
+      // Get old node symbols before modifying new to match previous colors
+      let oldNodeSymbols = _.cloneDeep(nodeSymbols);
+
       values.sort(function (a, b) {return aggregates[b] - aggregates[a];}); //#297
+      
+      // If same shape variable and value inserted/removed into table
+      if (!_.isEqual(session.style.originalNodeSymbolValues, values) ) {
+
+        if(session.style.widgets["previous-symbol-values"] && !_.isEqual(session.style.widgets["previous-symbol-values"], values)) {
+
+          console.log("previousValue: ", _.cloneDeep(session.style.widgets["previous-symbol-values"]), "values: ", _.cloneDeep(values));
+
+          values.forEach((key, i) => {
+
+            // If key not at same index, find it in previous
+            if(key !== session.style.originalNodeSymbolValues [i]){
+
+              console.log('key no prev: ', key, session.style.originalNodeSymbolValues[i]);
+              
+              // Get index where node symbol was
+              let ind = session.style.originalNodeSymbolValues.findIndex(k => {return k == key});
+
+              // If position found
+              if(ind !== -1) {
+
+                console.log('orig sumbpls: ', session.style.widgets["original-node-symbols"]);
+                console.log('index in old: ', ind);
+                // Get Correct Symbol
+                var symbol = session.style.widgets["original-node-symbols"][ind];
+
+                console.log('correct symbol: ', symbol);
+
+                // Swap incorrect symbol with the correct symbols incorrect position
+                nodeSymbols[i] = symbol;
+
+              }
+            } else {
+
+              // Get Correct Symbol
+              var symbol = session.style.widgets["original-node-symbols"][i];
+
+              console.log('correct symbol: ', symbol);
+
+              // Swap incorrect symbol with the correct symbols incorrect position
+              nodeSymbols[i] = symbol;
+            }
+          });
+        }
+
+    } else {
+      values.forEach((key, i) => {
+
+              // Get Correct Symbol
+              var symbol = session.style.widgets["original-node-symbols"][i];
+
+              // Swap incorrect symbol with the correct symbols incorrect position
+              nodeSymbols[i] = symbol;
+
+      });
+    }
 
       if (session.style.widgets["node-timeline-variable"] == 'None') {
         session.style.nodeSymbolsTableKeys[variable] = values;
-        session.style.nodeSymbolsTable[variable] = nodeSymbols;
+        session.style.nodeSymbolsTable[variable] = nodeSymbols;        
       } else {
         
         // During timeline mode, user Pause and switch to a different Node Symbol but nodeSymbolsTableKeys[variable] is not available
@@ -1611,41 +1851,67 @@ Note that this may cause slow performance on larger networks.">
           session.style.nodeSymbolsTable[variable] = nodeSymbolsTL;
         }        
 
-        let key;
-        let tempNodeSymbols=[];
-        for(let v of values) {
-          let table = session.style.nodeSymbolsTableKeys[variable];
-          key = table.findIndex( k => k === v);
-          tempNodeSymbols.push(nodeSymbols[key]);
-        }
-        nodeSymbols = tempNodeSymbols;
+      }
+
+      // Update original values and their order so they can be compared during timeline
+      session.style.widgets["previous-symbol-values"] = values; 
+
+      // Update original values and their order so they can be compared during timeline
+      if (session.style.widgets["timeline-date-field"] === 'None') {
+        session.style.originalNodeSymbolValues = values;
+        session.style.widgets["original-node-symbols"] = _.cloneDeep(nodeSymbols);
       }
       
       temp.style.nodeSymbolMap = d3.scaleOrdinal(nodeSymbols).domain(values);
       let nodeSymbolHeaderTitle =  (session.style.overwrite && session.style.overwrite.nodeSymbolHeaderTitle ? session.style.overwrite.nodeSymbolHeaderTitle : "Node " + MT.titleize(variable));
-      const encodedNodeSymbolHeaderTitle = nodeSymbolHeaderTitle.replace(/[\u00A0-\u9999<><>(){}`"\&]/g, function(i) {
-              return '&#'+i.charCodeAt(0)+';';
-      });
       table.empty().append(
         '<tr>' +
-        '<th class="p-1" contenteditable>' + encodedNodeSymbolHeaderTitle + '</th>' +
+        '<th class="p-1" contenteditable>' + nodeSymbolHeaderTitle + '</th>' +
         (settings['node-symbol-table-counts'] ? '<th>Count</th>' : '') +
         (settings['node-symbol-table-frequencies'] ? '<th>Frequency</th>' : '') +
         '<th>Shape</th>' +
         '</tr>');
-      let options = $('#node-symbol').html();
-      values.forEach(function (v, i) {
-        let selector = $('<select></select>').append(options).val(temp.style.nodeSymbolMap(v)).on('change', function (e) {
-          nodeSymbols.splice(i, 1, this.value);
-          temp.style.nodeSymbolMap = d3.scaleOrdinal(nodeSymbols).domain(values);
 
-          // make update during timeline - also need to update saved nodeSymbols
-          if (session.style.widgets["node-timeline-variable"] != 'None') {
-            let key = session.style.nodeSymbolsTableKeys[variable].findIndex( k => k === v);
-            session.style.nodeSymbolsTable[variable].splice(key, 1, this.value);
-          }
-          redrawNodes();
+      let options = $('#node-symbol').html();
+
+      let count = 0;
+
+      let opts = {
+        'templateSelection': custom_template,
+        'templateResult': custom_template,
+        }
+
+      // Get shown symbols currently based on number of values to check if custom icon set
+      let shownSymbols = nodeSymbols.slice(0,values.length)
+
+      values.forEach(function (v, i) {
+
+        let containsCustomSymbol = false;
+
+        customSymbols.forEach(symbol => {
+          let symb = symbol.split('.').slice(0, -1).join('.');
+          containsCustomSymbol = shownSymbols.includes(symb);
         });
+
+        let selector = $('<select id="' + count +'-symbol"></select>').append(options).val(temp.style.nodeSymbolMap(v)).on('change', function (e) {
+            nodeSymbols.splice(i, 1, this.value);
+            temp.style.nodeSymbolMap = d3.scaleOrdinal(nodeSymbols).domain(values);
+
+            // make update during timeline - also need to update saved nodeSymbols
+            if (session.style.widgets["node-timeline-variable"] != 'None') {
+              let key = session.style.nodeSymbolsTableKeys[variable].findIndex( k => k === v);
+              session.style.nodeSymbolsTable[variable].splice(key, 1, this.value);
+            }
+
+            // Update original values and their order so they can be compared during timeline
+            if (session.style.widgets["timeline-date-field"] === 'None') {
+              session.style.widgets["original-node-symbols"] = _.cloneDeep(nodeSymbols);
+            }
+            redrawNodes();
+          });
+
+
+        
         let cell = $('<td></td>').append(selector);
         let row = $(
           '<tr>' +
@@ -1655,7 +1921,20 @@ Note that this may cause slow performance on larger networks.">
           '</tr>'
         ).append(cell);
         table.append(row);
+
+        count++;
+
       });
+
+      for (let i = 0; i < values.length; i++){
+        $('#' + i + '-symbol').select2(opts);
+      }
+
+      $('.select2-container--default .select2-selection--single').css({'display': 'flex'});
+      $('.select2-container').css({'min-width': '210px'});
+      $('.select2-selection__rendered').css({'display': 'flex'});
+      $('.select2-container--default .select2-results>.select2-results__options > li').css({'display': 'flex', 'height':'34px'});
+      $('.select2-results__option > div').css({'display': 'flex'});
       
       table
         .find(".p-1")

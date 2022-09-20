@@ -16,6 +16,8 @@ self.addEventListener('install', function(event) {
         'vendor/papaparse.min.js',
         'vendor/patristic.min.js',
         'vendor/tn93.min.js',
+        'vendor/select2.min.js',
+        'vendor/select2.min.css',
         'dist/bundle.primary.css',
         'dist/bundle.primary.js',
         'dist/bundle.secondary.css',

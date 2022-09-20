@@ -22,6 +22,7 @@ primaryscripts=(
   "node_modules/file-saver/dist/FileSaver.min.js"
   "node_modules/devtools-detect/index.js"
   "node_modules/localforage/dist/localforage.min.js"
+  "vendor/select2.min.js"
 )
 
 # secondaryscripts is where you put scripts that must be loaded before a
@@ -58,6 +59,7 @@ primarystyles=(
   "node_modules/tabulator-tables/dist/css/tabulator.min.css"
   "node_modules/tabulator-tables/dist/css/bootstrap/tabulator_bootstrap4.min.css"
   "node_modules/open-iconic/font/css/open-iconic-bootstrap.min.css"
+  "vendor/select2.min.css"
 )
 
 # secondarystyles is where you put stylesheets that must be loaded before a

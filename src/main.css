@@ -377,6 +377,13 @@ td {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+
+.select2-results__option {
+  display: flex !important;
+  height: 34px !important;
+}
+
 .custom-file-input {
   white-space: nowrap;
   overflow: hidden;
