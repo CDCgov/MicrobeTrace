@@ -799,8 +799,11 @@ Note that this may cause slow performance on larger networks.">
 
       // Check if arrows visible and draw them
       if(settings['link-directed']) {
-        console.log("in links directed");
-        svg.select('g.links').selectAll('line').attr('marker-end', 'url(#end-arrow)');
+        svg.select('g.links').selectAll('line').attr('marker-end', function(l) {
+          if (l.directed || l.directed == null) {
+            return 'url(#end-arrow)';
+          } 
+        });
       }
 
       let linklabels = svg.select('g.links').selectAll('text').data(getLLinks())
@@ -2012,7 +2015,11 @@ Note that this may cause slow performance on larger networks.">
     });
 
     $('#link-directed').parent().on('click', function () {
-      svg.select('g.links').selectAll('line').attr('marker-end', 'url(#end-arrow)');
+      svg.select('g.links').selectAll('line').attr('marker-end', function(l) {
+        if (l.directed || l.directed == null) {
+          return 'url(#end-arrow)';
+        } 
+      });
       settings['link-directed'] = true;
     });
 

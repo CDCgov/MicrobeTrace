@@ -1044,7 +1044,8 @@
               distance: dists[l++],
               origin: ['Genetic Distance'],
               distanceOrigin: 'Genetic Distance',
-              hasDistance: true
+              hasDistance: true,
+              directed: false
             }, check);
           }
         }
