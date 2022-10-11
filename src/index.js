@@ -734,6 +734,7 @@ $(function() {
                 .scaleOrdinal(session.style.nodeAlphas)
                 .domain(values);
               $("#color-transparency-wrapper").fadeOut();
+              session.style.widgets['map-node-transparency'] = 1 - this.value;
               $window.trigger("node-color-change");
             });
         });
@@ -895,6 +896,7 @@ $(function() {
                   .scaleOrdinal(session.style.linkAlphas)
                   .domain(values);
                 $("#color-transparency-wrapper").fadeOut();
+                session.style.widgets['map-link-transparency'] = 1 - this.value;
                 $window.trigger("link-color-change");
               });
           });

@@ -411,7 +411,7 @@
     }
 
     var map = L.map('map', {
-      center: [0, -20],
+      center: [0, 0],
       zoom: 3,
       zoomControl: false,
       maxZoom: 15,
@@ -432,9 +432,10 @@
         session.style.widgets[name] = e.target.value;
         matchCoordinates(function () {
           rerollNodes();
-          drawNodes();
           drawLinks();
+          drawNodes();
           resetStack();
+          map.flyToBounds(layers.nodes.getBounds());
         });
       });
       if (session.data.nodeFields.includes(v)) s.val(v);
@@ -559,11 +560,28 @@
         opacity = 1 - session.style.widgets['map-node-transparency'];
       var features = [];
       var n = nodes.length;
+      console.log('adding icons');
+
       for (var i = 0; i < n; i++) {
         var d = nodes[i];
         if (!d._jlat || !d._jlon) continue;
-        features.push(L.circleMarker(L.latLng(d._jlat, d._jlon), {
-          weight: 1,
+        // features.push(L.circleMarker(L.latLng(d._jlat, d._jlon), {
+        //   weight: 1,
+        //   opacity: opacity,
+        //   color: d.selected ? selectedColor : '#000000',
+        //   fillColor: colorVariable == 'None' ? fillcolor : temp.style.nodeColorMap(d[colorVariable]),
+        //   fillOpacity: opacity,
+        //   data: d
+        // }));
+        var myIcon = L.icon({
+        iconUrl: '../img/custom-symbols/Animal.png',
+        iconSize: [38, 53],
+        iconAnchor: [15, 25],
+        popupAnchor: [-3, -76],
+      });
+
+        features.push(L.marker([d._jlat, d._jlon], {
+          icon: myIcon,
           opacity: opacity,
           color: d.selected ? selectedColor : '#000000',
           fillColor: colorVariable == 'None' ? fillcolor : temp.style.nodeColorMap(d[colorVariable]),
@@ -581,6 +599,8 @@
         layers.nodes = L.featureGroup(features);
       }
 
+      // layers.links.bringToFront();
+      if (layers.links && !layers.links.remove && session.style.widgets['map-link-show']) layers.links.bringToFront();
       layers.nodes
         .on('mouseover', showNodeTooltip)
         .on('mouseout', hideTooltip)
@@ -619,6 +639,9 @@
         .on('mouseover', showLinkTooltip)
         .on('mouseout', hideTooltip)
         .addTo(map);
+
+      drawNodes();
+
     }
 
     function showNodeTooltip(e) {
@@ -698,6 +721,25 @@
           const reader = new FileReader();
           reader.onload = function (event2) {
             temp.mapData[layerName] = JSON.parse(event2.target.result);
+
+    //         var geojsonMarkerOptions = {
+    //           radius: 8,
+    //           fillColor: "#ffffff",
+    //           color: "#000",
+    //           weight: 1,
+    //           opacity: 1,
+    //           fillOpacity: 0.8
+    //       };
+    //         layers[layerName] = L.geoJSON(temp.mapData[layerName], {
+    // pointToLayer: function (feature, latlng) {
+    //     return L.circleMarker(latlng, geojsonMarkerOptions);
+    // }});
+            // var myStyle = {
+            //     "color": "#ff7800",
+            //     "weight": 5,
+            //     "opacity": 0.65
+            // };
+
             layers[layerName] = L.geoJSON(temp.mapData[layerName], {
               color: '#000',
               weight: .75,
@@ -733,8 +775,8 @@
       if (layers.satellite && session.style.widgets['map-satellite-show']) layers.satellite.bringToBack();
       if (layers.basemap && session.style.widgets['map-basemap-show']) layers.basemap.bringToBack();
 
-      //Background Layers, in order:
-      if (layers.countries && session.style.widgets['map-countries-show']) layers.countries.bringToFront();
+      // //Background Layers, in order:
+      // if (layers.countries && session.style.widgets['map-countries-show']) layers.countries.bringToFront();
       if (layers.states && session.style.widgets['map-states-show']) layers.states.bringToFront();
       if (layers.counties && session.style.widgets['map-counties-show']) layers.counties.bringToFront();
 
@@ -744,6 +786,8 @@
         .forEach(l => layers[l].bringToFront());
 
       //Foreground Layers, in order:
+      console.log(session.style.widgets['map-link-show']);
+      console.log(session.style.widgets['map-node-show']);
       if (layers.links && !layers.links.remove && session.style.widgets['map-link-show']) layers.links.bringToFront();
       if (layers.nodes && !layers.nodes.remove && session.style.widgets['map-node-show']) layers.nodes.bringToFront();
 
@@ -969,8 +1013,8 @@
       .on('node-visibility node-selected', function () {
         matchCoordinates(function () {
           rerollNodes();
-          drawLinks();
           drawNodes();
+          drawLinks();
         });
       })
       .on('node-color-change', drawNodes)
@@ -1000,8 +1044,8 @@
         if (session.data.nodes.length > 0) {
           matchCoordinates(function () {
           rerollNodes();
-          drawLinks();
           drawNodes();
+          drawLinks();
           initialLoadUpdate();
         });
 
