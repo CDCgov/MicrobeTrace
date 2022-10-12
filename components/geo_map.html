@@ -386,6 +386,8 @@
       $('#map').parent().find('.ifOnline').css('display', 'flex');
     }
 
+
+
     var layers = {
       basemap: L.tileLayer('http://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png'),
       satellite: L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v9/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYWFib3lsZXMiLCJhIjoiY2o4b3QxNmtjMDhwNjMzcno4dDd1NnVraSJ9.BkjEa6NM7o7KeTaTHOaIGg'),
@@ -440,6 +442,10 @@
       });
       if (session.data.nodeFields.includes(v)) s.val(v);
     });
+
+    if(session.data.geoJSONLayerName !== "") {
+      setupGeoJSON();
+    }
 
     function matchCoordinates(callback, norefresh) {
       if (!norefresh) nodes = MT.getVisibleNodes();
@@ -714,14 +720,31 @@
         const { name } = file;
         if (name.endsWith("json")) {
           const layerName = name.split('.').slice(0, -1).join('.').toLowerCase();
-          let encodedLayerName = layerName.replace(/[\u00A0-\u9999<>(){}`"\&]/g, function(i) {
-              return '&#'+i.charCodeAt(0)+';';
-            });
-          encodedLayerName.trim();
           const reader = new FileReader();
           reader.onload = function (event2) {
-            temp.mapData[layerName] = JSON.parse(event2.target.result);
+            session.data.geoJSONLayerName = layerName;
+            session.data.geoJSON = JSON.parse(event2.target.result); 
+            setupGeoJSON();
+          };
+          reader.readAsText(file);
+        } else {
+          alert("Only GeoJSON Files are currently Supported.");
+        }
+      });
+    });
 
+    function setupGeoJSON() {
+           
+      var layerName = session.data.geoJSONLayerName;
+
+      let encodedLayerName = layerName.replace(/[\u00A0-\u9999<>(){}`"\&]/g, function(i) {
+              return '&#'+i.charCodeAt(0)+';';
+            });
+
+      encodedLayerName.trim();
+
+
+      temp.mapData[layerName] = session.data.geoJSON;
     //         var geojsonMarkerOptions = {
     //           radius: 8,
     //           fillColor: "#ffffff",
@@ -740,35 +763,32 @@
             //     "opacity": 0.65
             // };
 
-            layers[layerName] = L.geoJSON(temp.mapData[layerName], {
-              color: '#000',
-              weight: .75,
-              fillColor: '#fafaf8',
-              fillOpacity: .5
-            });
-            layers[layerName].addTo(map);
-            var colorCell = $('<div class="col-3"></div>').append(
-              $('<input type="color" class="w-100">').on('change', function (e) {
-                layers[layerName].setStyle(f => ({ color: e.target.value }));
-              })
-            );
-            var nameCell = $(`<div class="col-9">${encodedLayerName}</div>`).prepend(
-              $('<a href="#" class="oi oi-circle-x align-middle p-1" title="Remove this file"></a>').on('click', function () {
-                nameCell.remove();
-                colorCell.remove();
-                layers[layerName].remove();
-              })
-            );
-            $('#map-geojson-layers')
-              .append(nameCell)
-              .append(colorCell);
-          };
-          reader.readAsText(file);
-        } else {
-          alert("Only GeoJSON Files are currently Supported.");
-        }
-      });
-    });
+        layers[layerName] = L.geoJSON(temp.mapData[layerName], {
+          color: '#000',
+          weight: .75,
+          fillColor: '#fafaf8',
+          fillOpacity: .5
+        });
+
+        layers[layerName].addTo(map);
+        var colorCell = $('<div class="col-3"></div>').append(
+          $('<input type="color" class="w-100">').on('change', function (e) {
+            layers[layerName].setStyle(f => ({ color: e.target.value }));
+          })
+        );
+
+        var nameCell = $(`<div class="col-9">${encodedLayerName}</div>`).prepend(
+          $('<a href="#" class="oi oi-circle-x align-middle p-1" title="Remove this file"></a>').on('click', function () {
+            nameCell.remove();
+            colorCell.remove();
+            layers[layerName].remove();
+          })
+        );
+
+        $('#map-geojson-layers')
+          .append(nameCell)
+          .append(colorCell);
+    }
 
     function resetStack() {
       //Tile Layers, in reverse order:

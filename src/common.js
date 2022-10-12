@@ -10,6 +10,8 @@
     nodes: [],
     links: [],
     clusters: [],
+    geoJSONLayerName: "",
+    geoJSON: {},
     nodeFields: [
       "index",
       "_id",
@@ -599,6 +601,10 @@
       if (oldSession.data[v]) session.data[v] = uniq(session.data[v].concat(oldSession.data[v]));
     });
     if (oldSession.network) session.network = oldSession.network;
+    if (oldSession.data.geoJSONLayerName !== "") {
+      session.data.geoJSON = oldSession.data.geoJSON;
+      session.data.geoJSONLayerName = oldSession.data.geoJSONLayerName;
+    }
     sessionApplied = true;
     MT.applyStyle(session.style);
     // if(!links[0]['distance']){  #249
