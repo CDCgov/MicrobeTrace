@@ -1069,7 +1069,9 @@
           initialLoadUpdate();
         });
       }
-            
+
+      if (session.style.widgets['map-basemap-show'] == true) $('#map-basemap-show').trigger('click');
+      if (session.style.widgets['map-satellite-show'] == true) $('#map-satellite-show').trigger('click');      map.flyToBounds(layers.nodes.getBounds());   
     }, 500);
 
   })();
