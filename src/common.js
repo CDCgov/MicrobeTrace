@@ -1546,15 +1546,17 @@
 
           visible = link[metric] <= threshold;
 
-          if (link[metric] == 0) {
+          // TODO: Remove if uneeded
+//           if (link[metric] == 0) {
 
-            if (link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
-              // Set visible and origin to only show the from the file outside of Distance
-              link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
-              visible = true;
-              overrideNN = true;
-            }
-          }
+//             // if (link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
+//             //   // Set visible and origin to only show the from the file outside of Distance
+//             //   // link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
+//             //   // visible = true;
+//             //   // overrideNN = true;
+//             // }
+// \
+//           }
 
           if (!visible) {
 
