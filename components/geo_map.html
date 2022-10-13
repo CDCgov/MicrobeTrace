@@ -571,29 +571,29 @@
       for (var i = 0; i < n; i++) {
         var d = nodes[i];
         if (!d._jlat || !d._jlon) continue;
-        // features.push(L.circleMarker(L.latLng(d._jlat, d._jlon), {
-        //   weight: 1,
-        //   opacity: opacity,
-        //   color: d.selected ? selectedColor : '#000000',
-        //   fillColor: colorVariable == 'None' ? fillcolor : temp.style.nodeColorMap(d[colorVariable]),
-        //   fillOpacity: opacity,
-        //   data: d
-        // }));
-        var myIcon = L.icon({
-        iconUrl: '../img/custom-symbols/Animal.png',
-        iconSize: [38, 53],
-        iconAnchor: [15, 25],
-        popupAnchor: [-3, -76],
-      });
-
-        features.push(L.marker([d._jlat, d._jlon], {
-          icon: myIcon,
+        features.push(L.circleMarker(L.latLng(d._jlat, d._jlon), {
+          weight: 1,
           opacity: opacity,
           color: d.selected ? selectedColor : '#000000',
           fillColor: colorVariable == 'None' ? fillcolor : temp.style.nodeColorMap(d[colorVariable]),
           fillOpacity: opacity,
           data: d
         }));
+      //   var myIcon = L.icon({
+      //   iconUrl: '../img/custom-symbols/Animal.png',
+      //   iconSize: [38, 53],
+      //   iconAnchor: [15, 25],
+      //   popupAnchor: [-3, -76],
+      // });
+
+      //   features.push(L.marker([d._jlat, d._jlon], {
+      //     icon: myIcon,
+      //     opacity: opacity,
+      //     color: d.selected ? selectedColor : '#000000',
+      //     fillColor: colorVariable == 'None' ? fillcolor : temp.style.nodeColorMap(d[colorVariable]),
+      //     fillOpacity: opacity,
+      //     data: d
+      //   }));
       }
       if (session.style.widgets['map-collapsing-on']) {
         layers.nodes = L.markerClusterGroup({
