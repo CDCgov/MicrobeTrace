@@ -608,6 +608,9 @@ Note that this may cause slow performance on larger networks.">
         $('#node-symbol').prepend('<option data-img_src="img/custom-symbols/' + symbolFileName + '" value="' + symbolFileName.split('.').slice(0, -1).join('.') + '"> (' + symbolFileName.split('.').slice(0, -1).join('.') + ')</option>');
       });
 
+      // In case custom symbols are in saved session and loaded before custom symbols did
+      render();
+
     }
 
     // Get custom symbols from json file
