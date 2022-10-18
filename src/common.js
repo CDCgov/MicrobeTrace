@@ -107,6 +107,7 @@
     "link-color-variable": "None",
     "link-decimal-variable": 2,
     "link-directed": false,
+    "link-bidirected": false,
     "link-label-variable": "None",
     "link-length": 0.125,
     "link-opacity": 0,
@@ -409,6 +410,15 @@
 
       Object.assign(newLink, oldLink);
 
+      console.log('oldd:', oldLink.origin);
+      if (oldLink.origin.length == 1  && oldLink.origin[0] == "Genetic Distance"){
+        oldLink.directed = false;
+        oldLink.bidirected = false;
+      } else {
+        oldLink.directed = true;
+        oldLink.bidirected = true;
+      }
+
       linkIsNew = 0;
     } else if (temp.matrix[newLink.target][newLink.source]) {
       console.warn("This scope should be unreachable. If you're using this code, something's wrong.");
@@ -440,6 +450,9 @@
         }, newLink);
       }
      
+      if (newLink.origin.length == 1  && newLink.origin[0] == "Genetic Distance"){
+        newLink.directed = false;
+      }
 
       temp.matrix[newLink.source][newLink.target] = newLink;
       temp.matrix[newLink.target][newLink.source] = newLink;

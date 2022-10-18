@@ -244,6 +244,21 @@
                   </div>
                 </div>
               </div>
+              <div class="form-group row hideForHIVTrace" title="Bidirectionality">
+                <div class="col-4">Bidirection</div>
+                <div class="col-8">
+                  <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
+                    <label class="btn btn-light active col">
+                      <input type="radio" name="network-directionality" id="link-unbidirected" autocomplete="off" checked>
+                      Hide
+                    </label>
+                    <label class="btn btn-light col">
+                      <input type="radio" name="network-directionality" id="link-bidirected" autocomplete="off">
+                      Show
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -702,6 +717,17 @@ Note that this may cause slow performance on larger networks.">
       .append('svg:path')
       .attr('d', 'M0,0 L0,10 L10,5 z');
 
+      svg.append('svg:defs').append('marker')
+      .attr('id', 'start-arrow')
+      .attr('viewBox', '0 0 10 10')
+      .attr('refX', 20)
+      .attr('refY', 5)
+      .attr('markerWidth', 4)
+      .attr('markerHeight', 4)
+      .attr('orient', 'auto-start-reverse')
+      .append('svg:path')
+      .attr('d', 'M0,0 L0,10 L10,5 z');
+
     let force = d3.forceSimulation()
       .force('link', d3.forceLink()
         .id(d => d._id)
@@ -805,6 +831,12 @@ Note that this may cause slow performance on larger networks.">
         svg.select('g.links').selectAll('line').attr('marker-end', function(l) {
           if (l.directed || l.directed == null) {
             return 'url(#end-arrow)';
+          } 
+        });
+
+        svg.select('g.links').selectAll('line').attr('marker-start', function(l) {
+          if (l.bidirected) {
+            return 'url(#start-arrow)';
           } 
         });
       }
@@ -2024,6 +2056,22 @@ Note that this may cause slow performance on larger networks.">
         } 
       });
       settings['link-directed'] = true;
+    });
+
+    $('#link-bidirected').parent().on('click', function () {
+      if(settings['link-directed']) {
+        svg.select('g.links').selectAll('line').attr('marker-start', function(l) {
+          if (l.bidirected) {
+            return 'url(#start-arrow)';
+          } 
+        });
+        settings['link-bidirected'] = true;
+      }
+    });
+
+    $('#link-unbidirected').parent().on('click', function () {
+      svg.select('g.links').selectAll('line').attr('marker-start', null);
+      settings['link-bidirected'] = false;
     });
 
     $('#link-undirected').parent().on('click', function () {
