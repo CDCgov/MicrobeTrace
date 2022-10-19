@@ -833,13 +833,16 @@ Note that this may cause slow performance on larger networks.">
             return 'url(#end-arrow)';
           } 
         });
+      }
 
+      if(settings['link-bidirected']) {
         svg.select('g.links').selectAll('line').attr('marker-start', function(l) {
-          if (l.bidirected) {
+          if (l.bidirectional) {
             return 'url(#start-arrow)';
           } 
         });
       }
+
 
       let linklabels = svg.select('g.links').selectAll('text').data(getLLinks())
         .join('text')
@@ -2059,13 +2062,14 @@ Note that this may cause slow performance on larger networks.">
     });
 
     $('#link-bidirected').parent().on('click', function () {
-      if(settings['link-directed']) {
+      // console.log('bidirected: ', settings['link-bidirected']);
+      settings['link-bidirected'] = true;
+      if(settings['link-directed'] && settings['link-bidirected']) {
         svg.select('g.links').selectAll('line').attr('marker-start', function(l) {
-          if (l.bidirected) {
+          if (l.bidirectional) {
             return 'url(#start-arrow)';
-          } 
+          }
         });
-        settings['link-bidirected'] = true;
       }
     });
 

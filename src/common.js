@@ -380,6 +380,7 @@
   };
 
   MT.addLink = newLink => {
+
     if (!temp.matrix[newLink.source]) {
       temp.matrix[newLink.source] = {};
     }
@@ -410,16 +411,8 @@
 
       Object.assign(newLink, oldLink);
 
-      console.log('oldd:', oldLink.origin);
-      if (oldLink.origin.length == 1  && oldLink.origin[0] == "Genetic Distance"){
-        console.log('inn 2', newLink, oldLink);
-        oldLink.directed = false;
-        oldLink.bidirected = false;
-      } else {
-        oldLink.directed = true;
-        oldLink.bidirected = true;
-        console.log('inn 1', newLink, oldLink);
-
+      if(newLink["bidirectional"]){
+        oldLink["bidirectional"] = newLink["bidirectional"];
       }
 
       linkIsNew = 0;
@@ -457,7 +450,6 @@
         newLink.directed = false;
       } else {
         newLink.directed = true;
-        newLink.bidirected = true;
       }
 
       temp.matrix[newLink.source][newLink.target] = newLink;

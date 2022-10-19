@@ -939,6 +939,8 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
           message(`Parsing ${file.name} as Link List...`);
           let l = 0;
 
+          let sources = [];
+          let targets = []
           let forEachLink = link => {
             const keys = Object.keys(link);
             const n = keys.length;
@@ -950,16 +952,43 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
                 session.data.linkFields.push(key);
               }
             }
-            // Set distance if distance set (field 3)
-            l += MT.addLink(Object.assign({
-              source: '' + safeLink[file.field1],
-              target: '' + safeLink[file.field2],
-              origin: origin,
-              visible: true,
-              distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-              hasDistance : file.field3 !== 'None' ? true : false,
-              distanceOrigin: file.field3 !== 'None' ? file.name : ''
-            }, safeLink), check);
+
+            let src = '' + safeLink[file.field1];
+            let tgt = '' + safeLink[file.field2];
+
+            sources.push(src);
+            targets.push(tgt);
+
+            let srcIndex = targets.findIndex(t => t == src);
+            let tgtIndex = sources.findIndex(s => s == tgt);
+
+            // Link is the same -> bidirectional
+            if(srcIndex != -1 && tgtIndex != -1) {
+
+               // Set distance if distance set (field 3)
+               l += MT.addLink(Object.assign({
+                  source: '' + safeLink[file.field1],
+                  target: '' + safeLink[file.field2],
+                  origin: origin,
+                  visible: true,
+                  bidirectional: true,
+                  distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
+                  hasDistance : file.field3 !== 'None' ? true : false,
+                  distanceOrigin: file.field3 !== 'None' ? file.name : ''
+                }, safeLink), check);
+
+            } else {
+              // Set distance if distance set (field 3)
+              l += MT.addLink(Object.assign({
+                  source: '' + safeLink[file.field1],
+                  target: '' + safeLink[file.field2],
+                  origin: origin,
+                  visible: true,
+                  distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
+                  hasDistance : file.field3 !== 'None' ? true : false,
+                  distanceOrigin: file.field3 !== 'None' ? file.name : ''
+                }, safeLink), check);
+            }          
           };
 
           if (file.extension == 'xls' || file.extension == 'xlsx') {
