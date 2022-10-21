@@ -633,7 +633,9 @@ Note that this may cause slow performance on larger networks.">
 
     $('#tipsTab').show()
     
-    if (session.network.allPinned && !$('#pinbutton').hasClass('active')) $('#pinbutton').button('toggle');
+    if (session.network.allPinned && !$('#pinbutton').hasClass('active')) {
+      $('#pinbutton').button('toggle');
+    }
 
     session.style.widgets['loaded'] = true;
     
@@ -1951,17 +1953,28 @@ Note that this may cause slow performance on larger networks.">
             redrawNodes();
           });
 
+        let newVal = (session.style.overwrite && session.style.overwrite.nodeSymbolValueTitles && session.style.overwrite.nodeSymbolValueTitles[v]) ? session.style.overwrite.nodeSymbolValueTitles[v] : v;
 
-        
         let cell = $('<td></td>').append(selector);
         let row = $(
           '<tr>' +
-          '<td contenteditable>' + MT.titleize('' + v) + '</td>' +
+          '<td id=' + v + ' contenteditable>' + MT.titleize(''+ newVal) + '</td>' +
           (settings['node-symbol-table-counts'] ? ('<td>' + aggregates[v] + '</td>') : '') +
           (settings['node-symbol-table-frequencies'] ? ('<td>' + (aggregates[v] / vnodes).toLocaleString() + '</td>') : '') +
           '</tr>'
         ).append(cell);
         table.append(row);
+
+        table
+        .find("#" + newVal)
+        .on("focusout", function() {
+          if(!session.style.overwrite || !session.style.overwrite.nodeSymbolValueTitles) {
+            session.style.overwrite.nodeSymbolValueTitles = {};
+            session.style.overwrite.nodeSymbolValueTitles[v] = $(this).text();
+          } else {
+            session.style.overwrite.nodeSymbolValueTitles[v] = $(this).text();
+          }
+        });
 
         count++;
 
@@ -2716,12 +2729,14 @@ Note that this may cause slow performance on larger networks.">
     $('#fitbutton').on('click', fit);
 
     $('#pinbutton').on('click', function () { 
+      console.log('pin');
       let nodes = svg
         .select('g.nodes')
         .selectAll('g')
         .data(session.network.nodes)
         .select('path');
       if (session.network.allPinned) { 
+        console.log('all pinned');
         nodes.each(function (d) {
           delete d.fx;
           delete d.fy;
@@ -2729,6 +2744,7 @@ Note that this may cause slow performance on larger networks.">
         });
         force.alpha(0.3).alphaTarget(0).restart();
       } else {
+        console.log('all not pinned');
         nodes.each(function (d) {
           d.fx = d.x;
           d.fy = d.y;
@@ -2879,6 +2895,7 @@ Note that this may cause slow performance on larger networks.">
       .on('stop-force-simulation.2d', stopSimulation);
 
     layout.on('stateChanged', function () {
+      console.log('layuouttt state');
       let wrapper = $('#network').parent();
       $('#network-export-width').val(wrapper.width());
       $('#network-export-height').val(wrapper.height());
