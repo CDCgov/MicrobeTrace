@@ -838,6 +838,10 @@ button.btn,
   width: auto;
 }
 
+#epi-timeline-date-field {
+  width: auto;
+}
+
 /* Waterfall View */
 #waterfall {
   padding: 30px;

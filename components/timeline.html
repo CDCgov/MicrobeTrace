@@ -19,10 +19,10 @@
     <div class="tab-pane fade show active" id="timeline-configurations" role="tabpanel" aria-labelledby="timeline-nodes-tab">
       <div class="form-group row" title="Which variable in your data contains the date?">
         <div class="col-4">
-          <label for="timeline-date-field">Date Field</label>
+          <label for="epi-timeline-date-field">Date Field</label>
         </div>
         <div class="col-8">
-          <select id="timeline-date-field" class="form-control form-control-sm w-100 nodeVariables"></select>
+          <select id="epi-timeline-date-field" class="form-control form-control-sm w-100 nodeVariables"></select>
         </div>
       </div>
       <div class="form-group row" title="Should the Epi Curve be cumulative, or not?">
@@ -80,7 +80,7 @@
       height = wrapper.height() - margin.top - margin.bottom;
       middle = height / 2;
 
-      var field = $("#timeline-date-field").val();
+      var field = $("#epi-timeline-date-field").val();
       var times = [],
         vnodes = JSON.parse(JSON.stringify(session.data.nodes));
       vnodes.forEach(d => {
@@ -260,8 +260,8 @@
       })
       .trigger("click");
 
-    $("#timeline-date-field").on("change", function () {
-      session.style.widgets["timeline-date-field"] = this.value;
+    $("#epi-timeline-date-field").on("change", function () {
+      session.style.widgets["epi-timeline-date-field"] = this.value;
       refresh();
     });
 

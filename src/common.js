@@ -199,6 +199,7 @@
     "selected-color": "#ff8300",
     "selected-color-contrast": "#000000",
     "timeline-date-field": "None",
+    "epi-timeline-date-field": "None",
     "timeline-noncumulative": true,
     "tree-animation-on": true,
     "tree-branch-distances-hide": true,
