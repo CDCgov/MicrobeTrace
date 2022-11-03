@@ -382,6 +382,11 @@
 
   MT.addLink = newLink => {
 
+
+    // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
+    //   console.log("add Link: ", _.cloneDeep(newLink));
+    // }
+
     if (!temp.matrix[newLink.source]) {
       temp.matrix[newLink.source] = {};
     }
@@ -400,6 +405,11 @@
       let oldLink = temp.matrix[newLink.source][newLink.target];
       let myorigin = uniq(newLink.origin.concat(oldLink.origin));
 
+      // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
+      //   console.log("add new: ", _.cloneDeep(newLink));
+      //   console.log("add old: ", _.cloneDeep(oldLink));
+      // }
+
       // Ensure new link keeps distance if already defined previously
       if (oldLink.hasDistance) {
         newLink.hasDistance = true;
@@ -410,7 +420,12 @@
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
 
-      Object.assign(newLink, oldLink);
+      Object.assign(oldLink, newLink);
+
+      // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
+      //   console.log("add new2: ", _.cloneDeep(newLink));
+      //   console.log("add old2: ", _.cloneDeep(oldLink));
+      // }
 
       if(newLink["bidirectional"]){
         oldLink["bidirectional"] = newLink["bidirectional"];
