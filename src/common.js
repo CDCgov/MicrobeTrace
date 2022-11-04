@@ -420,7 +420,12 @@
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
 
-      Object.assign(oldLink, newLink);
+      _.merge(oldLink, newLink);
+
+      // Object.assign(oldLink, newLink);
+      // Object.assign(newLink, oldLink);
+
+
 
       // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
       //   console.log("add new2: ", _.cloneDeep(newLink));
@@ -1373,7 +1378,7 @@
       MT.setNodeVisibility(true);
       ["cluster", "link", "node"].forEach(thing => $window.trigger(thing + "-visibility"));
       // Default link color variable to origin on launch if variable not set
-      if ($("#link-color-variable").val() || $("#link-color-variable").val() === "") {
+      if (!$("#link-color-variable").val() || $("#link-color-variable").val() === "") {
         $("#link-color-variable").val("origin");
         $("#link-color-variable").trigger("change");
       }
