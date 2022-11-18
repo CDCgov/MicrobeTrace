@@ -505,7 +505,10 @@ $(function() {
     ga('send', 'event', 'threshold', 'update', this.value);
     session.style.widgets["link-threshold"] = parseFloat(this.value);
     let minClust = $("#cluster-minimum-size").val();
-    console.log('minclust: ', minClust);
+
+    // Unset MST construction since links might have been changed
+    session.style.widgets["mst-computed"] = false;
+
     if (minClust !== "1" ){
       console.log('reseting min clust');
       $("#cluster-minimum-size").val("1");
