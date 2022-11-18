@@ -350,6 +350,7 @@ $(function() {
     .parent()
     .on("click", () => {
       $("#filtering-epsilon-row").slideUp();
+      session.style.widgets["mst-computed"] = false;
       session.style.widgets["link-show-nn"] = false;
       updateNetwork();
     });
