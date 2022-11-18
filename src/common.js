@@ -139,6 +139,7 @@
     "map-node-transparency": 0,
     "map-satellite-show": false,
     "map-states-show": true,
+    "mst-computed": false,
     "network-friction": 0.4,
     "network-gravity": 0.05,
     "network-link-strength": 0.125,
@@ -421,7 +422,6 @@
       newLink["origin"] = myorigin;
 
       _.merge(oldLink, newLink);
-
       // Object.assign(oldLink, newLink);
       // Object.assign(newLink, oldLink);
 

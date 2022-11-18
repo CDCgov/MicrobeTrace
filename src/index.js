@@ -363,7 +363,11 @@ $(function() {
       );
       $("#filtering-epsilon-row").css("display", "flex");
       session.style.widgets["link-show-nn"] = true;
-      MT.computeMST(session.style.widgets["default-distance-metric"]).then(updateNetwork);
+
+      if(!session.style.widgets["mst-computed"]) {
+        MT.computeMST(session.style.widgets["default-distance-metric"]).then(updateNetwork);
+        session.style.widgets["mst-computed"] = true;
+      };
       //updateNetwork();
     });
 
