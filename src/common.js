@@ -104,7 +104,7 @@
     "link-color-table-counts-sort": "DESC",
     "link-color-table-counts": true,
     "link-color-table-frequencies": false,
-    "link-color-variable": "None",
+    "link-color-variable": "origin",
     "link-decimal-variable": 2,
     "link-directed": false,
     "link-bidirected": false,
