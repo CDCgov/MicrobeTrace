@@ -465,11 +465,13 @@ $(function() {
 
     function updateThreshold() {
       let xc = d3.mouse(svg.node())[0];
+      console.log('default distance metric', session.style.widgets['default-distance-metric']);
       if(session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") {
         session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
       } else {
         session.style.widgets["link-threshold"] = Math.round((xc / width) * range * 1.05 + min);
       }
+      console.log('link threshold', session.style.widgets["link-threshold"]);
       $("#link-threshold").val(parseFloat(session.style.widgets["link-threshold"].toLocaleString()));
     }
 
