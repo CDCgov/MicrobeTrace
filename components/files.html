@@ -908,6 +908,9 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       const hierarchy = ['newick', 'matrix', 'link', 'node', 'fasta'];
       session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
+      //if adding new files, need to recompute mst
+      session.style.widgets["mst-computed"] = false;
+
       session.meta.anySequences = session.files.some(file => (file.format == "fasta") || (file.format == "node" && file.field2 !== "None"));
 
       session.files.forEach((file, fileNum) => {

@@ -350,6 +350,7 @@ $(function() {
     .parent()
     .on("click", () => {
       $("#filtering-epsilon-row").slideUp();
+      session.style.widgets["mst-computed"] = false;
       session.style.widgets["link-show-nn"] = false;
       updateNetwork();
     });
@@ -363,7 +364,11 @@ $(function() {
       );
       $("#filtering-epsilon-row").css("display", "flex");
       session.style.widgets["link-show-nn"] = true;
-      MT.computeMST(session.style.widgets["default-distance-metric"]).then(updateNetwork);
+
+      if(!session.style.widgets["mst-computed"]) {
+        MT.computeMST(session.style.widgets["default-distance-metric"]).then(updateNetwork);
+        session.style.widgets["mst-computed"] = true;
+      };
       //updateNetwork();
     });
 
@@ -460,11 +465,13 @@ $(function() {
 
     function updateThreshold() {
       let xc = d3.mouse(svg.node())[0];
+      console.log('default distance metric', session.style.widgets['default-distance-metric']);
       if(session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") {
         session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
       } else {
         session.style.widgets["link-threshold"] = Math.round((xc / width) * range * 1.05 + min);
       }
+      console.log('link threshold', session.style.widgets["link-threshold"]);
       $("#link-threshold").val(parseFloat(session.style.widgets["link-threshold"].toLocaleString()));
     }
 
@@ -501,7 +508,10 @@ $(function() {
     ga('send', 'event', 'threshold', 'update', this.value);
     session.style.widgets["link-threshold"] = parseFloat(this.value);
     let minClust = $("#cluster-minimum-size").val();
-    console.log('minclust: ', minClust);
+
+    // Unset MST construction since links might have been changed
+    session.style.widgets["mst-computed"] = false;
+
     if (minClust !== "1" ){
       console.log('reseting min clust');
       $("#cluster-minimum-size").val("1");
