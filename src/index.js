@@ -350,7 +350,6 @@ $(function() {
     .parent()
     .on("click", () => {
       $("#filtering-epsilon-row").slideUp();
-      session.style.widgets["mst-computed"] = false;
       session.style.widgets["link-show-nn"] = false;
       updateNetwork();
     });
@@ -369,7 +368,7 @@ $(function() {
         MT.computeMST(session.style.widgets["default-distance-metric"]).then(updateNetwork);
         session.style.widgets["mst-computed"] = true;
       };
-      //updateNetwork();
+      updateNetwork();
     });
 
   $("#filtering-epsilon")
@@ -385,6 +384,7 @@ $(function() {
       );
       // MT.computeNN(session.style.widgets["default-distance-metric"]).then(updateNetwork);
       MT.computeMST(session.style.widgets["default-distance-metric"]).then(updateNetwork);
+      session.style.widgets["mst-computed"] = true;
     });
 
   $("#cluster-minimum-size").on("change", function() {
