@@ -422,6 +422,8 @@
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
 
+      newLink.directed = oldLink.directed;
+
       _.merge(oldLink, newLink);
       // Object.assign(oldLink, newLink);
       // Object.assign(newLink, oldLink);
