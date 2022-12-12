@@ -422,7 +422,10 @@
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
 
-      newLink.directed = oldLink.directed;
+      // Only override if new isn't directed and old may be
+      if(!newLink.directed) {
+        newLink.directed = oldLink.directed;
+      }
 
       _.merge(oldLink, newLink);
       // Object.assign(oldLink, newLink);
