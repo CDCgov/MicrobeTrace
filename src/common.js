@@ -422,16 +422,18 @@
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
 
-      // Only override if new isn't directed and old may be
-      if(!newLink.directed) {
-        newLink.directed = oldLink.directed;
+      // Only override if new isn't directed and old may be, and ensure its in the right direction
+      if(oldLink.directed) {
+        newLink.directed = true;
+        newLink.source = oldLink.source;
+        newLink.target = oldLink.target;
       }
 
       _.merge(oldLink, newLink);
+
+      // TODO remove when confident this function never causes issues - used to debug easier
       // Object.assign(oldLink, newLink);
       // Object.assign(newLink, oldLink);
-
-
 
       // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
       //   console.log("add new2: ", _.cloneDeep(newLink));
@@ -439,7 +441,7 @@
       // }
 
       if(newLink["bidirectional"]){
-        oldLink["bidirectional"] = newLink["bidirectional"];
+        oldLink["bidirectional"] = true;
       }
 
       linkIsNew = 0;
@@ -472,7 +474,7 @@
           hasDistance: false
         }, newLink);
       }
-     
+           
       if (newLink.origin.length == 1  && newLink.origin[0] == "Genetic Distance"){
         newLink.directed = false;
       } else {
