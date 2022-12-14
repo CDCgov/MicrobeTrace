@@ -407,6 +407,9 @@
       let oldLink = temp.matrix[newLink.source][newLink.target];
       let myorigin = uniq(newLink.origin.concat(oldLink.origin));
 
+      // Ensure no empty origins
+      myorigin = myorigin.filter(origin => origin != '');
+
       // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
       //   console.log("add new: ", _.cloneDeep(newLink));
       //   console.log("add old: ", _.cloneDeep(oldLink));
@@ -473,12 +476,6 @@
           origin: [],
           hasDistance: false
         }, newLink);
-      }
-           
-      if (newLink.origin.length == 1  && newLink.origin[0] == "Genetic Distance"){
-        newLink.directed = false;
-      } else {
-        newLink.directed = true;
       }
 
       temp.matrix[newLink.source][newLink.target] = newLink;

@@ -967,29 +967,44 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
 
             // Link is the same -> bidirectional
             if(srcIndex != -1 && tgtIndex != -1) {
-
+              
                // Set distance if distance set (field 3)
                l += MT.addLink(Object.assign({
                   source: '' + safeLink[file.field1],
                   target: '' + safeLink[file.field2],
                   origin: origin,
                   visible: true,
-                  bidirectional: true,
-                  distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-                  hasDistance : file.field3 !== 'None' ? true : false,
-                  distanceOrigin: file.field3 !== 'None' ? file.name : ''
+                  directed : file.field3 != 'distance' ? true : false,
+                  bidirectional: file.field3 != 'distance' ? true : false,
+                  distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
+                  hasDistance : file.field3 != 'distance' ? false : true,
+                  distanceOrigin: file.field3 != 'distance' ? '' : file.name
                 }, safeLink), check);
 
             } else {
+
+              // TODO uncomment when testing adding new link
+              // console.log('adding 2: ', _.cloneDeep(Object.assign({
+              //     source: '' + safeLink[file.field1],
+              //     target: '' + safeLink[file.field2],
+              //     origin: origin,
+              //     visible: true,
+              //     directed : file.field3 != 'distance' ? true : false,
+              //     bidirectional: file.field3 != 'distance' ? true : false,
+              //     distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
+              //     hasDistance : file.field3 != 'distance' ? false : true,
+              //     distanceOrigin: file.field3 != 'distance' ? '' : file.name
+              //   }, safeLink)));
               // Set distance if distance set (field 3)
               l += MT.addLink(Object.assign({
                   source: '' + safeLink[file.field1],
                   target: '' + safeLink[file.field2],
                   origin: origin,
                   visible: true,
-                  distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-                  hasDistance : file.field3 !== 'None' ? true : false,
-                  distanceOrigin: file.field3 !== 'None' ? file.name : ''
+                  directed : file.field3 != 'distance' ? true : false,
+                  distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
+                  hasDistance : file.field3 != 'distance' ? false : true,
+                  distanceOrigin: file.field3 != 'distance' ? '' : file.name
                 }, safeLink), check);
             }          
           };
@@ -1178,6 +1193,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
                     target: target,
                     origin: origin,
                     distance: parseFloat(cell),
+                    directed: false,
                     hasDistance: true,
                     distanceOrigin: file.name
                   }, check);
@@ -1217,6 +1233,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
                 source: source,
                 target: labels[j],
                 origin: origin,
+                directed: false,
                 distance: parseFloat(matrix[i][j]),
                 distanceOrigin: file.name,
                 hasDistance: true
