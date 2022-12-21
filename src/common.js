@@ -73,6 +73,7 @@
     "choropleth-transparency": 0.3,
     "cluster-minimum-size": 1,
     "default-view": "2d_network",
+    "default-distance-metric": "tn93",
     "filtering-epsilon": -8,
     "flow-showNodes": "selected",
     "globe-countries-show": false,
@@ -371,6 +372,7 @@
       for (let i = 0; i < n; i++) {
         let node = nodes[i];
         if (node._id == newNode._id) {
+          console.log(`{node.origin} {newNode.origin}`);
           newNode.origin = uniq(newNode.origin.concat(node.origin));
           Object.assign(node, newNode);
           return 0;
@@ -405,6 +407,7 @@
       
       let oldLink = temp.matrix[newLink.source][newLink.target];
       let myorigin = uniq(newLink.origin.concat(oldLink.origin));
+      console.log(myorigin);
 
       // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
       //   console.log("add new: ", _.cloneDeep(newLink));
@@ -420,6 +423,7 @@
 
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
+      console.log(`${oldLink} ${newLink}`);
 
       _.merge(oldLink, newLink);
       // Object.assign(oldLink, newLink);
@@ -583,7 +587,9 @@
     if (extension == "microbetrace") {
       MT.applySession(data);
     } else {
-      if (data.version) {
+      if (data.tree) {
+        MT.applyAuspice(data);
+      } else if (data.version) {
         MT.applyGHOST(data);
       } else {
         MT.applyHIVTrace(data);
@@ -725,6 +731,209 @@
     session.data.linkFields.push(metric);
     MT.runHamsters();
   };
+
+  MT.nodeList = [];
+
+  MT.applyAuspice = (auspice) => {
+    self.session = MT.sessionSkeleton();
+    session.meta.startTime = Date.now();
+    console.log(auspice)
+    const newickString =  treeToNewick(auspice.tree, false, true);
+    const fullTree = parseAuspice(auspice);
+    const distanceMatrix = patristic.parseNewick(newickString).toMatrix();
+    const updatedTree = combineMutations(fullTree);
+    const linkList = makeLinksFromMatrix(distanceMatrix);
+    const bareNewickString =  treeToNewick(auspice.tree, false, false);
+    const nodeList = addLatLong(MT.nodeList, auspice.meta);
+    const node_regex = /^NODE_00000[0-9][0-9]$/;
+    nodeList.forEach(node => {
+      let newNode = JSON.parse(JSON.stringify(node));
+      newNode._id = node._id;
+      newNode.origin = "Auspice Import";
+      if (! node_regex.test(newNode._id)) {
+        console.log(newNode._id);
+        MT.addNode(newNode, false);
+      }
+    });
+    Object.keys(
+      nodeList[0]
+    ).forEach(key => {
+      if (!session.data.nodeFields.includes(key)) {
+        const encodedKey = key.replace(/[\u00A0-\u9999<>(){}\&]/g, function (i) {
+          return '&#' + i.charCodeAt(0) + ';';
+        });
+        session.data.nodeFields.push(encodedKey);
+      }
+    });
+    // let metric = "SNPs";
+    const metric = 'distance';
+    session.style.widgets["link-threshold"] = 7;
+    session.style.widgets["link-sort-variable"] = metric;
+    linkList.forEach(link => {
+      let newLink = JSON.parse(JSON.stringify(link));
+      
+      newLink[metric] = parseFloat(newLink.distance);
+      newLink.hasDistance = true;
+      newLink.distanceOrigin = "Auspice Import";
+      MT.addLink(newLink, false);
+    });
+    MT.setLinkVisibility(false);
+    console.log(session.data.links);
+    session.data.linkFields.push(metric);
+    MT.runHamsters();
+  }
+
+  const parseAuspice = (auspiceTree) => {
+    return recurseChildren(auspiceTree.tree);
+  }
+
+  const recurseChildren = (tree) => {
+    if (!tree.children) {
+      const node = makeNode(tree);
+      MT.nodeList.push(node);
+      const branch = new patristic.Branch(node);
+      return branch;
+    } else {
+      const rootNode = makeNode(tree);
+      MT.nodeList.push(rootNode);
+      const newTree = new patristic.Branch(rootNode);
+      for (const child of tree.children) {
+        const node = recurseChildren(child);
+        newTree.addChild(node);
+      }
+      return newTree;
+    }
+  }
+
+  const makeNode = (tree) => {
+    const node = {};
+    node.id = tree.name;
+    node._id = tree.name;
+    if (tree.hasOwnProperty('branch_attrs') &&
+        tree.branch_attrs.hasOwnProperty('mutations') &&
+        tree.branch_attrs.mutations.hasOwnProperty('nuc'))  {
+      node.mutations = tree.branch_attrs.mutations.nuc;
+    }
+    for (const attribute of Object.keys(tree.node_attrs)) {
+      if (attribute !== 'div') {
+        node[attribute] = tree.node_attrs[attribute].value;
+      } else {
+        node['SNPs'] = tree.node_attrs[attribute];
+      }
+    }
+    return node;
+  }
+
+  const combineMutations = (tree) => {
+    const leaves = tree.getLeaves();
+    for (const leaf of leaves) {
+      let mutHolder = [];
+      for (const ancestor of leaf.getAncestors(true)) {
+        const nodeIndex = MT.nodeList.findIndex( x => x.id === ancestor.id);
+        const nodeHolder = MT.nodeList[nodeIndex];
+        if (nodeHolder.hasOwnProperty('mutations')) {
+          mutHolder = mutHolder.concat(nodeHolder.mutations);
+        }
+      }
+      leaf.data.mutations = mutHolder;
+    }
+    return tree;
+  }
+
+
+  const treeToNewick = (tree, temporal, internalNodeNames = false, nodeAnnotation = (node) => '') => {
+    const getXVal = temporal ? (n) => getTraitFromNode(n, 'num_date') : getDivFromNode;
+
+    function recurse(node, parentX) {
+      if (node.hasOwnProperty('children')) {
+        const childSubtrees = node.children.map((child) => {
+          const subtree = recurse(child, getXVal(node));
+          return subtree;
+        });
+        return `(${childSubtrees.filter((t) => !!t).join(',')})` +
+          `${internalNodeNames ? node.name : ''}${nodeAnnotation(node)}:${getXVal(node) - parentX}`;
+      }
+      /* terminal node */
+      const leaf = `${node.name}${nodeAnnotation(node)}:${getXVal(node) - parentX}`;
+      return leaf;
+    }
+
+    const rootNode = tree;
+    console.log(rootNode);
+    const rootXVal = getXVal(rootNode);
+    return recurse(rootNode, rootXVal) + ';';
+  }
+
+
+  const getTraitFromNode = (node, trait, {entropy = false, confidence = false}= {}) => {
+    if (!node.node_attrs) return undefined;
+
+    if (!entropy && !confidence) {
+      if (!node.node_attrs[trait]) {
+        if (trait === strainSymbol) return node.name;
+        return undefined;
+      }
+      const value = node.node_attrs[trait].value;
+      if (!isValueValid(value)) return undefined;
+      return value;
+    } else if (entropy) {
+      if (node.node_attrs[trait]) return node.node_attrs[trait].entropy;
+      return undefined;
+    } else if (confidence) {
+      if (node.node_attrs[trait]) return node.node_attrs[trait].confidence;
+      return undefined;
+    }
+    return undefined;
+  }
+
+  const getDivFromNode = (node) => {
+    /* see comment at top of this file */
+    console.log(node);
+    if (node.node_attrs && node.node_attrs.div !== undefined) {
+      return node.node_attrs.div;
+    }
+    return undefined;
+  }
+
+  const isValueValid = (value) => {
+    if (!['number', 'boolean', 'string'].includes(typeof value)) {
+      return false;
+    }
+    if (typeof value === 'string' && invalidStrings.includes(value.toLowerCase())) {
+      return false; // checks against list of invalid strings
+    }
+    // booleans, valid strings & numbers are valid.
+    return true;
+  }
+
+  const makeLinksFromMatrix = (matrix) => {
+    const linkList = [];
+    for (let i = 0; i < matrix.ids.length - 1; i++) {
+      for (let j = i + 1; j < matrix.ids.length; j++) {
+        const link = {
+          source: matrix.ids[i],
+          target: matrix.ids[j],
+          distance: matrix.matrix[i][j],
+          origin: ["Auspice Import"]
+        };
+        linkList.push(link);
+      }
+    }
+    return linkList
+  }
+
+  const addLatLong = (nodes, metadata) => {
+    const newNodes = [];
+    for (const node of nodes) {
+      for (let i=0; i<metadata.geo_resolutions.length; i++) {
+        const deme = node[metadata.geo_resolutions[i].key];
+        node.latitude = metadata.geo_resolutions[i].demes[deme].latitude;
+        node.longtude = metadata.geo_resolutions[i].demes[deme].longitude;
+      }
+      newNodes.push(node);
+    }
+    return newNodes;
+  }
 
   MT.applyGHOST = ghost => {
     self.session = MT.sessionSkeleton();
@@ -1546,6 +1755,7 @@
     let metric = session.style.widgets["link-sort-variable"],
       threshold = session.style.widgets["link-threshold"],
       showNN = session.style.widgets["link-show-nn"];
+    console.log(`Setting Link Visibility with ${metric} ${threshold} ${showNN}`);
     let links = session.data.links;
     let clusters = session.data.clusters;
     let n = links.length;
@@ -1593,9 +1803,11 @@
           if (!visible) {
 
             // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be exectued since the link would not have distance
-            if (link.origin.length > 1 && link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
+            if (link.origin.length > 1 && link.origin.filter(fileName =>{
+              console.log(fileName);
+              fileName && (/[Aa]uspice/.test(fileName) || !fileName.includes(link.distanceOrigin))}).length > 0) {
               // Set visible and origin to only show the from the file outside of Distance
-              link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
+              link.origin = link.origin.filter(fileName => fileName && (/[Aa]uspice/.test(fileName) || !fileName.includes(link.distanceOrigin)));
               overrideNN = true;
               visible = true;
             }
