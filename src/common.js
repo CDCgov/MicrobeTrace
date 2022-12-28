@@ -72,6 +72,7 @@
     "choropleth-satellite-show": false,
     "choropleth-transparency": 0.3,
     "cluster-minimum-size": 1,
+    "default-distance-metric": "tn93",
     "default-view": "2d_network",
     "filtering-epsilon": -8,
     "flow-showNodes": "selected",
@@ -406,6 +407,9 @@
       let oldLink = temp.matrix[newLink.source][newLink.target];
       let myorigin = uniq(newLink.origin.concat(oldLink.origin));
 
+      // Ensure no empty origins
+      myorigin = myorigin.filter(origin => origin != '');
+
       // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
       //   console.log("add new: ", _.cloneDeep(newLink));
       //   console.log("add old: ", _.cloneDeep(oldLink));
@@ -421,11 +425,18 @@
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
 
+      // Only override if new isn't directed and old may be, and ensure its in the right direction
+      if(oldLink.directed) {
+        newLink.directed = true;
+        newLink.source = oldLink.source;
+        newLink.target = oldLink.target;
+      }
+
       _.merge(oldLink, newLink);
+
+      // TODO remove when confident this function never causes issues - used to debug easier
       // Object.assign(oldLink, newLink);
       // Object.assign(newLink, oldLink);
-
-
 
       // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
       //   console.log("add new2: ", _.cloneDeep(newLink));
@@ -433,7 +444,7 @@
       // }
 
       if(newLink["bidirectional"]){
-        oldLink["bidirectional"] = newLink["bidirectional"];
+        oldLink["bidirectional"] = true;
       }
 
       linkIsNew = 0;
@@ -465,12 +476,6 @@
           origin: [],
           hasDistance: false
         }, newLink);
-      }
-     
-      if (newLink.origin.length == 1  && newLink.origin[0] == "Genetic Distance"){
-        newLink.directed = false;
-      } else {
-        newLink.directed = true;
       }
 
       temp.matrix[newLink.source][newLink.target] = newLink;
