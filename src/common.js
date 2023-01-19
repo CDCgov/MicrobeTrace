@@ -930,12 +930,18 @@
   const addLatLong = (nodes, metadata) => {
     const newNodes = [];
     for (const node of nodes) {
-      for (let i=0; i<metadata.geo_resolutions.length; i++) {
-        const deme = node[metadata.geo_resolutions[i].key];
-        node.latitude = metadata.geo_resolutions[i].demes[deme].latitude;
-        node.longtude = metadata.geo_resolutions[i].demes[deme].longitude;
+      if (metadata.hasOwnProperty("geo_resolutions")) {
+        for (let i=0; i<metadata.geo_resolutions.length; i++) {
+          const deme = node[metadata.geo_resolutions[i].key];
+          if (metadata.geo_resolutions[i].hasOwnProperty("demes")) { 
+            if (metadata.geo_resolutions[i].demes.hasOwnProperty(deme) && metadata.geo_resolutions[i].demes[deme].hasOwnProperty("latitude")) {
+              node.latitude = metadata.geo_resolutions[i].demes[deme].latitude;
+              node.longtude = metadata.geo_resolutions[i].demes[deme].longitude;
+            }
+          }
+        }
+        newNodes.push(node);
       }
-      newNodes.push(node);
     }
     return newNodes;
   }
