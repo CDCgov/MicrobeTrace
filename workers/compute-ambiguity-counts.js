@@ -8,7 +8,7 @@ onmessage = function(e) {
     const sequenceLength = sequence.length;
     let count = 0;
     for (let j = 0; j < sequenceLength; j++){
-      count += (sequence[j] > 3);
+      count += (sequence[j] > 3 && sequence[j] < 17);
     }
     output[i] = count/sequenceLength;
   }
