@@ -54,6 +54,7 @@
           <div class="dropdown-divider"></div>
           <a href="#" id="SaveDataTab" class="dropdown-item" data-toggle="modal" data-target="#session-save-modal">Save</a>
           <label class="dropdown-item" for="OpenTab">Open</label><input type="file" class="d-none" id="OpenTab">
+          <a href="#" id="OpenUrlTab" class="dropdown-item">Open URL</a>
           <div class="dropdown-divider"></div>
           <a href="#" id="AddDataTab" class="dropdown-item">Add Data</a>
           <a href="#" id="NewTab" class="dropdown-item">New</a>
@@ -662,6 +663,26 @@ performance of this software.</pre>
         <div class="modal-footer">
           <button type="button" class="btn btn-primary" data-dismiss="modal">Cancel</button>
           <button type="button" id="exit-button" class="btn btn-danger" data-dismiss="modal">Leave Session</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="url-modal" tabindex="-1" role="dialog" aria-labelledby="urlModalLabel">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="urlModalLabel">Auspice JSON URL</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+            Please enter the URL of an Auspice JSON file to open:<br />
+            <input type="text" id='url-modal-value' size="90" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+          <button type="button" id="url-button" class="btn btn-primary" data-dismiss="modal">Open URL</button>
         </div>
       </div>
     </div>

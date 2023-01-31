@@ -864,7 +864,6 @@
     }
 
     const rootNode = tree;
-    console.log(rootNode);
     const rootXVal = getXVal(rootNode);
     return recurse(rootNode, rootXVal) + ';';
   }
@@ -893,7 +892,6 @@
 
   const getDivFromNode = (node) => {
     /* see comment at top of this file */
-    console.log(node);
     if (node.node_attrs && node.node_attrs.div !== undefined) {
       return node.node_attrs.div;
     }

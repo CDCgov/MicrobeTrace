@@ -302,6 +302,23 @@ $(function() {
     }
   });
 
+  $("#OpenUrlTab").on("click", e => {
+    e.preventDefault()
+    $("#url-modal").modal();
+  });
+
+  $("#url-button").on("click", e => {
+    e.preventDefault();
+    const jsonUrl = $("#url-modal-value").val();
+    let jsonData = {};
+    axios.get(jsonUrl).then( e => {
+      jsonData = e.data;
+      console.log(jsonData);
+      MT.processJSON(JSON.stringify(jsonData));
+    });
+
+  });
+
   $("#AddDataTab").on("click", e => {
     e.preventDefault();
     //$("#network-statistics-hide").trigger("click");

@@ -1,6 +1,5 @@
 node_modules
 node_modules_angular
-dist
 .DS_Store
 Thumbs.db
 *.log
@@ -10,3 +9,4 @@ yarn.lock
 *.gz
 *.br
 .cache
+src/app
