@@ -76,7 +76,7 @@
     "html5sortable": "^0.9.18",
     "is-svg": ">=4.3.0",
     "jquery": "^3.5.1",
-    "jszip": "^3.7.0",
+    "jszip": "^3.8.0",
     "leaflet": "^1.7.1",
     "leaflet-image": "^0.4.0",
     "leaflet.markercluster": "^1.4.1",
