@@ -22,6 +22,7 @@ primaryscripts=(
   "node_modules/file-saver/dist/FileSaver.min.js"
   "node_modules/devtools-detect/index.js"
   "node_modules/localforage/dist/localforage.min.js"
+  "node_modules/axios/dist/axios.min.js"
   "vendor/select2.min.js"
 )
 
