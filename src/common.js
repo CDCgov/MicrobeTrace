@@ -1638,7 +1638,9 @@
     if (small == "geo map") return "Map";
     if (small == "timeline") return "Epi Curve";
     if (small == "nn") return "Nearest Neighbor";
-    return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
+    // return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
+    // Uncomment if wish to return to titleizing all words
+    return title;
   };
 
   MT.tagClusters = () => {
