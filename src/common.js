@@ -709,7 +709,7 @@
       if (node.hasOwnProperty("patient_attributes")) {
         newNode = JSON.parse(JSON.stringify(node.patient_attributes));
       }
-      newNode._id = node._id;
+      newNode._id = node.id;
       newNode.origin = "HIVTRACE Import";
       MT.addNode(newNode, false);
     });
@@ -735,7 +735,7 @@
         origin: ["HIVTRACE Import"],
         visible: true
       };
-      newLink[metric] = parseFloat(link.length);
+      newLink.distance = parseFloat(link.length);
       MT.addLink(newLink, false);
     }
     session.data.linkFields.push(metric);
@@ -1800,9 +1800,11 @@
 
       } else {
 
-        if (link.hasDistance) {
+        console.log('distance value was not null');
+        if (link.distance >= 0) {
 
           visible = link[metric] <= threshold;
+          console.log(visible);
 
           // TODO: Remove if uneeded
 //           if (link[metric] == 0) {
