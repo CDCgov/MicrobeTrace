@@ -705,21 +705,26 @@
     self.session = MT.sessionSkeleton();
     session.meta.startTime = Date.now();
     hivtrace["trace_results"]["Nodes"].forEach(node => {
-      let newNode = JSON.parse(JSON.stringify(node.patient_attributes));
-      newNode._id = node._id;
+      let newNode = {};
+      if (node.hasOwnProperty("patient_attributes")) {
+        newNode = JSON.parse(JSON.stringify(node.patient_attributes));
+      }
+      newNode._id = node.id;
       newNode.origin = "HIVTRACE Import";
       MT.addNode(newNode, false);
     });
-    Object.keys(
-      hivtrace["trace_results"]["Nodes"][0]["patient_attributes"]
-    ).forEach(key => {
-      if (!session.data.nodeFields.includes(key)) {
-        const encodedKey = key.replace(/[\u00A0-\u9999<>(){}\&]/g, function (i) {
-          return '&#' + i.charCodeAt(0) + ';';
-        });
+    if (hivtrace["trace_results"]["Nodes"][0].hasOwnProperty("patient_attributes")) {
+      Object.keys(
+        hivtrace["trace_results"]["Nodes"][0]["patient_attributes"]
+      ).forEach(key => {
+        if (!session.data.nodeFields.includes(key)) {
+          const encodedKey = key.replace(/[\u00A0-\u9999<>(){}\&]/g, function (i) {
+            return '&#' + i.charCodeAt(0) + ';';
+         });
         session.data.nodeFields.push(encodedKey);
-      }
-    });
+        }
+      });
+    }
     let n = hivtrace["trace_results"]["Edges"].length;
     let metric = session.style.widgets['default-distance-metric'];
     for (let i = 0; i < n; i++) {
@@ -730,7 +735,7 @@
         origin: ["HIVTRACE Import"],
         visible: true
       };
-      newLink[metric] = parseFloat(link.length);
+      newLink.distance = parseFloat(link.length);
       MT.addLink(newLink, false);
     }
     session.data.linkFields.push(metric);
@@ -1795,9 +1800,11 @@
 
       } else {
 
-        if (link.hasDistance) {
+        console.log('distance value was not null');
+        if (link.distance >= 0) {
 
           visible = link[metric] <= threshold;
+          console.log(visible);
 
           // TODO: Remove if uneeded
 //           if (link[metric] == 0) {
