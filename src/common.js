@@ -373,7 +373,6 @@
       for (let i = 0; i < n; i++) {
         let node = nodes[i];
         if (node._id == newNode._id) {
-          console.log(`{node.origin} {newNode.origin}`);
           newNode.origin = uniq(newNode.origin.concat(node.origin));
           Object.assign(node, newNode);
           return 0;
@@ -1327,6 +1326,7 @@
     let start = Date.now();
     return new Promise(resolve => {
       let labels = session.data.nodes.map(d => d._id);
+			labels = labels.sort()
       let metric = session.style.widgets['link-sort-variable'];
       const n = labels.length;
       let dm = new Array(n);
@@ -1341,6 +1341,7 @@
         }
         for (let j = 0; j < i; j++) {
           let link = row[labels[j]];
+					// console.log(`${source} ${labels[j]} ${link[metric]}`);
           if (link) {
             dm[i][j] = dm[j][i] = link[metric];
           } else {
@@ -1367,7 +1368,7 @@
       };
       MT.getDM().then(dm => {
         computer.postMessage({
-          labels: Object.keys(temp.matrix),
+          labels: Object.keys(temp.matrix).sort(),
           matrix: dm,
           round: session.style.widgets["tree-round"]
         });
@@ -1800,11 +1801,9 @@
 
       } else {
 
-        console.log('distance value was not null');
-        if (link.distance >= 0) {
+        if (link.hasDistance || link.distance >= 0) {
 
           visible = link[metric] <= threshold;
-          console.log(visible);
 
           // TODO: Remove if uneeded
 //           if (link[metric] == 0) {
