@@ -969,7 +969,30 @@ Note that this may cause slow performance on larger networks.">
 
           redrawPolygonLabels();
         }
-      }      
+      }     
+      
+      // TODO update to work with timeline
+      if(session.style.widgets["timeline-date-field"] != 'None'){
+
+        // Filter link data based on current date
+          let visibleLinks = MT.getVisibleLinks(true).filter(link => {
+          let linkDate = moment(link[session.style.widgets["timeline-date-field"]]);
+          let currentDate = moment(session.state.timeEnd);
+          return linkDate.isSameOrBefore(currentDate);
+        });
+
+        // Create and update link label selection
+        let linklabels1 = svg.select('g.links').selectAll('text').data(visibleLinks, link => link._id);
+        linklabels.enter()
+          .append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', settings['link-width'] + 2)
+          .merge(linklabels)
+          .text(link => (!link[settings['link-label-variable']] || link[settings['link-label-variable']].toLocaleString().indexOf('.') === -1) ? link[settings['link-label-variable']] : parseFloat((link[settings['link-label-variable']])).toFixed(settings['link-decimal-variable']))
+          .attr('visibility', 'visible');
+        linklabels1.exit().attr('visibility', 'hidden');
+      }
+       
       
       if(settings['polygons-show']) temp.polygonGroups = groups;
       else delete temp.polygonGroups;
