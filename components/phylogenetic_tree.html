@@ -458,6 +458,7 @@
         } 
       } else {
         if (!temp.tree) return MT.computeTree().then(drawTree);
+        if (temp.tree.leaves().length != temp.nodes.length) return MT.computeTree().then(drawTree);
       }
 
       tree = new TidyTree(temp.tree.clone(), {

@@ -407,7 +407,6 @@
       
       let oldLink = temp.matrix[newLink.source][newLink.target];
       let myorigin = uniq(newLink.origin.concat(oldLink.origin));
-      console.log(myorigin);
 
       // Ensure no empty origins
       myorigin = myorigin.filter(origin => origin != '');
@@ -426,7 +425,6 @@
 
       oldLink["origin"] = myorigin;
       newLink["origin"] = myorigin;
-      console.log(`${oldLink} ${newLink}`);
 
       // Only override if new isn't directed and old may be, and ensure its in the right direction
       if(oldLink.directed) {
@@ -1325,6 +1323,7 @@
   MT.getDM = () => {
     let start = Date.now();
     return new Promise(resolve => {
+      console.log(session.data.nodes);
       let labels = session.data.nodes.map(d => d._id);
 			labels = labels.sort()
       let metric = session.style.widgets['link-sort-variable'];
