@@ -463,7 +463,7 @@
         var val = session.style.widgets['map-field-country'];
         nodes.forEach(n => {
           var country = temp.mapData.countries.features.find(c => c.id == n[val] || c.properties.name == n[val]);
-          if (country) {
+          if (country && n[val] !== null) {
             n._lat = country.properties._lat,
               n._lon = country.properties._lon
           }
