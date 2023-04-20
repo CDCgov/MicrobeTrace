@@ -626,6 +626,8 @@
       links = oldSession.data.links,
       n = nodes.length,
       m = links.length;
+
+    console.log('links length: ', m);
     for (let i = 0; i < n; i++) MT.addNode(nodes[i]);
     for (let j = 0; j < m; j++) {
       // Add distance property for files saved prior to distance visibility fix
@@ -635,8 +637,10 @@
       } else if (links[j].distance && links[j].distance > 0) {
         links[j].hasDistance = true;
       }
+      // console.log('addingLink');
       MT.addLink(links[j]);
     }
+    console.log('continued through adding links');
     ['nodeFields', 'linkFields', 'clusterFields', 'nodeExclusions'].forEach(v => {
       if (oldSession.data[v]) session.data[v] = uniq(session.data[v].concat(oldSession.data[v]));
     });
