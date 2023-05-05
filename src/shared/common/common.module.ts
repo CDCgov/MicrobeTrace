@@ -13,7 +13,7 @@ import { AppSessionService } from './session/app-session.service';
     ]
 })
 export class CommonModule {
-    static forRoot(): ModuleWithProviders {
+    static forRoot(): ModuleWithProviders<CommonModule> {
         return {
             ngModule: CommonModule,
             providers: [

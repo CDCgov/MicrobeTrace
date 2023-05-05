@@ -1,10 +1,11 @@
-﻿import { Injectable, OnInit } from '@angular/core';
+﻿import { Injectable, OnInit, Directive } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { InlineWorker } from '../helperClasses/inlineWorker';
 import Papa from 'papaparse';
 import * as bioseq from 'bioseq';
 
 
+@Directive()
 export class WorkerModule implements OnInit {
 
     public compute_parse_csv_matrixWorker: Worker;

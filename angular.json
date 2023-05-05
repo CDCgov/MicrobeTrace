@@ -50,16 +50,13 @@
               "src/assets/primeng/autocomplete/css/primeng.autocomplete.css",
               "src/assets/primeng/tree/css/primeng.tree.css",
               "src/assets/primeng/context-menu/css/primeng.context-menu.css",
-
               "node_modules/leaflet/dist/leaflet.css",
               "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css"
-
             ],
             "scripts": [
               "src/assets/metronic/assets/vendors/base/vendors.bundle.js",
               "src/assets/metronic/assets/demo/default/base/scripts.bundle.js"
-            ],
-            "es5BrowserSupport": true
+            ]
           },
           "configurations": {
             "production": {
