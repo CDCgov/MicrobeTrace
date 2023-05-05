@@ -35,13 +35,13 @@ import { EventEmitterService } from '@shared/utils/event-emitter.service';
 // import * as moment from 'moment';
 import moment from 'moment';
 
-import {
-    GoldenLayoutModule,
-    GoldenLayoutService,
-    GoldenLayoutConfiguration,
-    MultiWindowService,
-    GoldenLayoutComponent,
-  } from '@embedded-enterprises/ng6-golden-layout';
+// import {
+//     GoldenLayoutModule,
+//     GoldenLayoutService,
+//     GoldenLayoutConfiguration,
+//     MultiWindowService,
+//     GoldenLayoutComponent,
+//   } from '@embedded-enterprises/ng6-golden-layout';
 
 import { Tabulator } from 'tabulator-tables';
 
@@ -60,10 +60,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     // recommit original code
-    @ViewChild('stashes') stashes: ElementRef;
+    @ViewChild('stashes', { static: false }) stashes: ElementRef;
 
-    @ViewChild('goldenLayout')
-  goldenLayout: GoldenLayoutComponent;
+    // @ViewChild('goldenLayout', { static: false }) goldenLayout: GoldenLayoutComponent;
+    @ViewChild('goldenLayout', { static: false }) goldenLayout : any;
+
 
     public metric: string = "tn93";
     public ambiguity: string = "Average";
@@ -213,13 +214,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
     // @ViewChild(TabView) tabView: TabView;
-    @ViewChild('dataSet') dataSet: Selection;
+    @ViewChild('dataSet', { static: false }) dataSet: Selection;
+    // @ViewChildren('placeholder', { read: ViewContainerRef, static: false }) targets: QueryList<ViewContainerRef>
     @ViewChildren('placeholder', { read: ViewContainerRef }) targets: QueryList<ViewContainerRef>
-    @ViewChild('ledgerloader') spinnerElement: ElementRef;
-    @ViewChild('ledgerloadDiv') spinnerDivElement: ElementRef;
-    @ViewChild('globalSettingsTab') globalSettingsTab: TabsetComponent;
 
-    @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
+    @ViewChild('ledgerloader', { static: false }) spinnerElement: ElementRef;
+    @ViewChild('ledgerloadDiv', { static: false }) spinnerDivElement: ElementRef;
+    @ViewChild('globalSettingsTab', { static: false }) globalSettingsTab: TabsetComponent;
+
+    @ViewChild('pinbutton', { static: false }) pinBtn: ElementRef<HTMLElement>;
 
 
     public HideThisForNow: boolean = false;
@@ -248,7 +251,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private eventEmitterService: EventEmitterService,
         // private bpaasLedgerPluginServiceProxy: BpaasLedgerPluginServiceProxy,
         private route: ActivatedRoute,
-        private srv: GoldenLayoutService
+        // private srv: GoldenLayoutService
     ) {
 
 
@@ -336,11 +339,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
 
-        console.log('instanceeee: ', this.goldenLayout.componentInstances);
+        // console.log('instanceeee: ', this.goldenLayout.componentInstances);
 
         setTimeout(() => {
             $('#top-toolbar').fadeTo("slow", 1);
-            this.homepageTabs[0].componentRef = this.goldenLayout.componentInstances[0];
+            // this.homepageTabs[0].componentRef = this.goldenLayout.componentInstances[0];
 
 
             this.subscription = this.homepageTabs[0].componentRef.LoadDefaultVisualizationEvent.subscribe((v) => {
@@ -392,7 +395,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $('#add-data-container').fadeTo("slow", 1);
             $('#onload-container').fadeTo("slow", 1);
             $('#tool-btn-container').fadeTo("slow", 1);
-            console.log('instances: ',this.goldenLayout.componentInstances);
+            // console.log('instances: ',this.goldenLayout.componentInstances);
         }, 5000);
         
        
@@ -562,7 +565,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.removeTab({index : 1})
 
         console.log('homepage tabs1: ', this.homepageTabs);
-        console.log('instances1: ', this.goldenLayout.componentInstances);
+        // console.log('instances1: ', this.goldenLayout.componentInstances);
 
         this.getfileContent($event);
     }
@@ -818,7 +821,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     publishUpdateLinkColor() {
 
-        this.goldenLayout.componentInstances[1].updateLinkColor();
+        // this.goldenLayout.componentInstances[1].updateLinkColor();
 
         // this.homepageTabs.forEach(tab => {
         //     if (tab.componentRef &&
@@ -1500,7 +1503,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         switch (this.homepageTabs[this.activeTabIndex].label) {
             case "2D Network":
 
-                this.goldenLayout.componentInstances[this.activeTabIndex].render(false);
+                // this.goldenLayout.componentInstances[this.activeTabIndex].render(false);
                 console.log('---rendering');
                 break;
 
@@ -1795,7 +1798,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
 
         console.log('process files::');
-        this.srv.removeTab(0,1);
+        // this.srv.removeTab(0,1);
         //remove last homepage tab
         this.homepageTabs.splice(this.homepageTabs.length - 1, 1);
         // console.log('homepagetabs: ', this.homepageTabs);
@@ -1821,7 +1824,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     public getSinglefileContent(file: File) {
 
-        this.goldenLayout.componentInstances[0].processFile(file);
+        // this.goldenLayout.componentInstances[0].processFile(file);
 
         this.homepageTabs.map(x => {
             if (x.tabTitle === "Files") {
@@ -2250,35 +2253,35 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             switch(viewName) {
                 case "2D Network": 
-                    this.srv.createNewComponent(this.srv.getRegisteredComponents()[1]);
-                    console.log('2d network: ', this.goldenLayout.componentInstances);
+                    // this.srv.createNewComponent(this.srv.getRegisteredComponents()[1]);
+                    // console.log('2d network: ', this.goldenLayout.componentInstances);
                 break;
                 case "Table":
-                    this.srv.createNewComponent(this.srv.getRegisteredComponents()[2]);
-                    console.log('table: ', this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1]);
+                    // this.srv.createNewComponent(this.srv.getRegisteredComponents()[2]);
+                    // console.log('table: ', this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1]);
 
                 break;
                 case "Map":
-                    this.srv.createNewComponent(this.srv.getRegisteredComponents()[3]);
+                    // this.srv.createNewComponent(this.srv.getRegisteredComponents()[3]);
                 break;
                 case "Phylogenetic Tree":
-                    this.srv.createNewComponent(this.srv.getRegisteredComponents()[4]);
+                    // this.srv.createNewComponent(this.srv.getRegisteredComponents()[4]);
                 break;
                 default:
-                    this.srv.createNewComponent(this.srv.getRegisteredComponents()[1]);
+                    // this.srv.createNewComponent(this.srv.getRegisteredComponents()[1]);
 
             }
             
             // console.log('tabview: ', this.tabView);
             this.addTab(viewName, viewName + this.activeTabIndex, this.activeTabIndex);
             console.log('homepage tabs: ' , this.homepageTabs);
-            console.log('get state: ', JSON.stringify(this.srv.getState()['__zone_symbol__value']));
+            // console.log('get state: ', JSON.stringify(this.srv.getState()['__zone_symbol__value']));
 
             setTimeout(() => {
           
                 console.log('view name: ', viewName);
 
-                this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1].DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
+                // this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1].DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
 
                 this.setActiveTabProperties();
                 this.loadSettings();
@@ -2723,7 +2726,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             templateRef: null,
             tabTitle: tabTitle,
             isActive: activate,
-            componentRef: this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1]
+            componentRef: null
+
+            // componentRef: this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1]
         });
 
     }

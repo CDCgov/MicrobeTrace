@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, NgZone, InjectionToken, ElementRef, ViewChild, ViewContainerRef, ViewChildren, QueryList, Renderer, ChangeDetectorRef } from '@angular/core';
+﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, NgZone, InjectionToken, ElementRef, ViewChild, ViewContainerRef, ViewChildren, QueryList, Renderer2, ChangeDetectorRef } from '@angular/core';
 import { EventManager, DOCUMENT } from '@angular/platform-browser';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -229,7 +229,7 @@ export class MapComponent extends AppComponentBase implements OnInit, MicobeTrac
     public geospatialNodes: MarkerWithData[] = [];
 
     constructor(injector: Injector,
-        private renderer: Renderer,
+        private renderer: Renderer2,
         private elem: ElementRef,
         private eventManager: EventManager,
         public commonService: CommonService,

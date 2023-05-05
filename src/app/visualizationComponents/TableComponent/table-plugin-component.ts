@@ -1,6 +1,6 @@
 ﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, OnDestroy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
-import { EventManager, DOCUMENT } from '@angular/platform-browser';
+import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { window } from 'ngx-bootstrap';
 import { Table } from 'primeng/table';
@@ -63,7 +63,9 @@ export class TableComponent extends AppComponentBase implements OnInit, OnDestro
 
     private visuals: MicrobeTraceNextVisuals;
 
-    @ViewChild('dt') dataTable: Table;
+    // @ViewChild('dt') dataTable: Table;
+    @ViewChild('dt', { static: false }) dataTable: Table;
+
 
     constructor(injector: Injector,
         private eventManager: EventManager,
