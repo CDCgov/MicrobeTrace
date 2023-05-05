@@ -1,3 +1,5 @@
+import { Injectable } from "@angular/core";
+@Injectable()
 export class ScriptLoaderService {
 
     private scripts: any = {};

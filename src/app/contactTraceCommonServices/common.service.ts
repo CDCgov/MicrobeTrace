@@ -1,4 +1,4 @@
-﻿import { Injectable, OnInit, Output, EventEmitter, Injector } from '@angular/core';
+﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -25,6 +25,7 @@ import { GoldenLayoutService } from '@embedded-enterprises/ng6-golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
 
+@Directive()
 @Injectable({
     providedIn: 'root',
 })

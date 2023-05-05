@@ -43,8 +43,8 @@ import { LeafletMarkerClusterModule } from '@asymmetrik/ngx-leaflet-markercluste
 import { MatButtonModule, MatInputModule, MatMenuModule, MatToolbarModule, MatSliderModule } from '@angular/material';
 import { DndDirective } from '@shared/dnd.directive';
 
-import { GoldenLayoutModule, GoldenLayoutService, GoldenLayoutConfiguration } from '@embedded-enterprises/ng6-golden-layout';
-import GoldenLayout from 'golden-layout';
+// import { GoldenLayoutModule, GoldenLayoutService, GoldenLayoutConfiguration } from '@embedded-enterprises/ng6-golden-layout';
+// import GoldenLayout from 'golden-layout';
 
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
@@ -58,42 +58,42 @@ export class TestedComponent {
 
 }
 
-const config: GoldenLayoutConfiguration = {
-  components: [
-    {
-      componentName: "FilesComponent",
-      component: FilesComponent
-    },
-    {
-      componentName: "TwoDComponent",
-      component: TwoDComponent
-    },
-    {
-      componentName: "TableComponent",
-      component: TableComponent
-    },
-    {
-      componentName: "MapComponent",
-      component: MapComponent
-    },
-    {
-      componentName: "PhylogeneticComponent",
-      component: PhylogeneticComponent
-    },
-  ],
-  defaultLayout: {
-    content: [{
-        type: 'stack',
-        content:[
-          {
-            type: 'component',
-            componentName: 'FilesComponent',
-            componentState: { label: 'A' }
-           }
-          ]
-    }]
-  }
-};
+// const config: GoldenLayoutConfiguration = {
+//   components: [
+//     {
+//       componentName: "FilesComponent",
+//       component: FilesComponent
+//     },
+//     {
+//       componentName: "TwoDComponent",
+//       component: TwoDComponent
+//     },
+//     {
+//       componentName: "TableComponent",
+//       component: TableComponent
+//     },
+//     {
+//       componentName: "MapComponent",
+//       component: MapComponent
+//     },
+//     {
+//       componentName: "PhylogeneticComponent",
+//       component: PhylogeneticComponent
+//     },
+//   ],
+//   defaultLayout: {
+//     content: [{
+//         type: 'stack',
+//         content:[
+//           {
+//             type: 'component',
+//             componentName: 'FilesComponent',
+//             componentState: { label: 'A' }
+//            }
+//           ]
+//     }]
+//   }
+// };
 
 @NgModule({
   declarations: [
@@ -123,7 +123,7 @@ const config: GoldenLayoutConfiguration = {
     AppRoutingModule,
     //ngCommon.CommonModule,
     FormsModule,
-    GoldenLayoutModule.forRoot(config),
+    // GoldenLayoutModule.forRoot(config),
     HttpClientModule,
     MatButtonModule,
     MatInputModule,
