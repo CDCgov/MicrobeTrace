@@ -40,7 +40,11 @@ import { HistogramComponent } from './visualizationComponents/HistogramComponent
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { LeafletModule } from '@asymmetrik/ngx-leaflet';
 import { LeafletMarkerClusterModule } from '@asymmetrik/ngx-leaflet-markercluster';
-import { MatButtonModule, MatInputModule, MatMenuModule, MatToolbarModule, MatSliderModule } from '@angular/material';
+import { MatButtonModule } from '@angular/material/button';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatSliderModule } from '@angular/material/slider';
+import { MatToolbarModule } from '@angular/material/toolbar';
 import { DndDirective } from '@shared/dnd.directive';
 
 // import { GoldenLayoutModule, GoldenLayoutService, GoldenLayoutConfiguration } from '@embedded-enterprises/ng6-golden-layout';
