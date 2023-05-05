@@ -171,24 +171,6 @@ export class TestedComponent {
     LeafletModule,
     LeafletMarkerClusterModule
   ],
-  entryComponents:[
-    FilesComponent,
-    TwoDComponent,
-    HistogramComponent,
-    ThreeDComponent,
-    TableComponent,
-    TestedComponent,
-    AggregationComponent,
-    BubblesComponent,
-    FlowDiagramComponent,
-    ScatterPlotComponent,
-    WaterfallComponent,
-    MapComponent,
-    GanttComponent,
-    TimelineComponent,
-    HeatMapComponent,
-    PhylogeneticComponent
-  ],
   providers: [
     AppSessionService,
     AppUiCustomizationService,
