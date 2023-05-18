@@ -1,4 +1,5 @@
 *node_modules
+.angular
 node_modules*
 node_modules
 .DS_Store
@@ -9,5 +10,6 @@ nohup.out
 yarn.lock
 *.gz
 *.br
+dist*
 .cache
 src/app

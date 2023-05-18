@@ -1779,8 +1779,15 @@
     let links = session.data.links;
     let clusters = session.data.clusters;
     let n = links.length;
+    console.log('links 1: ', _.cloneDeep(links));
+
     for (let i = 0; i < n; i++) {
       let link = links[i];
+
+      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        console.log('link 1: ', _.cloneDeep(link));
+      }
+
       let visible = true;
       let overrideNN = false;
 
@@ -1802,9 +1809,21 @@
           continue;
         }
 
+        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+          console.log('link 2: ', _.cloneDeep(link));
+          console.log('vis2:' ,visible);
+
+        }
+
       } else {
 
-        if (link.hasDistance || link.distance >= 0) {
+        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+          console.log('link 3: ', _.cloneDeep(link));
+          console.log('vis3:' ,visible);
+
+        }
+
+        if (link.hasDistance || link.distance > 0) {
 
           visible = link[metric] <= threshold;
 
@@ -1833,7 +1852,7 @@
             }
           }
 
-        } else {
+        } else {   
 
           // If has no distance, then link should be visible and unnaffected by NN
           overrideNN = true;
@@ -1843,7 +1862,18 @@
 
       }
 
+      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        console.log('link 3: ', _.cloneDeep(link));
+        console.log('vis4:' ,visible);
+
+      }
+
       if (visible && showNN && !overrideNN) {
+        
+        console.log('vis5');
+        if(!link.nn) {
+
+        }
         visible = visible && link.nn;
         // Keep link visible of not nearest neighbor, but still connected via an edge list
         if (!visible && link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
@@ -1852,15 +1882,41 @@
         }
       }
 
-      let cluster = clusters[link.cluster];
-      if (cluster) {
-        visible = visible && cluster.visible;
+      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        console.log('link 4: ', _.cloneDeep(link));
+        console.log('vis6:' ,visible);
+
       }
 
+      let cluster = clusters[link.cluster];
+      if (cluster) {
+
+        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+          console.log('vis1: ', visible);
+        }
+
+        visible = visible && cluster.visible;
+
+        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+          console.log('link 4.5: ', _.cloneDeep(link));
+          console.log('clus vis: ', cluster.visible);
+          console.log('vis7: ', visible);
+        }
+      }
+
+      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        console.log('link 4.6: ', _.cloneDeep(link));
+        console.log('vis8: ', visible);
+      }
+      
       link.visible = visible;
 
 
+      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        console.log('link 5: ', _.cloneDeep(link));
+      }
     }
+
     if (!silent) $window.trigger("link-visibility");
     console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
   };
