@@ -1823,7 +1823,7 @@
 
         }
 
-        if (link.hasDistance || link.distance > 0) {
+        if (link.hasDistance || link.distance >= 0) {
 
           visible = link[metric] <= threshold;
 
