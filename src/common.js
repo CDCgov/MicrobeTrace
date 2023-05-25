@@ -1783,6 +1783,9 @@
 
     for (let i = 0; i < n; i++) {
       let link = links[i];
+      if (!Array.isArray(link.origin)){
+        link.origin = [link.origin];
+      }
 
       if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
         console.log('link 1: ', _.cloneDeep(link));
