@@ -1784,7 +1784,7 @@
     for (let i = 0; i < n; i++) {
       let link = links[i];
 
-      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+      if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
         console.log('link 1: ', _.cloneDeep(link));
       }
 
@@ -1809,7 +1809,7 @@
           continue;
         }
 
-        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
           console.log('link 2: ', _.cloneDeep(link));
           console.log('vis2:' ,visible);
 
@@ -1817,7 +1817,7 @@
 
       } else {
 
-        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
           console.log('link 3: ', _.cloneDeep(link));
           console.log('vis3:' ,visible);
 
@@ -1828,16 +1828,15 @@
           visible = link[metric] <= threshold;
 
           // TODO: Remove if uneeded
-//           if (link[metric] == 0) {
+          if (link[metric] == 0) {
 
-//             // if (link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
-//             //   // Set visible and origin to only show the from the file outside of Distance
-//             //   // link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
-//             //   // visible = true;
-//             //   // overrideNN = true;
-//             // }
-// \
-//           }
+            if (link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
+              // Set visible and origin to only show the from the file outside of Distance
+              link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
+              visible = true;
+              overrideNN = true;
+            }
+          }
 
           if (!visible) {
 
@@ -1882,7 +1881,7 @@
         }
       }
 
-      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+      if((link.source == "A1" && link.target == "A2") || (link.source == "A1" && link.target == "A2")) {
         console.log('link 4: ', _.cloneDeep(link));
         console.log('vis6:' ,visible);
 
@@ -1891,20 +1890,20 @@
       let cluster = clusters[link.cluster];
       if (cluster) {
 
-        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
           console.log('vis1: ', visible);
         }
 
         visible = visible && cluster.visible;
 
-        if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+        if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
           console.log('link 4.5: ', _.cloneDeep(link));
           console.log('clus vis: ', cluster.visible);
           console.log('vis7: ', visible);
         }
       }
 
-      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+      if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
         console.log('link 4.6: ', _.cloneDeep(link));
         console.log('vis8: ', visible);
       }
@@ -1912,7 +1911,7 @@
       link.visible = visible;
 
 
-      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+      if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
         console.log('link 5: ', _.cloneDeep(link));
       }
     }

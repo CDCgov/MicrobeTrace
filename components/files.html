@@ -962,6 +962,13 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
             sources.push(src);
             targets.push(tgt);
 
+            //TODO:: clean up but needed in case of uppercase distance, dont want to distance fields
+            let dist= file.field3;
+
+            if (dist === "Distance"){
+              dist = "distance";
+            }
+
             let srcIndex = targets.findIndex(t => t == src);
             let tgtIndex = sources.findIndex(s => s == tgt);
 
@@ -974,11 +981,11 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
                   target: '' + safeLink[file.field2],
                   origin: origin,
                   visible: true,
-                  directed : file.field3 != 'distance' ? true : false,
-                  bidirectional: file.field3 != 'distance' ? true : false,
-                  distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
-                  hasDistance : file.field3 != 'distance' ? false : true,
-                  distanceOrigin: file.field3 != 'distance' ? '' : file.name
+                  directed : dist != 'distance' ? true : false,
+                  bidirectional: dist != 'distance' ? true : false,
+                  distance: dist != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
+                  hasDistance : dist != 'distance' ? false : true,
+                  distanceOrigin: dist != 'distance' ? '' : file.name
                 }, safeLink), check);
 
             } else {
@@ -1001,10 +1008,10 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
                   target: '' + safeLink[file.field2],
                   origin: origin,
                   visible: true,
-                  directed : file.field3 != 'distance' ? true : false,
-                  distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
-                  hasDistance : file.field3 != 'distance' ? false : true,
-                  distanceOrigin: file.field3 != 'distance' ? '' : file.name
+                  directed : dist != 'distance' ? true : false,
+                  distance: dist != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
+                  hasDistance : dist != 'distance' ? false : true,
+                  distanceOrigin: dist != 'distance' ? '' : file.name
                 }, safeLink), check);
             }          
           };
