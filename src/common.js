@@ -1794,8 +1794,15 @@
       let visible = true;
       let overrideNN = false;
 
+      if((link.source == "A10" && link.target == "A4") || (link.source == "A4" && link.target == "A10")) {
+        console.log('link 1: ', _.cloneDeep(link));
+      }
+
       if (link.hasDistance && !link.origin.includes(link.distanceOrigin)) {
         link.origin.push(link.distanceOrigin);
+      }
+      if((link.source == "A10" && link.target == "A4") || (link.source == "A4" && link.target == "A10")) {
+        console.log('link 1: ', _.cloneDeep(link));
       }
 
       // No distance value
@@ -1835,7 +1842,7 @@
 
             if (link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
               // Set visible and origin to only show the from the file outside of Distance
-              link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
+              //link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
               visible = true;
               overrideNN = true;
             }
@@ -1845,9 +1852,10 @@
 
             // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be exectued since the link would not have distance
             if (link.origin.length > 1 && link.origin.filter(fileName =>{
-              console.log(fileName);
+              // console.log(fileName);
               fileName && (/[Aa]uspice/.test(fileName) || !fileName.includes(link.distanceOrigin))}).length > 0) {
               // Set visible and origin to only show the from the file outside of Distance
+              console.log(link)
               link.origin = link.origin.filter(fileName => fileName && (/[Aa]uspice/.test(fileName) || !fileName.includes(link.distanceOrigin)));
               overrideNN = true;
               visible = true;
@@ -1864,7 +1872,7 @@
 
       }
 
-      if((link.source == "A6" && link.target == "A8") || (link.source == "A6" && link.target == "A8")) {
+      if((link.source == "A10" && link.target == "A4") || (link.source == "A4" && link.target == "A10")) {
         console.log('link 3: ', _.cloneDeep(link));
         console.log('vis4:' ,visible);
 
