@@ -1779,6 +1779,9 @@
     let links = session.data.links;
     let clusters = session.data.clusters;
     let n = links.length;
+    links.sort(function(a, b) {
+      return a.distance - b.distance || a.source.localeCompare(b.source) || a.target.localeCompare(b.target);
+    });
     console.log('links 1: ', _.cloneDeep(links));
 
     for (let i = 0; i < n; i++) {
@@ -1794,14 +1797,14 @@
       let visible = true;
       let overrideNN = false;
 
-      if((link.source == "A10" && link.target == "A4") || (link.source == "A4" && link.target == "A10")) {
+      if((link.source == "A7" && link.target == "A4") || (link.source == "A4" && link.target == "A7")) {
         console.log('link 1: ', _.cloneDeep(link));
       }
 
       if (link.hasDistance && !link.origin.includes(link.distanceOrigin)) {
         link.origin.push(link.distanceOrigin);
       }
-      if((link.source == "A10" && link.target == "A4") || (link.source == "A4" && link.target == "A10")) {
+      if((link.source == "A7" && link.target == "A4") || (link.source == "A4" && link.target == "A7")) {
         console.log('link 1: ', _.cloneDeep(link));
       }
 
