@@ -1790,23 +1790,22 @@
         link.origin = [link.origin];
       }
 
-      if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
-        console.log('link 1: ', _.cloneDeep(link));
-      }
-
       let visible = true;
       let overrideNN = false;
 
-      if((link.source == "A7" && link.target == "A4") || (link.source == "A4" && link.target == "A7")) {
-        console.log('link 1: ', _.cloneDeep(link));
-      }
+      // Keep to debug using angular test files
+      // if((link.source == "A7" && link.target == "A4") || (link.source == "A4" && link.target == "A7")) {
+      //   console.log('link 1: ', _.cloneDeep(link));
+      // }
 
       if (link.hasDistance && !link.origin.includes(link.distanceOrigin)) {
         link.origin.push(link.distanceOrigin);
       }
-      if((link.source == "A7" && link.target == "A4") || (link.source == "A4" && link.target == "A7")) {
-        console.log('link 1: ', _.cloneDeep(link));
-      }
+
+      // Keep to debug using angular test files
+      // if((link.source == "A7" && link.target == "A4") || (link.source == "A4" && link.target == "A7")) {
+      //   console.log('link 1: ', _.cloneDeep(link));
+      // }
 
       // No distance value
       if (link[metric] == null) {
@@ -1822,11 +1821,7 @@
           continue;
         }
 
-        if((link.source == "A1" && link.target == "A2") || (link.source == "A2" && link.target == "A1")) {
-          console.log('link 2: ', _.cloneDeep(link));
-          console.log('vis2:' ,visible);
 
-        }
 
       } else {
 
@@ -1853,16 +1848,24 @@
 
           if (!visible) {
 
-            // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be exectued since the link would not have distance
-            if (link.origin.length > 1 && link.origin.filter(fileName =>{
-              // console.log(fileName);
-              fileName && (/[Aa]uspice/.test(fileName) || !fileName.includes(link.distanceOrigin))}).length > 0) {
-              // Set visible and origin to only show the from the file outside of Distance
-              console.log(link)
-              link.origin = link.origin.filter(fileName => fileName && (/[Aa]uspice/.test(fileName) || !fileName.includes(link.distanceOrigin)));
+            // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be executed since the link would not have distance
+            if (
+              link.origin.length > 1 &&
+              link.origin.filter(fileName => {
+              const hasAuspice = /[Aa]uspice/.test(fileName);
+              const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
+              return fileName && !includesDistanceOrigin && !hasAuspice;
+              }).length > 0
+          ) {
+              // Set visible and origin to only show the file outside of Distance
+              link.origin = link.origin.filter(fileName => {
+              const hasAuspice = /[Aa]uspice/.test(fileName);
+              const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
+              return fileName && !includesDistanceOrigin && !hasAuspice;
+              });
               overrideNN = true;
               visible = true;
-            }
+          }
           }
 
         } else {   
