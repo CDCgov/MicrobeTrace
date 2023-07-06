@@ -1,3 +1,4 @@
+
 <div id="file-panel" class="container-fluid">
   <div id="file-table" class="container">
     <p id="warning-prompt" class="text-muted"> If you're having a problem with MicrobeTrace, please 
@@ -332,12 +333,16 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
   </div>
 </div>
 
+<script src="https://www.googletagmanager.com/gtag/js?id=G-MJE9MEJL5T"></script>
 <script>
   (function () {
+    /*
     ga('set', 'page', '/files');
     ga('set', 'title', 'Files View');
     ga('send', 'pageview');
 
+    gtag('event', 'pageview', {'page': '/files', 'title': 'Files View'})
+    */
     'use strict';
 
     $('#file-panel').parent().css('z-index', 1000);
@@ -768,7 +773,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
     });
 
     $('#default-distance-metric').change(function () {
-      ga('send', 'event', 'default-distance-metric', 'update', this.value);
+      //ga('send', 'event', 'default-distance-metric', 'update', this.value);
       const lsv = this.value;
       localforage.setItem('default-distance-metric', lsv);
       $('#default-distance-metric').val(lsv);

@@ -188,10 +188,13 @@
 
 <script>
 (function () {
-  ga('set', 'page', '/choropleth');
-  ga('set', 'title', 'Choropleth View');
-  ga('send', 'pageview');
-  
+/*
+ * ga('set', 'page', '/choropleth');
+ * ga('set', 'title', 'Choropleth View');
+ * ga('send', 'pageview');
+*/
+
+  gtag('event', 'pageview', {'page': '/choropleth', 'title': 'Choropleth View'})
   if (navigator.onLine) {
     $('#choropleth').parent().find('.ifOnline').css('display', 'flex');
   }

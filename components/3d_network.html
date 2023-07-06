@@ -127,10 +127,12 @@
 
 <script>
   (function () {
-    ga('set', 'page', '/3d_network');
-    ga('set', 'title', '3D View');
-    ga('send', 'pageview');
-    
+/*
+ *   ga('set', 'page', '/3d_network');
+ *   ga('set', 'title', '3D View');
+ *   ga('send', 'pageview');
+ */   
+    gtag('event', 'pageview', {'page': '/3d_network', 'title': '3D View'})
     let links = [];
     let nodes = [];
 

@@ -416,10 +416,12 @@
 
 <script>
   (() => {
+      /*
     ga('set', 'page', '/phylogenetic_tree');
     ga('set', 'title', 'Phylogenetic Tree View');
     ga('send', 'pageview');
-
+*/
+    gtag('event', 'pageview', {'page': '/phylogenetic_tree', 'title': 'Phylogenetic Tree View'})
     let tree;
 
     let redrawTree = () => {

@@ -126,10 +126,12 @@
 
 <script>
   (function () {
+      /*
     ga('set', 'page', '/histogram');
     ga('set', 'title', 'Histogram View');
     ga('send', 'pageview');
-
+*/
+    gtag('event', 'pageview', {'page': '/histogram', 'title': 'Histogram View'})
     let plot;
 
     function redrawHistogram() {
