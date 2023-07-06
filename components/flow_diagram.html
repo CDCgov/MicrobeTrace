@@ -115,10 +115,12 @@
 
 <script>
   (function () {
+      /*
     ga('set', 'page', '/flow_diagram');
     ga('set', 'title', 'Flow Diagram View');
     ga('send', 'pageview');
-
+*/
+    gtag('event', 'pageview', {'page': '/flow_diagram', 'title': 'Flow Diagram View'})
     let plot;
 
     function drawFlowDiagram() {

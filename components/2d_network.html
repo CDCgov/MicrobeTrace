@@ -602,12 +602,15 @@ Note that this may cause slow performance on larger networks.">
   </div><!-- /.modal-dialog -->
 </div><!-- /.modal -->
 
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-MJE9MEJL5T"></script>
 <script>
   (() => {
-    ga('set', 'page', '/2d_network');
-    ga('set', 'title', '2D View');
-    ga('send', 'pageview');
-
+      /*
+    *ga('set', 'page', '/2d_network');
+    *ga('set', 'title', '2D View');
+    *ga('send', 'pageview');
+    */
+    gtag('event', 'pageview', {'page': '/2d_network', 'title': '2D View'})
     // Stores array of custom symbols from JSON
     let customSymbols = [];
 
