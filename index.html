@@ -11,13 +11,6 @@
   <meta name="msapplication-TileColor" content="#ffc40d">
   <meta name="apple-mobile-web-app-title" content="MicrobeTrace">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.googletagmanager.com googletagmanager.com *.google-analytics.com; connect-src 'self' *.googletagmanager.com googletagmanager.com *.google-analytics.com stats.g.doubleclick.net  stamen-tiles-a.a.ssl.fastly.net stamen-tiles-b.a.ssl.fastly.net stamen-tiles-c.a.ssl.fastly.net *.cdc.gov unpkg.com; img-src 'self' *.googletagmanager.com googletagmanager.com *.google-analytics.com *.doubleclick.net www.google.com api.mapbox.com stamen-tiles-a.a.ssl.fastly.net stamen-tiles-b.a.ssl.fastly.net stamen-tiles-c.a.ssl.fastly.net a.tile.openstreetmap.org b.tile.openstreetmap.org c.tile.openstreetmap.org osmap.a.tile.mapcdn.net osmap.b.tile.mapcdn.net osmap.c.tile.mapcdn.net data:; style-src 'self' 'unsafe-inline'; manifest-src 'self'; font-src 'self';">
-    <script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-    </script>
-
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-MJE9MEJL5T"></script>
   <title>MicrobeTrace</title>
   <link rel="manifest" href="manifest.json">
   <link rel="canonical" href="https://microbetrace.cdc.gov/MicrobeTrace/">
@@ -34,14 +27,14 @@
   <script src="libraries/lodash.js"></script>
   <script src="libraries/underscore-observe.js"></script>
 
-  <!--<script>
+  <script>
     (function (i, s, o, g, r, a, m) {
         i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
             (i[r].q = i[r].q || []).push(arguments)
         }, i[r].l = 1 * new Date(); a = s.createElement(o),
         m = s.getElementsByTagName(o)[0]; a.async = 1; a.src = g; m.parentNode.insertBefore(a, m)
     })(window, document, 'script', '//www.google-analytics.com/analytics.js', 'ga');
-  </script>-->
+  </script>
 </head>
 
 <body>
@@ -695,6 +688,15 @@ performance of this software.</pre>
     </div>
   </div>
 
+  <script async src="https://googletagmanager.com/gtag/js?id=UA-116308624-1"></script>
+  <script>
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'https:') window.location.replace('https://' + window.location.hostname + window.location.pathname);
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'UA-116308624-1');
+    window.ga('create', 'UA-116308624-1', 'auto');
+  </script>
   <script src="dist/bundle.primary.js" charset="utf-8"></script>
   <script src="src/common.js" async charset="utf-8"></script>
   <script src="src/index.js" async charset="utf-8"></script>

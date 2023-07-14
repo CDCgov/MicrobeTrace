@@ -70,13 +70,10 @@
 
 <script>
   (function() {
-/*
- *   ga('set', 'page', '/aggregation');
- *   ga('set', 'title', 'Aggregation View');
- *   ga('send', 'pageview');
- */
+    ga('set', 'page', '/aggregation');
+    ga('set', 'title', 'Aggregation View');
+    ga('send', 'pageview');
 
-    gtag('event', 'pageview', {'page': '/aggregation', 'title': 'Aggregation View'})
     let data = [];
 
     function updateTable(i, variable) {

@@ -364,12 +364,10 @@
 
 <script>
   (function () {
-      /*
     ga('set', 'page', '/geo_map');
     ga('set', 'title', 'Geo Map View');
     ga('send', 'pageview');
-*/
-    gtag('event', 'pageview', {'page': '/geo_map', 'title': 'Geo Map View'})
+
     if (session.data.nodes.length > 0) {
     // save existing session styles
       temp.mapData['map-countries-show'] = session.style.widgets['map-countries-show'];

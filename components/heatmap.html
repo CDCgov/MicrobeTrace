@@ -140,12 +140,10 @@
 
 <script>
   (function () {
-      /*
     ga('set', 'page', '/heatmap');
     ga('set', 'title', 'Heatmap View');
     ga('send', 'pageview');
-*/
-    gtag('event', 'pageview', {'page': '/heatmap', 'title': 'Heatmap View'})
+
     let labels, xLabels, yLabels, matrix, plot;
 
     async function redrawHeatmap() {
