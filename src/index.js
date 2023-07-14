@@ -374,7 +374,7 @@ $(function() {
   $("#link-show-nn")
     .parent()
     .on("click", () => {
-      ga('send', 'event', 'nearest-neighbor', 'trigger', 'on');
+      gtag('event', 'nearest-neighbor', {'type': 'trigger', 'value': 'on'})
       $("#filtering-epsilon-copy").val(
         Math.pow(10, parseFloat($("#filtering-epsilon").val())).toLocaleString()
       );
@@ -522,7 +522,7 @@ $(function() {
   });
 
   $("#link-threshold").on("change", function() {
-    ga('send', 'event', 'threshold', 'update', this.value);
+    gtag('event', 'threshold', {'type': 'update', 'value': this.value})
     session.style.widgets["link-threshold"] = parseFloat(this.value);
     let minClust = $("#cluster-minimum-size").val();
 
