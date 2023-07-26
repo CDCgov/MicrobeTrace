@@ -1,6 +1,5 @@
 $(function() {
   "use strict";
-
   let linkKeyboardPositionEnabled = false;
   let nodeKeyboardPositionEnabled = false;
   let statsKeyboardPositionEnabled = false;
@@ -51,6 +50,20 @@ $(function() {
   layout.contentItems = [];
 
   self.$window = $(window);
+
+  let params = new URLSearchParams(window.location.search);
+  let auspiceUrl = params.get('url');
+  if (auspiceUrl) {
+    console.log(`The URL parameter is ${auspiceUrl}`);
+    let jsonData = {};
+    axios.get(auspiceUrl).then( e => {
+      jsonData = e.data;
+      console.log(jsonData);
+      MT.processJSON(JSON.stringify(jsonData));
+    });
+  } else {
+    console.log("No URL paramter");
+  }
 
   $(".modal-header").on("mousedown", function(){
     let body = $("body");

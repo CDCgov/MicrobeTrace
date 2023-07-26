@@ -1,5 +1,13 @@
 (function (self) {
   'use strict';
+  let params = new URLSearchParams(window.location.search);
+  let url = params.get('url');
+  if (url) {
+    console.log(`The URL parameter is ${url}`);
+  } else {
+    console.log("No URL paramter");
+  }
+
 
   let MT = {};
 
@@ -762,7 +770,7 @@
       newNode._id = node._id;
       newNode.origin = "Auspice Import";
       if (! node_regex.test(newNode._id)) {
-        console.log(newNode._id);
+        //console.log(newNode._id);
         MT.addNode(newNode, false);
       }
     });
@@ -1782,7 +1790,7 @@
     links.sort(function(a, b) {
       return a.distance - b.distance || a.source.localeCompare(b.source) || a.target.localeCompare(b.target);
     });
-    console.log('links 1: ', _.cloneDeep(links));
+    //console.log('links 1: ', _.cloneDeep(links));
 
     for (let i = 0; i < n; i++) {
       let link = links[i];
