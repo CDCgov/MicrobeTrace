@@ -55,12 +55,14 @@ $(function() {
   let auspiceUrl = params.get('url');
   if (auspiceUrl) {
     console.log(`The URL parameter is ${auspiceUrl}`);
+    $("#loading-information-modal").modal("show");
     let jsonData = {};
     axios.get(auspiceUrl).then( e => {
       jsonData = e.data;
       console.log(jsonData);
       MT.processJSON(JSON.stringify(jsonData));
     });
+    $("#loading-information-modal").modal("hide");
   } else {
     console.log("No URL paramter");
   }

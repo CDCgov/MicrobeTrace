@@ -759,12 +759,14 @@
     console.log(auspice)
     const newickString =  treeToNewick(auspice.tree, false, true);
     const fullTree = parseAuspice(auspice);
+    console.log(newickString);
     const distanceMatrix = patristic.parseNewick(newickString).toMatrix();
+    console.log('Distance matrix finished');
     const updatedTree = combineMutations(fullTree);
     const linkList = makeLinksFromMatrix(distanceMatrix);
     const bareNewickString =  treeToNewick(auspice.tree, false, false);
     const nodeList = addLatLong(MT.nodeList, auspice.meta);
-    const node_regex = /^NODE_00000[0-9][0-9]$/;
+    const node_regex = /^NODE_[0-9]{7}$/;
     nodeList.forEach(node => {
       let newNode = JSON.parse(JSON.stringify(node));
       newNode._id = node._id;
@@ -874,11 +876,13 @@
       }
       /* terminal node */
       const leaf = `${node.name}${nodeAnnotation(node)}:${getXVal(node) - parentX}`;
+      console.log(`Reached a leaf ${node.name}`);
       return leaf;
     }
 
     const rootNode = tree;
     const rootXVal = getXVal(rootNode);
+    console.log(JSON.stringify(tree));
     return recurse(rootNode, rootXVal) + ';';
   }
 
