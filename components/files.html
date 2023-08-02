@@ -345,6 +345,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
     */
     'use strict';
 
+
     $('#file-panel').parent().css('z-index', 1000);
 
     $('#file-settings-toggle').on('click', function () {
@@ -374,6 +375,10 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       evt.preventDefault();
       processFiles(evt.originalEvent.dataTransfer.files);
     });
+
+    if(session.network.launched){
+      $('#launch').text('Update');
+    }
 
     function processFiles(files){
       const n = files.length;
@@ -456,6 +461,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
         $('<div class="file-name col"></div>')
           .append($('<a href="#" class="oi oi-circle-x align-middle p-1" title="Remove this file"></a>').on('click', () => {
             session.files.splice(session.files.findIndex(f => f.name == file.name), 1);
+            $('#launch').prop('disabled', false).focus();
             root.slideUp(() => root.remove());
           }))
           .append($('<a href="#" class="oi oi-data-transfer-download align-middle p-1" title="Resave this file"></a>').on('click', () => {
@@ -894,11 +900,12 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
           backdrop: false,
           keyboard: false
         });
+        session.network.launched = true;
         setTimeout(() => reject(new Error("Problem loading information modal!")), 5000);  
       }).then(
         result => launch(), // 
         error => {alert(error); launch(); } // informational modal doesn't load
-      );
+      );      
     })
 
     const launch = async () => {
@@ -909,6 +916,8 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
 
       const nFiles = session.files.length - 1;
       const check = nFiles > 0;
+
+      session.data = MT.dataSkeleton();
 
       const hierarchy = ['newick', 'matrix', 'link', 'node', 'fasta'];
       session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));

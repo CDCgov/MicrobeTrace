@@ -260,7 +260,8 @@
       allPinned: false,
       timelinePinned: false,
       nodes: [],
-      timelineNodes: []
+      timelineNodes: [],
+      launched: false,
     },
     state: {
       timeStart: 0,
