@@ -82,7 +82,6 @@
     "cluster-minimum-size": 1,
     "default-distance-metric": "tn93",
     "default-view": "2d_network",
-    "default-distance-metric": "tn93",
     "filtering-epsilon": -8,
     "flow-showNodes": "selected",
     "globe-countries-show": false,
