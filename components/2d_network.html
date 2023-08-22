@@ -2605,7 +2605,8 @@ Note that this may cause slow performance on larger networks.">
     }).trigger('input');
 
     $('#network-export').on('click', function () {
-      ga('send', 'event', '2D-network-export', 'trigger', 'on');
+      // ga('send', 'event', '2D-network-export', 'trigger', 'on');
+      gtag('event', 'network-export', {'page': '/2d_network', 'title': '2D View'})
       let network = document.getElementById('network');
       let $network = $(network);
       let watermark = d3.select(network).append('image')
