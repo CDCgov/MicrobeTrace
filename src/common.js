@@ -956,8 +956,8 @@
             }
           }
         }
-        newNodes.push(node);
       }
+      newNodes.push(node);
     }
     return newNodes;
   }
