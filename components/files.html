@@ -917,7 +917,8 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       const nFiles = session.files.length - 1;
       const check = nFiles > 0;
 
-      session.data = MT.dataSkeleton();
+      // TODO: Figure out how to reset correctly as this breaks the app with missing links
+      // session.data = MT.dataSkeleton();
 
       const hierarchy = ['newick', 'matrix', 'link', 'node', 'fasta'];
       session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
