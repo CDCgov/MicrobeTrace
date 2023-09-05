@@ -788,12 +788,16 @@
     });
     // let metric = "SNPs";
     const metric = 'distance';
-    session.style.widgets["link-threshold"] = 7;
     session.style.widgets["link-sort-variable"] = metric;
     linkList.forEach(link => {
       let newLink = JSON.parse(JSON.stringify(link));
       
       newLink[metric] = parseFloat(newLink.distance);
+      if (newLink[metric] < 1) {
+        session.style.widgets["link-threshold"] = 0.015;
+      } else {
+        session.style.widgets["link-threshold"] = 7;
+      }
       newLink.hasDistance = true;
       newLink.distanceOrigin = "Auspice Import";
       MT.addLink(newLink, false);
