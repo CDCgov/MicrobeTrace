@@ -461,6 +461,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
         $('<div class="file-name col"></div>')
           .append($('<a href="#" class="oi oi-circle-x align-middle p-1" title="Remove this file"></a>').on('click', () => {
             session.files.splice(session.files.findIndex(f => f.name == file.name), 1);
+            session.network.fileRemoved = true;
             $('#launch').prop('disabled', false).focus();
             root.slideUp(() => root.remove());
           }))
@@ -917,8 +918,10 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
       const nFiles = session.files.length - 1;
       const check = nFiles > 0;
 
-      // TODO: Figure out how to reset correctly as this breaks the app with missing links
-      // session.data = MT.dataSkeleton();
+      if (session.network.fileRemoved) {
+        session.data = MT.dataSkeleton();
+        temp.matrix = [];
+      }
 
       const hierarchy = ['newick', 'matrix', 'link', 'node', 'fasta'];
       session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
@@ -1028,7 +1031,7 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
                   hasDistance : dist != 'distance' ? false : true,
                   distanceOrigin: dist != 'distance' ? '' : file.name
                 }, safeLink), check);
-            }          
+            }         
           };
 
           if (file.extension == 'xls' || file.extension == 'xlsx') {

@@ -261,6 +261,7 @@
       nodes: [],
       timelineNodes: [],
       launched: false,
+      fileRemoved: false,
     },
     state: {
       timeStart: 0,
