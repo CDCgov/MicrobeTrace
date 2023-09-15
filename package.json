@@ -1,6 +1,6 @@
 {
   "name": "MicrobeTrace",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "The Visualization Multitool for Molecular Epidemiology and Bioinformatics",
   "homepage": "https://github.com/CDCgov/MicrobeTrace#readme",
   "keywords": [
