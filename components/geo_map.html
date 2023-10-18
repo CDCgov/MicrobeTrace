@@ -1,4 +1,4 @@
-<div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
+<div class="OSM-credit">Map tiles by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a></div>
 <div id="map" class="h-100"></div>
 
 <div class="view-controls">
@@ -391,9 +391,9 @@
 
 
     var layers = {
-      basemap: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=2b8d7c40-8b32-4487-9af9-b66888a2e882', {
+      basemap: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 20,
-        attribution: '© <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>, © <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
+        attribution: '© <a href="https://openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
     }),
       satellite: L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v9/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYWFib3lsZXMiLCJhIjoiY2o4b3QxNmtjMDhwNjMzcno4dDd1NnVraSJ9.BkjEa6NM7o7KeTaTHOaIGg'),
       nodes: { remove: function () { return null; } },
