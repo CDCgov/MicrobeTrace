@@ -50,8 +50,6 @@
     <h4>MicrobeTrace requires CSS to run, but it looks like the appropriate CSS files weren't loaded for some reason.
       Please try <a href="#" onclick="location.reload();">Refreshing the Page</a></h4>
   </div>
-  <span id="development-version" style="margin-left: 0px; position: absolute; z-index: 3000; bottom: 100px; color: #0037ff; font-weight: bolder; font-size: x-small;"> Non Production environment. Coming soon to this space- MicrobeTrace 1.0, the Angular version!
-    To access the complete production version, visit www.microbetrace.cdc.gov </span></li> 
 
   <nav class="navbar fixed-top navbar-expand-xl navbar-light bg-light">
     <ul class="nav mr-auto">
@@ -701,6 +699,10 @@ performance of this software.</pre>
   <script src="src/index.js" async charset="utf-8"></script>
   <script src="dist/bundle.secondary.js" defer charset="utf-8"></script>
   <link rel="stylesheet" type="text/css" href="dist/bundle.secondary.css">
+
+  <span id="development-version" class="dev-span"> Non Production environment. Coming soon to this space- MicrobeTrace 1.0, the Angular version!
+    To access the complete production version, visit <a class="mt-url" href="https://microbetrace.cdc.gov/MicrobeTrace/" target="_blank">www.microbetrace.cdc.gov</a>
+    <button class="close-btn">X</button></span>
 </body>
 
 </html>

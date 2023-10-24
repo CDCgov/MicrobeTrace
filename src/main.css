@@ -21,6 +21,28 @@ body {
   user-select: none; /* Non-prefixed version, currently
                                 supported by Chrome and Opera */
 }
+
+.dev-span {
+  margin-left: 0px;
+  position: absolute;
+  z-index: 3000;
+  bottom: 100px;
+  font-weight: bolder;
+  font-size: x-small;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.mt-url {
+  color: #007bff !important;
+}
+
 .selectable,
 [type="text"] {
   -webkit-touch-callout: auto; /* iOS Safari */
