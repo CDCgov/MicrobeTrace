@@ -403,9 +403,26 @@ Please note that this causes MicrobeTrace to store data on your computer's hard 
         return;
       }
       if (extension == 'microbetrace' || extension == 'hivtrace') {
-        let reader = new FileReader();
-        reader.onloadend = out => MT.processJSON(out.target.result, extension);
-        reader.readAsText(rawfile, 'UTF-8');
+        document.getElementById('loading-information').innerHTML="<p>Processing file(s)...</p>";
+        new Promise(function(resolve, reject) {
+          $('#loading-information-modal').on('shown.bs.modal', function (e) {
+            session.messages = [];
+            $('#loading-information').html('');
+            resolve("done");
+          });
+          $('#loading-information-modal').modal({
+            backdrop: false,
+            keyboard: false
+          });
+          session.network.launched = true;
+          setTimeout(() => reject(new Error("Problem loading information modal!")), 5000);  
+        }).then(
+          result => {let reader = new FileReader();
+          reader.onloadend = out => MT.processJSON(out.target.result, extension);
+          reader.readAsText(rawfile, 'UTF-8');}, // 
+          error => {alert(error); launch(); } // informational modal doesn't load
+        ); 
+        
         return;
       }
       if (extension == 'svg') {
