@@ -22,6 +22,11 @@ body {
                                 supported by Chrome and Opera */
 }
 
+.flex-grow {
+  display: flex;
+  flex-grow: 1;
+}
+
 .dev-span {
   margin-left: 0px;
   position: absolute;
@@ -41,6 +46,7 @@ body {
 
 .mt-url {
   color: #007bff !important;
+  text-decoration: underline !important;
 }
 
 .selectable,

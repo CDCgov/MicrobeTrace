@@ -2896,11 +2896,23 @@ Note that this may cause slow performance on larger networks.">
       $this.parent().hide();
     });
 
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+    // d3.select(window).on('keydown keyup', function () {
+    //   const keyToCheck = isMac ? 'metaKey' : 'ctrlKey';
+    //   console.log('isMac: ', isMac);
+    //   d3.select('g.brush')
+    //     .attr('pointer-events', d3.event[keyToCheck] ? 'all' : 'none')
+    //     .select('rect.overlay')
+    //     .attr('pointer-events', d3.event[keyToCheck] ? 'all' : 'none');
+    // });
+
     d3.select(window).on('keydown keyup', function () {
+      const keyToCheck = isMac ? event.metaKey : event.ctrlKey;
       d3.select('g.brush')
-        .attr('pointer-events', d3.event.ctrlKey ? 'all' : 'none')
+        .attr('pointer-events', keyToCheck ? 'all' : 'none')
         .select('rect.overlay')
-        .attr('pointer-events', d3.event.ctrlKey ? 'all' : 'none');
+        .attr('pointer-events', keyToCheck ? 'all' : 'none');
     });
 
     let stopSimulation = () => force.stop();
