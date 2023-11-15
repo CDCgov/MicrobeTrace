@@ -626,40 +626,70 @@
     }
 
     function drawLinks() {
-      if(!$('#map').length) return;
-      layers.links.remove();
-      if (!session.style.widgets['map-link-show']) return;
-      var lcv = session.style.widgets['link-color-variable'];
-      var opacity = 1 - session.style.widgets['map-link-transparency'];
-      var links = MT.getVisibleLinks();
-      layers.links = L.featureGroup();
-      links.forEach(function (d) {
-        if (!d.visible) return;
-        var source = nodes.find(node => node._id == d.source);
-        var target = nodes.find(node => node._id == d.target);
-        if (source && target) {
-          if (source._jlat && source._jlon && target._jlat && target._jlon) {
-            layers.links.addLayer(L.polyline([[
-              [source._jlat, source._jlon],
-              [target._jlat, target._jlon]
-            ]], {
-                color: lcv == "None" ?
-                  session.style.widgets['link-color'] :
-                  temp.style.linkColorMap(d[lcv]),
-                opacity: opacity,
-                data: d
-              }));
-          }
-        }
-      });
-      layers.links
-        .on('mouseover', showLinkTooltip)
-        .on('mouseout', hideTooltip)
-        .addTo(map);
+  if (!$('#map').length) return;
+  layers.links.remove();
+  if (!session.style.widgets['map-link-show']) return;
+  
+  var lcv = session.style.widgets['link-color-variable'];
+  var opacity = 1 - session.style.widgets['map-link-transparency'];
+  var links = MT.getVisibleLinks();
+  layers.links = L.featureGroup();
 
-      drawNodes();
+  links.forEach(function (d) {
+    if (!d.visible) return;
+    var source = nodes.find(node => node._id == d.source);
+    var target = nodes.find(node => node._id == d.target);
 
+    if (source && target && source._jlat && source._jlon && target._jlat && target._jlon) {
+      // Check for multiple origins and apply dash pattern
+      if (d.origin && d.origin.length > 1) {
+        // Assuming d.origin1 and d.origin2 are the properties for the two origins
+        let color1 = temp.style.linkColorMap(d.origin[0]); // Assuming the first origin color
+        let color2 = temp.style.linkColorMap(d.origin[1]); // Assuming the second origin color
+
+        // Define dash patterns
+        let dashPattern1 = '10, 10'; // 10px line, 10px gap
+        let dashPattern2 = '0, 10, 10, 0'; // 0px line, 10px gap, 10px line, 0px gap
+
+        // Create two polylines with these patterns
+        let polyline1 = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+          color: color1,
+          dashArray: dashPattern1,
+          opacity: opacity
+        });
+
+        let polyline2 = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+          color: color2,
+          dashArray: dashPattern2,
+          opacity: opacity
+        });
+
+        layers.links.addLayer(polyline1);
+        layers.links.addLayer(polyline2);
+      } else {
+        // Handling for single origin links
+        let polylineOptions = {
+          color: lcv === "None" ? session.style.widgets['link-color'] : temp.style.linkColorMap(d[lcv]),
+          opacity: opacity,
+          data: d
+        };
+
+        layers.links.addLayer(L.polyline([
+          [source._jlat, source._jlon],
+          [target._jlat, target._jlon]
+        ], polylineOptions));
+      }
     }
+  });
+
+  layers.links
+    .on('mouseover', showLinkTooltip)
+    .on('mouseout', hideTooltip)
+    .addTo(map);
+
+  drawNodes();
+}
+
 
     function showNodeTooltip(e) {
       var d = e.layer.options.data;
