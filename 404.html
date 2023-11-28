@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="application-name" content="MicrobeTrace">
+  <meta name="Description" content="MicrobeTrace is an interactive web application that renders existing data from high-risk contact networks in an easy-to-use Graphical User Interface (GUI). The network visualization can be customized according to supplemental data sources and mathematical inferences like the most probable transmission pathways. MicrobeTrace is a highly responsive, visual sequence analytics tool which can reduce the gap between data production and analytics and help you to discover, understand, and display relationships (links) between patients (nodes). MicrobeTrace can be deployed on laptops to locations without any Internet access, thereby reducing both the startup cost and analysis time and effort.">
   <title>MicrobeTrace</title>
-  <base href="https://mossy426.github.io/MicrobeTrace/">
+  <base href="https://cdcgov.github.io/MicrobeTrace/">
+
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.googletagmanager.com googletagmanager.com *.google-analytics.com nextstrain.org *.nextstrain.org github.com *.github.com raw.githubusercontent.com *.ucsc.edu; connect-src 'self' *.googletagmanager.com googletagmanager.com *.google-analytics.com stats.g.doubleclick.net  stamen-tiles-a.a.ssl.fastly.net stamen-tiles-b.a.ssl.fastly.net stamen-tiles-c.a.ssl.fastly.net *.cdc.gov unpkg.com nextstrain.org *.nextstrain.org github.com *.github.com raw.githubusercontent.com *.ucsc.edu; img-src 'self' *.googletagmanager.com googletagmanager.com *.google-analytics.com *.doubleclick.net www.google.com api.mapbox.com stamen-tiles-a.a.ssl.fastly.net stamen-tiles-b.a.ssl.fastly.net stamen-tiles-c.a.ssl.fastly.net a.tile.openstreetmap.org b.tile.openstreetmap.org c.tile.openstreetmap.org osmap.a.tile.mapcdn.net osmap.b.tile.mapcdn.net osmap.c.tile.mapcdn.net tiles.stadiamaps.com data:; style-src 'self' 'unsafe-inline'; manifest-src 'self'; font-src 'self';">-->
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
   <script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
@@ -22,10 +26,16 @@
 
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<link rel="stylesheet" href="styles.e6cf8add932c2af98f43.css"></head>
+  <!-- Google tag (gtag.js) --> <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-0MWHB1NG2M"></script> 
+  <script>   
+    window.dataLayer = window.dataLayer || [];   
+    function gtag(){dataLayer.push(arguments);}   
+    gtag('js', new Date());   gtag('config', 'G-0MWHB1NG2M');
+  </script>
+<link rel="stylesheet" href="styles.css"></head>
 <body>
   <!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR-KEY-HERE"></script> -->
 
   <app-root></app-root>
-<script type="text/javascript" src="runtime.5bdd4cb3b3fcc5bf333c.js"></script><script type="text/javascript" src="es2015-polyfills.8522bd8589f368256f9b.js" nomodule></script><script type="text/javascript" src="polyfills.d21be1deadc01080309c.js"></script><script type="text/javascript" src="scripts.c0e6b569f43581c2f5b5.js"></script><script type="text/javascript" src="main.1431903da4cbe9a2d722.js"></script></body>
+<script src="runtime.js" type="module"></script><script src="polyfills.js" type="module"></script><script src="scripts.js" defer></script><script src="vendor.js" type="module"></script><script src="main.js" type="module"></script></body>
 </html>
