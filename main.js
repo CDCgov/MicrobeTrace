@@ -7104,6 +7104,10 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
         }
     }
     this.displayUrlDialog = !this.displayUrlDialog;
+    if (this.displayUrlDialog) {
+      console.log(this.displayUrlDialog);
+      this.continueClicked();
+    }
   }
   DisplayMTDialog(saveUrl) {
     switch (saveUrl) {
