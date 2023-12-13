@@ -9933,7 +9933,6 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.Show2DSettingsPane = false;
     this.IsDataAvailable = false;
     this.svg = null;
-    this.settings = this.commonService.session.style.widgets;
     this.halfWidth = null;
     this.halfHeight = null;
     this.transform = null;
@@ -10050,9 +10049,6 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.SelectedNetworkExportFileTypeListVariable = "png";
     this.SelectedNetworkExportScaleVariable = 1;
     this.SelectedNetworkExportQualityVariable = 0.92;
-    this.CalculatedResolutionWidth = 1918;
-    this.CalculatedResolutionHeight = 909;
-    this.CalculatedResolution = this.CalculatedResolutionWidth * this.SelectedNetworkExportScaleVariable + " x " + this.CalculatedResolutionHeight * this.SelectedNetworkExportScaleVariable + "px";
     this.SelectedNodeLabelSizeVariable = 16;
     this.nodeBorderWidth = 2.0;
     this.ShowNodeSymbolWrapper = false;
@@ -10093,9 +10089,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.polygonNodeSelected = null;
     this.visuals = commonService.visuals;
     this.commonService.visuals.twoD = this;
+    this.widgets = this.commonService.session.style.widgets;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_3__.window.addEventListener('resize', () => {
       // Replace this with the logic to determine the current show/hide state
-      const showState = this.visuals.twoD.commonService.session.style.widgets['network-gridlines-show'];
+      const showState = this.widgets['network-gridlines-show'];
       this.drawGridlines(showState);
     });
   }
@@ -10106,9 +10103,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   ngAfterViewInit() {}
   InitView() {
     this.visuals.twoD.IsDataAvailable = this.visuals.twoD.commonService.session.data.nodes.length === 0 ? false : true;
-    if (!this.visuals.twoD.commonService.session.style.widgets['default-distance-metric']) {
-      this.visuals.twoD.commonService.session.style.widgets['default-distance-metric'] = this.visuals.twoD.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable;
-      this.visuals.twoD.commonService.session.style.widgets['link-threshold'] = this.visuals.twoD.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
+    if (!this.widgets['default-distance-metric']) {
+      this.widgets['default-distance-metric'] = this.visuals.twoD.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable;
+      this.widgets['link-threshold'] = this.visuals.twoD.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
     }
     if (this.visuals.twoD.IsDataAvailable === true && this.visuals.twoD.zoom === null) {
       d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').exit().remove();
@@ -10145,7 +10142,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.halfWidth = $('#network').parent().width() / 2;
       this.visuals.twoD.halfHeight = $('#network').parent().parent().parent().height() / 2;
       this.visuals.twoD.transform = d3__WEBPACK_IMPORTED_MODULE_4__.zoomTransform(d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').node());
-      this.visuals.twoD.commonService.session.style.widgets = this.visuals.twoD.commonService.session.style.widgets;
+      this.widgets = this.widgets;
       let zoom = d3__WEBPACK_IMPORTED_MODULE_4__.zoom().filter(() => !this.ctrlPressed).on('zoom', () => this.visuals.twoD.svg.attr('transform', this.visuals.twoD.transform = d3__WEBPACK_IMPORTED_MODULE_4__.event.transform));
       let width = d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').node().getBoundingClientRect().width;
       let height = d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').node().getBoundingClientRect().height;
@@ -10208,8 +10205,8 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.svg.append('g').attr('class', 'clustersLabels');
       d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').append('g').attr('class', 'brush').call(this.visuals.twoD.brush);
       this.visuals.twoD.svg.append('svg:defs').append('marker').attr('id', 'end-arrow').attr('viewBox', '0 0 10 10').attr('refX', 20).attr('refY', 5).attr('markerWidth', 4).attr('markerHeight', 4).attr('orient', 'auto').append('svg:path').attr('d', 'M0,0 L0,10 L10,5 z');
-      this.visuals.twoD.force = d3__WEBPACK_IMPORTED_MODULE_4__.forceSimulation().force('link', d3__WEBPACK_IMPORTED_MODULE_4__.forceLink().id(d => d._id).distance(l => l.origin.length * this.visuals.twoD.commonService.session.style.widgets['link-length']).strength(this.visuals.twoD.commonService.session.style.widgets['network-link-strength'])).force('charge', d3__WEBPACK_IMPORTED_MODULE_4__.forceManyBody().strength(-this.visuals.twoD.commonService.session.style.widgets['node-charge'])).force('gravity', (0,d3_force_attract__WEBPACK_IMPORTED_MODULE_5__.forceAttract)().target([this.visuals.twoD.halfWidth, this.visuals.twoD.halfHeight]).strength(this.visuals.twoD.commonService.session.style.widgets['network-gravity'])).force('center', d3__WEBPACK_IMPORTED_MODULE_4__.forceCenter(this.visuals.twoD.halfWidth, this.visuals.twoD.halfHeight));
-      if (this.visuals.twoD.commonService.session.style.widgets['network-friction']) this.visuals.twoD.force.velocityDecay(this.visuals.twoD.commonService.session.style.widgets['network-friction']);
+      this.visuals.twoD.force = d3__WEBPACK_IMPORTED_MODULE_4__.forceSimulation().force('link', d3__WEBPACK_IMPORTED_MODULE_4__.forceLink().id(d => d._id).distance(l => l.origin.length * this.widgets['link-length']).strength(this.widgets['network-link-strength'])).force('charge', d3__WEBPACK_IMPORTED_MODULE_4__.forceManyBody().strength(-this.widgets['node-charge'])).force('gravity', (0,d3_force_attract__WEBPACK_IMPORTED_MODULE_5__.forceAttract)().target([this.visuals.twoD.halfWidth, this.visuals.twoD.halfHeight]).strength(this.widgets['network-gravity'])).force('center', d3__WEBPACK_IMPORTED_MODULE_4__.forceCenter(this.visuals.twoD.halfWidth, this.visuals.twoD.halfHeight));
+      if (this.widgets['network-friction']) this.visuals.twoD.force.velocityDecay(this.widgets['network-friction']);
       // this.visuals.twoD.clipboard.on('success', ()=>this.hideContextMenu());
       let that = this;
       // this.visuals.twoD.eventManager.addGlobalEventListener('window', 'node-color-change', () => {
@@ -10225,10 +10222,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       //     that.visuals.twoD.updateLinkColor;
       // });
       // // this.visuals.twoD.eventManager.addGlobalEventListener('window', 'background-color-change', () => {
-      // //     $('#network').css('background-color', this.visuals.twoD.commonService.session.style.widgets['background-color']);
+      // //     $('#network').css('background-color', this.widgets['background-color']);
       // // });
       // $( document ).on( "background-color-change", function( ) {
-      //     $('#network').css('background-color', that.visuals.twoD.commonService.session.style.widgets['background-color']);
+      //     $('#network').css('background-color', that.widgets['background-color']);
       // });
       // // this.visuals.twoD.eventManager.addGlobalEventListener('document', 'node-visibility link-visibility cluster-visibility node-selected', () => {
       // //     this.visuals.twoD.render(false);
@@ -10254,14 +10251,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         this.visuals.twoD.render(false);
       });
       if (this.visuals.twoD.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
-      if (this.visuals.twoD.commonService.session.style.widgets['background-color']) $('#network').css('background-color', this.visuals.twoD.commonService.session.style.widgets['background-color']);
+      if (this.widgets['background-color']) $('#network').css('background-color', this.widgets['background-color']);
       this.visuals.microbeTrace.SelectedStatisticsTypesVariable = 'Show';
       this.visuals.microbeTrace.onShowStatisticsChanged();
       this.loadSettings();
       this.visuals.twoD.render();
       //For some mysterious reason, this really needed a delay...
       setTimeout(() => {
-        if (this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'] !== 'None') {
+        if (this.widgets['node-symbol-variable'] !== 'None') {
           $('#node-symbol-variable').change(); //.trigger('change');
         }
       }, 1);
@@ -10288,8 +10285,17 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   //     }, 1000);
   //     this.LoadDefaultVisualizationEvent.emit(e);
   // }
+  getImageDimensions() {
+    let parent = this.svg.node().parentElement.parentElement;
+    return [parent.clientWidth, parent.clientHeight];
+  }
+  setCalculatedResolution() {
+    let [width, height] = this.getImageDimensions();
+    this.CalculatedResolution = Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px";
+  }
   updateCalculatedResolution(event) {
-    this.CalculatedResolution = Math.round(this.CalculatedResolutionWidth * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(this.CalculatedResolutionHeight * this.SelectedNetworkExportScaleVariable) + "px";
+    let [width, height] = this.getImageDimensions();
+    this.CalculatedResolution = Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px";
     this.cdref.detectChanges();
   }
   showGlobalSettings() {
@@ -10299,19 +10305,18 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   exportVisualization(event) {
     this.visuals.twoD.Show2DExportPane = false;
     this.isExporting = true;
-    // if (this.commonService.session.style.widgets['node-symbol-variable'] != 'None') {
-    //     this.generateNodeSymbolSelectionTable("#node-symbol-table-bottom", this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'], false);
+    // if (this.widgets['node-symbol-variable'] != 'None') {
+    //     this.generateNodeSymbolSelectionTable("#node-symbol-table-bottom", this.widgets['node-symbol-variable'], false);
     // }
-    // if (this.commonService.session.style.widgets['node-color-variable'] != 'None') {
+    // if (this.widgets['node-color-variable'] != 'None') {
     //     this.visuals.microbeTrace.generateNodeColorTable("#node-color-table-bottom", false);
     // }
-    // if (this.commonService.session.style.widgets['link-color-variable'] != 'None') {
+    // if (this.widgets['link-color-variable'] != 'None') {
     //     this.visuals.microbeTrace.generateNodeLinkTable("#link-color-table-bottom", false);
     // }
     if (!this.isExportClosed) {
       setTimeout(() => this.exportVisualization(undefined), 300);
     } else {
-      console.log('e2');
       this.exportWork2();
     }
   }
@@ -10379,22 +10384,24 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   exportWork2() {
     let network = document.getElementById('network');
     let $network = $(network);
+    // add microbeTrace logo as a watermark
     let watermark = d3__WEBPACK_IMPORTED_MODULE_4__.select(network).append('image').attr('xlink:href', this.visuals.twoD.commonService.watermark).attr('height', 128).attr('width', 128).attr('x', 35).attr('y', 35).style('opacity', $('#network-export-opacity').val());
-    let filetype = this.SelectedNetworkExportFileTypeListVariable,
-      filename = this.SelectedNetworkExportFilenameVariable;
+    let filetype = this.SelectedNetworkExportFileTypeListVariable;
+    let filename = this.SelectedNetworkExportFilenameVariable;
+    // add node color table
     let vnodes = this.visuals.twoD.commonService.getVisibleNodes();
     let aggregates = this.visuals.twoD.commonService.createNodeColorMap();
     let values = Object.keys(aggregates);
     var columns = [];
-    columns.push('Node ' + this.visuals.twoD.commonService.titleize(this.visuals.twoD.commonService.session.style.widgets["node-color-variable"]));
-    if (this.visuals.twoD.commonService.session.style.widgets["node-color-table-counts"]) columns.push('Count');
-    if (this.visuals.twoD.commonService.session.style.widgets["node-color-table-frequencies"]) columns.push('Frequency');
+    columns.push('Node ' + this.visuals.twoD.commonService.titleize(this.widgets["node-color-variable"]));
+    if (this.widgets["node-color-table-counts"]) columns.push('Count');
+    if (this.widgets["node-color-table-frequencies"]) columns.push('Frequency');
     columns.push('Color');
     var data = [];
     values.forEach((value, i) => {
       let nodeValue = this.visuals.twoD.commonService.session.style.nodeValueNames[value] ? this.visuals.twoD.commonService.session.style.nodeValueNames[value] : this.visuals.twoD.commonService.titleize("" + value);
-      let tableCounts = this.visuals.twoD.commonService.session.style.widgets["node-color-table-counts"] ? aggregates[value] : undefined;
-      let tableFreq = this.visuals.twoD.commonService.session.style.widgets["node-color-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined;
+      let tableCounts = this.widgets["node-color-table-counts"] ? aggregates[value] : undefined;
+      let tableFreq = this.widgets["node-color-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined;
       let line = {
         Node: nodeValue,
         Count: tableCounts,
@@ -10417,19 +10424,20 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     // let nodeWrapper = this.parent.getElementById('node-color-table');
     console.log('node wrapper: ', nodeWrapper);
     let nodeLegend = this.tabulate2(data, columns, nodeWrapper, network, 200, false);
+    // add link origin table
     let vlinks = this.visuals.twoD.commonService.getVisibleLinks();
     aggregates = this.visuals.twoD.commonService.createLinkColorMap();
     values = Object.keys(aggregates);
     columns = [];
-    columns.push('Link ' + this.visuals.twoD.commonService.titleize(this.visuals.twoD.commonService.session.style.widgets["link-color-variable"]));
-    if (this.visuals.twoD.commonService.session.style.widgets["link-color-table-counts"]) columns.push('Count');
-    if (this.visuals.twoD.commonService.session.style.widgets["link-color-table-frequencies"]) columns.push('Frequency');
+    columns.push('Link ' + this.visuals.twoD.commonService.titleize(this.widgets["link-color-variable"]));
+    if (this.widgets["link-color-table-counts"]) columns.push('Count');
+    if (this.widgets["link-color-table-frequencies"]) columns.push('Frequency');
     columns.push('Color');
     data = [];
     values.forEach((value, i) => {
       let nodeValue = this.visuals.twoD.commonService.session.style.linkValueNames[value] ? this.visuals.twoD.commonService.session.style.linkValueNames[value] : this.visuals.twoD.commonService.titleize("" + value);
-      let tableCounts = this.visuals.twoD.commonService.session.style.widgets["link-color-table-counts"] ? aggregates[value] : undefined;
-      let tableFreq = this.visuals.twoD.commonService.session.style.widgets["link-color-table-frequencies"] ? (aggregates[value] / vlinks.length).toLocaleString() : undefined;
+      let tableCounts = this.widgets["link-color-table-counts"] ? aggregates[value] : undefined;
+      let tableFreq = this.widgets["link-color-table-frequencies"] ? (aggregates[value] / vlinks.length).toLocaleString() : undefined;
       let line = {
         Link: nodeValue,
         Count: tableCounts,
@@ -10438,7 +10446,6 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       };
       data.push(line);
     });
-    console.log('1');
     let linkWrapper = null;
     this.visuals.twoD.commonService.currentLinkTableElement.subscribe(element => {
       linkWrapper = element;
@@ -10446,7 +10453,8 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     });
     // let linkWrapper = document.getElementById('link-color-table-wrapper');
     let linkLegend = this.tabulate2(data, columns, linkWrapper, network, 600, false);
-    let variable = this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'];
+    // add node symbol table
+    let variable = this.widgets['node-symbol-variable'];
     values = [];
     aggregates = {};
     let nodes = this.visuals.twoD.commonService.session.data.nodes;
@@ -10466,19 +10474,19 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     columns = [];
     columns.push('Node ' + this.visuals.twoD.commonService.titleize(variable));
-    if (this.visuals.twoD.commonService.session.style.widgets["node-symbol-table-counts"]) columns.push('Count');
-    if (this.visuals.twoD.commonService.session.style.widgets["node-symbol-table-frequencies"]) columns.push('Frequency');
+    if (this.widgets["node-symbol-table-counts"]) columns.push('Count');
+    if (this.widgets["node-symbol-table-frequencies"]) columns.push('Frequency');
     columns.push('Shape');
     data = [];
     values.forEach((value, i) => {
       let nodeValue = this.visuals.twoD.commonService.titleize("" + value);
-      let tableCounts = this.visuals.twoD.commonService.session.style.widgets["node-symbol-table-counts"] ? aggregates[value] : undefined;
-      let tableFreq = this.visuals.twoD.commonService.session.style.widgets["node-symbol-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined;
+      let tableCounts = this.widgets["node-symbol-table-counts"] ? aggregates[value] : undefined;
+      let tableFreq = this.widgets["node-symbol-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined;
       let line = {
         Node: nodeValue,
         Count: tableCounts,
         Frequency: tableFreq,
-        Shape: $("#node-symbol option[value='" + this.visuals.twoD.commonService.temp.style.nodeSymbolMap(value) + "']").text()
+        Shape: $("#node-symbol-table option[value='" + this.commonService.temp.style.nodeSymbolMap(value) + "']").eq(parseInt(value)).text()
       };
       data.push(line);
     });
@@ -10487,10 +10495,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     if (symbolWrapper) {
       symbolLegend = this.tabulate2(data, columns, symbolWrapper, network, 200, true);
     }
+    // add network statistics table
     let statsDiv = document.getElementById('network-statistics-wrapper');
-    let foreignObjStats = d3__WEBPACK_IMPORTED_MODULE_4__.select(network).append("svg:foreignObject").attr("x", statsDiv.offsetLeft).attr("y", statsDiv.offsetTop - 60).attr("width", statsDiv.offsetWidth).attr("height", statsDiv.offsetHeight);
+    let foreignObjStats = d3__WEBPACK_IMPORTED_MODULE_4__.select(network).append("svg:foreignObject").attr("x", statsDiv.offsetLeft).attr("y", statsDiv.offsetTop - 10).attr("width", statsDiv.offsetWidth).attr("height", statsDiv.offsetHeight);
     foreignObjStats.append("xhtml:body").html(statsDiv.innerHTML);
-    console.log('file type: ', filetype);
     if (filetype == 'svg') {
       let content = this.visuals.twoD.commonService.unparseSVG(network);
       let blob = new Blob([content], {
@@ -10514,10 +10522,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }
     } else {
       (0,save_svg_as_png__WEBPACK_IMPORTED_MODULE_11__.saveSvgAsPng)(network, filename + '.' + filetype, {
-        scale: parseFloat($('#network-export-scale').val()),
-        backgroundColor: this.visuals.twoD.commonService.session.style.widgets['background-color'],
+        scale: this.SelectedNetworkExportScaleVariable,
+        backgroundColor: this.widgets['background-color'],
         encoderType: 'image/' + filetype,
-        encoderOptions: parseFloat($('#network-export-quality').val())
+        encoderOptions: this.SelectedNetworkExportQualityVariable
       }).then(() => {
         if (watermark) {
           watermark.remove();
@@ -10543,8 +10551,8 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     const start = Date.now();
     let newNodes = this.visuals.twoD.commonService.getVisibleNodes(true);
     let oldNodes;
-    if (this.visuals.twoD.commonService.session.style.widgets["timeline-date-field"] != 'None') oldNodes = this.visuals.twoD.commonService.session.network.timelineNodes;else oldNodes = this.visuals.twoD.commonService.session.network.nodes;
-    if (newNodes.length === 0 && this.visuals.twoD.commonService.session.style.widgets["timeline-date-field"] == 'None') return;
+    if (this.widgets["timeline-date-field"] != 'None') oldNodes = this.visuals.twoD.commonService.session.network.timelineNodes;else oldNodes = this.visuals.twoD.commonService.session.network.nodes;
+    if (newNodes.length === 0 && this.widgets["timeline-date-field"] == 'None') return;
     newNodes.forEach((d, i) => {
       let match = oldNodes.find(d2 => {
         if (!d2.id) {
@@ -10579,16 +10587,16 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.visuals.twoD.redrawNodeBorder();
     this.visuals.twoD.updateNodeColors();
     let vlinks = this.visuals.twoD.getVLinks();
-    let links = this.visuals.twoD.svg.select('g.links').selectAll('line').data(vlinks).join('line').attr('stroke-width', this.visuals.twoD.commonService.session.style.widgets['link-width']).attr('opacity', 1 - this.visuals.twoD.commonService.session.style.widgets['link-opacity']).on('mouseenter', x => this.visuals.twoD.showLinkTooltip(x)).on('mouseout', x => this.visuals.twoD.hideTooltip());
+    let links = this.visuals.twoD.svg.select('g.links').selectAll('line').data(vlinks).join('line').attr('stroke-width', this.widgets['link-width']).attr('opacity', 1 - this.widgets['link-opacity']).on('mouseenter', x => this.visuals.twoD.showLinkTooltip(x)).on('mouseout', x => this.visuals.twoD.hideTooltip());
     this.visuals.twoD.updateLinkColor();
     this.visuals.twoD.scaleLinkWidth();
-    let linklabels = this.visuals.twoD.svg.select('g.links').selectAll('text').data(vlinks).join('text').attr('text-anchor', 'middle').attr('dy', this.visuals.twoD.commonService.session.style.widgets['link-width'] + 2).text(l => {
-      const labelValue = l[this.visuals.twoD.commonService.session.style.widgets['link-label-variable']];
+    let linklabels = this.visuals.twoD.svg.select('g.links').selectAll('text').data(vlinks).join('text').attr('text-anchor', 'middle').attr('dy', this.widgets['link-width'] + 2).text(l => {
+      const labelValue = l[this.widgets['link-label-variable']];
       if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
-        if (this.visuals.twoD.commonService.session.style.widgets['default-distance-metric'] == 'snps') {
+        if (this.widgets['default-distance-metric'] == 'snps') {
           return Math.round(parseFloat(labelValue));
         } else {
-          return parseFloat(labelValue).toFixed(this.visuals.twoD.commonService.session.style.widgets['link-label-decimal-length']);
+          return parseFloat(labelValue).toFixed(this.widgets['link-label-decimal-length']);
         }
       } else {
         return labelValue;
@@ -10600,15 +10608,15 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         return ew;
       });
       links.attr('x1', l => l.source.x).attr('y1', l => l.source.y).attr('x2', l => l.target.x).attr('y2', l => l.target.y);
-      if (this.visuals.twoD.commonService.session.style.widgets['link-label-variable'] !== 'None') {
+      if (this.widgets['link-label-variable'] !== 'None') {
         linklabels.attr('x', l => (l.source.x + l.target.x) / 2).attr('y', l => (l.source.y + l.target.y) / 2).attr('transform', l => 'rotate(' + this.visuals.twoD.calcAngle(l.source, l.target) + ' ' + (l.source.x + l.target.x) / 2 + ' ' + (l.source.y + l.target.y) / 2 + ')');
       }
     };
-    let foci = this.visuals.twoD.commonService.session.style.widgets['polygons-foci'];
-    let gather = this.visuals.twoD.commonService.session.style.widgets['polygons-gather-force'];
-    let fill = this.visuals.twoD.commonService.session.style.widgets['polygon-color'];
+    let foci = this.widgets['polygons-foci'];
+    let gather = this.widgets['polygons-gather-force'];
+    let fill = this.widgets['polygon-color'];
     var opacity;
-    if (this.visuals.twoD.commonService.session.style.widgets['polygons-color-show']) {
+    if (this.widgets['polygons-color-show']) {
       fill = d => this.visuals.twoD.commonService.temp.style.polygonColorMap(d.key);
       opacity = d => this.visuals.twoD.commonService.temp.style.polygonAlphaMap(d.key);
     } else {
@@ -10653,14 +10661,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       });
       nodes.attr('transform', d => `translate(${d.x}, ${d.y})`);
       links.attr('x1', l => l.source.x).attr('y1', l => l.source.y).attr('x2', l => l.target.x).attr('y2', l => l.target.y);
-      if (this.visuals.twoD.commonService.session.style.widgets['link-label-variable'] !== 'None') {
+      if (this.widgets['link-label-variable'] !== 'None') {
         linklabels.attr('x', l => (l.source.x + l.target.x) / 2).attr('y', l => (l.source.y + l.target.y) / 2).attr('transform', l => 'rotate(' + this.calcAngle(l.source, l.target) + ' ' + (l.source.x + l.target.x) / 2 + ' ' + (l.source.y + l.target.y) / 2 + ')');
       }
       d3__WEBPACK_IMPORTED_MODULE_4__.select('#network g.clusters').selectAll('path').data(groups).attr("d", groupPath).enter().insert("path", "circle").style("fill", fill).style("stroke", fill).style("stroke-width", 40).style("stroke-linejoin", "round").style("opacity", opacity).attr("d", groupPath);
       d3__WEBPACK_IMPORTED_MODULE_4__.select('#network g.clusters').selectAll('path').call(d3__WEBPACK_IMPORTED_MODULE_4__.drag() //A bunch of mouse handlers.
       .on('start', x => this.visuals.twoD.polygonDragStarted(x)).on('drag', x => this.visuals.twoD.polygonDragged(x)).on('end', x => this.visuals.twoD.polygonDragEnded(x)));
       // (x) => this.visuals.twoD.dragstarted(x)
-      if (this.visuals.twoD.commonService.session.style.widgets['polygons-label-show']) {
+      if (this.widgets['polygons-label-show']) {
         let g = d3__WEBPACK_IMPORTED_MODULE_4__.select('#network g.clustersLabels').text("").selectAll('text').data(groups).enter().append("text").attr('transform', function (d) {
           return "translate(" + d3__WEBPACK_IMPORTED_MODULE_4__.polygonCentroid(polygonTextCord(d)) + ")";
         }).text(d => this.visuals.twoD.commonService.titleize("" + d.key));
@@ -10668,13 +10676,13 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         this.redrawPolygonLabels();
       }
     };
-    if (this.visuals.twoD.commonService.session.style.widgets['polygons-show']) this.visuals.twoD.commonService.temp.polygonGroups = groups;else delete this.visuals.twoD.commonService.temp.polygonGroups;
+    if (this.widgets['polygons-show']) this.visuals.twoD.commonService.temp.polygonGroups = groups;else delete this.visuals.twoD.commonService.temp.polygonGroups;
     let handleTick = d => {
       if (d) {
         return polygonsTick;
       } else return layoutTick;
     };
-    this.visuals.twoD.force.nodes(this.visuals.twoD.commonService.session.network.nodes).on('tick', handleTick(this.visuals.twoD.commonService.session.style.widgets['polygons-show']));
+    this.visuals.twoD.force.nodes(this.visuals.twoD.commonService.session.network.nodes).on('tick', handleTick(this.widgets['polygons-show']));
     this.visuals.twoD.force.force('link').links(vlinks);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
     $('#node-symbol-variable').trigger('change');
@@ -10696,30 +10704,30 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   updatePolygonColors() {
     let polygonSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
-      this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts-sort"] = "";
-      if (this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-name-sort"] === "ASC") this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-name-sort"] = "DESC";else this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-name-sort"] = "ASC";
+      this.widgets["polygon-color-table-counts-sort"] = "";
+      if (this.widgets["polygon-color-table-name-sort"] === "ASC") this.widgets["polygon-color-table-name-sort"] = "DESC";else this.widgets["polygon-color-table-name-sort"] = "ASC";
       this.visuals.twoD.updatePolygonColors();
     });
-    let polygonColorHeaderTitle = this.visuals.twoD.commonService.session.style['overwrite'] && this.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderVariable'] && this.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderVariable'] == this.visuals.twoD.commonService.session.style.widgets['polygons-foci'] ? this.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderTitle'] : "Polygon " + this.visuals.twoD.commonService.titleize(this.visuals.twoD.commonService.session.style.widgets['polygons-foci']);
+    let polygonColorHeaderTitle = this.visuals.twoD.commonService.session.style['overwrite'] && this.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderVariable'] && this.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderVariable'] == this.widgets['polygons-foci'] ? this.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderTitle'] : "Polygon " + this.visuals.twoD.commonService.titleize(this.widgets['polygons-foci']);
     let polygonHeader = $("<th class='p-1' contenteditable>" + polygonColorHeaderTitle + "</th>").append(polygonSort);
     let countSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
-      this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-name-sort"] = "";
-      if (this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts-sort"] === "ASC") this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts-sort"] = "DESC";else this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts-sort"] = "ASC";
+      this.widgets["polygon-color-table-name-sort"] = "";
+      if (this.widgets["polygon-color-table-counts-sort"] === "ASC") this.widgets["polygon-color-table-counts-sort"] = "DESC";else this.widgets["polygon-color-table-counts-sort"] = "ASC";
       this.visuals.twoD.updatePolygonColors();
     });
-    let countHeader = $(this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts"] ? "<th>Count</th>" : "").append(countSort);
-    let polygonColorTable = $("#polygon-color-table").empty().append($("<tr></tr>")).append(polygonHeader).append(countHeader).append(this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : "").append("<th>Color</th>");
+    let countHeader = $(this.widgets["polygon-color-table-counts"] ? "<th>Count</th>" : "").append(countSort);
+    let polygonColorTable = $("#polygon-color-table").empty().append($("<tr></tr>")).append(polygonHeader).append(countHeader).append(this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : "").append("<th>Color</th>");
     if (!this.visuals.twoD.commonService.session.style['polygonValueNames']) this.visuals.twoD.commonService.session.style['polygonValueNames'] = {};
     let aggregates = this.visuals.twoD.commonService.createPolygonColorMap();
     let values = Object.keys(aggregates);
-    if (this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts-sort"] == "ASC") values.sort(function (a, b) {
+    if (this.widgets["polygon-color-table-counts-sort"] == "ASC") values.sort(function (a, b) {
       return aggregates[a] - aggregates[b];
-    });else if (this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts-sort"] == "DESC") values.sort(function (a, b) {
+    });else if (this.widgets["polygon-color-table-counts-sort"] == "DESC") values.sort(function (a, b) {
       return aggregates[b] - aggregates[a];
     });
-    if (this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-name-sort"] == "ASC") values.sort(function (a, b) {
+    if (this.widgets["polygon-color-table-name-sort"] == "ASC") values.sort(function (a, b) {
       return a - b;
-    });else if (this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-name-sort"] == "DESC") values.sort(function (a, b) {
+    });else if (this.widgets["polygon-color-table-name-sort"] == "DESC") values.sort(function (a, b) {
       return b - a;
     });
     let total = 0;
@@ -10747,7 +10755,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         });
       });
       let cell = $("<td></td>").append(colorinput).append(alphainput);
-      let row = $("<tr>" + "<td data-value='" + value + "'>" + (that.visuals.twoD.commonService.session.style['polygonValueNames'][value] ? that.visuals.twoD.commonService.session.style['polygonValueNames'][value] : that.visuals.twoD.commonService.titleize("" + value)) + "</td>" + (that.visuals.twoD.commonService.session.style.widgets["polygon-color-table-counts"] ? "<td>" + aggregates[value] + "</td>" : "") + (that.visuals.twoD.commonService.session.style.widgets["polygon-color-table-frequencies"] ? "<td>" + (aggregates[value] / total).toLocaleString() + "</td>" : "") + "</tr>").append(cell);
+      let row = $("<tr>" + "<td data-value='" + value + "'>" + (that.visuals.twoD.commonService.session.style['polygonValueNames'][value] ? that.visuals.twoD.commonService.session.style['polygonValueNames'][value] : that.visuals.twoD.commonService.titleize("" + value)) + "</td>" + (that.widgets["polygon-color-table-counts"] ? "<td>" + aggregates[value] + "</td>" : "") + (that.widgets["polygon-color-table-frequencies"] ? "<td>" + (aggregates[value] / total).toLocaleString() + "</td>" : "") + "</tr>").append(cell);
       polygonColorTable.append(row);
     });
     this.visuals.twoD.commonService.temp.style.polygonColorMap = d3__WEBPACK_IMPORTED_MODULE_4__.scaleOrdinal(this.visuals.twoD.commonService.session.style['polygonColors']).domain(values);
@@ -10760,7 +10768,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       that.visuals.twoD.commonService.session.style['polygonValueNames'][$this.data("value")] = $this.text();
     });
     polygonColorTable.find(".p-1").on("focusout", function () {
-      that.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderVariable'] = that.visuals.twoD.commonService.session.style.widgets["polygons-foci"];
+      that.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderVariable'] = that.widgets["polygons-foci"];
       that.visuals.twoD.commonService.session.style['overwrite']['polygonColorHeaderTitle'] = $($(this).contents()[0]).text();
     });
     let isAscending = true; // add this line before the click event handler
@@ -10791,14 +10799,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.visuals.twoD.render();
   }
   polygonsToggle(e) {
-    this.visuals.twoD.commonService.session.style.widgets['polygons-show'] = e;
+    this.widgets['polygons-show'] = e;
     if (e) {
-      if (this.visuals.twoD.commonService.session.style.widgets['polygons-color-show'] == true) {
+      if (this.widgets['polygons-color-show'] == true) {
         $('#polygons-color-show').click();
       } else {
         $('#polygons-color-hide').click();
       }
-      if (this.visuals.twoD.commonService.session.style.widgets['polygons-label-show'] == true) {
+      if (this.widgets['polygons-label-show'] == true) {
         $('#polygons-label-show').click();
       } else {
         $('#polygons-label-hide').click();
@@ -10815,7 +10823,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   polygonColorsToggle(e) {
     if (e) {
-      this.visuals.twoD.commonService.session.style.widgets['polygons-color-show'] = true;
+      this.widgets['polygons-color-show'] = true;
       $("#polygon-color-value-row").slideUp();
       $("#polygon-color-table-row").slideDown();
       this.visuals.twoD.PolygonColorTableWrapperDialogSettings.setVisibility(true);
@@ -10824,7 +10832,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         this.visuals.twoD.updatePolygonColors();
       }, 200);
     } else {
-      this.visuals.twoD.commonService.session.style.widgets['polygons-color-show'] = false;
+      this.widgets['polygons-color-show'] = false;
       $("#polygon-color-value-row").slideDown();
       $("#polygon-color-table-row").slideUp();
       $("#polygon-color-table").empty();
@@ -10833,7 +10841,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.visuals.twoD.render();
   }
   onPolygonColorChanged(e) {
-    this.visuals.twoD.commonService.session.style.widgets["polygon-color"] = e;
+    this.widgets["polygon-color"] = e;
     this.visuals.twoD.render();
   }
   polygonColorsTableToggle(e) {
@@ -10849,8 +10857,8 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   redrawPolygonLabels() {
     let nodes = d3__WEBPACK_IMPORTED_MODULE_4__.select('#network g.clustersLabels').selectAll('text');
-    let size = this.visuals.twoD.commonService.session.style.widgets['polygons-label-size'],
-      orientation = this.visuals.twoD.commonService.session.style.widgets['polygons-label-orientation'];
+    let size = this.widgets['polygons-label-size'],
+      orientation = this.widgets['polygons-label-orientation'];
     nodes.style('font-size', size + 'px');
     switch (orientation) {
       case 'Left':
@@ -11002,7 +11010,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         d.fy = null;
       } else {
         // save node location back to temp network for pinned network
-        if (that.visuals.twoD.commonService.session.style.widgets["timeline-date-field"] != 'None') {
+        if (that.widgets["timeline-date-field"] != 'None') {
           let node = that.visuals.twoD.commonService.session.network.timelineNodes.find(d2 => d2._id == d._id);
           if (node) {
             node.x = d.x;
@@ -11089,10 +11097,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     });
   }
   showNodeTooltip(d) {
-    if (this.visuals.twoD.commonService.session.style.widgets['node-highlight']) this.visuals.twoD.highlightNeighbors(d);
+    if (this.widgets['node-highlight']) this.visuals.twoD.highlightNeighbors(d);
     // If no tooltip variable is selected, we shouldn't show a tooltip
-    if (this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'].length > 0 && this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'][0] == 'None') return;
-    this.visuals.twoD.SelectedNodeTooltipVariable = this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'];
+    if (this.widgets['node-tooltip-variable'].length > 0 && this.widgets['node-tooltip-variable'][0] == 'None') return;
+    this.visuals.twoD.SelectedNodeTooltipVariable = this.widgets['node-tooltip-variable'];
     // Tooltip variables can be a single string or an array
     let tooltipVariables = this.visuals.twoD.SelectedNodeTooltipVariable;
     if (!Array.isArray(tooltipVariables)) {
@@ -11197,9 +11205,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     d3__WEBPACK_IMPORTED_MODULE_4__.select('#tooltip').html(tooltipHtml).style('left', d3__WEBPACK_IMPORTED_MODULE_4__.event.pageX + 'px').style('top', d3__WEBPACK_IMPORTED_MODULE_4__.event.pageY - 120 + 'px').style('z-index', 1000).transition().duration(100).style('opacity', 1);
   }
   hideTooltip() {
-    if (this.visuals.twoD.commonService.session.style.widgets['node-highlight']) {
+    if (this.widgets['node-highlight']) {
       this.visuals.twoD.svg.select('g.nodes').selectAll('g').selectAll('path').attr('opacity', 1);
-      let linkOpacity = 1 - this.visuals.twoD.commonService.session.style.widgets['link-opacity'];
+      let linkOpacity = 1 - this.widgets['link-opacity'];
       this.visuals.twoD.svg.select('g.links').selectAll('line').attr('opacity', linkOpacity);
     }
     let tooltip = d3__WEBPACK_IMPORTED_MODULE_4__.select('#tooltip');
@@ -11211,24 +11219,24 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   redrawNodes() {
     //Things to track in the function:
     //* Shapes:
-    let type = d3__WEBPACK_IMPORTED_MODULE_4__[this.visuals.twoD.commonService.session.style.widgets['node-symbol']];
-    let symbolVariable = this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'];
+    let type = d3__WEBPACK_IMPORTED_MODULE_4__[this.widgets['node-symbol']];
+    let symbolVariable = this.widgets['node-symbol-variable'];
     // Custom Shape Selected
     if (type === undefined) {
-      type = this.customShapes.shapes[this.visuals.twoD.commonService.session.style.widgets['node-symbol']];
+      type = this.customShapes.shapes[this.widgets['node-symbol']];
     }
     //* Sizes:
-    let defaultSize = this.visuals.twoD.commonService.session.style.widgets['node-radius'];
+    let defaultSize = this.widgets['node-radius'];
     let size = defaultSize,
       med = defaultSize,
       oldrng,
       min,
       max;
-    let sizeVariable = this.visuals.twoD.commonService.session.style.widgets['node-radius-variable'];
+    let sizeVariable = this.widgets['node-radius-variable'];
     let scale;
     let nodes;
     if (sizeVariable !== 'None') {
-      if (this.visuals.twoD.commonService.session.style.widgets["timeline-date-field"] == 'None') nodes = this.visuals.twoD.commonService.session.network.nodes;else nodes = this.visuals.twoD.commonService.session.network.timelineNodes;
+      if (this.widgets["timeline-date-field"] == 'None') nodes = this.visuals.twoD.commonService.session.network.nodes;else nodes = this.visuals.twoD.commonService.session.network.timelineNodes;
       let n = this.visuals.twoD.commonService.session.network.nodes.length;
       min = Number.MAX_VALUE;
       max = Number.MIN_VALUE;
@@ -11240,8 +11248,8 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }
       oldrng = max - min;
       med = oldrng / 2;
-      let maxWidth = this.visuals.twoD.commonService.session.style.widgets['node-radius-max'];
-      let minWidth = this.visuals.twoD.commonService.session.style.widgets['node-radius-min'];
+      let maxWidth = this.widgets['node-radius-max'];
+      let minWidth = this.widgets['node-radius-min'];
       scale = d3__WEBPACK_IMPORTED_MODULE_4__.scaleLinear().domain([min, max]).range([minWidth, maxWidth]);
     }
     nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(this.visuals.twoD.commonService.session.network.nodes);
@@ -11268,16 +11276,16 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   redrawNodeBorder() {
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(this.visuals.twoD.commonService.session.network.nodes);
-    nodes.selectAll('path').style('stroke', 'black').style('stroke-width', this.visuals.twoD.commonService.session.style.widgets['node-border-width']);
+    nodes.selectAll('path').style('stroke', 'black').style('stroke-width', this.widgets['node-border-width']);
   }
   redrawLabels() {
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(this.visuals.twoD.commonService.session.network.nodes).select('text'),
-      labelVar = this.visuals.twoD.commonService.session.style.widgets['node-label-variable'];
+      labelVar = this.widgets['node-label-variable'];
     if (labelVar == 'None') {
       nodes.text('');
     } else {
-      let size = this.visuals.twoD.commonService.session.style.widgets['node-label-size'],
-        orientation = this.visuals.twoD.commonService.session.style.widgets['node-label-orientation'];
+      let size = this.widgets['node-label-size'],
+        orientation = this.widgets['node-label-orientation'];
       nodes.text(n => n[labelVar]).style('font-size', size + 'px');
       switch (orientation) {
         case 'Left':
@@ -11300,7 +11308,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   //Polygon Events
   onPolygonLabelVariableChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['polygons-label-variable'] = e;
+    this.widgets['polygons-label-variable'] = e;
     if (e == 'None') {
       $('.polygon-label-row').slideUp();
     } else {
@@ -11309,9 +11317,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.redrawPolygonLabels();
   }
   centerPolygons(e) {
-    this.visuals.twoD.commonService.session.style.widgets['polygons-foci'] = e;
+    this.widgets['polygons-foci'] = e;
     this.visuals.twoD.render();
-    if (this.visuals.twoD.commonService.session.style.widgets['polygons-color-show'] == true) {
+    if (this.widgets['polygons-color-show'] == true) {
       $("#polygon-color-table").empty();
       this.visuals.twoD.updatePolygonColors();
     }
@@ -11324,35 +11332,35 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
   }
   setPolygonLabelSize(size) {
-    this.visuals.twoD.commonService.session.style.widgets['polygons-label-size'] = parseFloat(size);
+    this.widgets['polygons-label-size'] = parseFloat(size);
     this.visuals.twoD.redrawPolygonLabels();
   }
   onPolygonLabelSizeChange(e) {
     this.setPolygonLabelSize(e);
   }
   onPolygonLabelOrientationChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['polygons-label-orientation'] = e;
+    this.widgets['polygons-label-orientation'] = e;
     this.visuals.twoD.redrawPolygonLabels();
   }
   onPolygonGatherChange(e) {
     let v = parseFloat(e);
-    this.visuals.twoD.commonService.session.style.widgets['polygons-gather-force'] = v;
+    this.widgets['polygons-gather-force'] = v;
     this.visuals.twoD.render();
   }
   onPolygonLabelShowChange(e) {
     if (e) {
-      this.visuals.twoD.commonService.session.style.widgets['polygons-label-show'] = true;
+      this.widgets['polygons-label-show'] = true;
       $('.polygons-label-row').slideDown();
       this.visuals.twoD.render();
     } else {
-      this.visuals.twoD.commonService.session.style.widgets['polygons-label-show'] = false;
+      this.widgets['polygons-label-show'] = false;
       $('.polygons-label-row').slideUp();
       this.visuals.twoD.render();
     }
   }
   onPolygonShowChange(e) {
     if (e == "Show") {
-      this.visuals.twoD.commonService.session.style.widgets['polygons-label-show'] = true;
+      this.widgets['polygons-label-show'] = true;
       $('.polygons-label-row').slideDown();
       this.visuals.twoD.render();
       //If hidden by default, unhide to perform slide up and down
@@ -11362,7 +11370,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       //     $('#node-color-table-row').slideDown();
       // }
     } else {
-      this.visuals.twoD.commonService.session.style.widgets['polygons-label-show'] = false;
+      this.widgets['polygons-label-show'] = false;
       $('#node-color-value-row').slideDown();
       $('#node-color-table-row').slideUp();
       this.visuals.twoD.render();
@@ -11370,7 +11378,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   onPolygonColorTableChange(e) {
     this.SelectedNetworkTableTypeVariable = e;
-    this.visuals.twoD.commonService.session.style.widgets["polygon-color-table-visible"] = e;
+    this.widgets["polygon-color-table-visible"] = e;
     if (this.SelectedNetworkTableTypeVariable == 'Show') {
       this.PolygonColorTableWrapperDialogSettings.setVisibility(true);
     } else {
@@ -11381,7 +11389,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       Node Events
   /*/
   onNodeLabelVaribleChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-label-variable'] = e;
+    this.widgets['node-label-variable'] = e;
     if (e == 'None') {
       $('.node-label-row').slideUp();
     } else {
@@ -11393,11 +11401,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.setNodeLabelSize(e.target.value);
   }
   setNodeLabelSize(size) {
-    this.visuals.twoD.commonService.session.style.widgets['node-label-size'] = parseFloat(size);
+    this.widgets['node-label-size'] = parseFloat(size);
     this.visuals.twoD.redrawLabels();
   }
   onNodeLabelOrientationChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-label-orientation'] = e;
+    this.widgets['node-label-orientation'] = e;
     this.visuals.twoD.redrawLabels();
   }
   onNodeTooltipVariableChange(e) {
@@ -11405,11 +11413,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     if (!Array.isArray(selectedValue)) {
       selectedValue = [selectedValue];
     }
-    this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'] = selectedValue;
+    this.widgets['node-tooltip-variable'] = selectedValue;
     this.visuals.twoD.redrawLabels();
   }
   onNodeSymbolVariableChange(e, setVisibility = true) {
-    this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
+    this.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
     if (setVisibility) {
       this.visuals.twoD.NodeSymbolTableWrapperDialogSettings.setVisibility(true);
       this.visuals.twoD.SelectedNetworkTableTypeVariable = "Show";
@@ -11492,7 +11500,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }];
     let table = $(tableId);
     const disabled = isEditable ? '' : 'disabled';
-    this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'] = variable;
+    this.widgets['node-symbol-variable'] = variable;
     if (variable === 'None' && !isEditable) return;
     let values = [];
     let aggregates = {};
@@ -11519,7 +11527,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }
       this.visuals.twoD.commonService.session.style.nodeSymbols = symbols;
     }
-    table.empty().append("<tr>" + `<th class="${isEditable ? 'table-header-row' : ''}" ${isEditable ? 'contenteditable' : ''}><div class="header-content sortable">Node ${this.commonService.titleize(variable)}<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` + (this.visuals.twoD.commonService.session.style.widgets['node-symbol-table-counts'] ? `<th class="table-header-row"><div class="header-content sortable">Count<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` : '') + (this.visuals.twoD.commonService.session.style.widgets['node-symbol-table-frequencies'] ? `<th class="table-header-row"><div class="header-content sortable">Frequency<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` : '') + '<th>Shape</th>' + '</tr>');
+    table.empty().append("<tr>" + `<th class="${isEditable ? 'table-header-row' : ''}" ${isEditable ? 'contenteditable' : ''}><div class="header-content sortable">Node ${this.commonService.titleize(variable)}<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` + (this.widgets['node-symbol-table-counts'] ? `<th class="table-header-row"><div class="header-content sortable">Count<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` : '') + (this.widgets['node-symbol-table-frequencies'] ? `<th class="table-header-row"><div class="header-content sortable">Frequency<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` : '') + '<th>Shape</th>' + '</tr>');
     let options = $('#node-symbol2').html();
     values.sort((a, b) => {
       return aggregates[b] - aggregates[a];
@@ -11533,7 +11541,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       });
       let symbolText = symbolMapping.find(x => x.key === this.visuals.twoD.commonService.temp.style.nodeSymbolMap(v));
       let cell = $('<td></td>').append(isEditable ? selector : symbolText ? symbolText.value : '');
-      let row = $('<tr>' + `<td ${isEditable ? 'contenteditable' : ''}> ${this.visuals.twoD.commonService.titleize('' + v)} </td> ` + (this.visuals.twoD.commonService.session.style.widgets['node-symbol-table-counts'] ? '<td>' + aggregates[v] + '</td>' : '') + (this.visuals.twoD.commonService.session.style.widgets['node-symbol-table-frequencies'] ? '<td>' + (aggregates[v] / vnodes).toLocaleString() + '</td>' : '') + '</tr>').append(cell);
+      let row = $('<tr>' + `<td ${isEditable ? 'contenteditable' : ''}> ${this.visuals.twoD.commonService.titleize('' + v)} </td> ` + (this.widgets['node-symbol-table-counts'] ? '<td>' + aggregates[v] + '</td>' : '') + (this.widgets['node-symbol-table-frequencies'] ? '<td>' + (aggregates[v] / vnodes).toLocaleString() + '</td>' : '') + '</tr>').append(cell);
       table.append(row);
     });
     let isAscending = true; // add this line before the click event handler
@@ -11571,32 +11579,32 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       $('#node-min-radius-row').css('display', 'flex');
       $('#node-radius-row').slideUp();
     }
-    this.visuals.twoD.commonService.session.style.widgets['node-radius-variable'] = e;
+    this.widgets['node-radius-variable'] = e;
     this.visuals.twoD.redrawNodes();
   }
   onNodeRadiusMaxChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-radius-max'] = e;
+    this.widgets['node-radius-max'] = e;
     this.visuals.twoD.redrawNodes();
   }
   onNodeRadiusMinChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-radius-min'] = e;
+    this.widgets['node-radius-min'] = e;
     this.visuals.twoD.redrawNodes();
   }
   onNodeBorderWidthChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-border-width'] = e;
+    this.widgets['node-border-width'] = e;
     this.visuals.twoD.redrawNodeBorder();
   }
   onNodeRadiusChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-radius'] = e;
+    this.widgets['node-radius'] = e;
     this.visuals.twoD.redrawNodes();
   }
   onNodeSymbolChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['node-symbol'] = e;
+    this.widgets['node-symbol'] = e;
     this.visuals.twoD.redrawNodes();
   }
   onNodeSymbolTableChange(e) {
     this.SelectedNetworkTableTypeVariable = e;
-    this.visuals.twoD.commonService.session.style.widgets["node-symbol-table-visible"] = this.SelectedNetworkTableTypeVariable;
+    this.widgets["node-symbol-table-visible"] = this.SelectedNetworkTableTypeVariable;
     if (this.SelectedNetworkTableTypeVariable == "Show") {
       this.NodeSymbolTableWrapperDialogSettings.setVisibility(true);
     } else {
@@ -11608,25 +11616,25 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     if (!Array.isArray(selectedValue)) {
       selectedValue = [selectedValue];
     }
-    this.visuals.twoD.commonService.session.style.widgets['link-tooltip-variable'] = e;
-    this.visuals.twoD.SelectedLinkTooltipVariable = this.visuals.twoD.commonService.session.style.widgets['link-tooltip-variable'];
+    this.widgets['link-tooltip-variable'] = e;
+    this.visuals.twoD.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
     this.visuals.twoD.redrawLabels();
     //TODO: umm.... do something here?
   }
 
   onLinkLabelVariableChange(e) {
     let label = e;
-    this.visuals.twoD.commonService.session.style.widgets['link-label-variable'] = label;
+    this.widgets['link-label-variable'] = label;
     if (label == 'None') {
       this.visuals.twoD.svg.select('g.links').selectAll('text').text('');
     } else {
       this.visuals.twoD.svg.select('g.links').selectAll('text').data(this.visuals.twoD.getLLinks()).text(l => {
-        const labelValue = l[this.visuals.twoD.commonService.session.style.widgets['link-label-variable']];
+        const labelValue = l[this.widgets['link-label-variable']];
         if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
-          if (this.visuals.twoD.commonService.session.style.widgets['default-distance-metric'] == 'snps') {
+          if (this.widgets['default-distance-metric'] == 'snps') {
             return Math.round(parseFloat(labelValue));
           } else {
-            return parseFloat(labelValue).toFixed(this.visuals.twoD.commonService.session.style.widgets['link-label-decimal-length']);
+            return parseFloat(labelValue).toFixed(this.widgets['link-label-decimal-length']);
           }
         } else {
           return labelValue;
@@ -11636,18 +11644,18 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
   }
   onLinkDecimalVariableChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['link-label-decimal-length'] = e;
+    this.widgets['link-label-decimal-length'] = e;
     this.visuals.twoD.svg.select('g.links').selectAll('text').data(this.getLLinks()).text(l => {
-      const labelValue = l[this.visuals.twoD.commonService.session.style.widgets['link-label-variable']];
+      const labelValue = l[this.widgets['link-label-variable']];
       if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
-        return parseFloat(labelValue).toFixed(this.visuals.twoD.commonService.session.style.widgets['link-label-decimal-length']);
+        return parseFloat(labelValue).toFixed(this.widgets['link-label-decimal-length']);
       } else {
         return labelValue;
       }
     });
   }
   onLinkOpacityChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['link-opacity'] = e;
+    this.widgets['link-opacity'] = e;
     let opacity = 1 - e;
     this.visuals.twoD.svg.select('g.links').selectAll('line').attr('opacity', opacity);
   }
@@ -11661,50 +11669,50 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       $('#link-max-width-row').css('display', 'flex');
       $('#link-min-width-row').css('display', 'flex');
     }
-    this.visuals.twoD.commonService.session.style.widgets['link-width-variable'] = e;
+    this.widgets['link-width-variable'] = e;
     this.visuals.twoD.scaleLinkWidth();
   }
   onLinkWidthReciprocalNonReciprocalChange(e) {
     if (e == "Reciprocal") {
-      this.visuals.twoD.commonService.session.style.widgets['link-width-reciprocal'] = true;
+      this.widgets['link-width-reciprocal'] = true;
       this.visuals.twoD.scaleLinkWidth();
     } else {
-      this.visuals.twoD.commonService.session.style.widgets['link-width-reciprocal'] = false;
+      this.widgets['link-width-reciprocal'] = false;
       this.visuals.twoD.scaleLinkWidth();
     }
   }
   onLinkWidthChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['link-width'] = e;
+    this.widgets['link-width'] = e;
     this.visuals.twoD.scaleLinkWidth();
   }
   onLinkWidthMaxChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['link-width-max'] = e;
+    this.widgets['link-width-max'] = e;
     this.visuals.twoD.scaleLinkWidth();
     console.log('scaling width');
   }
   onLinkWidthMinChange(e) {
-    this.visuals.twoD.commonService.session.style.widgets['link-width-min'] = e;
+    this.widgets['link-width-min'] = e;
     this.visuals.twoD.scaleLinkWidth();
   }
   onLinkLengthChange(e) {
     this.visuals.twoD.force.force('link').distance(e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
-    this.visuals.twoD.commonService.session.style.widgets['link-length'] = e;
+    this.widgets['link-length'] = e;
   }
   onLinkDirectedUndirectedChange(e) {
     if (e == "Show") {
       this.visuals.twoD.svg.select('g.links').selectAll('line').attr('marker-end', 'url(#end-arrow)');
-      this.visuals.twoD.commonService.session.style.widgets['link-directed'] = true;
+      this.widgets['link-directed'] = true;
     } else {
       this.visuals.twoD.svg.select('g.links').selectAll('line').attr('marker-end', null);
-      this.visuals.twoD.commonService.session.style.widgets['link-directed'] = false;
+      this.widgets['link-directed'] = false;
     }
   }
   onDontHighlightNeighborsHighlightNeighborsChange(e) {
     if (e == "Normal") {
-      this.visuals.twoD.commonService.session.style.widgets['node-highlight'] = false;
+      this.widgets['node-highlight'] = false;
     } else {
-      this.visuals.twoD.commonService.session.style.widgets['node-highlight'] = true;
+      this.widgets['node-highlight'] = true;
     }
   }
   drawGridlines(show) {
@@ -11746,34 +11754,34 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   onNetworkGridlinesShowHideChange(e) {
     console.log('network grid:', e);
     if (e === "Show") {
-      this.visuals.twoD.commonService.session.style.widgets['network-gridlines-show'] = true;
+      this.widgets['network-gridlines-show'] = true;
       this.drawGridlines(true);
     } else {
-      this.visuals.twoD.commonService.session.style.widgets['network-gridlines-show'] = false;
+      this.widgets['network-gridlines-show'] = false;
       this.drawGridlines(false);
     }
   }
   onNodeChargeChange(e) {
     this.visuals.twoD.force.force('charge').strength(-e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
-    this.visuals.twoD.commonService.session.style.widgets['node-charge'] = e;
+    this.widgets['node-charge'] = e;
   }
   onNetworkGravityChange(e) {
     this.visuals.twoD.force.force('gravity').strength(e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
-    this.visuals.twoD.commonService.session.style.widgets['network-gravity'] = e;
+    this.widgets['network-gravity'] = e;
   }
   onNetworkFrictionChange(e) {
     this.visuals.twoD.force.velocityDecay(e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
-    this.visuals.twoD.commonService.session.style.widgets['network-friction'] = e;
+    this.widgets['network-friction'] = e;
   }
   onNetworkLinkStrengthVariableChange(e) {
     console.log('st change: ', e);
     let v = parseFloat(e);
     this.visuals.twoD.force.force('link').strength(v);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
-    this.visuals.twoD.commonService.session.style.widgets['network-link-strength'] = e;
+    this.widgets['network-link-strength'] = e;
   }
   onNetworkExportFiletypeChange(e) {
     if (e == "svg") {
@@ -11782,11 +11790,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   }
   updateNodeColors() {
     //debugger;
-    let variable = this.visuals.twoD.commonService.session.style.widgets['node-color-variable'];
+    let variable = this.widgets['node-color-variable'];
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').select('path').data(this.visuals.twoD.commonService.session.network.nodes).classed('selected', d => d.selected);
-    let col = this.visuals.twoD.commonService.session.style.widgets['node-color'];
-    let stroke = this.visuals.twoD.commonService.session.style.widgets['selected-node-stroke-color'];
-    let stroke_width = parseInt(this.visuals.twoD.commonService.session.style.widgets['selected-node-stroke-width']);
+    let col = this.widgets['node-color'];
+    let stroke = this.widgets['selected-node-stroke-color'];
+    let stroke_width = parseInt(this.widgets['selected-node-stroke-width']);
     if (variable == 'None') {
       nodes.attr('fill', col).attr('opacity', 1);
       // this.context.microbeTrace.clearTable("#node-color-table-bottom");
@@ -11820,7 +11828,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
              * Otherwise, turn on the node(s) selected.
             /*/
             y.style['stroke'] = "#000000";
-            y.style['strokeWidth'] = this.visuals.twoD.commonService.session.style.widgets['node-border-width'];
+            y.style['strokeWidth'] = this.widgets['node-border-width'];
           }
         });
       });
@@ -11831,18 +11839,18 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
               * Otherwise, turn on the node(s) selected.
           /*/
           y.style['stroke'] = "#000000";
-          y.style['strokeWidth'] = this.visuals.twoD.commonService.session.style.widgets['node-border-width'];
+          y.style['strokeWidth'] = this.widgets['node-border-width'];
         });
       });
     }
   }
   updateLinkColor() {
-    let variable = this.visuals.twoD.commonService.session.style.widgets['link-color-variable'];
+    let variable = this.widgets['link-color-variable'];
     // console.log('updating variable: ',variable );
     let links = this.visuals.twoD.svg.select('g.links').selectAll('line');
     if (variable == 'None') {
-      let color = this.visuals.twoD.commonService.session.style.widgets['link-color'],
-        opacity = 1 - this.visuals.twoD.commonService.session.style.widgets['link-opacity'];
+      let color = this.widgets['link-color'],
+        opacity = 1 - this.widgets['link-opacity'];
       links.attr('stroke', color).attr('opacity', opacity);
       // this.context.microbeTrace.clearTable("#link-color-table-bottom");
     } else {
@@ -11864,14 +11872,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
   }
   scaleLinkWidth() {
-    let scalar = this.visuals.twoD.commonService.session.style.widgets['link-width'];
-    let variable = this.visuals.twoD.commonService.session.style.widgets['link-width-variable'];
+    let scalar = this.widgets['link-width'];
+    let variable = this.widgets['link-width-variable'];
     let vlinks = this.visuals.twoD.getVLinks();
     let links = this.visuals.twoD.svg.select('g.links').selectAll('line').data(vlinks);
     if (variable == 'None') return links.attr('stroke-width', scalar);
     let n = vlinks.length;
-    let maxWidth = this.visuals.twoD.commonService.session.style.widgets['link-width-max'];
-    let minWidth = this.visuals.twoD.commonService.session.style.widgets['link-width-min'];
+    let maxWidth = this.widgets['link-width-max'];
+    let minWidth = this.widgets['link-width-min'];
     let max = -Infinity;
     let min = Infinity;
     for (let i = 0; i < n; i++) {
@@ -11881,7 +11889,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       if (l < min) min = l;
     }
     let mid = (max - min) / 2 + min;
-    let scale = d3__WEBPACK_IMPORTED_MODULE_4__.scaleLinear().domain(this.visuals.twoD.commonService.session.style.widgets['link-width-reciprocal'] ? [max, min] : [min, max]).range([minWidth, maxWidth]);
+    let scale = d3__WEBPACK_IMPORTED_MODULE_4__.scaleLinear().domain(this.widgets['link-width-reciprocal'] ? [max, min] : [min, max]).range([minWidth, maxWidth]);
     links.attr('stroke-width', d => {
       let v = d[variable];
       if (!this.visuals.twoD.isNumber(v)) v = mid;
@@ -11922,6 +11930,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     // this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
     // this.visuals.twoD.NodeSymbolTableWrapperDialogSettings.setStateBeforeExport();
     // this.visuals.twoD.Node2DNetworkExportDialogSettings.setStateBeforeExport();
+    this.setCalculatedResolution();
     this.isExportClosed = false;
     this.visuals.twoD.Show2DExportPane = true;
   }
@@ -11958,7 +11967,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.render();
   }
   ngOnDestroy() {
-    //this.context.twoD.commonService.session.style.widgets['node-label-variable'] = 'None';
+    //this.context.twoD.widgets['node-label-variable'] = 'None';
   }
   onLoadNewData() {
     this.render();
@@ -11969,102 +11978,102 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   loadSettings() {
     //this.context.twoD.zoom = null;
     //Polygons|Label
-    this.SelectedPolygonLabelVariable = this.visuals.twoD.commonService.session.style.widgets['polygons-label-variable'];
+    this.SelectedPolygonLabelVariable = this.widgets['polygons-label-variable'];
     this.onPolygonLabelVariableChange(this.SelectedPolygonLabelVariable);
     //Polygons|Label Size
-    this.SelectedPolygonLabelSizeVariable = this.visuals.twoD.commonService.session.style.widgets['polygons-label-size'];
+    this.SelectedPolygonLabelSizeVariable = this.widgets['polygons-label-size'];
     this.setPolygonLabelSize(this.SelectedPolygonLabelSizeVariable);
     //Node|Orientation
-    this.SelectedPolygonLabelOrientationVariable = this.visuals.twoD.commonService.session.style.widgets['polygons-label-orientation'];
+    this.SelectedPolygonLabelOrientationVariable = this.widgets['polygons-label-orientation'];
     this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
-    this.polygonsToggle(this.visuals.twoD.commonService.session.style.widgets['polygons-show']);
-    if (this.visuals.twoD.commonService.session.style.widgets['polygons-show']) {
+    this.polygonsToggle(this.widgets['polygons-show']);
+    if (this.widgets['polygons-show']) {
       this.visuals.twoD.updatePolygonColors();
-      this.polygonColorsToggle(this.visuals.twoD.commonService.session.style.widgets['polygon-color-table-visible']);
+      this.polygonColorsToggle(this.widgets['polygon-color-table-visible']);
     }
     //Nodes|Label
-    this.SelectedNodeLabelVariable = this.visuals.twoD.commonService.session.style.widgets['node-label-variable'];
+    this.SelectedNodeLabelVariable = this.widgets['node-label-variable'];
     this.onNodeLabelVaribleChange(this.SelectedNodeLabelVariable);
     //Node|Label Size
-    this.SelectedNodeLabelSizeVariable = this.visuals.twoD.commonService.session.style.widgets['node-label-size'];
+    this.SelectedNodeLabelSizeVariable = this.widgets['node-label-size'];
     this.setNodeLabelSize(this.SelectedNodeLabelSizeVariable);
     //Node|Orientation
-    this.SelectedNodeLabelOrientationVariable = this.visuals.twoD.commonService.session.style.widgets['node-label-orientation'];
+    this.SelectedNodeLabelOrientationVariable = this.widgets['node-label-orientation'];
     this.onNodeLabelOrientationChange(this.SelectedNodeLabelOrientationVariable);
     //Nodes|Tooltip
-    if (!Array.isArray(this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'])) {
-      this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'] = [this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable']];
+    if (!Array.isArray(this.widgets['node-tooltip-variable'])) {
+      this.widgets['node-tooltip-variable'] = [this.widgets['node-tooltip-variable']];
     }
-    this.SelectedNodeTooltipVariable = this.visuals.twoD.commonService.session.style.widgets['node-tooltip-variable'];
+    this.SelectedNodeTooltipVariable = this.widgets['node-tooltip-variable'];
     this.onNodeTooltipVariableChange(this.SelectedNodeTooltipVariable);
     //Nodes|Shape By Table
-    this.SelectedNetworkTableTypeVariable = this.visuals.twoD.commonService.session.style.widgets["node-symbol-table-visible"];
+    this.SelectedNetworkTableTypeVariable = this.widgets["node-symbol-table-visible"];
     this.onNodeSymbolTableChange(this.SelectedNetworkTableTypeVariable);
     //Nodes|Shape By
-    this.SelectedNodeSymbolVariable = this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'];
-    this.onNodeSymbolVariableChange(this.visuals.twoD.commonService.session.style.widgets['node-symbol-variable'], this.SelectedNetworkTableTypeVariable === "Show");
+    this.SelectedNodeSymbolVariable = this.widgets['node-symbol-variable'];
+    this.onNodeSymbolVariableChange(this.widgets['node-symbol-variable'], this.SelectedNetworkTableTypeVariable === "Show");
     //Nodes|Shape
-    this.SelectedNodeShapeVariable = this.visuals.twoD.commonService.session.style.widgets['node-symbol'];
+    this.SelectedNodeShapeVariable = this.widgets['node-symbol'];
     this.onNodeSymbolChange(this.SelectedNodeShapeVariable);
     //Nodes|Size By
-    this.SelectedNodeRadiusVariable = this.visuals.twoD.commonService.session.style.widgets['node-radius-variable'];
+    this.SelectedNodeRadiusVariable = this.widgets['node-radius-variable'];
     this.onNodeRadiusVariableChange(this.SelectedNodeRadiusVariable);
     //Nodes|Size
-    this.SelectedNodeRadiusSizeVariable = this.visuals.twoD.commonService.session.style.widgets['node-radius'].toString();
+    this.SelectedNodeRadiusSizeVariable = this.widgets['node-radius'].toString();
     this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
     //Links|Tooltip
-    this.SelectedLinkTooltipVariable = this.visuals.twoD.commonService.session.style.widgets['link-tooltip-variable'];
+    this.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
     this.onLinkTooltipVariableChange(this.SelectedLinkTooltipVariable);
     //Links|Label
-    this.SelectedLinkLabelVariable = this.visuals.twoD.commonService.session.style.widgets['link-label-variable'];
+    this.SelectedLinkLabelVariable = this.widgets['link-label-variable'];
     this.onLinkLabelVariableChange(this.SelectedLinkLabelVariable);
     //Links|Decimal Length
-    this.SelectedLinkDecimalVariable = this.visuals.twoD.commonService.session.style.widgets['link-label-decimal-length'];
+    this.SelectedLinkDecimalVariable = this.widgets['link-label-decimal-length'];
     this.onLinkDecimalVariableChange(this.SelectedLinkDecimalVariable);
     //Links|Transparency
-    this.SelectedLinkTransparencyVariable = this.visuals.twoD.commonService.session.style.widgets['link-opacity'];
+    this.SelectedLinkTransparencyVariable = this.widgets['link-opacity'];
     this.onLinkOpacityChange(this.SelectedLinkTransparencyVariable);
     //Links|Width By
-    this.SelectedLinkWidthByVariable = this.visuals.twoD.commonService.session.style.widgets['link-width-variable'];
+    this.SelectedLinkWidthByVariable = this.widgets['link-width-variable'];
     this.onLinkWidthVariableChange(this.SelectedLinkWidthByVariable);
     //Links|Reciprical
-    this.SelectedLinkReciprocalTypeVariable = this.visuals.twoD.commonService.session.style.widgets['link-width-reciprocal'] ? "Reciprocal" : "Non-Reciprocal";
+    this.SelectedLinkReciprocalTypeVariable = this.widgets['link-width-reciprocal'] ? "Reciprocal" : "Non-Reciprocal";
     this.onLinkWidthReciprocalNonReciprocalChange(this.SelectedLinkReciprocalTypeVariable);
     //Links|Width
-    this.SelectedLinkWidthVariable = this.visuals.twoD.commonService.session.style.widgets['link-width'];
+    this.SelectedLinkWidthVariable = this.widgets['link-width'];
     this.onLinkWidthChange(this.SelectedLinkWidthVariable);
     //Links|Width Max
-    this.SelectedLinkWidthMax = this.visuals.twoD.commonService.session.style.widgets['link-width-max'];
+    this.SelectedLinkWidthMax = this.widgets['link-width-max'];
     this.onLinkWidthMaxChange(this.SelectedLinkWidthByVariable);
     //Links|Width Min
-    this.SelectedLinkWidthMin = this.visuals.twoD.commonService.session.style.widgets['link-width-min'];
+    this.SelectedLinkWidthMin = this.widgets['link-width-min'];
     this.onLinkWidthMinChange(this.SelectedLinkWidthByVariable);
     //Links|Length
-    this.SelectedLinkLengthVariable = this.visuals.twoD.commonService.session.style.widgets['link-length'];
+    this.SelectedLinkLengthVariable = this.widgets['link-length'];
     this.onLinkLengthChange(this.SelectedLinkLengthVariable);
     //Links|Arrows
-    this.SelectedLinkArrowTypeVariable = this.visuals.twoD.commonService.session.style.widgets['link-directed'] ? "Show" : "Hide";
+    this.SelectedLinkArrowTypeVariable = this.widgets['link-directed'] ? "Show" : "Hide";
     this.onLinkDirectedUndirectedChange(this.SelectedLinkArrowTypeVariable);
     //Network|Neighbors
-    this.SelectedNetworkNeighborTypeVariable = this.visuals.twoD.commonService.session.style.widgets['node-highlight'] ? "Highlighted" : "Normal";
+    this.SelectedNetworkNeighborTypeVariable = this.widgets['node-highlight'] ? "Highlighted" : "Normal";
     this.onDontHighlightNeighborsHighlightNeighborsChange(this.SelectedNetworkNeighborTypeVariable);
     //Network|Gridlines
-    this.SelectedNetworkGridLineTypeVariable = this.visuals.twoD.commonService.session.style.widgets['network-gridlines-show'] ? "Show" : "Hide";
+    this.SelectedNetworkGridLineTypeVariable = this.widgets['network-gridlines-show'] ? "Show" : "Hide";
     this.onNetworkGridlinesShowHideChange(this.SelectedNetworkGridLineTypeVariable);
     //Network|Charge
-    this.SelectedNetworkChargeVariable = this.visuals.twoD.commonService.session.style.widgets['node-charge'];
+    this.SelectedNetworkChargeVariable = this.widgets['node-charge'];
     this.onNodeChargeChange(this.SelectedNetworkChargeVariable);
     //Network|Gravity
-    this.SelectedNetworkGravityVariable = this.visuals.twoD.commonService.session.style.widgets['network-gravity'];
+    this.SelectedNetworkGravityVariable = this.widgets['network-gravity'];
     this.onNetworkGravityChange(this.SelectedNetworkGravityVariable);
     //Network|Friction
-    this.SelectedNetworkFrictionVariable = this.visuals.twoD.commonService.session.style.widgets['network-friction'];
+    this.SelectedNetworkFrictionVariable = this.widgets['network-friction'];
     this.onNetworkFrictionChange(this.SelectedNetworkFrictionVariable);
     //Network|Link Strength
-    this.SelecetedNetworkLinkStrengthVariable = this.visuals.twoD.commonService.session.style.widgets['network-link-strength'];
+    this.SelecetedNetworkLinkStrengthVariable = this.widgets['network-link-strength'];
     this.onNetworkFrictionChange(this.SelecetedNetworkLinkStrengthVariable);
     //Network|Polygon Orientation
-    this.SelectedPolygonLabelOrientationVariable = this.visuals.twoD.commonService.session.style.widgets['polygon-label-orientation'];
+    this.SelectedPolygonLabelOrientationVariable = this.widgets['polygon-label-orientation'];
     this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
   }
 }, _class.ctorParameters = () => [{
@@ -17250,7 +17259,7 @@ var ___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___ = __webpack_require__(/*! ../../../
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../../node_modules/css-loader/dist/runtime/api.js */ 40479);
 var ___CSS_LOADER_EXPORT___ = ___CSS_LOADER_API_IMPORT___(___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___);
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, ".dialogSize {\n  width: 30vw;\n  height: 150px;\n  min-width: 150px;\n}\n\n:host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n  /*top: 37px !important;\n  left: 1px !important; \n  width: 99% !important; */\n}\n\n.network {\n  margin-top: 0 !important;\n  cursor: grab;\n}\n\n.ui-dropdown {\n  width: 100% !important;\n}\n\n.display-none {\n  display: none;\n}\n\n.bottom-table {\n  font-size: 0.5vmax;\n}\n\n#node-max-radius-row, #node-min-radius-row {\n  display: none;\n}\n\n.clusters path {\n  cursor: grab;\n}\n\n:host ::ng-deep .p-accordion-tab:not(.p-accordion-tab-active) .p-toggleable-content {\n  height: 0;\n  overflow: hidden;\n}\n:host ::ng-deep .p-accordion-tab.p-accordion-tab-active .p-toggleable-content {\n  height: auto !important;\n  overflow: auto !important;\n}\n\n/* Button appearance on hover */\n.btn-icon:hover {\n  transform: scale(1.1); /* Slight enlarge on hover */\n  background-color: rgba(0, 0, 0, 0.1); /* Subtle background color on hover */\n}\n\n.btn-icon {\n  margin-right: 10px;\n  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);\n}\n\n.flaticon-settings:before {\n  font-weight: 800 !important;\n}\n\n.flaticon-pin:before {\n  font-weight: 800 !important;\n}\n\n.flaticon-download:before {\n  font-weight: 800 !important;\n}", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, ".dialogSize {\n  width: 30vw;\n  height: 150px;\n  min-width: 150px;\n}\n\n:host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n  /*top: 37px !important;\n  left: 1px !important; \n  width: 99% !important; */\n}\n\n.network {\n  margin-top: 0 !important;\n  cursor: grab;\n}\n\n.ui-dropdown {\n  width: 100% !important;\n}\n\n.display-none {\n  display: none;\n}\n\n.bottom-table {\n  font-size: 0.5vmax;\n}\n\n#node-max-radius-row, #node-min-radius-row {\n  display: none;\n}\n\n.clusters path {\n  cursor: grab;\n}\n\n:host ::ng-deep .p-accordion-tab:not(.p-accordion-tab-active) .p-toggleable-content {\n  height: 0;\n  overflow: hidden;\n}\n:host ::ng-deep .p-accordion-tab.p-accordion-tab-active .p-toggleable-content {\n  height: auto !important;\n  overflow: auto !important;\n}\n\n/* Button appearance on hover */\n.btn-icon:hover {\n  transform: scale(1.1); /* Slight enlarge on hover */\n  background-color: rgba(0, 0, 0, 0.1); /* Subtle background color on hover */\n}\n\n.btn-icon {\n  margin-right: 10px;\n  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);\n}\n\n.flaticon-settings:before {\n  font-weight: 800 !important;\n}\n\n.flaticon-pin:before {\n  font-weight: 800 !important;\n}\n\n.flaticon-download:before {\n  font-weight: 800 !important;\n}\n\n#network-export-filename {\n  height: 42px;\n}", ""]);
 // Exports
 module.exports = ___CSS_LOADER_EXPORT___.toString();
 
@@ -17685,7 +17694,7 @@ module.exports = "﻿﻿<div class=\"table-wrapper\">\r\n    <div id=\"tool-btn-
 /***/ ((module) => {
 
 "use strict";
-module.exports = "﻿﻿\r\n\r\n<span id=\"tooltip\"></span>\r\n\r\n<div id=\"tool-btn-container\" class=\"m-portlet\">\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a #pinbutton title=\"Pin All Nodes\" id=\"pinbutton\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openPinAllNodes()\"\r\n            [style.background]=\"commonService.session.network.allPinned ? 'lightblue': 'transparent'\"\r\n        ><i class=\"flaticon-pin primary\"></i></a>\r\n    </span>\r\n</div>\r\n\r\n<svg id=\"network\" class=\"network\" [ngStyle]=\"svgStyle\" (click)=\"networkWhitespaceClicked()\"></svg>\r\n\r\n<div class=\"row\">\r\n    <div class=\"col-md-4\">\r\n      <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-symbol-variable'] != 'None'\" class=\"bottom-table\">\r\n          Node Shapes\r\n        </h2>\r\n      <table id=\"node-symbol-table-bottom\" class=\"bottom-table\"></table>          \r\n    </div>\r\n    <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-color-variable'] != 'None'\" class=\"bottom-table\">\r\n            Node Colors\r\n        </h2>\r\n        <table id=\"node-color-table-bottom\" class=\"bottom-table\"></table>          \r\n      </div>\r\n      <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['link-color-variable'] != 'None'\" class=\"bottom-table\">\r\n            Link Colors\r\n        </h2>\r\n        <table id=\"link-color-table-bottom\" class=\"bottom-table\"></table>          \r\n      </div>\r\n  </div>\r\n\r\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\r\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\r\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\r\n            <h1><b>Please add data files to load...</b></h1>\r\n            <br />\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n\r\n\r\n<!-- <p-sidebar [(visible)]=\"ShowStatistics\" position=\"right\">\r\n\r\n    <div id=\"color-transparency-wrapper\" *ngIf=\"false\">\r\n        <input type=\"range\" class=\"custom-range\" id=\"color-transparency\" min=\"0\" max=\"1\" step=\"0.05\" value=\"1\" [(ngModel)]=\"SelectedColorTransparencyVariable\" (change)=\"onSelectedColorTransparencyVariableChange($event)\">\r\n    </div>\r\n\r\n\r\n</p-sidebar>  -->\r\n\r\n<div id=\"network-statistics-wrapper\">\r\n    <div id=\"network-statistics-draghandle\"><span class=\"oi oi-move\"></span></div>\r\n    <table id=\"network-statistics-table\">\r\n        <tr>\r\n            <td class=\"text-right\">\r\n                <span id=\"numberOfNodes\"></span>\r\n                (<span id=\"numberOfSelectedNodes\"></span>)\r\n            </td>\r\n            <td>Nodes (Selected)</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfVisibleLinks\" class=\"text-right\"></td>\r\n            <td>Links</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfDisjointComponents\" class=\"text-right\"></td>\r\n            <td>Clusters</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfSingletonNodes\" class=\"text-right\"></td>\r\n            <td>Singletons</td>\r\n        </tr>\r\n    </table>\r\n</div>\r\n\r\n\r\n\r\n<div class=\"view-controls\">\r\n    <p-dialog id=\"network-settings-pane\" \r\n                [positionLeft]=\"Node2DNetworkExportDialogSettings.left\" \r\n                [positionTop]=\"Node2DNetworkExportDialogSettings.top\" \r\n                [(visible)]=\"Node2DNetworkExportDialogSettings.isVisible\"  \r\n                header=\"2D Network Settings\" \r\n                >\r\n        <tabset class=\"tab-container tabbable-line\">\r\n            <tab heading=\"{{'Nodes' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab [selected]=\"false\" style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                        <div #nodecontrolslabels>\r\n                            <div class=\"form-group row\" title=\"What field should be displayed as a label for the node?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-variable\">Label</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-label-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeLabelVariable\" (ngModelChange)=\"onNodeLabelVaribleChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row node-label-row\" title=\"How big should node labels be?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-size\">Label Size</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"node-label-size\" min=\"6\" value=\"16\" max=\"72\" [(ngModel)]=\"SelectedNodeLabelSizeVariable\" (change)=\"onNodeLabelSizeChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row node-label-row\" title=\"How should the labels be oriented relative to their nodes?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-orientation\">Orientation</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"node-label-orientation\" [(ngModel)]=\"SelectedNodeLabelOrientationVariable\" (ngModelChange)=\"onNodeLabelOrientationChange($event)\">\r\n                                        <option selected>Right</option>\r\n                                        <option>Left</option>\r\n                                        <option>Top</option>\r\n                                        <option>Bottom</option>\r\n                                        <option>Middle</option>\r\n                                    </select>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"What node data should be displayed as a tooltip for the node?\">\r\n                                <div class=\"col-4\">\r\n                                    <label for=\"node-tooltip-variable\">Tooltip</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['node-tooltip-variable']\" (valueChange)=\"onNodeTooltipVariableChange($event)\">\r\n                                        <mat-option *ngFor=\"let option of commonService.session.data['nodeFields']\" [value]=\"option\">\r\n                                          {{option}}\r\n                                        </mat-option>\r\n                                      </mat-select>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\r\n                        <div #nodecontrolsshapes>\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the shape of the node?\">\r\n                                <div class=\"col-4\">\r\n                                    <label for=\"node-symbol-variable\">Shape By</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-symbol-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeSymbolVariable\" (ngModelChange)=\"onNodeSymbolVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-symbol-table-row\" [hidden]=\"!ShowNodeSymbolTable\" class=\"form-group row\" title=\"What shape should the nodes be?\">\r\n                                <div class=\"col-4\">Table</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton [options]=\"TableTypes\" [(ngModel)]=\"SelectedNetworkTableTypeVariable\" (ngModelChange)=\"onNodeSymbolTableChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div id=\"node-symbol-row\" [hidden]=\"ShowNodeSymbolWrapper\" class=\"form-group row\" title=\"What shape should the nodes be?\">\r\n                                <div class=\"col-4\"><label for=\"node-symbol\">Shape</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"node-symbol\" class=\"form-control form-control-sm\" [(ngModel)]=\"SelectedNodeShapeVariable\" (ngModelChange)=\"onNodeSymbolChange($event)\">\r\n\r\n                                        <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n                                        <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n                                        <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n                                        <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n                                        <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n                                        <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n                                        <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n                                        <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n                                        <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n                                        <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n                                        <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n                                        <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n                                        <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n                                        <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n                                        <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n                                        <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n                                        <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n                                        <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n                                    </select>\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the size of the node?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Size By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-radius-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeRadiusVariable\" (ngModelChange)=\"onNodeRadiusVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-max-radius-row\" class=\"form-group row\" title=\"Should node max radius to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-max\">Max Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-max\" min=\"100\" value=\"4500\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMaxVariable\" (ngModelChange)=\"onNodeRadiusMaxChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                              <div id=\"node-min-radius-row\" class=\"form-group row\" title=\"Should node min radius to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-min\">Min Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-min\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMinVariable\" (ngModelChange)=\"onNodeRadiusMinChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-radius-row\" class=\"form-group row\" title=\"How big should the nodes be?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius\">Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeVariable\" (ngModelChange)=\"onNodeRadiusChange($event)\">\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div class=\"form-group row\" title=\"What should the width of the node border be?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Border Width</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"number\" class=\"form-control form-control-sm\" id=\"node-border-width\" min=\"0\" step=\"0.1\" value=\"2\" [(ngModel)]=\"nodeBorderWidth\" (ngModelChange)=\"onNodeBorderWidthChange($event)\">\r\n                                </div>\r\n                            </div>\r\n\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" [selected]=\"false\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                    </p-accordionTab>\r\n\r\n                </p-accordion>\r\n            </tab>\r\n\r\n            <tab heading=\"{{'Links' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                        <div #linkcontrolslabels>\r\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-tooltip-variable\">Tooltip</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['link-tooltip-variable']\" (valueChange)=\"onLinkTooltipVariableChange($event)\">\r\n                                        <mat-option *ngFor=\"let option of commonService.session.data['linkFields']\" [value]=\"option\">\r\n                                          {{option}}\r\n                                        </mat-option>\r\n                                      </mat-select>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-label-variable\">Label</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"link-label-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkLabelVariable\" (ngModelChange)=\"onLinkLabelVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How many decimals should the number labels have?\">\r\n                                <div class=\"col-4\"><label for=\"link-label-decimal-length\">Decimal Length</label></div>\r\n                                <div class=\"col-8\"><input type=\"number\" class=\"form-control form-control-sm\" id=\"link-label-decimal-length\" min=\"0\" step=\"1\" max=\"6\" value=\"3\"  [(ngModel)]=\"SelectedLinkDecimalVariable\"  (ngModelChange)=\"onLinkDecimalVariableChange($event)\">\r\n                                </div>\r\n                              </div>  \r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\r\n                        <div #linkcontrolsshapes>\r\n                            <div id=\"link-transparency-row\" class=\"form-group row\" title=\"How transparent should the links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-opacity\">Transparency</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-opacity\" min=\"0\" max=\"1\" value=\"0\" step=\"0.01\" [(ngModel)]=\"SelectedLinkTransparencyVariable\" (ngModelChange)=\"onLinkOpacityChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the width of a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-variable\">Width By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"link-width-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkWidthByVariable\" (ngModelChange)=\"onLinkWidthVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"link-max-width-row\" class=\"form-group row display-none\" title=\"Should link max widths to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-max\">Max Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-max\" min=\"0.3\" max=\"30\" step=\".3\" value=\"27\" [(ngModel)]=\"SelectedLinkWidthMax\" (ngModelChange)=\"onLinkWidthMaxChange($event)\"></div>\r\n                              </div>\r\n                              <div id=\"link-min-width-row\" class=\"form-group row display-none\" title=\"Should link min widths to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-min\">Min Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-min\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthMin\" (ngModelChange)=\"onLinkWidthMinChange($event)\"></div>\r\n                              </div>\r\n                            <div id=\"link-reciprocalthickness-row\" class=\"form-group row display-none\" title=\"Should link widths be proportioned to the reciprocal of this variable?\">\r\n                                <div class=\"col-4\">Reciprocal</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"link-width-reciprocal-non-reciprocal\" appendTo=\"body\"  [options]=\"ReciprocalTypes\" [(ngModel)]=\"SelectedLinkReciprocalTypeVariable\" (ngModelChange)=\"onLinkWidthReciprocalNonReciprocalChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How thick should the links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-width\">Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthVariable\" (ngModelChange)=\"onLinkWidthChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How long should links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-length\">Length</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-length\" min=\"0\" max=\"200\" value=\"50\" [(ngModel)]=\"SelectedLinkLengthVariable\" (ngModelChange)=\"onLinkLengthChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row hideForHIVTrace\" title=\"Shoul arrowheads pointing to the\">\r\n                                <div class=\"col-4\">Arrows</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"link-directed-undirected\" [options]=\"ArrowTypes\" [(ngModel)]=\"SelectedLinkArrowTypeVariable\" (ngModelChange)=\"onLinkDirectedUndirectedChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                    </p-accordionTab>\r\n\r\n                </p-accordion>\r\n            </tab>\r\n\r\n            <tab heading=\"{{'Network' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Display\">\r\n                        <div #networkcontrolslabels>\r\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\r\n                                <div class=\"col-4\">Neighbors</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"dont-highlight-neighbors-highlight-neighbors\" [options]=\"NeighborTypes\" [(ngModel)]=\"SelectedNetworkNeighborTypeVariable\" (ngModelChange)=\"onDontHighlightNeighborsHighlightNeighborsChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\r\n                                <div class=\"col-4\">Gridlines</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"network-gridlines-show-hide\" [options]=\"GridLineTypes\" [(ngModel)]=\"SelectedNetworkGridLineTypeVariable\" (ngModelChange)=\"onNetworkGridlinesShowHideChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Physics\">\r\n                        <div #networkcontrolsphysics>\r\n                            <div class=\"form-group row\" title=\"How strongly are the nodes repulsed by each other?\">\r\n                                <div class=\"col-4\"><label for=\"node-charge\">Charge</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-charge\" min=\"0\" max=\"400\" value=\"200\" [(ngModel)]=\"SelectedNetworkChargeVariable\" (ngModelChange)=\"onNodeChargeChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How attractive is the mass of the graph?\">\r\n                                <div class=\"col-4\"><label for=\"network-gravity\">Gravity</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-gravity\" min=\"0.025\" max=\"1\" value=\"0.05\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkGravityVariable\" (ngModelChange)=\"onNetworkGravityChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\r\n                                <div class=\"col-4\"><label for=\"network-friction\">Friction</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-friction\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkFrictionVariable\" (ngModelChange)=\"onNetworkFrictionChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\r\n                                <div class=\"col-4\"><label for=\"network-link-strength\">Link Strength</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-link-strength\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelecetedNetworkLinkStrengthVariable\" (ngModelChange)=\"onNetworkLinkStrengthVariableChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>                   \r\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\" ></button>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </tab>\r\n            <tab heading=\"{{'Polygons' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Polygon Controls\" id=\"polygons-controls-accordion\">\r\n                          <div id=\"polygons-controls\" class=\"show\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div class=\"form-group row\" title=\"Show polygons?\">\r\n                                <div class=\"col-4\">Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-show']\" (ngModelChange)=\"polygonsToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What Foci should be used when creating convex hulls?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-foci\">Group By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"polygons-foci\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"commonService.session.style.widgets['polygons-foci']\" (ngModelChange)=\"centerPolygons($event)\"></p-dropdown>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What amount of gather force should be used?\">\r\n                                <div class=\"col-4\">\r\n                                  <label for=\"polygons-gather-force\">Gather</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                <input type=\"range\" class=\"custom-range\" id=\"polygons-gather-force\" min=\"0\" value=\"0\" step=\"0.0001\" max=\".02\" [(ngModel)]=\"commonService.session.style.widgets['polygons-gather-force']\" (ngModelChange)=\"onPolygonGatherChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Labels\" id=\"polygons-controls-accordion\">\r\n                          <div id=\"polygons-controls-labels\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div class=\"form-group row\" title=\"Show polygons label?\">\r\n                                <div class=\"col-4\">Label Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"polygons-label-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-show']\" (ngModelChange)=\"onPolygonLabelShowChange($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div class=\"form-group row polygons-label-row\" title=\"How big should polygon labels be?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-label-size\">Label Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"polygons-label-size\" min=\"6\" value=\"16\" step=\"1\" max=\"72\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-size']\" (ngModelChange)=\"onPolygonLabelSizeChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                              <div class=\"form-group row polygons-label-row\" title=\"How should the labels be oriented relative to center of polygon?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-label-orientation\">Orientation</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"polygon-label-orientation\" [(ngModel)]=\"SelectedPolygonLabelOrientationVariable\" (ngModelChange)=\"onPolygonLabelOrientationChange($event)\">\r\n                                        <option selected>Right</option>\r\n                                        <option>Left</option>\r\n                                        <option>Top</option>\r\n                                        <option>Bottom</option>\r\n                                        <option>Middle</option>\r\n                                    </select>                                \r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          </div>\r\n                        </p-accordionTab>\r\n                        <!-- style=\"display: none;\" -->\r\n                        <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Colors\" id=\"polygons-controls-accordion\">  \r\n                          <div id=\"polygons-controls-colors\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div id=\"color-polygons\" class=\"form-group row\" title=\"Show polygons colored?\">\r\n                                <div class=\"col-4\">Color Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygons\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-color-show']\" (ngModelChange)=\"polygonColorsToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-table-row\" class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\r\n                                <div class=\"col-4\">Polygon Color Table</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color-table-visible']\" (ngModelChange)=\"polygonColorsTableToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"!commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-value-row\" class=\"form-group row\" title=\"What color should the polygons be?\">\r\n                                <div class=\"col-4\"><label for=\"polygon-color\">Polygons</label></div>\r\n                                <div class=\"col-8\">\r\n                                  <input type=\"color\" id=\"polygon-color\" class=\"form-control form-control-sm\" value=\"#1f77b4\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color']\" (ngModelChange)=\"onPolygonColorChanged($event)\">\r\n                                </div>\r\n                              </div>              \r\n                            </div>\r\n                          </div>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </tab>\r\n        </tabset>\r\n\r\n    </p-dialog>\r\n\r\n\r\n\r\n</div>\r\n\r\n    <p-dialog id=\"node-symbol-table-wrapper\" \r\n                [position]=\"NodeSymbolTableWrapperDialogSettings.shapeRight\"\r\n                [(visible)]=\"NodeSymbolTableWrapperDialogSettings.isVisible\"  \r\n                header=\"Node Symbol Selection Table\"  \r\n                [style]=\"{width: '45vw', maxWidth: '450px'}\"\r\n                (onHide)=\"onNodeSymbolTableChange('Hide')\"\r\n                (onShow)=\"onNodeSymbolTableChange('Show')\"\r\n                >\r\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Node Shapes and Size Selection.\">          \r\n             <table id=\"node-symbol-table\" style=\"width:100%;height:100%;\"></table>          \r\n        </div>\r\n        <select id=\"node-symbol2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\r\n\r\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n        </select>\r\n\r\n    </p-dialog>\r\n\r\n    <p-dialog id=\"polygon-color-table-wrapper\" \r\n                [position]=\"PolygonColorTableWrapperDialogSettings.polygonRight\" \r\n                [(visible)]=\"PolygonColorTableWrapperDialogSettings.isVisible\"  \r\n                header=\"Polygon Color Selection Table\" \r\n                [style]=\"{width: '45vw', maxWidth: '450px'}\" \r\n                (onHide)=\"onPolygonColorTableChange(false)\"\r\n                (onShow)=\"onPolygonColorTableChange(true)\"\r\n                >\r\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Polygon Color Selection.\">          \r\n             <table id=\"polygon-color-table\" style=\"width:100%;height:100%;\"></table>          \r\n        </div>\r\n        <select id=\"polygon-color2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\r\n\r\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n        </select>\r\n\r\n    </p-dialog>\r\n\r\n    <!-- <p-dialog id=\"polygon-color-table-wrapper\" class=\"floater\">\r\n        <div id=\"polygon-color-table-draghandle\"><span class=\"oi oi-move\"></span></div>\r\n        <table id=\"polygon-color-table\"></table>\r\n    </p-dialog> -->\r\n\r\n\r\n\r\n\r\n\r\n<div id=\"node-symbol-table-context\" class=\"dropdown-menu\">\r\n    <a href=\"#\" id=\"node-symbol-table-move\" class=\"dropdown-item\">Pin</a>\r\n    <a href=\"#\" id=\"node-symbol-table-context-hide\" class=\"dropdown-item\">Hide</a>\r\n    <a href=\"#\" id=\"node-symbol-table-expand\" class=\"dropdown-item\">Expand</a>\r\n    <a href=\"#\" id=\"node-symbol-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\r\n    <a href=\"#\" id=\"node-symbol-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\r\n</div>\r\n\r\n  \r\n  <div id=\"polygon-color-table-context\" class=\"dropdown-menu\">\r\n    <a href=\"#\" id=\"polygon-color-table-drag\" class=\"dropdown-item\">Drag/Arrow Keys</a>\r\n    <a href=\"#\" id=\"polygon-color-table-context-hide\" class=\"dropdown-item\">Hide</a>\r\n    <a href=\"#\" id=\"polygon-color-table-expand\" class=\"dropdown-item\">Expand</a>\r\n    <a href=\"#\" id=\"polygon-color-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\r\n    <a href=\"#\" id=\"polygon-color-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\r\n  </div>\r\n\r\n<div id=\"context-menu\" class=\"dropdown-menu\">\r\n    <a href=\"javascript:;\" id=\"pinNode\" class=\"dropdown-item\">Pin Node</a>\r\n    <a href=\"javascript:;\" id=\"copyID\" class=\"dropdown-item\">Copy ID</a>\r\n    <a href=\"javascript:;\" id=\"copySeq\" class=\"dropdown-item\">Copy Sequence</a>\r\n    <a href=\"javascript:;\" id=\"viewAttributes\" class=\"dropdown-item\">View Attributes</a>\r\n</div>\r\n\r\n\r\n<p-dialog id=\"network-attribute-table-wrapper\" [(visible)]=\"ShowNetworkAttributes\" header=\"Node Attributes\" [style]=\"{width: '35vw'}\" >\r\n    <div class=\"col-12\" style=\"width:100%;\">        \r\n        <table style=\"width:100%\">\r\n            <tr *ngFor=\"let item of ContextSelectedNodeAttributes\">\r\n                <td>\r\n                    <strong>\r\n                        {{item.attribute}}\r\n                    </strong>\r\n                </td>\r\n                <td>{{item.value}}</td>\r\n            </tr>\r\n        </table>\r\n    </div>\r\n</p-dialog>\r\n\r\n\r\n\r\n<p-dialog id=\"network-export-modal\" [(visible)]=\"Show2DExportPane\" header=\"Export Network Image\" class=\"dialogSize\" (onHide)=\"onCloseExport()\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n                <div class=\"modal-body\" style='min-width: 400px; height: 100%;'>\r\n                    <div class=\"form-group row\">\r\n                    <div class=\"col-9\">\r\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\" placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\" (ngModelChange)=\"onDataChange($event)\">\r\n                    </div>\r\n                    <div class=\"col-3\">\r\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" (ngModelChange)=\"onNetworkExportFiletypeChange($event)\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div>\r\n\r\n                    <div [hidden]=\"!ShowAdvancedExport\">\r\n                        <p-accordion>\r\n                            <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\r\n                                <div id=\"network-export-advanced\">\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-3\">\r\n                                            <label for=\"network-export-scale\">Scale</label>\r\n                                        </div>\r\n                                        <div class=\"col-9\">\r\n                                            <input type=\"number\" id=\"network-export-scale\" class=\"form-control form-control-sm\" min=\"0\" max=\"2\" step=\"0.1\" value=\"1\" [(ngModel)]=\"SelectedNetworkExportScaleVariable\" (ngModelChange)=\"updateCalculatedResolution($event)\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-3\">Resolution</div>\r\n                                        <div id=\"network-export-dimensions\" class=\"col-9 text-right\">{{CalculatedResolution}}</div>\r\n                                    </div>\r\n                                    <div class=\"row\">\r\n                                        <div class=\"col-3\">\r\n                                            <label for=\"network-export-quality\">Quality</label>\r\n                                        </div>\r\n                                        <div class=\"col-9\">\r\n                                            <input type=\"range\" class=\"custom-range\" id=\"network-export-quality\" min=\"0\" max=\"1.0\" value=\"0.92\" step=\"0.01\" [(ngModel)]=\"SelectedNetworkExportQualityVariable\">\r\n                                        </div>\r\n                                    </div>\r\n\r\n                                </div>\r\n                            </p-accordionTab>\r\n                        </p-accordion>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"Show2DExportPane = !Show2DExportPane\">Cancel</button>\r\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\" (click)=\"exportVisualization($event)\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->\r\n";
+module.exports = "﻿﻿\r\n\r\n<span id=\"tooltip\"></span>\r\n\r\n<div id=\"tool-btn-container\" class=\"m-portlet\">\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a #pinbutton title=\"Pin All Nodes\" id=\"pinbutton\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openPinAllNodes()\"\r\n            [style.background]=\"commonService.session.network.allPinned ? 'lightblue': 'transparent'\"\r\n        ><i class=\"flaticon-pin primary\"></i></a>\r\n    </span>\r\n</div>\r\n\r\n<svg id=\"network\" class=\"network\" [ngStyle]=\"svgStyle\" (click)=\"networkWhitespaceClicked()\"></svg>\r\n\r\n<div class=\"row\">\r\n    <div class=\"col-md-4\">\r\n      <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-symbol-variable'] != 'None'\" class=\"bottom-table\">\r\n          Node Shapes\r\n        </h2>\r\n      <table id=\"node-symbol-table-bottom\" class=\"bottom-table\"></table>          \r\n    </div>\r\n    <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-color-variable'] != 'None'\" class=\"bottom-table\">\r\n            Node Colors\r\n        </h2>\r\n        <table id=\"node-color-table-bottom\" class=\"bottom-table\"></table>          \r\n      </div>\r\n      <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['link-color-variable'] != 'None'\" class=\"bottom-table\">\r\n            Link Colors\r\n        </h2>\r\n        <table id=\"link-color-table-bottom\" class=\"bottom-table\"></table>          \r\n      </div>\r\n  </div>\r\n\r\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\r\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\r\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\r\n            <h1><b>Please add data files to load...</b></h1>\r\n            <br />\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n\r\n\r\n<!-- <p-sidebar [(visible)]=\"ShowStatistics\" position=\"right\">\r\n\r\n    <div id=\"color-transparency-wrapper\" *ngIf=\"false\">\r\n        <input type=\"range\" class=\"custom-range\" id=\"color-transparency\" min=\"0\" max=\"1\" step=\"0.05\" value=\"1\" [(ngModel)]=\"SelectedColorTransparencyVariable\" (change)=\"onSelectedColorTransparencyVariableChange($event)\">\r\n    </div>\r\n\r\n\r\n</p-sidebar>  -->\r\n\r\n<div id=\"network-statistics-wrapper\">\r\n    <div id=\"network-statistics-draghandle\"><span class=\"oi oi-move\"></span></div>\r\n    <table id=\"network-statistics-table\">\r\n        <tr>\r\n            <td class=\"text-right\">\r\n                <span id=\"numberOfNodes\"></span>\r\n                (<span id=\"numberOfSelectedNodes\"></span>)\r\n            </td>\r\n            <td>Nodes (Selected)</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfVisibleLinks\" class=\"text-right\"></td>\r\n            <td>Links</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfDisjointComponents\" class=\"text-right\"></td>\r\n            <td>Clusters</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfSingletonNodes\" class=\"text-right\"></td>\r\n            <td>Singletons</td>\r\n        </tr>\r\n    </table>\r\n</div>\r\n\r\n\r\n\r\n<div class=\"view-controls\">\r\n    <p-dialog id=\"network-settings-pane\" \r\n                [positionLeft]=\"Node2DNetworkExportDialogSettings.left\" \r\n                [positionTop]=\"Node2DNetworkExportDialogSettings.top\" \r\n                [(visible)]=\"Node2DNetworkExportDialogSettings.isVisible\"  \r\n                header=\"2D Network Settings\" \r\n                >\r\n        <tabset class=\"tab-container tabbable-line\">\r\n            <tab heading=\"{{'Nodes' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab [selected]=\"false\" style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                        <div #nodecontrolslabels>\r\n                            <div class=\"form-group row\" title=\"What field should be displayed as a label for the node?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-variable\">Label</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-label-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeLabelVariable\" (ngModelChange)=\"onNodeLabelVaribleChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row node-label-row\" title=\"How big should node labels be?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-size\">Label Size</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"node-label-size\" min=\"6\" value=\"16\" max=\"72\" [(ngModel)]=\"SelectedNodeLabelSizeVariable\" (change)=\"onNodeLabelSizeChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row node-label-row\" title=\"How should the labels be oriented relative to their nodes?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-orientation\">Orientation</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"node-label-orientation\" [(ngModel)]=\"SelectedNodeLabelOrientationVariable\" (ngModelChange)=\"onNodeLabelOrientationChange($event)\">\r\n                                        <option selected>Right</option>\r\n                                        <option>Left</option>\r\n                                        <option>Top</option>\r\n                                        <option>Bottom</option>\r\n                                        <option>Middle</option>\r\n                                    </select>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"What node data should be displayed as a tooltip for the node?\">\r\n                                <div class=\"col-4\">\r\n                                    <label for=\"node-tooltip-variable\">Tooltip</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['node-tooltip-variable']\" (valueChange)=\"onNodeTooltipVariableChange($event)\">\r\n                                        <mat-option *ngFor=\"let option of commonService.session.data['nodeFields']\" [value]=\"option\">\r\n                                          {{option}}\r\n                                        </mat-option>\r\n                                      </mat-select>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\r\n                        <div #nodecontrolsshapes>\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the shape of the node?\">\r\n                                <div class=\"col-4\">\r\n                                    <label for=\"node-symbol-variable\">Shape By</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-symbol-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeSymbolVariable\" (ngModelChange)=\"onNodeSymbolVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-symbol-table-row\" [hidden]=\"!ShowNodeSymbolTable\" class=\"form-group row\" title=\"What shape should the nodes be?\">\r\n                                <div class=\"col-4\">Table</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton [options]=\"TableTypes\" [(ngModel)]=\"SelectedNetworkTableTypeVariable\" (ngModelChange)=\"onNodeSymbolTableChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div id=\"node-symbol-row\" [hidden]=\"ShowNodeSymbolWrapper\" class=\"form-group row\" title=\"What shape should the nodes be?\">\r\n                                <div class=\"col-4\"><label for=\"node-symbol\">Shape</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"node-symbol\" class=\"form-control form-control-sm\" [(ngModel)]=\"SelectedNodeShapeVariable\" (ngModelChange)=\"onNodeSymbolChange($event)\">\r\n\r\n                                        <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n                                        <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n                                        <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n                                        <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n                                        <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n                                        <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n                                        <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n                                        <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n                                        <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n                                        <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n                                        <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n                                        <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n                                        <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n                                        <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n                                        <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n                                        <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n                                        <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n                                        <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n                                    </select>\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the size of the node?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Size By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-radius-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeRadiusVariable\" (ngModelChange)=\"onNodeRadiusVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-max-radius-row\" class=\"form-group row\" title=\"Should node max radius to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-max\">Max Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-max\" min=\"100\" value=\"4500\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMaxVariable\" (ngModelChange)=\"onNodeRadiusMaxChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                              <div id=\"node-min-radius-row\" class=\"form-group row\" title=\"Should node min radius to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-min\">Min Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-min\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMinVariable\" (ngModelChange)=\"onNodeRadiusMinChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-radius-row\" class=\"form-group row\" title=\"How big should the nodes be?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius\">Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeVariable\" (ngModelChange)=\"onNodeRadiusChange($event)\">\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div class=\"form-group row\" title=\"What should the width of the node border be?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Border Width</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"number\" class=\"form-control form-control-sm\" id=\"node-border-width\" min=\"0\" step=\"0.1\" value=\"2\" [(ngModel)]=\"nodeBorderWidth\" (ngModelChange)=\"onNodeBorderWidthChange($event)\">\r\n                                </div>\r\n                            </div>\r\n\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" [selected]=\"false\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                    </p-accordionTab>\r\n\r\n                </p-accordion>\r\n            </tab>\r\n\r\n            <tab heading=\"{{'Links' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                        <div #linkcontrolslabels>\r\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-tooltip-variable\">Tooltip</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['link-tooltip-variable']\" (valueChange)=\"onLinkTooltipVariableChange($event)\">\r\n                                        <mat-option *ngFor=\"let option of commonService.session.data['linkFields']\" [value]=\"option\">\r\n                                          {{option}}\r\n                                        </mat-option>\r\n                                      </mat-select>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-label-variable\">Label</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"link-label-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkLabelVariable\" (ngModelChange)=\"onLinkLabelVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How many decimals should the number labels have?\">\r\n                                <div class=\"col-4\"><label for=\"link-label-decimal-length\">Decimal Length</label></div>\r\n                                <div class=\"col-8\"><input type=\"number\" class=\"form-control form-control-sm\" id=\"link-label-decimal-length\" min=\"0\" step=\"1\" max=\"6\" value=\"3\"  [(ngModel)]=\"SelectedLinkDecimalVariable\"  (ngModelChange)=\"onLinkDecimalVariableChange($event)\">\r\n                                </div>\r\n                              </div>  \r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\r\n                        <div #linkcontrolsshapes>\r\n                            <div id=\"link-transparency-row\" class=\"form-group row\" title=\"How transparent should the links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-opacity\">Transparency</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-opacity\" min=\"0\" max=\"1\" value=\"0\" step=\"0.01\" [(ngModel)]=\"SelectedLinkTransparencyVariable\" (ngModelChange)=\"onLinkOpacityChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the width of a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-variable\">Width By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"link-width-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkWidthByVariable\" (ngModelChange)=\"onLinkWidthVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"link-max-width-row\" class=\"form-group row display-none\" title=\"Should link max widths to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-max\">Max Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-max\" min=\"0.3\" max=\"30\" step=\".3\" value=\"27\" [(ngModel)]=\"SelectedLinkWidthMax\" (ngModelChange)=\"onLinkWidthMaxChange($event)\"></div>\r\n                              </div>\r\n                              <div id=\"link-min-width-row\" class=\"form-group row display-none\" title=\"Should link min widths to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-min\">Min Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-min\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthMin\" (ngModelChange)=\"onLinkWidthMinChange($event)\"></div>\r\n                              </div>\r\n                            <div id=\"link-reciprocalthickness-row\" class=\"form-group row display-none\" title=\"Should link widths be proportioned to the reciprocal of this variable?\">\r\n                                <div class=\"col-4\">Reciprocal</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"link-width-reciprocal-non-reciprocal\" appendTo=\"body\"  [options]=\"ReciprocalTypes\" [(ngModel)]=\"SelectedLinkReciprocalTypeVariable\" (ngModelChange)=\"onLinkWidthReciprocalNonReciprocalChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How thick should the links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-width\">Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthVariable\" (ngModelChange)=\"onLinkWidthChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How long should links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-length\">Length</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-length\" min=\"0\" max=\"200\" value=\"50\" [(ngModel)]=\"SelectedLinkLengthVariable\" (ngModelChange)=\"onLinkLengthChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row hideForHIVTrace\" title=\"Shoul arrowheads pointing to the\">\r\n                                <div class=\"col-4\">Arrows</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"link-directed-undirected\" [options]=\"ArrowTypes\" [(ngModel)]=\"SelectedLinkArrowTypeVariable\" (ngModelChange)=\"onLinkDirectedUndirectedChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                    </p-accordionTab>\r\n\r\n                </p-accordion>\r\n            </tab>\r\n\r\n            <tab heading=\"{{'Network' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Display\">\r\n                        <div #networkcontrolslabels>\r\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\r\n                                <div class=\"col-4\">Neighbors</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"dont-highlight-neighbors-highlight-neighbors\" [options]=\"NeighborTypes\" [(ngModel)]=\"SelectedNetworkNeighborTypeVariable\" (ngModelChange)=\"onDontHighlightNeighborsHighlightNeighborsChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\r\n                                <div class=\"col-4\">Gridlines</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"network-gridlines-show-hide\" [options]=\"GridLineTypes\" [(ngModel)]=\"SelectedNetworkGridLineTypeVariable\" (ngModelChange)=\"onNetworkGridlinesShowHideChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Physics\">\r\n                        <div #networkcontrolsphysics>\r\n                            <div class=\"form-group row\" title=\"How strongly are the nodes repulsed by each other?\">\r\n                                <div class=\"col-4\"><label for=\"node-charge\">Charge</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-charge\" min=\"0\" max=\"400\" value=\"200\" [(ngModel)]=\"SelectedNetworkChargeVariable\" (ngModelChange)=\"onNodeChargeChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How attractive is the mass of the graph?\">\r\n                                <div class=\"col-4\"><label for=\"network-gravity\">Gravity</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-gravity\" min=\"0.025\" max=\"1\" value=\"0.05\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkGravityVariable\" (ngModelChange)=\"onNetworkGravityChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\r\n                                <div class=\"col-4\"><label for=\"network-friction\">Friction</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-friction\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkFrictionVariable\" (ngModelChange)=\"onNetworkFrictionChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\r\n                                <div class=\"col-4\"><label for=\"network-link-strength\">Link Strength</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-link-strength\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelecetedNetworkLinkStrengthVariable\" (ngModelChange)=\"onNetworkLinkStrengthVariableChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>                   \r\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\" ></button>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </tab>\r\n            <tab heading=\"{{'Polygons' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Polygon Controls\" id=\"polygons-controls-accordion\">\r\n                          <div id=\"polygons-controls\" class=\"show\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div class=\"form-group row\" title=\"Show polygons?\">\r\n                                <div class=\"col-4\">Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-show']\" (ngModelChange)=\"polygonsToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What Foci should be used when creating convex hulls?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-foci\">Group By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"polygons-foci\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"commonService.session.style.widgets['polygons-foci']\" (ngModelChange)=\"centerPolygons($event)\"></p-dropdown>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What amount of gather force should be used?\">\r\n                                <div class=\"col-4\">\r\n                                  <label for=\"polygons-gather-force\">Gather</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                <input type=\"range\" class=\"custom-range\" id=\"polygons-gather-force\" min=\"0\" value=\"0\" step=\"0.0001\" max=\".02\" [(ngModel)]=\"commonService.session.style.widgets['polygons-gather-force']\" (ngModelChange)=\"onPolygonGatherChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Labels\" id=\"polygons-controls-accordion\">\r\n                          <div id=\"polygons-controls-labels\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div class=\"form-group row\" title=\"Show polygons label?\">\r\n                                <div class=\"col-4\">Label Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"polygons-label-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-show']\" (ngModelChange)=\"onPolygonLabelShowChange($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div class=\"form-group row polygons-label-row\" title=\"How big should polygon labels be?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-label-size\">Label Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"polygons-label-size\" min=\"6\" value=\"16\" step=\"1\" max=\"72\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-size']\" (ngModelChange)=\"onPolygonLabelSizeChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                              <div class=\"form-group row polygons-label-row\" title=\"How should the labels be oriented relative to center of polygon?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-label-orientation\">Orientation</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"polygon-label-orientation\" [(ngModel)]=\"SelectedPolygonLabelOrientationVariable\" (ngModelChange)=\"onPolygonLabelOrientationChange($event)\">\r\n                                        <option selected>Right</option>\r\n                                        <option>Left</option>\r\n                                        <option>Top</option>\r\n                                        <option>Bottom</option>\r\n                                        <option>Middle</option>\r\n                                    </select>                                \r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          </div>\r\n                        </p-accordionTab>\r\n                        <!-- style=\"display: none;\" -->\r\n                        <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Colors\" id=\"polygons-controls-accordion\">  \r\n                          <div id=\"polygons-controls-colors\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div id=\"color-polygons\" class=\"form-group row\" title=\"Show polygons colored?\">\r\n                                <div class=\"col-4\">Color Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygons\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-color-show']\" (ngModelChange)=\"polygonColorsToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-table-row\" class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\r\n                                <div class=\"col-4\">Polygon Color Table</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color-table-visible']\" (ngModelChange)=\"polygonColorsTableToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"!commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-value-row\" class=\"form-group row\" title=\"What color should the polygons be?\">\r\n                                <div class=\"col-4\"><label for=\"polygon-color\">Polygons</label></div>\r\n                                <div class=\"col-8\">\r\n                                  <input type=\"color\" id=\"polygon-color\" class=\"form-control form-control-sm\" value=\"#1f77b4\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color']\" (ngModelChange)=\"onPolygonColorChanged($event)\">\r\n                                </div>\r\n                              </div>              \r\n                            </div>\r\n                          </div>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </tab>\r\n        </tabset>\r\n\r\n    </p-dialog>\r\n\r\n\r\n\r\n</div>\r\n\r\n    <p-dialog id=\"node-symbol-table-wrapper\" \r\n                [position]=\"NodeSymbolTableWrapperDialogSettings.shapeRight\"\r\n                [(visible)]=\"NodeSymbolTableWrapperDialogSettings.isVisible\"  \r\n                header=\"Node Symbol Selection Table\"  \r\n                [style]=\"{width: '45vw', maxWidth: '450px'}\"\r\n                (onHide)=\"onNodeSymbolTableChange('Hide')\"\r\n                (onShow)=\"onNodeSymbolTableChange('Show')\"\r\n                >\r\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Node Shapes and Size Selection.\">          \r\n             <table id=\"node-symbol-table\" style=\"width:100%;height:100%;\"></table>          \r\n        </div>\r\n        <select id=\"node-symbol2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\r\n\r\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n        </select>\r\n\r\n    </p-dialog>\r\n\r\n    <p-dialog id=\"polygon-color-table-wrapper\" \r\n                [position]=\"PolygonColorTableWrapperDialogSettings.polygonRight\" \r\n                [(visible)]=\"PolygonColorTableWrapperDialogSettings.isVisible\"  \r\n                header=\"Polygon Color Selection Table\" \r\n                [style]=\"{width: '45vw', maxWidth: '450px'}\" \r\n                (onHide)=\"onPolygonColorTableChange(false)\"\r\n                (onShow)=\"onPolygonColorTableChange(true)\"\r\n                >\r\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Polygon Color Selection.\">          \r\n             <table id=\"polygon-color-table\" style=\"width:100%;height:100%;\"></table>          \r\n        </div>\r\n        <select id=\"polygon-color2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\r\n\r\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n        </select>\r\n\r\n    </p-dialog>\r\n\r\n    <!-- <p-dialog id=\"polygon-color-table-wrapper\" class=\"floater\">\r\n        <div id=\"polygon-color-table-draghandle\"><span class=\"oi oi-move\"></span></div>\r\n        <table id=\"polygon-color-table\"></table>\r\n    </p-dialog> -->\r\n\r\n\r\n\r\n\r\n\r\n<div id=\"node-symbol-table-context\" class=\"dropdown-menu\">\r\n    <a href=\"#\" id=\"node-symbol-table-move\" class=\"dropdown-item\">Pin</a>\r\n    <a href=\"#\" id=\"node-symbol-table-context-hide\" class=\"dropdown-item\">Hide</a>\r\n    <a href=\"#\" id=\"node-symbol-table-expand\" class=\"dropdown-item\">Expand</a>\r\n    <a href=\"#\" id=\"node-symbol-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\r\n    <a href=\"#\" id=\"node-symbol-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\r\n</div>\r\n\r\n  \r\n  <div id=\"polygon-color-table-context\" class=\"dropdown-menu\">\r\n    <a href=\"#\" id=\"polygon-color-table-drag\" class=\"dropdown-item\">Drag/Arrow Keys</a>\r\n    <a href=\"#\" id=\"polygon-color-table-context-hide\" class=\"dropdown-item\">Hide</a>\r\n    <a href=\"#\" id=\"polygon-color-table-expand\" class=\"dropdown-item\">Expand</a>\r\n    <a href=\"#\" id=\"polygon-color-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\r\n    <a href=\"#\" id=\"polygon-color-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\r\n  </div>\r\n\r\n<div id=\"context-menu\" class=\"dropdown-menu\">\r\n    <a href=\"javascript:;\" id=\"pinNode\" class=\"dropdown-item\">Pin Node</a>\r\n    <a href=\"javascript:;\" id=\"copyID\" class=\"dropdown-item\">Copy ID</a>\r\n    <a href=\"javascript:;\" id=\"copySeq\" class=\"dropdown-item\">Copy Sequence</a>\r\n    <a href=\"javascript:;\" id=\"viewAttributes\" class=\"dropdown-item\">View Attributes</a>\r\n</div>\r\n\r\n\r\n<p-dialog id=\"network-attribute-table-wrapper\" [(visible)]=\"ShowNetworkAttributes\" header=\"Node Attributes\" [style]=\"{width: '35vw'}\" >\r\n    <div class=\"col-12\" style=\"width:100%;\">        \r\n        <table style=\"width:100%\">\r\n            <tr *ngFor=\"let item of ContextSelectedNodeAttributes\">\r\n                <td>\r\n                    <strong>\r\n                        {{item.attribute}}\r\n                    </strong>\r\n                </td>\r\n                <td>{{item.value}}</td>\r\n            </tr>\r\n        </table>\r\n    </div>\r\n</p-dialog>\r\n\r\n\r\n\r\n<p-dialog id=\"network-export-modal\" [(visible)]=\"Show2DExportPane\" header=\"Export Network Image\" class=\"dialogSize\" (onHide)=\"onCloseExport()\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n                <div class=\"modal-body\" style='min-width: 400px; height: 100%;'>\r\n                    <div class=\"form-group row\">\r\n                    <div class=\"col-8\">\r\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\" placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\" (ngModelChange)=\"onDataChange($event)\">\r\n                    </div>\r\n                    <div class=\"col-4\">\r\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" (ngModelChange)=\"onNetworkExportFiletypeChange($event)\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div>\r\n\r\n                    <div [hidden]=\"!ShowAdvancedExport\">\r\n                        <p-accordion>\r\n                            <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\r\n                                <div id=\"network-export-advanced\">\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-3\">\r\n                                            <label for=\"network-export-scale\">Scale</label>\r\n                                        </div>\r\n                                        <div class=\"col-9\">\r\n                                            <input type=\"number\" id=\"network-export-scale\" class=\"form-control form-control-sm\" min=\"0\" max=\"2\" step=\"0.1\" value=\"1\" [(ngModel)]=\"SelectedNetworkExportScaleVariable\" (ngModelChange)=\"updateCalculatedResolution($event)\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-3\">Resolution</div>\r\n                                        <div id=\"network-export-dimensions\" class=\"col-9 text-right\">{{CalculatedResolution}}</div>\r\n                                    </div>\r\n                                    <div class=\"row\">\r\n                                        <div class=\"col-3\">\r\n                                            <label for=\"network-export-quality\">Quality</label>\r\n                                        </div>\r\n                                        <div class=\"col-9\">\r\n                                            <input type=\"range\" class=\"custom-range\" id=\"network-export-quality\" min=\"0\" max=\"1.0\" value=\"0.92\" step=\"0.01\" [(ngModel)]=\"SelectedNetworkExportQualityVariable\">\r\n                                        </div>\r\n                                    </div>\r\n\r\n                                </div>\r\n                            </p-accordionTab>\r\n                        </p-accordion>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"Show2DExportPane = !Show2DExportPane\">Cancel</button>\r\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\" (click)=\"exportVisualization($event)\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->\r\n";
 
 /***/ })
 
