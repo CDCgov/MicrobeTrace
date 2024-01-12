@@ -287,7 +287,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "CommonService": () => (/* binding */ CommonService)
 /* harmony export */ });
-/* harmony import */ var C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./node_modules/@angular-devkit/build-angular/node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js */ 49671);
+/* harmony import */ var _Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./node_modules/@angular-devkit/build-angular/node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js */ 49671);
 /* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! tslib */ 70655);
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @angular/core */ 94650);
 /* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! rxjs */ 591);
@@ -347,6 +347,12 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
   //        { title: "Date", field: "date", align: "right", sorter: "date" }
   //    ]
   //});
+  /**
+   * @param injector
+   * @param localStorageService
+   * @param visuals - this injection allows users to access all the views from commonService (ie. commonService.visuals.twoD)
+   * @param http
+   */
   constructor(injector, localStorageService, visuals, http) {
     super(injector);
     this.localStorageService = localStorageService;
@@ -355,6 +361,8 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     this.LoadViewEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_12__.EventEmitter();
     this.decoder = new TextDecoder('utf-8');
     this.r01 = Math.random;
+    // Set this to true to enable the debug mode/console logs to appear
+    this.debugMode = false;
     this.linkElementSource = new rxjs__WEBPACK_IMPORTED_MODULE_13__.BehaviorSubject(null);
     this.nodeElementSource = new rxjs__WEBPACK_IMPORTED_MODULE_13__.BehaviorSubject(null);
     this.currentLinkTableElement = this.linkElementSource.asObservable();
@@ -377,6 +385,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       SelectedApplyStyleVariable: '',
       SelectedRevealTypesVariable: 'Everything'
     };
+    /**
+     * Returns an object that will eventually be filled with data. It is accessed throught commonService.session.data
+     * It will store a list of nodes, links, and clusters as well as fields that can be used for each
+     */
     this.dataSkeleton = () => {
       return {
         nodes: [],
@@ -414,6 +426,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     //         }
     //     ]
     // }, $('#main-panel'));
+    /**
+     * @returns an object that stores the common widgets/settings used throughout MicrobeTrace
+     */
     this.defaultWidgets = () => {
       return {
         '3DNet-link-tooltip-variable': 'None',
@@ -597,6 +612,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         'twoD-settings-visible': 'Hide'
       };
     };
+    /**
+     * @returns a session object. It has the data object, information on goldenLayout layout, widgets, as well as other settings
+     */
     this.sessionSkeleton = () => {
       return {
         data: this.dataSkeleton(),
@@ -654,12 +672,19 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         warnings: []
       };
     };
+    /**
+     *
+     * @returns object found at commonService.temp  which include a matrix for links between nodes and color/alpha mapping functions
+     */
     this.tempSkeleton = () => {
       return {
         componentCache: {},
         mapData: {},
         matrix: {},
         messageTimeout: null,
+        /* functions in style object get replaced If user decides to color a node, link, or polygon variable.
+         * these functions are replaced with one from the d3 package usind d3.scaleOrdinal(...).domain(...)
+         */
         style: {
           linkAlphaMap: () => 1 - this.session.style.widgets['link-opacity'],
           linkColorMap: () => this.session.style.widgets['link-color'],
@@ -674,6 +699,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     };
     this.temp = this.tempSkeleton();
     this.session = this.sessionSkeleton();
+    /**
+     * updates the functions that set the color and transparency of the polygons [commonService.temp.style.polygonColorMap() and commonService.temp.style.polygonAlphaMap()]
+     * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
+     */
     this.createPolygonColorMap = () => {
       if (!ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.polygonGroups || !ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["polygons-color-show"]) {
         ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap = () => ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["polygon-color"];
@@ -681,6 +710,8 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       }
       let aggregates = {};
       let groups = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.polygonGroups;
+      // groups array where key = value to group by; and values = [nodes] that share that value
+      // for group by subtype; keys are ['B', 'C', 'D']
       groups.forEach(d => {
         aggregates[d.key] = d.values.length;
       });
@@ -695,6 +726,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       });else if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["polygon-color-table-name-sort"] == 'DESC') values.sort(function (a, b) {
         return b - a;
       });
+      // adds more colors when number of polygons > number of colors
       if (values.length > ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonColors.length) {
         let colors = [];
         let m = Math.ceil(values.length / ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonColors.length);
@@ -703,14 +735,21 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         }
         ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonColors = colors;
       }
+      // adds more alpha values when number of polygons > number of alpha values
+      // alpha value are used for transparency
       if (!ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas) ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas = new Array(values.length).fill(1);
       if (values.length > ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas.length) {
         ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas.concat(new Array(values.length - ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas.length).fill(0.5));
       }
-      if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap === undefined || ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap.domain === undefined) ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(this.session.style['polygonColors']).domain(values);
+      if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap === undefined || ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap.domain === undefined)
+        // updates the function that defines which color and transparency value to use for each polygon
+        ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(this.session.style['polygonColors']).domain(values);
       if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonAlphaMap === undefined || ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonColorMap.domain === undefined) ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.polygonAlphaMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.polygonAlphas).domain(values);
       return aggregates;
     };
+    /**
+     * @returns {any[]} Returns an array with a copy of each node object
+     */
     this.getNetworkNodes = () => {
       let nodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.network.nodes;
       let n = nodes.length;
@@ -727,20 +766,34 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
   ngOnInit() {
     this.initialize();
   }
+  /**
+   * Sets window.context.commonSerive = this; and also calls reset() which sets commonService.temp and commonService.session back to default values (except
+   * temp.mapData, session.files, session.meta)
+   */
   initialize() {
-    //debugger;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context == undefined ? {} : ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService = this;
     this.reset();
   }
+  /**
+   * Capitalizes the first letter of a string
+   * @param s - Expects a string
+   * @returns - the string with first letter capitalized. If typeof s != string returns empty string
+   */
   capitalize(s) {
     if (typeof s !== 'string') return '';
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
+  /**
+   * Set commonService.session and commonService.temp back to default values
+   */
   clearData() {
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.sessionSkeleton();
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.tempSkeleton();
   }
+  /**
+   * @returns a default node object
+   */
   defaultNode() {
     return {
       index: ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes.length,
@@ -754,9 +807,19 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       hasDistance: false
     };
   }
+  /**
+   * XXXXX Not currently used; not sure of future use XXXXX
+   * @returns boolean
+   */
   onlyUnique(value, index, self) {
     return self.indexOf(value) === index;
   }
+  /**
+   * Checks if an array or string contains a specified value.
+   * @param container - Where to search such as a []
+   * @param {any} value - The value to search for.
+   * @returns {boolean} - `true` if the `container` parameter contains the `value` parameter, and `false` otherwise.
+   */
   includes(container, value) {
     let returnValue = false;
     const pos = container.indexOf(value);
@@ -765,6 +828,12 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     }
     return returnValue;
   }
+  /**
+   * Sanitizes user input to prevent cross-site scripting (XSS) attacks.
+   * @param {string|number|boolean} t - The user input to be sanitized.
+   * @param {boolean} [e=0 | false] - An optional parameter that specifies whether to encode the sanitized output as HTML entities.
+   * @returns {string} - The sanitized output.
+   */
   filterXSS(t, e = 0) {
     let argType = typeof t;
     if (argType === 'object') {
@@ -776,23 +845,20 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     var i = t.replace(/javascript/gi, 'j&#97;vascript').replace(/expression/gi, 'expr&#101;ssion').replace(/onload/gi, 'onlo&#97;d').replace(/script/gi, '&#115;cript').replace(/onerror/gi, 'on&#101;rror');
     return e === !0 ? i : i.replace(/>/g, '&gt;').replace(/</g, '&lt;');
   }
+  /**
+   * @param {any} a an input value
+   * @returns {boolean} whether a is a number
+   */
   isNumber(a) {
     return typeof a == 'number';
   }
+  /**
+   * Adds a new node to an array of nodes.
+   * @param {Node} newNode - The new node to be added to the array.
+   * @param {boolean | null} [check=null] - An optional parameter that specifies whether to check for duplicates before adding the new node.
+   * @returns {number} - `1` if a new node was added to the array, `0` otherwise.
+   */
   addNode(newNode, check = null) {
-    // TODO: Remove when done testing
-    // if (newNode._id === "30576_KF773440_B96cl58") {
-    //     console.log('node1: ', newNode);
-    // }
-    // if (newNode._id === "30576_KF773440_B96cl58 ") {
-    //     console.log('node2: ', newNode);
-    // }
-    // if (newNode._id === "30576_KF773440_B96cl58 ") {
-    //     console.log('node7: ', newNode);
-    // }
-    // if (newNode.id === "30576_KF773440_B96cl58") {
-    //     console.log('node8: ', newNode);
-    // }
     //  If no _id, set _id to id
     if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.isNumber(newNode._id)) {
       newNode._id = '' + newNode._id;
@@ -826,6 +892,12 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes.push(newElement);
     return 1;
   }
+  /**
+   * Adds a new link to an array of links.
+   * @param {Object} newLink- The new link to be added to the array.
+   * @param {boolean | null} [check=null] - An optional parameter that specifies whether to check for duplicates before adding the new link.
+   * @returns {number} - `1` if a new link was added to the array, `0` otherwise.
+   */
   addLink(newLink, check = true) {
     const serv = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService;
     const matrix = serv.temp.matrix;
@@ -844,10 +916,6 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       // console.log(JSON.stringify(myorigin));
       // Ensure no empty origins
       myorigin = myorigin.filter(origin => origin != '');
-      // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
-      //   console.log("add new: ", _.cloneDeep(newLink));
-      //   console.log("add old: ", _.cloneDeep(oldLink));
-      // }
       // Ensure new link keeps distance if already defined previously
       if (oldLink.hasDistance) {
         newLink.hasDistance = true;
@@ -867,10 +935,6 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       // TODO remove when confident this function never causes issues - used to debug easier
       // Object.assign(oldLink, newLink);
       // Object.assign(newLink, oldLink);
-      // if("" + newLink.source == "3003" && "" + newLink.target == "1703") {
-      //   console.log("add new2: ", _.cloneDeep(newLink));
-      //   console.log("add old2: ", _.cloneDeep(oldLink));
-      // }
       if (newLink["bidirectional"]) {
         oldLink["bidirectional"] = true;
       }
@@ -914,6 +978,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     // window.context.commonService.session.data.linkFilteredValues = [...window.context.commonService.session.data.links];
     return linkIsNew;
   }
+  /**
+   * Removes duplicate elements from an array.
+   * @param {Array} a - The array to be processed.
+   * @returns {Array} - The array containing only the unique elements of the input array `a`.
+   */
   uniq(a) {
     let seen = {};
     let out = [];
@@ -928,9 +997,12 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     }
     return out;
   }
+  /**
+   * I think this function allows users to import an svg image into MT. Not sure if it currently works.
+   * @param svg
+   */
   processSVG(svg) {
     let nodes = [];
-    //debugger;
     const $xml = document.getElementById(svg);
     if ($xml.find('#edges').length) {
       $xml.find('#nodes circle').each((i, node) => {
@@ -987,8 +1059,15 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     }
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.runHamsters();
   }
+  /**
+   * Loads JSON, MicrobeTrace, or HivTrace files into MicrobeTrace
+   * @param json
+   * @param {string} extension file extension such as json, hivtrace, or microbetrace
+   */
   processJSON(json, extension) {
-    console.log("Trying to process JSON file");
+    if (this.debugMode) {
+      console.log("Trying to process JSON file");
+    }
     let data;
     try {
       if (json.result) {
@@ -1019,13 +1098,18 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       }
     }
   }
+  /**
+   * Updates commonService.session with information from stashObject. Variables updated include data, files, state, style, and layout.
+   */
   applySession(stashObject) {
     //If anything here seems eccentric, assume it's to maintain compatibility with
     //session files from older versions of MicrobeTrace.
     $("#launch").prop("disabled", true);
     $(document).trigger("stop-force-simulation"); // stop previous network ticks so previous polygon won't show up
     $(document).off('.2d');
-    console.log('applying session:', stashObject);
+    if (this.debugMode) {
+      console.log('applying session:', stashObject);
+    }
     if (stashObject.session) {} else {
       stashObject = {
         tabs: [{
@@ -1090,6 +1174,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     // $("#network-statistics-show").parent().trigger("click");
   }
 
+  /**
+   * XXXXX Review if function is necessary XXXXX
+   * Sets session.data.nodeFilteredValues = session.data.nodes
+   */
   processData() {
     let nodes = this.session.data.nodes;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodeFilteredValues = nodes;
@@ -1105,9 +1193,13 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     // })
     // this.processSequence()
   }
-
+  /**
+   * Updates session.style with information from style object parameter, also updated Link Color Map, Node Color Map, and Polygon Color Map Functions
+   */
   applyStyle(style) {
-    console.log('applying style: ', style);
+    if (this.debugMode) {
+      console.log('applying style: ', style);
+    }
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style = style;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets = Object.assign({}, ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.defaultWidgets(), style.widgets);
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.createLinkColorMap();
@@ -1235,20 +1327,37 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.updateNetwork();
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.updateStatistics();
   }
+  /**
+   * Decodes the given `x` using the utf-8 TextDecoder object.
+   * @param {ArrayBuffer} x - The data to be decoded.
+   * @returns {string} - The decoded string.
+   */
   decode(x) {
     return ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.decoder.decode(x);
   }
+  /**
+   * Asynchronously parses fasta text on another thread to generate an array of nodes with id and seq
+   * @param {string} text fasta string
+   * @returns {Promise<Array>} A Promise that resolves to an array of nodes with id and seq.
+   */
   parseFASTA(text) {
     return new Promise(resolve => {
       let computer = new _workers_workModule__WEBPACK_IMPORTED_MODULE_7__.WorkerModule();
       let response = computer.compute_parse_fastaWorker.postMessage(text);
       computer.compute_parse_fastaWorker.onmessage().subscribe(response => {
         let nodes = JSON.parse(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.decode(new Uint8Array(response.data.nodes)));
-        console.log("FASTA Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("FASTA Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        }
         resolve(nodes);
       });
     });
   }
+  /**
+   * Asynchronously parses csv matrix file content and adds nodes and links to session.data
+   * @param {string} file content from csv matrix file
+   * @returns {Promise} A Promise that resolves to an object with {numberOfNodesAdded, numberOfLinksAdded, totalNumberofNodes, totalNumberofLinks}
+   */
   parseCSVMatrix(file) {
     return new Promise(resolve => {
       let check = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.files.length > 1;
@@ -1259,7 +1368,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       computer.compute_parse_csv_matrixWorker.postMessage(file.contents);
       computer.compute_parse_csv_matrixWorker.onmessage = response => {
         const data = JSON.parse(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.decode(new Uint8Array(response.data.data)));
-        console.log('CSV Matrix Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
+        if (this.debugMode) {
+          console.log('CSV Matrix Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
+        }
         const start = Date.now();
         const nodes = data.nodes;
         const tn = nodes.length;
@@ -1279,7 +1390,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
             distanceOrigin: origin
           }), check);
         }
-        console.log('CSV Matrix Merge time: ', (Date.now() - start).toLocaleString(), 'ms');
+        if (this.debugMode) {
+          console.log('CSV Matrix Merge time: ', (Date.now() - start).toLocaleString(), 'ms');
+        }
         resolve({
           nn,
           nl,
@@ -1289,6 +1402,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       };
     });
   }
+  /**
+   * XXXXX function not currently called XXXXX
+   * @param auspiceData
+   * @returns
+   */
   auspiceCallBack(auspiceData) {
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.clearData();
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.sessionSkeleton();
@@ -1319,7 +1437,15 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     this.processData();
     return nodeCount;
   }
-  // ported from https://github.com/CDCgov/SeqSpawnR/blob/91d5857dbda5998839a002fbecae0f494dca960a/R/SequenceSpawner.R
+  /**
+   * Generates new sequences
+   * ported from https://github.com/CDCgov/SeqSpawnR/blob/91d5857dbda5998839a002fbecae0f494dca960a/R/SequenceSpawner.R
+   * @param {string} idPrefix - prefix to label generated sequences
+   * @param {number} count - number of sequences to generate
+   * @param {number} snps - number of snps to add to a new sequence is random value from 0 - snps
+   * @param {string} seed -reference sequence for generating new sequences
+   * @returns list of objects representings seq, each seq objects has {id: string, seq: string}
+   */
   generateSeqs(idPrefix, count, snps, seed) {
     let start = Date.now();
     if (!count) count = 1000;
@@ -1367,7 +1493,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         seq: newseed
       });
     }
-    console.log("Sequence spawn time:", (Date.now() - start).toLocaleString(), 'ms');
+    if (this.debugMode) {
+      console.log("Sequence spawn time:", (Date.now() - start).toLocaleString(), 'ms');
+    }
     return seqs;
   }
   align(params) {
@@ -1415,7 +1543,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         data: nodes
       });
       computer.compute_consensusWorker.onmessage().subscribe(response => {
-        console.log("Consensus Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("Consensus Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        }
         resolve(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.decode(new Uint8Array(response.data.consensus)));
       });
       //let computer: WorkerModule = new WorkerModule();
@@ -1499,6 +1629,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       });
     });
   }
+  /**
+   * Asychronously uses a worker to calculate snp or tn93 distances between each set of nodes and then add links
+   * @param subset an array of nodes
+   * @returns a promise that resolves to the number of new links added from this.addLink()
+   */
   computeLinks(subset) {
     return new Promise(resolve => {
       let k = 0;
@@ -1511,7 +1646,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       });
       computer.compute_linksWorker.onmessage().subscribe(response => {
         let dists = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["default-distance-metric"].toLowerCase() == 'snps' ? new Uint16Array(response.data.links) : new Float32Array(response.data.links);
-        console.log("Links Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("Links Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        }
         let start = Date.now();
         let check = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.files.length > 1;
         let n = subset.length;
@@ -1531,7 +1668,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
             }, check);
           }
         }
-        console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        }
         resolve(k);
       });
     });
@@ -1564,33 +1703,33 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         }
       }
       // console.log('matrixx: ',  JSON.stringify(window.context.commonService.temp.matrix));
-      console.log("DM Compute time: ", (Date.now() - start).toLocaleString(), "ms");
+      if (this.debugMode) {
+        console.log("DM Compute time: ", (Date.now() - start).toLocaleString(), "ms");
+      }
       resolve(dm);
     });
   }
   computeTree() {
-    console.log('computing tree');
+    if (this.debugMode) {
+      console.log('computing tree');
+    }
     return new Promise(resolve => {
       if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.treeObj) {
         resolve(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.treeObj.toNewick());
       } else {
         let computer = new _workers_workModule__WEBPACK_IMPORTED_MODULE_7__.WorkerModule();
-        console.log('getting dm');
         ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.getDM().then(dm => {
-          console.log('got dm');
           computer.compute_treeWorker.postMessage({
             labels: Object.keys(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.matrix).sort(),
             matrix: dm,
             round: ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["tree-round"]
           });
-          console.log('got dm2');
           computer.compute_treeWorker.onmessage().subscribe(response => {
-            console.log('successfully decoded tree');
             const treeObj = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.decode(new Uint8Array(response.data.tree));
-            console.log('successfully decoded tree1');
             const treeString = patristic__WEBPACK_IMPORTED_MODULE_2__.parseJSON(treeObj).toNewick();
-            console.log('successfully decoded tree 2');
-            console.log('Tree Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
+            if (this.debugMode) {
+              console.log('Tree Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
+            }
             resolve(treeString);
           });
         });
@@ -1606,7 +1745,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       });
       computer.compute_directionalityWorker.onmessage().subscribe(response => {
         let flips = new Uint8Array(response.data.output);
-        console.log("Directionality Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("Directionality Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        }
         let start = Date.now();
         let n = flips.length;
         for (let i = 0; i < n; i++) {
@@ -1618,7 +1759,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
             fliplink.directed = true;
           }
         }
-        console.log("Directionality Integration time: ", (Date.now() - start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("Directionality Integration time: ", (Date.now() - start).toLocaleString(), "ms");
+        }
         resolve();
       });
     });
@@ -1637,14 +1780,18 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
           return reject("MST washed out");
         }
         let output = new Uint8Array(response.data.links);
-        console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        }
         const start = Date.now();
         let links = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.links;
         const numLinks = links.length;
         for (let i = 0; i < numLinks; i++) {
           links[i].nn = output[i] ? true : false;
         }
-        console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        }
         resolve();
       });
     });
@@ -1658,20 +1805,23 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         epsilon: ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["filtering-epsilon"],
         metric: ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-sort-variable"]
       });
-      console.log('computing nn');
       computer.compute_nnWorker.onmessage().subscribe(response => {
         if (response.data == "Error") {
           return reject("Nearest Neighbor washed out");
         }
         let output = new Uint8Array(response.data.links);
-        console.log("NN Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("NN Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        }
         const start = Date.now();
         let links = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.links;
         const numLinks = links.length;
         for (let i = 0; i < numLinks; i++) {
           links[i].nn = output[i] ? true : false;
         }
-        console.log("NN Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        if (this.debugMode) {
+          console.log("NN Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        }
         resolve();
       });
     });
@@ -1686,7 +1836,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         });
         computer.compute_triangulationWorker.onmessage().subscribe(response => {
           if (response.data == "Error") return reject("Triangulation washed out");
-          console.log("Triangulation Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+          if (this.debugMode) {
+            console.log("Triangulation Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+          }
           let start = Date.now();
           let matrix = JSON.parse(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.decode(new Uint8Array(response.data.matrix)));
           let labels = Object.keys(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.matrix);
@@ -1707,28 +1859,34 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
               row[target][metric] = matrix[i][j];
             }
           }
-          console.log("Triangulation Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+          if (this.debugMode) {
+            console.log("Triangulation Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+          }
           resolve();
         });
       });
     });
   }
   runHamsters() {
-    return (0,C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+    return (0,_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       if (!ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["triangulate-false"]) ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.computeTriangulation();
-      console.log('running hamseters');
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.computeNN();
-      console.log('running hamseters 2');
       yield ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.computeTree();
-      console.log('running hamseters 3');
       if (!ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["infer-directionality-false"]) ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.computeDirectionality();
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.finishUp();
     })();
   }
+  /**
+   * Sets node/link values to null when they aren't present. Check each field in nodeField and linkFields, and if the key includes 'date', sets any null or empty string
+   * value to the min date value found. Populates options for #search-field, #link-sort-variable, #node-color-variable, #link-color-variable, set value for #default-distance-metric.
+   * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility, setLinkVisibilty, setNodeVisibility functions. Updates network statistic table.
+   * Launches default view.
+   */
   finishUp() {
     var _this = this;
-    return (0,C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+    return (0,_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       clearTimeout(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.messageTimeout);
+      // cycles through each node and link and if variable in nodeFields/linkFields not a key for the node/link, it is added with value of null
       ["node", "link"].forEach(v => {
         let n = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data[v + "s"].length;
         let fields = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data[v + "Fields"];
@@ -1745,9 +1903,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       let fieldsToCheck = fields.filter(f => !nodeSkeleton.nodeFields.includes(f) && f != '_ambiguity' && f != '_diff');
       let n = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes.length;
       let k = fieldsToCheck.length;
+      // for each field in fieldsToCheck (fieldsToCheck are nodeFields that are not default from dataSkeleton() and also not '_ambiguity' and not '_diff' )
       for (let j = 0; j < k; j++) {
         let field = fieldsToCheck[j];
         let times = [];
+        // for each node check if node[field] is valid time and if so push to times []
         for (let i = 0; i < n; i++) {
           let node = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes[i];
           if (node[field] != null) {
@@ -1761,6 +1921,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         if (field.toLowerCase().includes("date")) {
           let minTime = Math.min(...times);
           let minTimeString = new Date(minTime).toString();
+          // for each node d, if d[field] == null or empty string ("", " ", "  " ...) set d[field] to minTimeString
           ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes.forEach(d => {
             if (d[field] == null || d[field] && String(d[field]).trim() == "") {
               d[field] = minTimeString;
@@ -1802,7 +1963,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       });
 
       setTimeout(() => {
-        console.log('launching view: ', ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["default-view"]);
+        if (_this.debugMode) {
+          console.log('launching view: ', ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["default-view"]);
+        }
         ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.launchView(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["default-view"]);
       }, 1000);
       /*if (localStorage.getItem("stash-auto") == "true") {
@@ -1812,10 +1975,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
                   let newTime = Date.now();
                   window.context.commonService.localStorageService.setItem("stash-" + newTime + "-autostash", JSON.stringify(window.context.commonService.session));
                   window.context.commonService.localStorageService.removeItem("stash-" + window.context.commonService.temp.autostash.time + "-autostash", (error) => {
-                      
+                     
                       abp.notify.warn('Error while attempting to remove stash');
-                    });
-                    this.temp.autostash.time = newTime;
+                   });
+                   this.temp.autostash.time = newTime;
               }, 60000)
           };
       }*/
@@ -1946,20 +2109,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodeFields = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodeFields.filter(x => x != exposure.id);
     });
   }
-  setClusterVisibility(silent) {
-    let start = Date.now();
-    let min = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["cluster-minimum-size"];
-    let clusters = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.clusters;
-    let n = clusters.length;
-    for (let i = 0; i < n; i++) {
-      let cluster = clusters[i];
-      // console.log('cluster nodes ', cluster);
-      cluster.visible = cluster.nodes >= min;
-    }
-    if (!silent) $(document).trigger("cluster-visibility"); //$window.trigger("cluster-visibility");
-    // console.log("Cluster Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
-  }
-
+  /**
+   * Gets a list of all visible node objects
+   * @param {boolean} [copy=false] - optional boolean value to set if you want to deepcopy the nodes
+   * @returns a list of node objects
+   */
   getVisibleNodes(copy = false) {
     let nodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodeFilteredValues;
     let n = nodes.length;
@@ -1976,6 +2130,15 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     }
     return out;
   }
+  /**
+   * Gets a list of all visible links objects; Similar to twoD.getVlinks(), and twoD.getLLinks()
+   *
+   * A link that has multiple origin is stored as a single object
+   *
+   * Each link's source and target are strings of the node _id
+   * @param {boolean} [copy=false] - optional boolean value to set if you want to deepcopy the links
+   * @returns a array of link objects;
+   */
   getVisibleLinks(copy = false) {
     let links = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.links;
     let n = links.length;
@@ -1994,9 +2157,16 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     }
     return out;
   }
+  /**
+   * Gets a list of all visible cluster objects
+   * @param {boolean} [copy=false] - optional boolean value to set if you want to deepcopy the cluster
+   * @returns a list of cluster objects
+   */
   getVisibleClusters(copy = false) {
     let clusters = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.clusters;
-    console.log('get vis: ', clusters);
+    if (this.debugMode) {
+      console.log('get vis: ', clusters);
+    }
     let n = clusters.length;
     let out = [],
       cluster = null;
@@ -2013,6 +2183,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     }
     return out;
   }
+  /**
+   * updates the network statistics table with number of visible nodes, visible links, clusters, and selected links
+   * @returns undefined
+   */
   updateStatistics() {
     if ($("#network-statistics-hide").is(":checked")) return;
     let vnodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.getVisibleNodes();
@@ -2037,7 +2211,6 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         if (clusters[id]) clusters[id]++;else clusters[id] = 1;
       }
       clusterCount = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.clusters.filter(cluster => clusters[cluster.id] && clusters[cluster.id] > 2 && cluster.visible && cluster.nodes > 1).length;
-      console.log('cluster count 2: ', clusterCount);
     }
     let singletons = vnodes.filter(d => d.degree == 0).length;
     $("#numberOfSelectedNodes").text(vnodes.filter(d => d.selected).length.toLocaleString());
@@ -2046,6 +2219,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     $("#numberOfSingletonNodes").text(singletons.toLocaleString());
     $("#numberOfDisjointComponents").text(clusterCount);
   }
+  /**
+   * updates the functions that set the color and transparency of the nodes [commonService.temp.style.nodeColorMap() and commonService.temp.style.nodeAlphaMap()]
+   * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
+   */
   createNodeColorMap() {
     let variable = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["node-color-variable"];
     if (variable == "None") {
@@ -2060,6 +2237,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.nodeColorsTableKeys = {};
       nodeColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.nodeColorsTable[variable] = [...ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.nodeColors];
     }
+    // populates aggregates object where key is the value and the value is the count of number of nodes with that value
     let aggregates = {};
     let nodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes;
     let n = nodes.length;
@@ -2073,7 +2251,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         aggregates[dv] = 1;
       }
     }
-    //debugger;
+    // adds more colors and alpha values when number of node options > number of colors/alphas
     let values = Object.keys(aggregates);
     if (values.length > ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.nodeColors.length) {
       let colors = [];
@@ -2152,13 +2330,20 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       nodeColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.nodeColor = tempNodeColors; // temp node color maps saved only under timeline
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.nodeColorKeys = [...values];
     }
+    // updates the function that defines which color and transparency value to use for each node
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.nodeColorMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.nodeColors).domain(values);
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.nodeAlphaMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.nodeAlphas).domain(values);
     return aggregates;
   }
+  /**
+   * updates the functions that set the color and transparency of the links [commonService.temp.style.linkColorMap() and commonService.temp.style.linkAlphaMap()]
+   * @returns {Object} where keys are the values to group (ie. origin A, origin B) and values are counts of the number of links for each key
+   */
   createLinkColorMap() {
     let variable = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-color-variable"];
-    console.log('link var: ', variable);
+    if (this.debugMode) {
+      console.log('link var: ', variable);
+    }
     if (variable == "None") {
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.linkColorMap = () => ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-color"];
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.linkAlphaMap = () => 1 - ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-opacity"];
@@ -2167,10 +2352,16 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     let linkColors;
     if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable && ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable[variable]) {
       linkColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable[variable];
+    } else if (variable == 'source' || variable == 'target') {
+      ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable = {};
+      ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTableKeys = {};
+      linkColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable[variable] = [d3__WEBPACK_IMPORTED_MODULE_1__.schemeCategory10[0]].concat(d3__WEBPACK_IMPORTED_MODULE_1__.schemeCategory10.slice(2));
+      ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColors = [d3__WEBPACK_IMPORTED_MODULE_1__.schemeCategory10[0]].concat(d3__WEBPACK_IMPORTED_MODULE_1__.schemeCategory10.slice(2));
     } else {
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable = {};
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTableKeys = {};
-      linkColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable[variable] = [...ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColors];
+      linkColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColorsTable[variable] = d3__WEBPACK_IMPORTED_MODULE_1__.schemePaired;
+      ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColors = d3__WEBPACK_IMPORTED_MODULE_1__.schemePaired;
     }
     let aggregates = {};
     let links = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.getVisibleLinks();
@@ -2189,6 +2380,22 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
           }
         });
       }
+    } else if (variable == 'source' || variable == 'target') {
+      // first loop is to populates color in the same order as nodeColorMap would be
+      ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.nodes.forEach(node => {
+        aggregates[node._id] = 0;
+      });
+      ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.links.forEach(link => {
+        if (!link.visible) {
+          return;
+        }
+        let node = link[variable];
+        if (node in aggregates) {
+          aggregates[node]++;
+        } else {
+          aggregates[node] = 1;
+        }
+      });
     } else {
       while (i < n) {
         l = links[i++];
@@ -2202,6 +2409,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       }
     }
     let values = Object.keys(aggregates);
+    // adds more colors/alphas when they are less than length of values
     if (values.length > this.session.style.linkColors.length) {
       let colors = [];
       let cycles = Math.ceil(values.length / ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColors.length);
@@ -2278,10 +2486,15 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       linkColors = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.linkColor = tempLinkColors; // temp link color maps saved only under timeline
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.linkColorsKeys = [...values];
     }
+    // updates the function that defines which color and transparency value to use for each link
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.linkColorMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkColors).domain(values);
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.style.linkAlphaMap = d3__WEBPACK_IMPORTED_MODULE_1__.scaleOrdinal(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.linkAlphas).domain(values);
     return aggregates;
   }
+  /**
+   * Set commonService.session and commonService.temp back to default values; However keeps previous values for commonService.temp.mapData, commonService.session.files,
+   * and commonService.session.meta
+   */
   reset() {
     //debugger;
     // $("#network-statistics-hide").parent().trigger("click");
@@ -2303,6 +2516,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     //this.launchView("files");
   }
 
+  /**
+   * Sets the following objects back to default values: commonService.temp.matrix, commonService.temp.tree, commonService.session.data, commonService.session.network,
+   * commonService.session.style.widgets. Filters 'Demo_outbreak_NodeList.csv' from files
+   */
   resetData() {
     const newTempSkeleton = this.tempSkeleton();
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.matrix = newTempSkeleton.matrix;
@@ -2315,6 +2532,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.files = files;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.meta = meta;
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets = this.defaultWidgets();
+    // default values are 'tn93' and 0.015, so not sure if this if statement is every true
     if (ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["default-distance-metric"] !== 'snps' && ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-threshold"] >= 1) {
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.visuals.microbeTrace.SelectedLinkThresholdVariable = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-threshold"];
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.visuals.microbeTrace.onLinkThresholdChanged();
@@ -2424,6 +2642,12 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     });
   }
 
+  /**
+   * XXXXX Not currently used; not sure future use XXXXX
+   * Predicts whether white or black is most contrasting color
+   * @param {string} hexcolor - hexcode representation of a color (ie. '#1e9d00')
+   * @returns {string} - for hex representation of color (white or black)
+   */
   contrastColor(hexcolor) {
     let r = parseInt(hexcolor.substr(1, 2), 16);
     let g = parseInt(hexcolor.substr(3, 2), 16);
@@ -2431,11 +2655,16 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     let yiq = r * 299 + g * 587 + b * 114;
     return yiq >= 128000 ? "#000000" : "#ffffff";
   }
+  /**
+  *  XXXXX Not currently being executed. It's in the codebase but hidden behind comments XXXXX
+  *	Returns the last element of an array
+  * @param ra - an array (potentially could take other datatypes as well)
+  * @returns {any} the last element in an array
+  */
   peek(ra) {
     return ra[ra.length - 1];
   }
   launchView(view, callback = null) {
-    console.log('creating compo');
     // this.srv.createNewComponent(this.srv.getRegisteredComponents()[1]);
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.LoadViewEvent.emit(view);
     // if (!this.temp.componentCache[view]) {
@@ -2622,6 +2851,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
   //        this.launchView(component.type);
   //    }
   //};
+  /**
+   * Extracts the SVG from the DOM with CSS included. Used during exporting/saving a view as a SVG
+   * @param {HTMLElement} svgNode - HTML element in document such as document.getElementById('network') or document.getElementById('tidytree')
+   * @returns {string} String of SVG code for the element with CSS ie. <svg ...>
+   */
   unparseSVG(svgNode) {
     svgNode.setAttribute("xlink", "http://www.w3.org/1999/xlink");
     let selectorTextArr = [];
@@ -2677,6 +2911,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     let serializer = new XMLSerializer();
     return serializer.serializeToString(svgNode);
   }
+  /**
+   * XXXXX currently not in use XXXXX
+   * @returns
+   */
   exportHIVTRACE() {
     let links = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.links.filter(l => l.visible);
     let geneticLinks = links.filter(l => l.origin.includes("Genetic Distance"));
@@ -2755,10 +2993,19 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       }
     }, null, 2);
   }
+  /**
+   * Gives the size of a variable in MB
+   * @param thing
+   * @returns {string} Size of thing in MB as a string ('4MB')
+   */
   size(thing) {
     if (!thing) thing = this.session;
     return (JSON.stringify(thing).length / 1024 / 1024).toLocaleString() + 'MB';
   }
+  /**
+   * Converts commonly used titles to a standard output; for less common titles nothing is changed
+   * @param {string} title
+   */
   titleize(title) {
     let small = title.toLowerCase().replace(/_/g, " ");
     if (small == "null") return "(Empty)";
@@ -2772,6 +3019,11 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     return title;
     return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
   }
+  /**
+   * Set up the clusters; new clusters are created as needed; node.cluster is set to cluster id.
+   * When a node is found that isn't in tempnodes, a cluster is created and a depth-first search is preformed.
+   * During DFS, nodes are added to tempnodes, the node.cluster is assigned and information in cluster is updated
+   */
   tagClusters() {
     return new Promise(resolve => {
       let start = Date.now();
@@ -2783,9 +3035,16 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         numLinks = links.length;
       let tempnodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.temp.nodes = [];
       let lsv = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-sort-variable"];
+      /**
+       * A function that performs a depth-first search.
+       * @param id - The ID of the node to start the search from.
+       * @param cluster - The cluster to search in.
+       * @returns {void}
+       */
       let DFS = (id, cluster) => {
+        // if id is found in tempNode exit function
         if (tempnodes.indexOf(id) >= 0) return;
-        // console.log('past return, temp');
+        // else add it, and continue DFS
         tempnodes.push(id);
         let node = {};
         for (let i = 0; i < numNodes; i++) {
@@ -2811,14 +3070,16 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
           cluster.links++;
           cluster.sum_distances += l[lsv];
           if (tempnodes.length == numNodes) return;
+          // recursively call DFS on both source and target
           DFS(l.source, cluster);
           DFS(l.target, cluster);
         }
-      };
+      }; // DFS function close
       for (let k = 0; k < numNodes; k++) {
         let d = nodes[k];
         d.degree = 0;
         let id = d._id;
+        // if id isn't in temp nodes, add new cluster and do DFS
         if (tempnodes.indexOf(id) == -1) {
           let cluster = {
             id: clusters.length > 0 ? clusters.length : 0,
@@ -2834,7 +3095,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
           if (tempnodes.length == numNodes) break;
         }
       }
-      console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
+      if (this.debugMode) {
+        console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
+      }
       start = Date.now();
       //This is O(N^3)
       //TODO: Refactor using temp.matrix to get O(N^2)
@@ -2862,10 +3125,16 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
         c.links_per_node = c.links / c.nodes;
         c.mean_genetic_distance = c.sum_distances / 2 / c.links;
       });
-      console.log("Degree Computation time:", (Date.now() - start).toLocaleString(), "ms");
+      if (this.debugMode) {
+        console.log("Degree Computation time:", (Date.now() - start).toLocaleString(), "ms");
+      }
       resolve();
     });
   }
+  /**
+   * Sets node visibility to true when it cluster is visible
+   * @param {boolean} silent - whether to trigger node-visibility event (True doesn't trigger, False does)
+   */
   setNodeVisibility(silent) {
     let start = Date.now();
     let dateField = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["timeline-date-field"];
@@ -2874,14 +3143,14 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     let n = nodes.length;
     for (let i = 0; i < n; i++) {
       let node = nodes[i];
-      if (node._id === "NIMR_NG894803") {
-        console.log('setting node vis: ', lodash__WEBPACK_IMPORTED_MODULE_4__.cloneDeep(node));
-      }
+      //if (node._id === "NIMR_NG894803") {
+      //    console.log('setting node vis: ', _.cloneDeep(node));
+      //}
       node.visible = true;
       let cluster = clusters[node.cluster];
-      if (node._id === "NIMR_NG894803") {
-        console.log('setting node cluster: ', lodash__WEBPACK_IMPORTED_MODULE_4__.cloneDeep(cluster));
-      }
+      //if (node._id === "NIMR_NG894803") {
+      //    console.log('setting node cluster: ', _.cloneDeep(cluster));
+      //}
       if (cluster) {
         // TODO: uncomment if something breaks since this was defaulted to visible
         // cluster.visible = true;
@@ -2897,23 +3166,17 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       }
     }
     if (!silent) $(document).trigger("node-visibility");
-    console.log('session nodes: ', nodes.filter(n => n.visible));
-    console.log('session nodes length: ', nodes.filter(n => n.visible).length);
-    console.log("Node Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
-  }
-  updatePinNodes(copy) {
-    let nodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.network.nodes;
-    let n = nodes.length;
-    for (let i = 0; i < n; i++) {
-      let node = nodes[i];
-      if (copy && node.fixed) node.preFixed = true;
-      if (!copy && ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.network.timelineNodes[i].preFixed) {
-        node.fixed = true;
-        node.fx = node.x;
-        node.fy = node.y;
-      }
+    if (this.debugMode) {
+      console.log('session nodes: ', nodes.filter(n => n.visible));
+      console.log('session nodes length: ', nodes.filter(n => n.visible).length);
+      console.log("Node Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
     }
   }
+  /**
+   * Sets link visibility based on distance, link-threshold, nearestNeighbor setting, etc...
+   * @param {boolean} silent - whether to trigger link-visibility event (True doesn't trigger, False does)
+   * @param {boolean} [checkCluster=true] - defaults to true; whether to include cluster.visibility when setting link.visibility
+   */
   setLinkVisibility(silent, checkCluster = true) {
     let start = Date.now();
     let metric = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["link-sort-variable"],
@@ -2922,7 +3185,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     let links = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.links;
     let clusters = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.clusters;
     let n = links.length;
-    console.log(`Setting Link Visibility with ${metric} ${threshold} ${showNN}`);
+    if (this.debugMode) {
+      console.log(`Setting Link Visibility with ${metric} ${threshold} ${showNN}`);
+    }
     for (let i = 0; i < n; i++) {
       let link = links[i];
       let visible = true;
@@ -2952,9 +3217,10 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
               const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
               return fileName && !includesDistanceOrigin && !hasAuspice;
             }).length > 0) {
-              if (link.index === 154630) {
-                console.log('session viz 2');
-              } // Set visible and origin to only show the file outside of Distance
+              //if(link.index === 154630) {
+              //    console.log('session viz 2');
+              //}                        
+              // Set visible and origin to only show the file outside of Distance
               link.origin = link.origin.filter(fileName => {
                 const hasAuspice = /[Aa]uspice/.test(fileName);
                 const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
@@ -2985,7 +3251,40 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       link.visible = visible;
     }
     if (!silent) $(document).trigger("link-visibility");
-    console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
+    if (this.debugMode) {
+      console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
+    }
+  }
+  /**
+   * Set the visibility of each cluster based on if cluster size is greater than cluster-minimum-size
+   * @param {boolean} silent whether to trigger cluster-visibility event (True doesn't trigger, False does)
+   */
+  setClusterVisibility(silent) {
+    //let start = Date.now();
+    let min = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["cluster-minimum-size"];
+    let clusters = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.data.clusters;
+    let n = clusters.length;
+    for (let i = 0; i < n; i++) {
+      let cluster = clusters[i];
+      // console.log('cluster nodes ', cluster);
+      cluster.visible = cluster.nodes >= min;
+    }
+    if (!silent) $(document).trigger("cluster-visibility"); //$window.trigger("cluster-visibility");
+    // console.log("Cluster Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
+  }
+
+  updatePinNodes(copy) {
+    let nodes = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.network.nodes;
+    let n = nodes.length;
+    for (let i = 0; i < n; i++) {
+      let node = nodes[i];
+      if (copy && node.fixed) node.preFixed = true;
+      if (!copy && ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.network.timelineNodes[i].preFixed) {
+        node.fixed = true;
+        node.fx = node.x;
+        node.fy = node.y;
+      }
+    }
   }
   updateNetwork() {
     ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.setLinkVisibility(true);
@@ -2998,8 +3297,13 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.updateStatistics();
     });
   }
+  /**
+   * Creates and updates the threshold histogram that is found in global settings.
+   * Clicking on the histogram will update the link threshold
+   * @param [histogram] - optional parameter
+   */
   updateThresholdHistogram(histogram) {
-    let width = 280,
+    let width = 260,
       height = 48,
       svg = null;
     // Update histogram so that it can be altered outside of the main wrapper 
@@ -3007,6 +3311,7 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
       this.thresholdHistogram = histogram;
     }
     svg = d3__WEBPACK_IMPORTED_MODULE_1__.select(this.thresholdHistogram).html(null).attr("width", width).attr("height", height);
+    // add all link distances to data, find max and min distances
     let lsv = this.session.style.widgets["link-sort-variable"],
       n = this.session.data.links.length,
       max = Number.MIN_SAFE_INTEGER,
@@ -3026,6 +3331,9 @@ let CommonService = (_class = class CommonService extends _shared_common_app_com
     let y = d3__WEBPACK_IMPORTED_MODULE_1__.scaleLinear().domain([0, d3__WEBPACK_IMPORTED_MODULE_1__.max(bins, d => d.length)]).range([height, 0]);
     let bar = svg.selectAll(".bar").data(bins).enter().append("g").attr("class", "bar").attr("transform", d => "translate(" + x(d.x0) + "," + y(d.length) + ")");
     bar.append("rect").attr("x", 1).attr("width", 6).attr("height", d => height - y(d.length));
+    /**
+     * Uses the position on the histogram to set the link thresehold value
+     */
     function updateThreshold() {
       let xc = d3__WEBPACK_IMPORTED_MODULE_1__.mouse(svg.node())[0];
       let decimalPlaces = ngx_bootstrap__WEBPACK_IMPORTED_MODULE_5__.window.context.commonService.session.style.widgets["default-distance-metric"].toLowerCase() === "tn93" ? 3 : 0;
@@ -3082,7 +3390,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "FilesComponent": () => (/* binding */ FilesComponent)
 /* harmony export */ });
-/* harmony import */ var C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./node_modules/@angular-devkit/build-angular/node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js */ 49671);
+/* harmony import */ var _Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./node_modules/@angular-devkit/build-angular/node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js */ 49671);
 /* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! tslib */ 70655);
 /* harmony import */ var _files_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./files-plugin.component.html?ngResource */ 76969);
 /* harmony import */ var _files_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./files-plugin.component.less?ngResource */ 16132);
@@ -3210,17 +3518,23 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     this.uniqueNodes = [];
     this.uniqueEdgeNodes = [];
     this.onLinkThresholdChange = e => {
-      console.log('changing link threshold');
+      if (this.commonService.debugMode) {
+        console.log('changing link threshold');
+      }
       this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
       this.visuals.microbeTrace.SelectedLinkThresholdVariable = parseFloat(e);
       this.visuals.microbeTrace.commonService.session.style.widgets['link-threshold'] = parseFloat(e);
       this.visuals.microbeTrace.onLinkThresholdChanged();
     };
     this.onDistanceMetricChange = e => {
-      console.log('distance ch:', e);
+      if (this.commonService.debugMode) {
+        console.log('distance ch:', e);
+      }
       this.SelectedDefaultDistanceMetricVariable = e;
       if (e.toLowerCase() === 'snps') {
-        console.log("saw snps");
+        if (this.commonService.debugMode) {
+          console.log("saw snps");
+        }
         $('#default-distance-threshold, #link-threshold').attr('step', 1).val(16).trigger('change');
         $("#ambiguities-row").slideUp();
         this.visuals.microbeTrace.commonService.session.style.widgets['default-distance-metric'] = 'snps';
@@ -3264,7 +3578,6 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     });
     this.SelectedDefaultDistanceThresholdVariable = this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
     this.SelectedDefaultDistanceMetricVariable = this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable;
-    console.log('selected de: ', this.SelectedDefaultDistanceThresholdVariable);
     this.visuals.microbeTrace.commonService.LoadViewEvent.subscribe(v => {
       this.loadDefaultVisualization(v);
     });
@@ -3498,7 +3811,6 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     // $.getJSON("../assets/outbreak.microbetrace", window.context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
     if (!this.commonService.session.network.initialLoad && this.visuals.microbeTrace.auspiceUrlVal === null) {
-      console.log('inial load1:', this.commonService.session.network.initialLoad);
       $.getJSON("outbreaknorm.microbetrace", ngx_bootstrap__WEBPACK_IMPORTED_MODULE_10__.window.context.commonService.applySession);
       this.commonService.session.network.launched = true;
       this.commonService.session.network.initialLoad = true;
@@ -3506,10 +3818,9 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
       //   for(let i = 0; i < this.commonService.session.files.length; i++) {
       //     this.addToTable(this.commonService.session.files[i]);
       //   }
-      // }  
-      console.log('inial load2:', this.commonService.session.network.initialLoad);
+      // }   
     }
-    console.log('Files: On load: ', this.commonService.session);
+
     setTimeout(() => {
       this.populateTable();
     }, 2000);
@@ -3545,7 +3856,6 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     return "state is here";
   }
   changeDefaultView(e) {
-    console.log('change default view');
     const v = e.target.selectedOptions[0].innerText;
     this.visuals.microbeTrace.commonService.localStorageService.setItem('default-view', v);
     this.visuals.microbeTrace.commonService.session.style.widgets['default-view'] = v;
@@ -3563,7 +3873,6 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     this.displaySequenceSettings = !this.displaySequenceSettings;
   }
   loadDefaultVisualization(e) {
-    console.log('files: loading default visualization');
     setTimeout(() => {
       this.visuals.microbeTrace.commonService.session.messages = [];
       this.messages = [];
@@ -3606,13 +3915,11 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     }, 1000);
   }
   creatLaunchSequences() {
-    console.log('Files: Luaunch Sequences');
     this.visuals.microbeTrace.commonService.session.meta.startTime = Date.now();
     $('#launch').prop('disabled', true);
     $('#loading-information').html('');
     this.visuals.microbeTrace.commonService.temp.messageTimeout = setTimeout(() => {
       $('#loadCancelButton').slideDown();
-      console.log('need to cancel');
       // abp.notify.warn('If you stare long enough, you can reverse the DNA Molecule\'s spin direction');
     }, 20000);
     const nFiles = this.visuals.microbeTrace.commonService.session.files.length - 1;
@@ -3673,7 +3980,9 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
         });
         this.visuals.microbeTrace.commonService.updateNetwork();
         this.visuals.microbeTrace.commonService.updateStatistics();
-        console.log(this.visuals.microbeTrace.commonService.session);
+        if (this.commonService.debugMode) {
+          console.log(this.visuals.microbeTrace.commonService.session);
+        }
       } else if (file.format === 'fasta') {
         this.showMessage(`Parsing ${file.name} as FASTA...`);
         let newNodes = 0;
@@ -3884,7 +4193,9 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
         }
       } else if (file.format === 'node') {
         this.showMessage(`Parsing ${file.name} as Node List...`);
-        console.log(file.field1);
+        if (this.commonService.debugMode) {
+          console.log(file.field1);
+        }
         let m = 0,
           n = 0;
         if (file.extension === 'xls' || file.extension === 'xlsx') {
@@ -4053,7 +4364,9 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
   }
   processData() {
     let nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
-    console.log(nodes);
+    if (this.commonService.debugMode) {
+      console.log(nodes);
+    }
     this.visuals.microbeTrace.commonService.session.data.nodeFilteredValues = nodes;
     //Add links for nodes with no edges
     this.uniqueNodes.forEach(x => {
@@ -4069,7 +4382,7 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
   }
   processSequence() {
     var _this = this;
-    return (0,C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+    return (0,_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       if (!_this.visuals.microbeTrace.commonService.session.meta.anySequences) return _this.visuals.microbeTrace.commonService.runHamsters();
       _this.visuals.microbeTrace.commonService.session.data.nodeFields.push('seq');
       let subset = [];
@@ -4130,7 +4443,9 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     this.isLoadingFiles = true;
     if (Array.from(files).length > 0) {
       Array.from(files).map(file => {
-        console.log('files: ', file);
+        if (this.commonService.debugMode) {
+          console.log('files: ', file);
+        }
         this.processFile(file);
       });
     }
@@ -4141,10 +4456,10 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
   processFile(rawfile) {
     if (!rawfile) {
       rawfile = this.visuals.microbeTrace.commonService.session.files[0];
-      // console.log('ra file: ', rawfile);
     }
-
-    console.log('raw file: ', rawfile);
+    if (this.commonService.debugMode) {
+      console.log('raw file: ', rawfile);
+    }
     $('#loading-information').html('');
     const extension = rawfile.name.split('.').pop().toLowerCase();
     if (extension === 'zip') {
@@ -4197,10 +4512,8 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
-    console.log('1');
     fileto__WEBPACK_IMPORTED_MODULE_6__.promise(rawfile, extension === 'xlsx' || extension === 'xls' ? 'ArrayBuffer' : 'Text').then(file => {
       //debugger;
-      console.log('2');
       file.name = this.visuals.microbeTrace.commonService.filterXSS(file.name);
       file.extension = file.name.split('.').pop().toLowerCase();
       this.visuals.microbeTrace.commonService.session.files.push(file);
@@ -4216,7 +4529,9 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
     this.nodeEdgeCheck();
   }
   addToTable(file) {
-    console.log(file);
+    if (this.commonService.debugMode) {
+      console.log(file);
+    }
     //debugger;
     const extension = file.extension ? file.extension : this.visuals.microbeTrace.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
     const isFasta = extension.indexOf('fas') > -1;
@@ -4479,7 +4794,7 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
   }
   readFastas() {
     var _this2 = this;
-    return (0,C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+    return (0,_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       const fastas = _this2.visuals.microbeTrace.commonService.session.files.filter(f => _this2.visuals.microbeTrace.commonService.includes(f.extension, 'fas'));
       const nodeCSVsWithSeqs = _this2.visuals.microbeTrace.commonService.session.files.filter(f => f.format === "node" && f.field2 != "None" && f.field2 != "");
       if (fastas.length === 0 && nodeCSVsWithSeqs.length === 0) return [];
@@ -4501,7 +4816,7 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
   }
   updatePreview(data) {
     var _this3 = this;
-    return (0,C_Users_ryf7_Desktop_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+    return (0,_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_angular_devkit_build_angular_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       $('#alignment-preview').empty().append('<div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
       if ($('#align-sw').is(':checked')) {
         data = yield _this3.visuals.microbeTrace.commonService.align({
@@ -4536,6 +4851,7 @@ let FilesComponent = (_class = class FilesComponent extends _app_base_component_
 FilesComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_17__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_14__.Component)({
   selector: 'FilesComponent',
   template: _files_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_1__,
+  changeDetection: _angular_core__WEBPACK_IMPORTED_MODULE_14__.ChangeDetectionStrategy.OnPush,
   styles: [(_files_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_2___default())]
 }), (0,tslib__WEBPACK_IMPORTED_MODULE_17__.__metadata)("design:paramtypes", [golden_layout__WEBPACK_IMPORTED_MODULE_16__.ComponentContainer, _angular_core__WEBPACK_IMPORTED_MODULE_14__.ElementRef, _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_12__.EventEmitterService, _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_3__.CommonService])], FilesComponent);
 
@@ -4618,8 +4934,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "GoldenLayoutHostComponent": () => (/* binding */ GoldenLayoutHostComponent)
 /* harmony export */ });
 /* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! tslib */ 70655);
-/* harmony import */ var C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_C_Users_ryf7_Desktop_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./src/app/golden-layout-host.component.ts.css?ngResource!=!./node_modules/@ngtools/webpack/src/loaders/inline-resource.js?data=CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA%3D!./src/app/golden-layout-host.component.ts */ 91874);
-/* harmony import */ var C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_C_Users_ryf7_Desktop_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_C_Users_ryf7_Desktop_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./src/app/golden-layout-host.component.ts.css?ngResource!=!./node_modules/@ngtools/webpack/src/loaders/inline-resource.js?data=CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA%3D!./src/app/golden-layout-host.component.ts */ 91874);
+/* harmony import */ var _Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @angular/core */ 94650);
 /* harmony import */ var golden_layout__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! golden-layout */ 13761);
 /* harmony import */ var _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./golden-layout-component.service */ 90893);
@@ -4663,6 +4979,7 @@ let GoldenLayoutHostComponent = (_class = class GoldenLayoutHostComponent {
     this._goldenLayoutBindComponentEventListener = (container, itemConfig) => this.handleBindComponentEvent(container, itemConfig);
     this._goldenLayoutUnbindComponentEventListener = container => this.handleUnbindComponentEvent(container);
     this.TabRemovedEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_7__.EventEmitter();
+    this.TabChangedEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_7__.EventEmitter();
     this._goldenLayoutElement = this._elRef.nativeElement;
     this.goldenLayoutComponentService.registerComponentType(_filesComponent_files_plugin_component__WEBPACK_IMPORTED_MODULE_2__.FilesComponent.componentTypeName, _filesComponent_files_plugin_component__WEBPACK_IMPORTED_MODULE_2__.FilesComponent);
     this.goldenLayoutComponentService.registerComponentType(_visualizationComponents_TwoDComponent_twoD_plugin_component__WEBPACK_IMPORTED_MODULE_6__.TwoDComponent.componentTypeName, _visualizationComponents_TwoDComponent_twoD_plugin_component__WEBPACK_IMPORTED_MODULE_6__.TwoDComponent);
@@ -4680,6 +4997,10 @@ let GoldenLayoutHostComponent = (_class = class GoldenLayoutHostComponent {
     if (this._goldenLayout.isSubWindow) {
       this._goldenLayout.checkAddDefaultPopinButton();
     }
+    // Add the activeContentItemChanged event listener
+    this._goldenLayout.on('activeContentItemChanged', contentItem => {
+      this.handleActiveTabChange(contentItem);
+    });
     this.setViewContainerRefActive(true);
   }
   setVirtualActive(value) {
@@ -4808,6 +5129,9 @@ let GoldenLayoutHostComponent = (_class = class GoldenLayoutHostComponent {
     const component = componentRef.instance;
     component.setZIndex(defaultZIndex);
   }
+  handleActiveTabChange(contentItem) {
+    this.TabChangedEvent.emit(contentItem._title);
+  }
 }, _class.ctorParameters = () => [{
   type: _angular_core__WEBPACK_IMPORTED_MODULE_7__.ApplicationRef
 }, {
@@ -4824,12 +5148,15 @@ let GoldenLayoutHostComponent = (_class = class GoldenLayoutHostComponent {
   }],
   TabRemovedEvent: [{
     type: _angular_core__WEBPACK_IMPORTED_MODULE_7__.Output
+  }],
+  TabChangedEvent: [{
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_7__.Output
   }]
 }, _class);
 GoldenLayoutHostComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_9__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_7__.Component)({
   selector: 'app-golden-layout-host',
   template: '<ng-template #componentViewContainer></ng-template>',
-  styles: [(C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_C_Users_ryf7_Desktop_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_C_Users_ryf7_Desktop_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0___default())]
+  styles: [(_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts_css_ngResource_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_node_modules_ngtools_webpack_src_loaders_inline_resource_js_data_CiAgICA6aG9zdCB7CiAgICAgIGhlaWdodDogMTAwJTsKICAgICAgd2lkdGg6IDEwMCU7CiAgICAgIHBhZGRpbmc6IDA7CiAgICAgIGRpc3BsYXk6IGJsb2NrOwogICAgICBwb3NpdGlvbjogcmVsYXRpdmU7CiAgICB9CiAgICA_3D_Users_evanmoscoso_Desktop_CDC_MicrobeTrace_src_app_golden_layout_host_component_ts__WEBPACK_IMPORTED_MODULE_0___default())]
 }), (0,tslib__WEBPACK_IMPORTED_MODULE_9__.__metadata)("design:paramtypes", [_angular_core__WEBPACK_IMPORTED_MODULE_7__.ApplicationRef, _angular_core__WEBPACK_IMPORTED_MODULE_7__.ElementRef, _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_1__.GoldenLayoutComponentService])], GoldenLayoutHostComponent);
 
 
@@ -5378,7 +5705,7 @@ class DialogSettings {
     if(isVisible){
         const dialog = document.querySelector('#network-settings-pane');
         const tabset = dialog.querySelector('.tab-container');
-              if(tabset){
+             if(tabset){
             const tabs: Array<Element> = Array.from(tabset.querySelectorAll('.m-tabs__item'));
             
             for(let tab of tabs){
@@ -5478,11 +5805,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "MicrobeTraceNextHomeComponent": () => (/* binding */ MicrobeTraceNextHomeComponent)
 /* harmony export */ });
-/* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! tslib */ 70655);
+/* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! tslib */ 70655);
 /* harmony import */ var _microbe_trace_next_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./microbe-trace-next-plugin.component.html?ngResource */ 93451);
 /* harmony import */ var _microbe_trace_next_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./microbe-trace-next-plugin.component.less?ngResource */ 38364);
 /* harmony import */ var _microbe_trace_next_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_microbe_trace_next_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! @angular/core */ 94650);
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! @angular/core */ 94650);
 /* harmony import */ var _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./contactTraceCommonServices/common.service */ 37822);
 /* harmony import */ var _visualizationComponents_TwoDComponent_twoD_plugin_component__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./visualizationComponents/TwoDComponent/twoD-plugin.component */ 36481);
 /* harmony import */ var _visualizationComponents_TableComponent_table_plugin_component__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./visualizationComponents/TableComponent/table-plugin-component */ 31209);
@@ -5491,25 +5818,22 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var d3__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! d3 */ 92925);
 /* harmony import */ var ngx_bootstrap__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ngx-bootstrap */ 11109);
 /* harmony import */ var _shared_common_app_component_base__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! @shared/common/app-component-base */ 40506);
-/* harmony import */ var _angular_platform_browser__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! @angular/platform-browser */ 11481);
+/* harmony import */ var _angular_platform_browser__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! @angular/platform-browser */ 11481);
 /* harmony import */ var _shared_common_session_app_session_service__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @shared/common/session/app-session.service */ 34845);
 /* harmony import */ var _helperClasses_dialogSettings__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./helperClasses/dialogSettings */ 30796);
 /* harmony import */ var file_saver__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! file-saver */ 94327);
 /* harmony import */ var file_saver__WEBPACK_IMPORTED_MODULE_12___default = /*#__PURE__*/__webpack_require__.n(file_saver__WEBPACK_IMPORTED_MODULE_12__);
-/* harmony import */ var lodash__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! lodash */ 17489);
-/* harmony import */ var lodash__WEBPACK_IMPORTED_MODULE_13___default = /*#__PURE__*/__webpack_require__.n(lodash__WEBPACK_IMPORTED_MODULE_13__);
-/* harmony import */ var _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! @shared/utils/event-emitter.service */ 38283);
-/* harmony import */ var moment__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! moment */ 15439);
-/* harmony import */ var moment__WEBPACK_IMPORTED_MODULE_15___default = /*#__PURE__*/__webpack_require__.n(moment__WEBPACK_IMPORTED_MODULE_15__);
-/* harmony import */ var _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./golden-layout-component.service */ 90893);
-/* harmony import */ var tabulator_tables__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! tabulator-tables */ 31325);
-/* harmony import */ var _golden_layout_host_component__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./golden-layout-host.component */ 42027);
-/* harmony import */ var papaparse__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! papaparse */ 13028);
-/* harmony import */ var papaparse__WEBPACK_IMPORTED_MODULE_18___default = /*#__PURE__*/__webpack_require__.n(papaparse__WEBPACK_IMPORTED_MODULE_18__);
-/* harmony import */ var jszip__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! jszip */ 25650);
-/* harmony import */ var jszip__WEBPACK_IMPORTED_MODULE_19___default = /*#__PURE__*/__webpack_require__.n(jszip__WEBPACK_IMPORTED_MODULE_19__);
+/* harmony import */ var _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @shared/utils/event-emitter.service */ 38283);
+/* harmony import */ var moment__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! moment */ 15439);
+/* harmony import */ var moment__WEBPACK_IMPORTED_MODULE_14___default = /*#__PURE__*/__webpack_require__.n(moment__WEBPACK_IMPORTED_MODULE_14__);
+/* harmony import */ var _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./golden-layout-component.service */ 90893);
+/* harmony import */ var tabulator_tables__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! tabulator-tables */ 31325);
+/* harmony import */ var _golden_layout_host_component__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./golden-layout-host.component */ 42027);
+/* harmony import */ var papaparse__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! papaparse */ 13028);
+/* harmony import */ var papaparse__WEBPACK_IMPORTED_MODULE_17___default = /*#__PURE__*/__webpack_require__.n(papaparse__WEBPACK_IMPORTED_MODULE_17__);
+/* harmony import */ var jszip__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! jszip */ 25650);
+/* harmony import */ var jszip__WEBPACK_IMPORTED_MODULE_18___default = /*#__PURE__*/__webpack_require__.n(jszip__WEBPACK_IMPORTED_MODULE_18__);
 var _class;
-
 
 
 
@@ -5646,7 +5970,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.playBtnText = "Play";
     this.previousTab = '';
     this.bpaaSPayloadWrappers = [];
-    this.DisplayGlobalSettingsDialogEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_20__.EventEmitter();
+    this.DisplayGlobalSettingsDialogEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_19__.EventEmitter();
     this.HideThisForNow = false;
     this.files = [];
     this.homepageTabs = [];
@@ -5665,6 +5989,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     };
     this.visuals = commonService.visuals;
     this.visuals.microbeTrace = this;
+    this.widgets = this.commonService.session.style.widgets;
     this.appSession = injector.get(_shared_common_session_app_session_service__WEBPACK_IMPORTED_MODULE_10__.AppSessionService);
     this.activeTabIndex = 0;
     this.dataSetView = [];
@@ -5696,7 +6021,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
   ngOnInit() {
     const params = new URLSearchParams(ngx_bootstrap__WEBPACK_IMPORTED_MODULE_8__.window.location.search);
     this.auspiceUrlVal = params.get('url');
-    console.log(this.auspiceUrlVal);
+    if (this.commonService.debugMode) {
+      console.log(this.auspiceUrlVal);
+    }
     this.getGlobalSettingsData();
     this.elem = document.documentElement;
     if (!this.GlobalSettingsDialogSettings) {
@@ -5708,7 +6035,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     if (!this.GlobalSettingsNodeColorDialogSettings) {
       this.GlobalSettingsNodeColorDialogSettings = new _helperClasses_dialogSettings__WEBPACK_IMPORTED_MODULE_11__.DialogSettings('#global-settings-node-color-table', false);
     }
-    // console.log(this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
     this.SelectedPruneWityTypesVariable = this.commonService.GlobalSettingsModel.SelectedPruneWityTypesVariable;
     //debugger;
     this.SelectedClusterMinimumSizeVariable = this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable;
@@ -5726,8 +6052,10 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.SelectedLinkColorTableTypesVariable = this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable;
     this.SelectedApplyStyleVariable = this.commonService.GlobalSettingsModel.SelectedApplyStyleVariable;
     this.commonService.updateThresholdHistogram();
-    console.log("global settings: ", this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
-    console.log("SelectedLinkThresholdVariable: ", this.SelectedLinkThresholdVariable);
+    if (this.commonService.debugMode) {
+      console.log("global settings: ", this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
+      console.log("SelectedLinkThresholdVariable: ", this.SelectedLinkThresholdVariable);
+    }
     // Update distance metric in cashe
     let cachedLSV = "";
     let cachedView = "";
@@ -5743,7 +6071,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     $(document).on("link-visibility", function () {
       that.generateNodeLinkTable("#link-color-table");
     });
-    // console.log('instanceeee: ', this.goldenLayout.componentInstances);
     setTimeout(() => {
       $('#top-toolbar').fadeTo("slow", 1);
       // TODO:: uncommentback when done Subscribe for files subscription
@@ -5751,7 +6078,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     }, 1000);
     setTimeout(() => {
       if (cachedLSV) {
-        console.log('cacheL 2: ', cachedLSV);
         if (cachedLSV === 'snps') {
           this.metric = 'snps';
           this.threshold = '16';
@@ -5785,26 +6111,14 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       $('#add-data-container').fadeTo("slow", 1);
       $('#onload-container').fadeTo("slow", 1);
       $('#tool-btn-container').fadeTo("slow", 1);
-      // console.log('instances: ',this.goldenLayout.componentInstances);
     }, 5000);
-    // this.commonService.applyAuspice(out);
-    // reader.onloadend = out => this.commonService.processJSON(out.target, extension);
   }
-
   addComponent(component) {
     // const componentType = this._selectedRegisteredComponentTypeName;
     const goldenLayoutComponent = this._goldenLayoutHostComponent.goldenLayout.newComponent(component);
     const componentRef = this._goldenLayoutHostComponent.getComponentRef(goldenLayoutComponent.container);
     this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
-    // console.log('tab added: ', this.homepageTabs);
-    // let ind = this.homepageTabs.findIndex((tab) => { 
-    //     return tab.tabTitle === 'Files';
-    //     });
-    // if (ind > -1) {
-    // this.homepageTabs[ind].componentRef = componentRef;
-    // }
     setTimeout(() => {
-      // console.log('view name: ', viewName);
       // this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1].DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
       this.setActiveTabProperties();
       this.loadSettings();
@@ -5827,7 +6141,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     const n = nodes.length;
     let v = this.searchText;
     const val = v;
-    console.log('text ', v);
     if (v == "") {
       $('#search-results').html("").hide();
       for (let i = 0; i < n; i++) {
@@ -5869,9 +6182,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
         if (that.commonService.session.style.widgets["search-case-sensitive"]) ac_vre = new RegExp(ac_v);else ac_vre = new RegExp(ac_v, 'i');
         for (let i = 0; i < n; i++) {
           let node = nodes[i];
-          if (node._id == "30576_KF773420_B90cl28") {
-            console.log('in node: ', lodash__WEBPACK_IMPORTED_MODULE_13__.cloneDeep(node));
-          }
           if (!node[field]) {
             node.selected = false;
           }
@@ -5882,7 +6192,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
             node.selected = node[field] + "" == ac_val;
           }
         }
-        console.log('node select 1');
         $(document).trigger("node-selected");
       });
       for (let i = 0; i < n; i++) {
@@ -5899,7 +6208,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       }
       if (!nodes.some(node => node.selected)) console.log('no matches');
     }
-    console.log('node select 2');
     $(document).trigger("node-selected");
   }
   onSearchFieldChange(ev) {
@@ -5919,14 +6227,17 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
    * @param files (Files List)
    */
   prepareFilesLists($event) {
-    console.log("Trying to prepare files");
+    if (this.commonService.debugMode) {
+      console.log("Trying to prepare files");
+    }
     // this.commonService.resetData();
     this.commonService.session.files = [];
     if (!this.commonService.session.style.widgets) {
-      console.log('Greating default style widget');
       this.commonService.session.style.widgets = this.commonService.defaultWidgets();
     }
-    console.log('threshold: ', this.commonService.session.style.widgets['link-threshold']);
+    if (this.commonService.debugMode) {
+      console.log('threshold: ', this.commonService.session.style.widgets['link-threshold']);
+    }
     // this.loadSettings();
     // this.homepageTabs[1].isActive = false;
     this.homepageTabs[0].isActive = true;
@@ -5941,8 +6252,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.showSorting = false;
     // Remove the default tab
     this._removeGlView('2D Network');
-    console.log('homepage tabs1: ', this.homepageTabs);
-    // console.log('instances1: ', this.goldenLayout.componentInstances);
+    if (this.commonService.debugMode) {
+      console.log('homepage tabs1: ', this.homepageTabs);
+    }
     this.getfileContent($event);
   }
   /**
@@ -5951,8 +6263,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
    */
   updateMetric(value) {
     this.metric = value;
-    console.log('metric updating');
-    console.log('updating metric: ', this.metric);
+    if (this.commonService.debugMode) {
+      console.log('updating metric: ', this.metric);
+    }
     if (this.metric.toLowerCase() === "snps") {
       //Hide Ambiguities
       $('#ambiguities-menu').hide();
@@ -5990,12 +6303,15 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
    */
   updateThreshold(ev) {
     this.threshold = ev.target.value;
-    console.log('threshold: ', this.threshold);
+    if (this.commonService.debugMode) {
+      console.log('threshold: ', this.threshold);
+    }
     this.SelectedLinkThresholdVariable = this.threshold;
     this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
-    console.log('loading settingss1: ', this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"]);
+    if (this.commonService.debugMode) {
+      console.log('loading settingss1: ', this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"]);
+    }
     this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"] = Number(this.threshold);
-    console.log('loading settingss2: ', this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"]);
   }
   /**
    * Handler for recall btn
@@ -6048,7 +6364,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.visuals.microbeTrace.commonService.updateNetwork();
   }
   onApplyStyle(file) {
-    console.log('aplystin stay');
+    if (this.commonService.debugMode) {
+      console.log('applying style');
+    }
     if (this.files.length > 0) {
       let reader = new FileReader();
       reader.onload = e => this.commonService.applyStyle(JSON.parse(e.target.result));
@@ -6086,7 +6404,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     }
   }
   onNodeColorTableChanged() {
-    console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
+    if (this.commonService.debugMode) {
+      console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
+    }
     this.commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable = this.SelectedNodeColorTableTypesVariable;
     if (this.SelectedNodeColorTableTypesVariable == "Hide") {
       this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
@@ -6096,11 +6416,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
   }
   onShowStatisticsChanged() {
     if (this.SelectedStatisticsTypesVariable === "Show") {
-      console.log('updateing 1: ');
       this.visuals.microbeTrace.commonService.updateStatistics();
       $("#network-statistics-wrapper").fadeIn();
     } else {
-      console.log('updateing 12 ');
       this.visuals.microbeTrace.commonService.updateStatistics();
       $("#network-statistics-wrapper").fadeOut();
     }
@@ -6174,14 +6492,16 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     }
   }
   generateNodeLinkTable(tableId, isEditable = true) {
-    console.log('generateNodeLinkTable: ', tableId);
-    let linkColorTable = $(tableId).empty().append("<tr>" + ("<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Link " + this.commonService.titleize(this.SelectedColorLinksByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>") + (this.visuals.microbeTrace.commonService.session.style.widgets["link-color-table-counts"] ? "<th class='table-header-row'><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" : "") + (this.visuals.microbeTrace.commonService.session.style.widgets["link-color-table-frequencies"] ? "<th class='table-header-row'><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" : "") + "<th>Color</th>" + "</tr>");
+    let linkColorTable = $(tableId).empty().append("<tr>" + ("<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Link " + this.commonService.titleize(this.SelectedColorLinksByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>") + "<th class='table-header-row tableCount'><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" + "<th class='table-header-row tableFrequency'><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" + "<th>Color</th>" + "</tr>");
     if (!this.visuals.microbeTrace.commonService.session.style.linkValueNames) this.visuals.microbeTrace.commonService.session.style.linkValueNames = {};
     let aggregates = this.visuals.microbeTrace.commonService.createLinkColorMap();
     let vlinks = this.visuals.microbeTrace.commonService.getVisibleLinks();
     let aggregateValues = Object.keys(aggregates);
     const disabled = isEditable ? '' : 'disabled';
     aggregateValues.forEach((value, i) => {
+      if (aggregates[value] == 0) {
+        return;
+      }
       // Grab color of link from session
       const color = this.visuals.microbeTrace.commonService.temp.style.linkColorMap(value);
       // Create color input element with color value and assign id to retrieve new value on change
@@ -6211,7 +6531,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
         });
       });
 
-      let row = $("<tr>" + "<td data-value='" + value + "'>" + (this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) + "</td>" + (this.commonService.session.style.widgets["link-color-table-counts"] ? "<td>" + aggregates[value] + "</td>" : "") + (this.commonService.session.style.widgets["link-color-table-frequencies"] ? "<td>" + (aggregates[value] / vlinks.length).toLocaleString() + "</td>" : "") + "</tr>");
+      let row = $("<tr>" + "<td data-value='" + value + "'>" + (this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) + "</td>" + "<td class='tableCount'>" + aggregates[value] + "</td>" + "<td class='tableFrequency'>" + (aggregates[value] / vlinks.length).toLocaleString() + "</td>" + "</tr>");
       const nonEditCell = `<td style="background-color:${color}"></td>`;
       if (isEditable) {
         row.append($("<td></td>").append(colorinput).append(alphainput));
@@ -6230,8 +6550,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       });
     }
     let isAscending = true; // add this line before the click event handler
+    this.updateCountFreqTable('link-color');
+    $('#linkColorTableSettings').on('mouseleave', () => $('#linkColorTableSettings').delay(500).css('display', 'none'));
     $(tableId).on('click', '.sort-button', function () {
-      console.log('Sorting triggered.');
       let table = $(this).parents('table').eq(0);
       let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
       isAscending = !isAscending; // replace 'this.asc' with 'isAscending'
@@ -6239,7 +6560,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
         rows = rows.reverse();
       }
       for (let i = 0; i < rows.length; i++) {
-        console.log(`Appending row: ${i}`);
         table.append(rows[i]);
       }
     });
@@ -6247,26 +6567,34 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       return function (a, b) {
         let valA = getCellValue(a, index),
           valB = getCellValue(b, index);
-        console.log(`Comparing: ${valA} and ${valB}`); // New line
+        if (this.commonService.debugMode) {
+          console.log(`Comparing: ${valA} and ${valB}`); // New line
+        }
+
         return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
       };
     }
     function getCellValue(row, index) {
       let value = $(row).children('td').eq(index).text();
-      console.log(`Cell value: ${value}`); // New line
+      if (this.commonService.debugMode) {
+        console.log(`Cell value: ${value}`); // New line
+      }
+
       return value;
     }
   }
   onTimelineChanged(e) {
     this.SelectedTimelineVariable = e;
-    console.log('timeline changed: ', e);
+    if (this.commonService.debugMode) {
+      console.log('timeline changed: ', e);
+    }
     d3__WEBPACK_IMPORTED_MODULE_7__.select('#global-timeline svg').remove();
     clearInterval(this.visuals.microbeTrace.commonService.session.timeline);
     let variable = e;
     let loadingJsonFile = this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] == variable;
     if (this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
       // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
-      if (moment__WEBPACK_IMPORTED_MODULE_15___default()(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate() < moment__WEBPACK_IMPORTED_MODULE_15___default()(this.visuals.microbeTrace.commonService.session.state.timeTarget).toDate()) {
+      if (moment__WEBPACK_IMPORTED_MODULE_14___default()(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate() < moment__WEBPACK_IMPORTED_MODULE_14___default()(this.visuals.microbeTrace.commonService.session.state.timeTarget).toDate()) {
         this.visuals.microbeTrace.commonService.session.state.timeEnd = this.visuals.microbeTrace.commonService.session.state.timeTarget;
         this.visuals.microbeTrace.commonService.setNodeVisibility(false);
         this.visuals.microbeTrace.commonService.setLinkVisibility(false);
@@ -6326,7 +6654,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     let times = [],
       vnodes = JSON.parse(JSON.stringify(this.visuals.microbeTrace.commonService.session.data.nodes));
     vnodes.forEach(d => {
-      let time = moment__WEBPACK_IMPORTED_MODULE_15___default()(d[field]);
+      let time = moment__WEBPACK_IMPORTED_MODULE_14___default()(d[field]);
       if (time.isValid()) {
         d[field] = time.toDate();
         times.push(d[field]);
@@ -6339,7 +6667,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     }
     timeDomainStart = Math.min(...times);
     timeDomainEnd = Math.max(...times);
-    var days = moment__WEBPACK_IMPORTED_MODULE_15___default()(timeDomainEnd).diff(moment__WEBPACK_IMPORTED_MODULE_15___default()(timeDomainStart), 'days');
+    var days = moment__WEBPACK_IMPORTED_MODULE_14___default()(timeDomainEnd).diff(moment__WEBPACK_IMPORTED_MODULE_14___default()(timeDomainStart), 'days');
     var tickDateFormat = d => {
       if (days < 184) return formatDateDateMonth(d);else if (days < 367) return formatDateIntoMonth(d);else if (days < 367 * 5) return formatDateIntoMonthYear(d);else return formatDateIntoYear(d);
     };
@@ -6388,14 +6716,13 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.visuals.microbeTrace.commonService.session.style.widgets["timeline-date-field"] = field;
     this.visuals.microbeTrace.commonService.session.state.timeStart = startDate;
     this.visuals.microbeTrace.commonService.session.state.timeTarget = this.xAttribute.invert(this.currentTimelineTargetValue);
-    if (loadingJsonFile && moment__WEBPACK_IMPORTED_MODULE_15___default()(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate() < moment__WEBPACK_IMPORTED_MODULE_15___default()(this.visuals.microbeTrace.commonService.session.state.timeTarget).toDate()) {
-      let t = moment__WEBPACK_IMPORTED_MODULE_15___default()(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate();
+    if (loadingJsonFile && moment__WEBPACK_IMPORTED_MODULE_14___default()(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate() < moment__WEBPACK_IMPORTED_MODULE_14___default()(this.visuals.microbeTrace.commonService.session.state.timeTarget).toDate()) {
+      let t = moment__WEBPACK_IMPORTED_MODULE_14___default()(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate();
       this.currentTimelineTargetValue = this.xAttribute(t);
       this.handle.attr("cx", this.xAttribute(t));
       this.label.attr("x", this.xAttribute(t)).text(this.handleDateFormat(t));
     }
     $("#global-timeline-wrapper").fadeIn();
-    console.log('attribute2: ', this.xAttribute);
   }
   playTimeline() {
     if (this.playBtnText == "Pause") {
@@ -6455,7 +6782,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     }
   }
   generateNodeColorTable(tableId, isEditable = true) {
-    let nodeColorTable = $(tableId).empty().append("<tr>" + "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Node " + this.commonService.titleize(this.SelectedColorNodesByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" + (this.commonService.session.style.widgets["node-color-table-counts"] ? "<th class='table-header-row'><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" : "") + (this.commonService.session.style.widgets["node-color-table-frequencies"] ? "<th class='table-header-row'><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" : "") + "<th>Color</th>" + "</tr>");
+    let nodeColorTable = $(tableId).empty().append("<tr>" + "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Node " + this.commonService.titleize(this.SelectedColorNodesByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" + "<th class='table-header-row tableCount'><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" + "<th class='table-header-row tableFrequency'><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" + "<th>Color</th>" + "</tr>");
     if (!this.commonService.session.style.nodeValueNames) this.commonService.session.style.nodeValueNames = {};
     let aggregates = this.commonService.createNodeColorMap();
     let vnodes = this.commonService.getVisibleNodes();
@@ -6464,8 +6791,10 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     aggregateValues.forEach((value, i) => {
       const color = this.visuals.microbeTrace.commonService.temp.style.nodeColorMap(value);
       let colorinput = $(`<input type="color" value="${color}" ${disabled}>`).on("change", e => {
-        console.log('color: ', this.SelectedColorNodesByVariable);
-        console.log('color2: ', this.visuals.microbeTrace.commonService.session.style.nodeColorsTableKeys);
+        if (this.commonService.debugMode) {
+          console.log('color: ', this.SelectedColorNodesByVariable);
+          console.log('color2: ', this.visuals.microbeTrace.commonService.session.style.nodeColorsTableKeys);
+        }
         let key = this.visuals.microbeTrace.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex(k => k === value);
         this.visuals.microbeTrace.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, e);
         // Update history with new color
@@ -6502,7 +6831,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       });
       const nonEditCell = `<td style="background-color:${color}"></td>`;
       let cell = $("<td></td>").append(colorinput).append(alphainput);
-      let row = $("<tr>" + "<td data-value='" + value + "'>" + (this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] : this.visuals.microbeTrace.commonService.titleize("" + value)) + "</td>" + (this.visuals.microbeTrace.commonService.session.style.widgets["node-color-table-counts"] ? "<td>" + aggregates[value] + "</td>" : "") + (this.visuals.microbeTrace.commonService.session.style.widgets["node-color-table-frequencies"] ? "<td>" + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" : "") + "</tr>").append(isEditable ? cell : nonEditCell);
+      let row = $("<tr>" + "<td data-value='" + value + "'>" + (this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] : this.visuals.microbeTrace.commonService.titleize("" + value)) + "</td>" + "<td class='tableCount'>" + aggregates[value] + "</td>" + "<td class='tableFrequency'>" + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" + "</tr>").append(isEditable ? cell : nonEditCell);
       nodeColorTable.append(row);
     });
     if (isEditable) {
@@ -6515,6 +6844,8 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       });
     }
 
+    this.updateCountFreqTable('node-color');
+    $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
     $(tableId).on('click', '.sort-button', function () {
       let table = $(this).parents('table').eq(0);
       let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
@@ -6537,6 +6868,54 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       return $(row).children('td').eq(index).text();
     }
   }
+  // toggles the setting menu for node-color or link-color table.
+  toggleColorTableSettings(tableName) {
+    let settingsPane;
+    if (tableName == 'node-color') {
+      settingsPane = $('#nodeColorTableSettings');
+    } else if (tableName == 'link-color') {
+      settingsPane = $('#linkColorTableSettings');
+    } else {
+      return;
+    }
+    if (settingsPane.css('display') == 'none') {
+      settingsPane.css('display', 'block');
+    } else {
+      settingsPane.css('display', 'none');
+    }
+  }
+  // updates the appropriate widget value (T->F or F->T) and then updates the node-color or link-color table
+  toggleColorTableColumns(table, column) {
+    if (table == 'node-color' && column == 'tableCounts') {
+      this.widgets['node-color-table-counts'] = !this.widgets['node-color-table-counts'];
+    } else if (table == 'node-color' && column == 'tableFreq') {
+      this.widgets['node-color-table-frequencies'] = !this.widgets['node-color-table-frequencies'];
+    } else if (table == 'link-color' && column == 'tableCounts') {
+      this.widgets['link-color-table-counts'] = !this.widgets['link-color-table-counts'];
+    } else if (table == 'link-color' && column == 'tableFreq') {
+      this.widgets['link-color-table-frequencies'] = !this.widgets['link-color-table-frequencies'];
+    } else {
+      return;
+    }
+    this.updateCountFreqTable(table);
+  }
+  // updates the node-color-table or link-color-table based on value of widgets; it doesn't recalculate just shows/hide columns
+  updateCountFreqTable(tableName) {
+    let tableReferenceName, showCount, showFreq;
+    if (tableName == 'node-color') {
+      tableReferenceName = '#global-settings-node-color-table';
+      showCount = this.widgets['node-color-table-counts'];
+      showFreq = this.widgets['node-color-table-frequencies'];
+    } else if (tableName == 'link-color') {
+      tableReferenceName = '#global-settings-link-color-table';
+      showCount = this.widgets['link-color-table-counts'];
+      showFreq = this.widgets['link-color-table-frequencies'];
+    }
+    let countColumn = $(tableReferenceName + ' .tableCount');
+    let freqColumn = $(tableReferenceName + ' .tableFrequency');
+    showCount ? countColumn.slideDown() : countColumn.slideUp();
+    showFreq ? freqColumn.slideDown() : freqColumn.slideUp();
+  }
   onLinkThresholdChanged() {
     //debugger;
     this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
@@ -6546,7 +6925,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     // Unset MST construction since links might have been changed
     this.commonService.session.style.widgets["mst-computed"] = false;
     if (minClust !== "1") {
-      console.log('reseting min clust');
+      if (this.commonService.debugMode) {
+        console.log('reseting min clust');
+      }
       $("#cluster-minimum-size").val("1");
       $("#cluster-minimum-size").trigger("change");
       $("#cluster-minimum-size").val(minClust);
@@ -6613,7 +6994,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     switch (this.homepageTabs[this.activeTabIndex].label) {
       case "2D Network":
         // this.goldenLayout.componentInstances[this.activeTabIndex].render(false);
-        console.log('---rendering');
         break;
       case "PhylogeneticTree":
         break;
@@ -6668,7 +7048,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       ngx_bootstrap__WEBPACK_IMPORTED_MODULE_8__.window.context.commonService.visuals.microbeTrace._goldenLayoutHostComponent._goldenLayout.layoutConfig.dimensions.headerHeight = 36;
       this.addComponent('Files');
       if (this.auspiceUrlVal) {
-        console.log("Trying to open URL");
+        if (this.commonService.debugMode) {
+          console.log("Trying to open URL");
+        }
         this.DisplayUrlDialog("Open");
         this.continueClicked();
         this.displayUrlDialog = false;
@@ -6693,9 +7075,13 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
         */
       }
 
-      console.log('golden comp ref: ', this.homepageTabs[0].componentRef.instance);
+      if (this.commonService.debugMode) {
+        console.log('golden comp ref: ', this.homepageTabs[0].componentRef.instance);
+      }
       this.subscription = this.homepageTabs[0].componentRef.instance.LoadDefaultVisualizationEvent.subscribe(v => {
-        console.log('loading default1: ', v);
+        if (this.commonService.debugMode) {
+          console.log('loading default1: ', v);
+        }
         this.loadDefaultVisualization(v);
         this.publishLoadNewData();
         this.getGlobalSettingsData();
@@ -6703,6 +7089,15 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       this._goldenLayoutHostComponent.TabRemovedEvent.subscribe(v => {
         // this.loadSettings();
         this.removeComponent(v);
+      });
+      this._goldenLayoutHostComponent.TabChangedEvent.subscribe(v => {
+        if (v === "Files") {
+          this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
+          this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
+        } else {
+          this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+          this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+        }
       });
     }, 0);
     // this.setActiveTabProperties();
@@ -6863,7 +7258,9 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.GlobalSettingsDialogSettings.setVisibility(false);
     this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
     this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-    console.log('process files::');
+    if (this.commonService.debugMode) {
+      console.log('process files::');
+    }
     // TODO: unccomment back when updated
     // this.srv.removeTab(0,1);
     //remove last homepage tab
@@ -6874,9 +7271,10 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       if (x.label === "Files") {
         if (x.componentRef != null) {
           this.subscription.unsubscribe();
-          // console.log('unsubscribed');
           this.subscription = this.homepageTabs[0].componentRef.instance.LoadDefaultVisualizationEvent.subscribe(v => {
-            console.log('loading default2: ', v);
+            if (this.commonService.debugMode) {
+              console.log('loading default2: ', v);
+            }
             // this.loadSettings();
             this.loadDefaultVisualization(v);
             this.publishLoadNewData();
@@ -6936,7 +7334,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     switch (saveStash) {
       case "Save":
         {
-          let zip = new (jszip__WEBPACK_IMPORTED_MODULE_19___default())();
+          let zip = new (jszip__WEBPACK_IMPORTED_MODULE_18___default())();
           const lightTabs = this.homepageTabs.map(x => {
             return {
               label: x.label,
@@ -6987,14 +7385,14 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
                 // If node and edge lists exists, add them to the current folder
                 let clusterNode = clusterNodeList.filter(NodeList => NodeList[0].cluster == currentCluster.id);
                 if (clusterNode) {
-                  let blob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_18__.unparse(cluster[0])], {
+                  let blob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_17__.unparse(cluster[0])], {
                     type: 'text/csv;charset=utf-8'
                   });
                   clusterFolder.file("nodeList_cluster_" + cluster[0][0].cluster + ".csv", blob);
                   // Now get link list of cluster
                   let clusterLink = clusterLinkList.filter(LinkList => LinkList[0].cluster == currentCluster.id);
                   if (clusterLink) {
-                    let blob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_18__.unparse(clusterLink[0])], {
+                    let blob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_17__.unparse(clusterLink[0])], {
                       type: 'text/csv;charset=utf-8'
                     });
                     clusterFolder.file("edgeList_cluster_" + cluster[0][0].cluster + ".csv", blob);
@@ -7005,11 +7403,11 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
             if (dyadNodeList.length > 0) {
               dyadFolder = zip.folder("dyads");
               // Add all dyads in one shot
-              let nodesBlob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_18__.unparse(dyadNodeList)], {
+              let nodesBlob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_17__.unparse(dyadNodeList)], {
                 type: 'text/csv;charset=utf-8'
               });
               dyadFolder.file("nodeList_cluster.csv", nodesBlob);
-              let edgesBlob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_18__.unparse(dyadEdgeList)], {
+              let edgesBlob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_17__.unparse(dyadEdgeList)], {
                 type: 'text/csv;charset=utf-8'
               });
               dyadFolder.file("edgeList_cluster.csv", edgesBlob);
@@ -7017,7 +7415,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
             if (singletonNodeList.length > 0) {
               singletonFolder = zip.folder("singletons");
               // Add all singletons in one shot
-              let blob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_18__.unparse(singletonNodeList)], {
+              let blob = new Blob([papaparse__WEBPACK_IMPORTED_MODULE_17__.unparse(singletonNodeList)], {
                 type: 'text/csv;charset=utf-8'
               });
               singletonFolder.file("nodeList_cluster.csv", blob);
@@ -7037,7 +7435,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
             };
             let that = this;
             if ($("#save-file-compress").is(":checked")) {
-              let zip = new (jszip__WEBPACK_IMPORTED_MODULE_19___default())();
+              let zip = new (jszip__WEBPACK_IMPORTED_MODULE_18___default())();
               zip.file(`${that.saveFileName}.microbetrace`, new Blob([JSON.stringify(stash)], {
                 type: "application/json;charset=utf-8"
               }));
@@ -7173,7 +7571,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
           });
         }
         this.homepageTabs[0].isActive = true;
-        console.log('openStas microbetrace.component.ts');
         this.loadSettings();
       }
     }
@@ -7286,7 +7683,7 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.commonService.localStorageService.setItem("stash-" + Date.now() + "-" + $("#stash-name").val(), JSON.stringify(this.commonService.session));
   }
   updateTable() {
-    this.table = new tabulator_tables__WEBPACK_IMPORTED_MODULE_21__.Tabulator(this.stashes.nativeElement, {
+    this.table = new tabulator_tables__WEBPACK_IMPORTED_MODULE_20__.Tabulator(this.stashes.nativeElement, {
       height: "100%",
       layout: "fitData",
       selectable: 1,
@@ -7347,9 +7744,11 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     return _type;
   }
   Viewclick(viewName) {
-    console.log('viewClick: ', viewName);
-    console.log(this.commonService.session.style.widgets['link-threshold']);
-    console.log('homepage tabs1: ', this.homepageTabs);
+    if (this.commonService.debugMode) {
+      console.log('viewClick: ', viewName);
+      console.log(this.commonService.session.style.widgets['link-threshold']);
+      console.log('homepage tabs1: ', this.homepageTabs);
+    }
     if (viewName == "2d network") {
       viewName = "2D Network";
     }
@@ -7441,9 +7840,11 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
       item.isActive = item.label === activeComponentName;
     });
     // this.activeTabIndex = tabNdx;
-    console.log('tab switched is: ', tabNdx);
-    console.log('global l: ', this.GlobalSettingsLinkColorDialogSettings);
-    console.log('global n: ', this.GlobalSettingsNodeColorDialogSettings);
+    if (this.commonService.debugMode) {
+      console.log('tab switched is: ', tabNdx);
+      console.log('global l: ', this.GlobalSettingsLinkColorDialogSettings);
+      console.log('global n: ', this.GlobalSettingsNodeColorDialogSettings);
+    }
     switch (activeComponentName) {
       case "Files":
         {
@@ -7519,15 +7920,18 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     if (!this.homepageTabs[tabNdx].componentRef) {
       setTimeout(() => {
         tabNdx = this.homepageTabs.findIndex(x => x.label == activeComponentName);
+        if (this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent) {
+          this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent.subscribe(v => {
+            this.DisplayGlobalSettingsDialog(v);
+          });
+        }
+      });
+    } else {
+      if (this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent) {
         this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent.subscribe(v => {
           this.DisplayGlobalSettingsDialog(v);
         });
-      });
-    } else {
-      console.log(this.homepageTabs[tabNdx].componentRef.instance);
-      this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent.subscribe(v => {
-        this.DisplayGlobalSettingsDialog(v);
-      });
+      }
     }
     this.previousTab = activeComponentName;
   }
@@ -7562,7 +7966,6 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
   }
   onReloadScreen() {
     this.commonService.session.style.widgets = this.commonService.defaultWidgets();
-    console.log('onReloadScreen microbetrace.component.ts');
     this.loadSettings();
   }
   loadSettings() {
@@ -7621,71 +8024,71 @@ let MicrobeTraceNextHomeComponent = (_class = class MicrobeTraceNextHomeComponen
     this.NewSession();
   }
 }, _class.ctorParameters = () => [{
-  type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.Injector
+  type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.Injector
 }, {
   type: _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_2__.CommonService
 }, {
-  type: _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_16__.GoldenLayoutComponentService
+  type: _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_15__.GoldenLayoutComponentService
 }, {
-  type: _angular_platform_browser__WEBPACK_IMPORTED_MODULE_22__.DomSanitizer
+  type: _angular_platform_browser__WEBPACK_IMPORTED_MODULE_21__.DomSanitizer
 }, {
-  type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ChangeDetectorRef
+  type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ChangeDetectorRef
 }, {
-  type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ElementRef
+  type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ElementRef
 }, {
-  type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.Renderer2
+  type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.Renderer2
 }, {
-  type: _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_14__.EventEmitterService
+  type: _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_13__.EventEmitterService
 }], _class.propDecorators = {
   stashes: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['stashes']
   }],
   _goldenLayoutHostComponent: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['goldenLayoutHost']
   }],
   linkThresholdSparkline: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['linkThresholdSparkline']
   }],
   DisplayGlobalSettingsDialogEvent: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.Output
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.Output
   }],
   dataSet: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['dataSet']
   }],
   targets: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChildren,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChildren,
     args: ['placeholder', {
-      read: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewContainerRef
+      read: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewContainerRef
     }]
   }],
   spinnerElement: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['ledgerloader']
   }],
   spinnerDivElement: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['ledgerloadDiv']
   }],
   globalSettingsTab: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['globalSettingsTab']
   }],
   pinBtn: [{
-    type: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewChild,
+    type: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewChild,
     args: ['pinbutton']
   }]
 }, _class);
-MicrobeTraceNextHomeComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_23__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_20__.Component)({
-  changeDetection: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ChangeDetectionStrategy.Default,
+MicrobeTraceNextHomeComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_22__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_19__.Component)({
+  changeDetection: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ChangeDetectionStrategy.Default,
   selector: 'contact-trace',
-  encapsulation: _angular_core__WEBPACK_IMPORTED_MODULE_20__.ViewEncapsulation.None,
+  encapsulation: _angular_core__WEBPACK_IMPORTED_MODULE_19__.ViewEncapsulation.None,
   template: _microbe_trace_next_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_0__,
   styles: [(_microbe_trace_next_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_1___default())]
-}), (0,tslib__WEBPACK_IMPORTED_MODULE_23__.__metadata)("design:paramtypes", [_angular_core__WEBPACK_IMPORTED_MODULE_20__.Injector, _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_2__.CommonService, _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_16__.GoldenLayoutComponentService, _angular_platform_browser__WEBPACK_IMPORTED_MODULE_22__.DomSanitizer, _angular_core__WEBPACK_IMPORTED_MODULE_20__.ChangeDetectorRef, _angular_core__WEBPACK_IMPORTED_MODULE_20__.ElementRef, _angular_core__WEBPACK_IMPORTED_MODULE_20__.Renderer2, _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_14__.EventEmitterService])], MicrobeTraceNextHomeComponent);
+}), (0,tslib__WEBPACK_IMPORTED_MODULE_22__.__metadata)("design:paramtypes", [_angular_core__WEBPACK_IMPORTED_MODULE_19__.Injector, _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_2__.CommonService, _golden_layout_component_service__WEBPACK_IMPORTED_MODULE_15__.GoldenLayoutComponentService, _angular_platform_browser__WEBPACK_IMPORTED_MODULE_21__.DomSanitizer, _angular_core__WEBPACK_IMPORTED_MODULE_19__.ChangeDetectorRef, _angular_core__WEBPACK_IMPORTED_MODULE_19__.ElementRef, _angular_core__WEBPACK_IMPORTED_MODULE_19__.Renderer2, _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_13__.EventEmitterService])], MicrobeTraceNextHomeComponent);
 
 class BpaaSPayloadWrapper {
   constructor() {
@@ -7982,8 +8385,10 @@ let MapComponent = (_class = class MapComponent extends _app_base_component_dire
   initializeLeafletMap(latitude, longitude) {
     //TODO: put this in a config?
     const mapTokenKey = 'sk.eyJ1IjoicndhdHR5IiwiYSI6ImNrY2RuMWlzcDAwMmUyc3A5ejl3ODEzMXoifQ.qpXOouVsI6P8-HOHUWofuQ';
-    console.log('map initializing');
-    this.layers.basemap = (0,leaflet__WEBPACK_IMPORTED_MODULE_6__.tileLayer)(`http://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png`);
+    this.layers.basemap = (0,leaflet__WEBPACK_IMPORTED_MODULE_6__.tileLayer)('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      attribution: '© <a href="https://openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
+    });
     this.layers.satellite = (0,leaflet__WEBPACK_IMPORTED_MODULE_6__.tileLayer)(`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v9/tiles/256/{z}/{x}/{y}?access_token=${mapTokenKey}`);
     this.leafletInitialOptions = {
       zoom: 4,
@@ -8665,10 +9070,29 @@ let MapComponent = (_class = class MapComponent extends _app_base_component_dire
       if (!d.visible) return;
       var source = this.nodes.find(node => node._id == d.source);
       var target = this.nodes.find(node => node._id == d.target);
-      if (source && target) {
-        if (source._jlat && source._jlon && target._jlat && target._jlon) {
+      if (source && target && source._jlat && source._jlon && target._jlat && target._jlon) {
+        // Handle multiple origins
+        if (d.origin && d.origin.length > 1) {
+          let color1 = this.commonService.temp.style.linkColorMap(d.origin[0]);
+          let color2 = this.commonService.temp.style.linkColorMap(d.origin[1]);
+          let dashPattern1 = '10, 10';
+          let dashPattern2 = '0, 10, 10, 0';
+          let polyline1 = leaflet__WEBPACK_IMPORTED_MODULE_6__.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+            color: color1,
+            dashArray: dashPattern1,
+            opacity: opacity
+          });
+          let polyline2 = leaflet__WEBPACK_IMPORTED_MODULE_6__.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+            color: color2,
+            dashArray: dashPattern2,
+            opacity: opacity
+          });
+          features.push(polyline1);
+          features.push(polyline2);
+        } else {
+          // Single origin handling
           const connectorLine = leaflet__WEBPACK_IMPORTED_MODULE_6__.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
-            color: lcv == "None" ? this.commonService.session.style.widgets['link-color'] : this.commonService.temp.style.linkColorMap(d[lcv]),
+            color: lcv === "None" ? this.commonService.session.style.widgets['link-color'] : this.commonService.temp.style.linkColorMap(d[lcv]),
             opacity: opacity
           });
           connectorLine.data = d;
@@ -9981,6 +10405,8 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }];
     this.SelectedNetworkTableTypeVariable = "Hide";
     this.isExportClosed = false;
+    /* XXXXXnot sure if this boolean is necessary; Related to exportWork, and bottom-table s (ie. node-symbol-table-bottom)
+     currently exportWork2 is used which don't make use of isExporting and bottom-table s XXXXX */
     this.isExporting = false;
     this.isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
     // Link Tab
@@ -10064,6 +10490,17 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.PolygonColorTableWrapperDialogSettings = new _helperClasses_dialogSettings__WEBPACK_IMPORTED_MODULE_8__.DialogSettings('#polygon-color-table-wrapper', false);
     this.Node2DNetworkExportDialogSettings = new _helperClasses_dialogSettings__WEBPACK_IMPORTED_MODULE_8__.DialogSettings('#network-settings-pane', false);
     this.ContextSelectedNodeAttributes = [];
+    /**
+     * Converts table such as node color table, link color table or node symbol table from dialog window into element on twoD network svg when
+     * getting ready to export.
+     * @param data Object[] containing information in the table, such as color, count, node/groupLabel
+     * @param columns string array of table column names
+     * @param wrapper HTMLElement of table
+     * @param container HTMLElement of entive svg/network
+     * @param topOffset number
+     * @param leftOffset boolean
+     * @returns foreignObject that can be removed later by foreignObjectName.remove()
+     */
     this.tabulate2 = (data, columns, wrapper, container, topOffset, leftOffset) => {
       console.log('wrapper: ', wrapper);
       console.log('left: ', wrapper.offsetLeft);
@@ -10106,6 +10543,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.InitView();
   }
   ngAfterViewInit() {}
+  /** Initializes the view.
+   *
+   * Defines the structure of the svg of twoD network and adds functionalities such as click, zoom, forces, etc...
+   *
+   * Populates various lists for Fieldlist (options for node-label-variable, node-symbol-variable, node-radius-variable, polygon-foci),
+   * ToolTipFieldList (options for link-width-variable, link-label-variable), and LinkToolTipList (link-toolitp-variable)
+   *
+   */
   InitView() {
     this.visuals.twoD.IsDataAvailable = this.visuals.twoD.commonService.session.data.nodes.length === 0 ? false : true;
     if (!this.widgets['default-distance-metric']) {
@@ -10115,6 +10560,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     if (this.visuals.twoD.IsDataAvailable === true && this.visuals.twoD.zoom === null) {
       d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').exit().remove();
       this.visuals.twoD.svg = d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').append('g');
+      // populate this.twoD.FieldList with [None, ...nodeFields]
       this.visuals.twoD.FieldList = [];
       this.visuals.twoD.FieldList.push({
         label: "None",
@@ -10128,6 +10574,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
           });
         }
       });
+      // populate this.visuals.twoD.ToolTipFieldList and this.LinkToolTipList
       this.visuals.twoD.ToolTipFieldList = [];
       this.LinkToolTipList = [];
       this.visuals.twoD.ToolTipFieldList.push({
@@ -10175,15 +10622,13 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.halfWidth = $('#network').parent().width() / 2;
       this.visuals.twoD.halfHeight = $('#network').parent().parent().parent().height() / 2;
       this.visuals.twoD.transform = d3__WEBPACK_IMPORTED_MODULE_4__.zoomTransform(d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').node());
-      this.widgets = this.widgets;
+      //this.widgets = this.widgets;
       let zoom = d3__WEBPACK_IMPORTED_MODULE_4__.zoom().filter(() => !this.ctrlPressed).on('zoom', () => this.visuals.twoD.svg.attr('transform', this.visuals.twoD.transform = d3__WEBPACK_IMPORTED_MODULE_4__.event.transform));
       let width = d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').node().getBoundingClientRect().width;
       let height = d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network').node().getBoundingClientRect().height;
       let svgSelection = d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network');
       let svgWidth = svgSelection.node().getBoundingClientRect().width;
       let svgHeight = svgSelection.node().getBoundingClientRect().height;
-      console.log('brush height: ', svgHeight);
-      console.log('brush width: ', svgWidth);
       this.visuals.twoD.brush = d3__WEBPACK_IMPORTED_MODULE_4__.brush().extent([[0, 0], [svgWidth, svgHeight]]) // Set the extent to cover the entire SVG
       .on('start', () => {
         this.dragging = true;
@@ -10295,6 +10740,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         }
       }, 1);
       setTimeout(() => {
+        // sometimes (~1/10) MT loads but twoD nodes are displayed offscreen - like the fit command isn't executed - DC
         this.visuals.twoD.fit(undefined, undefined);
         // Ensure brush is off
         this.toggleBrush(false);
@@ -10303,9 +10749,17 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }, 3000);
     }
   }
+  /**
+   * Toggle the pointer events of the brush and overlay element
+   *
+   * @param {boolean} enable - If true, pointer events are enabled; otherwise, they are disabled
+   */
   toggleBrush(enable) {
     d3__WEBPACK_IMPORTED_MODULE_4__.select('svg#network g.brush').attr('pointer-events', enable ? 'all' : 'none').select('rect.overlay').attr('pointer-events', enable ? 'all' : 'none');
   }
+  /**
+   * XXXXX empty function XXXXX
+   */
   onDataChange(event) {}
   // loadDefaultVisualization(e: String) {
   //     setTimeout(() => {
@@ -10317,30 +10771,48 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   //     }, 1000);
   //     this.LoadDefaultVisualizationEvent.emit(e);
   // }
-  // This function gets position of mouse relative to twodcomponent. Global position (i.e. d3.event.pageX) doesn't work for a dashboard  
+  /**
+   * @returns an array [X, Y] of the position of mouse relative to twodcomponent. Global position (i.e. d3.event.pageX) doesn't work for a dashboard
+   */
   getRelativeMousePosition() {
     let rect = d3__WEBPACK_IMPORTED_MODULE_4__.select('twodcomponent').node().getBoundingClientRect();
     let X = d3__WEBPACK_IMPORTED_MODULE_4__.event.pageX - rect.left;
     let Y = d3__WEBPACK_IMPORTED_MODULE_4__.event.pageY - rect.top;
     return [X, Y];
   }
+  /**
+   * @returns an array [width, height] of the svg image
+   */
   getImageDimensions() {
     let parent = this.svg.node().parentElement;
     return [parent.clientWidth, parent.clientHeight];
   }
+  /**
+   * Sets CalculatedResolution variable to string such as '1250 x 855px'. Only called when export is first opened
+   */
   setCalculatedResolution() {
     let [width, height] = this.getImageDimensions();
     this.CalculatedResolution = Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px";
   }
+  /**
+   * Updates CalculatedResolution variable to string such as '1250 x 855px' based on ImageDimensions and SelectedNetworkExportScaleVariable.
+   * This is called anytime SelectedNetworkExportScaleVariable is updated.
+   */
   updateCalculatedResolution(event) {
     let [width, height] = this.getImageDimensions();
     this.CalculatedResolution = Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px";
     this.cdref.detectChanges();
   }
+  /**
+   * Opens Global Setting Dialog
+   */
   showGlobalSettings() {
-    console.log("threshold: ", this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
+    //console.log("threshold: ",  this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
     this.DisplayGlobalSettingsDialogEvent.emit("Styling");
   }
+  /**
+   * Hides export pane, sets isExporting variable to true and calls exportWork2 to export the twoD network image
+   */
   exportVisualization(event) {
     this.visuals.twoD.Show2DExportPane = false;
     this.isExporting = true;
@@ -10359,10 +10831,15 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.exportWork2();
     }
   }
+  /**
+   * Sets this.isExportClosed to true
+   */
   onCloseExport() {
     this.isExportClosed = true;
   }
-  // Remove pop windows that should dissapear when clicked on the network
+  /**
+   * When the svg is clicked, this function is called and it removes color transparency slider that appears when updating color transparency in node/link color tables
+   */
   networkWhitespaceClicked() {
     // The color transparency slider should dissapear if clicked out
     $("#color-transparency-wrapper").css({
@@ -10372,6 +10849,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       node.selected = false;
     });
   }
+  /**
+   * XXXXX Not currently used in codebase; exportWork2 is used instead XXXXX
+   */
   exportWork() {
     let network = document.getElementById('network');
     let $network = $(network);
@@ -10419,6 +10899,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }, 1000);
     }
   }
+  /**
+   * Exports twoD network svg as an svg, png, jpeg, or webp image
+   */
   exportWork2() {
     let network = document.getElementById('network');
     let $network = $(network);
@@ -10460,7 +10943,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     // private linkColorTableWrapper: HTMLElement | null = null;
     // private nodeColorTableWrapper: HTMLElement | null = null;
     // let nodeWrapper = this.parent.getElementById('node-color-table');
-    console.log('node wrapper: ', nodeWrapper);
+    //console.log('node wrapper: ', nodeWrapper);
     let nodeLegend = this.tabulate2(data, columns, nodeWrapper, network, 200, false);
     // add link origin table
     let vlinks = this.visuals.twoD.commonService.getVisibleLinks();
@@ -10583,6 +11066,12 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       });
     }
   }
+  /**
+   * Renders the twoD network.
+   *
+   * Set node functionalities and properties; set link functionalities, properties, and labels; sets polygon functionalities and properties if needed
+   * @param showStatistics updates this.showStatistics variable
+   */
   render(showStatistics = true) {
     if (!$('#network').length) return;
     $("#numberOfSelectedNodes").text(this.visuals.twoD.commonService.session.data.nodes.filter(d => d.selected).length.toLocaleString());
@@ -10591,6 +11080,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     let oldNodes;
     if (this.widgets["timeline-date-field"] != 'None') oldNodes = this.visuals.twoD.commonService.session.network.timelineNodes;else oldNodes = this.visuals.twoD.commonService.session.network.nodes;
     if (newNodes.length === 0 && this.widgets["timeline-date-field"] == 'None') return;
+    // match newNodes to oldNodes so that position variables can be updated in newNodes
     newNodes.forEach((d, i) => {
       let match = oldNodes.find(d2 => {
         if (!d2.id) {
@@ -10610,6 +11100,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }
     });
     this.visuals.twoD.commonService.session.network.nodes = newNodes;
+    // sets functionality for nodes, as well as node border and node text/label position
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(newNodes, d => d._id).join(enter => {
       let g = enter.append('g').attr('tabindex', '0').call(d3__WEBPACK_IMPORTED_MODULE_4__.drag() //A bunch of mouse handlers.
       .on('start', x => this.visuals.twoD.dragstarted(x)).on('drag', x => this.visuals.twoD.dragged(x)).on('end', x => this.visuals.twoD.dragended(x))).on('mouseenter focusin', x => this.visuals.twoD.showNodeTooltip(x)).on('mouseout focusout', x => this.visuals.twoD.hideTooltip()).on('contextmenu', x => this.visuals.twoD.showContextMenu(x)).on('click', x => this.visuals.twoD.clickHandler(x)).on('keydown', n => {
@@ -10620,14 +11111,18 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       g.append('text').attr('dy', 5).attr('dx', 8);
       return g;
     });
+    // updates node properties (color, shape, label, size, etc...)
     this.visuals.twoD.redrawNodes();
     this.visuals.twoD.redrawLabels();
     this.visuals.twoD.redrawNodeBorder();
     this.visuals.twoD.updateNodeColors();
+    // sets link functionality
     let vlinks = this.visuals.twoD.getVLinks();
     let links = this.visuals.twoD.svg.select('g.links').selectAll('line').data(vlinks).join('line').attr('stroke-width', this.widgets['link-width']).attr('opacity', 1 - this.widgets['link-opacity']).on('mouseenter', x => this.visuals.twoD.showLinkTooltip(x)).on('mouseout', x => this.visuals.twoD.hideTooltip());
+    // updates link color and width
     this.visuals.twoD.updateLinkColor();
     this.visuals.twoD.scaleLinkWidth();
+    // defines link labels
     let linklabels = this.visuals.twoD.svg.select('g.links').selectAll('text').data(vlinks).join('text').attr('text-anchor', 'middle').attr('dy', this.widgets['link-width'] + 2).text(l => {
       const labelValue = l[this.widgets['link-label-variable']];
       if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
@@ -10640,6 +11135,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         return labelValue;
       }
     });
+    /**
+     * Updates node and link position, and position and angle of link label
+     */
     let layoutTick = () => {
       nodes.attr('transform', d => {
         var ew = d.fixed ? `translate(${d.fx}, ${d.fy})` : `translate(${d.x}, ${d.y})`;
@@ -10692,6 +11190,12 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       let i = d.foci;
       if (!clusters[i] || r > clusters[i].radius) clusters[i] = d;
     });
+    /**
+     * Similar to layoutTick, but adds functionalities for polygons
+     *
+     * Updates node and link position, and position and angle of link label.
+     * Adds polygons, polygon mouse handlers, and polygon labels
+     */
     let polygonsTick = () => {
       newNodes.forEach(function (o, i) {
         o.y += (clusters[o.foci].y - o.y) * gather;
@@ -10734,12 +11238,30 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     // Recall the brush to apply the new extent
     d3__WEBPACK_IMPORTED_MODULE_4__.select('g.brush').call(this.visuals.twoD.brush);
   }
+  /**
+   * This function is called when a polygonLabel drag is started; it moves <text> element to last under g.clusterLabels and adds class polygonText to the element
+   */
   polygonLabelDragStarted(d) {
     d3__WEBPACK_IMPORTED_MODULE_4__.select(this).raise().attr("class", "polygonText");
   }
+  /**
+   * Moves location of polygon label when it is dragged by updating transform="translate(x,y)"
+   */
   polygonLabelDragged(d) {
     d3__WEBPACK_IMPORTED_MODULE_4__.select(this).attr("transform", "translate(" + d3__WEBPACK_IMPORTED_MODULE_4__.event.x + "," + d3__WEBPACK_IMPORTED_MODULE_4__.event.y + ")");
   }
+  /**
+   * This function is called when a polygonLabel drag is ended; it removes class polygonText from <text> element
+   */
+  polygonLabelDragEnded(d) {
+    d3__WEBPACK_IMPORTED_MODULE_4__.select(this).attr("class", "");
+  }
+  /**
+   * Generates Polygon Color Selection Table, updates polygonColorMap and polygonAlphaMap functions, and then calls render to show/update network
+   *
+   * XXXXX this function needs revisiting. Doesn't always populate table. I had to hide color polygons, then show it, and then show polygon color table setting
+   * to get table to appear. Also not sorting correctly with names XXXXX
+   */
   updatePolygonColors() {
     let polygonSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
       this.widgets["polygon-color-table-counts-sort"] = "";
@@ -10836,6 +11358,13 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     // this.sortable("#polygon-color-table", { items: "tr" });
     this.visuals.twoD.render();
   }
+  /**
+   * This function is called when polygon-show widget is updated from the template.
+   * That widget controls whether polygons are shown or not
+   *
+   * XXXXX I think this function wasn't updated with the move to Angular; most of the code
+   * seems redundant/unnecessary. I think only line needed is this.render(). XXXXX
+   */
   polygonsToggle(e) {
     this.widgets['polygons-show'] = e;
     if (e) {
@@ -10859,6 +11388,13 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.render();
   }
+  /**
+   * This function is called when polygon-color-show widget is updated from the template.
+   * This widget controls whether polygon should be colored the same or different.
+   *
+   * XXXXX I think this function wasn't updated with the move to Angular; most of the code
+   * seems redundant/unnecessary. Evaluate whether function can be reduce/eliminated. XXXXX
+   */
   polygonColorsToggle(e) {
     if (e) {
       this.widgets['polygons-color-show'] = true;
@@ -10878,10 +11414,26 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.visuals.twoD.render();
   }
+  /**
+   * This function is called when polygon-color widget is updated from the template.
+   * It is only available when polygon-color-show is false/hide
+   * This widget control polygon color when they are all colored the same.
+   *
+   * XXXXX I think this function wasn't updated with the move to Angular.
+   * Evaluate whether function can be reduce/eliminated. XXXXX
+   */
   onPolygonColorChanged(e) {
     this.widgets["polygon-color"] = e;
     this.visuals.twoD.render();
   }
+  /**
+   * This function is called when polygon-color-table-visible widget is updated from the template.
+   * It is only available when polygon-color-show is true/show
+   * This widget controls whether the polygon color table is visible.
+   *
+   * XXXXX I think this function wasn't updated with the move to Angular.
+   * Evaluate whether function can be reduce/eliminated. XXXXX
+   */
   polygonColorsTableToggle(e) {
     if (e) {
       this.visuals.twoD.onPolygonColorTableChange('Show');
@@ -10890,9 +11442,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.visuals.twoD.render();
   }
-  polygonLabelDragEnded(d) {
-    d3__WEBPACK_IMPORTED_MODULE_4__.select(this).attr("class", "");
-  }
+  /**
+   * Adds polygon labels an sets their size and orientation
+   */
   redrawPolygonLabels() {
     let nodes = d3__WEBPACK_IMPORTED_MODULE_4__.select('#network g.clustersLabels').selectAll('text');
     let size = this.widgets['polygons-label-size'],
@@ -10916,6 +11468,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         nodes.attr('text-anchor', 'middle').attr('dx', 0).attr('dy', (size - 4) / 2);
     }
   }
+  /**
+   * Executed when a polygon drag is start. All nodes within that polygon have variable selected set to true; other nodes have variable selected
+   * set to false. node-selected event is triggered and dragstarted is called
+   */
   polygonDragStarted(n) {
     this.visuals.twoD.commonService.session.data.nodes.forEach(sessionNode => {
       let tempAry = n.values.filter(node => {
@@ -10935,11 +11491,17 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.dragstarted(this.polygonNodeSelected);
     }
   }
+  /**
+   * Executed when a polygon is dragged. The dragged function is called and appropriated nodes previously had selected set to true
+   */
   polygonDragged(n) {
     if (this.polygonNodeSelected) {
       this.dragged(this.polygonNodeSelected);
     }
   }
+  /**
+   * Calls the dragend function for the nodes. also polygonNodeSelected variable is set to null, and all nodes have selected set to false
+   */
   polygonDragEnded(n) {
     if (this.polygonNodeSelected) {
       this.dragended(this.polygonNodeSelected);
@@ -10950,6 +11512,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     });
     $(document).trigger('node-selected');
   }
+  /**
+   * Gets a list of all visible links objects; Similar to getLlinks(), and commonService.getVisibleLinks()
+   *
+   * Each link object has a single origin, so any links that have more than one origin are stored as separed link objects
+   *
+   * Each link's source and target are node object
+   * @returns a array of link objects; each link's source and target are node object
+   */
   getVLinks() {
     let vlinks = this.visuals.twoD.commonService.getVisibleLinks(true);
     let output = [];
@@ -10959,6 +11529,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       if (vlinks[i].origin) {
         if (typeof vlinks[i].origin === 'object') {
           if (vlinks[i].origin.length > 0) {
+            // 0 = current, j = index, l = array
             vlinks[i].origin.forEach((o, j, l) => {
               const holder = Object.assign({}, vlinks[i], {
                 origin: o,
@@ -10985,7 +11556,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
             source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
             target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
           });
-          console.log(holder);
+          //console.log(holder);
           output.push(holder);
         }
       } else {
@@ -11002,6 +11573,14 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     output = output.filter(x => x.source != undefined && x.target != undefined);
     return output;
   }
+  /**
+   * Gets a list of all visible links objects; Similar to getVlinks(), and commonService.getVisibleLinks()
+   *
+   * A link that has multiple origins is stored as a single object
+   *
+   * Each link's source and target are node object
+   * @returns a array of link objects; each link's source and target are node object
+   */
   getLLinks() {
     let vlinks = this.visuals.twoD.commonService.getVisibleLinks(true);
     let n = vlinks.length;
@@ -11011,9 +11590,18 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     return vlinks;
   }
+  /**
+   * Used to calculate the angle between two nodes. It is used when setting link label
+   * @param source source node
+   * @param target target node
+   */
   calcAngle(source, target) {
     return Math.atan((source.y - target.y) / (source.x - target.x)) * this.visuals.twoD.radToDeg;
   }
+  /**
+   * When a node (or multiple nodes) drag is started, update value of this.multidrag and this.selected and set the fx and fy values for each node selected
+   * @param n node/nodes
+   */
   dragstarted(n) {
     if (!d3__WEBPACK_IMPORTED_MODULE_4__.event.active) this.visuals.twoD.force.alphaTarget(0.3).restart();
     function setNode(d) {
@@ -11028,6 +11616,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       setNode(n);
     }
   }
+  /**
+   * When a node (or multiple nodes) is dragged, update value fx and fy for each node selected
+   * @param n node/nodes
+   */
   dragged(n) {
     function updateNode(d) {
       d.fx += d3__WEBPACK_IMPORTED_MODULE_4__.event.dx;
@@ -11039,6 +11631,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       updateNode(n);
     }
   }
+  /**
+   * When a node (or multiple nodes) is ended, update value fx and fy to null (unless node is pinned) for each node selected
+   * @param n node/nodes
+   */
   dragended(n) {
     if (!d3__WEBPACK_IMPORTED_MODULE_4__.event.active) this.visuals.twoD.force.alphaTarget(0);
     let that = this;
@@ -11065,8 +11661,12 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       unsetNode(n);
     }
   }
+  /**
+   * Click event handler, updates the node.selected value
+   * @param n
+   */
   clickHandler(n) {
-    console.log('event: ', d3__WEBPACK_IMPORTED_MODULE_4__.event);
+    //console.log('event: ',d3.event)
     if (d3__WEBPACK_IMPORTED_MODULE_4__.event && d3__WEBPACK_IMPORTED_MODULE_4__.event.key === "Shift") {
       this.visuals.twoD.commonService.session.data.nodes.find(node => node._id == n._id).selected = !n.selected;
     } else {
@@ -11081,16 +11681,26 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     // this.visuals.twoD.render(false);
     $(document).trigger('node-selected');
   }
+  /**
+   * Used from Context Menu and copy node's ID to the user's clipboard
+   */
   copyID() {
     let id = $('#copyID').attr('data-clipboard-text');
     this.clipboard.copy(id);
     this.hideContextMenu();
   }
+  /**
+   * Used from Context Menu and copy node's sequence to the user's clipboard
+   */
   copySeq() {
     let seq = $('#copySeq').attr('data-clipboard-text');
     this.clipboard.copy(seq);
     this.hideContextMenu();
   }
+  /**
+   * Upon right clicking a node, d, the context menu will appear, which allows the user to option to pin node, copy id, copy sequence, or view attributes
+   * @param d the node right clicked
+   */
   showContextMenu(d) {
     d3__WEBPACK_IMPORTED_MODULE_4__.event.preventDefault();
     this.visuals.twoD.hideTooltip();
@@ -11141,6 +11751,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       'opacity': 1
     }, 80);
   }
+  /**
+   * Hides the Context Menu
+   */
   hideContextMenu() {
     $('#context-menu').animate({
       'opacity': 0
@@ -11148,30 +11761,20 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       $(this).css('z-index', -1);
     });
   }
-  showNodeTooltip(d) {
-    if (this.widgets['node-highlight']) this.visuals.twoD.highlightNeighbors(d);
-    // If no tooltip variable is selected, we shouldn't show a tooltip
-    if (this.widgets['node-tooltip-variable'].length > 0 && this.widgets['node-tooltip-variable'][0] == 'None') return;
-    this.visuals.twoD.SelectedNodeTooltipVariable = this.widgets['node-tooltip-variable'];
-    // Tooltip variables can be a single string or an array
-    let tooltipVariables = this.visuals.twoD.SelectedNodeTooltipVariable;
-    if (!Array.isArray(tooltipVariables)) {
-      tooltipVariables = [tooltipVariables];
-    }
-    // Generate the HTML for the tooltip
-    let tooltipHtml = '';
-    if (tooltipVariables.length > 1) {
-      tooltipHtml = this.tabulate(tooltipVariables.map(variable => [this.titleize(variable), d[variable]]));
-    } else {
-      tooltipHtml = d[tooltipVariables[0]];
-    }
-    let [X, Y] = this.getRelativeMousePosition();
-    d3__WEBPACK_IMPORTED_MODULE_4__.select('#tooltip').html(tooltipHtml).style('position', 'absolute').style('left', X + 10 + 'px').style('top', Y - 10 + 'px').style('z-index', 1000).transition().duration(100).style('opacity', 1);
-  }
+  /**
+   * This function capitalizes the first letter of each word in a string.
+   * @param str input string
+   * @returns input string with first letter capitalized
+   */
   titleize(str) {
     return str.replace(/\b\w/g, l => l.toUpperCase());
   }
-  // Generate a tabular HTML string from the data array, similar to the tabulate function in the original JavaScript
+  /**
+   * Generate a tabular HTML string from the data array
+   * @param data [ [Col1, ...], ...] - An Array of arrays where arrays within outer array represent different rows and
+   *  values within inner array represent the cells within that row
+   * @returns an HTML string with a table representation of the data
+   */
   tabulate(data) {
     let tableHtml = `
             <style>
@@ -11207,6 +11810,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     tableHtml += '</tbody></table>';
     return tableHtml;
   }
+  /**
+   * Highlights the node and all of its neighbor (shares a link with) and the links that the node is
+   * a source or target
+   * @param node node that is mouseover by user
+   */
   highlightNeighbors(node) {
     let links = this.visuals.twoD.getVLinks();
     let lindices = [],
@@ -11224,9 +11832,39 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
         }
       }
     }
+    // highlights current node and its neighbors
     this.visuals.twoD.svg.select('g.nodes').selectAll('g').selectAll('path').attr('opacity', d => this.visuals.twoD.commonService.includes(neighbors, d._id) ? 1 : .1);
+    // hightlights all of current node's links
     this.visuals.twoD.svg.select('g.links').selectAll('line').data(links).attr('opacity', l => this.visuals.twoD.commonService.includes(lindices, l.index) ? .1 : 1);
   }
+  /**
+   * Gets data from current node needed for tooltip and displays it in the tooltip also hightlights neighbors if that option is selected
+   * @param d a node
+   */
+  showNodeTooltip(d) {
+    if (this.widgets['node-highlight']) this.visuals.twoD.highlightNeighbors(d);
+    // If no tooltip variable is selected, we shouldn't show a tooltip
+    if (this.widgets['node-tooltip-variable'].length > 0 && this.widgets['node-tooltip-variable'][0] == 'None') return;
+    this.visuals.twoD.SelectedNodeTooltipVariable = this.widgets['node-tooltip-variable'];
+    // Tooltip variables can be a single string or an array
+    let tooltipVariables = this.visuals.twoD.SelectedNodeTooltipVariable;
+    if (!Array.isArray(tooltipVariables)) {
+      tooltipVariables = [tooltipVariables];
+    }
+    // Generate the HTML for the tooltip
+    let tooltipHtml = '';
+    if (tooltipVariables.length > 1) {
+      tooltipHtml = this.tabulate(tooltipVariables.map(variable => [this.titleize(variable), d[variable]]));
+    } else {
+      tooltipHtml = d[tooltipVariables[0]];
+    }
+    let [X, Y] = this.getRelativeMousePosition();
+    d3__WEBPACK_IMPORTED_MODULE_4__.select('#tooltip').html(tooltipHtml).style('position', 'absolute').style('left', X + 10 + 'px').style('top', Y - 10 + 'px').style('z-index', 1000).transition().duration(100).style('opacity', 1);
+  }
+  /**
+   * Gets data from current link needed for tooltip and displays it in the tooltip
+   * @param d link
+   */
   showLinkTooltip(d) {
     let v = this.visuals.twoD.SelectedLinkTooltipVariable;
     if (v == 'None') return;
@@ -11238,6 +11876,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     // If no tooltip variable is selected, we shouldn't show a tooltip
     if (tooltipVariables.length > 0 && tooltipVariables[0] == 'None') return;
+    /**
+     * @param data link
+     * @param varName name of variable
+     * @returns the value of the link for the variable
+     */
     let getData = (data, varName) => {
       if (varName == 'source_id') {
         return data['source']._id;
@@ -11261,6 +11904,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     let [X, Y] = this.getRelativeMousePosition();
     d3__WEBPACK_IMPORTED_MODULE_4__.select('#tooltip').html(tooltipHtml).style('position', 'absolute').style('left', X + 10 + 'px').style('top', Y - 10 + 'px').style('z-index', 1000).transition().duration(100).style('opacity', 1);
   }
+  /**
+   * Hides the Tooltip
+   */
   hideTooltip() {
     if (this.widgets['node-highlight']) {
       this.visuals.twoD.svg.select('g.nodes').selectAll('g').selectAll('path').attr('opacity', 1);
@@ -11270,9 +11916,16 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     let tooltip = d3__WEBPACK_IMPORTED_MODULE_4__.select('#tooltip');
     tooltip.transition().duration(100).style('opacity', 0).on('end', () => tooltip.style('z-index', -1));
   }
+  /**
+   * @returns {boolean} if a is a number
+   */
   isNumber(a) {
     return typeof a == "number";
   }
+  /**
+   * This function updates the nodes based on node-symbol, node-symbol-variable, node-radius, node-radius-variable, node-radius-min, node-radius-max.
+   * It does not add new nodes to the DOM.
+   */
   redrawNodes() {
     //Things to track in the function:
     //* Shapes:
@@ -11331,10 +11984,16 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       d3__WEBPACK_IMPORTED_MODULE_4__.select(this).attr('d', d3__WEBPACK_IMPORTED_MODULE_4__.symbol().size(size).type(type));
     });
   }
+  /**
+   * redraws/updates node borders based on node-border-width
+   */
   redrawNodeBorder() {
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(this.visuals.twoD.commonService.session.network.nodes);
     nodes.selectAll('path').style('stroke', 'black').style('stroke-width', this.widgets['node-border-width']);
   }
+  /**
+   * uses values from node-label-variable, node-label-size, and node-label-orietation to add/remove labels from the the nodes
+   */
   redrawLabels() {
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(this.visuals.twoD.commonService.session.network.nodes).select('text'),
       labelVar = this.widgets['node-label-variable'];
@@ -11364,6 +12023,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
   }
   //Polygon Events
+  /**
+   * XXXXX Not sure functionality of this function; it is only called during loadSettings, not in template;
+   * also polygon-label-row is not found in the template; need to reevaluate if function is needed XXXXX
+   */
   onPolygonLabelVariableChange(e) {
     this.widgets['polygons-label-variable'] = e;
     if (e == 'None') {
@@ -11373,6 +12036,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.redrawPolygonLabels();
   }
+  /**
+   * This is called when the variable used to grouped by/created polygons is changed
+   *
+   * XXXXX May be worth revisiting when other polygon functions are updated. Some lines are probably not necessary XXXXX
+   */
   centerPolygons(e) {
     this.widgets['polygons-foci'] = e;
     this.visuals.twoD.render();
@@ -11388,22 +12056,37 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       $('#polygon-color-value-row').slideUp();
     }
   }
+  /**
+   * Updates polygon-label-size widget and then redraws polygon labels
+   */
   setPolygonLabelSize(size) {
     this.widgets['polygons-label-size'] = parseFloat(size);
     this.visuals.twoD.redrawPolygonLabels();
   }
+  /**
+   * Calls setPolygonLabelSize to update polygon-label-size widget and then redraws polygon labels
+   */
   onPolygonLabelSizeChange(e) {
     this.setPolygonLabelSize(e);
   }
+  /**
+   * Updates polygons-label-orientation widget and then redraws polygon labels
+   */
   onPolygonLabelOrientationChange(e) {
     this.widgets['polygons-label-orientation'] = e;
     this.visuals.twoD.redrawPolygonLabels();
   }
+  /**
+   * Updates polygons-gather-force and then renders the network again
+   */
   onPolygonGatherChange(e) {
     let v = parseFloat(e);
     this.widgets['polygons-gather-force'] = v;
     this.visuals.twoD.render();
   }
+  /**
+   * Updates polygons-label-show widget and the renders the network again
+   */
   onPolygonLabelShowChange(e) {
     if (e) {
       this.widgets['polygons-label-show'] = true;
@@ -11415,6 +12098,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.render();
     }
   }
+  /**
+   * XXXXX Function not used/executed XXXXX
+   */
   onPolygonShowChange(e) {
     if (e == "Show") {
       this.widgets['polygons-label-show'] = true;
@@ -11433,6 +12119,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.render();
     }
   }
+  /**
+   * XXXXX reevaluate if need to be combined with polygonColorsTableToggle; when called from polygonColorsTableToggle e is 'Show'/'Hide' when called
+   * from template e is true/false XXXXX
+   */
   onPolygonColorTableChange(e) {
     this.SelectedNetworkTableTypeVariable = e;
     this.widgets["polygon-color-table-visible"] = e;
@@ -11445,6 +12135,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
   /*/
       Node Events
   /*/
+  /**
+   * updates the value of the appropriate widget, add/removes rows from dialog menu, and calls redrawLabels to update labels on svg/view
+   * @param e the name of variable to change labels to
+   */
   onNodeLabelVaribleChange(e) {
     this.widgets['node-label-variable'] = e;
     if (e == 'None') {
@@ -11454,25 +12148,40 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.redrawLabels();
   }
+  /**
+   * Calls setNodeLabelSize to update label-size and redraw labels
+   */
   onNodeLabelSizeChange(e) {
     this.setNodeLabelSize(e.target.value);
   }
+  /**
+   * Updates node-label-size and then redraws labels
+   */
   setNodeLabelSize(size) {
     this.widgets['node-label-size'] = parseFloat(size);
     this.visuals.twoD.redrawLabels();
   }
+  /**
+   * Updates node-label-orientation and then redraws labels
+   * @param e orientation such as Right, Left, Top, Bottom, Middle
+   */
   onNodeLabelOrientationChange(e) {
     this.widgets['node-label-orientation'] = e;
     this.visuals.twoD.redrawLabels();
   }
+  /**
+   * updates node-tooltip-variable
+   */
   onNodeTooltipVariableChange(e) {
     let selectedValue = e;
     if (!Array.isArray(selectedValue)) {
       selectedValue = [selectedValue];
     }
     this.widgets['node-tooltip-variable'] = selectedValue;
-    this.visuals.twoD.redrawLabels();
+    // removed redrawLabels because it doesn't have anything to do with tooltip
+    //this.visuals.twoD.redrawLabels();
   }
+
   onNodeSymbolVariableChange(e, setVisibility = true) {
     this.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
     if (setVisibility) {
@@ -11639,26 +12348,45 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.widgets['node-radius-variable'] = e;
     this.visuals.twoD.redrawNodes();
   }
+  /**
+   * Updates node-radius-max widget and redraws nodes
+   */
   onNodeRadiusMaxChange(e) {
     this.widgets['node-radius-max'] = e;
     this.visuals.twoD.redrawNodes();
   }
+  /**
+   * Updates node-radius-min widget and redraws nodes
+   */
   onNodeRadiusMinChange(e) {
     this.widgets['node-radius-min'] = e;
     this.visuals.twoD.redrawNodes();
   }
+  /**
+   * Updates node-border-width widget and redraws nodes
+   */
   onNodeBorderWidthChange(e) {
     this.widgets['node-border-width'] = e;
     this.visuals.twoD.redrawNodeBorder();
   }
+  /**
+   * Updates node-radius widget and redraws nodes
+   */
   onNodeRadiusChange(e) {
     this.widgets['node-radius'] = e;
     this.visuals.twoD.redrawNodes();
   }
+  /**
+   * Updates node-symbol widget and redraws nodes
+   */
   onNodeSymbolChange(e) {
     this.widgets['node-symbol'] = e;
     this.visuals.twoD.redrawNodes();
   }
+  /**
+   * Sets whether node symbol table is visible or not
+   * @param e 'Show' or 'Hide'
+   */
   onNodeSymbolTableChange(e) {
     this.SelectedNetworkTableTypeVariable = e;
     this.widgets["node-symbol-table-visible"] = this.SelectedNetworkTableTypeVariable;
@@ -11668,6 +12396,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.NodeSymbolTableWrapperDialogSettings.setVisibility(false);
     }
   }
+  /**
+   * Updates link-tooltip-variable and SelectedLinkTooltipVariable to update what tooltip displays for links
+   */
   onLinkTooltipVariableChange(e) {
     let selectedValue = e;
     if (!Array.isArray(selectedValue)) {
@@ -11675,10 +12406,13 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.widgets['link-tooltip-variable'] = e;
     this.visuals.twoD.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
+    // not sure if redraw labels is necessary - it doesn't deal with link or tooltip
     this.visuals.twoD.redrawLabels();
     //TODO: umm.... do something here?
   }
-
+  /**
+   * Updates link-label-variable widget and link labels
+   */
   onLinkLabelVariableChange(e) {
     let label = e;
     this.widgets['link-label-variable'] = label;
@@ -11711,6 +12445,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.force.alpha(0.01).alphaTarget(0).restart();
     }
   }
+  /**
+   * Updates link-label-decimal-length widget and updates label with updated number of decimal points
+   */
   onLinkDecimalVariableChange(e) {
     this.widgets['link-label-decimal-length'] = e;
     this.visuals.twoD.svg.select('g.links').selectAll('text').data(this.getLLinks()).text(l => {
@@ -11722,11 +12459,17 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       }
     });
   }
+  /**
+   * Updates link-opacity widget and the opacity for all links
+   */
   onLinkOpacityChange(e) {
     this.widgets['link-opacity'] = e;
     let opacity = 1 - e;
     this.visuals.twoD.svg.select('g.links').selectAll('line').attr('opacity', opacity);
   }
+  /**
+   * Updates link-width-variable widget and updates link width; Also cause min, max and reciprocal link width row to appear/disappear
+   */
   onLinkWidthVariableChange(e) {
     if (e == 'None') {
       $('#link-reciprocalthickness-row').slideUp();
@@ -11740,6 +12483,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.widgets['link-width-variable'] = e;
     this.visuals.twoD.scaleLinkWidth();
   }
+  /**
+   * Updates link-width-reciprocal widget and updates link width
+   * This widget controls whether to set width smallest -> largest or largest -> smallest
+   */
   onLinkWidthReciprocalNonReciprocalChange(e) {
     if (e == "Reciprocal") {
       this.widgets['link-width-reciprocal'] = true;
@@ -11749,24 +12496,38 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.visuals.twoD.scaleLinkWidth();
     }
   }
+  /**
+   * Updates link-width widget and link width
+   */
   onLinkWidthChange(e) {
     this.widgets['link-width'] = e;
     this.visuals.twoD.scaleLinkWidth();
   }
+  /**
+   * Updates link-width-max widget and link width
+   */
   onLinkWidthMaxChange(e) {
     this.widgets['link-width-max'] = e;
     this.visuals.twoD.scaleLinkWidth();
-    console.log('scaling width');
   }
+  /**
+   * Updates link-width-min widget and link width
+   */
   onLinkWidthMinChange(e) {
     this.widgets['link-width-min'] = e;
     this.visuals.twoD.scaleLinkWidth();
   }
+  /**
+   * Updates link-length widget and link force distance
+   */
   onLinkLengthChange(e) {
     this.visuals.twoD.force.force('link').distance(e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
     this.widgets['link-length'] = e;
   }
+  /**
+   * Updates link-directed widget. When directed, links have an arrow added; when undirected, links have no arrow
+   */
   onLinkDirectedUndirectedChange(e) {
     if (e == "Show") {
       this.visuals.twoD.svg.select('g.links').selectAll('line').attr('marker-end', 'url(#end-arrow)');
@@ -11776,6 +12537,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.widgets['link-directed'] = false;
     }
   }
+  /**
+   * Updates node-highlight widget. When true and a node is mouseoved current node, all it of links, and neighbor nodes will be highlighted
+   */
   onDontHighlightNeighborsHighlightNeighborsChange(e) {
     if (e == "Normal") {
       this.widgets['node-highlight'] = false;
@@ -11783,6 +12547,10 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.widgets['node-highlight'] = true;
     }
   }
+  /**
+   * Adds or removes vertical and horizontal gridlines from svg image
+   * @param show wheither to show or hide gridlines
+   */
   drawGridlines(show) {
     // Reset width and height in case they have changed
     this.visuals.twoD.halfWidth = $('#network').parent().width() / 2;
@@ -11819,8 +12587,11 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       d3__WEBPACK_IMPORTED_MODULE_4__.select('#network g.vertical-gridlines').html(null);
     }
   }
+  /**
+   * Take input from 2D Networks settings dialog box from template and update the widget and show/hides gridlines
+   * @param e string either 'Show' or 'Hide'
+   */
   onNetworkGridlinesShowHideChange(e) {
-    console.log('network grid:', e);
     if (e === "Show") {
       this.widgets['network-gridlines-show'] = true;
       this.drawGridlines(true);
@@ -11829,33 +12600,56 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       this.drawGridlines(false);
     }
   }
+  /**
+   * Changes value of charge force (d3.many-body-force). Sets charge to -e meaning each node will repell every other node
+   * @param {number} e value from 0-400
+   */
   onNodeChargeChange(e) {
     this.visuals.twoD.force.force('charge').strength(-e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
     this.widgets['node-charge'] = e;
   }
+  /**
+   * Changes value of gravity force (d3-force-attract) which pulls nodes to the center. Sets strength e
+   * @param {number} e value from 0.025-1
+   */
   onNetworkGravityChange(e) {
     this.visuals.twoD.force.force('gravity').strength(e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
     this.widgets['network-gravity'] = e;
   }
+  /**
+   * Changes value of velocityDecay (d3 velocityDecay). Sets too low causing network to oscillate
+   * @param {number} e value from 0-1 (default 0.4)
+   */
   onNetworkFrictionChange(e) {
     this.visuals.twoD.force.velocityDecay(e);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
     this.widgets['network-friction'] = e;
   }
+  /**
+   * Changes value of network-link-strength (d3.forceLink) which pulls the pair of nodes together
+   * @param {number} e value from 0-1 (default 0.4)
+   */
   onNetworkLinkStrengthVariableChange(e) {
-    console.log('st change: ', e);
+    //console.log('st change: ', e);
     let v = parseFloat(e);
     this.visuals.twoD.force.force('link').strength(v);
     this.visuals.twoD.force.alpha(0.3).alphaTarget(0).restart();
     this.widgets['network-link-strength'] = e;
   }
+  /**
+   * If exportFileType = 'svg' don't show advanced setting; otherwise do show them
+   * @param e string of filetype
+   */
   onNetworkExportFiletypeChange(e) {
     if (e == "svg") {
       this.visuals.twoD.ShowAdvancedExport = false;
     } else this.visuals.twoD.ShowAdvancedExport = true;
   }
+  /**
+   * Updates the color of nodes and transparency based on node-color-variable, the value from nodeColorMap and nodeAlphaMap, and whether the node is selected
+   */
   updateNodeColors() {
     //debugger;
     let variable = this.widgets['node-color-variable'];
@@ -11912,6 +12706,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       });
     }
   }
+  /**
+   * Updates the color of links and transparency based on link-color-variable and value from linkColorMap and linkAlphaMap
+   */
   updateLinkColor() {
     let variable = this.widgets['link-color-variable'];
     // console.log('updating variable: ',variable );
@@ -11923,22 +12720,42 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       // this.context.microbeTrace.clearTable("#link-color-table-bottom");
     } else {
       // this.context.microbeTrace.generateNodeLinkTable("#link-color-table-bottom", false);
-      links.data(this.getVLinks()).attr('stroke', l => this.visuals.twoD.commonService.temp.style.linkColorMap(l[variable])).attr('opacity', l => this.visuals.twoD.commonService.temp.style.linkAlphaMap(l[variable])).attr('stroke-dasharray', l => {
-        //This quirky little algorithm creates the dasharray code necessary to make dash-y links.
-        let length = 15;
-        let out = new Array(l.origins * 2);
-        let ofs = new Array(l.origins).fill(1);
-        let ons = new Array(l.origins).fill(0);
-        ons[l.oNum] = 1;
-        ofs[l.oNum] = 0;
-        for (let i = 0; i < l.origins; i++) {
-          out[2 * i] = ons[i] * length;
-          out[2 * i + 1] = ofs[i] * length;
-        }
-        return out.join(', ');
-      });
+      if (variable == 'source' || variable == 'target') {
+        links.data(this.getVLinks()).attr('stroke', l => this.visuals.twoD.commonService.temp.style.linkColorMap(l[variable]['_id'])).attr('opacity', l => this.visuals.twoD.commonService.temp.style.linkAlphaMap(l[variable]['_id'])).attr('stroke-dasharray', l => {
+          //This quirky little algorithm creates the dasharray code necessary to make dash-y links.
+          let length = 15;
+          let out = new Array(l.origins * 2);
+          let ofs = new Array(l.origins).fill(1);
+          let ons = new Array(l.origins).fill(0);
+          ons[l.oNum] = 1;
+          ofs[l.oNum] = 0;
+          for (let i = 0; i < l.origins; i++) {
+            out[2 * i] = ons[i] * length;
+            out[2 * i + 1] = ofs[i] * length;
+          }
+          return out.join(', ');
+        });
+      } else {
+        links.data(this.getVLinks()).attr('stroke', l => this.visuals.twoD.commonService.temp.style.linkColorMap(l[variable])).attr('opacity', l => this.visuals.twoD.commonService.temp.style.linkAlphaMap(l[variable])).attr('stroke-dasharray', l => {
+          //This quirky little algorithm creates the dasharray code necessary to make dash-y links.
+          let length = 15;
+          let out = new Array(l.origins * 2);
+          let ofs = new Array(l.origins).fill(1);
+          let ons = new Array(l.origins).fill(0);
+          ons[l.oNum] = 1;
+          ofs[l.oNum] = 0;
+          for (let i = 0; i < l.origins; i++) {
+            out[2 * i] = ons[i] * length;
+            out[2 * i + 1] = ofs[i] * length;
+          }
+          return out.join(', ');
+        });
+      }
     }
   }
+  /**
+   * Updates the width of the links using link-width, link-width-variable, link-width-max, link-width-min, and link-width-reciprocal
+   */
   scaleLinkWidth() {
     let scalar = this.widgets['link-width'];
     let variable = this.widgets['link-width-variable'];
@@ -11964,6 +12781,12 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
       return scale(v);
     });
   }
+  /**
+   * centers the view
+   * @param thing undefined
+   * @param bounds undefined
+   * @returns
+   */
   fit(thing, bounds) {
     if (!bounds) bounds = this.visuals.twoD.svg.node().getBBox();
     if (bounds.width == 0 || bounds.height == 0) return; // nothing to fit
@@ -11977,21 +12800,36 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     //.translate(parent.parentNode.clientWidth / 2 - midX, parent.parentNode.clientHeight / 2 - midY)
     .scale(scale));
   }
+  /**
+   * XXXXX Function is never called; Review if necessary XXXXX
+   * @param nodeData
+   * @returns
+   */
   isFiltered(nodeData) {
     if (nodeData) {
       return this.visuals.twoD.commonService.session.data.nodeFilteredValues.find(x => x.index === nodeData.index) !== undefined;
     }
     return true;
   }
-  // On click of settings button, show/hide settings dialog
+  /**
+   * On click of settings button, show/hide settings dialog
+   */
   openSettings() {
     this.visuals.twoD.Node2DNetworkExportDialogSettings.isVisible ? this.visuals.twoD.Node2DNetworkExportDialogSettings.setVisibility(false) : this.visuals.twoD.Node2DNetworkExportDialogSettings.setVisibility(true);
     this.visuals.twoD.ShowStatistics = !this.visuals.twoD.Show2DSettingsPane;
   }
+  /**
+   * Updates ShowStatistics variables to opposite of current value
+   *
+   * XXXXX Not currently executed; reevaluate if this function is needed XXXXX
+   */
   enableSettings() {
     this.visuals.twoD.ShowStatistics = !this.visuals.twoD.ShowStatistics;
     this.cdref.detectChanges();
   }
+  /**
+   * On click of export button, show export dialog
+   */
   openExport() {
     // this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
     // this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
@@ -12002,9 +12840,15 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.isExportClosed = false;
     this.visuals.twoD.Show2DExportPane = true;
   }
+  /**
+   * On click of center button, show centers the view
+   */
   openCenter() {
     this.visuals.twoD.fit(undefined, undefined);
   }
+  /**
+   * On click of Pin All Nodes button, pin/unpins all nodes
+   */
   openPinAllNodes() {
     let nodes = this.visuals.twoD.svg.select('g.nodes').selectAll('g').data(this.visuals.twoD.commonService.session.network.nodes).select('path');
     if (this.visuals.twoD.commonService.session.network.allPinned) {
@@ -12023,6 +12867,9 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     }
     this.visuals.twoD.commonService.session.network.allPinned = !this.visuals.twoD.commonService.session.network.allPinned;
   }
+  /**
+   * XXXXX empty function; may be added later XXXXX
+   */
   onRecallSession() {
     //this.loadSettings();
   }
@@ -12030,19 +12877,37 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
     this.loadSettings();
     setTimeout(this.visuals.twoD.fit, 2000);
   }
+  /**
+   * XXXXX empty function; may be added later XXXXX
+   */
   openSelectDataSetScreen() {}
+  /**
+   * renders the network
+   */
   updateVisualization() {
     this.render();
   }
   ngOnDestroy() {
     //this.context.twoD.widgets['node-label-variable'] = 'None';
   }
+  /**
+   * renders the network
+   */
   onLoadNewData() {
     this.render();
   }
+  /**
+   * renders the network; sets this.showStatistics to false
+   */
   onFilterDataChange() {
     this.render(false);
   }
+  /**
+   * Sets twoD component variable based on the value in the appropriate widget and then calls appropriate function to update the view
+   *
+   * XXXXX this function should probably be reevaluated/refacted as well because sections of code are being evaluated multiple times
+   * (ie. onPolygonLabelVariableChange, onPolygonLabelVariableChange, onPolygonLabelOrientationChange all call redrawPolygonLabels) XXXXX
+   */
   loadSettings() {
     //this.context.twoD.zoom = null;
     //Polygons|Label
@@ -12170,6 +13035,7 @@ let TwoDComponent = (_class = class TwoDComponent extends _app_base_component_di
 TwoDComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_16__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_12__.Component)({
   selector: 'TwoDComponent',
   template: _twoD_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_0__,
+  changeDetection: _angular_core__WEBPACK_IMPORTED_MODULE_12__.ChangeDetectionStrategy.OnPush,
   styles: [(_twoD_plugin_component_scss_ngResource__WEBPACK_IMPORTED_MODULE_1___default())]
 }), (0,tslib__WEBPACK_IMPORTED_MODULE_16__.__metadata)("design:paramtypes", [_angular_core__WEBPACK_IMPORTED_MODULE_12__.Injector, _angular_platform_browser__WEBPACK_IMPORTED_MODULE_13__.EventManager, _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_2__.CommonService, golden_layout__WEBPACK_IMPORTED_MODULE_14__.ComponentContainer, _angular_core__WEBPACK_IMPORTED_MODULE_12__.ElementRef, _angular_core__WEBPACK_IMPORTED_MODULE_12__.ChangeDetectorRef, _angular_cdk_clipboard__WEBPACK_IMPORTED_MODULE_15__.Clipboard])], TwoDComponent);
 
@@ -17436,7 +18302,7 @@ var ___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___ = __webpack_require__(/*! ../../../
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../../node_modules/css-loader/dist/runtime/api.js */ 40479);
 var ___CSS_LOADER_EXPORT___ = ___CSS_LOADER_API_IMPORT___(___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___);
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, ".mapStyle{\r\n    height:100%;\r\n    width:100%;\r\n    /* height:calc(100vh - 350px); */\r\n    position: absolute;\r\n    top: 0;\r\n    bottom: 0;\r\n    left: 0;\r\n    right: 0;\r\n    z-index: 1;\r\n    /* position: sticky !important; */\r\n}\r\n\r\n:host {\r\n  position: absolute;\r\n  overflow: hidden;\r\n  z-index: 1 !important;\r\n}\r\n\r\n.map-container {\r\n  height: 100%;\r\n  width: 100%;\r\n  position: relative;\r\n}\r\n\r\n\r\n#mapTooltip {\r\n    color:#333333;\r\n    background:#f5f5f5;\r\n    border:1px solid #cccccc;\r\n    border-radius:.25rem;\r\n    padding:.25rem;\r\n  }\r\n\r\n  .bottom-table{\r\n    font-size: calc((.5vmax));   \r\n}\r\n\r\n.OSM-credit {\r\n  position: absolute;\r\n  bottom: 7px;\r\n  left: 50px;\r\n  z-index: 2;\r\n}\r\n\r\n.OSM-credit a {\r\n  color: #4e8bb7 !important;\r\n  text-decoration: underline !important;\r\n  cursor: pointer !important;\r\n}", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, ".mapStyle{\n    height:100%;\n    width:100%;\n    /* height:calc(100vh - 350px); */\n    position: absolute;\n    top: 0;\n    bottom: 0;\n    left: 0;\n    right: 0;\n    z-index: 1;\n    /* position: sticky !important; */\n}\n\n:host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n}\n\n.map-container {\n  height: 100%;\n  width: 100%;\n  position: relative;\n}\n\n\n#mapTooltip {\n    color:#333333;\n    background:#f5f5f5;\n    border:1px solid #cccccc;\n    border-radius:.25rem;\n    padding:.25rem;\n  }\n\n  .bottom-table{\n    font-size: calc((.5vmax));   \n}\n\n.OSM-credit {\n  position: absolute;\n  bottom: 7px;\n  left: 50px;\n  z-index: 2;\n}\n\n.OSM-credit a {\n  color: #4e8bb7 !important;\n  text-decoration: underline !important;\n  cursor: pointer !important;\n}\n\n /* Button appearance on hover */\n .btn-icon:hover {\n  transform: scale(1.1); /* Slight enlarge on hover */\n  background-color: rgba(0, 0, 0, 0.1); /* Subtle background color on hover */\n}\n\n.btn-icon {\n  margin-right: 10px;\n  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);\n  background: white;\n}\n\n.flaticon-settings:before {\n  font-weight: 800 !important;\n}\n\n\n.flaticon-download:before {\n  font-weight: 800 !important;\n}", ""]);
 // Exports
 module.exports = ___CSS_LOADER_EXPORT___.toString();
 
@@ -17472,7 +18338,7 @@ var ___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___ = __webpack_require__(/*! ../../../
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../../node_modules/css-loader/dist/runtime/api.js */ 40479);
 var ___CSS_LOADER_EXPORT___ = ___CSS_LOADER_API_IMPORT___(___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___);
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, "/*\n * phylogenetic-plugin.component.css\n * Copyright (C) 2022 ylb9\n *\n * Distributed under terms of the MIT license.\n */\n#phylocanavas {\n  height: 100%;\n}\n\n:host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n}\n\n#phyloTooltip {\n  position: absolute;\n  background: lightgray;\n  border-radius: 0.25rem;\n  padding: 0.25rem;\n}\n\n:host ::ng-deep .p-accordion-tab:not(.p-accordion-tab-active) .p-toggleable-content {\n  height: 0;\n  overflow: hidden;\n}\n:host ::ng-deep .p-accordion-tab.p-accordion-tab-active .p-toggleable-content {\n  height: auto !important;\n  overflow: auto !important;\n}", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, "/*\n * phylogenetic-plugin.component.css\n * Copyright (C) 2022 ylb9\n *\n * Distributed under terms of the MIT license.\n */\n#phylocanavas {\n  height: 100%;\n}\n\n:host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n}\n\n#phyloTooltip {\n  position: absolute;\n  background: lightgray;\n  border-radius: 0.25rem;\n  padding: 0.25rem;\n}\n\n:host ::ng-deep .p-accordion-tab:not(.p-accordion-tab-active) .p-toggleable-content {\n  height: 0;\n  overflow: hidden;\n}\n:host ::ng-deep .p-accordion-tab.p-accordion-tab-active .p-toggleable-content {\n  height: auto !important;\n  overflow: auto !important;\n}\n\n/* Button appearance on hover */\n.btn-icon:hover {\n  transform: scale(1.1); /* Slight enlarge on hover */\n  background-color: rgba(0, 0, 0, 0.1); /* Subtle background color on hover */\n}\n\n.btn-icon {\n  margin-right: 10px;\n  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);\n  background: white;\n}\n\n.flaticon-settings:before {\n  font-weight: 800 !important;\n}\n\n.flaticon-download:before {\n  font-weight: 800 !important;\n}", ""]);
 // Exports
 module.exports = ___CSS_LOADER_EXPORT___.toString();
 
@@ -17526,7 +18392,7 @@ var ___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___ = __webpack_require__(/*! ../../nod
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../node_modules/css-loader/dist/runtime/api.js */ 40479);
 var ___CSS_LOADER_EXPORT___ = ___CSS_LOADER_API_IMPORT___(___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___);
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, ":host ::ng-deep .ui-multiselected-item-token,\n:host ::ng-deep .ui-multiselected-empty-token {\n  padding: 2px 4px;\n  margin: 0 0.286em 0 0;\n  display: inline-block;\n  vertical-align: middle;\n  height: 1.857em;\n}\n#visualwrapper {\n  height: calc(100vh - 64px - 6px) !important;\n}\n/* Search */\n.autocomplete-wrapper {\n  position: relative;\n  /*border: solid 1px #EEE;*/\n  padding: 1px 2px;\n  font-family: 'Verdana', sans-serif;\n}\n.autocomplete-wrapper #search {\n  padding: 0px 0px 0px 5px;\n  margin: 0;\n  width: 100%;\n  font-size: 13px;\n}\n.autocomplete-wrapper #search:focus {\n  outline: 0;\n}\n.autocomplete-wrapper #search-results {\n  display: none;\n  position: absolute;\n  z-index: 5;\n  top: 36px;\n  left: -1px;\n  right: -1px;\n  border: solid 1px #CCC;\n  min: 50px;\n  max-height: 200px;\n  overflow-y: scroll;\n  list-style: none;\n  padding: 2px;\n  background: white;\n}\n.autocomplete-wrapper #search-results li {\n  padding: 5px;\n  margin: 0;\n  font-size: 13px;\n}\n.autocomplete-wrapper #search-results li:hover {\n  background: #EEE;\n  cursor: pointer;\n}\n#search-form {\n  display: none;\n  float: right;\n  z-index: 2;\n  position: relative;\n  margin-left: auto;\n}\nlabel[for=\"search\"] {\n  color: white;\n  margin-right: 10px;\n}\n#search {\n  border-radius: 0.25rem 0 0 0.25rem;\n}\n#search-field {\n  border-radius: 0 0.25rem 0.25rem 0;\n  border-left: 0;\n  margin-left: 2px;\n}\n#casesensitivebutton,\n#wholewordbutton {\n  margin: 2px;\n  border-radius: 0.25rem;\n}\n:host ::ng-deep .ui-multiselected-item-token {\n  background: #007ad9;\n  color: #ffffff;\n}\n:host ::ng-deep .ui-multiselected-empty-token {\n  background: #d95f00;\n  color: #ffffff;\n}\n.tab-content {\n  padding-top: 15px;\n}\n.loader {\n  position: absolute;\n  left: calc(50% - 20px);\n  top: 40%;\n}\n.pointer {\n  cursor: pointer;\n}\n.about-links {\n  padding: 10px 0 10px 0;\n}\n.tabulator {\n  font-size: 12px;\n  border: none;\n}\n.tabulator .tabulator-header {\n  font-weight: normal;\n  border-bottom: 1px solid;\n  border-bottom-color: rgba(0, 0, 0, 0.12);\n  color: rgba(0, 0, 0, 0.54);\n}\n.tabulator .tabulator-header .tabulator-col {\n  height: 48px;\n  background-color: #ffffff;\n  border: none;\n  padding: 0 7px;\n}\n.tabulator-row {\n  border-bottom: 1px solid;\n  border-bottom-color: rgba(0, 0, 0, 0.12);\n  min-height: 48px;\n  vertical-align: middle;\n}\n.tabulator-row .tabulator-cell {\n  padding: 16px 7px;\n  border-right: none;\n  vertical-align: middle;\n}\n.tabulator-row .tabulator-cell:first-of-type,\n.tabulator .tabulator-header .tabulator-col:first-of-type {\n  padding-left: 24px;\n}\n.tabulator-row.tabulator-row-even {\n  background-color: #ffffff;\n}\n/* Tooltip container */\n.tooltip {\n  position: relative;\n  display: inline-block;\n  border-bottom: 1px dotted black;\n  /* If you want dots under the hoverable text */\n}\n/* Tooltip text */\n.tooltip .tooltiptext {\n  visibility: hidden;\n  width: 120px;\n  background-color: black;\n  color: #fff;\n  text-align: center;\n  padding: 5px 0;\n  border-radius: 6px;\n  /* Position the tooltip text - see examples below! */\n  position: absolute;\n  z-index: 1;\n}\n/* Show the tooltip text when you mouse over the tooltip container */\n.tooltip:hover .tooltiptext {\n  visibility: visible;\n}\n.floater {\n  border: 1px solid #cccccc;\n  border-radius: 0.25rem;\n}\n#color-transparency-wrapper {\n  display: none;\n  position: absolute;\n  z-index: 1100;\n  border-radius: 0.25rem;\n  color: #303030;\n  background-color: #f8f9fa !important;\n  padding: 4px 8px;\n  transform: rotate(270deg);\n  transform-origin: top left;\n}\n.mt-icon-toolbar {\n  width: 26px;\n  height: 26px;\n  margin-left: 5px;\n}\n.transparency-symbol {\n  cursor: pointer;\n}\n#network-statistics-wrapper {\n  display: none;\n  position: absolute;\n  bottom: 10px;\n  right: 20px;\n  z-index: 1;\n  color: #303030;\n  background-color: #f8f9fa !important;\n  border: 1px solid #c0c0c0;\n  border-radius: 0.25rem;\n}\n#network-statistics-draghandle {\n  display: none;\n  width: 100%;\n  text-align: center;\n}\n#network-statistics-table td {\n  border: none;\n  padding: 0.125rem 0.25rem;\n}\nmat-slider {\n  width: 300px;\n}\n#reveal-all {\n  background-color: #dadada;\n}\n.custom-file-label {\n  margin-left: 15px;\n  margin-right: 15px;\n}\n#timeline {\n  padding-top: 50px;\n}\n#timeline .axis--grid .domain {\n  fill: #ddd;\n  stroke: none;\n}\n#timeline .axis--x .domain,\n#timeline .axis--grid .tick line {\n  stroke: #fff;\n}\n#timeline .axis--grid .tick--minor line {\n  stroke-opacity: 0.5;\n}\n#timeline-date-field {\n  width: auto;\n}\n#global-timeline-wrapper {\n  /* background: #f8f9fa; */\n  border-top: 1px solid rgba(0, 0, 0, 0.1);\n  position: absolute;\n  left: 0px;\n  bottom: 0px;\n  right: 15px;\n  z-index: 1001;\n}\n#timeline-play-button {\n  position: absolute;\n  top: 10px;\n  left: 10px;\n  background: #f08080;\n  padding-right: 10px;\n  border-radius: 3px;\n  border: none;\n  color: white;\n  margin: 0;\n  padding: 0 12px;\n  width: 60px;\n  cursor: pointer;\n  height: 30px;\n}\n#global-timeline-field {\n  padding: 4px;\n  font-size: 1.25em;\n}\n#timeline-play:hover {\n  background-color: #696969;\n}\n.track,\n.track-inset,\n.track-overlay {\n  stroke-linecap: round;\n}\n.track {\n  stroke: #000;\n  stroke-opacity: 0.3;\n  stroke-width: 10px;\n}\n.track-inset {\n  stroke: #dcdcdc;\n  stroke-width: 8px;\n}\n.track-overlay {\n  pointer-events: stroke;\n  stroke-width: 50px;\n  stroke: transparent;\n}\n.handle {\n  fill: #fff;\n  stroke: #000;\n  cursor: grab;\n  stroke-opacity: 0.5;\n  stroke-width: 1.25px;\n}\n", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, ":host ::ng-deep .ui-multiselected-item-token,\n:host ::ng-deep .ui-multiselected-empty-token {\n  padding: 2px 4px;\n  margin: 0 0.286em 0 0;\n  display: inline-block;\n  vertical-align: middle;\n  height: 1.857em;\n}\n#visualwrapper {\n  height: calc(100vh - 64px - 6px) !important;\n}\n/* Search */\n.autocomplete-wrapper {\n  position: relative;\n  /*border: solid 1px #EEE;*/\n  padding: 1px 2px;\n  font-family: 'Verdana', sans-serif;\n}\n.autocomplete-wrapper #search {\n  padding: 0px 0px 0px 5px;\n  margin: 0;\n  width: 100%;\n  font-size: 13px;\n}\n.autocomplete-wrapper #search:focus {\n  outline: 0;\n}\n.autocomplete-wrapper #search-results {\n  display: none;\n  position: absolute;\n  z-index: 5;\n  top: 36px;\n  left: -1px;\n  right: -1px;\n  border: solid 1px #CCC;\n  min: 50px;\n  max-height: 200px;\n  overflow-y: scroll;\n  list-style: none;\n  padding: 2px;\n  background: white;\n}\n.autocomplete-wrapper #search-results li {\n  padding: 5px;\n  margin: 0;\n  font-size: 13px;\n}\n.autocomplete-wrapper #search-results li:hover {\n  background: #EEE;\n  cursor: pointer;\n}\n#search-form {\n  display: none;\n  float: right;\n  z-index: 2;\n  position: relative;\n  margin-left: auto;\n}\nlabel[for=\"search\"] {\n  color: white;\n  margin-right: 10px;\n}\n#search {\n  border-radius: 0.25rem 0 0 0.25rem;\n}\n#search-field {\n  border-radius: 0 0.25rem 0.25rem 0;\n  border-left: 0;\n  margin-left: 2px;\n}\n#casesensitivebutton,\n#wholewordbutton {\n  margin: 2px;\n  border-radius: 0.25rem;\n}\n:host ::ng-deep .ui-multiselected-item-token {\n  background: #007ad9;\n  color: #ffffff;\n}\n:host ::ng-deep .ui-multiselected-empty-token {\n  background: #d95f00;\n  color: #ffffff;\n}\n.tab-content {\n  padding-top: 15px;\n}\n.loader {\n  position: absolute;\n  left: calc(50% - 20px);\n  top: 40%;\n}\n.pointer {\n  cursor: pointer;\n}\n.about-links {\n  padding: 10px 0 10px 0;\n}\n.tabulator {\n  font-size: 12px;\n  border: none;\n}\n.tabulator .tabulator-header {\n  font-weight: normal;\n  border-bottom: 1px solid;\n  border-bottom-color: rgba(0, 0, 0, 0.12);\n  color: rgba(0, 0, 0, 0.54);\n}\n.tabulator .tabulator-header .tabulator-col {\n  height: 48px;\n  background-color: #ffffff;\n  border: none;\n  padding: 0 7px;\n}\n.tabulator-row {\n  border-bottom: 1px solid;\n  border-bottom-color: rgba(0, 0, 0, 0.12);\n  min-height: 48px;\n  vertical-align: middle;\n}\n.tabulator-row .tabulator-cell {\n  padding: 16px 7px;\n  border-right: none;\n  vertical-align: middle;\n}\n.tabulator-row .tabulator-cell:first-of-type,\n.tabulator .tabulator-header .tabulator-col:first-of-type {\n  padding-left: 24px;\n}\n.tabulator-row.tabulator-row-even {\n  background-color: #ffffff;\n}\n/* Tooltip container */\n.tooltip {\n  position: relative;\n  display: inline-block;\n  border-bottom: 1px dotted black;\n  /* If you want dots under the hoverable text */\n}\n/* Tooltip text */\n.tooltip .tooltiptext {\n  visibility: hidden;\n  width: 120px;\n  background-color: black;\n  color: #fff;\n  text-align: center;\n  padding: 5px 0;\n  border-radius: 6px;\n  /* Position the tooltip text - see examples below! */\n  position: absolute;\n  z-index: 1;\n}\n/* Show the tooltip text when you mouse over the tooltip container */\n.tooltip:hover .tooltiptext {\n  visibility: visible;\n}\n.floater {\n  border: 1px solid #cccccc;\n  border-radius: 0.25rem;\n}\n#color-transparency-wrapper {\n  display: none;\n  position: absolute;\n  z-index: 1100;\n  border-radius: 0.25rem;\n  color: #303030;\n  background-color: #f8f9fa !important;\n  padding: 4px 8px;\n  transform: rotate(270deg);\n  transform-origin: top left;\n}\n.mt-icon-toolbar {\n  width: 26px;\n  height: 26px;\n  margin-left: 5px;\n}\n.transparency-symbol {\n  cursor: pointer;\n}\n#network-statistics-wrapper {\n  display: none;\n  position: absolute;\n  bottom: 10px;\n  right: 20px;\n  z-index: 1;\n  color: #303030;\n  background-color: #f8f9fa !important;\n  border: 1px solid #c0c0c0;\n  border-radius: 0.25rem;\n}\n#network-statistics-draghandle {\n  display: none;\n  width: 100%;\n  text-align: center;\n}\n#network-statistics-table td {\n  border: none;\n  padding: 0.125rem 0.25rem;\n}\nmat-slider {\n  width: 300px;\n}\n#reveal-all {\n  background-color: #dadada;\n}\n.custom-file-label {\n  margin-left: 15px;\n  margin-right: 15px;\n}\n#timeline {\n  padding-top: 50px;\n}\n#timeline .axis--grid .domain {\n  fill: #ddd;\n  stroke: none;\n}\n#timeline .axis--x .domain,\n#timeline .axis--grid .tick line {\n  stroke: #fff;\n}\n#timeline .axis--grid .tick--minor line {\n  stroke-opacity: 0.5;\n}\n#timeline-date-field {\n  width: auto;\n}\n#global-timeline-wrapper {\n  /* background: #f8f9fa; */\n  border-top: 1px solid rgba(0, 0, 0, 0.1);\n  position: absolute;\n  left: 0px;\n  bottom: 0px;\n  right: 15px;\n  z-index: 1001;\n}\n#timeline-play-button {\n  position: absolute;\n  top: 10px;\n  left: 10px;\n  background: #f08080;\n  padding-right: 10px;\n  border-radius: 3px;\n  border: none;\n  color: white;\n  margin: 0;\n  padding: 0 12px;\n  width: 60px;\n  cursor: pointer;\n  height: 30px;\n}\n#global-timeline-field {\n  padding: 4px;\n  font-size: 1.25em;\n}\n#timeline-play:hover {\n  background-color: #696969;\n}\n.track,\n.track-inset,\n.track-overlay {\n  stroke-linecap: round;\n}\n.track {\n  stroke: #000;\n  stroke-opacity: 0.3;\n  stroke-width: 10px;\n}\n.track-inset {\n  stroke: #dcdcdc;\n  stroke-width: 8px;\n}\n.track-overlay {\n  pointer-events: stroke;\n  stroke-width: 50px;\n  stroke: transparent;\n}\n.handle {\n  fill: #fff;\n  stroke: #000;\n  cursor: grab;\n  stroke-opacity: 0.5;\n  stroke-width: 1.25px;\n}\n.p-dialog .p-dialog-header button {\n  color: #495057;\n  width: 2rem;\n  height: 2rem;\n  border-radius: 50%;\n}\n.p-dialog .p-dialog-header button:enabled:hover {\n  border-color: transparent;\n  background: #e9ecef;\n}\n#nodeColorCounts,\n#nodeColorFrequencies,\n#linkColorCounts,\n#linkColorFrequencies {\n  width: 100%;\n  border-radius: 0;\n  display: flex;\n  justify-content: space-between;\n  gap: 15px;\n}\n", ""]);
 // Exports
 module.exports = ___CSS_LOADER_EXPORT___.toString();
 
@@ -17544,7 +18410,7 @@ var ___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___ = __webpack_require__(/*! ../../../
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../../node_modules/css-loader/dist/runtime/api.js */ 40479);
 var ___CSS_LOADER_EXPORT___ = ___CSS_LOADER_API_IMPORT___(___CSS_LOADER_API_NO_SOURCEMAP_IMPORT___);
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, ":host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n  overflow-y: scroll;\n}\n#tool-btn-container {\n  display: flex !important;\n}\n.tool-btn {\n  height: 30px;\n  width: 30px !important;\n  display: block !important;\n}\n.data-types {\n  width: auto !important;\n  margin: 0 20px;\n}\n:host ::ng-deep .ui-table-customers {\n  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 2px 1px -1px rgba(0, 0, 0, 0.12);\n}\n:host ::ng-deep .ui-table-customers .customer-badge {\n  border-radius: 2px;\n  padding: 0.25em 0.5em;\n  text-transform: uppercase;\n  font-weight: 700;\n  font-size: 12px;\n  letter-spacing: 0.3px;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-qualified {\n  background-color: #C8E6C9;\n  color: #256029;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-unqualified {\n  background-color: #FFCDD2;\n  color: #C63737;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-negotiation {\n  background-color: #FEEDAF;\n  color: #8A5340;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-new {\n  background-color: #B3E5FC;\n  color: #23547B;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-renewal {\n  background-color: #ECCFFF;\n  color: #694382;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-proposal {\n  background-color: #FFD8B2;\n  color: #805B36;\n}\n:host ::ng-deep .ui-table-customers .flag {\n  vertical-align: middle;\n  width: 30px;\n  height: 20px;\n}\n:host ::ng-deep .ui-table-customers .ui-multiselect-representative-option {\n  display: inline-block;\n  vertical-align: middle;\n}\n:host ::ng-deep .ui-table-customers .ui-multiselect-representative-option img {\n  vertical-align: middle;\n  width: 24px;\n}\n:host ::ng-deep .ui-table-customers .ui-multiselect-representative-option span {\n  margin-top: 0.125em;\n  vertical-align: middle;\n  margin-left: 0.5em;\n}\n:host ::ng-deep .ui-table-customers .ui-paginator .ui-dropdown {\n  float: left;\n}\n:host ::ng-deep .ui-table-customers .ui-paginator .ui-paginator-current {\n  float: right;\n}\n:host ::ng-deep .ui-table-customers .ui-progressbar {\n  height: 8px;\n  background-color: #D8DADC;\n}\n:host ::ng-deep .ui-table-customers .ui-progressbar .ui-progressbar-value {\n  background-color: #00ACAD;\n}\n:host ::ng-deep .ui-table-customers .ui-column-filter {\n  display: block;\n}\n:host ::ng-deep .ui-table-customers .ui-column-filter input {\n  width: 100%;\n}\n:host ::ng-deep .ui-table-customers .ui-table-globalfilter-container {\n  float: right;\n}\n:host ::ng-deep .ui-table-customers .ui-table-globalfilter-container input {\n  width: 200px;\n}\n:host ::ng-deep .ui-table-customers .ui-datepicker {\n  min-width: 25em;\n}\n:host ::ng-deep .ui-table-customers .ui-datepicker td {\n  font-weight: 400;\n}\n:host ::ng-deep .ui-table-customers .ui-table-caption {\n  border: 0 none;\n  padding: 12px;\n  text-align: left;\n  font-size: 20px;\n}\n:host ::ng-deep .ui-table-customers .ui-paginator {\n  border: 0 none;\n  padding: 1em;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th {\n  border: 0 none;\n  text-align: left;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th.ui-filter-column {\n  border-top: 1px solid #c8c8c8;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th:first-child {\n  width: 5em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th:last-child {\n  width: 8em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td {\n  border: 0 none;\n  cursor: auto;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td:first-child {\n  width: 3em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td:last-child {\n  width: 8em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-dropdown-label:not(.ui-placeholder) {\n  text-transform: uppercase;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td .ui-column-title {\n  display: none;\n}\n.item {\n  display: inline-block;\n  background: blue;\n}\n.filterType {\n  background: transparent;\n  border-color: transparent;\n  border-width: 0px;\n  border: 0px solid transparent;\n  border-style: inset;\n  outline-style: dashed;\n  outline-color: transparent;\n}\n/* Responsive */\n@media screen and (max-width: 64em) {\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-thead > tr > th,\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-tfoot > tr > td {\n    display: none !important;\n  }\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-tbody > tr > td {\n    text-align: left;\n    display: block;\n    border: 0 none !important;\n    width: 100% !important;\n    float: left;\n    clear: left;\n    border: 0 none;\n  }\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-tbody > tr > td .ui-column-title {\n    padding: 0.4em;\n    min-width: 30%;\n    display: inline-block;\n    margin: -0.4em 1em -0.4em -0.4em;\n    font-weight: bold;\n  }\n}\n.table-wrapper {\n  padding: 70px 20px 10px 20px;\n}\n", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, ":host {\n  position: absolute;\n  overflow: hidden;\n  z-index: 1 !important;\n  overflow-y: scroll;\n}\n#tool-btn-container {\n  display: flex !important;\n}\n.tool-btn {\n  height: 30px;\n  width: 30px !important;\n  display: block !important;\n}\n.data-types {\n  width: auto !important;\n  margin: 0 20px;\n}\n:host ::ng-deep .ui-table-customers {\n  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 1px 1px 0 rgba(0, 0, 0, 0.14), 0 2px 1px -1px rgba(0, 0, 0, 0.12);\n}\n:host ::ng-deep .ui-table-customers .customer-badge {\n  border-radius: 2px;\n  padding: 0.25em 0.5em;\n  text-transform: uppercase;\n  font-weight: 700;\n  font-size: 12px;\n  letter-spacing: 0.3px;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-qualified {\n  background-color: #C8E6C9;\n  color: #256029;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-unqualified {\n  background-color: #FFCDD2;\n  color: #C63737;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-negotiation {\n  background-color: #FEEDAF;\n  color: #8A5340;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-new {\n  background-color: #B3E5FC;\n  color: #23547B;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-renewal {\n  background-color: #ECCFFF;\n  color: #694382;\n}\n:host ::ng-deep .ui-table-customers .customer-badge.status-proposal {\n  background-color: #FFD8B2;\n  color: #805B36;\n}\n:host ::ng-deep .ui-table-customers .flag {\n  vertical-align: middle;\n  width: 30px;\n  height: 20px;\n}\n:host ::ng-deep .ui-table-customers .ui-multiselect-representative-option {\n  display: inline-block;\n  vertical-align: middle;\n}\n:host ::ng-deep .ui-table-customers .ui-multiselect-representative-option img {\n  vertical-align: middle;\n  width: 24px;\n}\n:host ::ng-deep .ui-table-customers .ui-multiselect-representative-option span {\n  margin-top: 0.125em;\n  vertical-align: middle;\n  margin-left: 0.5em;\n}\n:host ::ng-deep .ui-table-customers .ui-paginator .ui-dropdown {\n  float: left;\n}\n:host ::ng-deep .ui-table-customers .ui-paginator .ui-paginator-current {\n  float: right;\n}\n:host ::ng-deep .ui-table-customers .ui-progressbar {\n  height: 8px;\n  background-color: #D8DADC;\n}\n:host ::ng-deep .ui-table-customers .ui-progressbar .ui-progressbar-value {\n  background-color: #00ACAD;\n}\n:host ::ng-deep .ui-table-customers .ui-column-filter {\n  display: block;\n}\n:host ::ng-deep .ui-table-customers .ui-column-filter input {\n  width: 100%;\n}\n:host ::ng-deep .ui-table-customers .ui-table-globalfilter-container {\n  float: right;\n}\n:host ::ng-deep .ui-table-customers .ui-table-globalfilter-container input {\n  width: 200px;\n}\n:host ::ng-deep .ui-table-customers .ui-datepicker {\n  min-width: 25em;\n}\n:host ::ng-deep .ui-table-customers .ui-datepicker td {\n  font-weight: 400;\n}\n:host ::ng-deep .ui-table-customers .ui-table-caption {\n  border: 0 none;\n  padding: 12px;\n  text-align: left;\n  font-size: 20px;\n}\n:host ::ng-deep .ui-table-customers .ui-paginator {\n  border: 0 none;\n  padding: 1em;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th {\n  border: 0 none;\n  text-align: left;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th.ui-filter-column {\n  border-top: 1px solid #c8c8c8;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th:first-child {\n  width: 5em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-table-thead > tr > th:last-child {\n  width: 8em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td {\n  border: 0 none;\n  cursor: auto;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td:first-child {\n  width: 3em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td:last-child {\n  width: 8em;\n  text-align: center;\n}\n:host ::ng-deep .ui-table-customers .ui-dropdown-label:not(.ui-placeholder) {\n  text-transform: uppercase;\n}\n:host ::ng-deep .ui-table-customers .ui-table-tbody > tr > td .ui-column-title {\n  display: none;\n}\n.item {\n  display: inline-block;\n  background: blue;\n}\n.filterType {\n  background: transparent;\n  border-color: transparent;\n  border-width: 0px;\n  border: 0px solid transparent;\n  border-style: inset;\n  outline-style: dashed;\n  outline-color: transparent;\n}\n/* Responsive */\n@media screen and (max-width: 64em) {\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-thead > tr > th,\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-tfoot > tr > td {\n    display: none !important;\n  }\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-tbody > tr > td {\n    text-align: left;\n    display: block;\n    border: 0 none !important;\n    width: 100% !important;\n    float: left;\n    clear: left;\n    border: 0 none;\n  }\n  :host ::ng-deep .ui-table.ui-table-customers .ui-table-tbody > tr > td .ui-column-title {\n    padding: 0.4em;\n    min-width: 30%;\n    display: inline-block;\n    margin: -0.4em 1em -0.4em -0.4em;\n    font-weight: bold;\n  }\n}\n.table-wrapper {\n  padding: 70px 20px 10px 20px;\n}\n/* Button appearance on hover */\n.btn-icon:hover {\n  transform: scale(1.1);\n  /* Slight enlarge on hover */\n  background-color: rgba(0, 0, 0, 0.1);\n  /* Subtle background color on hover */\n}\n.btn-icon {\n  margin-right: 10px;\n  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);\n  background: white;\n}\n.flaticon-settings:before {\n  font-weight: 800 !important;\n}\n.flaticon-download:before {\n  font-weight: 800 !important;\n}\n", ""]);
 // Exports
 module.exports = ___CSS_LOADER_EXPORT___.toString();
 
@@ -17859,7 +18725,7 @@ webpackContext.id = 46700;
 /***/ ((module) => {
 
 "use strict";
-module.exports = "\r\n<router-outlet></router-outlet>\r\n";
+module.exports = "\n<router-outlet></router-outlet>\n";
 
 /***/ }),
 
@@ -17870,7 +18736,7 @@ module.exports = "\r\n<router-outlet></router-outlet>\r\n";
 /***/ ((module) => {
 
 "use strict";
-module.exports = "﻿﻿<div class=\"m-content\">\r\n\r\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"padding-top: 60px;\">\r\n        <div id=\"file-table\" [style.display]=\"isLoadingFiles ? 'none' : 'block'\" class=\"container\">\r\n        </div>\r\n        <div id=\"file-prompt\" *ngIf=\"this.commonService?.session?.files != (undefined || []) && this.commonService.session.files.length === 0\" class=\"d-flex justify-content-center\">\r\n            <h1><b>Please add data files to load...</b></h1>\r\n        </div>\r\n        <div class=\"spinner-wrapper\" *ngIf=\"isLoadingFiles\">\r\n            <mat-progress-spinner mode=\"indeterminate\"></mat-progress-spinner>\r\n        </div>\r\n    \r\n    </div>\r\n\r\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n        </span>\r\n    </div>\r\n    \r\n   \r\n\r\n    <div class=\"view-controls\">\r\n        <p-dialog id=\"file-settings-pane\" [(visible)]=\"displayFileSettings\" header=\"File Settings\">\r\n            <div class=\"modal-dialog modal-lg\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div class=\"modal-body\">\r\n                        <tabset class=\"tab-container tabbable-line\" style='width: 100%;'>\r\n                            <tab heading=\"{{'Files' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                                <div id=\"file-settings\" class=\"tab-pane fade active show\" role=\"tabpanel\">\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-5\">\r\n                                            <label style=\"padding-left: 10px;\" for=\"default-distance-metric\" class=\"mr-2\" title=\"Which Genetic Distance Metric should Microbe use to first construct the network?\">\r\n                                                {{\"Distance Metric\" | localize}}\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"col-7\">\r\n                                            <select id=\"default-distance-metric\" class=\"form-control form-control-sm mr-5\" [(ngModel)]=\"SelectedDefaultDistanceMetricVariable\" (ngModelChange)=\"onDistanceMetricChange($event)\">\r\n                                                <option value=\"tn93\" selected>TN93</option>\r\n                                                <option value=\"snps\">SNPs</option>\r\n                                            </select>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div id=\"ambiguities-row\" class=\"form-group row\">\r\n                                        <div class=\"col-5\">\r\n                                            <label style=\"padding-left: 10px;\" for=\"ambiguity-resolution-strategy\" class=\"mr-2\" title=\"What Strategy should MicrobeTrace use to handle ambiguities?\">\r\n                                                {{\"Ambiguities\" | localize}}\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"col-7\">\r\n                                            <select id=\"ambiguity-resolution-strategy\" class=\"form-control form-control-sm mr-5\" [(ngModel)]=\"SelectedAmbiguityResolutionStrategyVariable\">\r\n                                                <option value=\"AVERAGE\">Average</option>\r\n                                                <option value=\"RESOLVE\">Resolve</option>\r\n                                                <option value=\"SKIP\">Skip</option>\r\n                                                <option value=\"GAPMM\">GapMM</option>\r\n                                                <option value=\"HIVTRACE-G\">HIV-TRACE -g</option>\r\n                                            </select>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div id=\"ambiguity-threshold-row\" class=\"form-group row\" *ngIf=\"SelectedAmbiguityResolutionStrategyVariable=='HIVRACE-G' || SelectedAmbiguityThresholdVariable=='RESOLVE'\">\r\n                                        <div class=\"col-5\">\r\n                                            <label style=\"padding-left: 10px;\" for=\"ambiguity-threshold\" class=\"mr-2\" title=\"What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.\">\r\n                                                {{\"Ambiguity Threshold\" | localize}}\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"col-7\">\r\n                                            <input type=\"number\" id=\"ambiguity-threshold\" class=\"form-control form-control-sm\" min=\"0\" value=\"0.015\" step=\"0.001\" [(ngModel)]=\"SelectedAmbiguityThresholdVariable\" (ngModelChange)=\"onAmbiguityThresholdChanged()\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-5\">\r\n                                            <label style=\"padding-left: 10px;\" for=\"default-distance-threshold\" class=\"mr-2\" title=\"What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.\">\r\n                                                {{\"Link Threshold\" | localize}}\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"col-7\">\r\n                                            <input type=\"number\" id=\"default-distance-threshold\" class=\"form-control form-control-sm\" min=\"0\" value=\"0.015\" step=\"0.001\" [(ngModel)]=\"SelectedDefaultDistanceThresholdVariable\" (ngModelChange)=\"onLinkThresholdChange($event)\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-5\">\r\n                                            <label style=\"padding-left: 10px;\" for=\"default-view\">{{\"View to Launch\" | localize}}</label>\r\n                                        </div>\r\n                                        <div class=\"col-7\">\r\n                                            <select id=\"default-view\" class=\"form-control form-control-sm\" (change)=\"changeDefaultView($event)\" title=\"Which view should MicrobeTrace render first, once it has successfully processed the data?\" [(ngModel)]=\"SelectedDefaultViewVariable\">\r\n                                                <option value=\"2D Network\" selected>2D Network</option>\r\n                                                <option value=\"Table\">Table</option>\r\n                                                <option value=\"Map\">Map</option>\r\n                                                <option value=\"Phylogenetic Tree\">Phylogenetic Tree</option>\r\n                                            </select>\r\n                                        </div>\r\n                                    </div>\r\n                                </div>\r\n                            </tab>\r\n                            <tab heading=\"{{'Experimental' | localize}}\" customClass=\"m-tabs__item\">\r\n                                <div id=\"experimental-settings\" class=\"tab-pane fade active show\" role=\"tabpanel\">\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-12\">\r\n                                            <div class=\"alert alert-warning alert-dismissible\" role=\"alert\">\r\n                                                <p>The following settings are experimental! Use at your own risk!</p>\r\n                                                <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\r\n                                                    <span aria-hidden=\"true\">&times;</span>\r\n                                                </button>\r\n                                            </div>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"Would you like to generate a network based on random data?\">\r\n                                        <div class=\"col-4\">\r\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Generate\" | localize}}</label>\r\n                                        </div>\r\n                                        <div class=\"col\">\r\n                                            <input id=\"generate-number\" type=\"number\" class=\"form-control form-control-sm\" min=\"1\" max=\"2000\" step=\"1\" value=\"100\" [(ngModel)]=\"SelectedGenerateNumberVariable\">\r\n                                        </div>\r\n                                        <div class=\"col\">\r\n                                            <button id=\"generate-sequences\" class=\"btn btn-light btn-sm col\">Sequences</button>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"Would you like to attempt to infer the direction of your links?\">\r\n                                        <div class=\"col-4\">\r\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Directionality\" | localize}}</label>\r\n                                        </div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"DirectionalityTypes\" [(ngModel)]=\"SelectedDirectionalityTypeVariable\"></p-selectButton>                                           \r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"Would you like to attempt to triangulate missing values in your distance matrices?\">\r\n                                        <div class=\"col-4\">\r\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Triangulation\" | localize}}</label>\r\n                                        </div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"TriangulationTypes\" [(ngModel)]=\"SelectedTriangulationTypeVariable\"></p-selectButton>                                            \r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\"\r\n                                         title=\"Should MicrobeTrace automatically stash your session so if your computer crashes you can recover your session?\r\n                                Please note that this causes MicrobeTrace to store data on your computer's hard drive, which may have implications for PII.\">\r\n                                        <div class=\"col-4\">\r\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Autostashing\" | localize}}</label>\r\n                                        </div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"AutostashingTypes\" [(ngModel)]=\"SelectedAutostashingTypeVariable\"></p-selectButton>                                          \r\n                                        </div>\r\n                                    </div>\r\n                                </div>\r\n                            </tab>\r\n                        </tabset>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n        </p-dialog>\r\n\r\n\r\n\r\n\r\n        <p-dialog id=\"sequence-controls-modal\" [(visible)]=\"displaySequenceSettings\" header=\"Sequence Settings\">\r\n            <div class=\"modal-dialog modal-lg\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div class=\"modal-body\">\r\n                        <tabset class=\"tab-container tabbable-line\" style='width: 100%;'>\r\n                            <tab heading=\"{{'Alignment' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                                <div id=\"sequence-alignment\" class=\"tab-pane fade show active\" role=\"tabpanel\">\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-12\">\r\n                                            <div class=\"alert alert-warning alert-dismissible\" role=\"alert\">\r\n                                                <p>\r\n                                                    <span>{{\"Micro-Tracing \" | localize}}</span>\r\n                                                    <span>{{\"Next\" | localize}}</span>\r\n                                                    <span><sup>&reg;</sup></span>\r\n                                                    is not intended to be an alignment program (although it can be used in that way).\r\n                                                    For best results, please align your sequences using\r\n                                                    <a href=\"https://en.wikipedia.org/wiki/List_of_sequence_alignment_software\" target=\"_blank\" rel=\"noreferrer noopener\">an external tool</a>\r\n                                                    before loading them into MicrobeTrace.\r\n                                                    <a href=\"https://github.com/CDCgov/MicrobeTrace/wiki/Alignment\" class=\"ifOnline\" target=\"_blank\" rel=\"noreferrer noopener\">Click here for additional information.</a>\r\n                                                </p>\r\n                                                <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\r\n                                                    <span aria-hidden=\"true\">&times;</span>\r\n                                                </button>\r\n                                            </div>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-2\" title=\"Should MicrobeTrace align your sequences?\">Align</div>\r\n                                        <div class=\"col-10\">\r\n                                            <p-selectButton [options]=\"AlignTypes\" [(ngModel)]=\"SelectedAlignTypeVariable\" (onChange)=\"IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)\"></p-selectButton>\r\n                                        </div>\r\n                                    </div>\r\n\r\n                                    <p-accordion *ngIf=\"IsReferenceSourceSelected == true\">\r\n                                        <p-accordionTab style=\"color:#495057\" header=\"Reference Source Options\" [(selected)]=\"IsReferenceSourceSelected\">\r\n\r\n                                            <div class=\"form-group row alignConfigRow\">\r\n                                                <div class=\"col-2\" title=\"What should MicrobeTrace use as a reference to align your sequences?\">Reference Source</div>\r\n                                                <div class=\"col-10\">\r\n                                                    <p-selectButton [options]=\"ReferenceTypes\" [(ngModel)]=\"SelectedReferenceTypeVariable\" (onChange)=\"IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)\"></p-selectButton>\r\n                                                </div>\r\n                                            </div>\r\n\r\n                                            <p-accordionTab style=\"color:#495057\" header=\"Reference Options\" *ngIf=\"IsReferenceOptionsSelected == true\" [(selected)]=\"IsReferenceOptionsSelected\">\r\n                                                <div class=\"form-group row\" id=\"reference-file-row\">\r\n                                                    <div class=\"col-2\" title=\"Against what sequence should MicrobeTrace align your sequences?\">Reference</div>\r\n                                                    <div class=\"col-5\">\r\n                                                        <div class=\"custom-file\">\r\n                                                            <input type=\"file\" class=\"custom-file-input\" id=\"refSeqFileLoad\" [(ngModel)]=\"SelectedRefSeqFileLoadVariable\">\r\n                                                            <label class=\"custom-file-label\" for=\"refSeqFileLoad\" style=\"overflow:hidden\">HXB2</label>\r\n                                                        </div>\r\n                                                    </div>\r\n                                                    <div class=\"col-5\">\r\n                                                        <p-dropdown id=\"refSeqID\" [options]=\"RefSeqIDTypes\" [(ngModel)]=\"SelectedRefSeqIDVariable\"></p-dropdown>\r\n\r\n                                                       \r\n                                                    </div>\r\n                                                </div>\r\n                                            </p-accordionTab>\r\n\r\n                                                    <div class=\"row alignConfigRow\">\r\n                                                        <div class=\"form-group col offset-2\" title=\"How much should MicrobeTrace reward matching bases?\">\r\n                                                            <label for=\"alignerMatch\">Match Reward</label>\r\n                                                            <input type=\"number\" id=\"alignerMatch\" class=\"form-control\" value=\"1\" min=\"0\" [(ngModel)]=\"SelectedAlignerMatchVariable\">\r\n                                                        </div>\r\n                                                        <div class=\"form-group col\" title=\"How much should MicrobeTrace penalize non-matching bases?\">\r\n                                                            <label for=\"alignerMismatch\">Mismatch Cost</label>\r\n                                                            <input type=\"number\" id=\"alignerMismatch\" class=\"form-control\" value=\"1\" min=\"0\" [(ngModel)]=\"SelectedAlignerMismatchVariable\">\r\n                                                        </div>\r\n                                                    </div>\r\n                                                    <div class=\"row alignConfigRow\">\r\n                                                        <div class=\"form-group col offset-2\" title=\"How much should MicrobeTrace Penalize opening a gap?\">\r\n                                                            <label for=\"alignerGapO\">Gap Opening Cost</label>\r\n                                                            <input type=\"number\" id=\"alignerGapO\" class=\"form-control\" value=\"5\" min=\"0\" [(ngModel)]=\"SelectedAlignerGapOVariable\">\r\n                                                        </div>\r\n                                                        <div class=\"form-group col\" title=\"How much should MicrobeTrace Penalize extending a gap?\">\r\n                                                            <label for=\"alignerGapE\">Gap Extension Cost</label>\r\n                                                            <input type=\"number\" id=\"alignerGapE\" class=\"form-control\" value=\"2\" min=\"0\" [(ngModel)]=\"SelectedAlignerGapEVariable\">\r\n                                                        </div>\r\n                                                    </div>\r\n                                        </p-accordionTab>\r\n                                    </p-accordion>\r\n\r\n\r\n\r\n                                    <div class=\"row alignPreviewRow\">\r\n                                        <div class=\"w-100 text-center\" id=\"alignment-preview\"></div>\r\n                                    </div>\r\n                                </div>\r\n                            </tab>\r\n                            <tab heading=\"{{'Audit' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                                <div id=\"sequence-auditor\" class=\"tab-pane fade show\" role=\"tabpanel\">\r\n                                    <div class=\"row mb-3\" style=\"padding-left:15px;\">\r\n                                        <div class=\"form-check col\" title=\"Checks to see if a Sequence is empty.\">\r\n                                            <input class=\"form-check-input\" style=\"padding-left:5px;\" type=\"checkbox\" id=\"audit-empty\" checked [(ngModel)]=\"SelectedAuditEmptyVariable\">\r\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-empty\">\r\n                                                Empty\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"form-check col\" title=\"Checks to see if a Sequence is all gaps.\">\r\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-gaps\" checked [(ngModel)]=\"SelectedAuditGapsVariable\">\r\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-gaps\">\r\n                                                Gaps\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"form-check col\" title=\"Check to see if sequence contains any characters that are RNA instead of DNA.\">\r\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-RNA\" checked [(ngModel)]=\"SelectedAuditRNAVariable\">\r\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-RNA\">\r\n                                                RNA\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"form-check col\" title=\"Check to see if Sequence contains any characters that represent Amino Acids.\">\r\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-amino-acids\" checked [(ngModel)]=\"SelectedAuditAminoAcidsVariable\">\r\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-amino-acids\">\r\n                                                Amino Acids\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"form-check col\" title=\"Check to see if Sequence contains any characters describing an alignment.\">\r\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-CIGAR\" checked [(ngModel)]=\"SelectedAuditCIGARVariable\">\r\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-CIGAR\">\r\n                                                CIGAR\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"form-check col\" title=\"Check to see if Sequence contains any characters that are illegal in any genomic or proteomic alphabet.\">\r\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-malformed\" checked [(ngModel)]=\"SelectedAuditMalformedVariable\">\r\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-malformed\">\r\n                                                Malformed\r\n                                            </label>\r\n                                        </div>\r\n                                        <div class=\"col\">\r\n                                            <button type=\"button\" class=\"btn btn-primary btn-sm w-100\" id=\"audit-launcher\" (click)=\"run()\">Run</button>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"row\" id=\"audited-sequences\"></div>\r\n                                    <div class=\"row flex-row-reverse\" style=\"padding-right: 21px\">\r\n                                        <button class=\"btn btn-danger btn-sm\" id=\"audit-toggle-all\" (click)=\"toglleAll()\">Toggle All</button>\r\n                                    </div>\r\n                                </div>\r\n                            </tab>\r\n                        </tabset>\r\n                    </div>\r\n                    <div class=\"modal-footer clearfix\">\r\n                        <button type=\"submit\" class=\"btn btn-success pull-right\" data-dismiss=\"modal\"\r\n                                title=\"Confirm Load Settings are All Properly Set\" (click)=\"displaySequenceSettings = !displaySequenceSettings\">\r\n                            Confirm\r\n                        </button>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n        </p-dialog>\r\n\r\n    </div><!-- Files Settings & Sequence Settings/.modal -->\r\n\r\n\r\n    <div class=\"view-controls\">\r\n        <p-dialog id=\"loading-information-modal\" [(visible)]=\"displayloadingInformationModal\" header=\"Processing Files...\">\r\n            <div class=\"modal-dialog\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                   \r\n\r\n                        <img class=\"img-responsive\" [src]=\"commonService.appRootUrl() + 'assets/common/images/giphy.gif'\" alt=\"logo\" height=\"300\" />\r\n\r\n                        <div id=\"loading-information-collapse\" class=\"collapse show\">\r\n                            <div id=\"loading-information\" class=\"card card-body\">\r\n\r\n                                <a *ngFor=\"let message of messages\">\r\n                                    {{ message }}\r\n                                </a>\r\n                                <br>\r\n\r\n                            </div>\r\n                        </div>\r\n                    \r\n                    <p-footer>\r\n                        <button type=\"button\" class=\"btn btn-success\" data-dismiss=\"modal\" (click)=\"displayloadingInformationModal=false\">Close</button>\r\n                    </p-footer>\r\n                </div><!-- /.modal-content -->\r\n            </div><!-- /.modal-dialog -->\r\n        </p-dialog>\r\n    </div><!-- Loading Files/.modal -->\r\n\r\n\r\n    <div id=\"file-footer\">\r\n        <!-- <p-accordion (onOpen)=\"accordianToggle(1)\" (onClose)=\"accordianToggle(0)\" >\r\n            <p-accordionTab *ngIf=\"uniqueNodes.length > 0\" header=\"{{uniqueNodes.length}} node(s) missing in edge list\">\r\n                <table>\r\n                    <tr>\r\n                        <th>Node</th>\r\n                    </tr>\r\n                    <tr *ngFor=\"let node of uniqueNodes\">\r\n                        <td>\r\n                            {{node}}\r\n                        </td>\r\n                    </tr>\r\n                </table>\r\n            </p-accordionTab>\r\n            <p-accordionTab *ngIf=\"uniqueEdgeNodes.length > 0\" header=\"{{uniqueEdgeNodes.length}} edge node(s) missing in node list\">\r\n                <table>\r\n                    <tr>\r\n                        <th>Node</th>\r\n                    </tr>\r\n                    <tr *ngFor=\"let node of uniqueEdgeNodes\">\r\n                        <td>\r\n                            {{node}}\r\n                        </td>\r\n                    </tr>\r\n                </table>\r\n            </p-accordionTab>\r\n\r\n        </p-accordion> -->\r\n\r\n        <br/>\r\n\r\n        <div class=\"m-portlet\" style=\"padding: 1px\">\r\n            <div class=\"d-flex justify-content-center\">\r\n                <span>\r\n                    <input type=\"file\" id=\"data-files1\" class=\"d-none\" multiple=\"true\" onclick=\"this.value=null;\" (change)=\"processFiles($event.target.files)\">\r\n                    <label for=\"data-files1\" class=\"btn btn-primary btn-nr floater mb-0\">Add File(s)</label>\r\n                </span>\r\n                <span>\r\n                    <button type=\"button\" class=\"btn btn-default btn-nr floater\" (click)=\"showSequenceSettings()\">Sequence Controls</button>\r\n                </span>\r\n                <span>\r\n                    <button id=\"launch\" class=\"btn btn-success\" (click)=\"launchClick()\" title=\"Please select a Network CSV or FASTA File\" disabled>Launch</button>\r\n                </span>\r\n            </div>\r\n        </div>\r\n    </div>\r\n\r\n\r\n</div>\r\n";
+module.exports = "﻿﻿<div class=\"m-content\">\n\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"padding-top: 60px;\">\n        <div id=\"file-table\" [style.display]=\"isLoadingFiles ? 'none' : 'block'\" class=\"container\">\n        </div>\n        <div id=\"file-prompt\" *ngIf=\"this.commonService?.session?.files != (undefined || []) && this.commonService.session.files.length === 0\" class=\"d-flex justify-content-center\">\n            <h1><b>Please add data files to load...</b></h1>\n        </div>\n        <div class=\"spinner-wrapper\" *ngIf=\"isLoadingFiles\">\n            <mat-progress-spinner mode=\"indeterminate\"></mat-progress-spinner>\n        </div>\n    \n    </div>\n\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\n        </span>\n    </div>\n    \n   \n\n    <div class=\"view-controls\">\n        <p-dialog id=\"file-settings-pane\" [(visible)]=\"displayFileSettings\" header=\"File Settings\">\n            <div class=\"modal-dialog modal-lg\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div class=\"modal-body\">\n                        <tabset class=\"tab-container tabbable-line\" style='width: 100%;'>\n                            <tab heading=\"{{'Files' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\n                                <div id=\"file-settings\" class=\"tab-pane fade active show\" role=\"tabpanel\">\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-5\">\n                                            <label style=\"padding-left: 10px;\" for=\"default-distance-metric\" class=\"mr-2\" title=\"Which Genetic Distance Metric should Microbe use to first construct the network?\">\n                                                {{\"Distance Metric\" | localize}}\n                                            </label>\n                                        </div>\n                                        <div class=\"col-7\">\n                                            <select id=\"default-distance-metric\" class=\"form-control form-control-sm mr-5\" [(ngModel)]=\"SelectedDefaultDistanceMetricVariable\" (ngModelChange)=\"onDistanceMetricChange($event)\">\n                                                <option value=\"tn93\" selected>TN93</option>\n                                                <option value=\"snps\">SNPs</option>\n                                            </select>\n                                        </div>\n                                    </div>\n                                    <div id=\"ambiguities-row\" class=\"form-group row\">\n                                        <div class=\"col-5\">\n                                            <label style=\"padding-left: 10px;\" for=\"ambiguity-resolution-strategy\" class=\"mr-2\" title=\"What Strategy should MicrobeTrace use to handle ambiguities?\">\n                                                {{\"Ambiguities\" | localize}}\n                                            </label>\n                                        </div>\n                                        <div class=\"col-7\">\n                                            <select id=\"ambiguity-resolution-strategy\" class=\"form-control form-control-sm mr-5\" [(ngModel)]=\"SelectedAmbiguityResolutionStrategyVariable\">\n                                                <option value=\"AVERAGE\">Average</option>\n                                                <option value=\"RESOLVE\">Resolve</option>\n                                                <option value=\"SKIP\">Skip</option>\n                                                <option value=\"GAPMM\">GapMM</option>\n                                                <option value=\"HIVTRACE-G\">HIV-TRACE -g</option>\n                                            </select>\n                                        </div>\n                                    </div>\n                                    <div id=\"ambiguity-threshold-row\" class=\"form-group row\" *ngIf=\"SelectedAmbiguityResolutionStrategyVariable=='HIVRACE-G' || SelectedAmbiguityThresholdVariable=='RESOLVE'\">\n                                        <div class=\"col-5\">\n                                            <label style=\"padding-left: 10px;\" for=\"ambiguity-threshold\" class=\"mr-2\" title=\"What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.\">\n                                                {{\"Ambiguity Threshold\" | localize}}\n                                            </label>\n                                        </div>\n                                        <div class=\"col-7\">\n                                            <input type=\"number\" id=\"ambiguity-threshold\" class=\"form-control form-control-sm\" min=\"0\" value=\"0.015\" step=\"0.001\" [(ngModel)]=\"SelectedAmbiguityThresholdVariable\" (ngModelChange)=\"onAmbiguityThresholdChanged()\">\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-5\">\n                                            <label style=\"padding-left: 10px;\" for=\"default-distance-threshold\" class=\"mr-2\" title=\"What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.\">\n                                                {{\"Link Threshold\" | localize}}\n                                            </label>\n                                        </div>\n                                        <div class=\"col-7\">\n                                            <input type=\"number\" id=\"default-distance-threshold\" class=\"form-control form-control-sm\" min=\"0\" value=\"0.015\" step=\"0.001\" [(ngModel)]=\"SelectedDefaultDistanceThresholdVariable\" (ngModelChange)=\"onLinkThresholdChange($event)\">\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-5\">\n                                            <label style=\"padding-left: 10px;\" for=\"default-view\">{{\"View to Launch\" | localize}}</label>\n                                        </div>\n                                        <div class=\"col-7\">\n                                            <select id=\"default-view\" class=\"form-control form-control-sm\" (change)=\"changeDefaultView($event)\" title=\"Which view should MicrobeTrace render first, once it has successfully processed the data?\" [(ngModel)]=\"SelectedDefaultViewVariable\">\n                                                <option value=\"2D Network\" selected>2D Network</option>\n                                                <option value=\"Table\">Table</option>\n                                                <option value=\"Map\">Map</option>\n                                                <option value=\"Phylogenetic Tree\">Phylogenetic Tree</option>\n                                            </select>\n                                        </div>\n                                    </div>\n                                </div>\n                            </tab>\n                            <tab heading=\"{{'Experimental' | localize}}\" customClass=\"m-tabs__item\">\n                                <div id=\"experimental-settings\" class=\"tab-pane fade active show\" role=\"tabpanel\">\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-12\">\n                                            <div class=\"alert alert-warning alert-dismissible\" role=\"alert\">\n                                                <p>The following settings are experimental! Use at your own risk!</p>\n                                                <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\n                                                    <span aria-hidden=\"true\">&times;</span>\n                                                </button>\n                                            </div>\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"Would you like to generate a network based on random data?\">\n                                        <div class=\"col-4\">\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Generate\" | localize}}</label>\n                                        </div>\n                                        <div class=\"col\">\n                                            <input id=\"generate-number\" type=\"number\" class=\"form-control form-control-sm\" min=\"1\" max=\"2000\" step=\"1\" value=\"100\" [(ngModel)]=\"SelectedGenerateNumberVariable\">\n                                        </div>\n                                        <div class=\"col\">\n                                            <button id=\"generate-sequences\" class=\"btn btn-light btn-sm col\">Sequences</button>\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"Would you like to attempt to infer the direction of your links?\">\n                                        <div class=\"col-4\">\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Directionality\" | localize}}</label>\n                                        </div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton [options]=\"DirectionalityTypes\" [(ngModel)]=\"SelectedDirectionalityTypeVariable\"></p-selectButton>                                           \n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"Would you like to attempt to triangulate missing values in your distance matrices?\">\n                                        <div class=\"col-4\">\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Triangulation\" | localize}}</label>\n                                        </div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton [options]=\"TriangulationTypes\" [(ngModel)]=\"SelectedTriangulationTypeVariable\"></p-selectButton>                                            \n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\"\n                                         title=\"Should MicrobeTrace automatically stash your session so if your computer crashes you can recover your session?\n                                Please note that this causes MicrobeTrace to store data on your computer's hard drive, which may have implications for PII.\">\n                                        <div class=\"col-4\">\n                                            <label style=\"padding-left: 10px;\" class=\"mr-2\">{{\"Autostashing\" | localize}}</label>\n                                        </div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton [options]=\"AutostashingTypes\" [(ngModel)]=\"SelectedAutostashingTypeVariable\"></p-selectButton>                                          \n                                        </div>\n                                    </div>\n                                </div>\n                            </tab>\n                        </tabset>\n                    </div>\n                </div>\n            </div>\n        </p-dialog>\n\n\n\n\n        <p-dialog id=\"sequence-controls-modal\" [(visible)]=\"displaySequenceSettings\" header=\"Sequence Settings\">\n            <div class=\"modal-dialog modal-lg\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div class=\"modal-body\">\n                        <tabset class=\"tab-container tabbable-line\" style='width: 100%;'>\n                            <tab heading=\"{{'Alignment' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\n                                <div id=\"sequence-alignment\" class=\"tab-pane fade show active\" role=\"tabpanel\">\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-12\">\n                                            <div class=\"alert alert-warning alert-dismissible\" role=\"alert\">\n                                                <p>\n                                                    <span>{{\"Micro-Tracing \" | localize}}</span>\n                                                    <span>{{\"Next\" | localize}}</span>\n                                                    <span><sup>&reg;</sup></span>\n                                                    is not intended to be an alignment program (although it can be used in that way).\n                                                    For best results, please align your sequences using\n                                                    <a href=\"https://en.wikipedia.org/wiki/List_of_sequence_alignment_software\" target=\"_blank\" rel=\"noreferrer noopener\">an external tool</a>\n                                                    before loading them into MicrobeTrace.\n                                                    <a href=\"https://github.com/CDCgov/MicrobeTrace/wiki/Alignment\" class=\"ifOnline\" target=\"_blank\" rel=\"noreferrer noopener\">Click here for additional information.</a>\n                                                </p>\n                                                <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\n                                                    <span aria-hidden=\"true\">&times;</span>\n                                                </button>\n                                            </div>\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-2\" title=\"Should MicrobeTrace align your sequences?\">Align</div>\n                                        <div class=\"col-10\">\n                                            <p-selectButton [options]=\"AlignTypes\" [(ngModel)]=\"SelectedAlignTypeVariable\" (onChange)=\"IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)\"></p-selectButton>\n                                        </div>\n                                    </div>\n\n                                    <p-accordion *ngIf=\"IsReferenceSourceSelected == true\">\n                                        <p-accordionTab style=\"color:#495057\" header=\"Reference Source Options\" [(selected)]=\"IsReferenceSourceSelected\">\n\n                                            <div class=\"form-group row alignConfigRow\">\n                                                <div class=\"col-2\" title=\"What should MicrobeTrace use as a reference to align your sequences?\">Reference Source</div>\n                                                <div class=\"col-10\">\n                                                    <p-selectButton [options]=\"ReferenceTypes\" [(ngModel)]=\"SelectedReferenceTypeVariable\" (onChange)=\"IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)\"></p-selectButton>\n                                                </div>\n                                            </div>\n\n                                            <p-accordionTab style=\"color:#495057\" header=\"Reference Options\" *ngIf=\"IsReferenceOptionsSelected == true\" [(selected)]=\"IsReferenceOptionsSelected\">\n                                                <div class=\"form-group row\" id=\"reference-file-row\">\n                                                    <div class=\"col-2\" title=\"Against what sequence should MicrobeTrace align your sequences?\">Reference</div>\n                                                    <div class=\"col-5\">\n                                                        <div class=\"custom-file\">\n                                                            <input type=\"file\" class=\"custom-file-input\" id=\"refSeqFileLoad\" [(ngModel)]=\"SelectedRefSeqFileLoadVariable\">\n                                                            <label class=\"custom-file-label\" for=\"refSeqFileLoad\" style=\"overflow:hidden\">HXB2</label>\n                                                        </div>\n                                                    </div>\n                                                    <div class=\"col-5\">\n                                                        <p-dropdown id=\"refSeqID\" [options]=\"RefSeqIDTypes\" [(ngModel)]=\"SelectedRefSeqIDVariable\"></p-dropdown>\n\n                                                       \n                                                    </div>\n                                                </div>\n                                            </p-accordionTab>\n\n                                                    <div class=\"row alignConfigRow\">\n                                                        <div class=\"form-group col offset-2\" title=\"How much should MicrobeTrace reward matching bases?\">\n                                                            <label for=\"alignerMatch\">Match Reward</label>\n                                                            <input type=\"number\" id=\"alignerMatch\" class=\"form-control\" value=\"1\" min=\"0\" [(ngModel)]=\"SelectedAlignerMatchVariable\">\n                                                        </div>\n                                                        <div class=\"form-group col\" title=\"How much should MicrobeTrace penalize non-matching bases?\">\n                                                            <label for=\"alignerMismatch\">Mismatch Cost</label>\n                                                            <input type=\"number\" id=\"alignerMismatch\" class=\"form-control\" value=\"1\" min=\"0\" [(ngModel)]=\"SelectedAlignerMismatchVariable\">\n                                                        </div>\n                                                    </div>\n                                                    <div class=\"row alignConfigRow\">\n                                                        <div class=\"form-group col offset-2\" title=\"How much should MicrobeTrace Penalize opening a gap?\">\n                                                            <label for=\"alignerGapO\">Gap Opening Cost</label>\n                                                            <input type=\"number\" id=\"alignerGapO\" class=\"form-control\" value=\"5\" min=\"0\" [(ngModel)]=\"SelectedAlignerGapOVariable\">\n                                                        </div>\n                                                        <div class=\"form-group col\" title=\"How much should MicrobeTrace Penalize extending a gap?\">\n                                                            <label for=\"alignerGapE\">Gap Extension Cost</label>\n                                                            <input type=\"number\" id=\"alignerGapE\" class=\"form-control\" value=\"2\" min=\"0\" [(ngModel)]=\"SelectedAlignerGapEVariable\">\n                                                        </div>\n                                                    </div>\n                                        </p-accordionTab>\n                                    </p-accordion>\n\n\n\n                                    <div class=\"row alignPreviewRow\">\n                                        <div class=\"w-100 text-center\" id=\"alignment-preview\"></div>\n                                    </div>\n                                </div>\n                            </tab>\n                            <tab heading=\"{{'Audit' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\n                                <div id=\"sequence-auditor\" class=\"tab-pane fade show\" role=\"tabpanel\">\n                                    <div class=\"row mb-3\" style=\"padding-left:15px;\">\n                                        <div class=\"form-check col\" title=\"Checks to see if a Sequence is empty.\">\n                                            <input class=\"form-check-input\" style=\"padding-left:5px;\" type=\"checkbox\" id=\"audit-empty\" checked [(ngModel)]=\"SelectedAuditEmptyVariable\">\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-empty\">\n                                                Empty\n                                            </label>\n                                        </div>\n                                        <div class=\"form-check col\" title=\"Checks to see if a Sequence is all gaps.\">\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-gaps\" checked [(ngModel)]=\"SelectedAuditGapsVariable\">\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-gaps\">\n                                                Gaps\n                                            </label>\n                                        </div>\n                                        <div class=\"form-check col\" title=\"Check to see if sequence contains any characters that are RNA instead of DNA.\">\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-RNA\" checked [(ngModel)]=\"SelectedAuditRNAVariable\">\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-RNA\">\n                                                RNA\n                                            </label>\n                                        </div>\n                                        <div class=\"form-check col\" title=\"Check to see if Sequence contains any characters that represent Amino Acids.\">\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-amino-acids\" checked [(ngModel)]=\"SelectedAuditAminoAcidsVariable\">\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-amino-acids\">\n                                                Amino Acids\n                                            </label>\n                                        </div>\n                                        <div class=\"form-check col\" title=\"Check to see if Sequence contains any characters describing an alignment.\">\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-CIGAR\" checked [(ngModel)]=\"SelectedAuditCIGARVariable\">\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-CIGAR\">\n                                                CIGAR\n                                            </label>\n                                        </div>\n                                        <div class=\"form-check col\" title=\"Check to see if Sequence contains any characters that are illegal in any genomic or proteomic alphabet.\">\n                                            <input class=\"form-check-input\" type=\"checkbox\" id=\"audit-malformed\" checked [(ngModel)]=\"SelectedAuditMalformedVariable\">\n                                            <label class=\"form-check-label\" style=\"padding-left:5px;\" for=\"audit-malformed\">\n                                                Malformed\n                                            </label>\n                                        </div>\n                                        <div class=\"col\">\n                                            <button type=\"button\" class=\"btn btn-primary btn-sm w-100\" id=\"audit-launcher\" (click)=\"run()\">Run</button>\n                                        </div>\n                                    </div>\n                                    <div class=\"row\" id=\"audited-sequences\"></div>\n                                    <div class=\"row flex-row-reverse\" style=\"padding-right: 21px\">\n                                        <button class=\"btn btn-danger btn-sm\" id=\"audit-toggle-all\" (click)=\"toglleAll()\">Toggle All</button>\n                                    </div>\n                                </div>\n                            </tab>\n                        </tabset>\n                    </div>\n                    <div class=\"modal-footer clearfix\">\n                        <button type=\"submit\" class=\"btn btn-success pull-right\" data-dismiss=\"modal\"\n                                title=\"Confirm Load Settings are All Properly Set\" (click)=\"displaySequenceSettings = !displaySequenceSettings\">\n                            Confirm\n                        </button>\n                    </div>\n                </div>\n            </div>\n        </p-dialog>\n\n    </div><!-- Files Settings & Sequence Settings/.modal -->\n\n\n    <div class=\"view-controls\">\n        <p-dialog id=\"loading-information-modal\" [(visible)]=\"displayloadingInformationModal\" header=\"Processing Files...\">\n            <div class=\"modal-dialog\" role=\"document\">\n                <div class=\"modal-content\">\n                   \n\n                        <img class=\"img-responsive\" [src]=\"commonService.appRootUrl() + 'assets/common/images/giphy.gif'\" alt=\"logo\" height=\"300\" />\n\n                        <div id=\"loading-information-collapse\" class=\"collapse show\">\n                            <div id=\"loading-information\" class=\"card card-body\">\n\n                                <a *ngFor=\"let message of messages\">\n                                    {{ message }}\n                                </a>\n                                <br>\n\n                            </div>\n                        </div>\n                    \n                    <p-footer>\n                        <button type=\"button\" class=\"btn btn-success\" data-dismiss=\"modal\" (click)=\"displayloadingInformationModal=false\">Close</button>\n                    </p-footer>\n                </div><!-- /.modal-content -->\n            </div><!-- /.modal-dialog -->\n        </p-dialog>\n    </div><!-- Loading Files/.modal -->\n\n\n    <div id=\"file-footer\">\n        <!-- <p-accordion (onOpen)=\"accordianToggle(1)\" (onClose)=\"accordianToggle(0)\" >\n            <p-accordionTab *ngIf=\"uniqueNodes.length > 0\" header=\"{{uniqueNodes.length}} node(s) missing in edge list\">\n                <table>\n                    <tr>\n                        <th>Node</th>\n                    </tr>\n                    <tr *ngFor=\"let node of uniqueNodes\">\n                        <td>\n                            {{node}}\n                        </td>\n                    </tr>\n                </table>\n            </p-accordionTab>\n            <p-accordionTab *ngIf=\"uniqueEdgeNodes.length > 0\" header=\"{{uniqueEdgeNodes.length}} edge node(s) missing in node list\">\n                <table>\n                    <tr>\n                        <th>Node</th>\n                    </tr>\n                    <tr *ngFor=\"let node of uniqueEdgeNodes\">\n                        <td>\n                            {{node}}\n                        </td>\n                    </tr>\n                </table>\n            </p-accordionTab>\n\n        </p-accordion> -->\n\n        <br/>\n\n        <div class=\"m-portlet\" style=\"padding: 1px\">\n            <div class=\"d-flex justify-content-center\">\n                <span>\n                    <input type=\"file\" id=\"data-files1\" class=\"d-none\" multiple=\"true\" onclick=\"this.value=null;\" (change)=\"processFiles($event.target.files)\">\n                    <label for=\"data-files1\" class=\"btn btn-primary btn-nr floater mb-0\">Add File(s)</label>\n                </span>\n                <span>\n                    <button type=\"button\" class=\"btn btn-default btn-nr floater\" (click)=\"showSequenceSettings()\">Sequence Controls</button>\n                </span>\n                <span>\n                    <button id=\"launch\" class=\"btn btn-success\" (click)=\"launchClick()\" title=\"Please select a Network CSV or FASTA File\" disabled>Launch</button>\n                </span>\n            </div>\n        </div>\n    </div>\n\n\n</div>\n";
 
 /***/ }),
 
@@ -17881,7 +18747,7 @@ module.exports = "﻿﻿<div class=\"m-content\">\r\n\r\n    <div id=\"file-pane
 /***/ ((module) => {
 
 "use strict";
-module.exports = "<div class=\"m-content\">   \r\n    <div class=\"m-portlet m-portlet--mobile\" style=\"height:100%;\">\r\n\r\n        <mat-toolbar id=\"top-toolbar\" class=\"nav-bar\">\r\n                <div class=\"navbar-logo\">\r\n                    <span class=\"microbe-font\">Microbe</span>\r\n                    <span class=\"trace-font\">Trace</span>\r\n                    <span><img alt=\"microbetrace\" class=\"mt-icon-toolbar\" [src]=\"appRootUrl() + 'assets/images/Logo.png'\"></span>\r\n                  </div>\r\n                  <div class=\"menu-items\">\r\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"fileMenu\"><i class=\"far nav-icon flaticon-file-1\"></i>File<span class=\"dropdown-symbol\">&#9660;</span></button>\r\n                    <mat-menu #fileMenu=\"matMenu\" overlapTrigger=\"false\">\r\n                      <!-- <button mat-menu-item (click)=\"FileClick('Stash Session')\">Stash</button> -->\r\n                      <!-- <button mat-menu-item (click)=\"FileClick('Recall Session')\">Recall</button> -->\r\n                      <button mat-menu-item (click)=\"FileClick('Save Session')\">Save</button>\r\n                      <!-- <button mat-menu-item (click)=\"FileClick('Open Session')\">Open</button> -->\r\n                      <button mat-menu-item (click)=\"FileClick('Open URL')\">Open URL</button>\r\n                      <button mat-menu-item (click)=\"FileClick('Add Data')\">Add Data</button>\r\n                      <!-- <button mat-menu-item (click)=\"FileClick('New Session')\">New</button> -->\r\n                    </mat-menu>\r\n                    <button class=\"navbar-item\" (click)=\"DisplayGlobalSettingsDialog()\" mat-button><i class=\"far nav-icon flaticon-cogwheel-2\"></i>Settings</button>\r\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"viewMenu\"><i class=\"far nav-icon flaticon-web\"></i>View<span class=\"dropdown-symbol\">&#9660;</span></button>\r\n                    <mat-menu #viewMenu=\"matMenu\" overlapTrigger=\"false\">\r\n                      <button mat-menu-item (click)=\"Viewclick('2D Network')\">2D Network</button>\r\n                      <!-- <button mat-menu-item (click)=\"Viewclick('Table')\">Table</button>\r\n                      <button mat-menu-item (click)=\"Viewclick('Map')\">Map</button>-->\r\n                      <button mat-menu-item (click)=\"Viewclick('Phylogenetic Tree')\">Phylogenetic Tree</button>\r\n                    </mat-menu>\r\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"windowMenu\"><i class=\"far nav-icon flaticon-web\"></i>Window<span class=\"dropdown-symbol\">&#9660;</span></button>\r\n                    <mat-menu #windowMenu=\"matMenu\" overlapTrigger=\"false\">\r\n                      <button mat-menu-item (click)=\"WindowClick('Reload Screen')\">Reload</button>\r\n                      <button mat-menu-item (click)=\"WindowClick('Fullscreen')\">Fullscreen</button>\r\n                    </mat-menu>\r\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"helpMenu\"><i class=\"far nav-icon flaticon-questions-circular-button\"></i>Help<span class=\"dropdown-symbol\">&#9660;</span></button>\r\n                    <mat-menu #helpMenu=\"matMenu\" overlapTrigger=\"false\">\r\n                      <a href=\"https://github.com/CDCgov/MicrobeTrace/wiki\" class=\"dropdown-item ifOnline\" target=\"_blank\" rel=\"noreferrer noopener\" mat-menu-item>Help</a>\r\n                      <a href=\"https://github.com/CDCgov/MicrobeTrace/issues/new\" class=\"dropdown-item ifOnline\" target=\"_blank\" rel=\"noreferrer noopener\" mat-menu-item>Report Bug</a>\r\n                      <button (click)=\"HelpClick('About')\" mat-menu-item>About</button>\r\n                    </mat-menu>\r\n                    <!-- <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"langMenu\"><i class=\"far nav-icon flaticon-earth-globe\"></i>Language<span class=\"dropdown-symbol\">&#9660;</span></button>\r\n                    <mat-menu #langMenu=\"matMenu\" overlapTrigger=\"false\">\r\n                      <button mat-menu-item >English</button>\r\n                      <button mat-menu-item >Spanish</button>\r\n                    </mat-menu> -->\r\n                  </div>\r\n            <div id=\"search-form\" class=\"form-inline navbar-form\">\r\n                <label for=\"search\">Search</label>\r\n                <div class=\"autocomplete-wrapper\">\r\n                    <input type=\"search\" id=\"search\" class=\"form-control form-control-sm\" (input)=\"onSearch()\" [(ngModel)]=\"searchText\" placeholder=\"Nodes\">\r\n                    <ul id=\"search-results\"></ul>\r\n                </div>\r\n            <button id=\"casesensitivebutton\" (click)=\"onCaseSensitiveChange()\" type=\"button\" class=\"btn btn-light btn-sm\" data-toggle=\"button\" aria-pressed=\"false\" autocomplete=\"off\" title=\"Match Case\">\r\n                <span>C</span>\r\n            </button>     \r\n            <button id=\"wholewordbutton\" type=\"button\" (click)=\"onWholeWordChange()\" class=\"btn btn-light btn-sm\" data-toggle=\"button\" aria-pressed=\"false\" autocomplete=\"off\" title=\"Match Whole Word\">\r\n                <span>W</span>\r\n            </button>      \r\n        \r\n            <select [(ngModel)]=\"searchField\" (ngModelChange)=\"onSearchFieldChange($event)\" id=\"search-field\"  class=\"form-control form-control-sm nodeValues\">\r\n                <option val=\"id\">ID</option>\r\n            </select>\r\n            </div> \r\n          </mat-toolbar>\r\n\r\n        <div id=\"visualwrapper\" class=\"kt-container  kt-grid__item kt-grid__item--fluid \" style=\"margin: 6px 6px 0 6px;\">\r\n            <div class=\"kt-portlet kt-portlet--mobile\" style=\"height:100%\">\r\n                <div class=\"kt-portlet__head kt-portlet__head--lg\" style=\"height:100%\">\r\n                    <div class=\"m-portlet__body\" style=\"flex: 1 100%; max-width:100%; height:100%\">\r\n                        <!-- TODO: Add back or replace-->\r\n                        <!-- <golden-layout-root #goldenLayout></golden-layout-root> -->\r\n                        <app-golden-layout-host #goldenLayoutHost></app-golden-layout-host>             \r\n                    </div>\r\n                </div>\r\n            </div>\r\n\r\n        <p-dialog class=\"table-z-index\" id=\"global-settings-link-color-table\" \r\n            [position]=\"GlobalSettingsLinkColorDialogSettings.linkLeft\" \r\n            [(visible)]=\"GlobalSettingsLinkColorDialogSettings.isVisible\"  \r\n            header=\"Link Color Table\" [style]=\"{'z-index': '1'}\"\r\n            (onShow)=\"SelectedLinkColorTableTypesVariable='Show'\"\r\n            (onHide)=\"SelectedLinkColorTableTypesVariable='Hide'\"\r\n            >\r\n            <div class=\"col-12\" style=\"max-height: 50vh\">\r\n                <table id=\"link-color-table\" style=\"width:100%;height:100%;\"></table>\r\n            </div>\r\n        </p-dialog>\r\n\r\n\r\n        <p-dialog id=\"global-settings-node-color-table\" \r\n            [position]=\"GlobalSettingsNodeColorDialogSettings.nodeLeft\" \r\n            [(visible)]=\"GlobalSettingsNodeColorDialogSettings.isVisible\"  \r\n            header=\"Node Color Table\" [style]=\"{width: '45vw', maxWidth: '450px'}\"\r\n            (onShow)=\"SelectedNodeColorTableTypesVariable='Show'\"\r\n            (onHide)=\"SelectedNodeColorTableTypesVariable='Hide'\"\r\n                    >\r\n            <div class=\"col-12\" style=\"max-height: 50vh\">\r\n                <table id=\"node-color-table\" style=\"width:100%;height:100%;\"></table>\r\n            </div>\r\n        </p-dialog>\r\n        </div>\r\n\r\n        <div id=\"overlay\" appDnd (fileDropped)=\"prepareFilesLists($event)\">\r\n            <input class=\"dnd-input\" type=\"file\" #fileDropRef id=\"fileDropRef\" multiple (change)=\"prepareFilesLists($event.target.files)\" />\r\n            <div class=\"welcome-msg\">\r\n                <div id=\"welcome-title\" class=\"top\">\r\n                    <span class=\"primary\">Welcome to </span>\r\n                    <span class=\"microbe primary\">Microbe</span>\r\n                    <span class=\"primary\">Trace&#8482;</span>\r\n                    <!-- <span><img class=\"mt-icon\" src=\"../../assets/images/Logo.png\"></span> -->\r\n                    <!-- Swap/Uncomment when building productions -->\r\n                    <span><img alt=\"microbetrace\" class=\"mt-icon\" [src]=\"appRootUrl() + 'assets/images/Logo.png'\"></span>\r\n                </div>\r\n                <div id=\"welcome-description\" class=\"bottom primary\">The Visualization Multitool for Molecular Epidemiology and Bioinformatics</div>\r\n            </div>\r\n            <div id=\"add-data-container\" class=\"add-data-container\">\r\n                <div class=\"files-msg\">\r\n                    <span class=\"primary\">Click </span>\r\n                    <a class=\"here-link primary\" for=\"fileDropRef\">here</a>\r\n                    <span class=\"primary\"> or Drag & Drop files to load data</span>\r\n                </div>\r\n                <div class=\"add-btns primary\">\r\n                    <!-- TODO: add back in when recall is ready-->\r\n                    <!-- <button mat-raised-button color=\"primary\" class=\"recall\" (click)=\"recallClicked()\">Recall Previous Session</button> -->\r\n                    <button mat-raised-button color=\"primary\" (click)=\"continueClicked()\">Continue with Sample Dataset</button>\r\n                </div>\r\n            </div>\r\n            <!-- <div id=\"onload-container\" class=\"launch-options-container primary\">\r\n                <span class=\"onload-bold\">Onload Settings:</span>\r\n                <span>Distance Metric: <span class=\"option-value\" [matMenuTriggerFor]=\"metricMenu\">{{metric}} <span class=\"onload-dropdown-symbol\">&#9660;</span></span></span>\r\n                <span id=\"ambiguities-menu\">Ambiguities: <span class=\"option-value\" [matMenuTriggerFor]=\"ambiMenu\">{{ambiguity}} <span class=\"onload-dropdown-symbol\">&#9660;</span></span></span>\r\n                <span>View to Launch: <span class=\"option-value\" [matMenuTriggerFor]=\"viewMenuBottom\">{{launchView}} <span class=\"onload-dropdown-symbol\">&#9660;</span></span></span>\r\n                <span class=\"threshold-option\">Link Threshold: \r\n                    <form class=\"threshold-input\">\r\n                    <mat-form-field class=\"threshold-input-length\">\r\n                        <mat-label></mat-label>\r\n                      <input matInput (input)=\"updateThreshold($event)\" [value]=\"threshold\">\r\n                    </mat-form-field>\r\n                  </form>\r\n                </span>\r\n            </div>\r\n            <mat-menu #metricMenu=\"matMenu\"overlapTrigger=\"false\">\r\n                <button mat-menu-item (click)=\"updateMetric('TN93')\">TN93</button>\r\n                <button mat-menu-item (click)=\"updateMetric('SNPs')\">SNPs</button>\r\n            </mat-menu>\r\n            <mat-menu #ambiMenu=\"matMenu\" overlapTrigger=\"false\">\r\n                <button mat-menu-item (click)=\"updateAmbiguity('Average')\">Average</button>\r\n                <button mat-menu-item (click)=\"updateAmbiguity('Resolve')\">Resolve</button>\r\n                <button mat-menu-item (click)=\"updateAmbiguity('Skip')\">Skip</button>\r\n                <button mat-menu-item (click)=\"updateAmbiguity('GapMM')\">GapMM</button>\r\n                <button mat-menu-item (click)=\"updateAmbiguity('HIV-Trace -g')\">HIV-Trace -g</button>\r\n            </mat-menu>\r\n            <mat-menu #viewMenuBottom=\"matMenu\" overlapTrigger=\"false\">\r\n                <button mat-menu-item (click)=\"updateLaunchView('2D Network')\">2D Network</button>\r\n                <button mat-menu-item (click)=\"updateLaunchView('Table')\">Table</button>\r\n                <button mat-menu-item (click)=\"updateLaunchView('Map')\">Bubbles</button>\r\n                <button mat-menu-item (click)=\"updateLaunchView('Phylogenetic Tree')\">Phylogenetic Tree</button>\r\n            </mat-menu> -->\r\n        </div>\r\n\r\n\r\n        <p-dialog id=\"ledger-loader-modal\" [(visible)]=\"displayLedgerLoaderDialog\" header=\"Blockchain Ledgers\" styleClass=\"ui-dialog\" [contentStyle]=\"{'max-height':'50vh'}\">\r\n\r\n            <div class=\"position-relative\" #ledgerloadDiv>\r\n                <div class=\"loader\">\r\n                    <i class=\"fa fa-spinner fa-spin\" style=\"font-size:40px;z-index:1;display:none;\" #ledgerloader></i>\r\n                </div>\r\n            </div>\r\n\r\n            <div style=\"min-height: 100px;\">\r\n                <p-tree [value]=\"ledgerOptions\" selectionMode=\"checkbox\"  [filter]=\"true\" [(selection)]=\"ledgerOptionSelected\" *ngIf=\"ledgerOptions && ledgerOptions.length > 0\" scrollHeight=\"flex\"></p-tree>\r\n            </div>\r\n\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"ToggleDisplayLedgerLoaderDialog()\">Cancel</button>\r\n                <button type=\"button\" id=\"stash-data2\" class=\"btn btn-primary\" (click)=\"DisplayLedgerLoaderDialog('Load')\" [disabled]=\"!ledgerOptionSelected || ledgerOptionSelected.length === 0\">Load</button>\r\n            </div>\r\n\r\n        </p-dialog><!-- /.modal -->\r\n        \r\n\r\n\r\n        <p-dialog id=\"global-settings-modal\" \r\n                    [positionLeft]=\"GlobalSettingsDialogSettings.left\" \r\n                    [positionTop]=\"GlobalSettingsDialogSettings.top\" \r\n                    [(visible)]=\"GlobalSettingsDialogSettings.isVisible\"  \r\n                    header=\"Global Settings\" >\r\n            <div class=\"modal-dialog\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div class=\"modal-body\">\r\n                        <tabset #globalSettingsTab class=\"tab-container tabbable-line\" style='width: 100%; height: 100%;'>\r\n                            <tab heading=\"{{'Filtering' | localize}}\" customClass=\"m-tabs__item\" style='width: 400px; height: 100%;'>\r\n\r\n                                <div id=\"filtering-config\" role=\"tabpanel\" aria-labelledby=\"filtering-tab\">\r\n                                    <div class=\"form-group row\" title=\"By what metric would you like to measure distance?\">\r\n                                        <div class=\"col-4\">Distance Metric</div>\r\n                                        <div class=\"col-8\">\r\n                                            <select id=\"default-distance-metric\" class=\"form-control form-control-sm mr-5\" [(ngModel)]=\"SelectedDistanceMetricVariable\" (ngModelChange)=\"onDistanceMetricChanged()\">\r\n                                                <option value=\"tn93\">TN93</option>\r\n                                                <option value=\"snps\">SNPs</option>\r\n                                            </select>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"By what algorithm would you like to prune links from the network?\">\r\n                                        <div class=\"col-4\">Prune With</div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"PruneWityTypes\" [(ngModel)]=\"SelectedPruneWityTypesVariable\" (onChange)=\"onPruneWithTypesChanged()\"></p-selectButton>\r\n                                        </div>\r\n                                    </div>                                    \r\n                                    <div class=\"form-group row\" title=\"What's the minimum number of nodes a cluster must have in order to be visible?\">\r\n                                        <div class=\"col-4\">\r\n                                            <label for=\"cluster-minimum-size\">Minimum Cluster Size</label>\r\n                                        </div>\r\n                                        <div class=\"col-8\">\r\n                                            <input type=\"number\" class=\"form-control form-control-sm\" id=\"cluster-minimum-size\" min=\"1\" value=\"1\" step=\"1\" [(ngModel)]=\"SelectedClusterMinimumSizeVariable\" (ngModelChange)=\"onMinimumClusterSizeChanged()\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div id=\"filtering-wrapper\">\r\n                                        <div class=\"form-group row\" title=\"By what variable would you like to prune links from the network?\">\r\n                                            <div class=\"col-4\"><label for=\"link-sort-variable\">Filter Links on</label></div>\r\n                                            <div class=\"col-8\">\r\n                                                <p-dropdown id=\"link-sort-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkSortVariable\" (onChange)=\"onLinkSortChanged()\"></p-dropdown>\r\n                                            </div>\r\n                                        </div>\r\n                                        <div class=\"form-group row\" id=\"filtering-threshold\" title=\"What's the maximum genetic distance you're willing to call a link?\">\r\n                                            <div class=\"col-4\"><label for=\"link-threshold\">Filtering Threshold</label></div>\r\n                                            <div class=\"col-8\"><svg id=\"link-threshold-sparkline\" #linkThresholdSparkline style=\"width: 280px; height: 48px;\"></svg></div>\r\n                                            <div class=\"col-8  offset-4\">\r\n                                                <input type=\"number\" class=\"form-control form-control-sm\" id=\"link-threshold\" min=\"-1\" value=\"1\" step=\"0.001\" [(ngModel)]=\"SelectedLinkThresholdVariable\" (ngModelChange)=\"onLinkThresholdChanged()\">\r\n                                            </div>\r\n                                        </div>\r\n                                        <div class=\"form-group row\" title=\"Click to reveal all hidden elements of the network.\">\r\n                                            <div class=\"col-4\"><label for=\"reveal-all\">Reveal</label></div>\r\n                                            <div class=\"col-8\">\r\n                                              <button type=\"button\" id=\"reveal-all\" (click)=\"revealClicked()\" class=\"btn btn-light btn-sm w-100\">Everything</button>\r\n                                            </div>\r\n                                          </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" hidden title=\"Click to reveal all hidden elements of the network.\">\r\n                                        <div class=\"col-4\"><label for=\"RevealAllTab\">Reveal</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"RevealTypes\" [(ngModel)]=\"SelectedRevealTypesVariable\" (onChange)=\"updateGlobalSettingsModel()\"></p-selectButton>\r\n                                        </div>\r\n                                    </div>\r\n                                    <hr>\r\n                                    <div class=\"form-group row\" title=\"Display a table of overview statistics for the network\">\r\n                                        <div class=\"col-4\">Statistics</div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"StatisticsTypes\" [(ngModel)]=\"SelectedStatisticsTypesVariable\" (onChange)=\"onShowStatisticsChanged()\"></p-selectButton>\r\n                                        </div>\r\n                                    </div>\r\n                                </div>\r\n                            </tab>\r\n                            <tab heading=\"{{'Styling' | localize}}\" customClass=\"m-tabs__item\" style='width: 400px; height: 100%;'>\r\n\r\n                                <div id=\"style-config\" role=\"tabpanel\" aria-labelledby=\"style-tab\">\r\n                                    <div class=\"form-group row\" title=\"By what variable nodes be colored?\">\r\n                                        <div class=\"col-4\"><label for=\"node-color-variable\">Color Nodes By</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-dropdown id=\"node-color-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedColorNodesByVariable\" (onChange)=\"onColorNodesByChanged()\"></p-dropdown>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div id=\"node-color-table-row\" [hidden]=\"!ShowGlobalSettingsNodeColorTable\" class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\r\n                                        <div class=\"col-4\"><label>Nodes Color Table</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton hidde [options]=\"NodeColorTableTypes\" [(ngModel)]=\"SelectedNodeColorTableTypesVariable\" (onChange)=\"onNodeColorTableChanged()\"></p-selectButton>\r\n                                        </div>\r\n                                    </div>\r\n\r\n\r\n                                    <div id=\"node-color-value-row\" class=\"form-group row\" title=\"What color should the nodes be?\">\r\n                                        <div class=\"col-4\"><label for=\"node-color\">Nodes</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <input type=\"color\" id=\"node-color\" class=\"form-control form-control-sm\" value=\"#1f77b4\" [(ngModel)]=\"SelectedNodeColorVariable\" (ngModelChange)=\"onNodeColorChanged()\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"By what variable should links be colored?\">\r\n                                        <div class=\"col-4\"><label for=\"link-color-variable\">Color Links By</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-dropdown id=\"link-tooltip-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedColorLinksByVariable\" (onChange)=\"onColorLinksByChanged()\"></p-dropdown>\r\n                                        </div>\r\n                                    </div>\r\n                                    <div id=\"link-color-table-row\" [hidden]=\"!ShowGlobalSettingsLinkColorTable\"  class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\r\n                                        <div class=\"col-4\"><label>Link Color Table</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-selectButton [options]=\"LinkColorTableTypes\" [(ngModel)]=\"SelectedLinkColorTableTypesVariable\" (onChange)=\"onLinkColorTableChanged()\"></p-selectButton>\r\n                                        </div>\r\n                                    </div>\r\n\r\n                                    <div id=\"link-color-value-row\" class=\"form-group row\" title=\"What color should the links be?\">\r\n                                        <div class=\"col-4\"><label for=\"link-color\">Links</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <input type=\"color\" id=\"link-color\" class=\"form-control form-control-sm\" [(ngModel)]=\"SelectedLinkColorVariable\" (ngModelChange)=\"onLinkColorChanged()\">\r\n                                        </div>\r\n                                    </div>\r\n\r\n                                    <div class=\"form-group row\" title=\"What color should denote selection?\">\r\n                                        <div class=\"col-4\"><label for=\"selected-color\">Selected</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <input type=\"color\" id=\"selected-color\" class=\"form-control form-control-sm\" value=\"#ff8300\" [(ngModel)]=\"SelectedColorVariable\" (ngModelChange)=\"updateGlobalSettingsModel()\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"What color should the background be?\">\r\n                                        <div class=\"col-4\"><label for=\"background-color\">Background</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <input type=\"color\" id=\"background-color\" class=\"form-control form-control-sm\" value=\"#ffffff\" [(ngModel)]=\"SelectedBackgroundColorVariable\" (ngModelChange)=\"onBackgroundChanged()\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\" title=\"Load an existing MicrobeTrace style file\">\r\n                                        <div class=\"col-4\">Apply Style</div>\r\n                                        <div class=\"col-8\">\r\n                                            <input type=\"file\" id=\"apply-style\" class=\"d-none\" [(ngModel)]=\"SelectedApplyStyleVariable\" (ngModelChange)=\"updateGlobalSettingsModel()\">\r\n                                            <label class=\"custom-file-label\" for=\"apply-style\">Choose MicrobeTrace Style File</label>\r\n                                        </div>\r\n                                    </div>\r\n                                </div>\r\n                            </tab>\r\n\r\n                            <tab heading=\"{{'Timeline' | localize}}\" customClass=\"m-tabs__item\" style='width: 400px; height: 100%;'>\r\n                                <div id=\"timeline-config\" role=\"tabpanel\" aria-labelledby=\"timeline-tab\">\r\n                                    <div class=\"form-group row\" title=\"By what variable timeline applied?\">\r\n                                        <div class=\"col-4\"><label for=\"node-timeline-variable\">Timeline By</label></div>\r\n                                        <div class=\"col-8\">\r\n                                            <p-dropdown id=\"node-timeline-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedTimelineVariable\" (onChange)=\"onTimelineChanged($event.value)\"></p-dropdown>\r\n                                        </div>\r\n                                      </div>\r\n                                </div> \r\n                            </tab>\r\n                        </tabset>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n\r\n            <div class=\"modal-footer\">\r\n                <div class=\"btn-group\" data-toggle=\"buttons\">\r\n                    <button type=\"button\" class=\"btn btn-primary\" (click)=\"GlobalSettingsDialogSettings.setVisibility(false)\">Done</button>\r\n                </div>\r\n            </div>\r\n        </p-dialog><!-- /.modal -->\r\n\r\n        <p-dialog id=\"session-recall-modal\" [(visible)]=\"displayRecallStashDialog\" header=\"Recall Stash\">\r\n            <div class=\"modal-dialog\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div #stashes id=\"recall-stashes-available\" class=\"table-sm\"></div>\r\n\r\n                    <div class=\"modal-footer\">\r\n                        <button *ngIf=\"!HideThisForNow\" type=\"button\" class=\"btn btn-danger\" id=\"recall-delete-stash\" (click)=\"DisplayRecallStashDialog('Delete')\">Delete</button>\r\n                        <button type=\"button\" class=\"btn\" (click)=\"DisplayRecallStashDialog('Cancel')\">Cancel</button>\r\n                        <button type=\"button\" class=\"btn btn-success\" id=\"recall-load-stash\" (click)=\"DisplayRecallStashDialog('Recall')\">Recall</button>\r\n                    </div>\r\n                </div><!-- /.modal-content -->\r\n            </div><!-- /.modal-dialog -->\r\n        </p-dialog><!-- /.modal -->\r\n\r\n        <p-dialog id=\"open-auspice-url\" [(visible)]=\"displayUrlDialog\" header=\"Open Auspice JSON via URL\">\r\n            <div class=\"modal-dialog\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div class=\"modal-body\">\r\n                        <input type=\"text\" id=\"auspice-url\" class=\"form-control form-control-sm\" [(ngModel)]=\"auspiceUrlVal\" placeholder=\"URL of Auspice JSON to open\" />\r\n                    </div>\r\n                    <div class=\"modal-footer\">\r\n                        <button type=\"button\" class=\"btn\" (click)=\"DisplayUrlDialog('Cancel')\">Cancel</button>\r\n                        <button type=\"button\" class=\"btn btn-success\" id=\"url-open-button\" (click)=\"DisplayUrlDialog('Open')\">Open</button>\r\n                    </div>\r\n                </div><!-- /.modal-content -->\r\n            </div><!-- /.modal-dialog -->\r\n        </p-dialog><!-- /.modal -->\r\n\r\n        <p-dialog id=\"open-old-mt\" [(visible)]=\"displayMTDialog\" header=\"Open Auspice JSON in classic MicrobeTrace\">\r\n            <div class=\"modal-dialog\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div class=\"modal-body\">\r\n                        Welcome to the newest version of MicrobeTrace! If you'd like to open your auspice JSON file in the previous version of MicrobeTrace, please click this link: <br />\r\n                        <a href=\"https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}\">https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}</a>\r\n                    </div>\r\n                    <div class=\"modal-footer\">\r\n                        <button type=\"button\" class=\"btn\" (click)=\"DisplayMTDialog('Cancel')\">Close</button>\r\n                    </div>\r\n                </div><!-- /.modal-content -->\r\n            </div><!-- /.modal-dialog -->\r\n        </p-dialog><!-- /.modal -->\r\n\r\n        <p-dialog id=\"session-stash-modal\" [(visible)]=\"displayStashDialog\" header=\"Save Session\">\r\n            <div class=\"modal-dialog\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n\r\n                    <div class=\"modal-body\">\r\n                        <div class=\"form-group row\" title=\"What would you like to call this session?\">\r\n                            <div class=\"col\">\r\n                                <input type=\"text\" id=\"stash-name\" class=\"form-control form-control-sm\" [(ngModel)]=\"saveFileName\" placeholder=\"Name your session!\">\r\n                            </div>\r\n                        </div>\r\n                        <div class=\"form-group row\" title=\"Should MicrobeTrace compress this save file?\">\r\n                            <div class=\"col\">\r\n                                <div class=\"form-check form-check-inline\">\r\n                                    <input class=\"form-check-input\" type=\"checkbox\" id=\"save-file-compress\" checked>\r\n                                    <label class=\"form-check-label\" for=\"save-file-compress\">Compress?</label>\r\n                                  </div>\r\n                              <div id=\"cluster-checkbox-container\" class=\"form-check form-check-inline\">\r\n                                <input class=\"form-check-input\" [(ngModel)]=\"saveByCluster\" type=\"checkbox\" id=\"save-file-cluster\">\r\n                                <label class=\"form-check-label\" for=\"save-file-cluster\">By Cluster</label>\r\n                              </div>\r\n                            </div>\r\n                         </div>\r\n                    </div>\r\n                    <div class=\"modal-footer\">\r\n                        <button type=\"button\" class=\"btn btn-error\" (click)=\"DisplayStashDialog('Cancel')\">Cancel</button>\r\n                        <button type=\"button\" id=\"stash-data\" class=\"btn btn-primary\" (click)=\"DisplayStashDialog('Save')\" [disabled]=\"saveFileName === undefined || saveFileName === ''\">Save</button>\r\n                    </div>\r\n                </div><!-- /.modal-content -->\r\n            </div><!-- /.modal-dialog -->\r\n        </p-dialog><!-- /.modal -->\r\n\r\n\r\n        <p-dialog id=\"about-dialog\" [(visible)]=\"displayAbout\" header=\"About Microbetrace\">\r\n            <div class=\"modal-dialog modal-lg\" role=\"document\">\r\n                <div class=\"modal-content\">\r\n                    <div class=\"modal-body\">\r\n                        <h3>\r\n                            <span>{{\"MicrobeTrace\" | localize}} </span>\r\n                            <small>v<span id=\"version\">{{version}}</span></small>\r\n                        </h3>\r\n                        <p>\r\n                            MicrobeTrace is an interactive web application that renders existing data from high-risk contact networks\r\n                            in an easy-to-use Graphical User Interface (GUI). The network visualization can be customized according to\r\n                            supplemental data sources and mathematical inferences like the most probable transmission pathways.\r\n                            MicrobeTrace is a highly responsive, visual sequence analytics tool which can reduce the gap between data\r\n                            production and analytics and help you to discover, understand, and display relationships (links) between\r\n                            patients (nodes). MicrobeTrace can be deployed on laptops to locations without any Internet access, thereby\r\n                            reducing both the startup cost and analysis time and effort.\r\n                          </p>\r\n                          <p class=\"about-links\">\r\n                            <a href=\"https://github.com/CDCgov/MicrobeTrace/wiki\" target=\"_blank\" rel=\"noreferrer noopener\">\r\n                              Click Here to Learn More\r\n                            </a>\r\n                          </p>\r\n                          <p>\r\n                            MicrobeTrace was built by the Molecular Epidemiology and Bionformatics Team at the CDC in Atlanta.</p>\r\n                            <a class=\"about-links\" href=\"https://cdcgov.github.io/MEBT\" target=\"_blank\" rel=\"noreferrer noopener\" style=\"display: block;\">\r\n                              Click Here to See MEBT's Other Tools\r\n                            </a>\r\n                          \r\n                    </div>\r\n                    <div class=\"modal-footer\">\r\n                        <button type=\"button\" class=\"btn btn-success\" (click)=\"DisplayAbout()\">Close</button>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n        </p-dialog>\r\n\r\n        <div id=\"main-panel\" class=\"pane-container pane-horizontal\">\r\n            <noscript class=\"container-fluid\">\r\n              <div class=\"jumbotron\">\r\n                <h1>Sorry!</h1>\r\n                <p class=\"lead\">MicrobeTrace requires Javascript to run. Please <a href=\"https://www.enable-javascript.com/\">enable Javascript</a> and refresh MicrobeTrace.</p>\r\n              </div>\r\n            </noscript>\r\n            <div id=\"global-timeline-wrapper\" style=\"display: none;\">\r\n              <div id=\"global-timeline\" align=\"center\">\r\n                <div><button type=\"button\" id=\"timeline-play-button\" class=\"btn btn-light btn-sm\" (click)=\"playTimeline()\">{{playBtnText}}</button>\r\n                <span id=\"global-timeline-field\" contenteditable></span></div>\r\n                <!-- <svg></svg>\r\n                <mat-slider></mat-slider> -->\r\n              </div>  \r\n            </div>\r\n          </div>\r\n\r\n       \r\n        <!-- <p-dialog class=\"table-z-index\" id=\"global-settings-link-color-table\" \r\n                    [position]=\"GlobalSettingsLinkColorDialogSettings.linkLeft\" \r\n                    [(visible)]=\"GlobalSettingsLinkColorDialogSettings.isVisible\"  \r\n                    header=\"Link Color Table\" [style]=\"{'z-index': '1'}\"\r\n                    (onShow)=\"SelectedLinkColorTableTypesVariable='Show'\"\r\n                    (onHide)=\"SelectedLinkColorTableTypesVariable='Hide'\"\r\n                    >\r\n            <div class=\"col-12\" style=\"max-height: 50vh\">\r\n                <table id=\"link-color-table\" style=\"width:100%;height:100%;\"></table>\r\n            </div>\r\n        </p-dialog> -->\r\n\r\n        <div id=\"color-transparency-wrapper\">\r\n            <input type=\"range\" class=\"custom-range\" id=\"color-transparency\" min=\"0\" max=\"1\" step=\"0.05\" value=\"1\" >\r\n        </div>\r\n\r\n\r\n    </div>\r\n</div>\r\n";
+module.exports = "<div class=\"m-content\">   \n    <div class=\"m-portlet m-portlet--mobile\" style=\"height:100%;\">\n\n        <mat-toolbar id=\"top-toolbar\" class=\"nav-bar\">\n                <div class=\"navbar-logo\">\n                    <span class=\"microbe-font\">Microbe</span>\n                    <span class=\"trace-font\">Trace</span>\n                    <span><img alt=\"microbetrace\" class=\"mt-icon-toolbar\" [src]=\"appRootUrl() + 'assets/images/Logo.png'\"></span>\n                  </div>\n                  <div class=\"menu-items\">\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"fileMenu\"><i class=\"far nav-icon flaticon-file-1\"></i>File<span class=\"dropdown-symbol\">&#9660;</span></button>\n                    <mat-menu #fileMenu=\"matMenu\" overlapTrigger=\"false\">\n                      <!-- <button mat-menu-item (click)=\"FileClick('Stash Session')\">Stash</button> -->\n                      <!-- <button mat-menu-item (click)=\"FileClick('Recall Session')\">Recall</button> -->\n                      <button mat-menu-item (click)=\"FileClick('Save Session')\">Save</button>\n                      <!-- <button mat-menu-item (click)=\"FileClick('Open Session')\">Open</button> -->\n                      <button mat-menu-item (click)=\"FileClick('Open URL')\">Open URL</button>\n                      <button mat-menu-item (click)=\"FileClick('Add Data')\">Add Data</button>\n                      <!-- <button mat-menu-item (click)=\"FileClick('New Session')\">New</button> -->\n                    </mat-menu>\n                    <button class=\"navbar-item\" (click)=\"DisplayGlobalSettingsDialog()\" mat-button><i class=\"far nav-icon flaticon-cogwheel-2\"></i>Settings</button>\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"viewMenu\"><i class=\"far nav-icon flaticon-web\"></i>View<span class=\"dropdown-symbol\">&#9660;</span></button>\n                    <mat-menu #viewMenu=\"matMenu\" overlapTrigger=\"false\">\n                      <button mat-menu-item (click)=\"Viewclick('2D Network')\">2D Network</button>\n                      <!-- <button mat-menu-item (click)=\"Viewclick('Table')\">Table</button>\n                      <button mat-menu-item (click)=\"Viewclick('Map')\">Map</button> -->\n                      <button mat-menu-item (click)=\"Viewclick('Phylogenetic Tree')\">Phylogenetic Tree</button>\n                    </mat-menu>\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"windowMenu\"><i class=\"far nav-icon flaticon-web\"></i>Window<span class=\"dropdown-symbol\">&#9660;</span></button>\n                    <mat-menu #windowMenu=\"matMenu\" overlapTrigger=\"false\">\n                      <button mat-menu-item (click)=\"WindowClick('Reload Screen')\">Reload</button>\n                      <button mat-menu-item (click)=\"WindowClick('Fullscreen')\">Fullscreen</button>\n                    </mat-menu>\n                    <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"helpMenu\"><i class=\"far nav-icon flaticon-questions-circular-button\"></i>Help<span class=\"dropdown-symbol\">&#9660;</span></button>\n                    <mat-menu #helpMenu=\"matMenu\" overlapTrigger=\"false\">\n                      <a href=\"https://github.com/CDCgov/MicrobeTrace/wiki\" class=\"dropdown-item ifOnline\" target=\"_blank\" rel=\"noreferrer noopener\" mat-menu-item>Help</a>\n                      <a href=\"https://github.com/CDCgov/MicrobeTrace/issues/new\" class=\"dropdown-item ifOnline\" target=\"_blank\" rel=\"noreferrer noopener\" mat-menu-item>Report Bug</a>\n                      <button (click)=\"HelpClick('About')\" mat-menu-item>About</button>\n                    </mat-menu>\n                    <!-- <button class=\"navbar-item\" mat-button [matMenuTriggerFor]=\"langMenu\"><i class=\"far nav-icon flaticon-earth-globe\"></i>Language<span class=\"dropdown-symbol\">&#9660;</span></button>\n                    <mat-menu #langMenu=\"matMenu\" overlapTrigger=\"false\">\n                      <button mat-menu-item >English</button>\n                      <button mat-menu-item >Spanish</button>\n                    </mat-menu> -->\n                  </div>\n            <div id=\"search-form\" class=\"form-inline navbar-form\">\n                <label for=\"search\">Search</label>\n                <div class=\"autocomplete-wrapper\">\n                    <input type=\"search\" id=\"search\" class=\"form-control form-control-sm\" (input)=\"onSearch()\" [(ngModel)]=\"searchText\" placeholder=\"Nodes\">\n                    <ul id=\"search-results\"></ul>\n                </div>\n            <button id=\"casesensitivebutton\" (click)=\"onCaseSensitiveChange()\" type=\"button\" class=\"btn btn-light btn-sm\" data-toggle=\"button\" aria-pressed=\"false\" autocomplete=\"off\" title=\"Match Case\">\n                <span>C</span>\n            </button>     \n            <button id=\"wholewordbutton\" type=\"button\" (click)=\"onWholeWordChange()\" class=\"btn btn-light btn-sm\" data-toggle=\"button\" aria-pressed=\"false\" autocomplete=\"off\" title=\"Match Whole Word\">\n                <span>W</span>\n            </button>      \n        \n            <select [(ngModel)]=\"searchField\" (ngModelChange)=\"onSearchFieldChange($event)\" id=\"search-field\"  class=\"form-control form-control-sm nodeValues\">\n                <option val=\"id\">ID</option>\n            </select>\n            </div> \n          </mat-toolbar>\n\n        <div id=\"visualwrapper\" class=\"kt-container  kt-grid__item kt-grid__item--fluid \" style=\"margin: 6px 6px 0 6px;\">\n            <div class=\"kt-portlet kt-portlet--mobile\" style=\"height:100%\">\n                <div class=\"kt-portlet__head kt-portlet__head--lg\" style=\"height:100%\">\n                    <div class=\"m-portlet__body\" style=\"flex: 1 100%; max-width:100%; height:100%\">\n                        <!-- TODO: Add back or replace-->\n                        <!-- <golden-layout-root #goldenLayout></golden-layout-root> -->\n                        <app-golden-layout-host #goldenLayoutHost></app-golden-layout-host>             \n                    </div>\n                </div>\n            </div>\n\n        <p-dialog class=\"table-z-index\" id=\"global-settings-link-color-table\" \n            [position]=\"GlobalSettingsLinkColorDialogSettings.linkLeft\" \n            [(visible)]=\"GlobalSettingsLinkColorDialogSettings.isVisible\"  \n            [style]=\"{'z-index': '1'}\"\n            (onShow)=\"SelectedLinkColorTableTypesVariable='Show'\"\n            (onHide)=\"SelectedLinkColorTableTypesVariable='Hide'\"\n            >\n            <ng-template pTemplate=\"header\">\n                <div style=\"display: flex; justify-content: space-between; width: 100%;\">\n                    <span>Link Color Table</span>\n                    <span style=\"overflow: visible; position: relative;\">\n                        <button title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"toggleColorTableSettings('link-color')\"><i class=\"pi pi-cog\"></i></button>\n                        <div id=\"linkColorTableSettings\" class=\"dropdown-menu\" style=\"display: none;\">\n                            <button id=\"linkColorCounts\" class=\"dropdown-item\" (click)=\"toggleColorTableColumns('link-color', 'tableCounts')\">\n                                <span>Show Counts</span>\n                                <i [className]=\"this.widgets['link-color-table-counts'] ? 'pi pi-check' : 'pi pi-times'\" style=\"line-height: 1.5\"></i>\n                            </button>\n                            <button id=\"linkColorFrequencies\" class=\"dropdown-item\" (click)=\"toggleColorTableColumns('link-color', 'tableFreq')\">\n                                <span>Show Frequencies</span>\n                                <i [className]=\"this.widgets['link-color-table-frequencies'] ? 'pi pi-check' : 'pi pi-times'\" style=\"line-height: 1.5\"></i>\n                            </button>\n                        </div>\n                    </span>\n                </div>\n            </ng-template>\n            <div style=\"max-height: 50vh\">\n                <table id=\"link-color-table\" style=\"width:100%;height:100%;\"></table>\n            </div>\n        </p-dialog>\n\n\n        <p-dialog id=\"global-settings-node-color-table\" \n            [position]=\"GlobalSettingsNodeColorDialogSettings.nodeLeft\" \n            [(visible)]=\"GlobalSettingsNodeColorDialogSettings.isVisible\"  \n            (onShow)=\"SelectedNodeColorTableTypesVariable='Show'\"\n            (onHide)=\"SelectedNodeColorTableTypesVariable='Hide'\"\n                    >\n            <ng-template pTemplate=\"header\">\n                <div style=\"display: flex; justify-content: space-between; width: 100%;\">\n                    <span>Node Color Table</span>\n                    <span style=\"overflow: visible; position: relative;\">\n                        <button title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"toggleColorTableSettings('node-color')\"><i class=\"pi pi-cog\"></i></button>\n                        <div id=\"nodeColorTableSettings\" class=\"dropdown-menu\" style=\"display: none;\">\n                            <button id=\"nodeColorCounts\" class=\"dropdown-item\" (click)=\"toggleColorTableColumns('node-color', 'tableCounts')\">\n                                <span>Show Counts</span>\n                                <i [className]=\"this.widgets['node-color-table-counts'] ? 'pi pi-check' : 'pi pi-times'\" style=\"line-height: 1.5\"></i>\n                            </button>\n                            <button id=\"nodeColorFrequencies\" class=\"dropdown-item\" (click)=\"toggleColorTableColumns('node-color', 'tableFreq')\">\n                                <span>Show Frequencies</span>\n                                <i [className]=\"this.widgets['node-color-table-frequencies'] ? 'pi pi-check' : 'pi pi-times'\" style=\"line-height: 1.5\"></i>\n                            </button>\n                        </div>\n                    </span>\n                </div>\n            </ng-template>\n            <div style=\"max-height: 50vh\">\n                <table id=\"node-color-table\" style=\"width:100%;height:100%;\"></table>\n            </div>\n        </p-dialog>\n        </div>\n    \n        <div id=\"overlay\" appDnd (fileDropped)=\"prepareFilesLists($event)\">\n            <input class=\"dnd-input\" type=\"file\" #fileDropRef id=\"fileDropRef\" multiple (change)=\"prepareFilesLists($event.target.files)\" />\n            <div class=\"welcome-msg\">\n                <div id=\"welcome-title\" class=\"top\">\n                    <span class=\"primary\">Welcome to </span>\n                    <span class=\"microbe primary\">Microbe</span>\n                    <span class=\"primary\">Trace&#8482;</span>\n                    <!-- <span><img class=\"mt-icon\" src=\"../../assets/images/Logo.png\"></span> -->\n                    <!-- Swap/Uncomment when building productions -->\n                    <span><img alt=\"microbetrace\" class=\"mt-icon\" [src]=\"appRootUrl() + 'assets/images/Logo.png'\"></span>\n                </div>\n                <div id=\"welcome-description\" class=\"bottom primary\">The Visualization Multitool for Molecular Epidemiology and Bioinformatics</div>\n            </div>\n            <div id=\"add-data-container\" class=\"add-data-container\">\n                <div class=\"files-msg\">\n                    <span class=\"primary\">Click </span>\n                    <a class=\"here-link primary\" for=\"fileDropRef\">here</a>\n                    <span class=\"primary\"> or Drag & Drop files to load data</span>\n                </div>\n                <div class=\"add-btns primary\">\n                    <!-- TODO: add back in when recall is ready-->\n                    <!-- <button mat-raised-button color=\"primary\" class=\"recall\" (click)=\"recallClicked()\">Recall Previous Session</button> -->\n                    <button mat-raised-button color=\"primary\" (click)=\"continueClicked()\">Continue with Sample Dataset</button>\n                </div>\n            </div>\n            <!-- <div id=\"onload-container\" class=\"launch-options-container primary\">\n                <span class=\"onload-bold\">Onload Settings:</span>\n                <span>Distance Metric: <span class=\"option-value\" [matMenuTriggerFor]=\"metricMenu\">{{metric}} <span class=\"onload-dropdown-symbol\">&#9660;</span></span></span>\n                <span id=\"ambiguities-menu\">Ambiguities: <span class=\"option-value\" [matMenuTriggerFor]=\"ambiMenu\">{{ambiguity}} <span class=\"onload-dropdown-symbol\">&#9660;</span></span></span>\n                <span>View to Launch: <span class=\"option-value\" [matMenuTriggerFor]=\"viewMenuBottom\">{{launchView}} <span class=\"onload-dropdown-symbol\">&#9660;</span></span></span>\n                <span class=\"threshold-option\">Link Threshold: \n                    <form class=\"threshold-input\">\n                    <mat-form-field class=\"threshold-input-length\">\n                        <mat-label></mat-label>\n                      <input matInput (input)=\"updateThreshold($event)\" [value]=\"threshold\">\n                    </mat-form-field>\n                  </form>\n                </span>\n            </div>\n            <mat-menu #metricMenu=\"matMenu\"overlapTrigger=\"false\">\n                <button mat-menu-item (click)=\"updateMetric('TN93')\">TN93</button>\n                <button mat-menu-item (click)=\"updateMetric('SNPs')\">SNPs</button>\n            </mat-menu>\n            <mat-menu #ambiMenu=\"matMenu\" overlapTrigger=\"false\">\n                <button mat-menu-item (click)=\"updateAmbiguity('Average')\">Average</button>\n                <button mat-menu-item (click)=\"updateAmbiguity('Resolve')\">Resolve</button>\n                <button mat-menu-item (click)=\"updateAmbiguity('Skip')\">Skip</button>\n                <button mat-menu-item (click)=\"updateAmbiguity('GapMM')\">GapMM</button>\n                <button mat-menu-item (click)=\"updateAmbiguity('HIV-Trace -g')\">HIV-Trace -g</button>\n            </mat-menu>\n            <mat-menu #viewMenuBottom=\"matMenu\" overlapTrigger=\"false\">\n                <button mat-menu-item (click)=\"updateLaunchView('2D Network')\">2D Network</button>\n                <button mat-menu-item (click)=\"updateLaunchView('Table')\">Table</button>\n                <button mat-menu-item (click)=\"updateLaunchView('Map')\">Bubbles</button>\n                <button mat-menu-item (click)=\"updateLaunchView('Phylogenetic Tree')\">Phylogenetic Tree</button>\n            </mat-menu> -->\n        </div>\n\n\n        <p-dialog id=\"ledger-loader-modal\" [(visible)]=\"displayLedgerLoaderDialog\" header=\"Blockchain Ledgers\" styleClass=\"ui-dialog\" [contentStyle]=\"{'max-height':'50vh'}\">\n\n            <div class=\"position-relative\" #ledgerloadDiv>\n                <div class=\"loader\">\n                    <i class=\"fa fa-spinner fa-spin\" style=\"font-size:40px;z-index:1;display:none;\" #ledgerloader></i>\n                </div>\n            </div>\n\n            <div style=\"min-height: 100px;\">\n                <p-tree [value]=\"ledgerOptions\" selectionMode=\"checkbox\"  [filter]=\"true\" [(selection)]=\"ledgerOptionSelected\" *ngIf=\"ledgerOptions && ledgerOptions.length > 0\" scrollHeight=\"flex\"></p-tree>\n            </div>\n\n            <div class=\"modal-footer\">\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"ToggleDisplayLedgerLoaderDialog()\">Cancel</button>\n                <button type=\"button\" id=\"stash-data2\" class=\"btn btn-primary\" (click)=\"DisplayLedgerLoaderDialog('Load')\" [disabled]=\"!ledgerOptionSelected || ledgerOptionSelected.length === 0\">Load</button>\n            </div>\n\n        </p-dialog><!-- /.modal -->\n        \n\n\n        <p-dialog id=\"global-settings-modal\" \n                    [(visible)]=\"GlobalSettingsDialogSettings.isVisible\"  \n                    header=\"Global Settings\" >\n            <div class=\"modal-dialog\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div class=\"modal-body\">\n                        <tabset #globalSettingsTab class=\"tab-container tabbable-line\" style='width: 100%; height: 100%;'>\n                            <tab heading=\"{{'Filtering' | localize}}\" customClass=\"m-tabs__item\" style='width: 400px; height: 100%;'>\n\n                                <div id=\"filtering-config\" role=\"tabpanel\" aria-labelledby=\"filtering-tab\">\n                                    <div class=\"form-group row\" title=\"By what metric would you like to measure distance?\">\n                                        <div class=\"col-4\">Distance Metric</div>\n                                        <div class=\"col-8\">\n                                            <select id=\"default-distance-metric\" class=\"form-control form-control-sm mr-5\" [(ngModel)]=\"SelectedDistanceMetricVariable\" (ngModelChange)=\"onDistanceMetricChanged()\">\n                                                <option value=\"tn93\">TN93</option>\n                                                <option value=\"snps\">SNPs</option>\n                                            </select>\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"By what algorithm would you like to prune links from the network?\">\n                                        <div class=\"col-4\">Prune With</div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton [options]=\"PruneWityTypes\" [(ngModel)]=\"SelectedPruneWityTypesVariable\" (onChange)=\"onPruneWithTypesChanged()\"></p-selectButton>\n                                        </div>\n                                    </div>                                    \n                                    <div class=\"form-group row\" title=\"What's the minimum number of nodes a cluster must have in order to be visible?\">\n                                        <div class=\"col-4\">\n                                            <label for=\"cluster-minimum-size\">Minimum Cluster Size</label>\n                                        </div>\n                                        <div class=\"col-8\">\n                                            <input type=\"number\" class=\"form-control form-control-sm\" id=\"cluster-minimum-size\" min=\"1\" value=\"1\" step=\"1\" [(ngModel)]=\"SelectedClusterMinimumSizeVariable\" (ngModelChange)=\"onMinimumClusterSizeChanged()\">\n                                        </div>\n                                    </div>\n                                    <div id=\"filtering-wrapper\">\n                                        <div class=\"form-group row\" title=\"By what variable would you like to prune links from the network?\">\n                                            <div class=\"col-4\"><label for=\"link-sort-variable\">Filter Links on</label></div>\n                                            <div class=\"col-8\">\n                                                <p-dropdown id=\"link-sort-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkSortVariable\" (onChange)=\"onLinkSortChanged()\"></p-dropdown>\n                                            </div>\n                                        </div>\n                                        <div class=\"form-group row\" id=\"filtering-threshold\" title=\"What's the maximum genetic distance you're willing to call a link?\">\n                                            <div class=\"col-4\"><label for=\"link-threshold\">Filtering Threshold</label></div>\n                                            <div class=\"col-8\"><svg id=\"link-threshold-sparkline\" #linkThresholdSparkline style=\"width: 280px; height: 48px;\"></svg></div>\n                                            <div class=\"col-8  offset-4\">\n                                                <input type=\"number\" class=\"form-control form-control-sm\" id=\"link-threshold\" min=\"-1\" value=\"1\" step=\"0.001\" [(ngModel)]=\"SelectedLinkThresholdVariable\" (ngModelChange)=\"onLinkThresholdChanged()\">\n                                            </div>\n                                        </div>\n                                        <div class=\"form-group row\" title=\"Click to reveal all hidden elements of the network.\">\n                                            <div class=\"col-4\"><label for=\"reveal-all\">Reveal</label></div>\n                                            <div class=\"col-8\">\n                                              <button type=\"button\" id=\"reveal-all\" (click)=\"revealClicked()\" class=\"btn btn-light btn-sm w-100\">Everything</button>\n                                            </div>\n                                          </div>\n                                    </div>\n                                    <div class=\"form-group row\" hidden title=\"Click to reveal all hidden elements of the network.\">\n                                        <div class=\"col-4\"><label for=\"RevealAllTab\">Reveal</label></div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton [options]=\"RevealTypes\" [(ngModel)]=\"SelectedRevealTypesVariable\" (onChange)=\"updateGlobalSettingsModel()\"></p-selectButton>\n                                        </div>\n                                    </div>\n                                    <hr>\n                                    <div class=\"form-group row\" title=\"Display a table of overview statistics for the network\">\n                                        <div class=\"col-4\">Statistics</div>\n                                        <div class=\"col-8\">\n                                            <!-- <p-selectButton [options]=\"StatisticsTypes\" [(ngModel)]=\"SelectedStatisticsTypesVariable\" (onChange)=\"onShowStatisticsChanged()\"></p-selectButton> -->\n                                        </div>\n                                    </div>\n                                </div>\n                            </tab>\n                            <tab heading=\"{{'Styling' | localize}}\" customClass=\"m-tabs__item\" style='width: 400px; height: 100%;'>\n\n                                <div id=\"style-config\" role=\"tabpanel\" aria-labelledby=\"style-tab\">\n                                    <div class=\"form-group row\" title=\"By what variable nodes be colored?\">\n                                        <div class=\"col-4\"><label for=\"node-color-variable\">Color Nodes By</label></div>\n                                        <div class=\"col-8\">\n                                            <p-dropdown id=\"node-color-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedColorNodesByVariable\" (onChange)=\"onColorNodesByChanged()\"></p-dropdown>\n                                        </div>\n                                    </div>\n                                    <div id=\"node-color-table-row\" [hidden]=\"!ShowGlobalSettingsNodeColorTable\" class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\n                                        <div class=\"col-4\"><label>Nodes Color Table</label></div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton hidde [options]=\"NodeColorTableTypes\" [(ngModel)]=\"SelectedNodeColorTableTypesVariable\" (onChange)=\"onNodeColorTableChanged()\"></p-selectButton>\n                                        </div>\n                                    </div>\n\n\n                                    <div id=\"node-color-value-row\" class=\"form-group row\" title=\"What color should the nodes be?\">\n                                        <div class=\"col-4\"><label for=\"node-color\">Nodes</label></div>\n                                        <div class=\"col-8\">\n                                            <input type=\"color\" id=\"node-color\" class=\"form-control form-control-sm\" value=\"#1f77b4\" [(ngModel)]=\"SelectedNodeColorVariable\" (ngModelChange)=\"onNodeColorChanged()\">\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"By what variable should links be colored?\">\n                                        <div class=\"col-4\"><label for=\"link-color-variable\">Color Links By</label></div>\n                                        <div class=\"col-8\">\n                                            <p-dropdown id=\"link-tooltip-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedColorLinksByVariable\" (onChange)=\"onColorLinksByChanged()\"></p-dropdown>\n                                        </div>\n                                    </div>\n                                    <div id=\"link-color-table-row\" [hidden]=\"!ShowGlobalSettingsLinkColorTable\"  class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\n                                        <div class=\"col-4\"><label>Link Color Table</label></div>\n                                        <div class=\"col-8\">\n                                            <p-selectButton [options]=\"LinkColorTableTypes\" [(ngModel)]=\"SelectedLinkColorTableTypesVariable\" (onChange)=\"onLinkColorTableChanged()\"></p-selectButton>\n                                        </div>\n                                    </div>\n\n                                    <div id=\"link-color-value-row\" class=\"form-group row\" title=\"What color should the links be?\">\n                                        <div class=\"col-4\"><label for=\"link-color\">Links</label></div>\n                                        <div class=\"col-8\">\n                                            <input type=\"color\" id=\"link-color\" class=\"form-control form-control-sm\" [(ngModel)]=\"SelectedLinkColorVariable\" (ngModelChange)=\"onLinkColorChanged()\">\n                                        </div>\n                                    </div>\n\n                                    <div class=\"form-group row\" title=\"What color should denote selection?\">\n                                        <div class=\"col-4\"><label for=\"selected-color\">Selected</label></div>\n                                        <div class=\"col-8\">\n                                            <input type=\"color\" id=\"selected-color\" class=\"form-control form-control-sm\" value=\"#ff8300\" [(ngModel)]=\"SelectedColorVariable\" (ngModelChange)=\"updateGlobalSettingsModel()\">\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"What color should the background be?\">\n                                        <div class=\"col-4\"><label for=\"background-color\">Background</label></div>\n                                        <div class=\"col-8\">\n                                            <input type=\"color\" id=\"background-color\" class=\"form-control form-control-sm\" value=\"#ffffff\" [(ngModel)]=\"SelectedBackgroundColorVariable\" (ngModelChange)=\"onBackgroundChanged()\">\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\" title=\"Load an existing MicrobeTrace style file\">\n                                        <div class=\"col-4\">Apply Style</div>\n                                        <div class=\"col-8\">\n                                            <input type=\"file\" id=\"apply-style\" class=\"d-none\" [(ngModel)]=\"SelectedApplyStyleVariable\" (ngModelChange)=\"updateGlobalSettingsModel()\">\n                                            <label class=\"custom-file-label\" for=\"apply-style\">Choose MicrobeTrace Style File</label>\n                                        </div>\n                                    </div>\n                                </div>\n                            </tab>\n\n                            <tab heading=\"{{'Timeline' | localize}}\" customClass=\"m-tabs__item\" style='width: 400px; height: 100%;'>\n                                <div id=\"timeline-config\" role=\"tabpanel\" aria-labelledby=\"timeline-tab\">\n                                    <div class=\"form-group row\" title=\"By what variable timeline applied?\">\n                                        <div class=\"col-4\"><label for=\"node-timeline-variable\">Timeline By</label></div>\n                                        <div class=\"col-8\">\n                                            <p-dropdown id=\"node-timeline-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedTimelineVariable\" (onChange)=\"onTimelineChanged($event.value)\"></p-dropdown>\n                                        </div>\n                                      </div>\n                                </div> \n                            </tab>\n                        </tabset>\n                    </div>\n                </div>\n            </div>\n\n            <div class=\"modal-footer\">\n                <div class=\"btn-group\" data-toggle=\"buttons\">\n                    <button type=\"button\" class=\"btn btn-primary\" (click)=\"GlobalSettingsDialogSettings.setVisibility(false)\">Done</button>\n                </div>\n            </div>\n        </p-dialog><!-- /.modal -->\n\n        <p-dialog id=\"session-recall-modal\" [(visible)]=\"displayRecallStashDialog\" header=\"Recall Stash\">\n            <div class=\"modal-dialog\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div #stashes id=\"recall-stashes-available\" class=\"table-sm\"></div>\n\n                    <div class=\"modal-footer\">\n                        <button *ngIf=\"!HideThisForNow\" type=\"button\" class=\"btn btn-danger\" id=\"recall-delete-stash\" (click)=\"DisplayRecallStashDialog('Delete')\">Delete</button>\n                        <button type=\"button\" class=\"btn\" (click)=\"DisplayRecallStashDialog('Cancel')\">Cancel</button>\n                        <button type=\"button\" class=\"btn btn-success\" id=\"recall-load-stash\" (click)=\"DisplayRecallStashDialog('Recall')\">Recall</button>\n                    </div>\n                </div><!-- /.modal-content -->\n            </div><!-- /.modal-dialog -->\n        </p-dialog><!-- /.modal -->\n\n        <p-dialog id=\"open-auspice-url\" [(visible)]=\"displayUrlDialog\" header=\"Open Auspice JSON via URL\">\n            <div class=\"modal-dialog\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div class=\"modal-body\">\n                        <input type=\"text\" id=\"auspice-url\" class=\"form-control form-control-sm\" [(ngModel)]=\"auspiceUrlVal\" placeholder=\"URL of Auspice JSON to open\" />\n                    </div>\n                    <div class=\"modal-footer\">\n                        <button type=\"button\" class=\"btn\" (click)=\"DisplayUrlDialog('Cancel')\">Cancel</button>\n                        <button type=\"button\" class=\"btn btn-success\" id=\"url-open-button\" (click)=\"DisplayUrlDialog('Open')\">Open</button>\n                    </div>\n                </div><!-- /.modal-content -->\n            </div><!-- /.modal-dialog -->\n        </p-dialog><!-- /.modal -->\n\n        <p-dialog id=\"open-old-mt\" [(visible)]=\"displayMTDialog\" header=\"Open Auspice JSON in classic MicrobeTrace\">\n            <div class=\"modal-dialog\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div class=\"modal-body\">\n                        Welcome to the newest version of MicrobeTrace! If you'd like to open your auspice JSON file in the previous version of MicrobeTrace, please click this link: <br />\n                        <a href=\"https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}\">https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}</a>\n                    </div>\n                    <div class=\"modal-footer\">\n                        <button type=\"button\" class=\"btn\" (click)=\"DisplayMTDialog('Cancel')\">Close</button>\n                    </div>\n                </div><!-- /.modal-content -->\n            </div><!-- /.modal-dialog -->\n        </p-dialog><!-- /.modal -->\n\n        <p-dialog id=\"session-stash-modal\" [(visible)]=\"displayStashDialog\" header=\"Save Session\">\n            <div class=\"modal-dialog\" role=\"document\">\n                <div class=\"modal-content\">\n\n                    <div class=\"modal-body\">\n                        <div class=\"form-group row\" title=\"What would you like to call this session?\">\n                            <div class=\"col\">\n                                <input type=\"text\" id=\"stash-name\" class=\"form-control form-control-sm\" [(ngModel)]=\"saveFileName\" placeholder=\"Name your session!\">\n                            </div>\n                        </div>\n                        <div class=\"form-group row\" title=\"Should MicrobeTrace compress this save file?\">\n                            <div class=\"col\">\n                                <div class=\"form-check form-check-inline\">\n                                    <input class=\"form-check-input\" type=\"checkbox\" id=\"save-file-compress\" checked>\n                                    <label class=\"form-check-label\" for=\"save-file-compress\">Compress?</label>\n                                  </div>\n                              <div id=\"cluster-checkbox-container\" class=\"form-check form-check-inline\">\n                                <input class=\"form-check-input\" [(ngModel)]=\"saveByCluster\" type=\"checkbox\" id=\"save-file-cluster\">\n                                <label class=\"form-check-label\" for=\"save-file-cluster\">By Cluster</label>\n                              </div>\n                            </div>\n                         </div>\n                    </div>\n                    <div class=\"modal-footer\">\n                        <button type=\"button\" class=\"btn btn-error\" (click)=\"DisplayStashDialog('Cancel')\">Cancel</button>\n                        <button type=\"button\" id=\"stash-data\" class=\"btn btn-primary\" (click)=\"DisplayStashDialog('Save')\" [disabled]=\"saveFileName === undefined || saveFileName === ''\">Save</button>\n                    </div>\n                </div><!-- /.modal-content -->\n            </div><!-- /.modal-dialog -->\n        </p-dialog><!-- /.modal -->\n\n\n        <p-dialog id=\"about-dialog\" [(visible)]=\"displayAbout\" header=\"About Microbetrace\">\n            <div class=\"modal-dialog modal-lg\" role=\"document\">\n                <div class=\"modal-content\">\n                    <div class=\"modal-body\">\n                        <h3>\n                            <span>{{\"MicrobeTrace\" | localize}} </span>\n                            <small>v<span id=\"version\">{{version}}</span></small>\n                        </h3>\n                        <p>\n                            MicrobeTrace is an interactive web application that renders existing data from high-risk contact networks\n                            in an easy-to-use Graphical User Interface (GUI). The network visualization can be customized according to\n                            supplemental data sources and mathematical inferences like the most probable transmission pathways.\n                            MicrobeTrace is a highly responsive, visual sequence analytics tool which can reduce the gap between data\n                            production and analytics and help you to discover, understand, and display relationships (links) between\n                            patients (nodes). MicrobeTrace can be deployed on laptops to locations without any Internet access, thereby\n                            reducing both the startup cost and analysis time and effort.\n                          </p>\n                          <p class=\"about-links\">\n                            <a href=\"https://github.com/CDCgov/MicrobeTrace/wiki\" target=\"_blank\" rel=\"noreferrer noopener\">\n                              Click Here to Learn More\n                            </a>\n                          </p>\n                          <p>\n                            MicrobeTrace was built by the Molecular Epidemiology and Bionformatics Team at the CDC in Atlanta.</p>\n                            <a class=\"about-links\" href=\"https://cdcgov.github.io/MEBT\" target=\"_blank\" rel=\"noreferrer noopener\" style=\"display: block;\">\n                              Click Here to See MEBT's Other Tools\n                            </a>\n                          \n                    </div>\n                    <div class=\"modal-footer\">\n                        <button type=\"button\" class=\"btn btn-success\" (click)=\"DisplayAbout()\">Close</button>\n                    </div>\n                </div>\n            </div>\n        </p-dialog>\n\n        <div id=\"main-panel\" class=\"pane-container pane-horizontal\">\n            <noscript class=\"container-fluid\">\n              <div class=\"jumbotron\">\n                <h1>Sorry!</h1>\n                <p class=\"lead\">MicrobeTrace requires Javascript to run. Please <a href=\"https://www.enable-javascript.com/\">enable Javascript</a> and refresh MicrobeTrace.</p>\n              </div>\n            </noscript>\n            <div id=\"global-timeline-wrapper\" style=\"display: none;\">\n              <div id=\"global-timeline\" align=\"center\">\n                <div><button type=\"button\" id=\"timeline-play-button\" class=\"btn btn-light btn-sm\" (click)=\"playTimeline()\">{{playBtnText}}</button>\n                <span id=\"global-timeline-field\" contenteditable></span></div>\n                <!-- <svg></svg>\n                <mat-slider></mat-slider> -->\n              </div>  \n            </div>\n          </div>\n\n       \n        <!-- <p-dialog class=\"table-z-index\" id=\"global-settings-link-color-table\" \n                    [position]=\"GlobalSettingsLinkColorDialogSettings.linkLeft\" \n                    [(visible)]=\"GlobalSettingsLinkColorDialogSettings.isVisible\"  \n                    header=\"Link Color Table\" [style]=\"{'z-index': '1'}\"\n                    (onShow)=\"SelectedLinkColorTableTypesVariable='Show'\"\n                    (onHide)=\"SelectedLinkColorTableTypesVariable='Hide'\"\n                    >\n            <div class=\"col-12\" style=\"max-height: 50vh\">\n                <table id=\"link-color-table\" style=\"width:100%;height:100%;\"></table>\n            </div>\n        </p-dialog> -->\n\n        <div id=\"color-transparency-wrapper\">\n            <input type=\"range\" class=\"custom-range\" id=\"color-transparency\" min=\"0\" max=\"1\" step=\"0.05\" value=\"1\" >\n        </div>\n\n\n    </div>\n</div>\n";
 
 /***/ }),
 
@@ -17892,7 +18758,7 @@ module.exports = "<div class=\"m-content\">   \r\n    <div class=\"m-portlet m-p
 /***/ ((module) => {
 
 "use strict";
-module.exports = "﻿﻿<!--<div id=\"map\" [ngStyle]=\"svgStyle\"></div>-->\r\n<!--<p-gmap #gmap [options]=\"options\" [overlays]=\"overlays\"  [style]=\"{'width':'100%','height':'600px'}\" (onMapReady)=\"setMap($event)\"></p-gmap>-->\r\n\r\n<!-- <ng-container *ngIf=\"SelectedGeospatialTypeVariable === 'On'\">\r\n    <br/> -->\r\n    <!-- <h4>Range <p-calendar [(ngModel)]=\"dateFilterRangeDates\" selectionMode=\"range\" [readonlyInput]=\"true\"></p-calendar></h4> -->\r\n    <!--<h4>Range: {{dateFilterRangeDates[0] | date: 'shortDate'}} - {{dateFilterRangeDates[1] | date: 'shortDate'}}</h4> -->\r\n    <!-- <h4>Range: {{dateFilterRangeValues[0] + ' - ' + dateFilterRangeValues[1]}}</h4> -->\r\n    <!--<p-slider [(ngModel)]=\"dateFilterRangeValues\" [style]=\"{'width':'100%'}\" [range]=\"true\" [min]=\"0\" [max]=\"dateFilterRangeMax\" (onSlideEnd)=\"onDateFilterChange($event)\"></p-slider>\r\n</ng-container> -->\r\n\r\n\r\n<div class=\"OSM-credit\">Map tiles by <a href=\"http://stamen.com\">Stamen Design</a>, under <a href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>. Data by <a href=\"http://openstreetmap.org\">OpenStreetMap</a>, under <a href=\"http://www.openstreetmap.org/copyright\">ODbL</a>.</div>\r\n\r\n<div id=\"tool-btn-container\" class=\"m-portlet\">\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\r\n    </span>\r\n</div>\r\n<div #mapContainer class=\"map-container\">\r\n    <!-- <div #gmap style=\"width:100%;height:600px\"></div> -->\r\n    <ng-container *ngIf=\"leafletInitialOptions\">\r\n        <div class=\"mapStyle\" leaflet [leafletOptions]=\"leafletInitialOptions\" (leafletMapReady)=\"onMapReady($event)\"\r\n            [leafletMarkerCluster]=\"leafletMarkers\" [leafletMarkerClusterOptions]=\"leafletMarkerClusterOptions\"\r\n            (leafletMarkerClusterReady)=\"onMarkerClusterReady($event)\">\r\n        </div>\r\n    </ng-container>\r\n</div>\r\n\r\n<div class=\"row\">\r\n    <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-color-variable'] != 'None'\"\r\n            class=\"bottom-table\">\r\n            Node Colors\r\n        </h2>\r\n        <table id=\"node-color-table-bottom-map\" class=\"bottom-table\"></table>\r\n    </div>\r\n    <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['link-color-variable'] != 'None'\"\r\n            class=\"bottom-table\">\r\n            Link Colors\r\n        </h2>\r\n        <table id=\"link-color-table-bottom-map\" class=\"bottom-table\"></table>\r\n    </div>\r\n</div>\r\n\r\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\r\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\r\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\r\n            <h1><b>Please add data files to load...</b></h1>\r\n            <br />\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n\r\n<p-dialog id=\"map-settings-pane\" [position]=\"NodeMapSettingsExportDialogSettings.mapRight\" [(visible)]=\"NodeMapSettingsExportDialogSettings.isVisible\"\r\n    header=\"Geospatial Settings\" [contentStyle]=\"{'max-height': '70vh'}\">\r\n    <tabset class=\"tab-container tabbable-line\">\r\n        <tab heading=\"{{'Data' | localize}}\" customClass=\"m-tabs__item\">\r\n            <!-- <div class=\"form-group row\">\r\n                <div class=\"col-4\">Geospatial</div>\r\n                <div class=\"col-8\">\r\n                    <p-selectButton [options]=\"GeospatialTypes\" [(ngModel)]=\"SelectedGeospatialTypeVariable\"\r\n                        (ngModelChange)=\"onGeospatialTypeChange($event)\"></p-selectButton>\r\n                </div>\r\n            </div> -->\r\n\r\n            <ng-container *ngIf=\"SelectedGeospatialTypeVariable === 'Off'\">\r\n\r\n                <div class=\"row\">\r\n                    <div class=\"col-12\">\r\n                        <div class=\"alert alert-info alert-dismissible\" role=\"alert\">\r\n                            Please select the most precise geographic data your inputs have.\r\n                            <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\r\n                                <span aria-hidden=\"true\">&times;</span>\r\n                            </button>\r\n                        </div>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a latitude variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Latitude</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-lat\" [options]=\"FieldList\" [(ngModel)]=\"SelectedLatitude\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a longitude variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Longitude</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-lon\" [options]=\"FieldList\" [(ngModel)]=\"SelectedLongitude\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a Census Tract variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Census Tract</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-tract\" [options]=\"FieldList\" [(ngModel)]=\"SelectedCensusTract\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a zipcode variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Zipcode</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-zipcode\" [options]=\"FieldList\" [(ngModel)]=\"SelectedZipCode\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a County variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>County</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-county\" [options]=\"FieldList\" [(ngModel)]=\"SelectedCounty\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a (US) State variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>State</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-state\" [options]=\"FieldList\" [(ngModel)]=\"SelectedState\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row\" title=\"If your data have a Country variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Country</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedCountry\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n            </ng-container>\r\n            <ng-container *ngIf=\"SelectedGeospatialTypeVariable === 'On'\">\r\n                <p>&#11044;  -  Residence Address</p>\r\n                <p>&#9650;  -  Venue Address</p>\r\n                <p>&#9632;  -  Exposure Address</p>\r\n                <!-- <div class=\"form-group row\" title=\"If your data have a Residence Address variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Residence Address &#11044;</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedResidenceAddress\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div> \r\n\r\n                <div class=\"form-group row\" title=\"If your data have a Venue Address variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Venue Address &#9650;</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedVenueAddress\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n\r\n                <div class=\"form-group row\" title=\"If your data have a Exposure Address variable, select that here.\">\r\n                    <div class=\"col-4\">\r\n                        <a>Exposure Address &#9632;</a>\r\n                    </div>\r\n                    <div class=\"col-8\">\r\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedExposureAddress\"\r\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>-->\r\n            </ng-container>\r\n\r\n        </tab>\r\n        <tab heading=\"{{'Components' | localize}}\" customClass=\"m-tabs__item\">\r\n\r\n            <p-accordion>\r\n                <p-accordionTab style=\"color:#495057\" header=\"Network\">\r\n                    <div class=\"form-group row\" title=\"Would you like to see Nodes on the map?\">\r\n                        <div class=\"col-4\">Nodes</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"NodesTypes\" id=\"map-node-show-hide\"\r\n                                [(ngModel)]=\"SelectedNodesTypeVariable\"\r\n                                (ngModelChange)=\"onMapNodeShowHideChange($event)\"></p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                    <div class=\"form-group row\" title=\"Would you like to see links on the map?\">\r\n                        <div class=\"col-4\">Links</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"LinksTypes\" id=\"map-link-show-hide\"\r\n                                [(ngModel)]=\"SelectedLinksTypeVariable\"\r\n                                (ngModelChange)=\"onMapLinksShowHideChange($event)\"></p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                </p-accordionTab>\r\n                <p-accordionTab style=\"color:#495057\" header=\"Offline\">\r\n                    <div class=\"form-group row\" title=\"Would you like to see Countries on the map?\">\r\n                        <div class=\"col-4\">Countries</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"CountriesTypes\" id=\"map-countries-show-hide\"\r\n                                [(ngModel)]=\"SelectedCountriesTypeVariable\"\r\n                                (ngModelChange)=\"onCountriesShowHidChange($event)\"></p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                    <div class=\"form-group row\" title=\"Would you like to see (US) States on the map?\">\r\n                        <div class=\"col-4\">States</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"StatesTypes\" id=\"map-states-show-hide\"\r\n                                [(ngModel)]=\"SelectedStatesTypeVariable\"\r\n                                (ngModelChange)=\"onStatesShowHideChange($event)\"></p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                    <div class=\"form-group row\" title=\"Would you like to see (US) Counties on the map?\">\r\n                        <div class=\"col-4\">Counties</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"CountiesTypes\" id=\"map-counties-show-hide\"\r\n                                [(ngModel)]=\"SelectedCountiesTypeVariable\"\r\n                                (ngModelChange)=\"onCountiesShowHideChange($event)\"></p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                </p-accordionTab>\r\n                <p-accordionTab style=\"color:#495057\" header=\"Online\">\r\n                    <div class=\"row\">\r\n                        <div class=\"col-12\">\r\n                            <div class=\"alert alert-warning alert-dismissible\" role=\"alert\">\r\n                                Enabling any of the layers below will download tiles from the Internet. <a\r\n                                    href=\"javascript:;\">Read More.</a>\r\n                                <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\r\n                                    <span aria-hidden=\"true\">&times;</span>\r\n                                </button>\r\n                            </div>\r\n                        </div>\r\n                    </div>\r\n                    <div id=\"baseRow\" class=\"form-group row ifOnline\" title=\"Would you like to use a Tile Basemap?\">\r\n                        <div class=\"col-4\">Basemap</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"BasemapTypes\" id=\"map-basemap-show-hide\"\r\n                                [(ngModel)]=\"SelectedBasemapTypeVariable\" (ngModelChange)=\"onBasemapChange($event)\">\r\n                            </p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                    <div class=\"form-group row ifOnline\" title=\"Would you like to use a Satellite layer?\">\r\n                        <div class=\"col-4\">Satellite</div>\r\n                        <div class=\"col-8\">\r\n                            <p-selectButton [options]=\"SatelliteTypes\" id=\"map-satellite-show-hide\"\r\n                                [(ngModel)]=\"SelectedSatelliteTypeVariable\" (ngModelChange)=\"onSatelliteChange($event)\">\r\n                            </p-selectButton>\r\n                        </div>\r\n                    </div>\r\n                </p-accordionTab>\r\n            </p-accordion>\r\n\r\n        </tab>\r\n        <tab heading=\"{{'Nodes' | localize}}\" customClass=\"m-tabs__item\">\r\n\r\n            <div class=\"form-group row\">\r\n                <div class=\"col-4\">Color</div>\r\n                <div class=\"col-8\"><button class=\"btn btn-sm btn-light w-100 launch-color-options\"\r\n                        (click)=\"displayColorOptions()\">Color Options</button></div>\r\n            </div>\r\n            <div class=\"form-group row\">\r\n                <div class=\"col-4\">Collapsing</div>\r\n                <div class=\"col-8\">\r\n                    <p-selectButton [options]=\"NodeCollapsingTypes\" [(ngModel)]=\"SelectedNodeCollapsingTypeVariable\"\r\n                        (ngModelChange)=\"onNodeCollapsingChange($event)\"></p-selectButton>\r\n                </div>\r\n            </div>\r\n            <div class=\"form-group row\" title=\"How transparent would you like the nodes to be?\">\r\n                <div class=\"col-4\"><label for=\"map-node-transparency\">Transparency</label></div>\r\n                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"map-node-transparency\" min=\"0.00\"\r\n                        max=\"1.00\" step=\"0.01\" value=\"0.00\" [(ngModel)]=\"SelectedNodeTransparencyVariable\"\r\n                        (ngModelChange)=\"onNodeTransparencyChange($event)\"></div>\r\n            </div>\r\n            <div class=\"form-group row\" title=\"How much randomness do you want to add to node locations?\">\r\n                <div class=\"col-4\">\r\n                    <label for=\"map-node-jitter\">Jitter</label>\r\n                    <button id=\"map-node-jitter-reroll\" class=\"btn btn-light btn-sm\">Reroll</button>\r\n                </div>\r\n                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"map-node-jitter\" min=\"-2\" max=\"4\"\r\n                        step=\"0.01\" value=\"-2\" [(ngModel)]=\"SelectedNodeJitterVariable\"\r\n                        (ngModelChange)=\"onNodeJitterChange($event)\"></div>\r\n            </div>\r\n            <div class=\"form-group row\" title=\"What node data should be displayed as a tooltip for the node?\">\r\n                <div class=\"col-4\"><label for=\"map-node-tooltip-variable\">Tooltip</label></div>\r\n                <div class=\"col-8\">\r\n                    <p-dropdown id=\"map-node-tooltip-variable\" [options]=\"FieldList\" appendTo=\"body\"\r\n                        [(ngModel)]=\"SelectedNodeTooltipVariable\" (ngModelChange)=\"onNodeToolTipChange($event)\">\r\n                    </p-dropdown>\r\n                </div>\r\n            </div>\r\n\r\n        </tab>\r\n        <tab heading=\"{{'Links' | localize}}\" customClass=\"m-tabs__item\">\r\n\r\n            <div class=\"form-group row\">\r\n                <div class=\"col-4\">Color</div>\r\n                <div class=\"col-8\"><button class=\"btn btn-sm btn-light w-100 launch-color-options\"\r\n                        (click)=\"displayColorOptions()\">Color Options</button></div>\r\n            </div>\r\n            <div class=\"form-group row\" title=\"How transparent would you like links to be?\">\r\n                <div class=\"col-4\"><label for=\"map-link-transparency\">Transparency</label></div>\r\n                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"map-link-transparency\" min=\"0.00\"\r\n                        max=\"1.00\" step=\"0.01\" value=\"0.00\" [(ngModel)]=\"SelectedLinkTransparencyVariable\"\r\n                        (ngModelChange)=\"onLinkTransparencyChange($event)\"></div>\r\n            </div>\r\n            <div class=\"form-group row\" title=\"What link data would you like displayed as a tooltip for the link?\">\r\n                <div class=\"col-4\"><label for=\"map-link-tooltip-variable\">Tooltip</label></div>\r\n                <div class=\"col-8\">\r\n                    <p-dropdown id=\"map-link-tooltip-variable\" [options]=\"FieldList\" appendTo=\"body\"\r\n                        [(ngModel)]=\"SelectedLinkTooltipVariable\" (ngModelChange)=\"onLinkToolTipChange($event)\">\r\n                    </p-dropdown>\r\n                </div>\r\n            </div>\r\n\r\n        </tab>\r\n    </tabset>\r\n</p-dialog>\r\n\r\n\r\n<p-dialog id=\"network-export-modal\" [(visible)]=\"ShowGEOMapExportPane\" header=\"Export Geospatial Data\"\r\n    (onHide)=\"onCloseExport()\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n            <div class=\"modal-body\" style='min-width: 400px; height: 100%;'>\r\n                <div class=\"form-group row\">\r\n                    <div class=\"col-9\">\r\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\"\r\n                            placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\">\r\n                    </div>\r\n                    <div class=\"col-3\">\r\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" appendTo=\"body\"\r\n                            [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <!-- <div>\r\n                    <p-accordion>\r\n                        <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\r\n                            <div id=\"network-export-advanced\">\r\n\r\n                                <div class=\"form-group row\">\r\n                                    <div class=\"col-3\">\r\n                                        <label for=\"network-export-scale\">Scale</label>\r\n                                    </div>\r\n                                    <div class=\"col-9\">\r\n                                        <input type=\"number\" id=\"network-export-scale\"\r\n                                            class=\"form-control form-control-sm\" min=\"0\" step=\"0.1\" value=\"1\"\r\n                                            [(ngModel)]=\"SelectedNetworkExportScaleVariable\"\r\n                                            (ngModelChange)=\"updateCalculatedResolution($event)\">\r\n                                    </div>\r\n                                </div>\r\n                                <div class=\"form-group row\">\r\n                                    <div class=\"col-3\">Resolution</div>\r\n                                    <div id=\"network-export-dimensions\" class=\"col-9 text-right\">\r\n                                        {{CalculatedResolution}}</div>\r\n                                </div>\r\n                                <div class=\"row\">\r\n                                    <div class=\"col-3\">\r\n                                        <label for=\"network-export-quality\">Quality</label>\r\n                                    </div>\r\n                                    <div class=\"col-9\">\r\n                                        <input type=\"range\" class=\"custom-range\" id=\"network-export-quality\" min=\"0\"\r\n                                            max=\"1.0\" value=\"0.92\" step=\"0.01\"\r\n                                            [(ngModel)]=\"SelectedNetworkExportQualityVariable\">\r\n                                    </div>\r\n                                </div>\r\n                            </div>\r\n                        </p-accordionTab>\r\n                    </p-accordion>\r\n                </div> -->\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\"\r\n                    (click)=\"ShowGEOMapExportPane = !ShowGEOMapExportPane\">Cancel</button>\r\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\"\r\n                    (click)=\"exportVisualization($event)\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->\r\n\r\n<div id=\"mapTooltip\"></div>";
+module.exports = "﻿﻿<!--<div id=\"map\" [ngStyle]=\"svgStyle\"></div>-->\n<!--<p-gmap #gmap [options]=\"options\" [overlays]=\"overlays\"  [style]=\"{'width':'100%','height':'600px'}\" (onMapReady)=\"setMap($event)\"></p-gmap>-->\n\n<!-- <ng-container *ngIf=\"SelectedGeospatialTypeVariable === 'On'\">\n    <br/> -->\n    <!-- <h4>Range <p-calendar [(ngModel)]=\"dateFilterRangeDates\" selectionMode=\"range\" [readonlyInput]=\"true\"></p-calendar></h4> -->\n    <!--<h4>Range: {{dateFilterRangeDates[0] | date: 'shortDate'}} - {{dateFilterRangeDates[1] | date: 'shortDate'}}</h4> -->\n    <!-- <h4>Range: {{dateFilterRangeValues[0] + ' - ' + dateFilterRangeValues[1]}}</h4> -->\n    <!--<p-slider [(ngModel)]=\"dateFilterRangeValues\" [style]=\"{'width':'100%'}\" [range]=\"true\" [min]=\"0\" [max]=\"dateFilterRangeMax\" (onSlideEnd)=\"onDateFilterChange($event)\"></p-slider>\n</ng-container> -->\n\n\n<div class=\"OSM-credit\">Map tiles by <a href=\"http://stamen.com\">Stamen Design</a>, under <a href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>. Data by <a href=\"http://openstreetmap.org\">OpenStreetMap</a>, under <a href=\"http://www.openstreetmap.org/copyright\">ODbL</a>.</div>\n\n<div id=\"tool-btn-container\" class=\"m-portlet\">\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\n    </span>\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\n    </span>\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\n    </span>\n</div>\n<div #mapContainer class=\"map-container\">\n    <!-- <div #gmap style=\"width:100%;height:600px\"></div> -->\n    <ng-container *ngIf=\"leafletInitialOptions\">\n        <div class=\"mapStyle\" leaflet [leafletOptions]=\"leafletInitialOptions\" (leafletMapReady)=\"onMapReady($event)\"\n            [leafletMarkerCluster]=\"leafletMarkers\" [leafletMarkerClusterOptions]=\"leafletMarkerClusterOptions\"\n            (leafletMarkerClusterReady)=\"onMarkerClusterReady($event)\">\n        </div>\n    </ng-container>\n</div>\n\n<div class=\"row\">\n    <div class=\"col-md-4\">\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-color-variable'] != 'None'\"\n            class=\"bottom-table\">\n            Node Colors\n        </h2>\n        <table id=\"node-color-table-bottom-map\" class=\"bottom-table\"></table>\n    </div>\n    <div class=\"col-md-4\">\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['link-color-variable'] != 'None'\"\n            class=\"bottom-table\">\n            Link Colors\n        </h2>\n        <table id=\"link-color-table-bottom-map\" class=\"bottom-table\"></table>\n    </div>\n</div>\n\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\n            <h1><b>Please add data files to load...</b></h1>\n            <br />\n        </div>\n    </div>\n</div>\n\n\n<p-dialog id=\"map-settings-pane\" [position]=\"NodeMapSettingsExportDialogSettings.mapRight\" [(visible)]=\"NodeMapSettingsExportDialogSettings.isVisible\"\n    header=\"Geospatial Settings\" [contentStyle]=\"{'max-height': '70vh'}\">\n    <tabset class=\"tab-container tabbable-line\">\n        <tab heading=\"{{'Data' | localize}}\" customClass=\"m-tabs__item\">\n            <!-- <div class=\"form-group row\">\n                <div class=\"col-4\">Geospatial</div>\n                <div class=\"col-8\">\n                    <p-selectButton [options]=\"GeospatialTypes\" [(ngModel)]=\"SelectedGeospatialTypeVariable\"\n                        (ngModelChange)=\"onGeospatialTypeChange($event)\"></p-selectButton>\n                </div>\n            </div> -->\n\n            <ng-container *ngIf=\"SelectedGeospatialTypeVariable === 'Off'\">\n\n                <div class=\"row\">\n                    <div class=\"col-12\">\n                        <div class=\"alert alert-info alert-dismissible\" role=\"alert\">\n                            Please select the most precise geographic data your inputs have.\n                            <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\n                                <span aria-hidden=\"true\">&times;</span>\n                            </button>\n                        </div>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a latitude variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Latitude</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-lat\" [options]=\"FieldList\" [(ngModel)]=\"SelectedLatitude\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a longitude variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Longitude</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-lon\" [options]=\"FieldList\" [(ngModel)]=\"SelectedLongitude\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a Census Tract variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Census Tract</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-tract\" [options]=\"FieldList\" [(ngModel)]=\"SelectedCensusTract\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a zipcode variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Zipcode</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-zipcode\" [options]=\"FieldList\" [(ngModel)]=\"SelectedZipCode\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a County variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>County</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-county\" [options]=\"FieldList\" [(ngModel)]=\"SelectedCounty\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a (US) State variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>State</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-state\" [options]=\"FieldList\" [(ngModel)]=\"SelectedState\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n                <div class=\"form-group row\" title=\"If your data have a Country variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Country</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedCountry\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n            </ng-container>\n            <ng-container *ngIf=\"SelectedGeospatialTypeVariable === 'On'\">\n                <p>&#11044;  -  Residence Address</p>\n                <p>&#9650;  -  Venue Address</p>\n                <p>&#9632;  -  Exposure Address</p>\n                <!-- <div class=\"form-group row\" title=\"If your data have a Residence Address variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Residence Address &#11044;</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedResidenceAddress\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div> \n\n                <div class=\"form-group row\" title=\"If your data have a Venue Address variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Venue Address &#9650;</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedVenueAddress\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n\n                <div class=\"form-group row\" title=\"If your data have a Exposure Address variable, select that here.\">\n                    <div class=\"col-4\">\n                        <a>Exposure Address &#9632;</a>\n                    </div>\n                    <div class=\"col-8\">\n                        <p-dropdown id=\"map-field-country\" [options]=\"FieldList\" [(ngModel)]=\"SelectedExposureAddress\"\n                            (ngModelChange)=\"onDataChange($event)\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>-->\n            </ng-container>\n\n        </tab>\n        <tab heading=\"{{'Components' | localize}}\" customClass=\"m-tabs__item\">\n\n            <p-accordion>\n                <p-accordionTab style=\"color:#495057\" header=\"Network\">\n                    <div class=\"form-group row\" title=\"Would you like to see Nodes on the map?\">\n                        <div class=\"col-4\">Nodes</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"NodesTypes\" id=\"map-node-show-hide\"\n                                [(ngModel)]=\"SelectedNodesTypeVariable\"\n                                (ngModelChange)=\"onMapNodeShowHideChange($event)\"></p-selectButton>\n                        </div>\n                    </div>\n                    <div class=\"form-group row\" title=\"Would you like to see links on the map?\">\n                        <div class=\"col-4\">Links</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"LinksTypes\" id=\"map-link-show-hide\"\n                                [(ngModel)]=\"SelectedLinksTypeVariable\"\n                                (ngModelChange)=\"onMapLinksShowHideChange($event)\"></p-selectButton>\n                        </div>\n                    </div>\n                </p-accordionTab>\n                <p-accordionTab style=\"color:#495057\" header=\"Offline\">\n                    <div class=\"form-group row\" title=\"Would you like to see Countries on the map?\">\n                        <div class=\"col-4\">Countries</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"CountriesTypes\" id=\"map-countries-show-hide\"\n                                [(ngModel)]=\"SelectedCountriesTypeVariable\"\n                                (ngModelChange)=\"onCountriesShowHidChange($event)\"></p-selectButton>\n                        </div>\n                    </div>\n                    <div class=\"form-group row\" title=\"Would you like to see (US) States on the map?\">\n                        <div class=\"col-4\">States</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"StatesTypes\" id=\"map-states-show-hide\"\n                                [(ngModel)]=\"SelectedStatesTypeVariable\"\n                                (ngModelChange)=\"onStatesShowHideChange($event)\"></p-selectButton>\n                        </div>\n                    </div>\n                    <div class=\"form-group row\" title=\"Would you like to see (US) Counties on the map?\">\n                        <div class=\"col-4\">Counties</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"CountiesTypes\" id=\"map-counties-show-hide\"\n                                [(ngModel)]=\"SelectedCountiesTypeVariable\"\n                                (ngModelChange)=\"onCountiesShowHideChange($event)\"></p-selectButton>\n                        </div>\n                    </div>\n                </p-accordionTab>\n                <p-accordionTab style=\"color:#495057\" header=\"Online\">\n                    <div class=\"row\">\n                        <div class=\"col-12\">\n                            <div class=\"alert alert-warning alert-dismissible\" role=\"alert\">\n                                Enabling any of the layers below will download tiles from the Internet. <a\n                                    href=\"https://github.com/CDCgov/MicrobeTrace/wiki/Tile-Maps\" target=\"_blank\">Read More.</a>\n                                <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"Close\">\n                                    <span aria-hidden=\"true\">&times;</span>\n                                </button>\n                            </div>\n                        </div>\n                    </div>\n                    <div id=\"baseRow\" class=\"form-group row ifOnline\" title=\"Would you like to use a Tile Basemap?\">\n                        <div class=\"col-4\">Basemap</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"BasemapTypes\" id=\"map-basemap-show-hide\"\n                                [(ngModel)]=\"SelectedBasemapTypeVariable\" (ngModelChange)=\"onBasemapChange($event)\">\n                            </p-selectButton>\n                        </div>\n                    </div>\n                    <div class=\"form-group row ifOnline\" title=\"Would you like to use a Satellite layer?\">\n                        <div class=\"col-4\">Satellite</div>\n                        <div class=\"col-8\">\n                            <p-selectButton [options]=\"SatelliteTypes\" id=\"map-satellite-show-hide\"\n                                [(ngModel)]=\"SelectedSatelliteTypeVariable\" (ngModelChange)=\"onSatelliteChange($event)\">\n                            </p-selectButton>\n                        </div>\n                    </div>\n                </p-accordionTab>\n            </p-accordion>\n\n        </tab>\n        <tab heading=\"{{'Nodes' | localize}}\" customClass=\"m-tabs__item\">\n\n            <div class=\"form-group row\">\n                <div class=\"col-4\">Color</div>\n                <div class=\"col-8\"><button class=\"btn btn-sm btn-light w-100 launch-color-options\"\n                        (click)=\"displayColorOptions()\">Color Options</button></div>\n            </div>\n            <div class=\"form-group row\">\n                <div class=\"col-4\">Collapsing</div>\n                <div class=\"col-8\">\n                    <p-selectButton [options]=\"NodeCollapsingTypes\" [(ngModel)]=\"SelectedNodeCollapsingTypeVariable\"\n                        (ngModelChange)=\"onNodeCollapsingChange($event)\"></p-selectButton>\n                </div>\n            </div>\n            <div class=\"form-group row\" title=\"How transparent would you like the nodes to be?\">\n                <div class=\"col-4\"><label for=\"map-node-transparency\">Transparency</label></div>\n                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"map-node-transparency\" min=\"0.00\"\n                        max=\"1.00\" step=\"0.01\" value=\"0.00\" [(ngModel)]=\"SelectedNodeTransparencyVariable\"\n                        (ngModelChange)=\"onNodeTransparencyChange($event)\"></div>\n            </div>\n            <div class=\"form-group row\" title=\"How much randomness do you want to add to node locations?\">\n                <div class=\"col-4\">\n                    <label for=\"map-node-jitter\">Jitter</label>\n                    <button id=\"map-node-jitter-reroll\" class=\"btn btn-light btn-sm\">Reroll</button>\n                </div>\n                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"map-node-jitter\" min=\"-2\" max=\"4\"\n                        step=\"0.01\" value=\"-2\" [(ngModel)]=\"SelectedNodeJitterVariable\"\n                        (ngModelChange)=\"onNodeJitterChange($event)\"></div>\n            </div>\n            <div class=\"form-group row\" title=\"What node data should be displayed as a tooltip for the node?\">\n                <div class=\"col-4\"><label for=\"map-node-tooltip-variable\">Tooltip</label></div>\n                <div class=\"col-8\">\n                    <p-dropdown id=\"map-node-tooltip-variable\" [options]=\"FieldList\" appendTo=\"body\"\n                        [(ngModel)]=\"SelectedNodeTooltipVariable\" (ngModelChange)=\"onNodeToolTipChange($event)\">\n                    </p-dropdown>\n                </div>\n            </div>\n\n        </tab>\n        <tab heading=\"{{'Links' | localize}}\" customClass=\"m-tabs__item\">\n\n            <div class=\"form-group row\">\n                <div class=\"col-4\">Color</div>\n                <div class=\"col-8\"><button class=\"btn btn-sm btn-light w-100 launch-color-options\"\n                        (click)=\"displayColorOptions()\">Color Options</button></div>\n            </div>\n            <div class=\"form-group row\" title=\"How transparent would you like links to be?\">\n                <div class=\"col-4\"><label for=\"map-link-transparency\">Transparency</label></div>\n                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"map-link-transparency\" min=\"0.00\"\n                        max=\"1.00\" step=\"0.01\" value=\"0.00\" [(ngModel)]=\"SelectedLinkTransparencyVariable\"\n                        (ngModelChange)=\"onLinkTransparencyChange($event)\"></div>\n            </div>\n            <div class=\"form-group row\" title=\"What link data would you like displayed as a tooltip for the link?\">\n                <div class=\"col-4\"><label for=\"map-link-tooltip-variable\">Tooltip</label></div>\n                <div class=\"col-8\">\n                    <p-dropdown id=\"map-link-tooltip-variable\" [options]=\"FieldList\" appendTo=\"body\"\n                        [(ngModel)]=\"SelectedLinkTooltipVariable\" (ngModelChange)=\"onLinkToolTipChange($event)\">\n                    </p-dropdown>\n                </div>\n            </div>\n\n        </tab>\n    </tabset>\n</p-dialog>\n\n\n<p-dialog id=\"network-export-modal\" [(visible)]=\"ShowGEOMapExportPane\" header=\"Export Geospatial Data\"\n    (onHide)=\"onCloseExport()\">\n    <div class=\"modal-dialog\" role=\"document\">\n        <div class=\"modal-content\">\n            <div class=\"modal-body\" style='min-width: 400px; height: 100%;'>\n                <div class=\"form-group row\">\n                    <div class=\"col-9\">\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\"\n                            placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\">\n                    </div>\n                    <div class=\"col-3\">\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" appendTo=\"body\"\n                            [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\"></p-dropdown>\n                    </div>\n                </div>\n                <!-- <div>\n                    <p-accordion>\n                        <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\n                            <div id=\"network-export-advanced\">\n\n                                <div class=\"form-group row\">\n                                    <div class=\"col-3\">\n                                        <label for=\"network-export-scale\">Scale</label>\n                                    </div>\n                                    <div class=\"col-9\">\n                                        <input type=\"number\" id=\"network-export-scale\"\n                                            class=\"form-control form-control-sm\" min=\"0\" step=\"0.1\" value=\"1\"\n                                            [(ngModel)]=\"SelectedNetworkExportScaleVariable\"\n                                            (ngModelChange)=\"updateCalculatedResolution($event)\">\n                                    </div>\n                                </div>\n                                <div class=\"form-group row\">\n                                    <div class=\"col-3\">Resolution</div>\n                                    <div id=\"network-export-dimensions\" class=\"col-9 text-right\">\n                                        {{CalculatedResolution}}</div>\n                                </div>\n                                <div class=\"row\">\n                                    <div class=\"col-3\">\n                                        <label for=\"network-export-quality\">Quality</label>\n                                    </div>\n                                    <div class=\"col-9\">\n                                        <input type=\"range\" class=\"custom-range\" id=\"network-export-quality\" min=\"0\"\n                                            max=\"1.0\" value=\"0.92\" step=\"0.01\"\n                                            [(ngModel)]=\"SelectedNetworkExportQualityVariable\">\n                                    </div>\n                                </div>\n                            </div>\n                        </p-accordionTab>\n                    </p-accordion>\n                </div> -->\n            </div>\n            <div class=\"modal-footer\">\n                <button type=\"button\" class=\"btn btn-error\"\n                    (click)=\"ShowGEOMapExportPane = !ShowGEOMapExportPane\">Cancel</button>\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\"\n                    (click)=\"exportVisualization($event)\">Export</button>\n            </div>\n        </div><!-- /.modal-content -->\n    </div><!-- /.modal-dialog -->\n</p-dialog><!-- /.modal -->\n\n<div id=\"mapTooltip\"></div>";
 
 /***/ }),
 
@@ -17903,7 +18769,7 @@ module.exports = "﻿﻿<!--<div id=\"map\" [ngStyle]=\"svgStyle\"></div>-->\r\n
 /***/ ((module) => {
 
 "use strict";
-module.exports = "﻿﻿<div class=\"m-content\">\r\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n        </span>\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n        </span>\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\r\n        </span>\r\n    </div>\r\n    <div class=\"m-portlet__body\" style=\"height: 100%;\">\r\n        <br />\r\n        <div className=\"phylocanvas\" id=\"phylocanvas\" style=\"height: 800px; cursor: grab;\"></div>\r\n        <div id=\"phyloTooltip\"></div>\r\n    </div>\r\n</div>\r\n<div class=\"view-controls\">\r\n\r\n    <p-dialog id=\"phylotree-settings-pane\" \r\n              [positionLeft]=\"PhylogeneticTreeExportDialogSettings.left\" \r\n              [positionTop]=\"PhylogeneticTreeExportDialogSettings.top\" \r\n              [(visible)]=\"PhylogeneticTreeExportDialogSettings.isVisible\"  \r\n              [contentStyle]=\"{'overflow': 'visible'}\"\r\n              header=\"Phylogenetic Tree Settings\" \r\n              >\r\n              <tabset class=\"tab-container tabbable-line\">\r\n              <tab heading=\"{{'Tree' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n              <p-accordion [multiple]='true'>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Layout\">\r\n                      <div #treecontrolslabels>\r\n                          <div class=\"form-group row tree-type-row\" title=\"What kind of tree should be displayed?\" style=\"overflow:visible\">\r\n                              <div class=\"col-4\"><label for=\"tree-layout\">Layout</label></div>\r\n                              <div class=\"col-8\">\r\n                                  <p-dropdown id=\"tree-layout\" [options]=\"TreeLayouts\" [(ngModel)]=\"SelectedTreeLayoutVariable\" (ngModelChange)=\"onTreeLayoutChange($event)\"> </p-dropdown>\r\n                              </div>\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Mode\">\r\n                      <div #treecontrolslabels>\r\n                          <div class=\"form-group row tree-type-row\" title=\"What kind of tree should be displayed?\" style=\"overflow:visible\">\r\n                              <div class=\"col-4\"><label for=\"tree-mode\">Mode</label></div>\r\n                              <div class=\"col-8\">\r\n                                  <p-dropdown id=\"tree-mode\" [options]=\"TreeModes\" [(ngModel)]=\"SelectedTreeModeVariable\" (ngModelChange)=\"onTreeModeChange($event)\"> </p-dropdown>\r\n                              </div>\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Type\">\r\n                      <div #treecontrolslabels>\r\n                          <div class=\"form-group row tree-type-row\" title=\"What kind of tree should be displayed?\" style=\"overflow:visible\">\r\n                              <div class=\"col-4\"><label for=\"tree-type\">Type</label></div>\r\n                              <div class=\"col-8\">\r\n                                  <p-dropdown id=\"tree-type\" [options]=\"TreeTypes\" [(ngModel)]=\"SelectedTreeTypeVariable\" (ngModelChange)=\"onTreeTypeChange($event)\"> </p-dropdown>\r\n                              </div>\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n              </p-accordion>\r\n              </tab>\r\n\r\n              <tab heading=\"{{'Leaves' | localize}}\" customClass=\"m-tabs__item\">\r\n              <p-accordion>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                      <div #leafcontrolslabels>\r\n                          <div class=\"form-group row leaf-label-visibility-row\" title=\"Show leaf labels?\">\r\n                              <div class=\"col-4\">Show Leaf Labels</div>\r\n                              <div class=\"col-8\">\r\n                                  <p-selectButton id=\"leaf-label-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedLeafLabelShowVariable\" (ngModelChange)=\"onLeafLabelShowChange($event)\"></p-selectButton>\r\n                              </div>\r\n                          </div>\r\n                          <div class=\"form-group row leaf-label-size-row\" title=\"How big should leaf labels be?\">\r\n                              <div class=\"col-4\"><label for=\"leaf-label-size\">Label Size</label></div>\r\n                              <input type=\"range\" class=\"custom-range\" id=\"leaf-label-size\" min=\"1\" value=\"{{ SelectedLeafLabelSizeVariable }}\" step=\"1\" max=\"32\" [(ngModel)]=\"SelectedLeafLabelSizeVariable\" (ngModelChange)=\"onLeafLabelSizeChange($event)\">\r\n                          </div>\r\n                          <div class=\"form-group row leaf-tooltip-visibility-row\" title=\"Show leaf tooltips?\">\r\n                              <div class=\"col-4\">Show Leaf Tooltips</div>\r\n                              <div class=\"col-8\">\r\n                                  <p-selectButton id=\"leaf-tooltip-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedLeafTooltipShowVariable\" (ngModelChange)=\"onLeafLabelTooltipShowChange($event)\"></p-selectButton>\r\n                              </div>\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Leaf Size\">\r\n                      <div #branchcontrolslabels>\r\n                          <!--<div class=\"form-group row leaf-shape-row\" title=\"What shape should leaves be?\">\r\n                              <div class=\"col-4\"><label for=\"leaf-shape-variable\">Leaf Shape</label></div>\r\n                              <p-dropdown id=\"leaf-shape-variable\" [options]=\"LeafShapes\" appendTo=\"body\" [(ngModel)]=\"SelectedLeafShapeVariable\" (ngModelChange)=\"onLeafShapeVariableChange($event)\"></p-dropdown>\r\n                          </div>-->\r\n                          <div class=\"form-group row leaf-size-row\" title=\"How big should leaves be?\">\r\n                              <div class=\"col-4\"><label for=\"leaf-size\">Leaf Size</label></div>\r\n                              <input type=\"range\" class=\"custom-range\" id=\"leaf-size\" min=\"0.5\" value=\"{{ SelectedLeafNodeSizeVariable }}\" step=\"0.5\" max=\"10\" [(ngModel)]=\"SelectedLeafNodeSizeVariable\" (ngModelChange)=\"onLeafSizeChange($event)\">\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                      <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                  </p-accordionTab>\r\n              </p-accordion>\r\n              </tab>\r\n\r\n              <tab heading=\"{{'Branches' | localize}}\" customClass=\"m-tabs__item\">\r\n              <p-accordion>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Labels\">\r\n                      <div #branchcontrolslabels>\r\n                          <div class=\"form-group row branch-distance-visibility-row\" title=\"Show distance labels?\">\r\n                              <div class=\"col-4\"><label for=\"branch-distance-visibility\">Distance Labels</label></div>\r\n                              <div class=\"col-8\">\r\n                                  <p-selectButton id=\"branch-distance-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedBranchDistanceShowVariable\" (ngModelChange)=\"onBranchDistanceShowChange($event)\"></p-selectButton>\r\n                              </div>\r\n                          </div>\r\n                          <div class=\"form-group row link-size-row\" title=\"How big should branches be?\">\r\n                              <div class=\"col-4\"><label for=\"link-size\">Branch Size</label></div>\r\n                              <input type=\"range\" class=\"custom-range\" id=\"link-size\" min=\"1\" value=\"1\" step=\"1\" max=\"25\" [(ngModel)]=\"SelectedBranchDistanceSizeVariable\" (ngModelChange)=\"onBranchDistanceSizeChange($event)\">\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Branch Size\">\r\n                      <div #branchcontrollables>\r\n                          <div class=\"form-group row branch-node-visibility-row\" title=\"Show branch Nodes?\">\r\n                              <div class=\"col-4\"><label for=\"branch-node-visibility\">Branch Nodes</label></div>\r\n                              <div class=\"col-8\">\r\n                                  <p-selectButton id=\"branch-node-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedBranchNodeShowVariable\" (ngModelChange)=\"onBranchNodeShowChange($event)\"></p-selectButton>\r\n                              </div>\r\n                          </div>\r\n                          <div class=\"form-group row branch-node-size-row\" title=\"How big should branch nodes be?\">\r\n                              <div class=\"col-4\"><label for=\"link-size\">Branch Node Size</label></div>\r\n                              <input type=\"range\" class=\"custom-range\" id=\"branch-node-size\" min=\"1\" value=\"{{ SelectedBranchNodeSizeVariable }}\" step=\"0.5\" max=\"10\" [(ngModel)]=\"SelectedBranchNodeSizeVariable\" (ngModelChange)=\"onBranchNodeSizeChange($event)\">\r\n                          </div>\r\n                          <div class=\"form-group row link-size-row\" title=\"How big should branches be?\">\r\n                              <div class=\"col-4\"><label for=\"link-size\">Branch Size</label></div>\r\n                              <input type=\"range\" class=\"custom-range\" id=\"link-size\" min=\"1\" value=\"{{ SelectedBranchSizeVariable }}\" step=\"1\" max=\"10\" [(ngModel)]=\"SelectedBranchSizeVariable\" (ngModelChange)=\"onBranchSizeChange($event)\">\r\n                          </div>\r\n                      </div>\r\n                  </p-accordionTab>\r\n                  <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                      <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                  </p-accordionTab>\r\n              </p-accordion>\r\n              </tab>\r\n              </tabset>\r\n    </p-dialog>\r\n</div>\r\n<div id=\"phylo-context-menu\" class=\"dropdown-menu\">\r\n    <div id=\"reroot\" class=\"dropdown-item\">Set As Root</div>\r\n    <div id=\"rotate\" class=\"dropdown-item\">Rotate</div>\r\n    <div id=\"flip\" class=\"dropdown-item\">Flip</div>\r\n</div>\r\n<p-dialog id=\"network-export-modal\" [(visible)]=\"ShowPhylogeneticExportPane\" header=\"Export Phylogenetic Tree\" class=\"dialogSize\" (onHide)=\"onCloseExport()\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n            <div class=\"modal-body\" style='min-width: 500px; height: 100%;'>\r\n                <p-accordion [multiple]=\"true\">\r\n                    <p-accordionTab header=\"Export Image of Tree\" style=\"color:#495057\" [selected]=\"true\">\r\n                        <div class=\"form-group row\">\r\n                            <div class=\"col-8\">\r\n                                <input type=\"text\" id=\"tree-image-filename\" class=\"form-control form-control-sm\" placeholder=\"Image Filename\" [(ngModel)]=\"SelectedTreeImageFilenameVariable\" >\r\n                            </div>\r\n                            <div class=\"col-3\">\r\n                                <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" ></p-dropdown>\r\n                            </div>\r\n                            <div class=\"col-8\">\r\n                                <button type=\"button\" id=\"export-tree\" class=\"btn btn-primary\" (click)=\"saveImage($event)\">Save Image</button>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab header=\"Export Newick String\" style=\"color:#495057\" [selected]=\"true\">\r\n                        <div class=\"form-group row\">\r\n                            <div class=\"col-8\">\r\n                                <input type=\"text\" id=\"newick-string-filename\" class=\"form-control form-control-sm\" placeholder=\"Newick Filename\" [(ngModel)]=\"SelectedNewickStringFilenameVariable\" >\r\n                            </div>\r\n                            <div class=\"col-3\"></div>\r\n                            <div class=\"col-8\">\r\n                                <button type=\"button\" id=\"export-newick\" class=\"btn btn-primary\" (click)=\"saveNewickString($event)\">Save Newick String</button>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </div>\r\n                <div class=\"modal-footer\">\r\n                </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->\r\n";
+module.exports = "﻿﻿<div class=\"m-content\">\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\n        </span>\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\n            <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\n        </span>\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\n            <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\n        </span>\n    </div>\n    <div class=\"m-portlet__body\" style=\"height: 100%;\">\n        <br />\n        <div className=\"phylocanvas\" id=\"phylocanvas\" style=\"height: 800px; cursor: grab;\"></div>\n        <div id=\"phyloTooltip\"></div>\n    </div>\n</div>\n<div class=\"view-controls\">\n\n    <p-dialog id=\"phylotree-settings-pane\" \n              [positionLeft]=\"PhylogeneticTreeExportDialogSettings.left\" \n              [positionTop]=\"PhylogeneticTreeExportDialogSettings.top\" \n              [(visible)]=\"PhylogeneticTreeExportDialogSettings.isVisible\"  \n              [contentStyle]=\"{'overflow': 'visible'}\"\n              header=\"Phylogenetic Tree Settings\" \n              >\n              <tabset class=\"tab-container tabbable-line\">\n              <tab heading=\"{{'Tree' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\n              <p-accordion [multiple]='true'>\n                  <p-accordionTab style=\"color:#495057\" header=\"Layout\">\n                      <div #treecontrolslabels>\n                          <div class=\"form-group row tree-type-row\" title=\"What kind of tree should be displayed?\" style=\"overflow:visible\">\n                              <div class=\"col-4\"><label for=\"tree-layout\">Layout</label></div>\n                              <div class=\"col-8\">\n                                  <p-dropdown id=\"tree-layout\" [options]=\"TreeLayouts\" [(ngModel)]=\"SelectedTreeLayoutVariable\" (ngModelChange)=\"onTreeLayoutChange($event)\"> </p-dropdown>\n                              </div>\n                          </div>\n                      </div>\n                  </p-accordionTab>\n                  <p-accordionTab style=\"color:#495057\" header=\"Mode\">\n                      <div #treecontrolslabels>\n                          <div class=\"form-group row tree-type-row\" title=\"What kind of tree should be displayed?\" style=\"overflow:visible\">\n                              <div class=\"col-4\"><label for=\"tree-mode\">Mode</label></div>\n                              <div class=\"col-8\">\n                                  <p-dropdown id=\"tree-mode\" [options]=\"TreeModes\" [(ngModel)]=\"SelectedTreeModeVariable\" (ngModelChange)=\"onTreeModeChange($event)\"> </p-dropdown>\n                              </div>\n                          </div>\n                      </div>\n                  </p-accordionTab>\n                  <p-accordionTab style=\"color:#495057\" header=\"Type\">\n                      <div #treecontrolslabels>\n                          <div class=\"form-group row tree-type-row\" title=\"What kind of tree should be displayed?\" style=\"overflow:visible\">\n                              <div class=\"col-4\"><label for=\"tree-type\">Type</label></div>\n                              <div class=\"col-8\">\n                                  <p-dropdown id=\"tree-type\" [options]=\"TreeTypes\" [(ngModel)]=\"SelectedTreeTypeVariable\" (ngModelChange)=\"onTreeTypeChange($event)\"> </p-dropdown>\n                              </div>\n                          </div>\n                      </div>\n                  </p-accordionTab>\n              </p-accordion>\n              </tab>\n\n              <tab heading=\"{{'Leaves' | localize}}\" customClass=\"m-tabs__item\">\n              <p-accordion>\n                  <p-accordionTab style=\"color:#495057\" header=\"Labels and Tooltips\">\n                      <div #leafcontrolslabels>\n                          <div class=\"form-group row leaf-label-visibility-row\" title=\"Show leaf labels?\">\n                              <div class=\"col-4\">Show Leaf Labels</div>\n                              <div class=\"col-8\">\n                                  <p-selectButton id=\"leaf-label-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedLeafLabelShowVariable\" (ngModelChange)=\"onLeafLabelShowChange($event)\"></p-selectButton>\n                              </div>\n                          </div>\n                          <div class=\"form-group row leaf-label-size-row\" title=\"How big should leaf labels be?\">\n                              <div class=\"col-4\"><label for=\"leaf-label-size\">Label Size</label></div>\n                              <input type=\"range\" class=\"custom-range\" id=\"leaf-label-size\" min=\"1\" value=\"{{ SelectedLeafLabelSizeVariable }}\" step=\"1\" max=\"32\" [(ngModel)]=\"SelectedLeafLabelSizeVariable\" (ngModelChange)=\"onLeafLabelSizeChange($event)\">\n                          </div>\n                          <div class=\"form-group row leaf-tooltip-visibility-row\" title=\"Show leaf tooltips?\">\n                              <div class=\"col-4\">Show Leaf Tooltips</div>\n                              <div class=\"col-8\">\n                                  <p-selectButton id=\"leaf-tooltip-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedLeafTooltipShowVariable\" (ngModelChange)=\"onLeafLabelTooltipShowChange($event)\"></p-selectButton>\n                              </div>\n                          </div>\n                      </div>\n                  </p-accordionTab>\n                  <p-accordionTab style=\"color:#495057\" header=\"Leaf Size\">\n                      <div #branchcontrolslabels>\n                          <!--<div class=\"form-group row leaf-shape-row\" title=\"What shape should leaves be?\">\n                              <div class=\"col-4\"><label for=\"leaf-shape-variable\">Leaf Shape</label></div>\n                              <p-dropdown id=\"leaf-shape-variable\" [options]=\"LeafShapes\" appendTo=\"body\" [(ngModel)]=\"SelectedLeafShapeVariable\" (ngModelChange)=\"onLeafShapeVariableChange($event)\"></p-dropdown>\n                          </div>-->\n                          <div class=\"form-group row leaf-size-row\" title=\"How big should leaves be?\">\n                              <div class=\"col-4\"><label for=\"leaf-size\">Leaf Size</label></div>\n                              <input type=\"range\" class=\"custom-range\" id=\"leaf-size\" min=\"0.5\" value=\"{{ SelectedLeafNodeSizeVariable }}\" step=\"0.5\" max=\"10\" [(ngModel)]=\"SelectedLeafNodeSizeVariable\" (ngModelChange)=\"onLeafSizeChange($event)\">\n                          </div>\n                      </div>\n                  </p-accordionTab>\n                  <p-accordionTab style=\"color:#495057\" header=\"Colors\">\n                      <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\n                  </p-accordionTab>\n              </p-accordion>\n              </tab>\n\n              <tab heading=\"{{'Branches' | localize}}\" customClass=\"m-tabs__item\">\n              <p-accordion>\n                  <p-accordionTab style=\"color:#495057\" header=\"Labels\">\n                      <div #branchcontrolslabels>\n                          <div class=\"form-group row branch-distance-visibility-row\" title=\"Show distance labels?\">\n                              <div class=\"col-4\"><label for=\"branch-distance-visibility\">Distance Labels</label></div>\n                              <div class=\"col-8\">\n                                  <p-selectButton id=\"branch-distance-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedBranchDistanceShowVariable\" (ngModelChange)=\"onBranchDistanceShowChange($event)\"></p-selectButton>\n                              </div>\n                          </div>\n                          <div class=\"form-group row link-size-row\" title=\"How big should branches be?\">\n                              <div class=\"col-4\"><label for=\"link-size\">Branch Size</label></div>\n                              <input type=\"range\" class=\"custom-range\" id=\"link-size\" min=\"1\" value=\"1\" step=\"1\" max=\"25\" [(ngModel)]=\"SelectedBranchDistanceSizeVariable\" (ngModelChange)=\"onBranchDistanceSizeChange($event)\">\n                          </div>\n                      </div>\n                  </p-accordionTab>\n                  <p-accordionTab style=\"color:#495057\" header=\"Branch Size\">\n                      <div #branchcontrollables>\n                          <div class=\"form-group row branch-node-visibility-row\" title=\"Show branch Nodes?\">\n                              <div class=\"col-4\"><label for=\"branch-node-visibility\">Branch Nodes</label></div>\n                              <div class=\"col-8\">\n                                  <p-selectButton id=\"branch-node-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"SelectedBranchNodeShowVariable\" (ngModelChange)=\"onBranchNodeShowChange($event)\"></p-selectButton>\n                              </div>\n                          </div>\n                          <div class=\"form-group row branch-node-size-row\" title=\"How big should branch nodes be?\">\n                              <div class=\"col-4\"><label for=\"link-size\">Branch Node Size</label></div>\n                              <input type=\"range\" class=\"custom-range\" id=\"branch-node-size\" min=\"1\" value=\"{{ SelectedBranchNodeSizeVariable }}\" step=\"0.5\" max=\"10\" [(ngModel)]=\"SelectedBranchNodeSizeVariable\" (ngModelChange)=\"onBranchNodeSizeChange($event)\">\n                          </div>\n                          <div class=\"form-group row link-size-row\" title=\"How big should branches be?\">\n                              <div class=\"col-4\"><label for=\"link-size\">Branch Size</label></div>\n                              <input type=\"range\" class=\"custom-range\" id=\"link-size\" min=\"1\" value=\"{{ SelectedBranchSizeVariable }}\" step=\"1\" max=\"10\" [(ngModel)]=\"SelectedBranchSizeVariable\" (ngModelChange)=\"onBranchSizeChange($event)\">\n                          </div>\n                      </div>\n                  </p-accordionTab>\n                  <p-accordionTab style=\"color:#495057\" header=\"Colors\">\n                      <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\n                  </p-accordionTab>\n              </p-accordion>\n              </tab>\n              </tabset>\n    </p-dialog>\n</div>\n<div id=\"phylo-context-menu\" class=\"dropdown-menu\">\n    <div id=\"reroot\" class=\"dropdown-item\">Set As Root</div>\n    <div id=\"rotate\" class=\"dropdown-item\">Rotate</div>\n    <div id=\"flip\" class=\"dropdown-item\">Flip</div>\n</div>\n<p-dialog id=\"network-export-modal\" [(visible)]=\"ShowPhylogeneticExportPane\" header=\"Export Phylogenetic Tree\" class=\"dialogSize\" (onHide)=\"onCloseExport()\">\n    <div class=\"modal-dialog\" role=\"document\">\n        <div class=\"modal-content\">\n            <div class=\"modal-body\" style='min-width: 500px; height: 100%;'>\n                <p-accordion [multiple]=\"true\">\n                    <p-accordionTab header=\"Export Image of Tree\" style=\"color:#495057\" [selected]=\"true\">\n                        <div class=\"form-group row\">\n                            <div class=\"col-8\">\n                                <input type=\"text\" id=\"tree-image-filename\" class=\"form-control form-control-sm\" placeholder=\"Image Filename\" [(ngModel)]=\"SelectedTreeImageFilenameVariable\" >\n                            </div>\n                            <div class=\"col-3\">\n                                <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" ></p-dropdown>\n                            </div>\n                            <div class=\"col-8\">\n                                <button type=\"button\" id=\"export-tree\" class=\"btn btn-primary\" (click)=\"saveImage($event)\">Save Image</button>\n                            </div>\n                        </div>\n                    </p-accordionTab>\n                    <p-accordionTab header=\"Export Newick String\" style=\"color:#495057\" [selected]=\"true\">\n                        <div class=\"form-group row\">\n                            <div class=\"col-8\">\n                                <input type=\"text\" id=\"newick-string-filename\" class=\"form-control form-control-sm\" placeholder=\"Newick Filename\" [(ngModel)]=\"SelectedNewickStringFilenameVariable\" >\n                            </div>\n                            <div class=\"col-3\"></div>\n                            <div class=\"col-8\">\n                                <button type=\"button\" id=\"export-newick\" class=\"btn btn-primary\" (click)=\"saveNewickString($event)\">Save Newick String</button>\n                            </div>\n                        </div>\n                    </p-accordionTab>\n                </p-accordion>\n            </div>\n                <div class=\"modal-footer\">\n                </div>\n        </div><!-- /.modal-content -->\n    </div><!-- /.modal-dialog -->\n</p-dialog><!-- /.modal -->\n";
 
 /***/ }),
 
@@ -17914,7 +18780,7 @@ module.exports = "﻿﻿<div class=\"m-content\">\r\n    <div id=\"tool-btn-cont
 /***/ ((module) => {
 
 "use strict";
-module.exports = "﻿﻿<div class=\"table-wrapper\">\r\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\r\n        <span class=\"tool-btn\" style=\"overflow: visible; position: relative; width: 110px; display: inline;\">\r\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n        </span>\r\n        <span  class=\"tool-btn\" style=\"overflow: visible; position: relative; width: 110px; display: inline;\">\r\n            <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n        </span>\r\n        <span class=\"data-types\" id=\"dataType\" style=\"overflow: visible; position: relative; width: 110px; display: inline;\">\r\n            <p-selectButton #dataSet [options]=\"dataSetView\" [(ngModel)]=\"dataSetViewSelected\" (onOptionClick)=\"openSelectDataSetScreen($event)\"></p-selectButton>\r\n        </span>\r\n        <p-multiSelect [options]=\"SelectedTableData.availableColumns\" [(ngModel)]=\"SelectedTableData.tableColumns\"[showToggleAll]=false></p-multiSelect>\r\n    </div>\r\n\r\n<div class=\"row align-items-center\">\r\n    <!-- [busyIf]=\"primengTableHelper.isLoading\" -->\r\n    <div class=\"primeng-datatable-container\">\r\n        <p-table #dt *ngIf=\"IsDataAvailable == true && SelectedTableData\" \r\n            [value]=\"SelectedTableData.data\" \r\n            [rowHover]=\"true\"\r\n            [rows]=\"10\" \r\n            [showCurrentPageReport]=\"true\"\r\n            [rowsPerPageOptions]=\"[10,25,50,75,100]\" \r\n            [loading]=\"loading\" \r\n            [paginator]=\"true\" \r\n            [filterDelay]=\"1000\"\r\n            (onFilter)=\"onFilter($event)\" \r\n            selectionMode=\"{{TableType === 'node' ? 'multiple' : null}}\"\r\n            [(selection)]=\"SelectedTableData.dataSelection\" \r\n            (onRowSelect)=\"onRowSelect($event)\"\r\n            (onRowUnselect)=\"onRowUnselect($event)\" \r\n            [scrollable]=\"true\" \r\n            ScrollWidth=\"100%\"\r\n            [resizableColumns]=\"true\" \r\n            columnResizeMode=\"expand\"\r\n            [columns]=\"SelectedTableData.tableColumns\">\r\n            <!-- [responsive]=\"true\"  -->\r\n            <!-- [autoLayout]=\"true\" \r\n            styleClass=\"ui-table-responsive\"  -->\r\n            <ng-template pTemplate=\"colgroup\" let-columns>\r\n                <colgroup>\r\n                    <col *ngFor=\"let col of SelectedTableData.tableColumns\">\r\n                </colgroup>\r\n            </ng-template>\r\n            <ng-template pTemplate=\"header\">\r\n                <tr [pSelectableRow]=\"datarow\">\r\n                    <th style=\"width: 150px\" pSortableColumn=\"{{col.field}}\" *ngFor=\"let col of SelectedTableData.tableColumns\">\r\n                        {{col.header}}<p-sortIcon field=\"{{col.field}}\"></p-sortIcon>\r\n                    </th>\r\n                </tr>\r\n                <tr>\r\n                    <th style=\"width: 150px\"  *ngFor=\"let col of SelectedTableData.tableColumns\">\r\n                        <div class=\"wrapper\">\r\n                            <select class=\"filterType\" [(ngModel)]=\"col.filterType\" (change)=\"onTableFilter(col)\">\r\n                                <option *ngFor=\"let filterType of filterTypes\" [ngValue]=\"filterType.value\">{{filterType.label}}\r\n                                </option>\r\n                            </select>\r\n                            <input class=\"item\" pInputText type=\"text\" (input)=\"onTableFilter(col)\"\r\n                                [(ngModel)]=\"col.filterValue\" class=\"p-column-filter\" style=\"width:100%;\">\r\n                        </div>\r\n                    </th>\r\n                </tr>\r\n\r\n            </ng-template>\r\n            <ng-template pTemplate=\"body\" let-datarow>\r\n                <tr class=\"ui-selectable-row\" [pSelectableRow]=\"datarow\">\r\n                    <td style=\"width: 150px\"  *ngFor=\"let col of SelectedTableData.tableColumns\">\r\n                        {{datarow[col.field]}}\r\n                    </td>\r\n                </tr>\r\n            </ng-template>\r\n        </p-table>\r\n    </div>\r\n</div>\r\n\r\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\r\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\r\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\r\n            <h1><b>Please add data files to load...</b></h1>\r\n            <br />\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n\r\n<p-dialog id=\"table-settings-pane\" [(visible)]=\"ShowTableSettingsPane\" header=\"Table Settings\"\r\n    [style]=\"{width: '45vw', height:'300px'}\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n            <div class=\"modal-body\">\r\n                <tabset class=\"tab-container tabbable-line\" style='width: 100%;'>\r\n                    <tab heading=\"{{'Table' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                        <div class=\"tab-pane fade show active\" id=\"table-node-settings\" role=\"tabpanel\"\r\n                            aria-labelledby=\"nodes-tab\">\r\n                            <div class=\"tab-content\">\r\n                                <div class=\"tab-pane fade show active\" role=\"tabpanel\" aria-labelledby=\"table-tab\">\r\n                                    <div class=\"form-group row\"\r\n                                        title=\"What size would you like the Table's font to be?\">\r\n                                        <div class=\"col-4\"><label for=\"table-font-size\">Text Size</label></div>\r\n                                        <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"table-font-size\"\r\n                                                min=\"6\" value=\"14\" max=\"72\" step=\"1\"\r\n                                                [(ngModel)]=\"SelectedTextSizeVariable\"\r\n                                                (ngModelChange)=\"onDataChange($event)\"></div>\r\n                                    </div>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </tab>\r\n                </tabset>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</p-dialog>\r\n\r\n\r\n<p-dialog id=\"network-export-modal\" [(visible)]=\"ShowTableExportPane\" header=\"Export Table\"\r\n    [style]=\"{width: '30vw', height:'150px'}\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n            <div class=\"modal-body\" style='width: 400px; height: 100%;'>\r\n                <div class=\"form-group row\">\r\n                    <div class=\"col-9\">\r\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\"\r\n                            placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\">\r\n                    </div>\r\n                    <div class=\"col-3\">\r\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\"\r\n                            [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" appendTo=\"body\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\"\r\n                    (click)=\"ShowTableExportPane = !ShowTableExportPane\">Cancel</button>\r\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\"\r\n                    (click)=\"exportVisualization($event)\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->\r\n</div>";
+module.exports = "﻿﻿<div class=\"table-wrapper\">\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\n        <span class=\"tool-btn\" style=\"overflow: visible; position: relative; width: 110px; display: inline;\">\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\n        </span>\n        <span  class=\"tool-btn\" style=\"overflow: visible; position: relative; width: 110px; display: inline;\">\n            <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\n        </span>\n        <span class=\"data-types\" id=\"dataType\" style=\"overflow: visible; position: relative; width: 110px; display: inline;\">\n            <p-selectButton #dataSet [options]=\"dataSetView\" [(ngModel)]=\"dataSetViewSelected\" (onOptionClick)=\"openSelectDataSetScreen($event)\"></p-selectButton>\n        </span>\n        <p-multiSelect [options]=\"SelectedTableData.availableColumns\" [(ngModel)]=\"SelectedTableData.tableColumns\"[showToggleAll]=false></p-multiSelect>\n    </div>\n\n<div class=\"row align-items-center\">\n    <!-- [busyIf]=\"primengTableHelper.isLoading\" -->\n    <div class=\"primeng-datatable-container\">\n        <p-table #dt *ngIf=\"IsDataAvailable == true && SelectedTableData\" \n            [value]=\"SelectedTableData.data\" \n            [rowHover]=\"true\"\n            [rows]=\"10\" \n            [showCurrentPageReport]=\"true\"\n            [rowsPerPageOptions]=\"[10,25,50,75,100]\" \n            [loading]=\"loading\" \n            [paginator]=\"true\" \n            [filterDelay]=\"1000\"\n            (onFilter)=\"onFilter($event)\" \n            selectionMode=\"{{TableType === 'node' ? 'multiple' : null}}\"\n            [(selection)]=\"SelectedTableData.dataSelection\" \n            (onRowSelect)=\"onRowSelect($event)\"\n            (onRowUnselect)=\"onRowUnselect($event)\" \n            [scrollable]=\"true\" \n            ScrollWidth=\"100%\"\n            [resizableColumns]=\"true\" \n            columnResizeMode=\"expand\"\n            [columns]=\"SelectedTableData.tableColumns\">\n            <!-- [responsive]=\"true\"  -->\n            <!-- [autoLayout]=\"true\" \n            styleClass=\"ui-table-responsive\"  -->\n            <ng-template pTemplate=\"colgroup\" let-columns>\n                <colgroup>\n                    <col *ngFor=\"let col of SelectedTableData.tableColumns\">\n                </colgroup>\n            </ng-template>\n            <ng-template pTemplate=\"header\">\n                <tr [pSelectableRow]=\"datarow\">\n                    <th style=\"width: 150px\" pSortableColumn=\"{{col.field}}\" *ngFor=\"let col of SelectedTableData.tableColumns\">\n                        {{col.header}}<p-sortIcon field=\"{{col.field}}\"></p-sortIcon>\n                    </th>\n                </tr>\n                <tr>\n                    <th style=\"width: 150px\"  *ngFor=\"let col of SelectedTableData.tableColumns\">\n                        <div class=\"wrapper\">\n                            <select class=\"filterType\" [(ngModel)]=\"col.filterType\" (change)=\"onTableFilter(col)\">\n                                <option *ngFor=\"let filterType of filterTypes\" [ngValue]=\"filterType.value\">{{filterType.label}}\n                                </option>\n                            </select>\n                            <input class=\"item\" pInputText type=\"text\" (input)=\"onTableFilter(col)\"\n                                [(ngModel)]=\"col.filterValue\" class=\"p-column-filter\" style=\"width:100%;\">\n                        </div>\n                    </th>\n                </tr>\n\n            </ng-template>\n            <ng-template pTemplate=\"body\" let-datarow>\n                <tr class=\"ui-selectable-row\" [pSelectableRow]=\"datarow\">\n                    <td style=\"width: 150px\"  *ngFor=\"let col of SelectedTableData.tableColumns\">\n                        {{datarow[col.field]}}\n                    </td>\n                </tr>\n            </ng-template>\n        </p-table>\n    </div>\n</div>\n\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\n            <h1><b>Please add data files to load...</b></h1>\n            <br />\n        </div>\n    </div>\n</div>\n\n\n<p-dialog id=\"table-settings-pane\" [(visible)]=\"ShowTableSettingsPane\" header=\"Table Settings\"\n    [style]=\"{width: '45vw', height:'300px'}\">\n    <div class=\"modal-dialog\" role=\"document\">\n        <div class=\"modal-content\">\n            <div class=\"modal-body\">\n                <tabset class=\"tab-container tabbable-line\" style='width: 100%;'>\n                    <tab heading=\"{{'Table' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\n                        <div class=\"tab-pane fade show active\" id=\"table-node-settings\" role=\"tabpanel\"\n                            aria-labelledby=\"nodes-tab\">\n                            <div class=\"tab-content\">\n                                <div class=\"tab-pane fade show active\" role=\"tabpanel\" aria-labelledby=\"table-tab\">\n                                    <div class=\"form-group row\"\n                                        title=\"What size would you like the Table's font to be?\">\n                                        <div class=\"col-4\"><label for=\"table-font-size\">Text Size</label></div>\n                                        <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"table-font-size\"\n                                                min=\"6\" value=\"14\" max=\"72\" step=\"1\"\n                                                [(ngModel)]=\"SelectedTextSizeVariable\"\n                                                (ngModelChange)=\"onDataChange($event)\"></div>\n                                    </div>\n                                </div>\n                            </div>\n                        </div>\n                    </tab>\n                </tabset>\n            </div>\n        </div>\n    </div>\n</p-dialog>\n\n\n<p-dialog id=\"network-export-modal\" [(visible)]=\"ShowTableExportPane\" header=\"Export Table\"\n    [style]=\"{width: '30vw', height:'150px'}\">\n    <div class=\"modal-dialog\" role=\"document\">\n        <div class=\"modal-content\">\n            <div class=\"modal-body\" style='width: 400px; height: 100%;'>\n                <div class=\"form-group row\">\n                    <div class=\"col-9\">\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\"\n                            placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\">\n                    </div>\n                    <div class=\"col-3\">\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\"\n                            [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" appendTo=\"body\"></p-dropdown>\n                    </div>\n                </div>\n            </div>\n            <div class=\"modal-footer\">\n                <button type=\"button\" class=\"btn btn-error\"\n                    (click)=\"ShowTableExportPane = !ShowTableExportPane\">Cancel</button>\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\"\n                    (click)=\"exportVisualization($event)\">Export</button>\n            </div>\n        </div><!-- /.modal-content -->\n    </div><!-- /.modal-dialog -->\n</p-dialog><!-- /.modal -->\n</div>";
 
 /***/ }),
 
@@ -17925,7 +18791,7 @@ module.exports = "﻿﻿<div class=\"table-wrapper\">\r\n    <div id=\"tool-btn-
 /***/ ((module) => {
 
 "use strict";
-module.exports = "﻿﻿\r\n\r\n<span id=\"tooltip\" style=\"background-color: white;\"></span>\r\n\r\n<div id=\"tool-btn-container\" class=\"m-portlet\">\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\r\n    </span>\r\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n        <a #pinbutton title=\"Pin All Nodes\" id=\"pinbutton\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openPinAllNodes()\"\r\n            [style.background]=\"commonService.session.network.allPinned ? 'lightblue': 'transparent'\"\r\n        ><i class=\"flaticon-pin primary\"></i></a>\r\n    </span>\r\n</div>\r\n\r\n<svg id=\"network\" class=\"network\" [ngStyle]=\"svgStyle\" (click)=\"networkWhitespaceClicked()\"></svg>\r\n\r\n<div class=\"row\">\r\n    <div class=\"col-md-4\">\r\n      <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-symbol-variable'] != 'None'\" class=\"bottom-table\">\r\n          Node Shapes\r\n        </h2>\r\n      <table id=\"node-symbol-table-bottom\" class=\"bottom-table\"></table>          \r\n    </div>\r\n    <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-color-variable'] != 'None'\" class=\"bottom-table\">\r\n            Node Colors\r\n        </h2>\r\n        <table id=\"node-color-table-bottom\" class=\"bottom-table\"></table>          \r\n      </div>\r\n      <div class=\"col-md-4\">\r\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['link-color-variable'] != 'None'\" class=\"bottom-table\">\r\n            Link Colors\r\n        </h2>\r\n        <table id=\"link-color-table-bottom\" class=\"bottom-table\"></table>          \r\n      </div>\r\n  </div>\r\n\r\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\r\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\r\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\r\n            <h1><b>Please add data files to load...</b></h1>\r\n            <br />\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n\r\n\r\n<!-- <p-sidebar [(visible)]=\"ShowStatistics\" position=\"right\">\r\n\r\n    <div id=\"color-transparency-wrapper\" *ngIf=\"false\">\r\n        <input type=\"range\" class=\"custom-range\" id=\"color-transparency\" min=\"0\" max=\"1\" step=\"0.05\" value=\"1\" [(ngModel)]=\"SelectedColorTransparencyVariable\" (change)=\"onSelectedColorTransparencyVariableChange($event)\">\r\n    </div>\r\n\r\n\r\n</p-sidebar>  -->\r\n\r\n<div id=\"network-statistics-wrapper\">\r\n    <div id=\"network-statistics-draghandle\"><span class=\"oi oi-move\"></span></div>\r\n    <table id=\"network-statistics-table\">\r\n        <tr>\r\n            <td class=\"text-right\">\r\n                <span id=\"numberOfNodes\"></span>\r\n                (<span id=\"numberOfSelectedNodes\"></span>)\r\n            </td>\r\n            <td>Nodes (Selected)</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfVisibleLinks\" class=\"text-right\"></td>\r\n            <td>Links</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfDisjointComponents\" class=\"text-right\"></td>\r\n            <td>Clusters</td>\r\n        </tr>\r\n        <tr>\r\n            <td id=\"numberOfSingletonNodes\" class=\"text-right\"></td>\r\n            <td>Singletons</td>\r\n        </tr>\r\n    </table>\r\n</div>\r\n\r\n\r\n\r\n<div class=\"view-controls\">\r\n    <p-dialog id=\"network-settings-pane\" \r\n                [positionLeft]=\"Node2DNetworkExportDialogSettings.left\" \r\n                [positionTop]=\"Node2DNetworkExportDialogSettings.top\" \r\n                [(visible)]=\"Node2DNetworkExportDialogSettings.isVisible\"  \r\n                header=\"2D Network Settings\" \r\n                >\r\n        <tabset class=\"tab-container tabbable-line\">\r\n            <tab heading=\"{{'Nodes' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab [selected]=\"false\" style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                        <div #nodecontrolslabels>\r\n                            <div class=\"form-group row\" title=\"What field should be displayed as a label for the node?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-variable\">Label</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-label-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeLabelVariable\" (ngModelChange)=\"onNodeLabelVaribleChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row node-label-row\" title=\"How big should node labels be?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-size\">Label Size</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"node-label-size\" min=\"6\" value=\"16\" max=\"72\" [(ngModel)]=\"SelectedNodeLabelSizeVariable\" (change)=\"onNodeLabelSizeChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row node-label-row\" title=\"How should the labels be oriented relative to their nodes?\">\r\n                                <div class=\"col-4\"><label for=\"node-label-orientation\">Orientation</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"node-label-orientation\" [(ngModel)]=\"SelectedNodeLabelOrientationVariable\" (ngModelChange)=\"onNodeLabelOrientationChange($event)\">\r\n                                        <option selected>Right</option>\r\n                                        <option>Left</option>\r\n                                        <option>Top</option>\r\n                                        <option>Bottom</option>\r\n                                        <option>Middle</option>\r\n                                    </select>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"What node data should be displayed as a tooltip for the node?\">\r\n                                <div class=\"col-4\">\r\n                                    <label for=\"node-tooltip-variable\">Tooltip</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['node-tooltip-variable']\" (valueChange)=\"onNodeTooltipVariableChange($event)\">\r\n                                        <mat-option *ngFor=\"let option of commonService.session.data['nodeFields']\" [value]=\"option\">\r\n                                          {{option}}\r\n                                        </mat-option>\r\n                                      </mat-select>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\r\n                        <div #nodecontrolsshapes>\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the shape of the node?\">\r\n                                <div class=\"col-4\">\r\n                                    <label for=\"node-symbol-variable\">Shape By</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-symbol-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeSymbolVariable\" (ngModelChange)=\"onNodeSymbolVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-symbol-table-row\" [hidden]=\"!ShowNodeSymbolTable\" class=\"form-group row\" title=\"What shape should the nodes be?\">\r\n                                <div class=\"col-4\">Table</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton [options]=\"TableTypes\" [(ngModel)]=\"SelectedNetworkTableTypeVariable\" (ngModelChange)=\"onNodeSymbolTableChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div id=\"node-symbol-row\" [hidden]=\"ShowNodeSymbolWrapper\" class=\"form-group row\" title=\"What shape should the nodes be?\">\r\n                                <div class=\"col-4\"><label for=\"node-symbol\">Shape</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"node-symbol\" class=\"form-control form-control-sm\" [(ngModel)]=\"SelectedNodeShapeVariable\" (ngModelChange)=\"onNodeSymbolChange($event)\">\r\n\r\n                                        <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n                                        <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n                                        <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n                                        <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n                                        <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n                                        <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n                                        <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n                                        <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n                                        <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n                                        <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n                                        <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n                                        <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n                                        <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n                                        <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n                                        <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n                                        <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n                                        <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n                                        <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n                                    </select>\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the size of the node?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Size By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"node-radius-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeRadiusVariable\" (ngModelChange)=\"onNodeRadiusVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-max-radius-row\" class=\"form-group row\" title=\"Should node max radius to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-max\">Max Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-max\" min=\"100\" value=\"4500\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMaxVariable\" (ngModelChange)=\"onNodeRadiusMaxChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                              <div id=\"node-min-radius-row\" class=\"form-group row\" title=\"Should node min radius to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-min\">Min Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-min\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMinVariable\" (ngModelChange)=\"onNodeRadiusMinChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"node-radius-row\" class=\"form-group row\" title=\"How big should the nodes be?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius\">Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeVariable\" (ngModelChange)=\"onNodeRadiusChange($event)\">\r\n                                </div>\r\n                            </div>\r\n\r\n                            <div class=\"form-group row\" title=\"What should the width of the node border be?\">\r\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Border Width</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"number\" class=\"form-control form-control-sm\" id=\"node-border-width\" min=\"0\" step=\"0.1\" value=\"2\" [(ngModel)]=\"nodeBorderWidth\" (ngModelChange)=\"onNodeBorderWidthChange($event)\">\r\n                                </div>\r\n                            </div>\r\n\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" [selected]=\"false\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                    </p-accordionTab>\r\n\r\n                </p-accordion>\r\n            </tab>\r\n\r\n            <tab heading=\"{{'Links' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Labels and Tooltips\">\r\n                        <div #linkcontrolslabels>\r\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-tooltip-variable\">Tooltip</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['link-tooltip-variable']\" (valueChange)=\"onLinkTooltipVariableChange($event)\">\r\n                                        <mat-option *ngFor=\"let option of LinkToolTipList\" [value]=\"option.value\">\r\n                                          {{option.label}}\r\n                                        </mat-option>\r\n                                      </mat-select>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-label-variable\">Label</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"link-label-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkLabelVariable\" (ngModelChange)=\"onLinkLabelVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How many decimals should the number labels have?\">\r\n                                <div class=\"col-4\"><label for=\"link-label-decimal-length\">Decimal Length</label></div>\r\n                                <div class=\"col-8\"><input type=\"number\" class=\"form-control form-control-sm\" id=\"link-label-decimal-length\" min=\"0\" step=\"1\" max=\"6\" value=\"3\"  [(ngModel)]=\"SelectedLinkDecimalVariable\"  (ngModelChange)=\"onLinkDecimalVariableChange($event)\">\r\n                                </div>\r\n                              </div>  \r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\r\n                        <div #linkcontrolsshapes>\r\n                            <div id=\"link-transparency-row\" class=\"form-group row\" title=\"How transparent should the links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-opacity\">Transparency</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-opacity\" min=\"0\" max=\"1\" value=\"0\" step=\"0.01\" [(ngModel)]=\"SelectedLinkTransparencyVariable\" (ngModelChange)=\"onLinkOpacityChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"Which variable should determine the width of a link?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-variable\">Width By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"link-width-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkWidthByVariable\" (ngModelChange)=\"onLinkWidthVariableChange($event)\"></p-dropdown>\r\n                                </div>\r\n                            </div>\r\n                            <div id=\"link-max-width-row\" class=\"form-group row display-none\" title=\"Should link max widths to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-max\">Max Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-max\" min=\"0.3\" max=\"30\" step=\".3\" value=\"27\" [(ngModel)]=\"SelectedLinkWidthMax\" (ngModelChange)=\"onLinkWidthMaxChange($event)\"></div>\r\n                              </div>\r\n                              <div id=\"link-min-width-row\" class=\"form-group row display-none\" title=\"Should link min widths to this variable?\">\r\n                                <div class=\"col-4\"><label for=\"link-width-min\">Min Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-min\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthMin\" (ngModelChange)=\"onLinkWidthMinChange($event)\"></div>\r\n                              </div>\r\n                            <div id=\"link-reciprocalthickness-row\" class=\"form-group row display-none\" title=\"Should link widths be proportioned to the reciprocal of this variable?\">\r\n                                <div class=\"col-4\">Reciprocal</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"link-width-reciprocal-non-reciprocal\" appendTo=\"body\"  [options]=\"ReciprocalTypes\" [(ngModel)]=\"SelectedLinkReciprocalTypeVariable\" (ngModelChange)=\"onLinkWidthReciprocalNonReciprocalChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How thick should the links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-width\">Width</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthVariable\" (ngModelChange)=\"onLinkWidthChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How long should links be?\">\r\n                                <div class=\"col-4\"><label for=\"link-length\">Length</label></div>\r\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-length\" min=\"0\" max=\"200\" value=\"50\" [(ngModel)]=\"SelectedLinkLengthVariable\" (ngModelChange)=\"onLinkLengthChange($event)\"></div>\r\n                            </div>\r\n                            <div class=\"form-group row hideForHIVTrace\" title=\"Shoul arrowheads pointing to the\">\r\n                                <div class=\"col-4\">Arrows</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"link-directed-undirected\" [options]=\"ArrowTypes\" [(ngModel)]=\"SelectedLinkArrowTypeVariable\" (ngModelChange)=\"onLinkDirectedUndirectedChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n\r\n\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\r\n                    </p-accordionTab>\r\n\r\n                </p-accordion>\r\n            </tab>\r\n\r\n            <tab heading=\"{{'Network' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Display\">\r\n                        <div #networkcontrolslabels>\r\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\r\n                                <div class=\"col-4\">Neighbors</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"dont-highlight-neighbors-highlight-neighbors\" [options]=\"NeighborTypes\" [(ngModel)]=\"SelectedNetworkNeighborTypeVariable\" (ngModelChange)=\"onDontHighlightNeighborsHighlightNeighborsChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\r\n                                <div class=\"col-4\">Gridlines</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"network-gridlines-show-hide\" [options]=\"GridLineTypes\" [(ngModel)]=\"SelectedNetworkGridLineTypeVariable\" (ngModelChange)=\"onNetworkGridlinesShowHideChange($event)\"></p-selectButton>\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Physics\">\r\n                        <div #networkcontrolsphysics>\r\n                            <div class=\"form-group row\" title=\"How strongly are the nodes repulsed by each other?\">\r\n                                <div class=\"col-4\"><label for=\"node-charge\">Charge</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-charge\" min=\"0\" max=\"400\" value=\"200\" [(ngModel)]=\"SelectedNetworkChargeVariable\" (ngModelChange)=\"onNodeChargeChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How attractive is the mass of the graph?\">\r\n                                <div class=\"col-4\"><label for=\"network-gravity\">Gravity</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-gravity\" min=\"0.025\" max=\"1\" value=\"0.05\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkGravityVariable\" (ngModelChange)=\"onNetworkGravityChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\r\n                                <div class=\"col-4\"><label for=\"network-friction\">Friction</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-friction\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkFrictionVariable\" (ngModelChange)=\"onNetworkFrictionChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\r\n                                <div class=\"col-4\"><label for=\"network-link-strength\">Link Strength</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-link-strength\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelecetedNetworkLinkStrengthVariable\" (ngModelChange)=\"onNetworkLinkStrengthVariableChange($event)\">\r\n                                </div>\r\n                            </div>\r\n                        </div>\r\n                    </p-accordionTab>                   \r\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\r\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\" ></button>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </tab>\r\n            <tab heading=\"{{'Polygons' | localize}}\" customClass=\"m-tabs__item\">\r\n                <p-accordion>\r\n                    <p-accordionTab style=\"color:#495057\" header=\"Polygon Controls\" id=\"polygons-controls-accordion\">\r\n                          <div id=\"polygons-controls\" class=\"show\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div class=\"form-group row\" title=\"Show polygons?\">\r\n                                <div class=\"col-4\">Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-show']\" (ngModelChange)=\"polygonsToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What Foci should be used when creating convex hulls?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-foci\">Group By</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <p-dropdown id=\"polygons-foci\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"commonService.session.style.widgets['polygons-foci']\" (ngModelChange)=\"centerPolygons($event)\"></p-dropdown>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What amount of gather force should be used?\">\r\n                                <div class=\"col-4\">\r\n                                  <label for=\"polygons-gather-force\">Gather</label>\r\n                                </div>\r\n                                <div class=\"col-8\">\r\n                                <input type=\"range\" class=\"custom-range\" id=\"polygons-gather-force\" min=\"0\" value=\"0\" step=\"0.0001\" max=\".02\" [(ngModel)]=\"commonService.session.style.widgets['polygons-gather-force']\" (ngModelChange)=\"onPolygonGatherChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          </div>\r\n                    </p-accordionTab>\r\n                    <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Labels\" id=\"polygons-controls-accordion\">\r\n                          <div id=\"polygons-controls-labels\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div class=\"form-group row\" title=\"Show polygons label?\">\r\n                                <div class=\"col-4\">Label Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"polygons-label-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-show']\" (ngModelChange)=\"onPolygonLabelShowChange($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div class=\"form-group row polygons-label-row\" title=\"How big should polygon labels be?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-label-size\">Label Size</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <input type=\"range\" class=\"custom-range\" id=\"polygons-label-size\" min=\"6\" value=\"16\" step=\"1\" max=\"72\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-size']\" (ngModelChange)=\"onPolygonLabelSizeChange($event)\">\r\n                                </div>\r\n                              </div>\r\n                              <div class=\"form-group row polygons-label-row\" title=\"How should the labels be oriented relative to center of polygon?\">\r\n                                <div class=\"col-4\"><label for=\"polygons-label-orientation\">Orientation</label></div>\r\n                                <div class=\"col-8\">\r\n                                    <select id=\"polygon-label-orientation\" [(ngModel)]=\"SelectedPolygonLabelOrientationVariable\" (ngModelChange)=\"onPolygonLabelOrientationChange($event)\">\r\n                                        <option selected>Right</option>\r\n                                        <option>Left</option>\r\n                                        <option>Top</option>\r\n                                        <option>Bottom</option>\r\n                                        <option>Middle</option>\r\n                                    </select>                                \r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          </div>\r\n                        </p-accordionTab>\r\n                        <!-- style=\"display: none;\" -->\r\n                        <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Colors\" id=\"polygons-controls-accordion\">  \r\n                          <div id=\"polygons-controls-colors\" data-parent=\"#polygons-controls-accordion\">\r\n                            <div class=\"card-body\">\r\n                              <div id=\"color-polygons\" class=\"form-group row\" title=\"Show polygons colored?\">\r\n                                <div class=\"col-4\">Color Polygons</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygons\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-color-show']\" (ngModelChange)=\"polygonColorsToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-table-row\" class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\r\n                                <div class=\"col-4\">Polygon Color Table</div>\r\n                                <div class=\"col-8\">\r\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color-table-visible']\" (ngModelChange)=\"polygonColorsTableToggle($event)\"></p-selectButton>\r\n                                </div>\r\n                              </div>\r\n                              <div *ngIf=\"!commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-value-row\" class=\"form-group row\" title=\"What color should the polygons be?\">\r\n                                <div class=\"col-4\"><label for=\"polygon-color\">Polygons</label></div>\r\n                                <div class=\"col-8\">\r\n                                  <input type=\"color\" id=\"polygon-color\" class=\"form-control form-control-sm\" value=\"#1f77b4\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color']\" (ngModelChange)=\"onPolygonColorChanged($event)\">\r\n                                </div>\r\n                              </div>              \r\n                            </div>\r\n                          </div>\r\n                    </p-accordionTab>\r\n                </p-accordion>\r\n            </tab>\r\n        </tabset>\r\n\r\n    </p-dialog>\r\n\r\n\r\n\r\n</div>\r\n\r\n    <p-dialog id=\"node-symbol-table-wrapper\" \r\n                [position]=\"NodeSymbolTableWrapperDialogSettings.shapeRight\"\r\n                [(visible)]=\"NodeSymbolTableWrapperDialogSettings.isVisible\"  \r\n                header=\"Node Symbol Selection Table\"  \r\n                [style]=\"{width: '45vw', maxWidth: '450px'}\"\r\n                (onHide)=\"onNodeSymbolTableChange('Hide')\"\r\n                (onShow)=\"onNodeSymbolTableChange('Show')\"\r\n                >\r\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Node Shapes and Size Selection.\">          \r\n             <table id=\"node-symbol-table\" style=\"width:100%;height:100%;\"></table>          \r\n        </div>\r\n        <select id=\"node-symbol2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\r\n\r\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n        </select>\r\n\r\n    </p-dialog>\r\n\r\n    <p-dialog id=\"polygon-color-table-wrapper\" \r\n                [position]=\"PolygonColorTableWrapperDialogSettings.polygonRight\" \r\n                [(visible)]=\"PolygonColorTableWrapperDialogSettings.isVisible\"  \r\n                header=\"Polygon Color Selection Table\" \r\n                [style]=\"{width: '45vw', maxWidth: '450px'}\" \r\n                (onHide)=\"onPolygonColorTableChange(false)\"\r\n                (onShow)=\"onPolygonColorTableChange(true)\"\r\n                >\r\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Polygon Color Selection.\">          \r\n             <table id=\"polygon-color-table\" style=\"width:100%;height:100%;\"></table>          \r\n        </div>\r\n        <select id=\"polygon-color2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\r\n\r\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\r\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\r\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\r\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\r\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\r\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\r\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\r\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\r\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\r\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\r\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\r\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\r\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\r\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\r\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\r\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\r\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\r\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\r\n        </select>\r\n\r\n    </p-dialog>\r\n\r\n    <!-- <p-dialog id=\"polygon-color-table-wrapper\" class=\"floater\">\r\n        <div id=\"polygon-color-table-draghandle\"><span class=\"oi oi-move\"></span></div>\r\n        <table id=\"polygon-color-table\"></table>\r\n    </p-dialog> -->\r\n\r\n\r\n\r\n\r\n\r\n<div id=\"node-symbol-table-context\" class=\"dropdown-menu\">\r\n    <a href=\"#\" id=\"node-symbol-table-move\" class=\"dropdown-item\">Pin</a>\r\n    <a href=\"#\" id=\"node-symbol-table-context-hide\" class=\"dropdown-item\">Hide</a>\r\n    <a href=\"#\" id=\"node-symbol-table-expand\" class=\"dropdown-item\">Expand</a>\r\n    <a href=\"#\" id=\"node-symbol-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\r\n    <a href=\"#\" id=\"node-symbol-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\r\n</div>\r\n\r\n  \r\n  <div id=\"polygon-color-table-context\" class=\"dropdown-menu\">\r\n    <a href=\"#\" id=\"polygon-color-table-drag\" class=\"dropdown-item\">Drag/Arrow Keys</a>\r\n    <a href=\"#\" id=\"polygon-color-table-context-hide\" class=\"dropdown-item\">Hide</a>\r\n    <a href=\"#\" id=\"polygon-color-table-expand\" class=\"dropdown-item\">Expand</a>\r\n    <a href=\"#\" id=\"polygon-color-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\r\n    <a href=\"#\" id=\"polygon-color-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\r\n  </div>\r\n\r\n<div id=\"context-menu\" class=\"dropdown-menu\">\r\n    <a href=\"javascript:;\" id=\"pinNode\" class=\"dropdown-item\">Pin Node</a>\r\n    <button id=\"copyID\" class=\"dropdown-item\" (click)=\"copyID()\">Copy ID</button>\r\n    <button id=\"copySeq\" class=\"dropdown-item\" (click)=\"copySeq()\">Copy Sequence</button>\r\n    <a href=\"javascript:;\" id=\"viewAttributes\" class=\"dropdown-item\">View Attributes</a>\r\n</div>\r\n\r\n\r\n<p-dialog id=\"network-attribute-table-wrapper\" [(visible)]=\"ShowNetworkAttributes\" header=\"Node Attributes\" [style]=\"{width: '35vw'}\" >\r\n    <div class=\"col-12\" style=\"width:100%;\">        \r\n        <table id=\"network-attribute-table\" style=\"width:100%\">\r\n            <tr *ngFor=\"let item of ContextSelectedNodeAttributes\">\r\n                <td>\r\n                    <strong>\r\n                        {{item.attribute}}\r\n                    </strong>\r\n                </td>\r\n                <td>{{item.value}}</td>\r\n            </tr>\r\n        </table>\r\n    </div>\r\n</p-dialog>\r\n\r\n\r\n\r\n<p-dialog id=\"network-export-modal\" [(visible)]=\"Show2DExportPane\" header=\"Export Network Image\" class=\"dialogSize\" (onHide)=\"onCloseExport()\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n                <div class=\"modal-body\" style='min-width: 400px; height: 100%;'>\r\n                    <div class=\"form-group row\">\r\n                    <div class=\"col-8\">\r\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\" placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\" (ngModelChange)=\"onDataChange($event)\">\r\n                    </div>\r\n                    <div class=\"col-4\">\r\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" (ngModelChange)=\"onNetworkExportFiletypeChange($event)\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div>\r\n\r\n                    <div [hidden]=\"!ShowAdvancedExport\">\r\n                        <p-accordion>\r\n                            <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\r\n                                <div id=\"network-export-advanced\">\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-3\">\r\n                                            <label for=\"network-export-scale\">Scale</label>\r\n                                        </div>\r\n                                        <div class=\"col-9\">\r\n                                            <input type=\"number\" id=\"network-export-scale\" class=\"form-control form-control-sm\" min=\"0\" max=\"2\" step=\"0.1\" value=\"1\" [(ngModel)]=\"SelectedNetworkExportScaleVariable\" (ngModelChange)=\"updateCalculatedResolution($event)\">\r\n                                        </div>\r\n                                    </div>\r\n                                    <div class=\"form-group row\">\r\n                                        <div class=\"col-3\">Resolution</div>\r\n                                        <div id=\"network-export-dimensions\" class=\"col-9 text-right\">{{CalculatedResolution}}</div>\r\n                                    </div>\r\n                                    <div class=\"row\">\r\n                                        <div class=\"col-3\">\r\n                                            <label for=\"network-export-quality\">Quality</label>\r\n                                        </div>\r\n                                        <div class=\"col-9\">\r\n                                            <input type=\"range\" class=\"custom-range\" id=\"network-export-quality\" min=\"0\" max=\"1.0\" value=\"0.92\" step=\"0.01\" [(ngModel)]=\"SelectedNetworkExportQualityVariable\">\r\n                                        </div>\r\n                                    </div>\r\n\r\n                                </div>\r\n                            </p-accordionTab>\r\n                        </p-accordion>\r\n                    </div>\r\n                </div>\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"Show2DExportPane = !Show2DExportPane\">Cancel</button>\r\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\" (click)=\"exportVisualization($event)\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->\r\n";
+module.exports = "﻿﻿\n\n<span id=\"tooltip\" style=\"background-color: white;\"></span>\n\n<div id=\"tool-btn-container\" class=\"m-portlet\">\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\n    </span>\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\n    </span>\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\n    </span>\n    <span style=\"overflow: visible; position: relative; width: 110px;\">\n        <a #pinbutton title=\"Pin All Nodes\" id=\"pinbutton\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\" (click)=\"openPinAllNodes()\"\n            [style.background]=\"commonService.session.network.allPinned ? 'lightblue': 'transparent'\"\n        ><i class=\"flaticon-pin primary\"></i></a>\n    </span>\n</div>\n\n<svg id=\"network\" class=\"network\" [ngStyle]=\"svgStyle\" (click)=\"networkWhitespaceClicked()\"></svg>\n\n<!-- May be able to remove this section <div class=row>, related to exportWork which isn't currently used-->\n<div class=\"row\">\n    <div class=\"col-md-4\">\n      <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-symbol-variable'] != 'None'\" class=\"bottom-table\">\n          Node Shapes\n        </h2>\n      <table id=\"node-symbol-table-bottom\" class=\"bottom-table\"></table>          \n    </div>\n    <div class=\"col-md-4\">\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['node-color-variable'] != 'None'\" class=\"bottom-table\">\n            Node Colors\n        </h2>\n        <table id=\"node-color-table-bottom\" class=\"bottom-table\"></table>          \n      </div>\n      <div class=\"col-md-4\">\n        <h2 *ngIf=\"isExporting && commonService.session.style.widgets['link-color-variable'] != 'None'\" class=\"bottom-table\">\n            Link Colors\n        </h2>\n        <table id=\"link-color-table-bottom\" class=\"bottom-table\"></table>          \n      </div>\n  </div>\n\n<div class=\"m-content\" *ngIf=\"IsDataAvailable == false\">\n    <div id=\"file-panel\" class=\"container-fluid\" style=\"height:500px;\">\n        <div id=\"file-prompt\" class=\"d-flex justify-content-center\">\n            <h1><b>Please add data files to load...</b></h1>\n            <br />\n        </div>\n    </div>\n</div>\n\n\n\n<!-- <p-sidebar [(visible)]=\"ShowStatistics\" position=\"right\">\n\n    <div id=\"color-transparency-wrapper\" *ngIf=\"false\">\n        <input type=\"range\" class=\"custom-range\" id=\"color-transparency\" min=\"0\" max=\"1\" step=\"0.05\" value=\"1\" [(ngModel)]=\"SelectedColorTransparencyVariable\" (change)=\"onSelectedColorTransparencyVariableChange($event)\">\n    </div>\n\n\n</p-sidebar>  -->\n\n<div id=\"network-statistics-wrapper\">\n    <div id=\"network-statistics-draghandle\"><span class=\"oi oi-move\"></span></div>\n    <table id=\"network-statistics-table\">\n        <tr>\n            <td class=\"text-right\">\n                <span id=\"numberOfNodes\"></span>\n                (<span id=\"numberOfSelectedNodes\"></span>)\n            </td>\n            <td>Nodes (Selected)</td>\n        </tr>\n        <tr>\n            <td id=\"numberOfVisibleLinks\" class=\"text-right\"></td>\n            <td>Links</td>\n        </tr>\n        <tr>\n            <td id=\"numberOfDisjointComponents\" class=\"text-right\"></td>\n            <td>Clusters</td>\n        </tr>\n        <tr>\n            <td id=\"numberOfSingletonNodes\" class=\"text-right\"></td>\n            <td>Singletons</td>\n        </tr>\n    </table>\n</div>\n\n\n\n<div class=\"view-controls\">\n    <p-dialog id=\"network-settings-pane\" \n                [(visible)]=\"Node2DNetworkExportDialogSettings.isVisible\"  \n                header=\"2D Network Settings\" \n                >\n        <tabset class=\"tab-container tabbable-line\">\n            <tab heading=\"{{'Nodes' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\">\n                <p-accordion>\n                    <p-accordionTab [selected]=\"false\" style=\"color:#495057\" header=\"Labels and Tooltips\">\n                        <div #nodecontrolslabels>\n                            <div class=\"form-group row\" title=\"What field should be displayed as a label for the node?\">\n                                <div class=\"col-4\"><label for=\"node-label-variable\">Label</label></div>\n                                <div class=\"col-8\">\n                                    <p-dropdown id=\"node-label-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeLabelVariable\" (ngModelChange)=\"onNodeLabelVaribleChange($event)\"></p-dropdown>\n                                </div>\n                            </div>\n                            <div class=\"form-group row node-label-row\" title=\"How big should node labels be?\">\n                                <div class=\"col-4\"><label for=\"node-label-size\">Label Size</label></div>\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"node-label-size\" min=\"6\" value=\"16\" max=\"72\" [(ngModel)]=\"SelectedNodeLabelSizeVariable\" (change)=\"onNodeLabelSizeChange($event)\"></div>\n                            </div>\n                            <div class=\"form-group row node-label-row\" title=\"How should the labels be oriented relative to their nodes?\">\n                                <div class=\"col-4\"><label for=\"node-label-orientation\">Orientation</label></div>\n                                <div class=\"col-8\">\n                                    <select id=\"node-label-orientation\" [(ngModel)]=\"SelectedNodeLabelOrientationVariable\" (ngModelChange)=\"onNodeLabelOrientationChange($event)\">\n                                        <option selected>Right</option>\n                                        <option>Left</option>\n                                        <option>Top</option>\n                                        <option>Bottom</option>\n                                        <option>Middle</option>\n                                    </select>\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"What node data should be displayed as a tooltip for the node?\">\n                                <div class=\"col-4\">\n                                    <label for=\"node-tooltip-variable\">Tooltip</label>\n                                </div>\n                                <div class=\"col-8\">\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['node-tooltip-variable']\" (valueChange)=\"onNodeTooltipVariableChange($event)\">\n                                        <mat-option *ngFor=\"let option of commonService.session.data['nodeFields']\" [value]=\"option\">\n                                          {{option}}\n                                        </mat-option>\n                                      </mat-select>\n                                </div>\n                            </div>\n                        </div>\n                    </p-accordionTab>\n\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\n                        <div #nodecontrolsshapes>\n                            <div class=\"form-group row\" title=\"Which variable should determine the shape of the node?\">\n                                <div class=\"col-4\">\n                                    <label for=\"node-symbol-variable\">Shape By</label>\n                                </div>\n                                <div class=\"col-8\">\n                                    <p-dropdown id=\"node-symbol-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeSymbolVariable\" (ngModelChange)=\"onNodeSymbolVariableChange($event)\"></p-dropdown>\n                                </div>\n                            </div>\n                            <div id=\"node-symbol-table-row\" [hidden]=\"!ShowNodeSymbolTable\" class=\"form-group row\" title=\"What shape should the nodes be?\">\n                                <div class=\"col-4\">Table</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton [options]=\"TableTypes\" [(ngModel)]=\"SelectedNetworkTableTypeVariable\" (ngModelChange)=\"onNodeSymbolTableChange($event)\"></p-selectButton>\n                                </div>\n                            </div>\n\n                            <div id=\"node-symbol-row\" [hidden]=\"ShowNodeSymbolWrapper\" class=\"form-group row\" title=\"What shape should the nodes be?\">\n                                <div class=\"col-4\"><label for=\"node-symbol\">Shape</label></div>\n                                <div class=\"col-8\">\n                                    <select id=\"node-symbol\" class=\"form-control form-control-sm\" [(ngModel)]=\"SelectedNodeShapeVariable\" (ngModelChange)=\"onNodeSymbolChange($event)\">\n\n                                        <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\n                                        <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\n                                        <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\n                                        <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\n                                        <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\n                                        <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\n                                        <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\n                                        <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\n                                        <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\n                                        <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\n                                        <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\n                                        <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\n                                        <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\n                                        <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\n                                        <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\n                                        <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\n                                        <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\n                                        <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\n                                    </select>\n                                </div>\n                            </div>\n\n                            <div class=\"form-group row\" title=\"Which variable should determine the size of the node?\">\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Size By</label></div>\n                                <div class=\"col-8\">\n                                    <p-dropdown id=\"node-radius-variable\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedNodeRadiusVariable\" (ngModelChange)=\"onNodeRadiusVariableChange($event)\"></p-dropdown>\n                                </div>\n                            </div>\n                            <div id=\"node-max-radius-row\" class=\"form-group row\" title=\"Should node max radius to this variable?\">\n                                <div class=\"col-4\"><label for=\"node-radius-max\">Max Size</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-max\" min=\"100\" value=\"4500\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMaxVariable\" (ngModelChange)=\"onNodeRadiusMaxChange($event)\">\n                                </div>\n                              </div>\n                              <div id=\"node-min-radius-row\" class=\"form-group row\" title=\"Should node min radius to this variable?\">\n                                <div class=\"col-4\"><label for=\"node-radius-min\">Min Size</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius-min\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeMinVariable\" (ngModelChange)=\"onNodeRadiusMinChange($event)\">\n                                </div>\n                            </div>\n                            <div id=\"node-radius-row\" class=\"form-group row\" title=\"How big should the nodes be?\">\n                                <div class=\"col-4\"><label for=\"node-radius\">Size</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-radius\" min=\"100\" value=\"250\" step=\"1\" max=\"5000\" [(ngModel)]=\"SelectedNodeRadiusSizeVariable\" (ngModelChange)=\"onNodeRadiusChange($event)\">\n                                </div>\n                            </div>\n\n                            <div class=\"form-group row\" title=\"What should the width of the node border be?\">\n                                <div class=\"col-4\"><label for=\"node-radius-variable\">Border Width</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"number\" class=\"form-control form-control-sm\" id=\"node-border-width\" min=\"0\" step=\"0.1\" value=\"2\" [(ngModel)]=\"nodeBorderWidth\" (ngModelChange)=\"onNodeBorderWidthChange($event)\">\n                                </div>\n                            </div>\n\n                        </div>\n                    </p-accordionTab>\n\n                    <p-accordionTab style=\"color:#495057\" [selected]=\"false\" header=\"Colors\">\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\n                    </p-accordionTab>\n\n                </p-accordion>\n            </tab>\n\n            <tab heading=\"{{'Links' | localize}}\" customClass=\"m-tabs__item\">\n                <p-accordion>\n                    <p-accordionTab style=\"color:#495057\" header=\"Labels and Tooltips\">\n                        <div #linkcontrolslabels>\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\n                                <div class=\"col-4\"><label for=\"link-tooltip-variable\">Tooltip</label></div>\n                                <div class=\"col-8\">\n                                    <mat-select multiple [(value)]=\"commonService.session.style.widgets['link-tooltip-variable']\" (valueChange)=\"onLinkTooltipVariableChange($event)\">\n                                        <mat-option *ngFor=\"let option of LinkToolTipList\" [value]=\"option.value\">\n                                          {{option.label}}\n                                        </mat-option>\n                                      </mat-select>\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"What data should be displayed when you hover over a link?\">\n                                <div class=\"col-4\"><label for=\"link-label-variable\">Label</label></div>\n                                <div class=\"col-8\">\n                                    <p-dropdown id=\"link-label-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkLabelVariable\" (ngModelChange)=\"onLinkLabelVariableChange($event)\"></p-dropdown>\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"How many decimals should the number labels have?\">\n                                <div class=\"col-4\"><label for=\"link-label-decimal-length\">Decimal Length</label></div>\n                                <div class=\"col-8\"><input type=\"number\" class=\"form-control form-control-sm\" id=\"link-label-decimal-length\" min=\"0\" step=\"1\" max=\"6\" value=\"3\"  [(ngModel)]=\"SelectedLinkDecimalVariable\"  (ngModelChange)=\"onLinkDecimalVariableChange($event)\">\n                                </div>\n                              </div>  \n                        </div>\n                    </p-accordionTab>\n\n                    <p-accordionTab style=\"color:#495057\" header=\"Shapes and Sizes\">\n                        <div #linkcontrolsshapes>\n                            <div id=\"link-transparency-row\" class=\"form-group row\" title=\"How transparent should the links be?\">\n                                <div class=\"col-4\"><label for=\"link-opacity\">Transparency</label></div>\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-opacity\" min=\"0\" max=\"1\" value=\"0\" step=\"0.01\" [(ngModel)]=\"SelectedLinkTransparencyVariable\" (ngModelChange)=\"onLinkOpacityChange($event)\"></div>\n                            </div>\n                            <div class=\"form-group row\" title=\"Which variable should determine the width of a link?\">\n                                <div class=\"col-4\"><label for=\"link-width-variable\">Width By</label></div>\n                                <div class=\"col-8\">\n                                    <p-dropdown id=\"link-width-variable\" [options]=\"ToolTipFieldList\" appendTo=\"body\" [(ngModel)]=\"SelectedLinkWidthByVariable\" (ngModelChange)=\"onLinkWidthVariableChange($event)\"></p-dropdown>\n                                </div>\n                            </div>\n                            <div id=\"link-max-width-row\" class=\"form-group row display-none\" title=\"Should link max widths to this variable?\">\n                                <div class=\"col-4\"><label for=\"link-width-max\">Max Width</label></div>\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-max\" min=\"0.3\" max=\"30\" step=\".3\" value=\"27\" [(ngModel)]=\"SelectedLinkWidthMax\" (ngModelChange)=\"onLinkWidthMaxChange($event)\"></div>\n                              </div>\n                              <div id=\"link-min-width-row\" class=\"form-group row display-none\" title=\"Should link min widths to this variable?\">\n                                <div class=\"col-4\"><label for=\"link-width-min\">Min Width</label></div>\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width-min\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthMin\" (ngModelChange)=\"onLinkWidthMinChange($event)\"></div>\n                              </div>\n                            <div id=\"link-reciprocalthickness-row\" class=\"form-group row display-none\" title=\"Should link widths be proportioned to the reciprocal of this variable?\">\n                                <div class=\"col-4\">Reciprocal</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"link-width-reciprocal-non-reciprocal\" appendTo=\"body\"  [options]=\"ReciprocalTypes\" [(ngModel)]=\"SelectedLinkReciprocalTypeVariable\" (ngModelChange)=\"onLinkWidthReciprocalNonReciprocalChange($event)\"></p-selectButton>\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"How thick should the links be?\">\n                                <div class=\"col-4\"><label for=\"link-width\">Width</label></div>\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-width\" min=\"0.3\" max=\"30\" step=\".3\" value=\"3\" [(ngModel)]=\"SelectedLinkWidthVariable\" (ngModelChange)=\"onLinkWidthChange($event)\"></div>\n                            </div>\n                            <div class=\"form-group row\" title=\"How long should links be?\">\n                                <div class=\"col-4\"><label for=\"link-length\">Length</label></div>\n                                <div class=\"col-8\"><input type=\"range\" class=\"custom-range\" id=\"link-length\" min=\"0\" max=\"200\" value=\"50\" [(ngModel)]=\"SelectedLinkLengthVariable\" (ngModelChange)=\"onLinkLengthChange($event)\"></div>\n                            </div>\n                            <div class=\"form-group row hideForHIVTrace\" title=\"Shoul arrowheads pointing to the\">\n                                <div class=\"col-4\">Arrows</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"link-directed-undirected\" [options]=\"ArrowTypes\" [(ngModel)]=\"SelectedLinkArrowTypeVariable\" (ngModelChange)=\"onLinkDirectedUndirectedChange($event)\"></p-selectButton>\n                                </div>\n                            </div>\n                        </div>\n                    </p-accordionTab>\n\n\n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\"></button>\n                    </p-accordionTab>\n\n                </p-accordion>\n            </tab>\n\n            <tab heading=\"{{'Network' | localize}}\" customClass=\"m-tabs__item\">\n                <p-accordion>\n                    <p-accordionTab style=\"color:#495057\" header=\"Display\">\n                        <div #networkcontrolslabels>\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\n                                <div class=\"col-4\">Neighbors</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"dont-highlight-neighbors-highlight-neighbors\" [options]=\"NeighborTypes\" [(ngModel)]=\"SelectedNetworkNeighborTypeVariable\" (ngModelChange)=\"onDontHighlightNeighborsHighlightNeighborsChange($event)\"></p-selectButton>\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"Should MicrobeTrace Highlight a node's neighbors when you hover on it?\">\n                                <div class=\"col-4\">Gridlines</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"network-gridlines-show-hide\" [options]=\"GridLineTypes\" [(ngModel)]=\"SelectedNetworkGridLineTypeVariable\" (ngModelChange)=\"onNetworkGridlinesShowHideChange($event)\"></p-selectButton>\n                                </div>\n                            </div>\n                        </div>\n                    </p-accordionTab>\n                    <p-accordionTab style=\"color:#495057\" header=\"Physics\">\n                        <div #networkcontrolsphysics>\n                            <div class=\"form-group row\" title=\"How strongly are the nodes repulsed by each other?\">\n                                <div class=\"col-4\"><label for=\"node-charge\">Charge</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"node-charge\" min=\"0\" max=\"400\" value=\"200\" [(ngModel)]=\"SelectedNetworkChargeVariable\" (ngModelChange)=\"onNodeChargeChange($event)\">\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"How attractive is the mass of the graph?\">\n                                <div class=\"col-4\"><label for=\"network-gravity\">Gravity</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-gravity\" min=\"0.025\" max=\"1\" value=\"0.05\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkGravityVariable\" (ngModelChange)=\"onNetworkGravityChange($event)\">\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\n                                <div class=\"col-4\"><label for=\"network-friction\">Friction</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-friction\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelectedNetworkFrictionVariable\" (ngModelChange)=\"onNetworkFrictionChange($event)\">\n                                </div>\n                            </div>\n                            <div class=\"form-group row\" title=\"How quickly should moving nodes lose their momentum?\">\n                                <div class=\"col-4\"><label for=\"network-link-strength\">Link Strength</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"network-link-strength\" min=\"0\" max=\"1\" value=\"0.4\" step=\"0.025\" [(ngModel)]=\"SelecetedNetworkLinkStrengthVariable\" (ngModelChange)=\"onNetworkLinkStrengthVariableChange($event)\">\n                                </div>\n                            </div>\n                        </div>\n                    </p-accordionTab>                   \n                    <p-accordionTab style=\"color:#495057\" header=\"Colors\">\n                        <button pButton type=\"button\" label=\"Show Colors\" class=\"ui-button-raised\" (click)=\"showGlobalSettings()\" ></button>\n                    </p-accordionTab>\n                </p-accordion>\n            </tab>\n            <tab heading=\"{{'Polygons' | localize}}\" customClass=\"m-tabs__item\">\n                <p-accordion>\n                    <p-accordionTab style=\"color:#495057\" header=\"Polygon Controls\" id=\"polygons-controls-accordion\">\n                          <div id=\"polygons-controls\" class=\"show\" data-parent=\"#polygons-controls-accordion\">\n                            <div class=\"card-body\">\n                              <div class=\"form-group row\" title=\"Show polygons?\">\n                                <div class=\"col-4\">Polygons</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-show']\" (ngModelChange)=\"polygonsToggle($event)\"></p-selectButton>\n                                </div>\n                              </div>\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What Foci should be used when creating convex hulls?\">\n                                <div class=\"col-4\"><label for=\"polygons-foci\">Group By</label></div>\n                                <div class=\"col-8\">\n                                    <p-dropdown id=\"polygons-foci\" [options]=\"FieldList\" appendTo=\"body\" [(ngModel)]=\"commonService.session.style.widgets['polygons-foci']\" (ngModelChange)=\"centerPolygons($event)\"></p-dropdown>\n                                </div>\n                              </div>\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-show']\" class=\"form-group row polygons-settings-row\" title=\"What amount of gather force should be used?\">\n                                <div class=\"col-4\">\n                                  <label for=\"polygons-gather-force\">Gather</label>\n                                </div>\n                                <div class=\"col-8\">\n                                <input type=\"range\" class=\"custom-range\" id=\"polygons-gather-force\" min=\"0\" value=\"0\" step=\"0.0001\" max=\".02\" [(ngModel)]=\"commonService.session.style.widgets['polygons-gather-force']\" (ngModelChange)=\"onPolygonGatherChange($event)\">\n                                </div>\n                              </div>\n                            </div>\n                          </div>\n                    </p-accordionTab>\n                    <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Labels\" id=\"polygons-controls-accordion\">\n                          <div id=\"polygons-controls-labels\" data-parent=\"#polygons-controls-accordion\">\n                            <div class=\"card-body\">\n                              <div class=\"form-group row\" title=\"Show polygons label?\">\n                                <div class=\"col-4\">Label Polygons</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"polygons-label-visibility\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-show']\" (ngModelChange)=\"onPolygonLabelShowChange($event)\"></p-selectButton>\n                                </div>\n                              </div>\n                              <div class=\"form-group row polygons-label-row\" title=\"How big should polygon labels be?\">\n                                <div class=\"col-4\"><label for=\"polygons-label-size\">Label Size</label></div>\n                                <div class=\"col-8\">\n                                    <input type=\"range\" class=\"custom-range\" id=\"polygons-label-size\" min=\"6\" value=\"16\" step=\"1\" max=\"72\" [(ngModel)]=\"commonService.session.style.widgets['polygons-label-size']\" (ngModelChange)=\"onPolygonLabelSizeChange($event)\">\n                                </div>\n                              </div>\n                              <div class=\"form-group row polygons-label-row\" title=\"How should the labels be oriented relative to center of polygon?\">\n                                <div class=\"col-4\"><label for=\"polygons-label-orientation\">Orientation</label></div>\n                                <div class=\"col-8\">\n                                    <select id=\"polygon-label-orientation\" [(ngModel)]=\"SelectedPolygonLabelOrientationVariable\" (ngModelChange)=\"onPolygonLabelOrientationChange($event)\">\n                                        <option selected>Right</option>\n                                        <option>Left</option>\n                                        <option>Top</option>\n                                        <option>Bottom</option>\n                                        <option>Middle</option>\n                                    </select>                                \n                                </div>\n                              </div>\n                            </div>\n                          </div>\n                        </p-accordionTab>\n                        <!-- style=\"display: none;\" -->\n                        <p-accordionTab *ngIf=\"commonService.session.style.widgets['polygons-show']\" style=\"color:#495057\" header=\"Colors\" id=\"polygons-controls-accordion\">  \n                          <div id=\"polygons-controls-colors\" data-parent=\"#polygons-controls-accordion\">\n                            <div class=\"card-body\">\n                              <div id=\"color-polygons\" class=\"form-group row\" title=\"Show polygons colored?\">\n                                <div class=\"col-4\">Color Polygons</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"colorPolygons\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygons-color-show']\" (ngModelChange)=\"polygonColorsToggle($event)\"></p-selectButton>\n                                </div>\n                              </div>\n                              <div *ngIf=\"commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-table-row\" class=\"form-group row\" title=\"Should MicrobeTrace display the table of colors?\">\n                                <div class=\"col-4\">Polygon Color Table</div>\n                                <div class=\"col-8\">\n                                    <p-selectButton id=\"colorPolygonsTable\" [options]=\"hideShowOptions\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color-table-visible']\" (ngModelChange)=\"polygonColorsTableToggle($event)\"></p-selectButton>\n                                </div>\n                              </div>\n                              <div *ngIf=\"!commonService.session.style.widgets['polygons-color-show']\" id=\"polygon-color-value-row\" class=\"form-group row\" title=\"What color should the polygons be?\">\n                                <div class=\"col-4\"><label for=\"polygon-color\">Polygons</label></div>\n                                <div class=\"col-8\">\n                                  <input type=\"color\" id=\"polygon-color\" class=\"form-control form-control-sm\" value=\"#1f77b4\" [(ngModel)]=\"commonService.session.style.widgets['polygon-color']\" (ngModelChange)=\"onPolygonColorChanged($event)\">\n                                </div>\n                              </div>              \n                            </div>\n                          </div>\n                    </p-accordionTab>\n                </p-accordion>\n            </tab>\n        </tabset>\n\n    </p-dialog>\n\n\n\n</div>\n\n    <p-dialog id=\"node-symbol-table-wrapper\" \n                [position]=\"NodeSymbolTableWrapperDialogSettings.shapeRight\"\n                [(visible)]=\"NodeSymbolTableWrapperDialogSettings.isVisible\"  \n                header=\"Node Symbol Selection Table\"  \n                [style]=\"{width: '45vw', maxWidth: '450px'}\"\n                (onHide)=\"onNodeSymbolTableChange('Hide')\"\n                (onShow)=\"onNodeSymbolTableChange('Show')\"\n                >\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Node Shapes and Size Selection.\">          \n             <table id=\"node-symbol-table\" style=\"width:100%;height:100%;\"></table>          \n        </div>\n        <select id=\"node-symbol2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\n\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\n        </select>\n\n    </p-dialog>\n\n    <p-dialog id=\"polygon-color-table-wrapper\" \n                [position]=\"PolygonColorTableWrapperDialogSettings.polygonRight\" \n                [(visible)]=\"PolygonColorTableWrapperDialogSettings.isVisible\"  \n                header=\"Polygon Color Selection Table\" \n                [style]=\"{width: '45vw', maxWidth: '450px'}\" \n                (onHide)=\"onPolygonColorTableChange(false)\"\n                (onShow)=\"onPolygonColorTableChange(true)\"\n                >\n        <div class=\"col-12\" style=\"width:100%;max-height:50vh;\" title=\"Polygon Color Selection.\">          \n             <table id=\"polygon-color-table\" style=\"width:100%;height:100%;\"></table>          \n        </div>\n        <select id=\"polygon-color2\" [hidden]=\"'true'\" class=\"form-control form-control-sm\">\n\n            <option value=\"symbolCircle\" selected>&nbsp;&#11044; (Circle)</option>\n            <option value=\"symbolTriangle\">&nbsp;&#9650; (Up Triangle)</option>\n            <option value=\"symbolTriangleDown\">&nbsp;&#9660; (Down Triangle)</option>\n            <option value=\"symbolTriangleLeft\">&nbsp;&#9664; (Left Triangle)</option>\n            <option value=\"symbolTriangleRight\">&nbsp;&#9654; (Right Triangle)</option>\n            <option value=\"symbolDiamond\">&nbsp;&#10731; (Vertical Diamond)</option>\n            <option value=\"symbolDiamondAlt\">&nbsp;&#10731; (Horizontal Diamond)</option>\n            <option value=\"symbolSquare\">&nbsp;&#9632; (Square)</option>\n            <option value=\"symbolDiamondSquare\">&nbsp;&#9670; (Tilted Square)</option>\n            <option value=\"symbolPentagon\">&nbsp;&#11039; (Pentagon)</option>\n            <option value=\"symbolHexagon\">&nbsp;&#11042; (Hexagon)</option>\n            <option value=\"symbolHexagonAlt\">&nbsp;&#11043; (Tilted Hexagon)</option>\n            <option value=\"symbolOctagon\">&nbsp;&#11042; (Octagon)</option>\n            <option value=\"symbolOctagonAlt\">&nbsp;&#11043; (Tilted Octagon)</option>\n            <option value=\"symbolCross\">&nbsp;&#10010; (Addition Sign)</option>\n            <option value=\"symbolX\">&nbsp;&#10006; (Multiplication Sign)</option>\n            <option value=\"symbolWye\">&nbsp;&#120300; (Wye)</option>\n            <option value=\"symbolStar\">&nbsp;&#9733; (Star)</option>\n        </select>\n\n    </p-dialog>\n\n    <!-- <p-dialog id=\"polygon-color-table-wrapper\" class=\"floater\">\n        <div id=\"polygon-color-table-draghandle\"><span class=\"oi oi-move\"></span></div>\n        <table id=\"polygon-color-table\"></table>\n    </p-dialog> -->\n\n\n\n\n\n<div id=\"node-symbol-table-context\" class=\"dropdown-menu\">\n    <a href=\"#\" id=\"node-symbol-table-move\" class=\"dropdown-item\">Pin</a>\n    <a href=\"#\" id=\"node-symbol-table-context-hide\" class=\"dropdown-item\">Hide</a>\n    <a href=\"#\" id=\"node-symbol-table-expand\" class=\"dropdown-item\">Expand</a>\n    <a href=\"#\" id=\"node-symbol-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\n    <a href=\"#\" id=\"node-symbol-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\n</div>\n\n  \n  <div id=\"polygon-color-table-context\" class=\"dropdown-menu\">\n    <a href=\"#\" id=\"polygon-color-table-drag\" class=\"dropdown-item\">Drag/Arrow Keys</a>\n    <a href=\"#\" id=\"polygon-color-table-context-hide\" class=\"dropdown-item\">Hide</a>\n    <a href=\"#\" id=\"polygon-color-table-expand\" class=\"dropdown-item\">Expand</a>\n    <a href=\"#\" id=\"polygon-color-table-counts\" class=\"dropdown-item\">Toggle Counts</a>\n    <a href=\"#\" id=\"polygon-color-table-frequencies\" class=\"dropdown-item\">Toggle Frequencies</a>\n  </div>\n\n<div id=\"context-menu\" class=\"dropdown-menu\">\n    <a href=\"javascript:;\" id=\"pinNode\" class=\"dropdown-item\">Pin Node</a>\n    <button id=\"copyID\" class=\"dropdown-item\" (click)=\"copyID()\">Copy ID</button>\n    <button id=\"copySeq\" class=\"dropdown-item\" (click)=\"copySeq()\">Copy Sequence</button>\n    <a href=\"javascript:;\" id=\"viewAttributes\" class=\"dropdown-item\">View Attributes</a>\n</div>\n\n\n<p-dialog id=\"network-attribute-table-wrapper\" [(visible)]=\"ShowNetworkAttributes\" header=\"Node Attributes\" [style]=\"{width: '35vw'}\" >\n    <div class=\"col-12\" style=\"width:100%;\">        \n        <table id=\"network-attribute-table\" style=\"width:100%\">\n            <tr *ngFor=\"let item of ContextSelectedNodeAttributes\">\n                <td>\n                    <strong>\n                        {{item.attribute}}\n                    </strong>\n                </td>\n                <td>{{item.value}}</td>\n            </tr>\n        </table>\n    </div>\n</p-dialog>\n\n\n\n<p-dialog id=\"network-export-modal\" [(visible)]=\"Show2DExportPane\" header=\"Export Network Image\" class=\"dialogSize\" (onHide)=\"onCloseExport()\">\n    <div class=\"modal-dialog\" role=\"document\">\n        <div class=\"modal-content\">\n                <div class=\"modal-body\" style='min-width: 400px; height: 100%;'>\n                    <div class=\"form-group row\">\n                    <div class=\"col-8\">\n                        <input type=\"text\" id=\"network-export-filename\" class=\"form-control form-control-sm\" placeholder=\"Filename\" [(ngModel)]=\"SelectedNetworkExportFilenameVariable\" (ngModelChange)=\"onDataChange($event)\">\n                    </div>\n                    <div class=\"col-4\">\n                        <p-dropdown id=\"network-export-filetype\" [options]=\"NetworkExportFileTypeList\" [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\" (ngModelChange)=\"onNetworkExportFiletypeChange($event)\"></p-dropdown>\n                    </div>\n                </div>\n                <div>\n\n                    <div [hidden]=\"!ShowAdvancedExport\">\n                        <p-accordion>\n                            <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\n                                <div id=\"network-export-advanced\">\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-3\">\n                                            <label for=\"network-export-scale\">Scale</label>\n                                        </div>\n                                        <div class=\"col-9\">\n                                            <input type=\"number\" id=\"network-export-scale\" class=\"form-control form-control-sm\" min=\"0\" max=\"2\" step=\"0.1\" value=\"1\" [(ngModel)]=\"SelectedNetworkExportScaleVariable\" (ngModelChange)=\"updateCalculatedResolution($event)\">\n                                        </div>\n                                    </div>\n                                    <div class=\"form-group row\">\n                                        <div class=\"col-3\">Resolution</div>\n                                        <div id=\"network-export-dimensions\" class=\"col-9 text-right\">{{CalculatedResolution}}</div>\n                                    </div>\n                                    <div class=\"row\">\n                                        <div class=\"col-3\">\n                                            <label for=\"network-export-quality\">Quality</label>\n                                        </div>\n                                        <div class=\"col-9\">\n                                            <input type=\"range\" class=\"custom-range\" id=\"network-export-quality\" min=\"0\" max=\"1.0\" value=\"0.92\" step=\"0.01\" [(ngModel)]=\"SelectedNetworkExportQualityVariable\">\n                                        </div>\n                                    </div>\n\n                                </div>\n                            </p-accordionTab>\n                        </p-accordion>\n                    </div>\n                </div>\n            </div>\n            <div class=\"modal-footer\">\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"Show2DExportPane = !Show2DExportPane\">Cancel</button>\n                <button type=\"button\" id=\"network-export\" class=\"btn btn-primary\" (click)=\"exportVisualization($event)\">Export</button>\n            </div>\n        </div><!-- /.modal-content -->\n    </div><!-- /.modal-dialog -->\n</p-dialog><!-- /.modal -->\n";
 
 /***/ })
 

@@ -3567,7 +3567,7 @@ p-dialog {
 .table-header-row .header-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 3px;
   width: 100%;
 }
 
