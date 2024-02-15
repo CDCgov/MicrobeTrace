@@ -616,6 +616,9 @@ Note that this may cause slow performance on larger networks.">
 
     var customChanged = false;
 
+    // To check against polygons when they are shown so that all the polygon functions dont cause a render upon loading
+    var manualTrigger = false;
+
     // Help function to populate custom symbols array
     getCustomSymbolsArray = array => {
       
@@ -2268,30 +2271,42 @@ Note that this may cause slow performance on larger networks.">
       d3.select('#network g.vertical-gridlines').html(null);
     });
 
-    $('#polygons-show').parent().on('click', function () {
+    $('#polygons-show').on('click', function () {
       settings['polygons-show'] = true;
       $(".polygons-settings-row").slideDown();
+
+      // Set to true to not cause rendering on the following until they all have been updated
+      manualTrigger = true;
+
       if(settings['polygons-color-show'] == true){
         $('#polygons-color-show').click();
       } else {
         $('#polygons-color-hide').click();
+
       }
       if(settings['polygons-label-show'] == true){
         $('#polygons-label-show').click();
+
       } else {
         $('#polygons-label-hide').click();
       }
 
-      render();
+      // Wait a second before changing the manual trigger back to false
+      setTimeout(function() {
+        manualTrigger = false;
+        render();
+      }, 1000);
+
     });
 
-    $('#polygons-hide').parent().on('click', function () {
+    $('#polygons-hide').on('click', function () {
       settings['polygons-show'] = false;
       $(".polygons-settings-row").slideUp();
       $('.polygons-label-row').slideUp();
       $("#polygon-color-table-row").slideUp();
       $("#polygon-color-value-row").slideUp();
       $("#polygon-color-table").empty();
+
       render();
     });
 
@@ -2310,16 +2325,22 @@ Note that this may cause slow performance on larger networks.">
       render();
     });
 
-    $('#polygons-label-show').parent().on('click', function () {
+    $('#polygons-label-show').on('click', function () {
       settings['polygons-label-show'] = true;
       $('.polygons-label-row').slideDown();
-      render();
+
+      if (!manualTrigger) {
+        render();
+      }
     });
 
-    $('#polygons-label-hide').parent().on('click', function () {
+    $('#polygons-label-hide').on('click', function () {
       settings['polygons-label-show'] = false;
       $('.polygons-label-row').slideUp();
-      render();
+
+      if (!manualTrigger) {
+        render();
+      }
     });
 
     $('#polygons-label-size').on('input', function () {
@@ -2332,15 +2353,18 @@ Note that this may cause slow performance on larger networks.">
       redrawPolygonLabels();
     });
 
-    $('#polygons-color-hide').parent().on('click', function () {
+    $('#polygons-color-hide').on('click', function () {
       settings['polygons-color-show'] = false;
       $("#polygon-color-value-row").slideDown();
       $("#polygon-color-table-row").slideUp();
       $("#polygon-color-table").empty();
-      render();
+
+      if (!manualTrigger) {
+        render();
+      }
     });
 
-    $("#polygons-color-show").parent().on("click", function() { 
+    $("#polygons-color-show").on("click", function() { 
       settings['polygons-color-show'] = true;
       $("#polygon-color-value-row").slideUp();
       $("#polygon-color-table-row").slideDown();
@@ -2935,6 +2959,8 @@ Note that this may cause slow performance on larger networks.">
     let linkColorVariable = session.style.widgets["link-color-variable"] === 'None' ? 'origin' : session.style.widgets["link-color-variable"];
     if (session.files.length > 1) $('#link-color-variable').val(linkColorVariable).change(); 
     if (settings['background-color']) $('#network').css('background-color', settings['background-color']);
+
+    console.log('poly normal render');
 
     render();
     if (session.style.widgets["node-timeline-variable"] != 'None') { 
