@@ -4073,6 +4073,15 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
 .ui-table-scrollable-body {
   max-height: 665px;
 }
+
+body .p-accordion-tab:not(.p-accordion-tab-active) .p-toggleable-content {
+  height: 0;
+  overflow: hidden;
+}
+body .p-accordion-tab.p-accordion-tab-active .p-toggleable-content {
+  height: auto !important;
+  overflow: auto !important;
+}
 /*!******************************************************************************************************************************************************************************************************************************************************!*\
   !*** css ./node_modules/css-loader/dist/cjs.js??ruleSet[1].rules[4].rules[0].oneOf[0].use[1]!./node_modules/postcss-loader/dist/cjs.js??ruleSet[1].rules[4].rules[0].oneOf[0].use[2]!./node_modules/primeng/resources/primeng.min.css?ngGlobalStyle ***!
   \******************************************************************************************************************************************************************************************************************************************************/
