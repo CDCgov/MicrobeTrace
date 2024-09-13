@@ -59,7 +59,7 @@
     "alertifyjs": "^1.13.1",
     "alignment-viewer": "^0.3.4",
     "bioseq": "^0.1.5",
-    "bootstrap": "^4.6.0",
+    "bootstrap": "^5.0.0",
     "browserslist": "^4.16.5",
     "chosen-js": "^1.8.5",
     "clipboard": "^2.0.6",
