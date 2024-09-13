@@ -46,7 +46,7 @@
     "test": "test"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.21.0",
     "express-http-to-https": "^1.1.4",
     "express-static-gzip": "^2.1.8",
     "gzipper": "^2.10.4",
