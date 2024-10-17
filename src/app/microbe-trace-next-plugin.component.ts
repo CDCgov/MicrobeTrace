@@ -1,4 +1,4 @@
-﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService } from './contactTraceCommonServices/common.service';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
@@ -1222,6 +1222,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
+        // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
+        if ('bubble' in this.visuals) {
+            this.visuals.bubble.sortData(variable);
+        }
+
         console.log('timeline variable: ', variable);
         if(!this.visuals.microbeTrace.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");
 
@@ -1243,7 +1248,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.visuals.microbeTrace.commonService.session.network.timelinePinned = this.visuals.microbeTrace.commonService.session.network.allPinned;
         if(!this.visuals.microbeTrace.commonService.session.network.allPinned) {
             this.visuals.microbeTrace.commonService.updatePinNodes(true);
-            this.openPinAllNodes(1);
+            let tabIndex = this.homepageTabs.findIndex((x) => x.label == '2D Network');
+            tabIndex > -1 ? this.openPinAllNodes(tabIndex): console.log('no 2D index');
+            //this.openPinAllNodes(1);
         }
         this.visuals.microbeTrace.commonService.session.network.timelineNodes = this.visuals.microbeTrace.commonService.getNetworkNodes();
         }

@@ -48,7 +48,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   nodeSize = 16;
   nodeSpacing = 0.05;
 
-  data: DataRecord[] = [];
+  allData: DataRecord[] = [];
+  visibleData: DataRecord[] = [];
+
   X_categories = []
   X_axisFormat = (tick: number) => this.X_categories[tick]
   X_tickValues = []
@@ -145,6 +147,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     this.xVariable = 'cluster';
     this.yVariable = 'cluster';
+    this.updateAxisValues('X');
+    this.updateAxisValues('Y');
 
     this.getData();
     this.onNodeSizeChange();
@@ -167,6 +171,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           that.visuals.bubble.setSelectedNodes(that);
       }
     });
+
+    $( document ).on( "node-visibility", function( ) {
+      //console.log('node visi event')
+      that.updateVisibleNodes()
+    });
   }
 
   ngAfterViewInit(): void {
@@ -188,11 +197,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * (updates axes and places nodes with this.updateAxes and updates color of nodes with this.updateColors)
    */
   getData() {
-    this.data = [];
-    this.X_categories = [];
-    this.Y_categories = [];
+    this.allData = [];
   
-    let nodes = this.commonService.getVisibleNodes()
+    let nodes = this.commonService.session.data.nodeFilteredValues;
     nodes.forEach(node => {
       let nodeDR: DataRecord = {
         index: node.index,
@@ -207,53 +214,118 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       if (this.xVariable != undefined || this.xVariable != 'None') {
         let nodeX = node[this.xVariable];
         let locX = this.X_categories.indexOf(nodeX);
-        if (locX == -1) {
-          this.X_categories.push(nodeX);
-          locX = this.X_categories.length - 1;
-        }
         nodeDR.Xgroup = locX;
       }
       if (this.yVariable != undefined || this.yVariable != 'None') {
         let nodeY = node[this.yVariable];
         let locY = this.Y_categories.indexOf(nodeY);
-        if (locY == -1) {
-          this.Y_categories.push(nodeY);
-          locY = this.Y_categories.length - 1;
-        }
         nodeDR.Ygroup = locY;
       }
 
-      this.data.push(nodeDR)
+      this.allData.push(nodeDR)
     })
     this.updateAxes();
     this.updateColors();
+    if (this.widgets["node-timeline-variable"] != 'None') {
+      this.sortData(this.widgets["node-timeline-variable"])
+    }
+    this.updateVisibleNodes();
+
+  }
+
+  /**
+   * updates values of visibleNodes based on SelectedNodeCollapsingTypeVariable and if timeline mode is active
+   */
+  updateVisibleNodes() {
+    if (this.widgets["node-timeline-variable"] == 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
+      this.visibleData = this.allData;
+    } else if (this.SelectedNodeCollapsingTypeVariable){
+      if (this.commonService.getVisibleNodes().length == this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0)) { return }
+      this.getCollapsedData(false, false)
+    } else { 
+      let visibleNodes = this.commonService.getVisibleNodes();
+      if (visibleNodes.length == this.visibleData.length +2) { return }
+      this.visibleData = [];
+      this.visibleData.push({
+        id: '',
+        index: 10000,
+        x: -.4,
+        y: -.4,
+        color: '#ffffff',
+        Xgroup: -.4,
+        Ygroup: -.4,
+        strokeColor: '#ffffff'
+      })
+      this.visibleData.push({
+        id: '',
+        index: 10000,
+        x: this.X_categories.length - .6,
+        y: this.Y_categories.length - .6,
+        color: '#ffffff',
+        Xgroup: this.X_categories.length - .6,
+        Ygroup: this.Y_categories.length -.6,
+        strokeColor: '#ffffff'
+      })
+      this.allData.forEach(node => {
+        if (visibleNodes.find(vNode => vNode._id == node.id)) {
+          this.visibleData.push(node);
+        }
+      })
+    } 
+    
+
+  }
+
+  /**
+  * Updates the value of X_categories X_tickValues based on xVariables (or those variables for Y axis)
+  * @param axis 'X' or anything else defaults to 'Y' axis
+  */
+  updateAxisValues(axis: string) {
+    let nodes = this.commonService.session.data.nodeFilteredValues;
+
+    if (axis == 'X') {
+      if ( this.xVariable == 'None' || this.xVariable == undefined) {
+        this.X_categories = [ undefined ];
+        this.X_tickValues = [ 0 ];
+      }
+
+      this.X_categories = [];
+      this.X_tickValues = [];
+
+      nodes.forEach(node => {
+        let nodeX = node[this.xVariable];
+        if (this.X_categories.indexOf(nodeX) == -1) {
+          this.X_tickValues.push(this.X_categories.length);
+          this.X_categories.push(nodeX);
+        }
+    })
+
+    } else {
+      if ( this.yVariable == 'None' || this.yVariable == undefined) {
+        this.Y_categories = [ undefined ];
+        this.Y_tickValues = [ 0 ];
+      }
+
+      this.Y_categories = [];
+      this.Y_tickValues = [];
+
+      nodes.forEach(node => {
+        let nodeY = node[this.yVariable];
+        if (this.Y_categories.indexOf(nodeY) == -1) {
+          this.Y_tickValues.push(this.Y_categories.length);
+          this.Y_categories.push(nodeY);
+        }
+      })
+    }
   }
 
   /**
    * Updates axis tickValues (X_tickValues & Y_tickValues) and positions for each node
    */
   updateAxes() {
-    
-    this.X_tickValues = [];
-    this.Y_tickValues = []
-    if (this.xVariable == undefined || this.xVariable == 'None' || this.X_categories.length == 1) {
-      this.X_tickValues.push(0);
-    } else {
-      for (let i=0; i< this.X_categories.length; i++) {
-        this.X_tickValues.push(i)
-      }
-    }
-    if (this.yVariable == undefined || this.yVariable == 'None' || this.Y_categories.length == 1) {
-      this.Y_tickValues.push(0);
-    } else {
-      for (let i=0; i< this.Y_categories.length; i++) {
-        this.Y_tickValues.push(i)
-      }
-    }
-
     this.X_tickValues.forEach(xLoc => {
       this.Y_tickValues.forEach(yLoc => {
-        let filteredNodes = this.data.filter(node => node.Xgroup == xLoc && node.Ygroup == yLoc)
+        let filteredNodes = this.allData.filter(node => node.Xgroup == xLoc && node.Ygroup == yLoc)
         if (filteredNodes.length == 0) {
           return;
         } else if (filteredNodes.length == 1) {
@@ -282,64 +354,93 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   /**
-   * Updates this.data so that each node represents a multiple datapoints instead of a single data point;
+   * Updates this.visibleData so that each node represents a multiple datapoints instead of a single data point;
    * Also updates color/pattern of nodes so that they are pie charts based on proportion of each datapoint's color
    */
-  getCollapsedData() {
-    this.data = [];
-    this.X_categories = [];
-    this.Y_categories = [];
-  
-    let nodes = this.commonService.getVisibleNodes()
-    nodes.forEach(node => {
-      let X_group = 0, Y_group = 0;
-
-      if (this.xVariable != undefined || this.xVariable != 'None') {
-        let nodeX = node[this.xVariable];
-        let locX = this.X_categories.indexOf(nodeX);
-        if (locX == -1) {
-          this.X_categories.push(nodeX);
-          locX = this.X_categories.length - 1;
+  getCollapsedData( sortData = false, initial  = true) {
+    if (this.widgets["node-timeline-variable"] != 'None' && sortData) {
+      this.sortData(this.widgets["node-timeline-variable"])
+    }
+    
+    if (initial) {
+      this.visibleData = [];
+      let fullNodes = this.commonService.session.data.nodeFilteredValues;
+      this.allData.forEach(node => {
+        let X_group = 0, Y_group = 0;
+        let currentFullNode = fullNodes.find(fNode => fNode.index == node.index)
+        if (this.xVariable != undefined || this.xVariable != 'None') {
+          let nodeX = currentFullNode[this.xVariable];
+          X_group = this.X_categories.indexOf(nodeX);
         }
-        X_group = locX;
-      }
-      if (this.yVariable != undefined || this.yVariable != 'None') {
-        let nodeY = node[this.yVariable];
-        let locY = this.Y_categories.indexOf(nodeY);
-        if (locY == -1) {
-          this.Y_categories.push(nodeY);
-          locY = this.Y_categories.length - 1;
+        if (this.yVariable != undefined || this.yVariable != 'None') {
+          let nodeY = currentFullNode[this.yVariable];
+          Y_group = this.Y_categories.indexOf(nodeY);
         }
-        Y_group = locY;
-      }
 
-      let index = this.data.findIndex((node) => node.Xgroup==X_group && node.Ygroup==Y_group)
-      if (index == -1) {
-        let length = this.data.length;
-        this.data.push({
-          index: length,
-          id: `${length}`,
-          x: X_group,
-          y: Y_group,
-          color: this.commonService.session.style.widgets['node-color'],
-          Xgroup: X_group,
-          Ygroup: Y_group,
-          strokeColor: '#000000',
-          totalCount: 1
-        })
-      } else {
-        this.data[index].totalCount += 1
-      }
+        let index = this.visibleData.findIndex((node) => node.Xgroup==X_group && node.Ygroup==Y_group);
+        if (index == -1) {
+          console.log(X_group, Y_group)
+          let length = this.visibleData.length;
+          this.visibleData.push({
+            index: length,
+            id: `${length}`,
+            x: X_group,
+            y: Y_group,
+            color: this.commonService.session.style.widgets['node-color'],
+            Xgroup: X_group,
+            Ygroup: Y_group,
+            strokeColor: '#000000',
+            totalCount: 0,
+            counts: []
+          })
+        }
+      })
 
-    })
+    }
 
-    this.generateCollapsedCounts();
-    let gradient = this.generatePieChartsSVGDefs();
+    let changedVisibleNodes = this.generateCollapsedCounts();
+    let gradient = this.generatePieChartsSVGDefs(changedVisibleNodes);
     let svgDef = this.elem.nativeElement.querySelector('#bubbleDefs');
-    this.renderer.setProperty(svgDef, 'innerHTML', gradient);
+    changedVisibleNodes.forEach(nodeIndex => { 
+      let currentNode = svgDef.querySelector(`pattern[id='node${nodeIndex}']`)
+      if (currentNode != null) currentNode.remove()
+    })
+    let XMLS = new XMLSerializer();
+    svgDef.childNodes.forEach(cNode => gradient += XMLS.serializeToString(cNode))
+    this.renderer.setProperty(svgDef, 'innerHTML', gradient)
+
+    if (this.widgets['node-timeline-variable'] && initial) {
+      // these 2 invisible nodes are to try to keep the graph frame consistent
+      this.visibleData.push({
+        id: '',
+        index: 10000,
+        x: -.4,
+        y: -.4,
+        color: '#ffffff',
+        Xgroup: -.4,
+        Ygroup: -.4,
+        strokeColor: '#000000',
+        counts: [],
+        totalCount: 0
+      })
+      this.visibleData.push({
+        id: '',
+        index: 10000,
+        x: this.X_categories.length - .6,
+        y: this.Y_categories.length - .6,
+        color: '#ffffff',
+        Xgroup: this.X_categories.length - .6,
+        Ygroup: this.Y_categories.length -.6,
+        strokeColor: '#000000',
+        counts: [],
+        totalCount: 0
+      })
+    }
 
     this.color = (d: DataRecord) => {
-      if ( d.totalCount == 1 || d.counts.length == 1) {
+      if (d.id == '' && d.index == 10000) {
+        return '#ffffff'
+      } else if ( d.totalCount == 1 || d.counts.length == 1) {
         return this.commonService.temp.style.nodeColorMap(d.counts[0].label)
       } else {
         return `url(#node${d.index})`
@@ -350,19 +451,27 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   /**
-   * Update the values for counts for each node in this.data (relevant when nodes are collapsed). These values are used when creating a pie
+   * Update the values for counts for each node in this.visibleData (relevant when nodes are collapsed). These values are used when creating a pie
    * chart of each collapsed node.
+   * @returns an array of indexes of visibleData that was changed
    */
   generateCollapsedCounts() {
     let fullNodes = this.commonService.getVisibleNodes();
     let colorCategory = this.commonService.session.style.widgets['node-color-variable']
+    let changedVisibleNodes = [];
 
-    this.data.forEach(node => {
+    this.visibleData.forEach(node => {
+      if (node.id == '' && node.index == 1000) {
+        node.counts = { label: '', count: 0}
+        return;
+      }
       let X = this.X_categories[node.Xgroup]
       let Y = this.Y_categories[node.Ygroup]
       
       let currentNodes = fullNodes.filter(fNode => fNode[this.xVariable] == X && fNode[this.yVariable]==Y) 
       node.counts = [];
+      let previousTotal = node.totalCount;
+      node.totalCount = 0;
       currentNodes.forEach(cNode => {
         let currentCategory = cNode[colorCategory];
         let index = node.counts.findIndex((countItem) => countItem.label == currentCategory)
@@ -374,59 +483,72 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         } else {
           node.counts[index].count += 1
         }
+        node.totalCount += 1;
       })
+      if (previousTotal != node.totalCount) {
+        console.log('node updated: ', node.totalCount, node.index)
+        changedVisibleNodes.push(node.index)
+      }
     })
+    return changedVisibleNodes;
   }
 
   /**
-   * @returns a string representing the SVG def of the pattern needed to generate the pie chart
+   * @returns a string representing the SVG def of the patterns needed to generate the pie chart
    */
-  generatePieChartsSVGDefs() : string {
+  generatePieChartsSVGDefs(changedVisibleNodes) : string {
     let patternString = '';
-    this.data.forEach((node, ind) => {
+    changedVisibleNodes.forEach((indexNumber) => { //})
+      let node = this.visibleData.find(vNode => vNode.index == indexNumber);
 
-    if (node.totalCount == 1 || node.counts.length == 1) {
-      return;
-    }
-    let proportions = []
-    let coordinates = []
-    let colors = [];
-    node.counts.forEach(x => {
-      let proportion = proportions.reduce((acc, cv) => acc+cv, 0) + x.count/node.totalCount
-      let xPos = Math.cos(2 * Math.PI * proportion)
-      let yPos = Math.sin(2 * Math.PI * proportion)
-      
-      proportions.push(x.count/node.totalCount)
-      coordinates.push([xPos, yPos])
-      colors.push(this.commonService.temp.style.nodeColorMap(x.label))
+      if (node.totalCount < 2 || node.counts.length == 1 || node == undefined) {
+        return;
+      }
+      let proportions = []
+      let coordinates = []
+      let colors = [];
+      node.counts.forEach(x => {
+        let proportion = proportions.reduce((acc, cv) => acc+cv, 0) + x.count/node.totalCount
+        let xPos = Math.cos(2 * Math.PI * proportion)
+        let yPos = Math.sin(2 * Math.PI * proportion)
+        
+        proportions.push(x.count/node.totalCount)
+        coordinates.push([xPos, yPos])
+        colors.push(this.commonService.temp.style.nodeColorMap(x.label))
+      })
+
+      patternString += `<pattern id='node${indexNumber}' viewBox='-1 -1 2 2' style='transform: rotate(-.25turn)' width='100%' height='100%'>` ;
+      for (let i = 0; i<coordinates.length; i++) {
+        let arcStart = i == 0 ? '1 0': coordinates[i-1][0] + ' ' + coordinates[i-1][1];
+        let largeArcFlag = proportions[i] > .5 ? 1: 0 
+        let arcEnd = i == coordinates.length-1 ? '1 0' : coordinates[i][0] + ' ' + coordinates[i][1]
+        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill=${colors[i]} />`
+      }
+      patternString += '</pattern>'
     })
-
-    patternString += `<pattern id='node${ind}' viewBox='-1 -1 2 2' style='transform: rotate(-.25turn)' width='100%' height='100%'>` ;
-    for (let i = 0; i<coordinates.length; i++) {
-      let arcStart = i == 0 ? '1 0': coordinates[i-1][0] + ' ' + coordinates[i-1][1];
-      let largeArcFlag = proportions[i] > .5 ? 1: 0 
-      let arcEnd = i == coordinates.length-1 ? '1 0' : coordinates[i][0] + ' ' + coordinates[i][1]
-      patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill=${colors[i]} />`
-    }
-    patternString += '</pattern>'
-  })
     return patternString;
   }
 
+  /**
+   * Updates the color of the nodes in allData
+   */
   updateColors() {
     let fillcolor = this.commonService.session.style.widgets['node-color']
     let colorVariable = this.commonService.session.style.widgets['node-color-variable']
 
-    let fullNodes = this.commonService.getVisibleNodes();
+    let fullNodes = this.commonService.session.data.nodeFilteredValues;
 
-    this.data.forEach(node => {
-      let currentFullNode = fullNodes[node.index];
+    this.allData.forEach(node => {
+      let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
       node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
     })
 
     this.color = (d: DataRecord) => d.color
   }
 
+  /**
+   * Calculates the position (x, y) for the array of nodes; nodes are positioned in a layers spiral/hexagonal pattern 
+   */
   calculateHexagonalGridPositions(nodes: DataRecord[]) {
     const layerDistance = this.nodeSpacing * Math.sqrt(3); // Distance between layers
     let layer = 0;
@@ -449,14 +571,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   onNodeCollapsingChange() {
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.getCollapsedData();
+      this.getCollapsedData(true);
       this.sizing = (d: DataRecord) => {
+        if (d.id == '') return 0;
         return this.nodeSize * Math.sqrt(d.totalCount);
       };
     } else {
       this.getData();
       this.sizing = (d: DataRecord) => {
-          return this.nodeSize
+        if (d.id == '') return 1;
+        
+        return this.nodeSize
       }
     }
   }
@@ -487,7 +612,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     this.cdref.detectChanges();
     // @ts-ignore
-    this.scatterPlot.ngOnChanges(this.data);
+    this.scatterPlot.ngOnChanges(this.visibleData);
   }
 
   setSelectedNodes(that) {
@@ -496,27 +621,52 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
     let nodes = that.commonService.getVisibleNodes()
     nodes.forEach(node => {
-      let datum = that.data.find(datum => datum.index == node.index)
+      let datum = that.visibleData.find(datum => datum.index == node.index)
+      let datum_all = that.allData.find(datum => datum.index == node.index)
       if (node.selected) console.log('found: ', datum)
 
       datum.strokeColor = node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000';
+      datum_all.strokeColor = node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000';
     })
     that.strokeColor = (d: DataRecord) => d.strokeColor;
   }
 
-  onDataChange() {
+  onDataChange(axis: string) {
+    this.updateAxisValues(axis);
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.getCollapsedData();
+      this.getCollapsedData(true);
     } else {
       this.getData();
     }
     this.updateViewRatio();
   }
 
+  /**
+   * Sorts this.allData chronologically based on the given sortVariable
+   * @param sortVariable name of a property of commonService.session.data.nodeFilteredValues
+   */
+  sortData(sortVariable) {
+    console.log(`sorting data by _${sortVariable}_ in bubble view`);
+    let allNodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodeFilteredValues));
+    allNodes.sort((a, b) => new Date(a[sortVariable]).getTime() - new Date(b[sortVariable]).getTime())
+    
+    let allData = []
+    allNodes.forEach(node => {
+      allData.push(this.allData.find(dataNode => node._id == dataNode.id))      
+    })
+
+    this.allData = allData;
+    this.recalculatePositions();
+    this.updateVisibleNodes();
+  }
+
+  /**
+   * Recalculates the position of the nodes in allData
+   */
   recalculatePositions() {
     this.X_tickValues.forEach(xLoc => {
       this.Y_tickValues.forEach(yLoc => {
-        let filteredNodes = this.data.filter(node => node.Xgroup == xLoc && node.Ygroup == yLoc)
+        let filteredNodes = this.allData.filter(node => node.Xgroup == xLoc && node.Ygroup == yLoc)
         if (filteredNodes.length == 0) {
           return;
         } else if (filteredNodes.length == 1) {
@@ -532,17 +682,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   onNodeSpacingChange() {
     this.recalculatePositions();
     // @ts-ignore
-    this.scatterPlot.ngOnChanges(this.data);
+    this.scatterPlot.ngOnChanges(this.visibleData);
   }
 
   onNodeSizeChange() {
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.sizing = (d: DataRecord) => {
+        if (d.id == '') return 0;
         return this.nodeSize * Math.sqrt(d.totalCount);
       };
     } else {
       this.recalculatePositions();
       this.sizing = (d: DataRecord) => {
+        if (d.id == '') return 0;
         return this.nodeSize;
       };
     }
@@ -552,18 +704,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   * Opens Global Setting Dialog
   */
   showGlobalSettings() {
-    //console.log("threshold: ",  this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
     this.DisplayGlobalSettingsDialogEvent.emit("Styling");
   }
 
   updateNodeColors() {
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.generateCollapsedCounts();
-      let gradient2 = this.generatePieChartsSVGDefs();
+      let _ = this.generateCollapsedCounts();
+      let gradient2 = this.generatePieChartsSVGDefs(this.visibleData.map(obj => obj.index));
       let svgDef = this.elem.nativeElement.querySelector('#bubbleDefs');
       this.renderer.setProperty(svgDef, 'innerHTML', gradient2);
       this.color = (d: DataRecord) => {
-        if ( d.totalCount == 1 || d.counts.length == 1) {
+        if ( d.totalCount == 0) {
+          return '#ffffff'
+        } else if ( d.totalCount == 1 || d.counts.length == 1) {
           return this.commonService.temp.style.nodeColorMap(d.counts[0].label)
         } else {
           return `url(#node${d.index})`
@@ -573,16 +726,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.updateColors();
     }
   }
+
   updateLinkColor() {}
-  updateVisualization() {
-  }
+  updateVisualization() {}
   applyStyleFileSettings() {}
   openRefreshScreen() {}
   onRecallSession() {}
   onLoadNewData() {}
   onFilterDataChange() {}
-  
-  
+    
   openExport() { 
     this.setCalculatedResolution();
     this.exportOpen = true;
@@ -602,8 +754,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   updateCalculatedResolution() {
     this.CalculatedResolution = (Math.round(this.viewWidth * this.SelectedBubbleExportScaleVariable) + " x " + Math.round(this.viewHeight * this.SelectedBubbleExportScaleVariable) + "px");
     this.cdref.detectChanges();
-
   }
+
   exportVisualization() {
     let svg = $('#bubbleViewContainer svg')[0]
     if (this.BubbleExportFileType == 'svg') {

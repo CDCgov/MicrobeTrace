@@ -174,7 +174,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
         'width' : width+'px',
         'display': 'block'
     }
-    $('th').width(width/3);
+    $('#tablesContainer th').width(width/3);
   }
 
 

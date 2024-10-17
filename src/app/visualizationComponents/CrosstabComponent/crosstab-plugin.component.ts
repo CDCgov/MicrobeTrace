@@ -53,7 +53,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   totalRow;
   selectedSize = '';
   scrollHeight: string;
-  tableStyle;
+  tableStyleCrosstab;
   sizes = [
       { name: 'Small', class: 'p-datatable-sm' },
       { name: 'Normal', class: '' },
@@ -94,7 +94,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
     let width = ($('crosstabcomponent').width() - 23) + 'px';
-    this.tableStyle = {
+    this.tableStyleCrosstab = {
         'max-width' : width,
         'display': 'block'
     }
@@ -507,7 +507,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
     let width = ($('crosstabcomponent').width() - 23) + 'px';
-    this.tableStyle = {
+    this.tableStyleCrosstab = {
         'max-width' : width,
         'display': 'block'
     }
