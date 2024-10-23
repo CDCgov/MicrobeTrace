@@ -1051,10 +1051,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (!this.visuals.microbeTrace.commonService.session.style.linkValueNames)
             this.visuals.microbeTrace.commonService.session.style.linkValueNames = {};
             
-        let aggregates = this.visuals.microbeTrace.commonService.createLinkColorMap();
-        console.log('link aggregates: ', aggregates);
-        let vlinks = this.visuals.microbeTrace.commonService.getVisibleLinks();
-        let aggregateValues = Object.keys(aggregates);
+        const aggregates = this.visuals.microbeTrace.commonService.createLinkColorMap();
+        if (this.commonService.debugMode) {
+            console.log('link aggregates: ', aggregates);
+        }
+        const vlinks = this.visuals.microbeTrace.commonService.getVisibleLinks();
+        const aggregateValues = Object.keys(aggregates);
 
         const disabled: string = isEditable ? '' : 'disabled';
 
@@ -1063,10 +1065,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             if (aggregates[value] == 0) {
                 return;
             }
-            console.log('link color aggregates value: ', aggregates[value]);
-            console.log('link color value: ', value);
-            console.log('link color map: ', this.visuals.microbeTrace.commonService.temp.style.linkColorMap);
-            console.log('link color map value: ', this.visuals.microbeTrace.commonService.temp.style.linkColorMap(value));
+            if (this.commonService.debugMode) {
+                console.log('link color aggregates value: ', aggregates[value]);
+                console.log('link color value: ', value);
+                console.log('link color map: ', this.visuals.microbeTrace.commonService.temp.style.linkColorMap);
+                console.log('link color map value: ', this.visuals.microbeTrace.commonService.temp.style.linkColorMap(value));
+            }
 
             // Grab color of link from session
             const color = this.visuals.microbeTrace.commonService.temp.style.linkColorMap(value);
@@ -2181,7 +2185,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     officialInstance () {
         const prodVal = RegExp(/https:\/\/microbetrace.cdc.gov\/MicrobeTrace/);
         const devVal = RegExp(/https:\/\/cdcgov.github.io\/MicrobeTrace/);
-        if (prodVal.test(this.currentUrl) || devVal.test(this.currentUrl)) {
+        const localVal = RegExp(/localhost/);
+        if (prodVal.test(this.currentUrl) || devVal.test(this.currentUrl) || localVal.test(this.currentUrl)) {
             return true;
         } else {
             const el: HTMLElement | null = this.getElementById("overlay");
