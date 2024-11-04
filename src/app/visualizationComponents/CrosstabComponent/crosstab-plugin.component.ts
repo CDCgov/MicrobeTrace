@@ -4,7 +4,6 @@ import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
 import * as saveAs from 'file-saver';
-import { window } from 'ngx-bootstrap';
 import pdfMake from 'pdfmake/build/pdfmake.js';
 import pdfFonts from 'pdfmake/build/vfs_fonts.js'
 
@@ -408,7 +407,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   updateVisualization() {  }
 
   applyStyleFileSettings() { 
-    this.widgets = window.context.commonService.session.style.widgets;
+    this.widgets = (window as any).context.commonService.session.style.widgets;
     let tempX, tempY;
     if (this.widgets['crosstab-xVariable'] != undefined) {
       tempX = this.widgets['crosstab-xVariable']

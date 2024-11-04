@@ -2,7 +2,6 @@
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
-import { window } from 'ngx-bootstrap';
 import * as d3 from 'd3';
 import { forceAttract } from 'd3-force-attract';
 import { Clipboard } from '@angular/cdk/clipboard';
@@ -696,8 +695,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }            
             });
 
-            this.visuals.twoD.eventManager.addGlobalEventListener('window', "node-selected", () => {
-                console.log('render node-sel2');
+
+            window.addEventListener("node-selected", () => {
                 this.visuals.twoD.render(false);
             });
 
@@ -3662,7 +3661,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     applyStyleFileSettings() {
-        this.widgets = window.context.commonService.session.style.widgets;
+        this.widgets = (window as any).context.commonService.session.style.widgets;
         this.loadSettings();
     }
 
