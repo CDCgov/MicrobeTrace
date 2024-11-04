@@ -459,7 +459,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private visuals: MicrobeTraceNextVisuals;
 
     // Set the zoom scale extent
-    zoomScaleExtent: [number, number] = [0.1, 2]; // Minimum zoom of 0.1 and maximum zoom of 2
+    zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
 
     constructor(injector: Injector,
         private eventManager: EventManager,
