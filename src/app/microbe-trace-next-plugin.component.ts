@@ -1339,18 +1339,27 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .attr("stroke-width", "10px")  // Ensure this is a sufficient width
             // Pre D3
             // .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
-            .each(function() { this.parentNode.appendChild(this.cloneNode(true)); })
-
+            //.each(function() { this.parentNode.appendChild(this.cloneNode(true)); })
+        slider.append('line')
             .attr("class", "track-inset")
-            .each(function() { this.parentNode.appendChild(this.cloneNode(true)); })
+            .attr("x1", this.xAttribute.range()[0])
+            .attr("x2", this.xAttribute.range()[1])
+            .attr("stroke", "#ddd")  // Ensure this is a visible color
+            .attr("stroke-width", "10px")  // Ensure this is a sufficient width
+            //.each(function() { this.parentNode.appendChild(this.cloneNode(true)); })
+        slider.append('line')
             // Pre D3
             // .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
             .attr("class", "track-overlay")
+            .attr("x1", this.xAttribute.range()[0])
+            .attr("x2", this.xAttribute.range()[1])
+            .attr("stroke", "#ddd")  // Ensure this is a visible color
+            .attr("stroke-width", "10px")  // Ensure this is a sufficient width
             .call(d3.drag()
                 .on("start.interrupt", function() { slider.interrupt(); })
                 .on("start drag", function() {
-                    that.currentTimelineTargetValue = (d3 as any).event.x;
-                    that.update(that.xAttribute.invert(that.currentTimelineTargetValue));
+                    that.currentTimelineValue = (d3 as any).event.x;
+                    that.update(that.xAttribute.invert(that.currentTimelineValue));
                     if (that.playBtnText == "Pause") {
                         that.playBtnText = "Play";
                     clearInterval(that.visuals.microbeTrace.commonService.session.timeline);
@@ -1376,7 +1385,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .text(this.handleDateFormat(startDate))
             .attr("transform", "translate(25," + (-20) + ")")
 
-            this.handle = slider.insert("circle", ".label")
+            this.handle = slider.insert("circle", ".track-overlay")
             .attr("class", "handle")
             .attr("r", 9);
 
