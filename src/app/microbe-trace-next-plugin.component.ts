@@ -145,6 +145,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorLinksByVariable: string = 'origin';
 
     SelectedTimelineVariable: string = 'None';
+    timelineSpeed: number = 200;
 
 
     LinkColorTableTypes: any = [
@@ -1411,7 +1412,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 clearInterval(this.visuals.microbeTrace.commonService.session.timeline);
             } else {
                 this.playBtnText = "Pause";
-                this.visuals.microbeTrace.commonService.session.timeline = setInterval(this.step, 200, this);
+                this.visuals.microbeTrace.commonService.session.timeline = setInterval(this.step, this.timelineSpeed, this);
             }
 
     }
@@ -1432,9 +1433,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         that.update(that.xAttribute.invert(that.currentTimelineValue));
         if (that.currentTimelineValue > that.currentTimelineTargetValue) { 
             that.currentTimelineValue = 0;
-        clearInterval(that.visuals.microbeTrace.commonService.session.timeline);
-        that.playBtnText = "Play";
-        return;
+            clearInterval(that.visuals.microbeTrace.commonService.session.timeline);
+            that.playBtnText = "Play";
+            return;
         }
         that.currentTimelineValue = that.currentTimelineValue + (that.currentTimelineTargetValue/151);
 

@@ -1,4 +1,4 @@
-﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -189,10 +189,11 @@ export class CommonService extends AppComponentBase implements OnInit {
             'ambiguity-threshold': 0.015,
             'background-color': '#ffffff',
             'background-color-contrast': '#000000',
-            'bubble-x': 'None',
+            'bubble-x': 'cluster',
             'bubble-y': 'None',
-            'bubble-charge': 1.5,
-            'bubble-size': 5,
+            'bubble-charge': 0.05,
+            'bubble-size': 20,
+            'bubble-collapsed': false,
             'choropleth-aggregate-as': 'states',
             'choropleth-aggregate-on': 'None',
             'choropleth-basemap-show': false,

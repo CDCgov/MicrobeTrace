@@ -3,6 +3,7 @@ import { EventManager } from '@angular/platform-browser';
 import { SelectItem } from 'primeng/api';
 import * as saveAs from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
+import { window } from 'ngx-bootstrap';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -43,9 +44,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   padding = { left: 20, right: 20, top: 20, bottom: 20 }
 
   selectedFieldList: SelectItem[] = [];
-  xVariable;
-  yVariable;
-  nodeSize = 16;
+  xVariable: string;
+  yVariable: string;
+  nodeSize: number;
   nodeSpacing = 0.05;
 
   allData: DataRecord[] = [];
@@ -116,7 +117,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     { label: 'On', value: true },
     { label: 'Off', value: false }
   ];
-  SelectedNodeCollapsingTypeVariable: boolean = false;
+  SelectedNodeCollapsingTypeVariable: boolean;
 
   constructor(injector: Injector,
     private renderer: Renderer2,
@@ -145,8 +146,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       });
     })
 
-    this.xVariable = 'cluster';
-    this.yVariable = 'cluster';
+    this.setWidgets();
     this.updateAxisValues('X');
     this.updateAxisValues('Y');
 
@@ -161,8 +161,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.container.on('show', () => { 
         this.viewActive = true; 
         this.setSelectedNodes(this);
-        this.goldenLayoutComponentResize();
-        this.cdref.detectChanges();
+        setTimeout(() => {
+          this.goldenLayoutComponentResize();
+          this.cdref.detectChanges();
+        }, 5)
+
     })
     
     let that = this;
@@ -190,6 +193,37 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         this.viewHeight = 600;
       }
     }    
+  }
+
+  setWidgets() {
+    if (this.widgets['bubble-x'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-x']))) {
+      this.xVariable = 'cluster';
+      this.widgets['bubble-x'] = this.xVariable;
+    }
+
+    if (this.widgets['bubble-y'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-y']))) {
+      this.xVariable = 'None';
+      this.widgets['bubble-y'] = this.xVariable;
+    }
+
+    if (this.widgets['bubble-x'] == 'None' && this.widgets['bubble-y'] == 'None') {
+      this.openSettings();
+    }
+
+    if (this.widgets['bubble-size'] < 10 || this.widgets['bubble-size'] > 40 || this.widgets['bubble-size'] == undefined || this.widgets['bubble-size'] == null || typeof this.widgets['bubble-size'] != 'number') {
+      this.widgets['bubble-size'] = 20;
+    }
+    this.nodeSize = this.widgets['bubble-size']
+
+    if (this.widgets['bubble-charge'] < .01 || this.widgets['bubble-charge'] > .15 || this.widgets['bubble-charge'] == undefined || this.widgets['bubble-charge'] == null || typeof this.widgets['bubble-charge'] != 'number') {
+      this.widgets['bubble-charge'] = 0.05;
+    }
+    this.nodeSpacing = this.widgets['bubble-charge']
+
+    if (this.widgets['bubble-collapsed'] == undefined || this.widgets['bubble-collapsed'] == null) {
+      this.widgets['bubble-collapsed'] = false;
+    }
+    this.SelectedNodeCollapsingTypeVariable = this.widgets['bubble-collapsed']
   }
 
   /**
@@ -284,6 +318,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     let nodes = this.commonService.session.data.nodeFilteredValues;
 
     if (axis == 'X') {
+      this.widgets['bubble-x'] = this.xVariable;
       if ( this.xVariable == 'None' || this.xVariable == undefined) {
         this.X_categories = [ undefined ];
         this.X_tickValues = [ 0 ];
@@ -301,6 +336,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     })
 
     } else {
+      this.widgets['bubble-y'] = this.yVariable;
       if ( this.yVariable == 'None' || this.yVariable == undefined) {
         this.Y_categories = [ undefined ];
         this.Y_tickValues = [ 0 ];
@@ -570,6 +606,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   onNodeCollapsingChange() {
+    this.widgets['bubble-collapsed'] = this.SelectedNodeCollapsingTypeVariable;
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.getCollapsedData(true);
       this.sizing = (d: DataRecord) => {
@@ -646,7 +683,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * @param sortVariable name of a property of commonService.session.data.nodeFilteredValues
    */
   sortData(sortVariable) {
-    console.log(`sorting data by _${sortVariable}_ in bubble view`);
     let allNodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodeFilteredValues));
     allNodes.sort((a, b) => new Date(a[sortVariable]).getTime() - new Date(b[sortVariable]).getTime())
     
@@ -680,12 +716,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   onNodeSpacingChange() {
+    this.widgets['bubble-charge'] = this.nodeSpacing;
     this.recalculatePositions();
     // @ts-ignore
     this.scatterPlot.ngOnChanges(this.visibleData);
   }
 
   onNodeSizeChange() {
+    this.widgets['bubble-size'] = this.nodeSize;
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.sizing = (d: DataRecord) => {
         if (d.id == '') return 0;
@@ -729,7 +767,45 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   updateLinkColor() {}
   updateVisualization() {}
-  applyStyleFileSettings() {}
+  applyStyleFileSettings() {
+    this.widgets = window.context.commonService.session.style.widgets;
+
+    if (this.widgets['bubble-x'] != undefined && this.selectedFieldList.map(x => x.value).includes(this.widgets['bubble-x'])) {
+      this.xVariable = this.widgets['bubble-x'];
+      this.onDataChange('X');
+    } else {
+      this.widgets['bubble-x'] = this.xVariable;
+    }
+
+    if (this.widgets['bubble-y'] != undefined && this.selectedFieldList.map(x => x.value).includes(this.widgets['bubble-y'])) {
+      this.yVariable = this.widgets['bubble-y'];
+      this.onDataChange('Y');
+    } else {
+      this.widgets['bubble-y'] = this.yVariable;
+    }
+
+    if (this.widgets['bubble-size'] >= 10 && this.widgets['bubble-size'] <= 40) {
+      this.nodeSize = this.widgets['bubble-size'];
+      this.onNodeSizeChange()
+    } else {
+      this.widgets['bubble-size'] = this.nodeSize;
+    }
+    
+    if (this.widgets['bubble-charge'] >= .01 && this.widgets['bubble-charge'] <= .15) {
+      this.nodeSpacing = this.widgets['bubble-charge'];
+      this.onNodeSpacingChange();
+    } else {
+      this.widgets['bubble-charge'] = this.nodeSpacing;
+    }
+    
+    if (this.widgets['bubble-collapsed'] == undefined || this.widgets['bubble-collapsed'] == null) {
+      this.widgets['bubble-collapsed'] = this.SelectedNodeCollapsingTypeVariable;
+    } else if (this.widgets['bubble-collapsed'] != this.SelectedNodeCollapsingTypeVariable) {
+      this.SelectedNodeCollapsingTypeVariable = this.widgets['bubble-collapsed'];
+      this.onNodeCollapsingChange();
+    }
+  }
+
   openRefreshScreen() {}
   onRecallSession() {}
   onLoadNewData() {}
@@ -783,9 +859,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.exportOpen = false;
   }
 
-   openSettings() {
-    this.settingsOpen = true;
-   }
+  openSettings() {
+  this.settingsOpen = true;
+  }
 }
 
 export namespace BubbleComponent {
