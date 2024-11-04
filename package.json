@@ -42,7 +42,7 @@
     "@unovis/ts": "^1.5.0-nikita.1",
     "3d-force-graph": "^1.55.13",
     "angular-cli-ghpages": "^1.0.7",
-    "angular-google-tag-manager": "^1.6.1",
+    "angular-google-tag-manager": "1.7",
     "angular-plotly.js": "^6.0.0",
     "assert": "^2.1.0",
     "chart.js": "^2.9.4",
