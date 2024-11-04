@@ -2844,9 +2844,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         //* Shapes:
         let symbolVariable = this.widgets['node-symbol-variable'];
 
+
         if(symbolVariable == "None") {
-            // console.log('node symbol: ', this.selectedNodeShape);
-            return this.selectedNodeShape;
+
+            switch(this.selectedNodeShape) {
+                case 'symbolCircle':
+                    return 'circle';
+                case 'symbolSquare':
+                    console.log('node returning square');
+                    return 'square';
+                case 'symbolHexagon':
+                    return 'hexagon';
+                case 'symbolTriangle':
+                    return 'triangle';
+                default:
+                    return `circle`;
+               }
             // return this.widgets['node-symbol-variable'];
         } else {
 

@@ -38,7 +38,6 @@
     "@types/leaflet.markercluster": "^1.5.1",
     "@unovis/angular": "^1.4.2",
     "@unovis/ts": "^1.4.2",
-    "3d-force-graph": "^1.55.13",
     "angular-cli-ghpages": "^1.0.7",
     "angular-google-tag-manager": "1.8",
     "angular-plotly.js": "^6.0.0",
