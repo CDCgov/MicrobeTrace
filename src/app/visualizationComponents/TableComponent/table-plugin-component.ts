@@ -2,7 +2,6 @@
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
-import { window } from 'ngx-bootstrap';
 import { Table } from 'primeng/table';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
@@ -137,7 +136,8 @@ export class TableComponent extends BaseComponentDirective implements OnInit, On
 
         });
 
-        this.visuals.tableComp.eventManager.addGlobalEventListener('window', 'node-selected', () => {
+
+        window.addEventListener("node-selected", () => {
             if (!this.visuals.microbeTrace.homepageTabs.find(x => x.isActive && x.label === 'Table')) {
                 this.visuals.tableComp.setSelectedNodes();
             }
@@ -508,7 +508,7 @@ export class TableComponent extends BaseComponentDirective implements OnInit, On
     }
 
     applyStyleFileSettings() {
-        //this.widgets = window.context.commonService.session.style.widgets;
+        //this.widgets = (window as any).context.commonService.session.style.widgets;
         //this.loadSettings();
     }
 
