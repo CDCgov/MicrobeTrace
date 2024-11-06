@@ -8,6 +8,7 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
+    "analyze": "ng build --configuration production --source-map=true --stats-json && webpack-bundle-analyzer dist/MicrobeTrace/stats.json",
     "deploy": "ng build --configuration production --optimization=false --base-href https://mossy426.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace",
     "deploy_prod": "ng build --configuration production --optimization=false --base-href https://cdcgov.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace --repo https://github.com/CDCGov/MicrobeTrace",
     "deploy_dev": "ng build --configuration production --optimization=false --base-href https://mossy426.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace --repo https://github.com/mossy426/MicrobeTrace"

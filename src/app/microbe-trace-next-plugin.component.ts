@@ -5,8 +5,7 @@ import { TableComponent } from './visualizationComponents/TableComponent/table-p
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component';
 import * as d3 from 'd3';
-// import { TabsetComponent } from 'ngx-bootstrap';
-import { Button } from 'primeng/button';
+
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode } from 'primeng/api';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -16,9 +15,6 @@ import * as saveAs from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
 import { Observable, forkJoin } from 'rxjs';
 import { MicrobeTraceNextVisuals } from './microbe-trace-next-plugin-visuals';
-import * as _ from 'lodash';
-import { ActivatedRoute } from '@angular/router';
-import { first } from 'rxjs/operators';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 // import * as moment from 'moment';
 import moment from 'moment';

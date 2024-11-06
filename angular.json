@@ -35,6 +35,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
+            "statsJson": true,
             "outputPath": "dist/MicrobeTrace",
             "index": "src/index.html",
             "main": "src/main.ts",
@@ -118,7 +119,7 @@
                 {
                   "type": "anyComponentStyle",
                   "maximumWarning": "6kb",
-                  "maximumError": "20mb"
+                  "maximumError": "35mb"
                 }
               ]
             },
@@ -131,7 +132,7 @@
               ],
               "optimization": false,
               "outputHashing": "none",
-              "sourceMap": false,
+              "sourceMap": true,
               "namedChunks": false,
               "aot": false,
               "extractLicenses": false,

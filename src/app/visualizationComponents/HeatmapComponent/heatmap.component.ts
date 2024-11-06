@@ -1,5 +1,5 @@
 import { Injector, Component, Output, EventEmitter, 
-  ElementRef, ChangeDetectorRef, Inject, OnInit, ViewContainerRef,
+  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, ViewContainerRef,
   ViewChild} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -10,9 +10,10 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
-import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
+// import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
+
 
 
 @Component({
@@ -22,14 +23,17 @@ import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals
 })
 export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
-  @ViewChild('heatmapContainer', {read: ViewContainerRef}) heatmapContainer: ViewContainerRef;
-  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @ViewChild('heatmapContainer', { read: ElementRef }) heatmapContainerRef: ElementRef;  @
+  Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
+  private Plotly: any;
+
+  
   labels: string[];
   xLabels: string[];
   yLabels: string[];
   matrix: object;
-  plot: PlotlyComponent;
+  // plot: PlotlyComponent;
   visuals: MicrobeTraceNextVisuals;
   nodeIds: string[];
   viewActive: boolean;
@@ -67,7 +71,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
         private gtmService: GoogleTagManagerService,
-        private plotlyModule: PlotlyModule) {
+        private renderer: Renderer2,
+        // private plotlyModule: PlotlyModule
+      ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
           this.visuals.heatmap = this;
@@ -94,10 +100,13 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       'yaxis.autorange': true
     }
     console.log(reCenter);
-    PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
+    // PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
   }
   
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
+
+     // Lazy load Plotly.js when the component initializes
+     this.Plotly = await import('plotly.js-dist-min');
 
     this.viewActive = true;
     this.gtmService.pushTag({
@@ -166,27 +175,41 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
           [1, this.hiColor]
         ]
       }]
+
+      const parentElement = this.heatmapContainerRef.nativeElement.parentElement;
+    const width = parentElement.clientWidth;
+    const height = parentElement.clientHeight;
+
       this.heatmapLayout = {
           xaxis: config,
           yaxis: config,
-          width: $('#heatmap').parent().width(),
-          height: $('#heatmap').parent().height()
+          width: width,
+          height: height
         }
       this.heatmapConfig = {
           displaylogo: false,
           displayModeBar: false
         }
-      this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+
+        this.Plotly.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+
+      // this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
     });
   }
 
   goldenLayoutComponentResize(): void {
-    const height = $('heatmapcomponent').height();
-    const width = $('heatmapcomponent').width();
-    if (height)
-      $('#heatmap').height(height-19);
-    if (width)
-      $('#heatmap').width(width-1)
+    const heatmapElement = this.heatmapContainerRef.nativeElement;
+    const parentElement = heatmapElement.parentElement;
+  
+    const height = parentElement.clientHeight;
+    const width = parentElement.clientWidth;
+
+    if (height) {
+      this.renderer.setStyle(heatmapElement, 'height', `${height - 19}px`);
+    }
+    if (width) {
+      this.renderer.setStyle(heatmapElement, 'width', `${width - 1}px`);
+    }
   }
 
   getNodeIds(): string[] {
@@ -195,8 +218,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   }
   
   redrawHeatmap(): void {
-    if (!$('#heatmap').length) return;
-    if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
+    if (!this.heatmapContainerRef.nativeElement.length) return;
+    // if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
     const labels = this.nodeIds;
     const xLabels = labels.map(d => 'N' + d);
     const yLabels = xLabels.slice();
@@ -217,14 +240,33 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   }
 
   setBackground(): void {
-      const col = this.commonService.session.style.widgets['background-color'];
-      $('#heatmap svg.main-svg').first().css('background', col);
-      $('#heatmap rect.bg').css('fill', col);
+    const heatmapElement: HTMLElement = this.heatmapContainerRef.nativeElement;
+    const col = this.commonService.session.style.widgets['background-color'];
+    const contrast = this.commonService.session.style.widgets['background-color-contrast'];
+      
+    // Set background color of the main SVG
+    const mainSvg = heatmapElement.querySelector('svg.main-svg');
+    if (mainSvg) {
+      this.renderer.setStyle(mainSvg, 'background', col);
+    }
 
-      const contrast = this.commonService.session.style.widgets['background-color-contrast'];
-      $('#heatmap .xtitle, .ytitle').css('fill', contrast);
-      $('#heatmap .xaxislayer-above text').css('fill', contrast);
-      $('#heatmap .yaxislayer-above text').css('fill', contrast);
+    // Set fill for rect.bg
+    const rectBg = heatmapElement.querySelector('rect.bg');
+    if (rectBg) {
+      this.renderer.setStyle(rectBg, 'fill', col);
+    }
+
+    // Set fill for titles
+    const titles = heatmapElement.querySelectorAll('.xtitle, .ytitle');
+    titles.forEach(title => {
+      this.renderer.setStyle(title, 'fill', contrast);
+    });
+
+    // Set fill for axis layer texts
+    const axisTexts = heatmapElement.querySelectorAll('.xaxislayer-above text, .yaxislayer-above text');
+    axisTexts.forEach(text => {
+      this.renderer.setStyle(text, 'fill', contrast);
+    });
   }
 
   updateLoColor(color: string): void {

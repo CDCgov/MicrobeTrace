@@ -27,6 +27,7 @@ import { GraphData, LinkDatum, NodeDatum } from '@app/visualizationComponents/Tw
 import { group } from 'console';
 import { GraphNodeShape, GraphPanelConfig } from '@unovis/ts';
 
+
 // import { GoldenLayoutService } from '@embedded-enterprises/ng6-golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -2997,13 +2998,15 @@ export class CommonService extends AppComponentBase implements OnInit {
     };
 
     getJurisdictions(): Promise<JurisdictionItem[]>{
-        return new Promise(resolve => {
-            let path = (window as any).context.commonService.appRootUrl() + 'assets/common/data/state_county_fips.csv';
-        
-            $.get(path, response => {
-                resolve(Papa.parse(response, { header: true }).data);
+        const path = `${this.appRootUrl()}assets/common/data/state_county_fips.csv`; // Refactor appRootUrl if necessary
+        return this.http.get(path, { responseType: 'text' }).toPromise()
+            .then(response => {
+                return Papa.parse<JurisdictionItem>(response, { header: true }).data;
+            })
+            .catch(error => {
+                console.error('Error fetching jurisdictions:', error);
+                throw error;
             });
-        })
 
         // let options : any = {
         //     observe: "response",
@@ -3033,59 +3036,68 @@ export class CommonService extends AppComponentBase implements OnInit {
                 return resolve((window as any).context.commonService.temp.mapData[name]);
             }
 
+            let path: string;
+
+
             switch (name) {
                 case "zipcodes":
 
                     if (format == "csv") {
-                        let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/zipcodes.csv';
-
-                        $.get(path, response => {
-                            (window as any).context.commonService.temp.mapData[name] = Papa.parse(response, { header: true }).data;
-                            resolve((window as any).context.commonService.temp.mapData[name]);
-                        });
+                        path = 'assets/common/data/zipcodes.csv';
+                        return this.http.get(path, { responseType: 'text' }).toPromise()
+                            .then(response => {
+                                this.temp.mapData[name] = Papa.parse(response, { header: true }).data;
+                                return this.temp.mapData[name];
+                            });
                     }
                     break;
                 case "countries":
                     if (format == "json") {
-                        let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/countries.json';
-
-                        $.get(path, response => {
-                            (window as any).context.commonService.temp.mapData[name] = response;
-                            resolve((window as any).context.commonService.temp.mapData[name]);
-                        });
-
+                        path = 'assets/common/data/countries.json';
+                        return this.http.get(path).toPromise()
+                            .then(response => {
+                                this.temp.mapData[name] = response;
+                                return this.temp.mapData[name];
+                            });
                     }
                     break;
                 case "counties":
                     if (format == "json") {
-                        let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/counties.json';
-
-                        $.get(path, response => {
-                            (window as any).context.commonService.temp.mapData[name] = response;
-                            resolve((window as any).context.commonService.temp.mapData[name]);
-                        });
+                        path = 'assets/common/data/counties.json';
+                        return this.http.get(path).toPromise()
+                            .then(response => {
+                                this.temp.mapData[name] = response;
+                                return this.temp.mapData[name];
+                            });
                     }
                     break;
 
                 case "states":
                     if (format == "json") {
-                        let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/states.json';
+                        // let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/states.json';
 
-                        $.get(path, response => {
-                            (window as any).context.commonService.temp.mapData[name] = response;
-                            resolve((window as any).context.commonService.temp.mapData[name]);
-                        });
+                        path = 'assets/common/data/states.json';
+                        return this.http.get(path).toPromise()
+                            .then(response => {
+                                this.temp.mapData[name] = response;
+                                return this.temp.mapData[name];
+                            });
                     }
                     break;
 
                 case "land":
                     if (format == "json") {
-                        let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/land.json';
+                        path = 'assets/common/data/land.json';
 
-                        $.get(path, response => {
-                            (window as any).context.commonService.temp.mapData[name] = response;
-                            resolve((window as any).context.commonService.temp.mapData[name]);
-                        });
+                        return this.http.get(path).toPromise()
+                            .then(response => {
+                                (window as any).context.commonService.temp.mapData[name] = response;
+                                return this.temp.mapData[name];
+                            });
+
+                        // $.get(path, response => {
+                        //     resolve((window as any).context.commonService.temp.mapData[name]);
+                        // });
                     }
                     break;
 
@@ -3093,10 +3105,16 @@ export class CommonService extends AppComponentBase implements OnInit {
                     if (format == "json") {
                         let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/stars.json';
 
-                        $.get(path, response => {
-                            (window as any).context.commonService.temp.mapData[name] = response;
-                            resolve((window as any).context.commonService.temp.mapData[name]);
-                        });
+                        return this.http.get(path).toPromise()
+                            .then(response => {
+                                (window as any).context.commonService.temp.mapData[name] = response;
+                                return this.temp.mapData[name];
+                            });
+
+                        // $.get(path, response => {
+                        //     (window as any).context.commonService.temp.mapData[name] = response;
+                        //     resolve((window as any).context.commonService.temp.mapData[name]);
+                        // });
                     }
                     break;
             }
