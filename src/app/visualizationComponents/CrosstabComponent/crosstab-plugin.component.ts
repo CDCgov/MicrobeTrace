@@ -4,9 +4,8 @@ import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
 import * as saveAs from 'file-saver';
-import { window } from 'ngx-bootstrap';
-import pdfMake from 'pdfmake/build/pdfmake.js';
-import pdfFonts from 'pdfmake/build/vfs_fonts.js'
+// import pdfMake from 'pdfmake/build/pdfmake.js';
+// import pdfFonts from 'pdfmake/build/vfs_fonts.js'
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
@@ -408,7 +407,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   updateVisualization() {  }
 
   applyStyleFileSettings() { 
-    this.widgets = window.context.commonService.session.style.widgets;
+    this.widgets = (window as any).context.commonService.session.style.widgets;
     let tempX, tempY;
     if (this.widgets['crosstab-xVariable'] != undefined) {
       tempX = this.widgets['crosstab-xVariable']
@@ -518,47 +517,47 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       return columns.map(header => dataRow[header])
     }
 
-    pdfMake.vfs = pdfFonts.pdfMake.vfs;
-      pdfMake.createPdf({
-        content: [ 
-          { image: this.commonService.watermark },
-          { 
-            text: "Cluster Crosstab Snapshot:",
-            style: "header",
-            alignment: "center"
-          },
-          {
-            text: `${this.commonService.capitalize(this.xVariable)} vs ${this.commonService.capitalize(this.yVariable)}`,
-            style: "fontSize: 18",
-            alignment: "center"
-          },
-          {
-            style: "paddedTable",
-            table: {
-              headerRows: 1,
-              widths: this.SelectedTableData.tableColumns.map(col => "*"),
-              body: dataBody,
-            }
-          }
-        ],
-        footer: function(currentPage, pageCount) {
-          return [
-            {
-              text: `Page ${currentPage.toString()} of ${pageCount}`,
-              alignment: "center"
-            }
-          ];
-        },
-        styles: {
-          header: {
-            fontSize: 22,
-            bold: true
-          },
-          paddedTable: {
-            margin: [10, 10, 10, 10]
-          }
-        }
-      }).download(this.SelectedCrossTabExportFilename + '.pdf');
+    // pdfMake.vfs = pdfFonts.pdfMake.vfs;
+    //   pdfMake.createPdf({
+    //     content: [ 
+    //       { image: this.commonService.watermark },
+    //       { 
+    //         text: "Cluster Crosstab Snapshot:",
+    //         style: "header",
+    //         alignment: "center"
+    //       },
+    //       {
+    //         text: `${this.commonService.capitalize(this.xVariable)} vs ${this.commonService.capitalize(this.yVariable)}`,
+    //         style: "fontSize: 18",
+    //         alignment: "center"
+    //       },
+    //       {
+    //         style: "paddedTable",
+    //         table: {
+    //           headerRows: 1,
+    //           widths: this.SelectedTableData.tableColumns.map(col => "*"),
+    //           body: dataBody,
+    //         }
+    //       }
+    //     ],
+    //     footer: function(currentPage, pageCount) {
+    //       return [
+    //         {
+    //           text: `Page ${currentPage.toString()} of ${pageCount}`,
+    //           alignment: "center"
+    //         }
+    //       ];
+    //     },
+    //     styles: {
+    //       header: {
+    //         fontSize: 22,
+    //         bold: true
+    //       },
+    //       paddedTable: {
+    //         margin: [10, 10, 10, 10]
+    //       }
+    //     }
+    //   }).download(this.SelectedCrossTabExportFilename + '.pdf');
     }
 
   this.exportOpen = !this.exportOpen;

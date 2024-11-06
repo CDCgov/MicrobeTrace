@@ -12,7 +12,6 @@ import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticCom
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
-import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
 import { CrosstabComponent } from './visualizationComponents/CrosstabComponent/crosstab-plugin.component';
 import { AggregateComponent } from './visualizationComponents/AggregateComponent/aggregate.component';

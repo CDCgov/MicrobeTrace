@@ -5,8 +5,7 @@ import { TableComponent } from './visualizationComponents/TableComponent/table-p
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component';
 import * as d3 from 'd3';
-import { window, TabsetComponent } from 'ngx-bootstrap';
-import { Button } from 'primeng/button';
+
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode } from 'primeng/api';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -16,9 +15,6 @@ import * as saveAs from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
 import { Observable, forkJoin } from 'rxjs';
 import { MicrobeTraceNextVisuals } from './microbe-trace-next-plugin-visuals';
-import * as _ from 'lodash';
-import { ActivatedRoute } from '@angular/router';
-import { first } from 'rxjs/operators';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 // import * as moment from 'moment';
 import moment from 'moment';
@@ -208,7 +204,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     @ViewChildren('placeholder', { read: ViewContainerRef }) targets: QueryList<ViewContainerRef>
     @ViewChild('ledgerloader') spinnerElement: ElementRef;
     @ViewChild('ledgerloadDiv') spinnerDivElement: ElementRef;
-    @ViewChild('globalSettingsTab') globalSettingsTab: TabsetComponent;
+    @ViewChild('globalSettingsTab') globalSettingsTab: any;
 
 
     // @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
@@ -778,7 +774,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     applyStyleFileSettings() {
-        this.widgets = window.context.commonService.session.style.widgets;
+        this.widgets = (window as any).context.commonService.session.style.widgets;
 
         if (this.SelectedClusterMinimumSizeVariable != this.widgets['cluster-minimum-size']){
             this.SelectedClusterMinimumSizeVariable = this.widgets['cluster-minimum-size'];
@@ -823,7 +819,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         else {
             this.SelectedEpsilonValue = Math.pow(10, this.widgets['filtering-epsilon']).toPrecision(3);
-            window.context.commonService.session.style.widgets["filtering-epsilon"] = this.widgets['filtering-epsilon'];
+            (window as any).context.commonService.session.style.widgets["filtering-epsilon"] = this.widgets['filtering-epsilon'];
             this.visuals.microbeTrace.commonService.session.style.widgets["link-show-nn"] = true;
             $('#filtering-epsilon-row').slideDown();
             // TODO:: Removed to fix NN issue
@@ -1949,7 +1945,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this._goldenLayoutHostComponent.initialise();
             
             // headerHeight (tab) is updated so that goldenLayout knows what the css is set to. 
-            window.context.commonService.visuals.microbeTrace._goldenLayoutHostComponent._goldenLayout.layoutConfig.dimensions.headerHeight = 36;
+            (window as any).context.commonService.visuals.microbeTrace._goldenLayoutHostComponent._goldenLayout.layoutConfig.dimensions.headerHeight = 36;
             this.addComponent('Files');
 
           if (this.auspiceUrlVal) {

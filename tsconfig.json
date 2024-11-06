@@ -15,7 +15,8 @@
     "strictNullChecks": false,
     "typeRoots": [
       "node_modules/@types",
-      "googlemaps"
+      "googlemaps",
+      "@angular/platform-browser"
     ],
     "lib": [
       "es6",

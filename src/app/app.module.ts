@@ -75,13 +75,13 @@ import { GanttChartComponent } from './visualizationComponents/GanttComponent/ga
 import { GanttChartService } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.service';
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
-import * as PlotlyJS from 'plotly.js-dist-min';
-import { PlotlyModule } from 'angular-plotly.js';
+// import * as PlotlyJS from 'plotly.js-dist-min';
+// import { PlotlyModule } from 'angular-plotly.js';
 
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
 
-PlotlyModule.plotlyjs = PlotlyJS;
+// PlotlyModule.plotlyjs = PlotlyJS;
 
 @Component({
   template: `<h1>Test2</h1>`,
@@ -117,10 +117,7 @@ export class TestedComponent {
   imports: [
     BrowserModule,
     BrowserAnimationsModule,
-    AppRoutingModule,
-    //ngCommon.CommonModule,
     FormsModule,
-    // GoldenLayoutModule.forRoot(config),
     HttpClientModule,
     MatButtonModule,
     MatInputModule,
@@ -137,23 +134,15 @@ export class TestedComponent {
     BsDropdownModule.forRoot(),
     PopoverModule.forRoot(),
     FileUploadModule,
-    // AbpModule,
     AppRoutingModule,
     UtilsModule,
-    //AppCommonModule.forRoot(),
-    // ServiceProxyModule,
     TableModule,
     ListboxModule,   
     RadioButtonModule,     
     CalendarModule,
     PaginatorModule,
-    //PrimeNgFileUploadModule,
     ProgressBarModule,
-    //PerfectScrollbarModule,
     CoreModule,
-    //NgxChartsModule,
-    //TextMaskModule,
-    //ImageCropperModule,
     ConfirmDialogModule,    
     DropdownModule,
     TabViewModule,
@@ -171,7 +160,7 @@ export class TestedComponent {
     OrderListModule,
     GoogleTagManagerModule.forRoot({id: 'G-0MWHB1NG2M',}),
     CommonModule,
-    PlotlyModule,
+    // PlotlyModule,
     VisXYContainerModule, 
     VisScatterModule, 
     VisAxisModule,
