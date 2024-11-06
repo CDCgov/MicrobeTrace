@@ -12,7 +12,6 @@ import { generateCanvas } from '../visualizationComponents/AlignmentViewComponen
 import * as tn93 from 'tn93';
 import * as patristic from 'patristic';
 import AuspiceHandler from '@app/helperClasses/auspiceHandler';
-import { window } from 'ngx-bootstrap';
 import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
@@ -460,10 +459,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       $('#launch').text('Update');
     }
 
-    // $.getJSON("../assets/outbreak.microbetrace", window.context.commonService.applySession);
+    // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
     if(!this.commonService.session.network.initialLoad && this.visuals.microbeTrace.auspiceUrlVal === null) {
-      $.getJSON("outbreaknorm.microbetrace", window.context.commonService.applySession);   
+      console.log('launching outbreak');
+      $.getJSON("outbreaknorm.microbetrace", (window as any).context.commonService.applySession);   
       this.commonService.session.network.launched = true; 
       this.commonService.session.network.initialLoad = true; 
       // if(this.commonService.session.files && this.commonService.session.files.length > 0) {
@@ -887,7 +887,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
              }, safeLink), check);
          }  
 
-        //  console.log('matrixx1: ',  JSON.stringify(window.context.commonService.temp.matrix));
+        //  console.log('matrixx1: ',  JSON.stringify((window as any).context.commonService.temp.matrix));
 
 
         };

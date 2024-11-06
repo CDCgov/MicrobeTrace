@@ -11,7 +11,6 @@ import moment from 'moment';
 import 'leaflet.markercluster';
 
 import * as MarkerCluster from 'leaflet.markercluster';
-import { window } from 'ngx-bootstrap';
 import { SelectItem } from 'primeng/api';
 import { Observable } from 'rxjs';
 import { tileLayer, latLng, marker, icon, polyline, circle, polygon, Map, MapOptions, Layer, Marker, markerClusterGroup, MarkerClusterGroupOptions, MarkerClusterGroup, circleMarker, PathOptions, featureGroup, FeatureGroup, TileLayer, geoJSON } from 'leaflet';
@@ -388,8 +387,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     getMarker(latitude: number, longitude: number): Layer {
         return circleMarker([latitude, longitude], {
             color: '#3c4b8d',
-            fillColor: '#3c4b8d'
-
+            fillColor: '#3c4b8d',
+            radius: 5
         });
     }
 
@@ -1223,6 +1222,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 opacity: opacity,
                 fillColor: colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(d[colorVariable]),
                 fillOpacity: opacity,
+                radius: 5
             });
 
             circleMarker.data = d;
@@ -1531,7 +1531,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     applyStyleFileSettings() {
         this.loadSettings();
-        //this.widgets = window.context.commonService.session.style.widgets;
+        //this.widgets = (window as any).context.commonService.session.style.widgets;
     }
 
     updateLinkColor() {

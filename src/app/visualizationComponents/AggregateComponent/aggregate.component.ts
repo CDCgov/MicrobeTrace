@@ -11,8 +11,8 @@ import * as Papa from 'papaparse';
 import JSZip from 'jszip';
 import * as saveAs from 'file-saver';
 import * as XLSX from 'xlsx';
-import pdfMake from 'pdfmake/build/pdfmake.js';
-import pdfFonts from 'pdfmake/build/vfs_fonts.js';
+// import pdfMake from 'pdfmake/build/pdfmake.js';
+// import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 @Component({
@@ -247,7 +247,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     this.exportOpen = true;
   }
 
-  exportVisualization() {
+  async exportVisualization() {
     console.log(this.SelectedAggregateExportFilename + '.' + this.SelectedAggregateExportFileType);
     if (this.SelectedAggregateExportFileType == 'csv.zip') {
       let zip = new JSZip();
@@ -289,59 +289,72 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
       let blob = new Blob([JSON.stringify(outputData)], { type: "application/json;charset=utf-8"});
       saveAs(blob, this.SelectedAggregateExportFilename+'.json');
     } else if ( this.SelectedAggregateExportFileType == 'pdf') {
-      pdfMake.vfs = pdfFonts.pdfMake.vfs;
-      pdfMake.createPdf({
-        content: [ 
-          { image: this.commonService.watermark },
-          { 
-            text: "Cluster Aggregation Snapshot",
-            style: "header",
-            alignment: "center"
-          },
-          this.SelectedDataTables.map(table => {
-            let fullField = table.label.split('-')
-            let datasetName = fullField[0];
-            let colGroupName = fullField.slice(1).join('-');
 
-            let tmpData = table.data.map(item => {
-              let colGroupName = table.label.split('-').slice(1).join('-');
-              return { [colGroupName]: item.groupName, 'count': item.count, 'percent': item.percent.toFixed(2)+'%'}
-            })
+      try {
+        const { default: pdfMake } = await import('pdfmake/build/pdfmake.js');
+        const { default: pdfFonts } = await import('pdfmake/build/vfs_fonts.js');
+        pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
-            return {
-              style: "paddedTable",
-              table: {
-                headerRow: 1,
-                widths: ["*", "*", "*"],
-                body: [
-                  [
-                    `${this.commonService.capitalize(colGroupName)}`,
-                    `Number of ${datasetName}s`,
-                    `Percent of Total ${datasetName}s`
-                  ]
-                ].concat(tmpData.map(Object.values))
-              }
-            }
-          })
-        ],
-        footer: function(currentPage, pageCount) {
-          return [
-            {
-              text: `Page ${currentPage.toString()} of ${pageCount}`,
+        const documentDefinition = {
+          content: [
+            { image: this.commonService.watermark },
+            { 
+              text: "Cluster Aggregation Snapshot",
+              style: "header",
               alignment: "center"
-            }
-          ];
-        },
-        styles: {
-          header: {
-            fontSize: 22,
-            bold: true
+            },
+            ...this.SelectedDataTables.map(table => {
+              let fullField = table.label.split('-')
+              let datasetName = fullField[0];
+              let colGroupName = fullField.slice(1).join('-');
+
+              let tmpData = table.data.map(item => {
+                let colGroupName = table.label.split('-').slice(1).join('-');
+                return [item.groupName, item.count, `${item.percent.toFixed(2)}%`];
+              });
+
+              return {
+                style: "paddedTable",
+                table: {
+                  headerRow: 1,
+                  widths: ["*", "*", "*"],
+                  body: [
+                    [
+                      `${this.commonService.capitalize(colGroupName)}`,
+                      `Number of ${datasetName}s`,
+                      `Percent of Total ${datasetName}s`
+                    ],
+                    ...tmpData
+                  ]
+                }
+              }
+            })
+          ],
+          footer: function(currentPage, pageCount) {
+            return [
+              {
+                text: `Page ${currentPage.toString()} of ${pageCount}`,
+                alignment: "center"
+              }
+            ];
           },
-          paddedTable: {
-            margin: [10, 10, 10, 10]
+          styles: {
+            header: {
+              fontSize: 22,
+              bold: true
+            },
+            paddedTable: {
+              margin: [10, 10, 10, 10]
+            }
           }
-        }
-      }).download(this.SelectedAggregateExportFilename + '.pdf');
+        };
+
+        pdfMake.createPdf(documentDefinition).download(`${this.SelectedAggregateExportFilename}.pdf`);
+        
+      } catch (error) {
+        console.error("Failed to load pdfmake modules", error);
+        // Optionally, notify the user about the failure using a toast or alert
+      }
 
     }
   }

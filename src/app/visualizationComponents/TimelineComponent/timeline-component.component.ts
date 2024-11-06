@@ -9,7 +9,6 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 
 import * as saveAs from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
-import { window, TabsetComponent } from 'ngx-bootstrap';
 import { SelectItem } from 'primeng/api';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
@@ -885,7 +884,7 @@ private propagate(): void {
   this.commonService.setLinkVisibility(true);
   this.commonService.tagClusters().then(() => {
     ["node", "link"].forEach((thing: string) => {
-      window.trigger(thing + "-visibility");
+      (window as any).trigger(thing + "-visibility");
     });
   });
 }
@@ -1025,7 +1024,7 @@ updateVisualization() {
 }
 
 applyStyleFileSettings() {
-  this.widgets = window.context.commonService.session.style.widgets;
+  this.widgets = (window as any).context.commonService.session.style.widgets;
   this.setDefaultsWidgets();
   
   this.updateSettingsRows()

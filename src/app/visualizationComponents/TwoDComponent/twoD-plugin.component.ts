@@ -2,7 +2,6 @@
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
-import { window } from 'ngx-bootstrap';
 import * as d3 from 'd3';
 import { forceAttract } from 'd3-force-attract';
 import { Clipboard } from '@angular/cdk/clipboard';
@@ -696,8 +695,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }            
             });
 
-            this.visuals.twoD.eventManager.addGlobalEventListener('window', "node-selected", () => {
-                console.log('render node-sel2');
+
+            window.addEventListener("node-selected", () => {
                 this.visuals.twoD.render(false);
             });
 
@@ -2845,9 +2844,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         //* Shapes:
         let symbolVariable = this.widgets['node-symbol-variable'];
 
+
         if(symbolVariable == "None") {
-            // console.log('node symbol: ', this.selectedNodeShape);
-            return this.selectedNodeShape;
+
+            switch(this.selectedNodeShape) {
+                case 'symbolCircle':
+                    return 'circle';
+                case 'symbolSquare':
+                    console.log('node returning square');
+                    return 'square';
+                case 'symbolHexagon':
+                    return 'hexagon';
+                case 'symbolTriangle':
+                    return 'triangle';
+                default:
+                    return `circle`;
+               }
             // return this.widgets['node-symbol-variable'];
         } else {
 
@@ -3662,7 +3674,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     applyStyleFileSettings() {
-        this.widgets = window.context.commonService.session.style.widgets;
+        this.widgets = (window as any).context.commonService.session.style.widgets;
         this.loadSettings();
     }
 
