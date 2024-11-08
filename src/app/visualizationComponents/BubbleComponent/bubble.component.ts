@@ -3,7 +3,6 @@ import { EventManager } from '@angular/platform-browser';
 import { SelectItem } from 'primeng/api';
 import * as saveAs from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
-import { window } from 'ngx-bootstrap';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -199,11 +198,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.widgets['bubble-x'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-x']))) {
       this.xVariable = 'cluster';
       this.widgets['bubble-x'] = this.xVariable;
+    } else {
+      this.xVariable = this.widgets['bubble-x'];
     }
 
     if (this.widgets['bubble-y'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-y']))) {
       this.xVariable = 'None';
       this.widgets['bubble-y'] = this.xVariable;
+    } else {
+      this.yVariable = this.widgets['bubble-y']
     }
 
     if (this.widgets['bubble-x'] == 'None' && this.widgets['bubble-y'] == 'None') {
@@ -765,10 +768,21 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
   }
 
+  getAxisLabel(axis: string) {
+    if (axis == 'X') {
+      if (this.xVariable == 'None') return;
+      return this.commonService.capitalize(this.xVariable)
+    }
+    else {
+      if (this.yVariable == 'None') return;
+      return this.commonService.capitalize(this.yVariable)
+    }
+  }
+
   updateLinkColor() {}
   updateVisualization() {}
   applyStyleFileSettings() {
-    this.widgets = window.context.commonService.session.style.widgets;
+    this.widgets = (window as any).context.commonService.session.style.widgets;
 
     if (this.widgets['bubble-x'] != undefined && this.selectedFieldList.map(x => x.value).includes(this.widgets['bubble-x'])) {
       this.xVariable = this.widgets['bubble-x'];

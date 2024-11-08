@@ -2559,12 +2559,13 @@ export class CommonService extends AppComponentBase implements OnInit {
         let n = nodes.length;
         for (let i = 0; i < n; i++) {
             let d = nodes[i];
-            if (!d.visible) continue;
             let dv = d[variable];
             if (dv in aggregates) {
+                if (!d.visible) continue;
                 aggregates[dv]++;
             } else {
-                aggregates[dv] = 1;
+                if (!d.visible) aggregates[dv] = 0;
+                else aggregates[dv] = 1;
             }
         }
         

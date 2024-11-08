@@ -344,6 +344,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             that.generateNodeLinkTable("#link-color-table");
         });
 
+        $( document ).on('node-visibility', function () {
+            that.generateNodeColorTable('#node-color-table'); 
+        })
+
         setTimeout(() => {
             $('#top-toolbar').fadeTo("slow", 1);
             // TODO:: uncommentback when done Subscribe for files subscription
@@ -1038,8 +1042,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .append(
             "<tr>" +
             ("<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Link " + this.commonService.titleize(this.SelectedColorLinksByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>") +
-            "<th class='table-header-row tableCount'><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-            "<th class='table-header-row tableFrequency'><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
+            `<th class='table-header-row tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+            `<th class='table-header-row tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
             "<th>Color</th>" +
             "</tr>"
         );
@@ -1118,8 +1122,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 "<td data-value='" + value + "'>" +
                 (this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) +
                 "</td>" +
-                "<td class='tableCount'>" + aggregates[value] + "</td>" +
-                "<td class='tableFrequency'>" + (aggregates[value] / vlinks.length).toLocaleString() + "</td>" +
+                `<td class='tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}>` + aggregates[value] + "</td>" +
+                `<td class='tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}>` + (aggregates[value] / vlinks.length).toLocaleString() + "</td>" +
                 "</tr>"
             );
 
@@ -1202,6 +1206,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         }
         this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] = variable;
+        this.commonService.createNodeColorMap();
         if (variable == "None") {
             $("#global-timeline-field").empty();
             this.visuals.microbeTrace.commonService.session.style.widgets["timeline-date-field"] = 'None'  
@@ -1270,12 +1275,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('time moment: ', time);
             if (time.isValid()) {
                 console.log('time moment value: ', d[field]);
-            d[field] = time.toDate();
-            times.push(d[field]);
+                d[field] = time.toDate();
+                times.push(d[field]);
             } else {
                 console.log('time moment not value: ', d[field]);
 
-            d[field] = null;
+                d[field] = null;
             }
         });
         if (times.length < 2) {
@@ -1524,8 +1529,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .append(
             "<tr>" +
             "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Node " + this.commonService.titleize(this.SelectedColorNodesByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-            "<th class='table-header-row tableCount'><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-            "<th class='table-header-row tableFrequency'><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
+            `<th class='table-header-row tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+            `<th class='table-header-row tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
             "<th>Color</th>" +
             "</tr>"
         );
@@ -1544,6 +1549,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const disabled = isEditable ? '' : 'disabled';
 
         aggregateValues.forEach((value, i) => {
+            if (aggregates[value] < 1) return;
 
             const color = this.visuals.microbeTrace.commonService.temp.style.nodeColorMap(value);
 
@@ -1564,7 +1570,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                   
 
-                    if (this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
+                    //if (this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
                           // Update table with new alpha value
                         // Need to get value from id since "this" keyword is used by angular
                         this.visuals.microbeTrace.commonService.session.style.nodeColors.splice(i, 1, e.target['value']);
@@ -1574,13 +1580,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         // temp.style.nodeColorMap = d3
                             // .scaleOrdinal(session.style.nodeColorsTable[variable])
                             // .domain(session.style.nodeColorsTableKeys[variable]);
-                        } else {
-                            let temKey = this.visuals.microbeTrace.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
-                            this.visuals.microbeTrace.commonService.temp.style.nodeColor.splice(temKey, 1, e);
-                            this.visuals.microbeTrace.commonService.temp.style.nodeColorMap = d3
-                                .scaleOrdinal(this.visuals.microbeTrace.commonService.temp.style.nodeColor)
-                                .domain(this.visuals.microbeTrace.commonService.temp.style.nodeColorKeys);
-                        }
+                        //} else {
+                            //let temKey = this.visuals.microbeTrace.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
+                            //this.visuals.microbeTrace.commonService.temp.style.nodeColor.splice(temKey, 1, e);
+                            //this.visuals.microbeTrace.commonService.temp.style.nodeColorMap = d3
+                                //.scaleOrdinal(this.visuals.microbeTrace.commonService.temp.style.nodeColor)
+                                //.domain(this.visuals.microbeTrace.commonService.temp.style.nodeColorKeys);
+                        //}
 
                     this.visuals.microbeTrace.publishUpdateNodeColors();
 
@@ -1621,11 +1627,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             let row = $(
                 "<tr>" +
-                "<td data-value='" + value + "'>" +
+                "<td class='rowName' data-value='" + value + "'>" +
                 (this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] : this.visuals.microbeTrace.commonService.titleize("" + value)) +
                 "</td>" +
-                "<td class='tableCount'>" + aggregates[value] + "</td>" +
-                "<td class='tableFrequency'>" + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" +
+                `<td class='tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}>` + aggregates[value] + "</td>" +
+                `<td class='tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}>` + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" +
                 "</tr>"
             ).append(isEditable ? cell : nonEditCell);
 
@@ -1634,7 +1640,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (isEditable) {
             nodeColorTable
-                .find("td")
+                .find("td.rowName")
                 .on("dblclick", function () {
                     $(this).attr("contenteditable", "true").focus();
                 })
