@@ -601,18 +601,18 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns {string} - The sanitized output.
      */
     filterXSS(t, e: any = 0) {
-        let argType: any = typeof t;
+        const argType: any = typeof t;
         if(argType==='object'){
             return JSON.stringify(t);
         }
         else if (argType === 'number' || argType === 'boolean') {
-            let tempT = t.toString();
+            const tempT = t.toString();
             t = tempT;
         }
         else if (argType != 'string' && argType != 'number')
             t = '';
 
-        var i = t.replace(/javascript/gi, 'j&#97;vascript').replace(/expression/gi, 'expr&#101;ssion').replace(/onload/gi, 'onlo&#97;d').replace(/script/gi, '&#115;cript').replace(/onerror/gi, 'on&#101;rror');
+        const i = t.replace(/javascript/gi, 'j&#97;vascript').replace(/expression/gi, 'expr&#101;ssion').replace(/onload/gi, 'onlo&#97;d').replace(/script/gi, '&#115;cript').replace(/onerror/gi, 'on&#101;rror');
         return e === !0 ? i : i.replace(/>/g, '&gt;').replace(/</g, '&lt;')
     };
 
@@ -650,11 +650,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         if (check) {
-            let nodes = (window as any).context.commonService.session.data.nodes;
+            const nodes = (window as any).context.commonService.session.data.nodes;
 
             const n = nodes.length;
             for (let i = 0; i < n; i++) {
-                let node = nodes[i];
+                const node = nodes[i];
                 if (node._id == newNode._id) {
                     newNode.origin = (window as any).context.commonService.uniq(newNode.origin.concat(node.origin));
                     Object.assign(node, newNode);
@@ -665,7 +665,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
 
 
-        let newElement = Object.assign((window as any).context.commonService.defaultNode(), newNode);
+        const newElement = Object.assign((window as any).context.commonService.defaultNode(), newNode);
 
         if (newNode.hasOwnProperty('data') && newNode.data.hasOwnProperty('data')) {
           newElement.data = newNode.data.data;
@@ -715,10 +715,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
         if (newLink.source == newLink.target) return 0;
         let linkIsNew = 1;
-        let sdlinks = serv.session.data.links;
+        const sdlinks = serv.session.data.links;
 
         if (matrix[newLink.source][newLink.target]) {
-            let oldLink = matrix[newLink.source][newLink.target];
+            const oldLink = matrix[newLink.source][newLink.target];
             let myorigin = this.uniq(newLink.origin.concat(oldLink.origin));
             // console.log(JSON.stringify(myorigin));
 
@@ -773,8 +773,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             linkIsNew = 0;
         } else if (serv.temp.matrix[newLink.target][newLink.source]) {
             console.warn("This scope should be unreachable. If you're using this code, something's wrong.");
-            let oldLink = matrix[newLink.target][newLink.source];
-            let origin = this.uniq(newLink.origin.concat(oldLink.origin));
+            const oldLink = matrix[newLink.target][newLink.source];
+            const origin = this.uniq(newLink.origin.concat(oldLink.origin));
             Object.assign(oldLink, newLink, { origin: origin });
             linkIsNew = 0;
         } else {
@@ -826,12 +826,12 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns {Array} - The array containing only the unique elements of the input array `a`.
      */
     uniq(a: any) {
-        let seen = {};
-        let out = [];
-        let len = a.length;
+        const seen = {};
+        const out = [];
+        const len = a.length;
         let j = 0;
         for (let i = 0; i < len; i++) {
-            let item = a[i];
+            const item = a[i];
             if (seen[item] !== 1) {
                 seen[item] = 1;
                 out[j++] = item;
@@ -873,8 +873,8 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     getColorByIndex( index : number ) {
 
-        let variable = (window as any).context.commonService.session.style.widgets['node-color-variable'];
-        let color = (window as any).context.commonService.session.style.widgets['node-color'];
+        const variable = (window as any).context.commonService.session.style.widgets['node-color-variable'];
+        const color = (window as any).context.commonService.session.style.widgets['node-color'];
 
 
         if (variable == 'None') {
@@ -965,7 +965,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @param svg 
      */
     processSVG(svg: any) {
-        let nodes = [];
+        const nodes = [];
 
         const $xml: any = document.getElementById(svg);
         if ($xml.find('#edges').length) {
@@ -988,7 +988,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             $xml.find('#edges path').each((i, link) => {
                 const $link = $(link);
                 const coords = $link.attr('class').split(' ');
-                let base = {
+                const base = {
                     source: coords[0] + '',
                     target: coords[1] + '',
                     color: $link.attr('stroke'),
@@ -1016,7 +1016,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 );
             });
             $xml.find('line').each((i, link) => {
-                let $l: any = document.getElementById(link);
+                const $l: any = document.getElementById(link);
                 const source = nodes.findIndex(d => {
                     return (
                         Math.abs(d[0] - parseFloat($l.attr('x1'))) < 0.0001 &&
@@ -1030,7 +1030,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                     );
                 });
                 if (source < 0 || target < 0) return;
-                let base = {
+                const base = {
                     source: source + '',
                     target: target + '',
                     origin: ['Scraped SVG']
@@ -1183,7 +1183,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * Sets session.data.nodeFilteredValues = session.data.nodes
      */
     processData() {
-        let nodes = this.session.data.nodes;
+        const nodes = this.session.data.nodes;
         console.log('processing data: ', nodes);
 
         (window as any).context.commonService.session.data.nodeFilteredValues = nodes;
@@ -1219,7 +1219,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         // finds id s in template/html where id=widget name, updated the value to the new value in the style file
         let $id = null;
-        for (let id in (window as any).context.commonService.session.style.widgets) {
+        for (const id in (window as any).context.commonService.session.style.widgets) {
             $id = $("#" + id);
             if ($id.length > 0) {
                 if ((window as any).context.commonService.includes(["radio", "checkbox"], ($id[0].type))) {
@@ -1288,11 +1288,11 @@ export class CommonService extends AppComponentBase implements OnInit {
           (window as any).context.commonService.addNode(newNode, false);
         });
         (window as any).context.commonService.processData();
-        let n = hivtrace["trace_results"]["Edges"].length;
-        let metric = (window as any).context.commonService.session.style.widgets['default-distance-metric'];
+        const n = hivtrace["trace_results"]["Edges"].length;
+        const metric = (window as any).context.commonService.session.style.widgets['default-distance-metric'];
         for (let i = 0; i < n; i++) {
-            let link = hivtrace["trace_results"]["Edges"][i];
-            let newLink = {
+            const link = hivtrace["trace_results"]["Edges"][i];
+            const newLink = {
                 source: "" + link.sequences[0],
                 target: "" + link.sequences[1],
                 origin: ["HIVTRACE Import"],
@@ -1310,7 +1310,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         (window as any).context.commonService.session = (window as any).context.commonService.sessionSkeleton();
         (window as any).context.commonService.session.meta.startTime = Date.now();
         ghost["samples"].forEach(node => {
-            let newNode = JSON.parse(JSON.stringify(node));
+            const newNode = JSON.parse(JSON.stringify(node));
             newNode.origin = ["GHOST Import"];
             newNode.genotypes = JSON.stringify(newNode.genotypes);
             newNode._id = "" + newNode._id;
@@ -1321,11 +1321,11 @@ export class CommonService extends AppComponentBase implements OnInit {
                 (window as any).context.commonService.session.data.nodeFields.push(key);
             }
         });
-        let links = ghost["links"];
-        let n = links.length;
+        const links = ghost["links"];
+        const n = links.length;
         for (let i = 0; i < n; i++) {
-            let link = links[i];
-            let newLink = Object.assign({}, link, {
+            const link = links[i];
+            const newLink = Object.assign({}, link, {
                 source: "" + link.source,
                 target: "" + link.target,
                 distance: parseFloat(link.dist),
@@ -1392,11 +1392,11 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     parseFASTA(text): Promise<any> {
       return new Promise(resolve => {
-        let computer: WorkerModule = new WorkerModule();
-        let response = computer.compute_parse_fastaWorker.postMessage(text);
+        const computer: WorkerModule = new WorkerModule();
+        const response = computer.compute_parse_fastaWorker.postMessage(text);
 
         computer.compute_parse_fastaWorker.onmessage().subscribe((response) => {
-          let nodes = JSON.parse((window as any).context.commonService.decode(new Uint8Array(response.data.nodes)));
+          const nodes = JSON.parse((window as any).context.commonService.decode(new Uint8Array(response.data.nodes)));
           if(this.debugMode) {
             console.log("FASTA Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
           }
@@ -1413,11 +1413,11 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     parseCSVMatrix(file) {
         return new Promise((resolve) => {
-            let check = (window as any).context.commonService.session.files.length > 1;
+            const check = (window as any).context.commonService.session.files.length > 1;
             const origin = [file.name];
             let nn = 0,
               nl = 0;        
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
             computer.compute_parse_csv_matrixWorker.postMessage(file.contents);
         
             computer.compute_parse_csv_matrixWorker.onmessage = (response) => {
@@ -1517,12 +1517,12 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns list of objects representings seq, each seq objects has {id: string, seq: string}
      */
     generateSeqs(idPrefix, count?, snps?, seed?) {
-        let start = Date.now();
+        const start = Date.now();
         if (!count) count = 1000;
         if (!snps) snps = 100;
         if (!seed) seed = (window as any).context.commonService.session.data.reference;
 
-        let sampleCodons = [
+        const sampleCodons = [
             "GCA",
             "GCC",
             "GCG",
@@ -1593,36 +1593,36 @@ export class CommonService extends AppComponentBase implements OnInit {
             "GAA",
             "GAG"
         ];
-        let sampleSNPs = ["A", "C", "G", "T"];
+        const sampleSNPs = ["A", "C", "G", "T"];
 
-        let sample = (vec, nCodons) => {
-            let samples = [];
+        const sample = (vec, nCodons) => {
+            const samples = [];
             for (let x = 0; x < nCodons; x++) {
-                let idx = Math.floor((window as any).context.commonService.r01() * vec.length);
+                const idx = Math.floor((window as any).context.commonService.r01() * vec.length);
                 samples.push(vec[idx]);
             }
             return samples;
         }
 
-        let seqs = [];
+        const seqs = [];
 
         seqs.push({ id: idPrefix + "0", seq: seed });
 
         while (seqs.length < count) {
             // number codons to vary
-            let nCodons = Math.floor((window as any).context.commonService.r01() * 10) + 1;
+            const nCodons = Math.floor((window as any).context.commonService.r01() * 10) + 1;
 
             // randomly select this many to check for existence
-            let randomCodonSet = sample(sampleCodons, nCodons).join("");
+            const randomCodonSet = sample(sampleCodons, nCodons).join("");
 
             // try again if not present
             if (seqs[seqs.length - 1].seq.indexOf(randomCodonSet) == -1) continue;
 
             // sequence to mutate
-            let oldseed = seqs[Math.floor((window as any).context.commonService.r01() * seqs.length)].seq;
+            const oldseed = seqs[Math.floor((window as any).context.commonService.r01() * seqs.length)].seq;
 
             // select codons to replace randomCodonSet
-            let replacementCodonSet = sample(sampleCodons, nCodons).join("");
+            const replacementCodonSet = sample(sampleCodons, nCodons).join("");
 
             // replace codon set
             let newseed = oldseed.replace(randomCodonSet, replacementCodonSet);
@@ -1630,10 +1630,10 @@ export class CommonService extends AppComponentBase implements OnInit {
             // add snp substitutions randomly across entire sequence
             // - randomly sample addedSNP
             // - randomly pick SNPS to replace
-            let addedSNPs = Math.floor((window as any).context.commonService.r01() * snps);
+            const addedSNPs = Math.floor((window as any).context.commonService.r01() * snps);
             for (let j = 0; j < addedSNPs; j++) {
-                let randomSNP = sample(sampleSNPs, 1)[0];
-                let locOfSNP = Math.floor((window as any).context.commonService.r01() * seed.length);
+                const randomSNP = sample(sampleSNPs, 1)[0];
+                const locOfSNP = Math.floor((window as any).context.commonService.r01() * seed.length);
                 newseed =
                     newseed.substr(0, locOfSNP) + randomSNP + newseed.substr(locOfSNP + 1);
             }
@@ -1651,19 +1651,19 @@ export class CommonService extends AppComponentBase implements OnInit {
             if (params.aligner == "none") {
                 return resolve(params.nodes);
             }
-            let n = params.nodes.length;
-            let referenceLength = params.reference.length;
+            const n = params.nodes.length;
+            const referenceLength = params.reference.length;
 
 
-            let aligner: WorkerModule = new WorkerModule();
+            const aligner: WorkerModule = new WorkerModule();
             aligner.compute_align_swWorker.postMessage(params);
 
 
             aligner.compute_align_swWorker.onmessage().subscribe((response) => {
 
-                let subset = JSON.parse((window as any).context.commonService.decode(new Uint8Array(response.data.nodes)));
+                const subset = JSON.parse((window as any).context.commonService.decode(new Uint8Array(response.data.nodes)));
                 console.log("Alignment transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-                let start = Date.now();
+                const start = Date.now();
                 let minPadding = Infinity,
                     d = null;
                 for (let i = 0; i < n; i++) {
@@ -1697,7 +1697,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         return new Promise(resolve => {
 
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
 
             computer.compute_consensusWorker.postMessage({ data: nodes });
 
@@ -1724,18 +1724,18 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     computeAmbiguityCounts(): Promise<void> {
         return new Promise(resolve => {
-            let nodes = (window as any).context.commonService.session.data.nodes;
-            let subset = nodes.filter(d => d.seq);
+            const nodes = (window as any).context.commonService.session.data.nodes;
+            const subset = nodes.filter(d => d.seq);
             const subsetLength = subset.length;
 
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
 
             computer.compute_ambiguity_countsWorker.postMessage(subset);
 
             computer.compute_ambiguity_countsWorker.onmessage().subscribe((response) => {
 
                 console.log("Ambiguity Count Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-                let start = Date.now();
+                const start = Date.now();
                 const dists = new Float32Array(response.data.counts);
                 for (let j = 0; j < subsetLength; j++) {
                     nodes[subset[j].index]._ambiguity = dists[j];
@@ -1768,11 +1768,11 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         return new Promise(resolve => {
             let start = Date.now();
-            let nodes = (window as any).context.commonService.session.data.nodes;
-            let nodesLength = nodes.length;
-            let subset = [];
+            const nodes = (window as any).context.commonService.session.data.nodes;
+            const nodesLength = nodes.length;
+            const subset = [];
             for (let i = 0; i < nodesLength; i++) {
-                let node = nodes[i];
+                const node = nodes[i];
                 if (node.seq) {
                     subset.push({
                         index: i,
@@ -1786,8 +1786,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }
             }
 
-            let subsetLength = subset.length;
-            let computer: WorkerModule = new WorkerModule();
+            const subsetLength = subset.length;
+            const computer: WorkerModule = new WorkerModule();
 
             computer.compute_consensusWorker.postMessage({
                 data: {
@@ -1799,7 +1799,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             computer.compute_consensusWorker.onmessage().subscribe((response) => {
 
-                let dists = new Uint16Array(response.data.dists);
+                const dists = new Uint16Array(response.data.dists);
                 console.log("Consensus Difference Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                 start = Date.now();
                 for (let j = 0; j < subsetLength; j++) {
@@ -1823,7 +1823,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             let k = 0;
 
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
 
             computer.compute_linksWorker.postMessage({
                 nodes: subset,
@@ -1834,20 +1834,20 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             computer.compute_linksWorker.onmessage().subscribe((response) => {
 
-                let dists = (window as any).context.commonService.session.style.widgets['default-distance-metric'].toLowerCase() == 'snps' ?
+                const dists = (window as any).context.commonService.session.style.widgets['default-distance-metric'].toLowerCase() == 'snps' ?
                     new Uint16Array(response.data.links) :
                     new Float32Array(response.data.links);
                     if(this.debugMode) {
                         console.log("Links Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                     }
-                let start = Date.now();
-                let check = (window as any).context.commonService.session.files.length > 1;
-                let n = subset.length;
+                const start = Date.now();
+                const check = (window as any).context.commonService.session.files.length > 1;
+                const n = subset.length;
                 let l = 0;
                 for (let i = 0; i < n; i++) {
-                    let sourceID = subset[i]._id;
+                    const sourceID = subset[i]._id;
                     for (let j = 0; j < i; j++) {
-                        let targetID = subset[j]._id;
+                        const targetID = subset[j]._id;
                         k += (window as any).context.commonService.addLink({
                             source: sourceID,
                             target: targetID,
@@ -1869,30 +1869,30 @@ export class CommonService extends AppComponentBase implements OnInit {
 
 
     getDM(): Promise<any> {
-        let start = Date.now();
+        const start = Date.now();
         return new Promise(resolve => {
             let dm : any = '';
             if ((window as any).context.commonService.session.data.newick){
-                let treeObj = patristic.parseNewick((window as any).context.commonService.session.data.newick);
+                const treeObj = patristic.parseNewick((window as any).context.commonService.session.data.newick);
                 dm = treeObj.toMatrix();
             } else {
                 let labels = (window as any).context.commonService.session.data.nodes.map(d => d._id);
                 labels = labels.sort();
-                let metric = (window as any).context.commonService.session.style.widgets['link-sort-variable'];
+                const metric = (window as any).context.commonService.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
                 dm = new Array(n);
-                let m = new Array(n);
+                const m = new Array(n);
                 for (let i = 0; i < n; i++) {
                     dm[i] = new Array(n);
                     dm[i][i] = 0;
-                    let source = labels[i];
-                    let row = (window as any).context.commonService.temp.matrix[source];
+                    const source = labels[i];
+                    const row = (window as any).context.commonService.temp.matrix[source];
                     if (!row) {
                         console.error('Incompletely populated temp.matrix! Couldn\'t find ' + source);
                         continue;
                     }
                     for (let j = 0; j < i; j++) {
-                        let link = row[labels[j]];
+                        const link = row[labels[j]];
                         if (link) {
                             dm[i][j] = dm[j][i] = link[metric];
                         } else {
@@ -1922,7 +1922,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           } else if((window as any).context.commonService.session.data.newick){
             resolve((window as any).context.commonService.session.data.newick);
           } else {
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
             (window as any).context.commonService.getDM().then(dm => {
                 computer.compute_treeWorker.postMessage({
                     // labels: Object.keys((window as any).context.commonService.temp.matrix).sort(), <- This doesn't work because temp.matrix retains blank objects
@@ -1954,7 +1954,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     computeDirectionality(): Promise<void> {
         return new Promise(resolve => {
 
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
             computer.compute_directionalityWorker.postMessage({
                 links: (window as any).context.commonService.session.data.links,
                 tree: (window as any).context.commonService.temp.tree
@@ -1962,16 +1962,16 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             computer.compute_directionalityWorker.onmessage().subscribe((response) => {
 
-                let flips = new Uint8Array(response.data.output);
+                const flips = new Uint8Array(response.data.output);
                 if(this.debugMode) {
                     console.log("Directionality Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                 }
-                let start = Date.now();
-                let n = flips.length;
+                const start = Date.now();
+                const n = flips.length;
                 for (let i = 0; i < n; i++) {
                     if (flips[i]) {
-                        let fliplink = (window as any).context.commonService.session.data.links[i];
-                        let fliptemp = fliplink.source;
+                        const fliplink = (window as any).context.commonService.session.data.links[i];
+                        const fliptemp = fliplink.source;
                         fliplink.source = fliplink.target;
                         fliplink.target = fliptemp;
                         fliplink.directed = true;
@@ -1990,7 +1990,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     computeMST(): Promise<void> {
         return new Promise((resolve, reject) => {
 
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
             computer.compute_mstWorker.postMessage({
                 links: (window as any).context.commonService.session.data.links,
                 matrix: (window as any).context.commonService.temp.matrix,
@@ -2002,12 +2002,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             if (response.data == "Error") {
               return reject("MST washed out");
             }
-            let output = new Uint8Array(response.data.links);
+            const output = new Uint8Array(response.data.links);
             if(this.debugMode) {
                 console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
             }
             const start = Date.now();
-            let links = (window as any).context.commonService.session.data.links;
+            const links = (window as any).context.commonService.session.data.links;
             const numLinks = links.length;
             for (let i = 0; i < numLinks; i++) {
               links[i].nn = output[i] ? true : false;
@@ -2024,7 +2024,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     computeNN(): Promise<void> {
         return new Promise((resolve, reject) => {
 
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
             computer.compute_nnWorker.postMessage({
                 links: (window as any).context.commonService.session.data.links,
                 matrix: (window as any).context.commonService.temp.matrix,
@@ -2037,12 +2037,12 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if (response.data == "Error") {
                     return reject("Nearest Neighbor washed out");
                 }
-                let output = new Uint8Array(response.data.links);
+                const output = new Uint8Array(response.data.links);
                 if(this.debugMode) {
                     console.log("NN Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                 }
                 const start = Date.now();
-                let links = (window as any).context.commonService.session.data.links;
+                const links = (window as any).context.commonService.session.data.links;
                 const numLinks = links.length;
                 for (let i = 0; i < numLinks; i++) {
                     links[i].nn = output[i] ? true : false;
@@ -2059,7 +2059,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         return new Promise((resolve, reject) => {
 
             const metric = (window as any).context.commonService.session.style.widgets['link-sort-variable'];
-            let computer: WorkerModule = new WorkerModule();
+            const computer: WorkerModule = new WorkerModule();
             (window as any).context.commonService.getDM().then(dm => {
                 computer.compute_triangulationWorker.postMessage({
                     matrix: dm
@@ -2071,15 +2071,15 @@ export class CommonService extends AppComponentBase implements OnInit {
                     if(this.debugMode) {
                         console.log("Triangulation Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                     }
-                    let start = Date.now();
-                    let matrix = JSON.parse((window as any).context.commonService.decode(new Uint8Array(response.data.matrix)));
-                    let labels = Object.keys((window as any).context.commonService.temp.matrix);
+                    const start = Date.now();
+                    const matrix = JSON.parse((window as any).context.commonService.decode(new Uint8Array(response.data.matrix)));
+                    const labels = Object.keys((window as any).context.commonService.temp.matrix);
                     const n = labels.length;
                     for (let i = 0; i < n; i++) {
-                        let source = labels[i];
-                        let row = (window as any).context.commonService.temp.matrix[source];
+                        const source = labels[i];
+                        const row = (window as any).context.commonService.temp.matrix[source];
                         for (let j = 0; j < i; j++) {
-                            let target = labels[j];
+                            const target = labels[j];
                             if (!row[target]) {
                                 (window as any).context.commonService.addLink({
                                     source: source,
@@ -2121,10 +2121,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         clearTimeout((window as any).context.commonService.temp.messageTimeout);
         // cycles through each node and link and if variable in nodeFields/linkFields not a key for the node/link, it is added with value of null
         ["node", "link"].forEach(v => {
-            let n = (window as any).context.commonService.session.data[v + "s"].length;
-            let fields = (window as any).context.commonService.session.data[v + "Fields"];
+            const n = (window as any).context.commonService.session.data[v + "s"].length;
+            const fields = (window as any).context.commonService.session.data[v + "Fields"];
             for (let i = 0; i < n; i++) {
-                let d = (window as any).context.commonService.session.data[v + "s"][i];
+                const d = (window as any).context.commonService.session.data[v + "s"][i];
                 fields.forEach(field => {
                     if (!(field in d)) d[field] = null;
                 });
@@ -2133,20 +2133,20 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         
          // patch missing date fields to earliest date in the the data
-        let fields = (window as any).context.commonService.session.data["nodeFields"];
-        let nodeSkeleton = (window as any).context.commonService.dataSkeleton();
-        let fieldsToCheck = fields.filter(f => !nodeSkeleton.nodeFields.includes(f) && f != '_ambiguity' && f != '_diff'); 
-        let n = (window as any).context.commonService.session.data.nodes.length;
-        let k = fieldsToCheck.length;
+        const fields = (window as any).context.commonService.session.data["nodeFields"];
+        const nodeSkeleton = (window as any).context.commonService.dataSkeleton();
+        const fieldsToCheck = fields.filter(f => !nodeSkeleton.nodeFields.includes(f) && f != '_ambiguity' && f != '_diff'); 
+        const n = (window as any).context.commonService.session.data.nodes.length;
+        const k = fieldsToCheck.length;
         // for each field in fieldsToCheck (fieldsToCheck are nodeFields that are not default from dataSkeleton() and also not '_ambiguity' and not '_diff' )
         for (let j = 0; j < k; j++) {
-            let field = fieldsToCheck[j];
-            let times = [];
+            const field = fieldsToCheck[j];
+            const times = [];
             // for each node check if node[field] is valid time and if so push to times []
             for (let i = 0; i < n; i++) {
-                let node = (window as any).context.commonService.session.data.nodes[i];
+                const node = (window as any).context.commonService.session.data.nodes[i];
                 if (node[field] != null) {
-                    let time = moment(node[field]); 
+                    const time = moment(node[field]); 
                     if (time.isValid() && isNaN(node[field])) //#315
                         times.push(time.toDate());
                 }
@@ -2155,8 +2155,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             // If column has the word date in it, date expected to be in column 
             if (field.toLowerCase().includes("date")){
         
-                let minTime = Math.min(...times);
-                let minTimeString = new Date(minTime).toString();
+                const minTime = Math.min(...times);
+                const minTimeString = new Date(minTime).toString();
                 // for each node d, if d[field] == null or empty string ("", " ", "  " ...) set d[field] to minTimeString
                 (window as any).context.commonService.session.data.nodes.forEach(d => {
                     if (d[field] == null || (d[field] && String(d[field]).trim() == ""))  {
@@ -2189,7 +2189,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             (window as any).context.commonService.session.data.linkFields.map(field => '<option value="' + field + '">' + (window as any).context.commonService.titleize(field) + "</option>").join("\n"))
         .val((window as any).context.commonService.session.style.widgets["link-color-variable"]);
         try {
-            (window as any).context.commonService.updateThresholdHistogram();
+            //(window as any).context.commonService.updateThresholdHistogram();
         } catch (error) {
             console.error(error);
             $("#loading-information-modal").hide();
@@ -2252,7 +2252,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
             async function loadOtherViews() {
                 (window as any).context.commonService.session.layout.content.forEach(async view => {
-                    let viewName = convertName(view.type)
+                    const viewName = convertName(view.type)
                     if (view.type == (window as any).context.commonService.session.style.widgets['default-view']) {
                         return;
                     } else if (viewName){
@@ -2315,7 +2315,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if (!node.Race) {
 
                     let selectedRace: string = "";
-                    let raceDetails: string[] = [];
+                    const raceDetails: string[] = [];
 
                     races.forEach(race => {
                         if (node[race.id] && node[race.id].toLowerCase() === "true") {
@@ -2374,7 +2374,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if (!node.Exposure) {
 
                     let selectedRace: string = "";
-                    let exposureDetails: string[] = [];
+                    const exposureDetails: string[] = [];
 
                     exposures.forEach(exposure => {
                         if (exposure.id != "ExposureInfoWorkplaceIsCriticalInfra" && 
@@ -2417,11 +2417,12 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns a list of node objects
      */    
     getVisibleNodes(copy: any = false) {
-        let nodes = (window as any).context.commonService.session.data.nodeFilteredValues;
-        let n = nodes.length;
-        let out = [];
+        const nodes = (window as any).context.commonService.session.data.nodeFilteredValues;
+        const n = nodes.length;
+        console.log("How many nodes are there in the dataset total? " + n);
+        const out = [];
         for (let i = 0; i < n; i++) {
-            let node = nodes[i];
+            const node = nodes[i];
             if (node.visible) {
                 if (copy) {
                     out.push(JSON.parse(JSON.stringify(node)));
@@ -2443,8 +2444,9 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns a array of link objects;
      */    
     getVisibleLinks(copy: any = false) {
-        let links = (window as any).context.commonService.session.data.links;
-        let n = links.length;
+        const links = (window as any).context.commonService.session.data.links;
+        const n = links.length;
+        console.log("How many links are there in the dataset total? " + n);
         let out = [],
             link = null;
         if (copy) {
@@ -2468,13 +2470,13 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns a list of cluster objects
      */
     getVisibleClusters(copy: any = false) {
-        let clusters = (window as any).context.commonService.session.data.clusters;
+        const clusters = (window as any).context.commonService.session.data.clusters;
         if(this.debugMode) {
             console.log('get vis: ', clusters);
         }
-        let n = clusters.length;
-        let out = [],
-            cluster = null;
+        const n = clusters.length;
+        const out = [];
+        let cluster = null;
         if (copy) {
             for (let i = 0; i < n; i++) {
                 cluster = clusters[i];
@@ -2496,8 +2498,8 @@ export class CommonService extends AppComponentBase implements OnInit {
     updateStatistics() {
 
         if ($("#network-statistics-hide").is(":checked")) return;
-        let vnodes = (window as any).context.commonService.getVisibleNodes();
-        let vlinks = (window as any).context.commonService.getVisibleLinks();
+        const vnodes = (window as any).context.commonService.getVisibleNodes();
+        const vlinks = (window as any).context.commonService.getVisibleLinks();
         let linkCount = 0;
         let clusterCount = 0;
         if ((window as any).context.commonService.session.style.widgets["timeline-date-field"] == 'None') {
@@ -2508,22 +2510,22 @@ export class CommonService extends AppComponentBase implements OnInit {
         } else {
             let n = vlinks.length;
             for (let i = 0; i < n; i++) {
-                let src = vnodes.find(d => d._id == vlinks[i].source || d.id == vlinks[i].source);
-                let tgt = vnodes.find(d => d._id == vlinks[i].target || d.id == vlinks[i].target);
+                const src = vnodes.find(d => d._id == vlinks[i].source || d.id == vlinks[i].source);
+                const tgt = vnodes.find(d => d._id == vlinks[i].target || d.id == vlinks[i].target);
                 if (src && tgt) linkCount++;
             }
             
             n = vnodes.length;
-            let clusters = {};
+            const clusters = {};
             for (let i = 0; i < n; i++) {
-                let id = vnodes[i].cluster;
+                const id = vnodes[i].cluster;
                 if (clusters[id]) clusters[id]++;
                 else clusters[id] = 1;
             }
             clusterCount = (window as any).context.commonService.session.data.clusters.filter(cluster => clusters[cluster.id] && clusters[cluster.id]>2 && cluster.visible && cluster.nodes > 1).length;
 
         }
-        let singletons = vnodes.filter(d => d.degree == 0).length;
+        const singletons = vnodes.filter(d => d.degree == 0).length;
         $("#numberOfSelectedNodes").text(vnodes.filter(d => d.selected).length.toLocaleString());
         $("#numberOfNodes").text(vnodes.length.toLocaleString());
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
@@ -2536,7 +2538,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 	 * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
 	 */
     createNodeColorMap() {
-        let variable = (window as any).context.commonService.session.style.widgets["node-color-variable"];
+        const variable = (window as any).context.commonService.session.style.widgets["node-color-variable"];
         if (variable == "None") {
             (window as any).context.commonService.temp.style.nodeColorMap = () => (window as any).context.commonService.session.style.widgets["node-color"];
             return [];
@@ -2553,13 +2555,13 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         // populates aggregates object where key is the value and the value is the count of number of nodes with that value
-        let aggregates = {};
-        let nodes = (window as any).context.commonService.session.data.nodes;
-        let n = nodes.length;
+        const aggregates = {};
+        const nodes = (window as any).context.commonService.session.data.nodes;
+        const n = nodes.length;
         for (let i = 0; i < n; i++) {
-            let d = nodes[i];
+            const d = nodes[i];
             if (!d.visible) continue;
-            let dv = d[variable];
+            const dv = d[variable];
             if (dv in aggregates) {
                 aggregates[dv]++;
             } else {
@@ -2568,7 +2570,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
         
         // adds more colors and alpha values when number of node options > number of colors/alphas
-        let values = Object.keys(aggregates);
+        const values = Object.keys(aggregates);
         if (values.length > (window as any).context.commonService.session.style.nodeColors.length) {
             let colors = [];
             let m = Math.ceil(values.length / (window as any).context.commonService.session.style.nodeColors.length);
@@ -2591,13 +2593,13 @@ export class CommonService extends AppComponentBase implements OnInit {
                 "null" : "#EAE553"
             };
         }
-        let keys = Object.keys((window as any).context.commonService.session.style.nodeColorsTableHistory);
+        const keys = Object.keys((window as any).context.commonService.session.style.nodeColorsTableHistory);
 
         //Update Table History
         values.forEach( (val, ind) => {
 
         // Get index of value in history
-        let index = keys.findIndex(key => key === val);
+        const index = keys.findIndex(key => key === val);
 
         //If found in history set previous color
         if (index !== -1) {
@@ -2623,21 +2625,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         
         // During timeline mode, user Pause and switch to a different Node varaible but nodeColorsTableKeys[variable] is not available
         if(!(window as any).context.commonService.session.style.nodeColorsTableKeys[variable]) {
-            let aggregatesTL = {};
-            let nodesTL = (window as any).context.commonService.session.network.timelineNodes;
-            let n = nodesTL.length;
+            const aggregatesTL = {};
+            const nodesTL = (window as any).context.commonService.session.network.timelineNodes;
+            const n = nodesTL.length;
             let nodeColorsTL = [...(window as any).context.commonService.session.style.nodeColors];
             for (let i = 0; i < n; i++) {
-            let d = nodesTL[i];
+            const d = nodesTL[i];
             if (!d.visible) continue;
-            let dv = d[variable];
+            const dv = d[variable];
             if (dv in aggregatesTL) {
                 aggregatesTL[dv]++;
             } else {
                 aggregatesTL[dv] = 1;
             }
             }
-            let valuesTL = Object.keys(aggregatesTL);
+            const valuesTL = Object.keys(aggregatesTL);
             if (valuesTL.length > nodeColorsTL.length) {
             let colors = [];
             let m = Math.ceil(valuesTL.length / nodeColorsTL.length);
@@ -2651,9 +2653,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         let key;
-        let tempNodeColors=[];
-        for(let v of values) {
-            let table = (window as any).context.commonService.session.style.nodeColorsTableKeys[variable];
+        const tempNodeColors=[];
+        for(const v of values) {
+            const table = (window as any).context.commonService.session.style.nodeColorsTableKeys[variable];
             key = table.findIndex( k => k === v);
             tempNodeColors.push(nodeColors[key]);
         }
@@ -2678,7 +2680,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 	 * @returns {Object} where keys are the values to group (ie. origin A, origin B) and values are counts of the number of links for each key
 	 */
     createLinkColorMap() {
-        let variable = (window as any).context.commonService.session.style.widgets["link-color-variable"];
+        const variable = (window as any).context.commonService.session.style.widgets["link-color-variable"];
         if(this.debugMode) {
             console.log('link var: ', variable);
         }
@@ -2703,9 +2705,9 @@ export class CommonService extends AppComponentBase implements OnInit {
             (window as any).context.commonService.session.style.linkColors = d3.schemePaired;
         }
 
-        let aggregates = {};
+        const aggregates = {};
         let multiLinkCount = 0; // Initialize Multi-Link count
-        let links = (window as any).context.commonService.getVisibleLinks();
+        const links = (window as any).context.commonService.getVisibleLinks();
         let i = 0,
             n = links.length,
             l;
@@ -2732,7 +2734,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             while (i < n) {
                 l = links[i++];
                 if (!l.visible) continue;
-                let lv = l[variable];
+                const lv = l[variable];
                 if (lv in aggregates) {
                     aggregates[lv]++;
                 } else {
@@ -2760,7 +2762,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         });
 
-        let values = Object.keys(aggregates);
+        const values = Object.keys(aggregates);
         // adds more colors/alphas when they are less than length of values
         if (values.length > this.session.style.linkColors.length) {
             let colors = [];
@@ -2786,8 +2788,8 @@ export class CommonService extends AppComponentBase implements OnInit {
       
             // During timeline mode, user Pause and switch to a different link varaible but linkColorsTableKeys[variable] is not available
             if(! (window as any).context.commonService.session.style.linkColorsTableKeys[variable]) {
-              let aggregatesTL = {};
-              let linksTL =  (window as any).context.commonService.getVisibleLinks();
+              const aggregatesTL = {};
+              const linksTL =  (window as any).context.commonService.getVisibleLinks();
               let linkColorsTL = [...(window as any).context.commonService.session.style.linkColors];
               let i = 0,
                 n = linksTL.length,
@@ -2796,8 +2798,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 while (i < n) {
                   l = linksTL[i++];
                   if (!l.visible) continue;
-                  let src =  (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.source || dd.id == l.source);
-                  let tgt =  (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.target || dd.id == l.target);
+                  const src =  (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.source || dd.id == l.source);
+                  const tgt =  (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.target || dd.id == l.target);
                   if (src === undefined || src.visible === false) continue;
                   if (tgt === undefined || tgt.visible === false) continue;
                   l.origin.forEach(o => {
@@ -2812,11 +2814,11 @@ export class CommonService extends AppComponentBase implements OnInit {
                 while (i < n) {
                   l = linksTL[i++];
                   if (!l.visible) continue;
-                  let src = (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.source || dd.id == l.source);
-                  let tgt = (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.target || dd.id == l.target);
+                  const src = (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.source || dd.id == l.source);
+                  const tgt = (window as any).context.commonService.session.network.timelineNodes.find(dd => dd._id == l.target || dd.id == l.target);
                   if (src === undefined || src.visible === false) continue;
                   if (tgt === undefined || tgt.visible === false) continue;  
-                  let lv = l[variable];
+                  const lv = l[variable];
                   if (lv in aggregatesTL) {
                     aggregatesTL[lv]++;
                   } else {
@@ -2824,7 +2826,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                   }
                 }
               }       
-              let valuesTL = Object.keys(aggregatesTL);      
+              const valuesTL = Object.keys(aggregatesTL);      
               if (valuesTL.length > linkColorsTL.length) {
                 let colors = [];
                 let cycles = Math.ceil(valuesTL.length / linkColorsTL.length);
@@ -2836,9 +2838,9 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
       
             let key;
-            let tempLinkColors=[];
-            for(let v of values) {
-              let table = (window as any).context.commonService.session.style.linkColorsTableKeys[variable];
+            const tempLinkColors=[];
+            for(const v of values) {
+              const table = (window as any).context.commonService.session.style.linkColorsTableKeys[variable];
               key = table.findIndex( k => k === v);
               tempLinkColors.push(linkColors[key]);
             }
@@ -2866,8 +2868,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             return [];
         }
     
-        let aggregates = {};
-        let groups = (window as any).context.commonService.temp.polygonGroups;
+        const aggregates = {};
+        const groups = (window as any).context.commonService.temp.polygonGroups;
 
         // groups array where key = value to group by; and values = [nodes] that share that value
         // for group by subtype; keys are ['B', 'C', 'D']
@@ -2876,7 +2878,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         });
 
 
-        let values = Object.keys(aggregates);
+        const values = Object.keys(aggregates);
     
         if ((window as any).context.commonService.session.style.widgets['polygon-color-table-counts-sort'] == 'ASC')
             values.sort(function(a, b) { return aggregates[a] - aggregates[b] });
@@ -3029,8 +3031,8 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         return new Promise(resolve => {
 
-            let parts = type.split(".");
-            let name = parts[0],
+            const parts = type.split(".");
+            const name = parts[0],
                 format = parts[1];
             if ((window as any).context.commonService.temp.mapData[name]) {
                 return resolve((window as any).context.commonService.temp.mapData[name]);
@@ -3103,7 +3105,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
                 case "stars":
                     if (format == "json") {
-                        let path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/stars.json';
+                        const path = /*(window as any).context.commonService.appRootUrl() +*/ 'assets/common/data/stars.json';
 
                         return this.http.get(path).toPromise()
                             .then(response => {
@@ -3139,10 +3141,10 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns {string} - for hex representation of color (white or black)
      */
     contrastColor(hexcolor) {
-        let r = parseInt(hexcolor.substr(1, 2), 16);
-        let g = parseInt(hexcolor.substr(3, 2), 16);
-        let b = parseInt(hexcolor.substr(5, 2), 16);
-        let yiq = r * 299 + g * 587 + b * 114;
+        const r = parseInt(hexcolor.substr(1, 2), 16);
+        const g = parseInt(hexcolor.substr(3, 2), 16);
+        const b = parseInt(hexcolor.substr(5, 2), 16);
+        const yiq = r * 299 + g * 587 + b * 114;
         return yiq >= 128000 ? "#000000" : "#ffffff";
     };
 
@@ -3365,11 +3367,11 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     unparseSVG(svgNode): string {
         svgNode.setAttribute("xlink", "http://www.w3.org/1999/xlink");
-        let selectorTextArr = [];
+        const selectorTextArr = [];
 
         // Add Parent element Id and Classes to the list
         selectorTextArr.push("#" + svgNode.id);
-        let nClasses = svgNode.classList.length;
+        const nClasses = svgNode.classList.length;
         for (let c = 0; c < nClasses; c++) {
             if (!(window as any).context.commonService.includes("." + svgNode.classList[c], selectorTextArr)) {
                 selectorTextArr.push("." + svgNode.classList[c]);
@@ -3377,14 +3379,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         // Add Children element Ids and Classes to the list
-        let nodes = svgNode.getElementsByTagName("*");
-        let nNodes = nodes.length;
+        const nodes = svgNode.getElementsByTagName("*");
+        const nNodes = nodes.length;
         for (let i = 0; i < nNodes; i++) {
-            let id = nodes[i]._id;
+            const id = nodes[i]._id;
             if (!(window as any).context.commonService.includes("#" + id, selectorTextArr)) {
                 selectorTextArr.push("#" + id);
             }
-            let classes = nodes[i].classList;
+            const classes = nodes[i].classList;
             for (let d = 0; d < classes.length; d++) {
                 if (!(window as any).context.commonService.includes("." + classes[d], selectorTextArr)) {
                     selectorTextArr.push("." + classes[d]);
@@ -3394,19 +3396,19 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         // Extract CSS Rules
         let extractedCSSText = "";
-        let nStylesheets = document.styleSheets.length;
+        const nStylesheets = document.styleSheets.length;
         for (let j = 0; j < nStylesheets; j++) {
-            let s: any = document.styleSheets[j];
+            const s: any = document.styleSheets[j];
             try {
                 if (!s.cssRules) continue;
             } catch (e) {
                 if (e.name !== "SecurityError") throw e; // for Firefox
                 continue;
             }
-            let cssRules = s.cssRules;
-            let nRules = cssRules.length;
+            const cssRules = s.cssRules;
+            const nRules = cssRules.length;
             for (let r = 0; r < nRules; r++) {
-                let rule = cssRules[r];
+                const rule = cssRules[r];
                 if (!rule.selectorText) continue;
                 if (rule.selectorText.includes(selectorTextArr)) {
                     extractedCSSText += rule.cssText;
@@ -3414,12 +3416,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         }
 
-        let styleElement = document.createElement("style");
+        const styleElement = document.createElement("style");
         styleElement.setAttribute("type", "text/css");
         styleElement.innerHTML = extractedCSSText;
-        let refNode = svgNode.hasChildNodes() ? svgNode.children[0] : null;
+        const refNode = svgNode.hasChildNodes() ? svgNode.children[0] : null;
         svgNode.insertBefore(styleElement, refNode);
-        let serializer = new XMLSerializer();
+        const serializer = new XMLSerializer();
         return serializer.serializeToString(svgNode);
     };
 
@@ -3428,13 +3430,13 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns 
      */
     exportHIVTRACE() {
-        let links = (window as any).context.commonService.session.data.links.filter(l => l.visible);
-        let geneticLinks = links.filter(l => l.origin.includes("Genetic Distance"));
-        let sequences = new Set(
+        const links = (window as any).context.commonService.session.data.links.filter(l => l.visible);
+        const geneticLinks = links.filter(l => l.origin.includes("Genetic Distance"));
+        const sequences = new Set(
             geneticLinks.map(l => l.source).concat(
                 geneticLinks.map(l => l.target))
         ).size;
-        let pas = {};
+        const pas = {};
         (window as any).context.commonService.session.data.nodes.forEach(d => {
             Object.keys(d).forEach(key => {
                 if (pas[key]) return;
@@ -3528,7 +3530,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @param {string} title 
      */
     titleize(title: string): string {
-        let small = title.toLowerCase().replace(/_/g, " ");
+        const small = title.toLowerCase().replace(/_/g, " ");
         if (small == "null") return "(Empty)";
         if (small == "id" || small == " id") return "ID";
         if (small == "tn93") return "TN93";
@@ -3549,14 +3551,14 @@ export class CommonService extends AppComponentBase implements OnInit {
     tagClusters(): Promise<void> {
         return new Promise<void>(resolve => {
             let start = Date.now();
-            let clusters = (window as any).context.commonService.session.data.clusters = [];
-            let nodes = (window as any).context.commonService.session.data.nodes,
+            const clusters = (window as any).context.commonService.session.data.clusters = [];
+            const nodes = (window as any).context.commonService.session.data.nodes,
                 links = (window as any).context.commonService.session.data.links,
                 labels = nodes.map(d => d._id);
-            let numNodes = nodes.length,
+            const numNodes = nodes.length,
                 numLinks = links.length;
-            let tempnodes = (window as any).context.commonService.temp.nodes = [];
-            let lsv = (window as any).context.commonService.session.style.widgets["link-sort-variable"];
+            const tempnodes = (window as any).context.commonService.temp.nodes = [];
+            const lsv = (window as any).context.commonService.session.style.widgets["link-sort-variable"];
 
             /**
              * A function that performs a depth-first search.
@@ -3564,14 +3566,14 @@ export class CommonService extends AppComponentBase implements OnInit {
              * @param cluster - The cluster to search in.
              * @returns {void}
              */
-            let DFS = (id, cluster) => {
+            const DFS = (id, cluster) => {
                 // if id is found in tempNode exit function
                 if (tempnodes.indexOf(id) >= 0) return;
                 // else add it, and continue DFS
                 tempnodes.push(id);
                 let node: any = {};
                 for (let i = 0; i < numNodes; i++) {
-                    let d = nodes[i];
+                    const d = nodes[i];
                     if (!d._id) {
                         d._id = d.id;
                     }
@@ -3580,13 +3582,13 @@ export class CommonService extends AppComponentBase implements OnInit {
                         break;
                     }
                 }
-                let clusterID = cluster.id;
+                const clusterID = cluster.id;
                 node.cluster = clusterID;
                 cluster.nodes++;
-                let row = (window as any).context.commonService.temp.matrix[id];
+                const row = (window as any).context.commonService.temp.matrix[id];
                 if (!row) return;
                 for (let j = 0; j < numNodes; j++) {
-                    let l = row[labels[j]];
+                    const l = row[labels[j]];
                     if (!l) continue;
                     if (!l.visible) continue;
                     l.cluster = clusterID;
@@ -3600,14 +3602,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             }; // DFS function close
 
             for (let k = 0; k < numNodes; k++) {
-                let d = nodes[k];
+                const d = nodes[k];
                 d.degree = 0;
-                let id = d._id;
+                const id = d._id;
 
                 // if id isn't in temp nodes, add new cluster and do DFS
                 if (tempnodes.indexOf(id) == -1) {
 
-                    let cluster = {
+                    const cluster = {
                         id: clusters.length > 0 ? clusters.length : 0,
                         nodes: 0,
                         links: 0,
@@ -3632,12 +3634,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             //This is O(N^3)
             //TODO: Refactor using temp.matrix to get O(N^2)
             for (let m = 0; m < numLinks; m++) {
-                let l = links[m];
+                const l = links[m];
                 if (!l.visible) continue;
                 let s = false,
                     t = false;
                 for (let n = 0; n < numNodes; n++) {
-                    let node = nodes[n];
+                    const node = nodes[n];
                     if (l.source == node._id) {
                         s = true;
                         node.degree++;
@@ -3667,20 +3669,20 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @param {boolean} silent - whether to trigger node-visibility event (True doesn't trigger, False does)
      */
     setNodeVisibility(silent) {
-        let start = Date.now();
-        let dateField = (window as any).context.commonService.session.style.widgets["timeline-date-field"];
-        let nodes = (window as any).context.commonService.session.data.nodes,
+        const start = Date.now();
+        const dateField = (window as any).context.commonService.session.style.widgets["timeline-date-field"];
+        const nodes = (window as any).context.commonService.session.data.nodes,
             clusters = (window as any).context.commonService.session.data.clusters;
-        let n = nodes.length;
+        const n = nodes.length;
         for (let i = 0; i < n; i++) {
-            let node = nodes[i];
+            const node = nodes[i];
 
             //if (node._id === "NIMR_NG894803") {
             //    console.log('setting node vis: ', _.cloneDeep(node));
             //}
 
             node.visible = true;
-            let cluster = clusters[node.cluster];
+            const cluster = clusters[node.cluster];
 
 
             //if (node._id === "NIMR_NG894803") {
@@ -3718,13 +3720,13 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @param {boolean} [checkCluster=true] - defaults to true; whether to include cluster.visibility when setting link.visibility
      */
     setLinkVisibility(silent: boolean, checkCluster = true) {
-        let start = Date.now();
-        let metric = (window as any).context.commonService.session.style.widgets["link-sort-variable"],
+        const start = Date.now();
+        const metric = (window as any).context.commonService.session.style.widgets["link-sort-variable"],
             threshold = (window as any).context.commonService.session.style.widgets["link-threshold"],
             showNN = (window as any).context.commonService.session.style.widgets["link-show-nn"];
-        let links = (window as any).context.commonService.session.data.links;
-        let clusters = (window as any).context.commonService.session.data.clusters;
-        let n = links.length;
+        const links = (window as any).context.commonService.session.data.links;
+        const clusters = (window as any).context.commonService.session.data.clusters;
+        const n = links.length;
         if(this.debugMode) {
             console.log(`Setting Link Visibility with ${metric} ${threshold} ${showNN}`);
         }
@@ -3734,7 +3736,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         for (let i = 0; i < n; i++) {
             
 
-            let link = links[i];
+            const link = links[i];
 
             if((link.source === "KF773429" && link.target === "KF773430") || (link.source === "KF773430" && link.target === "KF773429")) {
                 console.log('setting link vis: ', _.cloneDeep(link));
@@ -3849,7 +3851,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }
             }
 
-            let cluster = clusters[link.cluster];
+            const cluster = clusters[link.cluster];
             if (cluster && checkCluster) {
 
                 visible = visible && cluster.visible;
@@ -3876,11 +3878,11 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     setClusterVisibility(silent: boolean) {
         //let start = Date.now();
-        let min = (window as any).context.commonService.session.style.widgets["cluster-minimum-size"];
-        let clusters = (window as any).context.commonService.session.data.clusters;
-        let n = clusters.length;
+        const min = (window as any).context.commonService.session.style.widgets["cluster-minimum-size"];
+        const clusters = (window as any).context.commonService.session.data.clusters;
+        const n = clusters.length;
         for (let i = 0; i < n; i++) {
-            let cluster = clusters[i];
+            const cluster = clusters[i];
             // console.log('cluster nodes ', cluster);
             cluster.visible = cluster.nodes >= min;
         }
@@ -3890,10 +3892,10 @@ export class CommonService extends AppComponentBase implements OnInit {
 
 
     updatePinNodes(copy: boolean) {
-        let nodes =  (window as any).context.commonService.session.network.nodes;
-        let n = nodes.length;
+        const nodes =  (window as any).context.commonService.session.network.nodes;
+        const n = nodes.length;
         for (let i = 0; i < n; i++) {
-            let node = nodes[i]; 
+            const node = nodes[i]; 
             if (copy && node.fixed) node.preFixed = true;
             if (!copy &&  (window as any).context.commonService.session.network.timelineNodes[i].preFixed) {
                 node.fixed = true;
@@ -3907,11 +3909,11 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @returns {any[]} Returns an array with a copy of each node object
      */
     getNetworkNodes = () => {
-        let nodes =  (window as any).context.commonService.session.network.nodes;
-        let n = nodes.length;
-        let out = [];
+        const nodes =  (window as any).context.commonService.session.network.nodes;
+        const n = nodes.length;
+        const out = [];
           for (let i = 0; i < n; i++) {
-            let node = nodes[i];
+            const node = nodes[i];
             out.push(JSON.parse(JSON.stringify(node)));
           }
         return out;
@@ -3965,25 +3967,25 @@ export class CommonService extends AppComponentBase implements OnInit {
             if (dist < min) min = dist;
             if (dist > max) max = dist;
         }
-        let range = max - min;
-        let ticks = 40;
+        const range = max - min;
+        const ticks = 40;
 
-        let x = d3
+        const x = d3
             .scaleLinear()
             .domain([min, max])
             .range([0, width]);
 
-        let bins = d3
+        const bins = d3
             .histogram()
             .domain((x as any).domain())
             .thresholds(x.ticks(ticks))(data);
 
-        let y = d3
+        const y = d3
             .scaleLinear()
             .domain([0, d3.max(bins, d => (d as any).length)])
             .range([height, 0]);
 
-        let bar = svg
+        const bar = svg
             .selectAll(".bar")
             .data(bins)
             .enter()
@@ -4001,8 +4003,8 @@ export class CommonService extends AppComponentBase implements OnInit {
          * Uses the position on the histogram to set the link thresehold value
          */
         function updateThreshold() {
-            let xc = (d3 as any).mouse(svg.node())[0];
-            let decimalPlaces = ((window as any).context.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+            const xc = (d3 as any).mouse(svg.node())[0];
+            const decimalPlaces = ((window as any).context.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
 
             (window as any).context.commonService.session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
             $("#link-threshold").val(parseFloat((window as any).context.commonService.session.style.widgets["link-threshold"].toFixed(decimalPlaces)));
@@ -4017,7 +4019,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         });
 
         svg.on("mouseover", () => {
-            let xc = (d3 as any).mouse(svg.node())[0];
+            const xc = (d3 as any).mouse(svg.node())[0];
             $('#filtering-threshold').prop('title', "Whats the maximum genetic distance you're willing to call a link? " + (((window as any).context.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? ((xc / width) * range * 1.05 + min).toLocaleString() : Math.round(((xc / width) * range * 1.05 + min)).toLocaleString()));
           });
 

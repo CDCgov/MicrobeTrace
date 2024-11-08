@@ -1,9 +1,5 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService } from './contactTraceCommonServices/common.service';
-import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
-import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
-import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
-import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component';
 import * as d3 from 'd3';
 
 import { AppComponentBase } from '@shared/common/app-component-base';
@@ -13,7 +9,6 @@ import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
 import * as saveAs from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
-import { Observable, forkJoin } from 'rxjs';
 import { MicrobeTraceNextVisuals } from './microbe-trace-next-plugin-visuals';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 // import * as moment from 'moment';
@@ -315,7 +310,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedLinkColorTableTypesVariable = this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable;
         this.SelectedApplyStyleVariable = this.commonService.GlobalSettingsModel.SelectedApplyStyleVariable;
 
-        this.commonService.updateThresholdHistogram();
+        //this.commonService.updateThresholdHistogram();
 
         if(this.commonService.debugMode) {
             console.log("global settings: ", this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
@@ -337,7 +332,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             cachedView = result;
         });
 
-        let that = this;
+        const that = this;
 
         $( document ).on( "link-visibility", function( ) {
             that.generateNodeLinkTable("#link-color-table");
@@ -436,7 +431,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Also populates search-results list, and sets function that selects the node for when an option in the list is selected.
      */
     public onSearch() {
-        let nodes = this.commonService.session.data.nodes;
+        const nodes = this.commonService.session.data.nodes;
         const n = nodes.length;
 
         let v = this.searchText;
@@ -451,12 +446,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           $('#search-results').html("").hide();
           const field = this.commonService.session.style.widgets["search-field"];
           
-          let dataSet = new Set();
+          const dataSet = new Set();
           for(let i = 0; i < n; i++){
-            let node = nodes[i];
+            const node = nodes[i];
             if (node[field]) {
   
-                let fieldData = node[field].toString(); // Convert the data to string
+                const fieldData = node[field].toString(); // Convert the data to string
                 // matches anything that is not a digit, letter, whitespace or one of following char < > & and replaces with corresponding HTML entity number
                 const encodedField = fieldData.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
                   return '&#'+i.charCodeAt(0)+';';
@@ -464,7 +459,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 dataSet.add(`${encodedField}`);
             }
           }
-          let dataArray = Array.from(dataSet).sort() as string[];
+          const dataArray = Array.from(dataSet).sort() as string[];
           //#298
           if (this.commonService.session.style.widgets["search-whole-word"])  v = '\\b' + v + '\\b';
           let vre: RegExp;
@@ -473,14 +468,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
   
           dataArray.forEach(element => {
             if ((element as any).match(vre)) {
-                let $li = $('<li/>')
+                const $li = $('<li/>')
                     .html(element as string)
                     .attr('data-value', element as string);
                 $('#search-results').append($li).show();
               }
           });
 
-        let that = this;
+        const that = this;
           
         // on click of an option from the search list, the node is selected
           $('.autocomplete-wrapper li').on('click', function() {
@@ -496,7 +491,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
   
             for(let i = 0; i < n; i++){
 
-              let node = nodes[i];
+              const node = nodes[i];
 
               if (!node[field]) {
                 node.selected = false;
@@ -520,7 +515,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           for(let i = 0; i < n; i++){
   
             if(!firstSelected){
-                let node = nodes[i];
+                const node = nodes[i];
 
                 if (!node[field]) {
                   node.selected = false;
@@ -722,7 +717,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.visuals.microbeTrace.SelectedClusterMinimumSizeVariable;
 
-        let val = parseInt(this.visuals.microbeTrace.SelectedClusterMinimumSizeVariable);
+        const val = parseInt(this.visuals.microbeTrace.SelectedClusterMinimumSizeVariable);
 
         this.visuals.microbeTrace.commonService.session.style.widgets["cluster-minimum-size"] = val;
 
@@ -756,7 +751,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkSortVariable = this.visuals.microbeTrace.SelectedLinkSortVariable;
 
         this.visuals.microbeTrace.commonService.session.style.widgets["link-sort-variable"] = this.visuals.microbeTrace.SelectedLinkSortVariable;
-        this.visuals.microbeTrace.commonService.updateThresholdHistogram();
+        //this.visuals.microbeTrace.commonService.updateThresholdHistogram();
         this.visuals.microbeTrace.commonService.updateNetwork();
     }
 
@@ -766,7 +761,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     public onApplyStyle( file: any ){
         $('.custom-file-label').text(this.SelectedApplyStyleVariable.substring(12))
-        let reader = new FileReader();
+        const reader = new FileReader();
         reader.onload = e => {
             this.commonService.applyStyle(JSON.parse((e as any).target.result)); 
         }
@@ -889,14 +884,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     checkActiveView(table: string) {
         if (table == 'node') {
-            for (let view in this.commonService.visuals) {
+            for (const view in this.commonService.visuals) {
                 if (['twoD', 'gisMap', 'phylogenetic'].includes(view) && this.commonService.visuals[view].viewActive) {
                     return true;
                 }
             }
             return false;
         } else if (table == 'link') {
-            for (let view in this.commonService.visuals) {
+            for (const view in this.commonService.visuals) {
                 if (['twoD', 'gisMap'].includes(view) && this.commonService.visuals[view].viewActive) {
                     return true;
                 }
@@ -932,7 +927,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates node-color widget and published node color to each view to update them. Only relevant when color nodes by = None
      */
     onNodeColorChanged() {
-        let variable = this.SelectedNodeColorVariable;
+        const variable = this.SelectedNodeColorVariable;
         this.commonService.session.style.widgets["node-color"] = variable;
 
         this.publishUpdateNodeColors();
@@ -1031,7 +1026,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
-        let linkColorTable = $(tableId)
+        const linkColorTable = $(tableId)
         .empty()
         .append(
             "<tr>" +
@@ -1070,7 +1065,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const color = this.visuals.microbeTrace.commonService.temp.style.linkColorMap(value);
 
             // Create color input element with color value and assign id to retrieve new value on change
-            let colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
+            const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
                 .on("change", e => {
 
                     // Need to get value from id since "this" keyword is used by angular
@@ -1088,7 +1083,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                 });
 
-            let alphainput = $(`<a class="transparency-symbol">⇳</a>`)
+            const alphainput = $(`<a class="transparency-symbol">⇳</a>`)
                 .on("click", e => {
 
                     $("#color-transparency-wrapper").css({
@@ -1115,7 +1110,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         });
                 });
 
-            let row = $(
+            const row = $(
                 "<tr>" +
                 "<td data-value='" + value + "'>" +
                 (this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) +
@@ -1143,7 +1138,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     $(this).attr("contenteditable", "true").focus();
                 })
                 .on("focusout", () => {
-                    let $this = $(this);
+                    const $this = $(this);
                     $this.attr("contenteditable", "false");
 
                     this.visuals.microbeTrace.commonService.session.style.linkValueNames[$this.data("value")] = $this.text();
@@ -1156,7 +1151,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         $('#linkColorTableSettings').on('mouseleave', () => $('#linkColorTableSettings').delay(500).css('display', 'none'));
 
         $(tableId).on('click', '.sort-button', function() {
-            let table = $(this).parents('table').eq(0);
+            const table = $(this).parents('table').eq(0);
             let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
             isAscending = !isAscending;  // replace 'this.asc' with 'isAscending'
             if (!isAscending){rows = rows.reverse();}
@@ -1168,7 +1163,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         
         function comparer(index) {
             return function(a, b) {
-                let valA = getCellValue(a, index), valB = getCellValue(b, index);
+                const valA = getCellValue(a, index), valB = getCellValue(b, index);
                 if(this.commonService.debugMode) {
                     console.log(`Comparing: ${valA} and ${valB}`);  // New line
                 }
@@ -1177,7 +1172,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         
         function getCellValue(row, index){ 
-            let value = $(row).children('td').eq(index).text();
+            const value = $(row).children('td').eq(index).text();
             if(this.commonService.debugMode) {
                 console.log(`Cell value: ${value}`);  // New line
             }
@@ -1192,8 +1187,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         d3.select('#global-timeline svg').remove();
         clearInterval(this.visuals.microbeTrace.commonService.session.timeline);
-        let variable = e;  
-        let loadingJsonFile = this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] == variable;
+        const variable = e;  
+        const loadingJsonFile = this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] == variable;
         if (this.visuals.microbeTrace.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
             // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
             if (moment(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate() < moment(this.visuals.microbeTrace.commonService.session.state.timeTarget).toDate()) {
@@ -1245,23 +1240,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         this.visuals.microbeTrace.commonService.session.network.timelineNodes = this.visuals.microbeTrace.commonService.getNetworkNodes();
         }
-        let globalTimelineField =  (this.visuals.microbeTrace.commonService.session.style.overwrite && variable == this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineField'] : this.visuals.microbeTrace.commonService.titleize(variable));
+        const globalTimelineField =  (this.visuals.microbeTrace.commonService.session.style.overwrite && variable == this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineField'] : this.visuals.microbeTrace.commonService.titleize(variable));
         const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
             return '&#'+i.charCodeAt(0)+';';
         });
         $("#global-timeline-field").html(encodedGlobalTimelineField);   
-        var formatDateIntoYear = d3.timeFormat("%Y");
-        var formatDateIntoMonthYear = d3.timeFormat("%b %y");
-        var formatDateIntoMonth = d3.timeFormat("%b");
-        var formatDateMonthYear = d3.timeFormat("%b %Y");
-        var formatDateDateMonth = d3.timeFormat("%b %_d");
+        const formatDateIntoYear = d3.timeFormat("%Y");
+        const formatDateIntoMonthYear = d3.timeFormat("%b %y");
+        const formatDateIntoMonth = d3.timeFormat("%b");
+        const formatDateMonthYear = d3.timeFormat("%b %Y");
+        const formatDateDateMonth = d3.timeFormat("%b %_d");
 
-        let timeDomainStart, timeDomainEnd;
-        let field = variable;
-        let times = [],
-        vnodes = JSON.parse(JSON.stringify(this.visuals.microbeTrace.commonService.session.data.nodes));
+        const field = variable;
+        let times = [];
+        const vnodes = JSON.parse(JSON.stringify(this.visuals.microbeTrace.commonService.session.data.nodes));
         vnodes.forEach(d => {
-            let time = moment(d[field]); 
+            const time = moment(d[field]); 
             console.log('time moment: ', time);
             if (time.isValid()) {
                 console.log('time moment value: ', d[field]);
@@ -1276,11 +1270,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (times.length < 2) {
             times = [new Date(2000, 1, 1), new Date()];
         }
-        timeDomainStart = Math.min(...times);
-        timeDomainEnd = Math.max(...times);
+        const timeDomainStart = Math.min(...times);
+        const timeDomainEnd = Math.max(...times);
 
-        var days = moment(timeDomainEnd).diff(moment(timeDomainStart), 'days');
-        var tickDateFormat = d => {
+        const days = moment(timeDomainEnd).diff(moment(timeDomainStart), 'days');
+        const tickDateFormat = d => {
             if (days<184) return formatDateDateMonth(d);
             else if (days<367) return formatDateIntoMonth(d);
             else if (days<367*5) return formatDateIntoMonthYear(d);
@@ -1290,14 +1284,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             if (days<367) return formatDateDateMonth(d);
             else return formatDateMonthYear(d);		
         }
-        let startDate = timeDomainStart;
-        let endDate = timeDomainEnd;
-        var margin = {top:50, right:50, bottom:0, left:50},
+        const startDate = timeDomainStart;
+        const endDate = timeDomainEnd;
+        const margin = {top:50, right:50, bottom:0, left:50},
             width = ($('#visualwrapper').width() * 4 / 5) - margin.left - margin.right,
             height = 200 - margin.top - margin.bottom;
         console.log('time network width: ', $('#visualwrapper').width());
         console.log('time width: ', width);
-        var svgTimeline = d3.select("#global-timeline")
+        const svgTimeline = d3.select("#global-timeline")
             .append("svg")
             .attr("width", width + margin.left + margin.right)
             .attr("height", 120);  
@@ -1307,15 +1301,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.currentTimelineTargetValue = width;
         this.visuals.microbeTrace.commonService.session.state.timeStart = startDate;
 
-        let that = this;
-        var playButton = d3.select("#timeline-play-button");
+        const that = this;
+        const playButton = d3.select("#timeline-play-button");
         if (playButton.text() == "Pause") playButton.text("Play");
         this.xAttribute = d3.scaleTime()
             .domain([startDate, endDate])
             .range([0, this.currentTimelineTargetValue])
             .clamp(true)
             .nice();
-        var slider = svgTimeline.append("g")
+        const slider = svgTimeline.append("g")
             .attr("class", "slider")
             .attr("transform", "translate(30," + height/2 + ")");
         
@@ -1384,7 +1378,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.visuals.microbeTrace.commonService.session.state.timeStart = startDate;
         this.visuals.microbeTrace.commonService.session.state.timeTarget = this.xAttribute.invert(this.currentTimelineTargetValue);
         if (loadingJsonFile && moment(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate() < moment(this.visuals.microbeTrace.commonService.session.state.timeTarget).toDate()) {
-            let t = moment(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate();
+            const t = moment(this.visuals.microbeTrace.commonService.session.state.timeEnd).toDate();
             this.currentTimelineTargetValue = this.xAttribute(t);
             this.handle.attr("cx", this.xAttribute(t));
             this.label
@@ -1473,7 +1467,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.SelectedNodeColorTableTypesVariable = 'Show';
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
                 this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
-                let prevColorNodesByVariable = this.SelectedColorNodesByVariable;
+                const prevColorNodesByVariable = this.SelectedColorNodesByVariable;
 
                 // this detect changes leads to SelectedColorNodesByVariable being set to default value when loading MT files that have both 2D and map view
                 this.cdref.detectChanges();
@@ -1514,7 +1508,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
-        let nodeColorTable = $(tableId)
+        const nodeColorTable = $(tableId)
         .empty()
         .append(
             "<tr>" +
@@ -1530,11 +1524,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.style.nodeValueNames = {};
 
 
-        let aggregates = this.commonService.createNodeColorMap();
+        const aggregates = this.commonService.createNodeColorMap();
 
-        let vnodes = this.commonService.getVisibleNodes();
+        const vnodes = this.commonService.getVisibleNodes();
 
-        let aggregateValues = Object.keys(aggregates);
+        const aggregateValues = Object.keys(aggregates);
 
         const disabled = isEditable ? '' : 'disabled';
 
@@ -1542,7 +1536,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             const color = this.visuals.microbeTrace.commonService.temp.style.nodeColorMap(value);
 
-            let colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
+            const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
                 .on("change", e => {
 
 
@@ -1551,7 +1545,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         console.log('color2: ',  this.visuals.microbeTrace.commonService.session.style.nodeColorsTableKeys);                    
                     }
  
-                    let key = this.visuals.microbeTrace.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
+                    const key = this.visuals.microbeTrace.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
                     this.visuals.microbeTrace.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, e);
 
                     // Update history with new color
@@ -1570,7 +1564,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                             // .scaleOrdinal(session.style.nodeColorsTable[variable])
                             // .domain(session.style.nodeColorsTableKeys[variable]);
                         } else {
-                            let temKey = this.visuals.microbeTrace.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
+                            const temKey = this.visuals.microbeTrace.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
                             this.visuals.microbeTrace.commonService.temp.style.nodeColor.splice(temKey, 1, e);
                             this.visuals.microbeTrace.commonService.temp.style.nodeColorMap = d3
                                 .scaleOrdinal(this.visuals.microbeTrace.commonService.temp.style.nodeColor)
@@ -1581,7 +1575,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                 });
 
-            let alphainput = $(`<a class="transparency-symbol">⇳</a>`).on("click", e => {
+            const alphainput = $(`<a class="transparency-symbol">⇳</a>`).on("click", e => {
 
                 $("#color-transparency-wrapper").css({
                     top: e.clientY + 129,
@@ -1610,11 +1604,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             const nonEditCell = `<td style="background-color:${color}"></td>`;
 
-            let cell = $("<td></td>")
+            const cell = $("<td></td>")
                 .append(colorinput)
                 .append(alphainput);
 
-            let row = $(
+            const row = $(
                 "<tr>" +
                 "<td data-value='" + value + "'>" +
                 (this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] ? this.visuals.microbeTrace.commonService.session.style.nodeValueNames[value] : this.visuals.microbeTrace.commonService.titleize("" + value)) +
@@ -1635,7 +1629,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 })
                 .on("focusout", () => {
 
-                    let $this = $(this);
+                    const $this = $(this);
                     $this.attr("contenteditable", "false");
 
                     //this.visuals.microbeTrace.commonService.session.style.nodeValueNames[$this.data("value")] = $this.find("input").value;
@@ -1647,7 +1641,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
         
         $(tableId).on('click', '.sort-button', function() {
-            let table = $(this).parents('table').eq(0);
+            const table = $(this).parents('table').eq(0);
             let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
             this.asc = !this.asc; // using property 'asc' on DOM object instead of jQuery data function
             if (!this.asc){rows = rows.reverse();}
@@ -1656,7 +1650,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         
         function comparer(index) {
             return function(a, b) {
-                let valA = getCellValue(a, index), valB = getCellValue(b, index);
+                const valA = getCellValue(a, index), valB = getCellValue(b, index);
                 return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
             }
         }
@@ -1722,8 +1716,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             showCount = this.widgets['link-color-table-counts'];
             showFreq = this.widgets['link-color-table-frequencies'];
         }
-        let countColumn = $(tableReferenceName + ' .tableCount');
-        let freqColumn = $(tableReferenceName + ' .tableFrequency');
+        const countColumn = $(tableReferenceName + ' .tableCount');
+        const freqColumn = $(tableReferenceName + ' .tableFrequency');
         (showCount) ? countColumn.slideDown() : countColumn.slideUp();
         (showFreq) ? freqColumn.slideDown() : freqColumn.slideUp();
     }
@@ -1740,7 +1734,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.session.style.widgets["link-threshold"] = parseFloat(this.SelectedLinkThresholdVariable);
         this.threshold = this.SelectedLinkThresholdVariable;
 
-        let minClust = $("#cluster-minimum-size").val();
+        const minClust = $("#cluster-minimum-size").val();
         
 
         // Unset MST construction since links might have been changed
@@ -1912,7 +1906,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
-        this.commonService.updateThresholdHistogram();
+        //this.commonService.updateThresholdHistogram();
 
     }
 
@@ -2094,32 +2088,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
-    downloadSelectedBlocks() {
-
-        if (this.ledgerOptionSelected == undefined)
-            return;
-
-        /*/
-         * Clear all data previously loaded so that we can re-create new outputs.
-        /*/
-        const homepageTabs = this.homepageTabs;
-        this.commonService.resetData();
-        this.homepageTabs = homepageTabs;
-
-        this.downloadedBlocks = [];
-
-        this.ledgerOptionSelected.forEach((block, i) => {
-
-            if (block.data) {
-                if (this.downloadedBlocks.findIndex(x => x == block.data.blockName) == -1) {
-                    this.downloadedBlocks.push(block.data.blockName);
-                    const isNodeList: boolean = block.label.includes('nodelist');
-                    // this.downloadLedgerBlock(block.data, block.data.ledgerName, isNodeList)
-                }
-            }
-
-        });
-    }
 
     private _removeGlView(view : string) {
         console.log(`Removing ${view}`);
@@ -2130,17 +2098,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     convertToCSV(objArray) {
 
-        let tmpArray = typeof objArray != 'object' ? JSON.parse(objArray) : objArray;
+        const tmpArray = typeof objArray != 'object' ? JSON.parse(objArray) : objArray;
         let str = '';
         let headerLoaded = false;
         let line = '';
 
 
-        for (var i = 0; i < tmpArray.length; i++) {
+        for (let i = 0; i < tmpArray.length; i++) {
             line = '';
 
             if (headerLoaded == false) {
-                for (let index1 in tmpArray[i]) {
+                for (const index1 in tmpArray[i]) {
                     if (line != '') line = line.toString() + ','
 
                     line = line.toString() + index1.toString().replace(/\r/g, '').replace(/\n/g, '').trim();
@@ -2152,7 +2120,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             line = '';
 
-            for (let index2 in tmpArray[i]) {
+            for (const index2 in tmpArray[i]) {
                 if (line != '') line = line.toString() + ','
 
                 line = line.toString() + tmpArray[i][index2].toString();
@@ -2208,27 +2176,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.spinnerElement.nativeElement.style.display = "none";
     }
 
-
-    public loadLedgerOptions() {
-
-        this.BlockChainLedgerNodeList = [];
-        this.BlockChainLedgerEdgeList = [];
-        this.ledgerOptions = [];
-
-        // let postCount = this.posts.length;
-        let loadedAny: boolean = false;
-        // let observableFilterBlocks: { post: BlockchainProofHashDto, ob: Observable<OutputDownloadFilteredBlock> }[] = [];
-
-        const endLoadBadly = () => {
-            this.hideSpinner();
-            // abp.notify.warn("Your role(s) do not allow access to a ledger.  See your administrator to grant you roles to access a ledger.");
-        }
-
-        const endLoadNoData = () => {
-            this.hideSpinner();
-            // abp.notify.warn("No data was loaded");
-        }
-    }
 
     public loadDefaultVisualization(e: string) {
 
@@ -2338,25 +2285,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
 
-    DisplayLedgerLoaderDialog(ledgerLoaderAction: string = "") {
-        switch (ledgerLoaderAction) {
-            case "Load": {
-                this.downloadSelectedBlocks();
-                break;
-            }
-            default: {
-                this.getLedgerData();
-            }
-        }
-
-        this.ToggleDisplayLedgerLoaderDialog();
-
-    }
-
-    ToggleDisplayLedgerLoaderDialog() {
-        this.displayLedgerLoaderDialog = !this.displayLedgerLoaderDialog;
-    }
-
     clusterSaveClick() {
 
     }
@@ -2366,13 +2294,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             case "Save": {
 
                 if (this.selectedSaveFileType == 'style') {
-                    let data = JSON.stringify(this.commonService.session.style);
-                    let blob = new Blob([data], { type: "application/json;charset=utf-8" });
+                    const data = JSON.stringify(this.commonService.session.style);
+                    const blob = new Blob([data], { type: "application/json;charset=utf-8" });
                     saveAs(blob, this.saveFileName+'.style')
                     return;
                 }
 
-                let zip = new JSZip();
+                const zip = new JSZip();
 
                 const lightTabs: HomePageTabItem[] = this.homepageTabs.map(x => {
                     return {
@@ -2385,19 +2313,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 });
 
                 if(this.saveByCluster){
-                    let clusterNodeList = [];
-                    let clusterLinkList = [];
-                    let singletonNodeList = [];
-                    let dyadNodeList = [];
-                    let dyadEdgeList = [];
-                    let nodes = this.commonService.session.data.nodes;
-                    let links = this.commonService.session.data.links;
+                    const clusterNodeList = [];
+                    const clusterLinkList = [];
+                    const singletonNodeList = [];
+                    const dyadNodeList = [];
+                    const dyadEdgeList = [];
+                    const nodes = this.commonService.session.data.nodes;
+                    const links = this.commonService.session.data.links;
 
                     this.commonService.session.data.clusters.forEach(cluster => {
 
-                    let clusterNodes = nodes.filter(node => node.cluster === cluster.id);
+                    const clusterNodes = nodes.filter(node => node.cluster === cluster.id);
 
-                    let clusterLinks = links.filter(link => link.cluster === cluster.id);
+                    const clusterLinks = links.filter(link => link.cluster === cluster.id);
 
                     // We have a singleton - all singletons go into one file
                     if(clusterNodes.length == 1){
@@ -2423,31 +2351,31 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     let singletonFolder = null;
                     let dyadFolder = null;
 
-                    for (var i = 0; i < this.commonService.session.data.clusters.length; i++) {
+                    for (let i = 0; i < this.commonService.session.data.clusters.length; i++) {
 
-                    let currentCluster = this.commonService.session.data.clusters[i];
+                    const currentCluster = this.commonService.session.data.clusters[i];
 
-                    let cluster = clusterNodeList.filter(nodeList => nodeList[0].cluster == currentCluster.id);
+                    const cluster = clusterNodeList.filter(nodeList => nodeList[0].cluster == currentCluster.id);
 
                     // Check if cluster is in clusterNodesList
                     if(cluster.length > 0){
 
                         // Create cluster folder
-                        var clusterFolder = zip.folder("cluster-" + cluster[0][0].cluster);
+                        const clusterFolder = zip.folder("cluster-" + cluster[0][0].cluster);
                     
                         // If node and edge lists exists, add them to the current folder
-                        let clusterNode = clusterNodeList.filter(NodeList => NodeList[0].cluster == currentCluster.id);
+                        const clusterNode = clusterNodeList.filter(NodeList => NodeList[0].cluster == currentCluster.id);
 
                         if(clusterNode) {
 
-                        let blob = new Blob([Papa.unparse(cluster[0])], {type: 'text/csv;charset=utf-8'});
+                        const blob = new Blob([Papa.unparse(cluster[0])], {type: 'text/csv;charset=utf-8'});
                         clusterFolder.file( "nodeList_cluster_" + cluster[0][0].cluster + ".csv", blob);
 
                         // Now get link list of cluster
-                        let clusterLink = clusterLinkList.filter(LinkList => LinkList[0].cluster == currentCluster.id);
+                        const clusterLink = clusterLinkList.filter(LinkList => LinkList[0].cluster == currentCluster.id);
 
                         if(clusterLink) {
-                            let blob = new Blob([Papa.unparse(clusterLink[0])], {type: 'text/csv;charset=utf-8'});
+                            const blob = new Blob([Papa.unparse(clusterLink[0])], {type: 'text/csv;charset=utf-8'});
                             clusterFolder.file("edgeList_cluster_" + cluster[0][0].cluster + ".csv", blob);
                         }
                         }
@@ -2457,20 +2385,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     if(dyadNodeList.length > 0){
                         dyadFolder = zip.folder("dyads");
                         // Add all dyads in one shot
-                        let nodesBlob = new Blob([Papa.unparse(dyadNodeList)], {type: 'text/csv;charset=utf-8'});
+                        const nodesBlob = new Blob([Papa.unparse(dyadNodeList)], {type: 'text/csv;charset=utf-8'});
                         dyadFolder.file("nodeList_cluster.csv", nodesBlob);
-                        let edgesBlob = new Blob([Papa.unparse(dyadEdgeList)], {type: 'text/csv;charset=utf-8'});
+                        const edgesBlob = new Blob([Papa.unparse(dyadEdgeList)], {type: 'text/csv;charset=utf-8'});
                         dyadFolder.file("edgeList_cluster.csv", edgesBlob);
                       }
                 
                       if (singletonNodeList.length > 0) {
                         singletonFolder = zip.folder("singletons");
                         // Add all singletons in one shot
-                        let blob = new Blob([Papa.unparse(singletonNodeList)], {type: 'text/csv;charset=utf-8'});
+                        const blob = new Blob([Papa.unparse(singletonNodeList)], {type: 'text/csv;charset=utf-8'});
                         singletonFolder.file("nodeList_cluster.csv", blob);
                       }
                         
-                      let that = this;
+                      const that = this;
                       // generate zip repsetnation in memory
                       zip.generateAsync({type:"blob"}).then(function(content) {
                           // see FileSaver.js
@@ -2482,10 +2410,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         tabs: lightTabs
                     };
 
-                    let that = this;
+                    const that = this;
 
                     if ($("#save-file-compress").is(":checked")) {
-                        let zip = new JSZip();
+                        const zip = new JSZip();
                         zip.file(`${that.saveFileName}.microbetrace`, new Blob([JSON.stringify(stash)], { type: "application/json;charset=utf-8" }));
                         zip.generateAsync({
                             type: "blob",
@@ -2601,7 +2529,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             const extension = files[0].name.split('.').pop().toLowerCase();
 
-            let reader = new FileReader();
+            const reader = new FileReader();
             reader.onloadend = out => {
                 if (out && out.target) {
                     this.OpenStash((<any>out.target).result);
@@ -2780,7 +2708,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               { title: "Date", field: "date", align: "right", sorter: "date" }
             ]
           });
-        let rows = [];
+        const rows = [];
         this.commonService.localStorageService.keys().then(keys => {
           keys.forEach(k => {
             if (k.substring(0, 5) !== "stash") return;
@@ -2815,7 +2743,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             viewName = "2D Network";
         }
 
-        let tabNdx = this.homepageTabs.findIndex(x => x.label == viewName);
+        const tabNdx = this.homepageTabs.findIndex(x => x.label == viewName);
 
         /*/
          * Don't allow duplicate tabs to get added.
@@ -2854,7 +2782,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.visuals.microbeTrace.GlobalSettingsDialogSettings.setVisibility(true);
         this.cachedGlobalSettingsVisibility = this.GlobalSettingsDialogSettings.isVisible;
 
-        this.visuals.microbeTrace.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+        //this.visuals.microbeTrace.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
 
         this.globalSettingsTab.tabs[activeTab === "Styling" ? 1 : 0].active = true;
     }
@@ -2922,7 +2850,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (tabNdx === -1) tabNdx = this.homepageTabs.findIndex(x => x.isActive == true);
 
-        let activeComponentName: string = this.homepageTabs[tabNdx].label;
+        const activeComponentName: string = this.homepageTabs[tabNdx].label;
 
 
         this.homepageTabs.forEach((item: HomePageTabItem) => {
@@ -3078,7 +3006,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     clearTable(tableId) {
-        let linkColorTable = $(tableId).empty();
+        const linkColorTable = $(tableId).empty();
     }
 
     onReloadScreen() {

@@ -200,28 +200,6 @@
             </mat-menu> -->
         </div>
 
-
-        <p-dialog id="ledger-loader-modal" [(visible)]="displayLedgerLoaderDialog" header="Blockchain Ledgers" styleClass="ui-dialog" [contentStyle]="{'max-height':'50vh'}">
-
-            <div class="position-relative" #ledgerloadDiv>
-                <div class="loader">
-                    <i class="fa fa-spinner fa-spin" style="font-size:40px;z-index:1;display:none;" #ledgerloader></i>
-                </div>
-            </div>
-
-            <div style="min-height: 100px;">
-                <p-tree [value]="ledgerOptions" selectionMode="checkbox"  [filter]="true" [(selection)]="ledgerOptionSelected" *ngIf="ledgerOptions && ledgerOptions.length > 0" scrollHeight="flex"></p-tree>
-            </div>
-
-            <div class="modal-footer">
-                <button type="button" class="btn btn-error" (click)="ToggleDisplayLedgerLoaderDialog()">Cancel</button>
-                <button type="button" id="stash-data2" class="btn btn-primary" (click)="DisplayLedgerLoaderDialog('Load')" [disabled]="!ledgerOptionSelected || ledgerOptionSelected.length === 0">Load</button>
-            </div>
-
-        </p-dialog><!-- /.modal -->
-        
-
-
         <p-dialog id="global-settings-modal" 
                     [(visible)]="GlobalSettingsDialogSettings.isVisible"  
                     header="Global Settings" >
@@ -272,7 +250,7 @@
                                         </div>
                                         <div class="form-group row" id="filtering-threshold" title="What's the maximum genetic distance you're willing to call a link?">
                                             <div class="col-4"><label for="link-threshold">Filtering Threshold</label></div>
-                                            <div class="col-8"><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
+                                            <!--<svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>-->
                                             <div class="col-8  offset-4">
                                                 <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" step="0.001" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="onLinkThresholdChanged()">
                                             </div>

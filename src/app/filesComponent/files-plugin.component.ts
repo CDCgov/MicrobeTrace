@@ -1,17 +1,12 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { AppComponentBase } from '@shared/common/app-component-base';
-import { AppUiCustomizationService } from '@shared/common/ui/app-ui-customization.service';
+﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
 import * as saveAs from 'file-saver';
 import * as fileto from 'fileto';
-import * as JSZip from 'jszip';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';
 import * as patristic from 'patristic';
-import AuspiceHandler from '@app/helperClasses/auspiceHandler';
 import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
@@ -227,7 +222,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //debugger;
 
       const file = this.visuals.microbeTrace.commonService.session.files[0];   //this.files[0];
-      let reader = new FileReader();
+      const reader = new FileReader();
       reader.onloadend = (e: any) => {
         if (e.target.readyState === FileReader.DONE) {
           this.visuals.microbeTrace.commonService.parseFASTA(e.target.result).then(nodes => {
@@ -268,12 +263,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       });
     });
 
-    let auditBlock = $('#audited-sequences');
+    const auditBlock = $('#audited-sequences');
 
     const logAudit = (parentContext, id, type) => {
-      let match = auditBlock.find(`[data-id="${id}"]`);
-      let button = $(`<button class="btn btn-warning btn-sm audit-exclude" data-id="${id}">Exclude</button>`).on('click', function () {
-        let thi$ = $(this);
+      const match = auditBlock.find(`[data-id="${id}"]`);
+      const button = $(`<button class="btn btn-warning btn-sm audit-exclude" data-id="${id}">Exclude</button>`).on('click', function () {
+        const thi$ = $(this);
         const id = thi$.data('id');
         if (thi$.text() === 'Exclude') {
           parentContext.commonService.session.data.nodeExclusions.push(id);
@@ -283,7 +278,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           thi$.removeClass('btn-success').addClass('btn-warning').text('Exclude');
         }
       });
-      let row = $(`<div class="alert alert-warning w-100 d-flex justify-content-between" role="alert"><span>${id} appears to be ${type}.</span></div>`);
+      const row = $(`<div class="alert alert-warning w-100 d-flex justify-content-between" role="alert"><span>${id} appears to be ${type}.</span></div>`);
       row.append(button);
       auditBlock.append(row);
     };
@@ -303,7 +298,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         const checkAA = $('#audit-amino-acids').is(':checked');
         const checkCIGAR = $('#audit-CIGAR').is(':checked');
         const checkMalformed = $('#audit-malformed').is(':checked');
-        let any = false;
+        // const any = false;
         data.forEach(d => {
           const seq = d.seq, id = d.id;
           if (checkEmpty && seq === '') logAudit(this, id, 'empty');
@@ -489,7 +484,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     // Give some time before adding to table
     setTimeout(() => {
-      let files = _.cloneDeep(this.commonService.session.files);
+      const files = _.cloneDeep(this.commonService.session.files);
       if(files && files.length > 0) {
         for(let i = 0; i < files.length; i++) {
           this.addToTable(files[i]);
@@ -773,7 +768,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.visuals.microbeTrace.commonService.parseFASTA(file.contents).then(seqs => {
           const n = seqs.length;
           for (let i = 0; i < n; i++) {
-            let node = seqs[i];
+            const node = seqs[i];
             if (!node) continue;
             newNodes += this.visuals.microbeTrace.commonService.addNode({
               _id: this.visuals.microbeTrace.commonService.filterXSS(node.id),
@@ -792,20 +787,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.showMessage(`Parsing ${file.name} as Link List...`);
         let l = 0;
 
-        let sources = [];
-        let targets = [];
+        const sources = [];
+        const targets = [];
 
         /**
          * Processes and then adds link. updates value of l
          * @param {object} link 
          */
-        let forEachLink = link => {
+        const forEachLink = link => {
           const keys = Object.keys(link);
           const n = keys.length;
-          let safeLink = {};
+          const safeLink = {};
           // for each key in link object
           for (let i = 0; i < n; i++) {
-            let key = this.visuals.microbeTrace.commonService.filterXSS(keys[i]);
+            const key = this.visuals.microbeTrace.commonService.filterXSS(keys[i]);
             // console.log('key is: ',key);
 
             if(key === "distance") {
@@ -831,14 +826,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             }
           }
 
-          let src = '' + safeLink[file.field1];
-          let tgt = '' + safeLink[file.field2];
+          const src = '' + safeLink[file.field1];
+          const tgt = '' + safeLink[file.field2];
 
           sources.push(src);
           targets.push(tgt);
 
-          let srcIndex = targets.findIndex(t => t == src);
-          let tgtIndex = sources.findIndex(s => s == tgt);
+          const srcIndex = targets.findIndex(t => t == src);
+          const tgtIndex = sources.findIndex(s => s == tgt);
 
           // console.log("safe link is: ",safeLink);
 
@@ -894,12 +889,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
-          let workbook = XLSX.read(file.contents, { type: 'array' });
-          let data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          const workbook = XLSX.read(file.contents, { type: 'array' });
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
           data.map(forEachLink);
           this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link Excel Table.`);
           let n = 0, t = 0;
-          let nodeIDs = [];
+          const nodeIDs = [];
           const k = data.length;
           // for each line or excel file, check if node exist, if not add it
           for (let i = 0; i < k; i++) {
@@ -932,7 +927,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             const results = JSON.parse(file.contents);
             if (!results || results.length === 0) return;
 
-            let data = results;
+            const data = results;
             data.map(forEachLink);
             this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link JSON.`);
             if (data.length > 0)
@@ -945,7 +940,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               });
             let newNodes = 0, totalNodes = 0;
             const n = data.length;
-            let nodeIDs = [];
+            const nodeIDs = [];
             // for each object in json, check if node exist, if not add it
             for (let i = 0; i < n; i++) {
 
@@ -978,7 +973,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               dynamicTyping: true,
               skipEmptyLines: true,
               complete: results => {
-                let data = results.data;
+                const data = results.data;
                 data.map(forEachLink);
                 this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link CSV.`);
                 results.meta.fields.forEach(key => {
@@ -990,7 +985,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 });
                 let newNodes = 0, totalNodes = 0;
                 const n = data.length;
-                let nodeIDs = [];
+                const nodeIDs = [];
                 for (let i = 0; i < n; i++) {
                   const l = data[i];
                   const f1 = l[file.field1];
@@ -1024,20 +1019,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           console.log(file.field1);
         }
 
-        let m = 0, n = 0;
+        let m = 0;
+        const n = 0;
 
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
-          let workbook = XLSX.read(file.contents, { type: 'array' });
-          let data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          const workbook = XLSX.read(file.contents, { type: 'array' });
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
           data.forEach(node => {
-            let safeNode = {
+            const safeNode = {
               _id: this.visuals.microbeTrace.commonService.filterXSS('' + node[file.field1]),
               seq: (file.field2 === 'None') ? '' : this.visuals.microbeTrace.commonService.filterXSS(node[file.field2]),
               origin: origin
             };
             Object.keys(node).forEach(key => {
-              let safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
+              const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
               if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.nodeFields, safeKey)) {
                 this.visuals.microbeTrace.commonService.session.data.nodeFields.push(safeKey);
               }
@@ -1056,18 +1052,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             if (!results || results.length === 0) return;
             results.forEach(data => {
 
-              let node = data;//data[0]             
+              const node = data;//data[0]             
 
               if (node[file.field1] && node[file.field1].toString().trim()) {
 
-                let safeNode = {
+                const safeNode = {
                   _id: this.visuals.microbeTrace.commonService.filterXSS('' + node[file.field1]),
                   seq: (file.field2 === 'None') ? '' : this.visuals.microbeTrace.commonService.filterXSS(node[file.field2]),
                   origin: origin
                 };
 
                 Object.keys(node).forEach(key => {
-                  let safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
+                  const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
                   if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.nodeFields, safeKey)) {
                     this.visuals.microbeTrace.commonService.session.data.nodeFields.push(safeKey);
                   }
@@ -1090,20 +1086,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               skipEmptyLines: true,
               step: data => {
 
-                let node = data.data;
+                const node = data.data;
 
                 console.log('session node: ', node);
 
                 if (node[file.field1] && node[file.field1].toString().trim()) {
 
-                  let safeNode = {
+                  const safeNode = {
                     _id: this.visuals.microbeTrace.commonService.filterXSS('' + node[file.field1]),
                     seq: (file.field2 === 'None') ? '' : this.visuals.microbeTrace.commonService.filterXSS(node[file.field2]),
                     origin: origin
                   };
 
                   Object.keys(node).forEach(key => {
-                    let safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
+                    const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
                     if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.nodeFields, safeKey)) {
                       this.visuals.microbeTrace.commonService.session.data.nodeFields.push(safeKey);
                     }
@@ -1128,8 +1124,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
-          let workbook = XLSX.read(file.contents, { type: 'array' });
-          let data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+          const workbook = XLSX.read(file.contents, { type: 'array' });
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
           let nodeIDs = [], nn = 0, nl = 0;
           data.forEach((row: any, i) => {
             if (i === 0) {
@@ -1183,7 +1179,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         let newNodes = 0;
         this.visuals.microbeTrace.commonService.session.data.newickString = file.contents;
         const tree = patristic.parseNewick(file.contents);
-        let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.visuals.microbeTrace.commonService.filterXSS), n = labels.length;
+        const m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.visuals.microbeTrace.commonService.filterXSS), n = labels.length;
         for (let i = 0; i < n; i++) {
           const source = labels[i];
           newNodes += this.visuals.microbeTrace.commonService.addNode({
@@ -1216,7 +1212,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Then calls processSequence
    */
   processData() {
-    let nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
+    const nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
     if(this.commonService.debugMode) {
       console.log(nodes);
     }
@@ -1242,8 +1238,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     if (!this.visuals.microbeTrace.commonService.session.meta.anySequences) return this.visuals.microbeTrace.commonService.runHamsters();
     this.visuals.microbeTrace.commonService.session.data.nodeFields.push('seq');
-    let subset = [];
-    let nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
+    const subset = [];
+    const nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
     const n = nodes.length;
     const gapString = '-'.repeat(this.visuals.microbeTrace.commonService.session.data.reference.length);
     for (let i = 0; i < n; i++) {
@@ -1256,7 +1252,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     if (this.visuals.microbeTrace.commonService.session.style.widgets['align-sw']) {
       this.showMessage('Aligning Sequences...');
-      let output = await (this.visuals.microbeTrace.commonService.session as any).align({
+      const output = await (this.visuals.microbeTrace.commonService.session as any).align({
         reference: this.visuals.microbeTrace.commonService.session.data.reference,
         isLocal: $('#localAlign').is(':checked'),
         match: [$('#alignerMatch').val(), $('#alignerMismatch').val()].map(parseFloat),
@@ -1272,7 +1268,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     const start = Date.now();
     for (let k = 0; k < n; k++) {
-      let node = nodes[k];
+      const node = nodes[k];
       node['_seqInt'] = tn93.toInts(node['seq']);
     }
     console.log("Integer Sequence Translation time: ", (Date.now() - start).toLocaleString(), "ms");
@@ -1290,6 +1286,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
 
     this.showMessage("Finishing...");
+    this.displayloadingInformationModal = false;
 
   };
 
@@ -1297,7 +1294,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * XXXXX not currently used; if implemented in future switch open parameter to boolean XXXXX
    * @param open 0 or 1
    */
-  accordianToggle( open : Number) {
+  accordianToggle( open : number) {
 
     if(open){
       $(".m-content").css("overflow-y", "auto");
@@ -1370,21 +1367,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     if (extension === 'microbetrace' || extension === 'hivtrace') {
       //debugger;
-      let reader = new FileReader();
+      const reader = new FileReader();
       reader.onloadend = out => this.visuals.microbeTrace.commonService.processJSON(out.target, extension);
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
     if (extension === 'svg') {
       //debugger;
-      let reader = new FileReader();
+      const reader = new FileReader();
       reader.onloadend = out => this.visuals.microbeTrace.commonService.processSVG(out.target);
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
     if (extension === 'json') {
       const fileName = this.visuals.microbeTrace.commonService.filterXSS(rawfile.name);
-      let reader = new FileReader();
+      const reader = new FileReader();
       reader.onloadend = (out) => {
         const output = JSON.parse(out.target['result'] as string);
         console.log(output);
@@ -1442,9 +1439,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
     const isNode = this.visuals.microbeTrace.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
     if (isXL) {
-      let workbook = XLSX.read(file.contents, { type: 'array' });
-      let data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-      let headers = [];
+      const workbook = XLSX.read(file.contents, { type: 'array' });
+      const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+      const headers = [];
       data.forEach(row => {
         Object.keys(row).forEach(key => {
           const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
@@ -1507,9 +1504,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     function addTableTile(headers, context) {
 
 
-      let parentContext = context;
-      let root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
-      let fnamerow = $('<div class="row w-100"></div>');
+      const parentContext = context;
+      const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
+      const fnamerow = $('<div class="row w-100"></div>');
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
           parentContext.commonService.session.files.splice(parentContext.commonService.session.files.findIndex(f => f.name === file.name), 1);
@@ -1545,8 +1542,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                     </div>`).appendTo(fnamerow);
 
       fnamerow.appendTo(root);
-      let optionsrow = $('<div class="row w-100"></div>');
-      let options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
+      const optionsrow = $('<div class="row w-100"></div>');
+      const options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
       optionsrow.append(`
                   <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
                     <label for="file-${file.name}-field-1">${isNode ? 'ID' : 'Source'}</label>
@@ -1694,6 +1691,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }))
         );
       } else {
+        console.log(`Adding edges ${output}`);
         this.edgeIds.push({
           fileName: fileName,
           ids: output.map((x: any) => ({
@@ -1771,15 +1769,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (fastas.length === 0 && nodeFilesWithSeqs.length === 0) return [];
     let data = [];
     for (let i = 0; i < fastas.length; i++) {
-      let fasta = fastas[i];
-      let nodes = await this.visuals.microbeTrace.commonService.parseFASTA(fasta.contents);
+      const fasta = fastas[i];
+      const nodes = await this.visuals.microbeTrace.commonService.parseFASTA(fasta.contents);
       data = data.concat(nodes);
     }
     
     for(let j = 0; j < nodeFilesWithSeqs.length; j++){
       if (nodeFilesWithSeqs[j].extension == "csv") {
-        let csv = nodeFilesWithSeqs[j];
-        let seqLabel = csv['field2']
+        const csv = nodeFilesWithSeqs[j];
+        const seqLabel = csv['field2']
           await Papa.parse(csv.contents, {
             header: true,
             skipEmptyLines: true,
@@ -1795,11 +1793,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             }})
       // TODO: Cannot presently preview sequences in Node XLSX tables.
       } else {
-        let file = nodeFilesWithSeqs[j]
-        let seqLabel = file['field2']
-        let workbook = XLSX.read(file.contents, { type: 'array' });
-        let dataJSON = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-        let headers = [];
+        const file = nodeFilesWithSeqs[j]
+        const seqLabel = file['field2']
+        const workbook = XLSX.read(file.contents, { type: 'array' });
+        const dataJSON = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const headers = [];
         dataJSON.forEach(row => {
           Object.keys(row).forEach(key => {
             const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
@@ -1911,7 +1909,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.SelectedAmbiguityResolutionStrategyVariable = this.commonService.session.style.widgets['ambiguity-resolution-strategy'];
     }
 
-    if (this.SelectedAmbiguityThresholdVariable = this.commonService.session.style.widgets['ambiguity-threshold']) {
+    if (this.SelectedAmbiguityThresholdVariable != this.commonService.session.style.widgets['ambiguity-threshold']) {
       this.SelectedAmbiguityThresholdVariable = this.commonService.session.style.widgets['ambiguity-threshold'];
     }
 
