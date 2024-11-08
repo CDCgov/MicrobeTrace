@@ -2203,8 +2203,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return true;
         } else {
             const el: HTMLElement | null = this.getElementById("overlay");
-            if (el) el.style.top = "84px";
+            if (el) el.style.top = `${$('#url-warning-div').height()}px`;
             return false;
+        }
+    }
+
+    getHeight() {
+        let timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
+        if (this.officialInstance()) {
+            return window.innerHeight - 64 - 6 - timelineHeight;
+        } else {
+            let warningHeight = $('#url-warning-div').height()
+            return window.innerHeight - 64 - 6 - warningHeight - timelineHeight;
         }
     }
 
