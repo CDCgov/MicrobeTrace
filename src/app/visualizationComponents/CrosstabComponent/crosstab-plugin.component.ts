@@ -27,24 +27,15 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   widgets;
   xVariable;
   yVariable; 
-  previousVariables = {
-    'nodes': ['None', 'None'],
-    'links': ['None', 'None'],
-    'clusters': ['None', 'None']
-  }
+
   viewActive: boolean = true;
-  datasetOptions: any = [
-    { label: 'Nodes', value: 'nodes' },
-    { label: 'Links', value: 'links'},
-    { label: 'Clusters', value: 'clusters' }
-  ];
   
   showOptions: any = [
     { label: 'Counts', value: false },
     { label: 'Proportion', value: true }
   ]
 
-  settingsOpen: boolean = false;
+  settingsOpen: boolean = true;
   exportOpen: boolean = false;
 
   SelectedCrossTabExportFilename: string = "";
@@ -56,17 +47,12 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     { label: 'pdf', value: 'pdf'}
 ];
 
-  fieldListDictionary: {
-    'nodes': SelectItem[],
-    'links': SelectItem[],
-    'clusters': SelectItem[]
-  }
-  selectedFieldList: SelectItem[];
+  fieldList: SelectItem[];
   SelectedTableData: TableData;
   totalRow;
   selectedSize = '';
   scrollHeight: string;
-  tableStyle;
+  tableStyleCrosstab;
   sizes = [
       { name: 'Small', class: 'p-datatable-sm' },
       { name: 'Normal', class: '' },
@@ -105,10 +91,9 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
 
     // offsets: 70 table-wrapper padding-top, 10 table-wrapper padding-bottom
     let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
-    console.log('abc', pFooterHeight);
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
     let width = ($('crosstabcomponent').width() - 23) + 'px';
-    this.tableStyle = {
+    this.tableStyleCrosstab = {
         'max-width' : width,
         'display': 'block'
     }
@@ -128,21 +113,16 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    * Set Default widgets if not previously defined or when a style file is loaded
    */
   setWidgets() {
-    // which dataset
-    if (this.widgets['crosstab-selectedDataset'] == undefined) {
-      this.widgets['crosstab-selectedDataset'] = 'nodes';
-    }
-    this.selectedFieldList = this.fieldListDictionary[this.widgets['crosstab-selectedDataset']];
 
     // x and y variable
-    if (this.widgets['crosstab-xVariable'] == undefined || !(this.selectedFieldList.map(x => x.value).includes(this.widgets['crosstab-xVariable']))) {
-      this.xVariable = 'None';
-      this.widgets['crosstab-xVariable'] = 'None'
+    if (this.widgets['crosstab-xVariable'] == undefined || !(this.fieldList.map(x => x.value).includes(this.widgets['crosstab-xVariable']))) {
+      this.xVariable = 'cluster';
+      this.widgets['crosstab-xVariable'] = 'cluster'
     } else {
       this.xVariable = this.widgets['crosstab-xVariable'];
     }
 
-    if (this.widgets['crosstab-yVariable'] == undefined || !(this.selectedFieldList.map(x => x.value).includes(this.widgets['crosstab-yVariable']))) {
+    if (this.widgets['crosstab-yVariable'] == undefined || !(this.fieldList.map(x => x.value).includes(this.widgets['crosstab-yVariable']))) {
       this.yVariable = 'None';
       this.widgets['crosstab-yVariable'] = 'None';
     } else {
@@ -153,8 +133,6 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     if (this.widgets['crosstab-useProportion'] == undefined) {
       this.widgets['crosstab-useProportion'] = false;
     }
-
-    this.previousVariables[this.widgets['crosstab-selectedDataset']] = [this.xVariable, this.yVariable]
   }
 
   /**
@@ -162,14 +140,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    */
   updateTable() {
     var xValues = [], yValues = [];
-    let rawdata;
-    if (this.widgets['crosstab-selectedDataset'] == 'nodes') {
-      rawdata = this.commonService.getVisibleNodes();
-    } else if (this.widgets['crosstab-selectedDataset'] == 'links') {
-      rawdata = this.commonService.getVisibleLinks();
-    } else {
-      rawdata = this.commonService.getVisibleClusters();
-    }
+    let rawdata = this.commonService.getVisibleNodes();
 
     // get values for X and Y axis
     rawdata.forEach(row => {
@@ -257,7 +228,6 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     let tmp = this.xVariable;
     this.xVariable = this.yVariable;
     this.yVariable = tmp;
-    this.previousVariables[this.widgets['crosstab-selectedDataset']] = [this.xVariable, this.yVariable]
     
     // use prevData and prevColumn to generate the newData and newTableColumns
     let prevData = this.SelectedTableData.data;
@@ -333,7 +303,6 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    * Updates the stored values and table when the widgets['crosstab-xVariable'] or widgets['crosstab-yVariable'] is changed
    */
   onDataChange() {
-    this.previousVariables[this.widgets['crosstab-selectedDataset']] = [this.xVariable, this.yVariable]
 
     this.widgets['crosstab-xVariable'] = this.xVariable;
     this.widgets['crosstab-yVariable'] = this.yVariable;
@@ -341,66 +310,21 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     this.updateTable();
   }
 
-  /**
-   * Updates selectedFieldList based on currently selectedDataset
-   */
-  updateDataSet() {
-    // updating dataset requires changing selectedFieldList. doing this leads to xVariable, yVariable getting set to None, this change leads onDataChange being called,
-    // which sets the appropriate previousVariables and widgets to None. To get around this, create tempX & tempY and use them to correctly set these variables after they
-    // are set to None (which we force by calling detectChanges)
-    let tempX = this.previousVariables[this.widgets['crosstab-selectedDataset']][0]
-    let tempY = this.previousVariables[this.widgets['crosstab-selectedDataset']][1]
-
-    this.selectedFieldList = this.fieldListDictionary[this.widgets['crosstab-selectedDataset']];
-    this.cdref.detectChanges();
-      
-    this.previousVariables[this.widgets['crosstab-selectedDataset']] = [tempX, tempY];
-
-    this.widgets['crosstab-xVariable'] = this.previousVariables[this.widgets['crosstab-selectedDataset']][0]
-    this.widgets['crosstab-yVariable'] = this.previousVariables[this.widgets['crosstab-selectedDataset']][1]
-    this.xVariable = this.widgets['crosstab-xVariable'];
-    this.yVariable = this.widgets['crosstab-yVariable'];
-    
-    this.updateTable();
-  }
 
   /**
-   * Updates the values for the fieldListDictionary then updates the selectedFieldList
+   * Updates the values for the fieldListDictionary then updates the fieldList
    */
   updateFieldLists() {
-    this.fieldListDictionary = {
-      'nodes' : [],
-      'links' : [],
-      'clusters': []
-    }
+    this.fieldList = []
 
-    this.fieldListDictionary['nodes'].push({ label: "None", value: "None"})
+    this.fieldList.push({ label: "None", value: "None"})
     this.commonService.session.data['nodeFields'].map((d) => {
       if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(d)) return;
-      this.fieldListDictionary['nodes'].push({
+      this.fieldList.push({
         label: this.commonService.capitalize(d.replace("_", "")),
         value: d
       });
     })
-
-    this.fieldListDictionary['links'].push({ label: "None", value: "None"})
-    this.commonService.session.data['linkFields'].map((d) => {
-      if (['index', 'origin', 'nearest neighbor', 'nn'].includes(d)) return;
-      this.fieldListDictionary['links'].push({
-        label: this.commonService.capitalize(d.replace("_", "")),
-        value: d
-      });
-    })
-
-    this.fieldListDictionary['clusters'].push({ label: "None", value: "None"})
-    this.commonService.session.data['clusterFields'].map((d) => {
-      this.fieldListDictionary['clusters'].push({
-        label: this.commonService.capitalize(d.replace("_", "")),
-        value: d
-      });
-    })
-
-    this.selectedFieldList = this.fieldListDictionary[this.widgets['crosstab-selectedDataset']];
   }
 
   updateNodeColors() {  }
@@ -416,14 +340,10 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       tempY = this.widgets['crosstab-yVariable'];
     }
 
-    if (this.widgets['crosstab-selectedDataset'] == undefined) {
-      this.widgets['crosstab-selectedDataset'] = 'nodes';
-    }
-    this.selectedFieldList = this.fieldListDictionary[this.widgets['crosstab-selectedDataset']];
     this.cdref.detectChanges();
     
     // x and y variable
-    if (tempX == undefined || !(this.selectedFieldList.map(x => x.value).includes(tempX))) {
+    if (tempX == undefined || !(this.fieldList.map(x => x.value).includes(tempX))) {
       this.xVariable = 'None';
       this.widgets['crosstab-xVariable'] = 'None';
     } else {
@@ -431,7 +351,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       this.widgets['crosstab-xVariable'] = tempX
     }
 
-    if (tempY == undefined || !(this.selectedFieldList.map(x => x.value).includes(tempY))) {
+    if (tempY == undefined || !(this.fieldList.map(x => x.value).includes(tempY))) {
       this.yVariable = 'None';
       this.widgets['crosstab-yVariable'] = 'None';
     } else {
@@ -443,8 +363,6 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     if (this.widgets['crosstab-useProportion'] == undefined) {
       this.widgets['crosstab-useProportion'] = false;
     }
-
-    this.previousVariables[this.widgets['crosstab-selectedDataset']] = [this.xVariable, this.yVariable]
 
     this.updateTable();
    }
@@ -586,11 +504,10 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    */
   goldenLayoutComponentResize() {
     let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
-    console.log('abc', pFooterHeight);
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
     let width = ($('crosstabcomponent').width() - 23) + 'px';
-    this.tableStyle = {
-        'width' : width,
+    this.tableStyleCrosstab = {
+        'max-width' : width,
         'display': 'block'
     }
   }

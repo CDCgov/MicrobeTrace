@@ -297,8 +297,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         $( document ).on( "node-selected", function( ) {
             //update this?
             that.drawNodes(false);
-
         });
+
+        $( document ).on( "node-visibility", function( ) {
+            that.drawNodes(false)
+        });
+        
+        $( document ).on( "link-visibility", function( ) {
+            that.drawLinks();
+        })
 
         this.container.on('resize', () => { this.lmap.invalidateSize() })
         this.container.on('hide', () => { 
@@ -309,6 +316,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.viewActive = true; 
             this.cdref.detectChanges();
         })
+    }
+
+    ngAfterViewInit() {
+        setTimeout(() => this.centerMap(), 1000)
     }
 
 
@@ -379,9 +390,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             fillColor: '#3c4b8d',
             radius: 5
         });
-    }
-
-    ngAfterViewInit() {
     }
 
     setDefaultAddressFields() {
@@ -1252,8 +1260,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     
         links.forEach((d) => {
             if (!d.visible) return;
-            var source = this.nodes.find(node => node._id == d.source);
-            var target = this.nodes.find(node => node._id == d.target);
+            var source = this.nodes.find(node => node._id == d.source && node.visible);
+            var target = this.nodes.find(node => node._id == d.target && node.visible);
     
             if (source && target && source._jlat && source._jlon && target._jlat && target._jlon) {
                 // Handle multiple origins

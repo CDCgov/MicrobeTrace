@@ -1088,8 +1088,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
                 const node = data.data;
 
-                console.log('session node: ', node);
-
                 if (node[file.field1] && node[file.field1].toString().trim()) {
 
                   const safeNode = {
@@ -1415,6 +1413,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
+    this.commonService.session.files.forEach(file => {
+      this.removeFile(file.name, false);
+    })
     this.visuals.microbeTrace.commonService.session.files = [];
     this.nodeIds = [];
     this.edgeIds = [];
@@ -1651,9 +1652,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const data: any[] = output;
       const firstField = Object.keys(data[0])[0];
       if (this.nodeIds.find(x => x.fileName === fileName)) {
-        this.nodeIds.find(x => x.fileName === fileName).ids.push(
-          output.map((x: any) => x[firstField])
-        );
+        let currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
+        currentNodeId.ids = output.map((x: any) => x[firstField])
       } else {
         this.nodeIds.push(
           {
@@ -1664,9 +1664,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     else {
       if (this.nodeIds.find(x => x.fileName === fileName)) {
-        this.nodeIds.find(x => x.fileName === fileName).ids.push(
-          output.data.map((x: any) => x[output.meta.fields[0]])
-        );
+        let currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
+        currentNodeId.ids = output.data.map((x: any) => x[output.meta.fields[0]])
       } else {
         this.nodeIds.push(
           {
@@ -1684,12 +1683,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const data: any[] = output;
       const fields = Object.keys(data[0]);
       if (this.edgeIds.find(x => x.fileName === fileName)) {
-        this.edgeIds.find(x => x.fileName === fileName).ids.push(
-          output.map((x: any) => ({
-            source: '' + x[fields[0]],
-            target: '' + x[fields[1]]
-          }))
-        );
+        let currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
+        currentEdgeId.ids = output.map((x: any) => ({
+          source: '' + x[fields[0]],
+          target: '' + x[fields[1]]
+        }))
       } else {
         console.log(`Adding edges ${output}`);
         this.edgeIds.push({
@@ -1705,12 +1703,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     else {
       if (this.edgeIds.find(x => x.fileName === fileName)) {
-        this.edgeIds.find(x => x.fileName === fileName).ids.push(
-          output.data.map((x: any) => ({
-            source: '' + x[output.meta.fields[0]],
-            target: '' + x[output.meta.fields[1]]
-          }))
-        );
+        let currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
+        currentEdgeId.ids = output.data.map((x: any) => ({
+          source: '' + x[output.meta.fields[0]],
+          target: '' + x[output.meta.fields[1]]
+        }))
       } else {
         this.edgeIds.push({
           fileName: fileName,
@@ -1752,10 +1749,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Removes elements of this.nodeIds and this.edgeIds where the fileName == fileName and then calls nodeEdgeCheck to update uniqueEdgeNodes and uniqueNodes
    * @param fileName 
    */
-  removeFile(fileName) {
+  removeFile(fileName, runNodeEdgeCheck=true) {
     this.nodeIds = this.nodeIds.filter(x => x.fileName != fileName);
     this.edgeIds = this.edgeIds.filter(x => x.fileName != fileName);
-    this.nodeEdgeCheck();
+    if (runNodeEdgeCheck) this.nodeEdgeCheck();
   }
 
   /**

@@ -70,7 +70,7 @@
             </div> 
           </mat-toolbar>
 
-        <div id="visualwrapper" class="kt-container  kt-grid__item kt-grid__item--fluid " style="margin: 6px 6px 0 6px;">
+        <div id="visualwrapper" class="kt-container  kt-grid__item kt-grid__item--fluid " style="margin: 6px 6px 0 6px;" [style.height.px]="getHeight()">
             <div class="kt-portlet kt-portlet--mobile" style="height:100%">
                 <div class="kt-portlet__head kt-portlet__head--lg" style="height:100%">
                     <div class="m-portlet__body" style="flex: 1 100%; max-width:100%; height:100%">
@@ -349,6 +349,10 @@
                                         <div class="col-8">
                                             <p-dropdown id="node-timeline-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedTimelineVariable" (onChange)="onTimelineChanged($event.value)"></p-dropdown>
                                         </div>
+                                    </div>
+                                    <div class="form-group row " title="How much time between ticks of the timeline (ms)?">
+                                        <div class="col-4"><label>Timeline Speed: {{ timelineSpeed }} ms</label></div>
+                                        <div class="col-8"><input type="range" class="custom-range" min="200" step="100" max="1000" [(ngModel)]="timelineSpeed"></div>
                                       </div>
                                 </div> 
                             </tab>

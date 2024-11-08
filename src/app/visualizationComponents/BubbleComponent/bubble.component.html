@@ -8,10 +8,10 @@
         </span>
     </div>
     <div style="margin-top: 10px" id="bubbleViewContainer" [ngStyle]="{'height.px': viewHeight, 'width.px': viewWidth}">
-        <vis-xy-container [data]="data" [padding]="padding">
-            <vis-scatter #scatter [x]="x" [y]="y" [size]="sizing" [color]="color" [strokeColor]="strokeColor" [strokeWidth]="2"></vis-scatter>
-            <vis-axis #x_axis type="x" [tickValues]="X_tickValues" [tickFormat]="X_axisFormat" [gridLine]="false" [label]="commonService.capitalize(xVariable)" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
-            <vis-axis #y_axis type="y" [tickValues]="Y_tickValues" [tickFormat]="Y_axisFormat" [gridLine]="false" [label]="commonService.capitalize(yVariable)" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
+        <vis-xy-container [data]="visibleData" [padding]="padding">
+            <vis-scatter #scatter [x]="x" [y]="y" [size]="sizing" [color]="color" [strokeColor]="strokeColor" [strokeWidth]="2" [duration]="400"></vis-scatter>
+            <vis-axis #x_axis type="x" [tickValues]="X_tickValues" [tickFormat]="X_axisFormat" [gridLine]="false" [label]="getAxisLabel('X')" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
+            <vis-axis #y_axis type="y" [tickValues]="Y_tickValues" [tickFormat]="Y_axisFormat" [gridLine]="false" [label]="getAxisLabel('Y')" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
             <vis-tooltip [triggers]="tooltipTriggers"></vis-tooltip>
         </vis-xy-container>
         <svg>
@@ -20,36 +20,36 @@
         </svg>
     </div>
 
-    <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
+    <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '400px'}" appendTo="body">
         <div class="form-group row" title="">
-            <div class="col-3"><a>X</a></div>
-            <div class="col-9">
-              <p-dropdown [options]="selectedFieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-dropdown>
+            <div class="col-4"><a>X</a></div>
+            <div class="col-8">
+              <p-dropdown [options]="selectedFieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body"></p-dropdown>
             </div>
         </div>
         <div class="form-group row" title="">
-          <div class="col-3"><a>Y</a></div>
-          <div class="col-9">
-            <p-dropdown [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-dropdown>
+          <div class="col-4"><a>Y</a></div>
+          <div class="col-8">
+            <p-dropdown [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body"></p-dropdown>
           </div>
         </div>
         <div class="form-group row node-label-row" title="How big should the nodes be?">
-          <div class="col-3"><label>Size</label></div>
-          <div class="col-9"><input type="range" class="custom-range" min="10" step="1" max="40" [(ngModel)]="nodeSize" (change)="onNodeSizeChange()"></div>
+          <div class="col-4"><label>Size</label></div>
+          <div class="col-8"><input type="range" class="custom-range" min="10" step="1" max="40" [(ngModel)]="nodeSize" (change)="onNodeSizeChange()"></div>
         </div>
         <div class="form-group row node-label-row" title="How much space between nodes? This has no effect when nodes are collapsed.">
-          <div class="col-3"><label>Spacing</label></div>
-          <div class="col-9"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()"></div>
+          <div class="col-4"><label>Spacing</label></div>
+          <div class="col-8"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()"></div>
         </div>
         <div class="form-group row">
-          <div class="col-3">Collapse</div>
-          <div class="col-9">
+          <div class="col-4">Collapse</div>
+          <div class="col-8">
               <p-selectButton [options]="NodeCollapsingTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
                   (ngModelChange)="onNodeCollapsingChange()"></p-selectButton>
           </div>
         </div>
         <div class="form-group row" title="">
-            <div class="col-3"><label>Node Color</label></div>
+            <div class="col-4"><label>Node Color</label></div>
             <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" style="margin-left: 15px;"></button>
         </div>
     </p-dialog>

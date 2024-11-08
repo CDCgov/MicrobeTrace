@@ -190,10 +190,11 @@ export class CommonService extends AppComponentBase implements OnInit {
             'ambiguity-threshold': 0.015,
             'background-color': '#ffffff',
             'background-color-contrast': '#000000',
-            'bubble-x': 'None',
+            'bubble-x': 'cluster',
             'bubble-y': 'None',
-            'bubble-charge': 1.5,
-            'bubble-size': 5,
+            'bubble-charge': 0.05,
+            'bubble-size': 20,
+            'bubble-collapsed': false,
             'choropleth-aggregate-as': 'states',
             'choropleth-aggregate-on': 'None',
             'choropleth-basemap-show': false,
@@ -667,7 +668,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         const newElement = Object.assign((window as any).context.commonService.defaultNode(), newNode);
 
-        if (newNode.hasOwnProperty('data') && newNode.data.hasOwnProperty('data')) {
+        if (Object.prototype.hasOwnProperty.call(newNode, 'data') && Object.prototype.hasOwnProperty.call(newNode.data, 'data')) {
           newElement.data = newNode.data.data;
         }
         (window as any).context.commonService.session.data.nodes.push(newElement);
@@ -1275,7 +1276,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             _id: node.id,
             origin: "HIVTRACE Import",
           }
-          if (node.hasOwnProperty("patient_attributes")){ 
+          if (Object.prototype.hasOwnProperty.call(node, "patient_attributes")){ 
             console.log("had patient_attributes");
             newNode = JSON.parse(JSON.stringify(node.patient_attributes));
             Object.keys(
@@ -1490,7 +1491,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if ((window as any).context.commonService.session.data.nodeFields.indexOf(key) === -1) {
                 (window as any).context.commonService.session.data.nodeFields.push(key);
                 }
-                if (! node.hasOwnProperty('origin') ) {
+                if (! Object.prototype.hasOwnProperty.call(node, 'origin') ) {
                 node.origin = [];
                 }
                 nodeCount += (window as any).context.commonService.addNode(node, true);
@@ -2563,9 +2564,11 @@ export class CommonService extends AppComponentBase implements OnInit {
             if (!d.visible) continue;
             const dv = d[variable];
             if (dv in aggregates) {
+                if (!d.visible) continue;
                 aggregates[dv]++;
             } else {
-                aggregates[dv] = 1;
+                if (!d.visible) aggregates[dv] = 0;
+                else aggregates[dv] = 1;
             }
         }
         

@@ -46,10 +46,10 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     }
 ];
 
-  SelectedDataFields = []
+  SelectedDataFields = ['Node-cluster']
   
   viewActive = true;
-  settingsOpen = false;
+  settingsOpen = true;
   exportOpen = false;
   SelectedAggregateExportFilename = '';
   AggregateExportFileTypeList = [
@@ -174,7 +174,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
         'width' : width+'px',
         'display': 'block'
     }
-    $('th').width(width/3);
+    $('#tablesContainer th').width(width/3);
   }
 
 
