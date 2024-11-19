@@ -561,10 +561,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   }
 
-  openPinAllNodes() {
+  //openPinAllNodes() {
 
 
-  }
+  //}
 
   openRefreshScreen() {
 

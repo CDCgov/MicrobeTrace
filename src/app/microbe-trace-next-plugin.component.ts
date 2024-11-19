@@ -1214,7 +1214,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $('#pinbutton').prop("disabled", false);
             if(!this.visuals.microbeTrace.commonService.session.network.timelinePinned) {
             $('#pinbutton').trigger('click');
-            this.visuals.microbeTrace.commonService.updatePinNodes(false);
+            //this.visuals.microbeTrace.commonService.updatePinNodes(false);
             }
             this.visuals.microbeTrace.commonService.session.network.timelineNodes = [];
             this.visuals.microbeTrace.commonService.setNodeVisibility(false);
@@ -1247,13 +1247,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (!loadingJsonFile) {
             this.visuals.microbeTrace.commonService.session.network.timelinePinned = this.visuals.microbeTrace.commonService.session.network.allPinned;
-        if(!this.visuals.microbeTrace.commonService.session.network.allPinned) {
-            this.visuals.microbeTrace.commonService.updatePinNodes(true);
-            let tabIndex = this.homepageTabs.findIndex((x) => x.label == '2D Network');
-            tabIndex > -1 ? this.openPinAllNodes(tabIndex): console.log('no 2D index');
-            //this.openPinAllNodes(1);
-        }
-        this.visuals.microbeTrace.commonService.session.network.timelineNodes = this.visuals.microbeTrace.commonService.getNetworkNodes();
+            this.visuals.microbeTrace.commonService.session.network.timelineNodes = this.visuals.microbeTrace.commonService.getNetworkNodes();
         }
         let globalTimelineField =  (this.visuals.microbeTrace.commonService.session.style.overwrite && variable == this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineField'] : this.visuals.microbeTrace.commonService.titleize(variable));
         const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
@@ -3061,9 +3055,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.previousTab = activeComponentName;
     }
 
-    openPinAllNodes(tabNdx: any): void {
-        this.homepageTabs[tabNdx].componentRef.instance.openPinAllNodes();
-    }
+   // openPinAllNodes(tabNdx: any): void {
+        //this.homepageTabs[tabNdx].componentRef.instance.openPinAllNodes();
+    //}
 
 
     addTab(tabLabel: any, tabTitle: any, tabPosition: any, componentRef: any, activate: boolean = true): void {

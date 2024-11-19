@@ -281,7 +281,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.getCollapsedData(false, false)
     } else { 
       let visibleNodes = this.commonService.getVisibleNodes();
-      if (visibleNodes.length == this.visibleData.length +2) { return }
+      if (visibleNodes.length +2 == this.visibleData.length) { return }
       this.visibleData = [];
       this.visibleData.push({
         id: '',

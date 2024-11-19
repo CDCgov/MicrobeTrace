@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -37,6 +37,7 @@ import { nodes, links, NodeDatum2, LinkDatum2, panels } from './data2';
 export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    @ViewChild('twoDGraph') twoDGraph: Graph<GraphNode, GraphLink>;
 
     svgStyle: {} = {
         'height': '0px',
@@ -490,6 +491,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.container.on('show', () => { 
                 this.viewActive = true; 
                 this.cdref.detectChanges();
+                setTimeout(() => {
+                    (this.twoDGraph as any).component.fitView(500);
+                }, 50)
             })
 
              // Initialize the selectedNodeShape from the settings
@@ -508,7 +512,39 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         root.style.setProperty('--vis-graph-brushed-node-stroke-color', '#ff0000');
         root.style.setProperty('--vis-graph-brushed-node-label-text-color', '#00ff00');
         root.style.setProperty('--vis-graph-brushed-node-icon-fill-color', '#0000ff');
+        setTimeout(() => {this.updateNodeFx()}, 1000);
       }
+
+    updateNodeFx() {
+        (this.twoDGraph as any).component.datamodel._nodes.forEach(node => {
+            let globalNode = (window as any).context.commonService.session.data.nodeFilteredValues.find(x => x._id == node.id)
+            globalNode['fx'] = node.x;
+            globalNode['fy'] = node.y;
+        })
+    }
+
+    applyNodeFx() {
+        // idk, this forEach loop produces an error (_nodes.forEach  is not a function) but it still executes just fine. Without the forEach loop not are 
+        // placed differently each time the timeline is run.
+        try {
+            (this.twoDGraph as any).component.datamodel._nodes.forEach(node => {
+                let globalNode = (window as any).context.commonService.session.data.nodeFilteredValues.find(x => x._id == node.id)
+                if (node.index == 1) {
+                    //console.log('prev ', node._state, node.x, node.y)
+                    //console.log('load ', globalNode['fx'], globalNode['fy'])
+                }
+                node.x = globalNode['fx'];
+                node.y = globalNode['fy'];
+                node._state = {fx: globalNode['fx'], fy: globalNode['fy']};
+                if (node.index == 1) {
+                    //console.log('post ', node._state, node.x, node.y)
+                }
+            })
+        } catch (error) {
+            console.log('error setting node positions back to previous location')
+        }
+        (this.twoDGraph as any).component?.render();  
+    }
 
     /** Initializes the view.
      * 
@@ -651,10 +687,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
             $( document ).on( "link-visibility", async function( ) {
-                if (!that.isLoading) {
+                if (!that.isLoading && that.viewActive) {
                     that.isLoading = true;
             
-                    await that._rerender();
+                    await that._rerender(true);
                     that.isLoading = false;
 
 
@@ -2776,15 +2812,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Rerenders whole data set by resetting data object
      */
-    private _rerender() {
+    private _rerender(timelineTick=false) {
 
         if (this.data === undefined) {
             return;
         } 
 
+        let nodes = this.commonService.getVisibleNodes();
+        if (timelineTick && nodes.length == (this.twoDGraph as any).component.datamodel._nodes.length) return;
+
+        let nodeIDs = new Set(nodes.map(node => node._id))
+        let links = this.commonService.getVisibleLinks();
+        let filteredLinks = links.filter(l => nodeIDs.has(l.source) && nodeIDs.has(l.target));
+
         let networkData = { 
-            nodes: this.visuals.twoD.commonService.getVisibleNodes(), 
-            links: this.visuals.twoD.commonService.getVisibleLinks()
+            nodes: nodes,
+            links: filteredLinks
         };
 
 
@@ -2798,7 +2841,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.autoFit = true; 
         }
 
-        console.log('link vis rerender: ', this.visuals.twoD.commonService.getVisibleLinks());
+        //console.log('link vis rerender: ', this.visuals.twoD.commonService.getVisibleLinks());
         
         this.data = this.visuals.twoD.commonService.convertToGraphDataArray(networkData);
 
@@ -2807,6 +2850,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         setTimeout(() => {
             this.cdref.detectChanges();
             this.cdref.markForCheck();
+            if (timelineTick) {
+                this.applyNodeFx();
+                (this.twoDGraph as any).component.fitView();
+            }
+            
           }, 0);
           
         // Update the panels
@@ -3609,7 +3657,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * On click of center button, show centers the view
      */ 
     openCenter() {
-        this.visuals.twoD.fit(undefined, undefined);
+        (this.twoDGraph as any).component.fitView();
     }
 
     /**

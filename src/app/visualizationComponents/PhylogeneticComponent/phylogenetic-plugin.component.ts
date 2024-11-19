@@ -402,10 +402,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       .redraw();
   }
 
-  openPinAllNodes() {
+  //openPinAllNodes() {
 
 
-  }
+  //}
 
   openRefreshScreen() {
 
