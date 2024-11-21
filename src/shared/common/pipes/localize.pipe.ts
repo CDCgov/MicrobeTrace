@@ -1,5 +1,5 @@
 import { Injector, Pipe, PipeTransform } from '@angular/core';
-import { AppConsts } from '@shared/AppConsts';
+import { AppConsts } from '@shared/app.constants';
 // import { LocalizationService } from '@abp/localization/localization.service';
 
 @Pipe({

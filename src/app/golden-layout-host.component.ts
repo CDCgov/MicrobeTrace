@@ -242,6 +242,29 @@ export class GoldenLayoutHostComponent implements OnDestroy {
     }
   }
 
+  /**
+   * Sets up listeners to monitor active view changes in Golden Layout.
+   */
+  // private setupActiveViewListener(): void {
+  //   // Listen to 'activeContentItemChanged' event
+  //   this.layout.on('activeContentItemChanged', (currentItem, previousItem) => {
+  //     if (currentItem && currentItem.config && currentItem.config.componentName) {
+  //       const activeView = currentItem.config.componentName;
+  //       this.viewStateService.setActiveView(activeView);
+  //       console.log(`Active view changed to: ${activeView}`);
+  //     } else {
+  //       this.viewStateService.clearActiveView();
+  //       console.log('No active view.');
+  //     }
+  //   });
+
+  //   // Optionally, set initial active view
+  //   const activeItem = this.layout.root.contentItems[0].contentItems[0];
+  //   if (activeItem && activeItem.config && activeItem.config.componentName) {
+  //     this.viewStateService.setActiveView(activeItem.config.componentName);
+  //   }
+  // }
+
   private handleContainerVisibilityChangeRequiredEvent(container: ComponentContainer, visible: boolean) {
     const componentRef = this._componentRefMap.get(container);
     if (componentRef === undefined) {
@@ -261,6 +284,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
   }
 
   private handleActiveTabChange(contentItem: any) {
+    console.log('handleActiveTabChange: ', contentItem);
     this.TabChangedEvent.emit(contentItem._title);
   }
 }
