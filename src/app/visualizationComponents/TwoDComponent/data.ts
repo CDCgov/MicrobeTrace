@@ -4,6 +4,7 @@ export interface NodeDatum {
     id: string;
     label: string;
     site: string;
+    selected: boolean;
     // Include other properties that your nodes might need
 }
 
@@ -40,10 +41,10 @@ export interface GraphData {
 
 // Sample data for nodes and links
 export const nodes: NodeDatum[] = [
-    { id: '1', label: 'Node 1', site: 'siteA' },
-    { id: '2', label: 'Node 2', site: 'siteA' },
-    { id: '3', label: 'Node 3', site: 'siteB' },
-    { id: '4', label: 'Node 4', site: 'siteB' }
+    { id: '1', label: 'Node 1', site: 'siteA', selected: false },
+    { id: '2', label: 'Node 2', site: 'siteA', selected: false },
+    { id: '3', label: 'Node 3', site: 'siteB', selected: false },
+    { id: '4', label: 'Node 4', site: 'siteB', selected: false }
 ];
 
 export const links: LinkDatum[] = [
