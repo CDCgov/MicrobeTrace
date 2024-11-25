@@ -475,10 +475,10 @@ export class TableComponent extends BaseComponentDirective implements OnInit, On
 
     }
 
-    openPinAllNodes() {
+    //openPinAllNodes() {
 
 
-    }
+    //}
 
     openRefreshScreen() {
 

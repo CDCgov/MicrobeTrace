@@ -175,7 +175,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         { label: 'On', value: 'On' },
         { label: 'Off', value: 'Off' }
     ];
-    SelectedGeospatialTypeVariable: string = "On";
+    SelectedGeospatialTypeVariable: string = "Off";
 
 
     SelectedNodeTransparencyVariable: any = 0.0;
@@ -300,7 +300,20 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         });
 
         $( document ).on( "node-visibility", function( ) {
-            that.drawNodes(false)
+            // XXYY seems to re-jitter the nodes at times, so may want to look into that. thanks
+            //console.log('is node vis called here? probs not right')
+            let visNodes = that.commonService.getVisibleNodes();
+            if (visNodes.length == that.nodes.length) { return; }
+            that.nodes = visNodes;
+            that.matchCoordinates(undefined, true);
+            that.nodes.forEach(node => {
+                if (node._jlat == undefined || node._jlon == undefined) {
+                    that.rerollNodeAndJitter(node);
+                }
+            })
+
+            that.drawNodes(false);
+            //that.centerMap();
         });
         
         $( document ).on( "link-visibility", function( ) {
@@ -374,9 +387,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         setTimeout(() => {
             this.loadSettings();
-            this.setDefaultAddressFields();
-            this.setDateRangeFilterValues();
-            this.onDataChange(undefined);
+            //this.setDefaultAddressFields();
+            //this.setDateRangeFilterValues();
+            //this.onDataChange(undefined);
         }, 600);
     }
 
@@ -392,12 +405,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         });
     }
 
+    /* Not sure goal of this at the moment
     setDefaultAddressFields() {
         const foundExposureAddressColName = this.commonService.session.data['nodeFields'].find(x => x === 'ExposureLocation');
         if (foundExposureAddressColName) this.SelectedExposureAddress = foundExposureAddressColName;
         const foundVenueAddressColName = this.commonService.session.data['nodeFields'].find(x => x === 'VenueLocation');
         if (foundVenueAddressColName) this.SelectedVenueAddress = foundVenueAddressColName;
-    }
+    }*/
 
     onDateFilterChange(e: any) {
         this.dateFilterRangeDates[0] = moment(this.dateFilterRangeMinDate).add(this.dateFilterRangeValues[0], 'days').toDate();
@@ -406,6 +420,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.onDataChange(undefined);
     }
 
+    /* Not sure about this function
     setDateRangeFilterValues() {
         let markers = this.getGeospatialNodes().filter(x => x.locationDetail.Name != 'Residence');
 
@@ -420,6 +435,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.onDataChange(undefined);
     }
+        */
 
     showAllVisibleMarkers() {
         // var bounds = new google.maps.LatLngBounds();
@@ -441,13 +457,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.clearAllMarkers_Leaflet();
     }
 
-    clearAllMarkers_Google() {
+    /*clearAllMarkers_Google() {
         for (var i = 0; i < this.markers.length; i++) {
             this.markers[i].setMap(null);
         }
 
         this.markers = [];
-    }
+    }*/
 
     /**
      * Removes all nodes from map and remove _jlat and _jlon value for each node
@@ -482,7 +498,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         let that = this;
         // XXX check if reroll is need for drawNodes()
         this.matchCoordinates(function () {
-            that.drawNodes();
+            let rerollCheck = that.rerollCheck();
+            if (rerollCheck) {
+                that.drawNodes();
+            } else {
+                that.jitter();
+                that.drawNodes(false);
+            }
             that.drawLinks();
             that.resetStack();
             // that.visuals.gisMap.lmap.flyToBounds(that.layers.nodes().getBounds());
@@ -1090,7 +1112,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         return markers;
     }
 
-    getGeospatialNodes(): MarkerWithData[] {
+    /*getGeospatialNodes(): MarkerWithData[] {
         let returnMarkerWithData: MarkerWithData[] = [];
 
         let n = this.nodes.length;
@@ -1142,7 +1164,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             Longitude: data.CasedemographicsLongitude,
             Name: 'Residence'
         };
-    }
+    } */
 
     /**
      * Calls drawLeafletMapNodes() which removes all previous nodes from map, updates _j, _theta, _jlat, _jlon for each node
@@ -1166,14 +1188,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (!this.commonService.session.style.widgets['map-node-show']) return;
 
         if (this.SelectedGeospatialTypeVariable == 'On') {
-            this.drawLeafletMapNodesGeospatial();
+            //this.drawLeafletMapNodesGeospatial();
+            console.error('implement drawLeafletMapNodesGeospatial')
         }
         else {
             this.drawLeafletMapNodesList();
         }
     }
 
-    drawLeafletMapNodesGeospatial() {
+    /*drawLeafletMapNodesGeospatial() {
         const opacity = 1 - this.commonService.session.style.widgets['map-node-transparency'];
         const selectedColor = this.commonService.session.style.widgets['selected-color'];
 
@@ -1199,7 +1222,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.layers.featureGroup = featureGroup(features);
             this.lmap.addLayer(this.layers.featureGroup);
         }
-    }
+    } */
 
     /**
      * Draws nodes on the map
@@ -1419,6 +1442,22 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
     }
 
+    rerollCheck() {
+        return this.nodes.some(node => node._theta == undefined || node._j == undefined);
+    }
+
+    /**
+     * Reroll and jitter function for an individual node
+     */
+    rerollNodeAndJitter(node) {
+        node._theta = this.commonService.r01() * Math.PI * 2;
+        node._j = this.commonService.r01();
+
+        var v = this.commonService.session.style.widgets['map-node-jitter'] == -2 ? 0 : Math.pow(2, this.commonService.session.style.widgets['map-node-jitter']);
+        node._jlon = parseFloat(node._lon) + v * node._j * Math.cos(node._theta);
+        node._jlat = parseFloat(node._lat) + v * node._j * Math.sin(node._theta);
+    }
+
     /**
      * Updates _jlon and _jLat for each node using _theta & _j values from each node and widget['map-node-jitter']
      */
@@ -1446,7 +1485,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.jitter();
     }
 
-    makeGeoJSON() {
+    /*makeGeoJSON() {
         var features = [];
         var jitter = this.commonService.session.style.widgets['map-node-jitter'] > 0;
         this.nodes.forEach((d) => {
@@ -1488,7 +1527,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             type: 'FeatureCollection',
             features: features
         };
-    }
+    } */
 
     openSettings() {
         this.NodeMapSettingsExportDialogSettings.setVisibility(true);
@@ -1507,9 +1546,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.centerMap();
     }
 
-    openPinAllNodes() {
+    //openPinAllNodes() {
 
-    }
+    //}
 
     openRefreshScreen() {
         this.centerMap();

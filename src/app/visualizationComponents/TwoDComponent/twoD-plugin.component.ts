@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -37,6 +37,7 @@ import { nodes, links, NodeDatum2, LinkDatum2, panels } from './data2';
 export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    @ViewChild('twoDGraph') twoDGraph: Graph<GraphNode, GraphLink>;
 
     svgStyle: {} = {
         'height': '0px',
@@ -192,7 +193,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     getNodeStroke = (n: NodeDatum)  => {
        
-        if(n.id == this.selectedNodeId) {
+        if(n.selected) {
             return this.widgets['selected-node-stroke-color'];
         } else {
             return '#000';
@@ -490,6 +491,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.container.on('show', () => { 
                 this.viewActive = true; 
                 this.cdref.detectChanges();
+                setTimeout(() => {
+                    (this.twoDGraph as any).component.fitView(500);
+                }, 50)
             })
 
              // Initialize the selectedNodeShape from the settings
@@ -508,7 +512,51 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         root.style.setProperty('--vis-graph-brushed-node-stroke-color', '#ff0000');
         root.style.setProperty('--vis-graph-brushed-node-label-text-color', '#00ff00');
         root.style.setProperty('--vis-graph-brushed-node-icon-fill-color', '#0000ff');
+        setTimeout(() => {this.saveNodeFx()}, 1000);
+
+        (this.twoDGraph as any).component.config.onNodeDragEnd = (d, e) => this.updateNodeFx(d, e);
       }
+
+    saveNodeFx() {
+        (this.twoDGraph as any).component.datamodel._nodes.forEach(node => {
+            let globalNode = (window as any).context.commonService.session.data.nodeFilteredValues.find(x => x._id == node.id)
+            globalNode['fx'] = node.x;
+            globalNode['fy'] = node.y;
+        })
+    }
+
+    /**
+     * Updates the saved postion of a node when it is dragged by the user
+     * @param node
+     */
+    updateNodeFx(node, event) {
+      let globalNode = (window as any).context.commonService.session.data.nodeFilteredValues.find(x => x._id == node.id)
+      globalNode['fx'] = node._state.fx;
+      globalNode['fy'] = node._state.fy;
+    }
+
+    applyNodeFx() {
+        // idk, this forEach loop produces an error (_nodes.forEach  is not a function) but it still executes just fine. Without the forEach loop not are 
+        // placed differently each time the timeline is run.
+        try {
+            (this.twoDGraph as any).component.datamodel._nodes.forEach(node => {
+                let globalNode = (window as any).context.commonService.session.data.nodeFilteredValues.find(x => x._id == node.id)
+                if (node.index == 1) {
+                    //console.log('prev ', node._state, node.x, node.y)
+                    //console.log('load ', globalNode['fx'], globalNode['fy'])
+                }
+                node.x = globalNode['fx'];
+                node.y = globalNode['fy'];
+                node._state = {fx: globalNode['fx'], fy: globalNode['fy']};
+                if (node.index == 1) {
+                    //console.log('post ', node._state, node.x, node.y)
+                }
+            })
+        } catch (error) {
+            console.log('error setting node positions back to previous location')
+        }
+        (this.twoDGraph as any).component?.render();  
+    }
 
     /** Initializes the view.
      * 
@@ -651,10 +699,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
             $( document ).on( "link-visibility", async function( ) {
-                if (!that.isLoading) {
+                if (!that.isLoading && that.viewActive) {
                     that.isLoading = true;
             
-                    await that._rerender();
+                    await that._rerender(true);
                     that.isLoading = false;
 
 
@@ -1996,6 +2044,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         let tableHtml = `
             <style>
+            div:has(> table#tooltip-table) {
+              padding: 0px;
+            }
+
             #tooltip-table {
                 border-spacing: 0;
                 width: 100%;
@@ -2005,7 +2057,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
             #tooltip-table td, #tooltip-table th {
                 text-align: left;
-                padding: 16px;
+                padding: 10px;
                 border: 1px solid #ddd;
             }
             
@@ -2072,21 +2124,31 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d a node
      */
     showNodeTooltip(d, event) {
-    
-        // If no tooltip variable is selected, we shouldn't show a tooltip
-        if (this.widgets['node-tooltip-variable'].length > 0 && this.widgets['node-tooltip-variable'][0] == 'None') {
-            if (this.widgets['node-highlight']) {
-                this.selectedNodeId = d.id;
-                this._rerender();
-            }
-            return;
+        if (this.widgets['node-highlight']) {
+          this.selectedNodeId = d.id;
+          this.cdref.detectChanges();
+      }
+
+        let tt_var_len = this.widgets['node-tooltip-variable'].length
+        let tooltipHtml: string;
+
+        if (tt_var_len == 0) {
+          return null;
+        } else if (tt_var_len == 1) {
+          tooltipHtml =  `${d[this.widgets['node-tooltip-variable']]}`
+        } else {
+          tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
         }
 
-        if (this.widgets['node-highlight']) {
-            console.log('in flag: ');
-            this.selectedNodeId = d.id;
-            this._rerender();
-        }
+        let [X, Y] = this.getRelativeMousePosition(event);
+        d3.select('#tooltip')
+            .html(tooltipHtml)
+            .style('position', 'absolute')
+            .style('left', (X+ 10) + 'px')
+            .style('top', (Y - 10) + 'px')
+            .style('z-index', 1000)
+            .transition().duration(100)
+            .style('opacity', 1);
     }
 
     /**
@@ -2154,7 +2216,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     hideTooltip() {
         if (this.widgets['node-highlight']) {
             this.selectedNodeId = undefined;
-            this._rerender();
+            this.cdref.detectChanges();
         }
         let tooltip = d3.select('#tooltip');
         tooltip
@@ -2776,15 +2838,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Rerenders whole data set by resetting data object
      */
-    private _rerender() {
+    private _rerender(timelineTick=false) {
 
         if (this.data === undefined) {
             return;
         } 
 
+        let nodes = this.commonService.getVisibleNodes();
+        if (timelineTick && nodes.length == (this.twoDGraph as any).component.datamodel._nodes.length) return;
+
+        let nodeIDs = new Set(nodes.map(node => node._id))
+        let links = this.commonService.getVisibleLinks();
+        let filteredLinks = links.filter(l => nodeIDs.has(l.source) && nodeIDs.has(l.target));
+
         let networkData = { 
-            nodes: this.visuals.twoD.commonService.getVisibleNodes(), 
-            links: this.visuals.twoD.commonService.getVisibleLinks()
+            nodes: nodes,
+            links: filteredLinks
         };
 
 
@@ -2798,7 +2867,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.autoFit = true; 
         }
 
-        console.log('link vis rerender: ', this.visuals.twoD.commonService.getVisibleLinks());
+        //console.log('link vis rerender: ', this.visuals.twoD.commonService.getVisibleLinks());
         
         this.data = this.visuals.twoD.commonService.convertToGraphDataArray(networkData);
 
@@ -2807,6 +2876,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         setTimeout(() => {
             this.cdref.detectChanges();
             this.cdref.markForCheck();
+            if (timelineTick) {
+                this.applyNodeFx();
+                (this.twoDGraph as any).component.fitView();
+            }
+            
           }, 0);
           
         // Update the panels
@@ -3609,7 +3683,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * On click of center button, show centers the view
      */ 
     openCenter() {
-        this.visuals.twoD.fit(undefined, undefined);
+        (this.twoDGraph as any).component.fitView();
     }
 
     /**
@@ -3663,6 +3737,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * renders the network
      */
     updateVisualization() {
+        this._rerender();
         if (!this.isLoading) {
             // console.log('render update vis');
             // this.isLoading = true;

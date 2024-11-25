@@ -1,4 +1,4 @@
-﻿﻿
+
 
 <span id="tooltip" style="background-color: white;"></span>
 
@@ -19,8 +19,8 @@
     </span>
 </div>
 
-<vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight">
-    <vis-graph
+<vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight" [padding]="{ top: 50, bottom: 50, left: 50, right: 50}">
+    <vis-graph #twoDGraph
       [layoutType]="layoutType"
       [layoutAutofit]="autoFit"
       [forceLayoutSettings]="forceLayoutSettings"
@@ -35,6 +35,7 @@
       [nodeLabel]="nodeLabel"
       [nodeShape]="nodeShape"
       [nodeSize]="nodeSize"
+      [duration]="0"
       [events]="events"
       [zoomScaleExtent]="zoomScaleExtent"
       [selectedNodeId]="selectedNodeId"
@@ -62,6 +63,7 @@
         [nodeShape]="nodeShape"
         [events]="events"
         [panels]="panels"
+        [duration]="0"
     ></vis-graph>
   </vis-single-container>
   
