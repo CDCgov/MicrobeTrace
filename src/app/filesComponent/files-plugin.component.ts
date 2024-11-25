@@ -739,7 +739,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 if (this.visuals.microbeTrace.commonService.session.data.nodeFields.indexOf(key) === -1) {
                   this.visuals.microbeTrace.commonService.session.data.nodeFields.push(key);
                 }
-                if (! node.hasOwnProperty('origin') ) {
+                if (! Object.prototype.hasOwnProperty.call(node, 'origin') ) {
                   node.origin = [];
                 }
                 nodeCount += this.visuals.microbeTrace.commonService.addNode(node, true);
@@ -1652,7 +1652,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const data: any[] = output;
       const firstField = Object.keys(data[0])[0];
       if (this.nodeIds.find(x => x.fileName === fileName)) {
-        let currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
+        const currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
         currentNodeId.ids = output.map((x: any) => x[firstField])
       } else {
         this.nodeIds.push(
@@ -1664,7 +1664,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     else {
       if (this.nodeIds.find(x => x.fileName === fileName)) {
-        let currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
+        const currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
         currentNodeId.ids = output.data.map((x: any) => x[output.meta.fields[0]])
       } else {
         this.nodeIds.push(
@@ -1683,7 +1683,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const data: any[] = output;
       const fields = Object.keys(data[0]);
       if (this.edgeIds.find(x => x.fileName === fileName)) {
-        let currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
+        const currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
         currentEdgeId.ids = output.map((x: any) => ({
           source: '' + x[fields[0]],
           target: '' + x[fields[1]]
@@ -1703,7 +1703,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     else {
       if (this.edgeIds.find(x => x.fileName === fileName)) {
-        let currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
+        const currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
         currentEdgeId.ids = output.data.map((x: any) => ({
           source: '' + x[output.meta.fields[0]],
           target: '' + x[output.meta.fields[1]]

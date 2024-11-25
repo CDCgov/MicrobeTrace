@@ -458,7 +458,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
   
                 const fieldData = node[field].toString(); // Convert the data to string
                 // matches anything that is not a digit, letter, whitespace or one of following char < > & and replaces with corresponding HTML entity number
-                const encodedField = fieldData.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
+                const encodedField = fieldData.replace(/[\u00A0-\u9999<>&]/g, function(i) {
                   return '&#'+i.charCodeAt(0)+';';
                 });
                 dataSet.add(`${encodedField}`);
@@ -983,8 +983,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     onColorLinksByChanged() {
 
-        this.visuals.microbeTrace.SelectedColorLinksByVariable = this.visuals.microbeTrace.SelectedColorLinksByVariable;
-
         this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.visuals.microbeTrace.SelectedColorLinksByVariable;
 
         if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
@@ -1249,7 +1247,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.visuals.microbeTrace.commonService.session.network.timelineNodes = this.visuals.microbeTrace.commonService.getNetworkNodes();
         }
         const globalTimelineField =  (this.visuals.microbeTrace.commonService.session.style.overwrite && variable == this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.visuals.microbeTrace.commonService.session.style.overwrite['globalTimelineField'] : this.visuals.microbeTrace.commonService.titleize(variable));
-        const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
+        const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>&]/g, function(i) {
             return '&#'+i.charCodeAt(0)+';';
         });
         $("#global-timeline-field").html(encodedGlobalTimelineField);   
@@ -2176,11 +2174,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     getHeight() {
-        let timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
+        const timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
         if (this.officialInstance()) {
             return window.innerHeight - 64 - 6 - timelineHeight;
         } else {
-            let warningHeight = $('#url-warning-div').height()
+            const warningHeight = $('#url-warning-div').height()
             return window.innerHeight - 64 - 6 - warningHeight - timelineHeight;
         }
     }
@@ -2510,7 +2508,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     DisplayMTDialog(saveUrl: string) {
       switch (saveUrl) {
         case 'Open': {
-          const auspiceUrl = this.auspiceUrlVal;
+          //const auspiceUrl = this.auspiceUrlVal;
           break;
         }
         case 'Cancel': {
@@ -3004,8 +3002,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             x.isActive = false;
         });
-
-        console.log
 
         // this.tabView.tabs.map(x => {
 
