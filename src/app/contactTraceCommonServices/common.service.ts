@@ -25,7 +25,7 @@ import { window } from 'ngx-bootstrap/utils';
 // import { MicrobeTraceLink, MicrobeTraceNode, MicrobeTraceSessionGraphData } from '@app/visualizationComponents/TwoDComponent/mockdata';
 import { GraphData, LinkDatum, NodeDatum } from '@app/visualizationComponents/TwoDComponent/data';
 import { group } from 'console';
-import { GraphNodeShape, GraphPanelConfig } from '@unovis/ts';
+// import { GraphNodeShape, GraphPanelConfig } from '@unovis/ts';
 
 
 // import { GoldenLayoutService } from '@embedded-enterprises/ng6-golden-layout';
@@ -962,7 +962,10 @@ export class CommonService extends AppComponentBase implements OnInit {
           ...node, // Spread existing properties
           id: node._id, // Ensure the id property is set correctly
           group: node.cluster,
-          color: this.getColorByIndex(node.index) // Add or override the color property
+          color: this.getColorByIndex(node.index), // Add or override the color property
+          label: node.label ?? node._id, // Ensure label is defined
+            nodeSize: node.nodeSize ?? 20, // Default node size
+            borderWidth: node.borderWidth ?? 1 // Default border width
         }));
       
         const links = microbeData.links.map((link) => ({
@@ -970,7 +973,10 @@ export class CommonService extends AppComponentBase implements OnInit {
           source: link.source, // Ensure source is correctly set
           target: link.target, // Ensure target is correctly set
           group: link.cluster ?? null, // Ensure group is set, default to null if undefined
-          chapter: link.distance ? link.distance.toString() : null // Convert distance to string for chapter
+          chapter: link.distance ? link.distance.toString() : null, // Convert distance to string for chapter
+          linkWidth: 1,
+          label: link.label ?? '', // Ensure label is defined
+          borderWidth: link.borderWidth ?? 1 // Default border width for links
         }));
       
         return {

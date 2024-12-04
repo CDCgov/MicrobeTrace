@@ -19,7 +19,9 @@
     </span>
 </div>
 
-<vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight">
+<div #cy id="cy" style="width: 100%; height: 100%;"></div>
+
+<!-- <vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight">
     <vis-graph
       [layoutType]="layoutType"
       [layoutAutofit]="autoFit"
@@ -53,7 +55,7 @@
         [events]="events"
         [panels]="panels"
     ></vis-graph>
-  </vis-single-container>
+  </vis-single-container> -->
   
 <!-- <vis-single-container *ngIf="showParallel" [data]="data2" [height]="containerHeight">
     <vis-graph

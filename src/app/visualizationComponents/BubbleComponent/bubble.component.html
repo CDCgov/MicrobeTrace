@@ -8,12 +8,12 @@
         </span>
     </div>
     <div style="margin-top: 10px" id="bubbleViewContainer" [ngStyle]="{'height.px': viewHeight, 'width.px': viewWidth}">
-        <vis-xy-container [data]="data" [padding]="padding">
+        <!-- <vis-xy-container [data]="data" [padding]="padding">
             <vis-scatter #scatter [x]="x" [y]="y" [size]="sizing" [color]="color" [strokeColor]="strokeColor" [strokeWidth]="2"></vis-scatter>
             <vis-axis #x_axis type="x" [tickValues]="X_tickValues" [tickFormat]="X_axisFormat" [gridLine]="false" [label]="commonService.capitalize(xVariable)" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
             <vis-axis #y_axis type="y" [tickValues]="Y_tickValues" [tickFormat]="Y_axisFormat" [gridLine]="false" [label]="commonService.capitalize(yVariable)" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
             <vis-tooltip [triggers]="tooltipTriggers"></vis-tooltip>
-        </vis-xy-container>
+        </vis-xy-container> -->
         <svg>
           <defs id="bubbleDefs">  
           </defs>

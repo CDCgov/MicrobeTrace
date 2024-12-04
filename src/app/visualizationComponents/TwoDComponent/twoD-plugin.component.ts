@@ -24,9 +24,12 @@ import { MicrobeTraceNextHomeComponent } from '../../microbe-trace-next-plugin.c
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { data, NodeDatum, LinkDatum, GraphData } from './data';
-import { GraphCircleLabel, Graph, GraphForceLayoutSettings, GraphLayoutType, GraphNode, GraphLink, GraphPanelConfig, GraphLinkStyle } from '@unovis/ts';
+// import { GraphCircleLabel, Graph, GraphForceLayoutSettings, GraphLayoutType, GraphNode, GraphLink, GraphPanelConfig, GraphLinkStyle } from '@unovis/ts';
 
 import { nodes, links, NodeDatum2, LinkDatum2, panels } from './data2';
+
+import cytoscape, { Core, Style } from 'cytoscape';
+
 
 @Component({
     selector: 'TwoDComponent',
@@ -43,6 +46,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         'width': '1000px'
     };
 
+    // Reference to the Cytoscape container
+    @ViewChild('cy', { static: false }) cyContainer: ElementRef;
+
+    // Cytoscape core instance
+    cy: Core;
+
     vizLoaded = true;
 
     data;
@@ -55,12 +64,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     debugMode = false;
 
-    layoutType2 = GraphLayoutType.Parallel;
-    layoutNodeGroup = (d: NodeDatum2): string => d.group;
-    layoutParallelNodeSubGroup = (d: NodeDatum2): string => d.id;
-    panels: GraphPanelConfig[] = panels;
+    // layoutType2 = GraphLayoutType.Parallel;
+    // layoutNodeGroup = (d: NodeDatum2): string => d.group;
+    // layoutParallelNodeSubGroup = (d: NodeDatum2): string => d.id;
+    // panels: GraphPanelConfig[] = panels;
 
-    layoutType = GraphLayoutType.Force;
+    // layoutType = GraphLayoutType.Force;
 
     containerHeight = 800; // or any other number you want
 
@@ -78,73 +87,73 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
     selectedNodeShape: string = 'circle'; // Default shape
 
-    linkLabel = (l: LinkDatum): GraphCircleLabel => this.getLinkLabel(l)
-    nodeLabel = (n: NodeDatum) => this.getNodeLabel(n)
-    nodeShape = (n: NodeDatum) => this.getNodeShape(n)
-    linkStroke = (l: LinkDatum) => this.getLinkColor(l)
-    linkStyle = (l: LinkDatum) => this.getLinkStyle(l)
-    linkWidth = (l: LinkDatum) => this.getLinkWidth(l)
-    linkArrow = (l: LinkDatum) => this.getLinkArrow(l)
-    nodeFill = (n: NodeDatum) => this.getNodeColor(n)
-    nodeStroke = (n: NodeDatum) => this.getNodeStroke(n)
-    nodeSize = (n: NodeDatum) => this.getNodeSize(n)
-    // onNodeSelectionBrush = (selectedNodes: GraphNode[], event: any)  => this.onSelectionBrush(selectedNodes)
-    // onNodeSelectionDrag = (selectedNodes: GraphNode[], event: any) => this.onSelectionDrag(selectedNodes)
+    // linkLabel = (l: LinkDatum): GraphCircleLabel => this.getLinkLabel(l)
+    // nodeLabel = (n: NodeDatum) => this.getNodeLabel(n)
+    // nodeShape = (n: NodeDatum) => this.getNodeShape(n)
+    // linkStroke = (l: LinkDatum) => this.getLinkColor(l)
+    // linkStyle = (l: LinkDatum) => this.getLinkStyle(l)
+    // linkWidth = (l: LinkDatum) => this.getLinkWidth(l)
+    // linkArrow = (l: LinkDatum) => this.getLinkArrow(l)
+    // nodeFill = (n: NodeDatum) => this.getNodeColor(n)
+    // nodeStroke = (n: NodeDatum) => this.getNodeStroke(n)
+    // nodeSize = (n: NodeDatum) => this.getNodeSize(n)
+    // // onNodeSelectionBrush = (selectedNodes: GraphNode[], event: any)  => this.onSelectionBrush(selectedNodes)
+    // // onNodeSelectionDrag = (selectedNodes: GraphNode[], event: any) => this.onSelectionDrag(selectedNodes)
 
-    onSelectionBrush(nodes: GraphNode[]) {
-        console.log('onSelectionNode: ', nodes);
-    }
+    // onSelectionBrush(nodes: GraphNode[]) {
+    //     console.log('onSelectionNode: ', nodes);
+    // }
 
-    getLinkStyle(l: LinkDatum) {
+    // getLinkStyle(l: LinkDatum) {
 
-        if ((l.source['_id'] === "KF773429" && l.target['_id'] === "KF773430") || (l.source['_id'] === "KF773430" && l.target['_id'] === "KF773429")) {
-            // console.log('setting link dashed: ', _.cloneDeep(l));
-        }
+    //     if ((l.source['_id'] === "KF773429" && l.target['_id'] === "KF773430") || (l.source['_id'] === "KF773430" && l.target['_id'] === "KF773429")) {
+    //         // console.log('setting link dashed: ', _.cloneDeep(l));
+    //     }
 
-        return l['origin'].length > 1 ? GraphLinkStyle.Dashed : GraphLinkStyle.Solid;
-    }
+    //     return l['origin'].length > 1 ? GraphLinkStyle.Dashed : GraphLinkStyle.Solid;
+    // }
 
-    onSelectionDrag(nodes: GraphNode[]) {
-        console.log('onSelectionDrag: ', nodes);
-    }
+    // onSelectionDrag(nodes: GraphNode[]) {
+    //     console.log('onSelectionDrag: ', nodes);
+    // }
 
-    events = {
-        [Graph.selectors.node]: {
-            click: (d: GraphNode) => {
-                console.log('selected node is: ', d);
-                this.selectedNodeId = d.id as string;
-                console.log('rerender selected node');
-                this.debouncedRerender();
-                // config.selectedNodeId = d.id
-                // Set the selected node id here, e.g.: config.selectedNodeId = d.id
-                // and trigger the component update if required by your UI framework
-            },
-            mouseover: (d: GraphNode, event: MouseEvent) => {
-                this.showNodeTooltip(d, event);
-                // Perform actions on hover, such as highlighting or displaying additional information
-            },
-            mouseout: (d: GraphNode) => {
-                this.hideTooltip();
-            },
-            brush: (selectedNodes: GraphNode[], event: any) => {
-                this.onSelectionBrush(selectedNodes);
-            },
-            drag: (selectedNodes: GraphNode[], event: any) => {
-                this.onSelectionDrag(selectedNodes);
-            }
+    // events = {
+    //     [Graph.selectors.node]: {
+    //         click: (d: GraphNode) => {
+    //             console.log('selected node is: ', d);
+    //             this.selectedNodeId = d.id as string;
+    //             console.log('rerender selected node');
+    //             this.debouncedRerender();
+    //             // config.selectedNodeId = d.id
+    //             // Set the selected node id here, e.g.: config.selectedNodeId = d.id
+    //             // and trigger the component update if required by your UI framework
+    //         },
+    //         mouseover: (d: GraphNode, event: MouseEvent) => {
+    //             this.showNodeTooltip(d, event);
+    //             // Perform actions on hover, such as highlighting or displaying additional information
+    //         },
+    //         mouseout: (d: GraphNode) => {
+    //             this.hideTooltip();
+    //         },
+    //         brush: (selectedNodes: GraphNode[], event: any) => {
+    //             this.onSelectionBrush(selectedNodes);
+    //         },
+    //         drag: (selectedNodes: GraphNode[], event: any) => {
+    //             this.onSelectionDrag(selectedNodes);
+    //         }
 
-        },
-        [Graph.selectors.link]: {
-            mouseover: (d: GraphLink, event: MouseEvent) => {
-                this.showLinkTooltip(d, event);
-                // Perform actions on hover, such as highlighting or displaying additional information
-            },
-            mouseout: () => {
-                this.hideTooltip();
-            }
+    //     },
+    //     [Graph.selectors.link]: {
+    //         mouseover: (d: GraphLink, event: MouseEvent) => {
+    //             this.showLinkTooltip(d, event);
+    //             // Perform actions on hover, such as highlighting or displaying additional information
+    //         },
+    //         mouseout: () => {
+    //             this.hideTooltip();
+    //         }
 
-        },
-    }
+    //     },
+    // }
 
 
     getNodeSize(node: any) {
@@ -529,12 +538,175 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     ngAfterViewInit(): void {
+        this.initializeCytoscape();
+
         // Apply CSS variables programmatically
         // const root = document.documentElement;
         // root.style.setProperty('--vis-graph-brush-selection-opacity', '1');
         // root.style.setProperty('--vis-graph-brushed-node-stroke-color', '#ff0000');
         // root.style.setProperty('--vis-graph-brushed-node-label-text-color', '#00ff00');
         // root.style.setProperty('--vis-graph-brushed-node-icon-fill-color', '#0000ff');
+    }
+
+
+initializeCytoscape() {
+
+    console.log('initializeing cytoscape');
+    this._rerender();
+//     this.cy = cytoscape({
+//       container: this.cyContainer.nativeElement, // container to render in
+  
+//       elements: this.mapDataToCytoscapeElements(this.data), // convert your data
+  
+//       style: this.getCytoscapeStyles(), // define your styles
+  
+//       layout: {
+//         name: 'cose', // Use the cose layout
+//         animate: false, // Set to true for animation
+//         fit: true, // Fit the graph to the viewport
+//         padding: 30, // Padding around the graph
+//         nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
+//         idealEdgeLength: (edge) => 100, // Ideal length of edges
+//         edgeElasticity: (edge) => 100, // Elasticity of edges
+//         gravity: 80, // Gravity factor
+//         numIter: 1000, // Number of iterations
+//         // tile: true, // Allow tiling
+//         // tilingPaddingVertical: 10, // Vertical padding for tiling
+//         // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
+//       },
+  
+//       // Enable zooming and panning
+//       zoomingEnabled: true,
+//       userZoomingEnabled: true,
+//       panningEnabled: true,
+//       userPanningEnabled: true,
+//     });
+
+//     // this.cy.batch(() => {
+//         //     // Add or modify multiple elements here
+//         // });
+  
+//     // Attach event handlers
+//     this.attachCytoscapeEvents();
+  }
+
+
+  mapDataToCytoscapeElements(data: any): cytoscape.ElementsDefinition {
+    const nodes = data.nodes.map((node: any) => ({
+      data: {
+        id: node.id,
+        label: node.label, // Adjust based on your data fields
+        // Include any additional node-specific data properties
+        ...node
+      }
+    }));
+  
+    const edges = data.links.map((link: any) => ({
+      data: {
+        id: `${link.source}-${link.target}`,
+        source: link.source,
+        target: link.target,
+        label: link.label, // Adjust based on your data fields
+        // Include any additional edge-specific data properties
+        ...link
+      }
+    }));
+  
+    return {
+      nodes: nodes,
+      edges: edges
+    };
+  }
+
+    getCytoscapeStyles(): cytoscape.Stylesheet[] {
+        return [
+            {
+                selector: 'node',
+                style: {
+                    'background-color': '#666',
+                    'label': 'data(label)',
+                    'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Example of dynamic sizing
+                    'height': 'mapData(nodeSize, 0, 100, 10, 50)',
+                    'border-width': 'data(borderWidth)', // Dynamic border width
+                    'border-color': '#000',
+                    'text-valign': 'center',
+                    'color': '#fff',
+                    'font-size': '12px'
+                }
+            },
+            {
+                selector: 'edge',
+                style: {
+                    'width': 'mapData(linkWidth, 0, 100, 1, 10)', // Dynamic edge width
+                    'line-color': '#ccc',
+                    'target-arrow-color': '#ccc',
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier'
+                    // 'opacity': 'data(opacity)' // Dynamic opacity
+                }
+            },
+            {
+                selector: 'node:selected',
+                style: {
+                    'background-color': '#f00',
+                    'border-color': '#fff',
+                    'border-width': 3
+                }
+            },
+            {
+                selector: 'edge:selected',
+                style: {
+                    'line-color': '#f00',
+                    'target-arrow-color': '#f00',
+                    'width': 3
+                }
+            }
+        ];
+    }
+
+    attachCytoscapeEvents() {
+        // Example: Node click
+        this.cy.on('tap', 'node', (evt) => {
+            const node = evt.target;
+            console.log('Selected node:', node.data());
+    
+            // Update selectedNodeId and trigger change detection or re-render if necessary
+            this.selectedNodeId = node.id();
+            this.debouncedRerender();
+    
+            // You can emit events or handle selections as per your application's logic
+        });
+    
+        // Example: Hover events
+        this.cy.on('mouseover', 'node', (evt) => {
+            const node = evt.target;
+            this.showNodeTooltip(node, evt.originalEvent);
+        });
+    
+        this.cy.on('mouseout', 'node', () => {
+            this.hideTooltip();
+        });
+    
+        // Edge events
+        this.cy.on('mouseover', 'edge', (evt) => {
+            const edge = evt.target;
+            this.showLinkTooltip(edge, evt.originalEvent);
+        });
+    
+        this.cy.on('mouseout', 'edge', () => {
+            this.hideTooltip();
+        });
+    
+        // Selection and Dragging
+        this.cy.on('select', 'node', (evt) => {
+            const node = evt.target;
+            // Handle selection logic
+        });
+    
+        this.cy.on('dragfree', 'node', (evt) => {
+            const node = evt.target;
+            // Handle node drag logic
+        });
     }
 
     /** Initializes the view.
@@ -660,7 +832,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             this.data = this.commonService.convertToGraphDataArray(networkData);
             // Now update panels
-            this.updatePanels();
+            // this.updatePanels();
 
             if (this.debugMode) {
                 console.log('data: ', this.data);
@@ -2672,6 +2844,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     private _rerender() {
 
+        
+
         if (this.data === undefined) {
             return;
         }
@@ -2700,58 +2874,6 @@ if (networkData.nodes.length !== 0) {
             console.log('link vis rerender: ', this.commonService.getVisibleLinks());
         }
 
-    //      // Define the properties needed by Unovis for nodes
-    // interface UnovisNode {
-    //     id: string;
-    //     label?: string;          // For node labels
-    //     shape?: string;          // For node shapes
-    //     color: string;           // For node color
-    //     stroke?: string;         // For node stroke color
-    //     size?: number;           // For node size
-    //     // Add other necessary properties here
-    // }
-
-    // // Define the properties needed by Unovis for links
-    // interface UnovisLink {
-    //     source: string;          // Reference to source node ID
-    //     target: string;          // Reference to target node ID
-    //     label?: string;          // For link labels
-    //     color: string;           // For link color
-    //     style?: string;          // For link style
-    //     width?: number;          // For link width
-    //     arrow?: string;          // For link arrow type
-    //     // Add other necessary properties here
-    // }
-
-    //  // Transform original nodes to include only necessary properties
-    //  const transformedNodes: UnovisNode[] = originalNodes.map(node => ({
-    //     id: node.id,                               // Unique identifier
-    //     label: node.label,                         // Node label
-    //     shape: node.shape,                         // Node shape
-    //     color: node.color,                         // Node color
-    //     stroke: node.stroke,                       // Node stroke color
-    //     size: node.size,                           // Node size
-    //     // Include other properties as required by Unovis
-    // }));
-
-    // // Transform original links to include only necessary properties
-    // const transformedLinks: UnovisLink[] = originalLinks.map(link => ({
-    //     source: link.source.id,                     // Assuming link.source is an object with an 'id' property
-    //     target: link.target.id,                     // Assuming link.target is an object with an 'id' property
-    //     label: link.label,                           // Link label
-    //     color: link.color,                           // Link color
-    //     style: link.style,                           // Link style
-    //     width: link.width,                           // Link width
-    //     arrow: link.arrow,                           // Link arrow type
-    //     // Include other properties if needed
-    // }));
-
-    //  // Prepare the data object for Unovis
-    //  const networkData = {
-    //     nodes: transformedNodes,
-    //     links: transformedLinks
-    // };
-
         this.data = this.commonService.convertToGraphDataArray(networkData);
 
         // document.documentElement.style.setProperty('--vis-graph-panel-fill-color', `${this.SelectedNodeLabelSizeVariable}pt`);
@@ -2763,35 +2885,96 @@ if (networkData.nodes.length !== 0) {
 
         console.log('rerendering 2');
 
+        // Update Cytoscape visualization if it exists
+    if (this.cy) {
+
+        console.log('updating cytoscape in rerender');
+        this.cy.batch(() => {
+            // Remove existing elements
+            this.cy.elements().remove();
+
+            // Add new nodes and edges
+            const newElements = this.mapDataToCytoscapeElements(this.data);
+            this.cy.add(newElements);
+
+            // Apply the Cose layout to arrange the nodes
+            const layout = this.cy.layout({
+                name: 'cose',
+                animate: false, // Disable animation for faster updates
+                fit: true, // Fit the graph within the viewport
+                padding: 30, // Padding around the graph
+                nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
+                idealEdgeLength: (edge) => 100, // Ideal length of edges
+                edgeElasticity: (edge) => 100, // Elasticity of edges
+                gravity: 80, // Gravity factor
+                numIter: 1000, // Number of iterations
+                // tile: true, // Allow tiling
+                // tilingPaddingVertical: 10, // Vertical padding for tiling
+                // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
+            });
+
+            layout.run();
+        });
+    } else {
+        this.cy = cytoscape({
+            container: this.cyContainer.nativeElement, // container to render in
+        
+            elements: this.mapDataToCytoscapeElements(this.data), // convert your data
+        
+            style: this.getCytoscapeStyles(), // define your styles
+        
+            layout: {
+              name: 'cose', // Use the cose layout
+              animate: false, // Set to true for animation
+              fit: true, // Fit the graph to the viewport
+              padding: 30, // Padding around the graph
+              nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
+              idealEdgeLength: (edge) => 100, // Ideal length of edges
+              edgeElasticity: (edge) => 100, // Elasticity of edges
+              gravity: 80, // Gravity factor
+              numIter: 1000, // Number of iterations
+              // tile: true, // Allow tiling
+              // tilingPaddingVertical: 10, // Vertical padding for tiling
+              // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
+            },
+        
+            // Enable zooming and panning
+            zoomingEnabled: true,
+            userZoomingEnabled: true,
+            panningEnabled: true,
+            userPanningEnabled: true,
+          });
+    }
+
         // Update the panels
-        this.updatePanels();
+        // this.updatePanels();
 
     }
 
-    public updatePanels(): void {
-        if (this.layoutType2 === GraphLayoutType.Parallel && this.showParallel) {
-            // Update nodes and generate new panels
-            const { updatedNodes, panels, groups } = this.commonService.updateNodesAndGeneratePanels(this.data);
+    // public updatePanels(): void {
+    //     if (this.layoutType2 === GraphLayoutType.Parallel && this.showParallel) {
+    //         // Update nodes and generate new panels
+    //         const { updatedNodes, panels, groups } = this.commonService.updateNodesAndGeneratePanels(this.data);
 
-            // Update data with updated nodes
-            this.data = {
-                ...this.data,
-                nodes: updatedNodes
-            };
+    //         // Update data with updated nodes
+    //         this.data = {
+    //             ...this.data,
+    //             nodes: updatedNodes
+    //         };
 
-            // Ensure panels are deep cloned
-            this.panels = JSON.parse(JSON.stringify(panels));
+    //         // Ensure panels are deep cloned
+    //         this.panels = JSON.parse(JSON.stringify(panels));
 
-            // Update polygonGroups
-            this.commonService.temp.polygonGroups = groups;
+    //         // Update polygonGroups
+    //         this.commonService.temp.polygonGroups = groups;
 
-            // Use setTimeout to trigger change detection in the next tick
-            setTimeout(() => {
-                this.cdref.detectChanges();
-                this.cdref.markForCheck();
-            }, 0);
-        }
-    }
+    //         // Use setTimeout to trigger change detection in the next tick
+    //         setTimeout(() => {
+    //             this.cdref.detectChanges();
+    //             this.cdref.markForCheck();
+    //         }, 0);
+    //     }
+    // }
 
     public getNodeShape(node: any) {
 

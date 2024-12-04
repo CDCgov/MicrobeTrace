@@ -1,4 +1,4 @@
-import { GraphNodeShape } from '@unovis/ts';
+// import { GraphNodeShape } from '@unovis/ts';
 
 export interface NodeDatum {
     id: string;
@@ -26,7 +26,7 @@ interface GraphPanelConfig {
     sideIconSymbol?: string;
     sideIconFontSize?: string;
     sideIconSymbolColor?: string;
-    sideIconShape?: GraphNodeShape;
+    // sideIconShape?: GraphNodeShape;
     sideIconShapeSize?: number;
     sideIconShapeStroke?: string;
     sideIconCursor?: string;
