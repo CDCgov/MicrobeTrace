@@ -10,7 +10,7 @@ import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { ComponentContainer } from 'golden-layout';
  
-import { XYContainer, Scatter, Axis } from '@unovis/ts'
+// import { XYContainer, Scatter, Axis } from '@unovis/ts'
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -22,9 +22,9 @@ type DataRecord = { index: number, id: string, x: number; y: number, color: stri
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
-  @ViewChild('scatter') scatterPlot: Scatter<Object>;
-  @ViewChild('x_axis') x_axis: Axis<DataRecord>;
-  @ViewChild('y_axis') y_axis: Axis<DataRecord>;
+  // @ViewChild('scatter') scatterPlot: Scatter<Object>;
+  // @ViewChild('x_axis') x_axis: Axis<DataRecord>;
+  // @ViewChild('y_axis') y_axis: Axis<DataRecord>;
   
   visuals: MicrobeTraceNextVisuals;
   widgets: any;
@@ -70,41 +70,41 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
   */
 
-  tooltipTriggers = {
-    [Scatter.selectors.point]: (d: DataRecord): string => {
-      if (this.SelectedNodeCollapsingTypeVariable) {
-        let output = `
-        <style>
-          #bubbleToolTip {
-            border-spacing: 0;
-            width: 100%;
-            //border: 1px solid #ddd;
-            z-index: 1000;
-          }
+  // tooltipTriggers = {
+  //   [Scatter.selectors.point]: (d: DataRecord): string => {
+  //     if (this.SelectedNodeCollapsingTypeVariable) {
+  //       let output = `
+  //       <style>
+  //         #bubbleToolTip {
+  //           border-spacing: 0;
+  //           width: 100%;
+  //           //border: 1px solid #ddd;
+  //           z-index: 1000;
+  //         }
 
-          #bubbleToolTip td, #bubbleToolTip th {
-            text-align: center;
-            padding: 2px;
-            font-weight: 400;
-            border: 1px solid #ddd;
-          }
+  //         #bubbleToolTip td, #bubbleToolTip th {
+  //           text-align: center;
+  //           padding: 2px;
+  //           font-weight: 400;
+  //           border: 1px solid #ddd;
+  //         }
 
-          #bubbleToolTip tr:nth-child(even) {
-            background-color: #f2f2f2;
-          }
+  //         #bubbleToolTip tr:nth-child(even) {
+  //           background-color: #f2f2f2;
+  //         }
 
-          #bubbleToolTip tr:nth-child(odd) {
-            background-color: #fff;
-          } 
-        </style>
-        <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.visuals.microbeTrace.SelectedColorNodesByVariable)}</th><th> Count </th><th> % </th></thead><tbody>`
-        d.counts.forEach((x) => output += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
-        return output + '</tbody></table>';
-      } else {
-        return d.id
-      }
-    }
-  }
+  //         #bubbleToolTip tr:nth-child(odd) {
+  //           background-color: #fff;
+  //         } 
+  //       </style>
+  //       <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.visuals.microbeTrace.SelectedColorNodesByVariable)}</th><th> Count </th><th> % </th></thead><tbody>`
+  //       d.counts.forEach((x) => output += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
+  //       return output + '</tbody></table>';
+  //     } else {
+  //       return d.id
+  //     }
+  //   }
+  // }
 
   x = (d: DataRecord) => d.x
   y = (d: DataRecord) => d.y

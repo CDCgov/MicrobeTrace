@@ -6,7 +6,7 @@
 // import { NotifyService } from '@abp/notify/notify.service';
 // import { SettingService } from '@abp/settings/setting.service';
 import { Injector } from '@angular/core';
-import { AppConsts } from '@shared/AppConsts';
+import { AppConsts } from '@shared/app.constants';
 import { AppUrlService } from '@shared/common/nav/app-url.service';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { AppUiCustomizationService } from '@shared/common/ui/app-ui-customization.service';

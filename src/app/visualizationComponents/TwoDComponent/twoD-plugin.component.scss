@@ -14,12 +14,12 @@
   width: 99% !important; */ 
 }
 
-:root {
-  --vis-graph-brush-selection-opacity: 0.5; // Adjust the opacity value as needed
-  --vis-graph-brushed-node-stroke-color: #ff0000; // Adjust the color as needed
-  --vis-graph-brushed-node-label-text-color: #00ff00; // Adjust the color as needed
-  --vis-graph-brushed-node-icon-fill-color: #0000ff; // Adjust the color as needed
-}
+// :root {
+//   --vis-graph-brush-selection-opacity: 0.5; // Adjust the opacity value as needed
+//   --vis-graph-brushed-node-stroke-color: #ff0000; // Adjust the color as needed
+//   --vis-graph-brushed-node-label-text-color: #00ff00; // Adjust the color as needed
+//   --vis-graph-brushed-node-icon-fill-color: #0000ff; // Adjust the color as needed
+// }
 
 ::ng-deep {
   .css-1vv8bkf-link-arrow {
@@ -35,6 +35,13 @@
 
 }
 
+#cy {
+  // position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
 
 
 

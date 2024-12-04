@@ -19,23 +19,14 @@
     </span>
 </div>
 
-<vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight" [padding]="{ top: 50, bottom: 50, left: 50, right: 50}">
-    <vis-graph #twoDGraph
+<div #cy id="cy" style="width: 100%; height: 100%;"></div>
+
+<!-- <vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight">
+    <vis-graph
       [layoutType]="layoutType"
       [layoutAutofit]="autoFit"
       [forceLayoutSettings]="forceLayoutSettings"
-      [linkLabel]="linkLabel"
-      [linkWidth]="linkWidth"
-      [linkStroke]="linkStroke"
-      [linkArrow]="linkArrow"
-      [linkStyle]="linkStyle"
-      [nodeFill]="nodeFill"
-      [nodeStroke]="nodeStroke"
-      [nodeStrokeWidth]="nodeStrokeWidth"
-      [nodeLabel]="nodeLabel"
-      [nodeShape]="nodeShape"
-      [nodeSize]="nodeSize"
-      [duration]="0"
+
       [events]="events"
       [zoomScaleExtent]="zoomScaleExtent"
       [selectedNodeId]="selectedNodeId"
@@ -65,7 +56,7 @@
         [panels]="panels"
         [duration]="0"
     ></vis-graph>
-  </vis-single-container>
+  </vis-single-container> -->
   
 <!-- <vis-single-container *ngIf="showParallel" [data]="data2" [height]="containerHeight">
     <vis-graph

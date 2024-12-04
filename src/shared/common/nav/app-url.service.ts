@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { AppConsts } from '@shared/AppConsts';
+import { AppConsts } from '@shared/app.constants';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 
 @Injectable()

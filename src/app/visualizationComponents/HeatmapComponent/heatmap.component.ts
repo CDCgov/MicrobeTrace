@@ -13,7 +13,7 @@ import { DialogSettings } from '../../helperClasses/dialogSettings';
 // import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
-
+import { cloneDeep } from 'lodash';
 
 
 @Component({
@@ -338,7 +338,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   saveDistanceMatrix(): void {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
-    const labelArray = _.cloneDeep(this.heatmapLabels);
+    const labelArray = cloneDeep(this.heatmapLabels);
     this.commonService.getDM().then(dm => {
       let csvContent = "data:text/csv;charset=utf-8,";
       if (this.heatmapShowLabels) {

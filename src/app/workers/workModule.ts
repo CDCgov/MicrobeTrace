@@ -4,6 +4,9 @@ import { InlineWorker } from '../helperClasses/inlineWorker';
 import Papa from 'papaparse';
 import * as bioseq from 'bioseq';
 
+console.log('worker imports');
+
+
 @NgModule({})
 export class WorkerModule implements OnInit {
 
@@ -11,11 +14,16 @@ export class WorkerModule implements OnInit {
 
   constructor() {
 
+    console.log('worker imports 2');
+
     this.compute_parse_csv_matrixWorker = new Worker('assets/parse-csv-matrix.js');
 
   }
 
   ngOnInit() {
+
+    console.log('worker imports 3');
+
 
   }
 

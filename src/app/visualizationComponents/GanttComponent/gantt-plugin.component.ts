@@ -13,6 +13,7 @@ import { ComponentContainer } from 'golden-layout';
 import { GanttChartService } from './gantt-chart/gantt-chart.service';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
+import { cloneDeep } from 'lodash';
 
 
 @Component({
@@ -226,7 +227,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     else {
       const newEntry = this.makeGanttEntry(this.GanttEntryName, this.GanttStartVariable, this.GanttEndVariable, this.GanttEntryColor);
       this.ganttEntries.push({entryName: this.GanttEntryName, startDate: this.GanttStartVariable, endDate: this.GanttEndVariable, color: this.GanttEntryColor});
-      const existingData = _.cloneDeep(this.ganttChartData);
+      const existingData = cloneDeep(this.ganttChartData);
       existingData.push(newEntry);
       this.ganttChartData = existingData;
     }
@@ -237,7 +238,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   }
 
   removeGanttEntry(entryName): void {
-    const startingEntries = _.cloneDeep(this.ganttChartData);
+    const startingEntries = cloneDeep(this.ganttChartData);
     const endingEntries = startingEntries.filter(x => x["name"] !== entryName)
     this.ganttEntries = this.ganttEntries.filter(x => x["entryName"] !== entryName);
     this.ganttChartData = endingEntries;
@@ -252,7 +253,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
 
   updateEntryColor(entryName: string, event: Event): void {
     const color = (event.target as HTMLInputElement).value;
-    const startingData = _.cloneDeep(this.ganttChartData);
+    const startingData = cloneDeep(this.ganttChartData);
     for (let i=0; i<startingData.length; i++){
       if (startingData[i]["name"] === entryName){
         startingData[i]["color"] = color;
