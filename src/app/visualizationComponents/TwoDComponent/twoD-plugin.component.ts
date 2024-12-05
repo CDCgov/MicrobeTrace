@@ -603,57 +603,96 @@ initializeCytoscape() {
 
 
   mapDataToCytoscapeElements(data: any): cytoscape.ElementsDefinition {
-    const nodes = data.nodes.map((node: any) => ({
-      data: {
-        id: node.id,
-        label: node.label, // Adjust based on your data fields
-        // Include any additional node-specific data properties
-        ...node
-      }
-    }));
+
+    // Create a set to track unique parent nodes
+  const parentNodes = new Set();
+
+    const nodes = data.nodes.map((node: any) => {
+         // If the node has a parentId, add it to the parentNodes set
+        if (node.group && this.widgets['polygons-show']) {
+            parentNodes.add(node.group);
+        }
+
+        return {
+            data: {
+                id: node.id,
+                label: node.label, // Existing label
+                parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
+                nodeSize: this.getNodeSize(node), // Existing node size
+                nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
+                borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
+                fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
+                // Include any additional node-specific data properties
+                ...node
+            }
+        };
+    });
   
     const edges = data.links.map((link: any) => ({
-      data: {
-        id: `${link.source}-${link.target}`,
-        source: link.source,
-        target: link.target,
-        label: link.label, // Adjust based on your data fields
-        // Include any additional edge-specific data properties
-        ...link
-      }
+        data: {
+            id: `${link.source}-${link.target}`,
+            source: link.source,
+            target: link.target,
+            label: link.label, // Existing link label
+            // Include any additional edge-specific data properties
+            ...link
+        }
     }));
   
     return {
-      nodes: nodes,
-      edges: edges
+        nodes: nodes,
+        edges: edges
     };
   }
 
     getCytoscapeStyles(): cytoscape.Stylesheet[] {
         return [
             {
-                selector: 'node',
+                selector: 'node)',
                 style: {
-                    'background-color': '#666',
+                    'background-color': 'data(nodeColor)', // Use dynamic node color
                     'label': 'data(label)',
-                    'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Example of dynamic sizing
-                    'height': 'mapData(nodeSize, 0, 100, 10, 50)',
-                    'border-width': 'data(borderWidth)', // Dynamic border width
-                    'border-color': '#000',
+                    // 'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Existing dynamic sizing
+                    // 'height': 'mapData(nodeSize, 0, 100, 10, 50)',
+                    // 'border-width': 'data(borderWidth)', // Use dynamic border width
+                    // 'border-color': '#000',
                     'text-valign': 'center',
-                    'color': '#fff',
-                    'font-size': '12px'
+                    'color': 'black',
+                    // 'font-size': 'data(fontSize)' // Ensure this line is included
                 }
             },
+              // Apply styles only to nodes with nodeSize defined
             {
+                selector: 'node[nodeSize]',
+                style: {
+                    'width': 'mapData(nodeSize, 0, 100, 10, 50)',
+                    'height': 'mapData(nodeSize, 0, 100, 10, 50)'
+                }
+            },
+            // Apply styles only to nodes with nodeColor defined
+            {
+                selector: 'node[nodeColor]',
+                style: {
+                    'background-color': 'data(nodeColor)'
+                }
+            },
+            // Apply styles only to nodes with fontSize defined
+            {
+                selector: 'node[fontSize]',
+                style: {
+                    'font-size': 'data(fontSize)'
+                }
+            },
+
+                        {
                 selector: 'edge',
                 style: {
-                    'width': 'mapData(linkWidth, 0, 100, 1, 10)', // Dynamic edge width
+                    'width': 'mapData(linkWidth, 0, 100, 1, 10)', // Existing dynamic edge width
                     'line-color': '#ccc',
                     'target-arrow-color': '#ccc',
                     'target-arrow-shape': 'triangle',
                     'curve-style': 'bezier'
-                    // 'opacity': 'data(opacity)' // Dynamic opacity
+                    // 'opacity': 'data(opacity)' // Existing opacity
                 }
             },
             {
@@ -691,7 +730,7 @@ initializeCytoscape() {
         // Example: Hover events
         this.cy.on('mouseover', 'node', (evt) => {
             const node = evt.target;
-            this.showNodeTooltip(node, evt.originalEvent);
+            this.showNodeTooltip(node.data(), evt.originalEvent);
         });
     
         this.cy.on('mouseout', 'node', () => {
@@ -701,7 +740,7 @@ initializeCytoscape() {
         // Edge events
         this.cy.on('mouseover', 'edge', (evt) => {
             const edge = evt.target;
-            this.showLinkTooltip(edge, evt.originalEvent);
+            this.showLinkTooltip(edge.data(), evt.originalEvent);
         });
     
         this.cy.on('mouseout', 'edge', () => {
@@ -918,7 +957,7 @@ initializeCytoscape() {
                 if (!that.isLoading) {
                     that.isLoading = true;
 
-                    that.debouncedRerender();
+                    // that.debouncedRerender();
                     that.isLoading = false;
 
 
@@ -952,7 +991,7 @@ initializeCytoscape() {
                         that.selectedNodeId = mtSelectedNode._id;
                     }
 
-                    that.debouncedRerender();
+                    // that.debouncedRerender();
                     if (that.debugMode) {
                         console.log('node-selected in 2d: ', that.selectedNodeId);
                         console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
@@ -981,10 +1020,6 @@ initializeCytoscape() {
                 if (this.debugMode) {
                     console.log('data: ', this.data);
                 }
-
-                // console.log('rerender 1');
-                // // Call render and then set isLoading to false to allo triggering of other renders
-                // await this.debouncedRerender();
                 this.isLoading = false;
 
             }, 1);
@@ -1048,8 +1083,8 @@ initializeCytoscape() {
      * @returns an array [X, Y] of the position of mouse relative to twodcomponent. Global position (i.e. d3.event.pageX) doesn't work for a dashboard
      */
     getRelativeMousePosition(event) {
-        // Get position based on container, which may be paralell viz or not
-        let rect = (!this.showParallel) ? document.getElementById('viz-force').getBoundingClientRect() : document.getElementById('viz-paralell').getBoundingClientRect()
+        // Get position based on container
+        let rect =  document.getElementById('cy').getBoundingClientRect();
         const X = event['clientX'] - rect.left;
         const Y = event['clientY'] - rect.top;
         return [X, Y];
@@ -1527,6 +1562,7 @@ initializeCytoscape() {
             this.updatePolygonColors();
         });
         let countHeader = $((this.widgets["polygon-color-table-counts"] ? "<th>Count</th>" : "")).append(countSort);
+        console.log('polygonColorTable0: ', $("#polygon-color-table"));
         let polygonColorTable = $("#polygon-color-table")
             .empty()
             .append($("<tr></tr>"))
@@ -1534,9 +1570,13 @@ initializeCytoscape() {
             .append(countHeader)
             .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
             .append("<th>Color</th>");
+        console.log('polygonColorTable01: ', polygonColorTable);
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
         let aggregates = this.commonService.createPolygonColorMap();
         let values = Object.keys(aggregates);
+
+        console.log('values', values);
+        console.log('aggregates', aggregates);
 
         if (this.widgets["polygon-color-table-counts-sort"] == "ASC")
             values.sort(function (a, b) { return aggregates[a] - aggregates[b] });
@@ -1553,6 +1593,7 @@ initializeCytoscape() {
         let that = this;
 
         values.forEach((value, i) => {
+            console.log('value: ', value);
             that.commonService.session.style['polygonColors'].splice(i, 1, that.commonService.temp.style.polygonColorMap(value));
             that.commonService.session.style['polygonAlphas'].splice(i, 1, that.commonService.temp.style.polygonAlphaMap(value));
             let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '">')
@@ -1593,9 +1634,23 @@ initializeCytoscape() {
                 (that.widgets["polygon-color-table-frequencies"] ? "<td>" + (aggregates[value] / total).toLocaleString() + "</td>" : "") +
                 "</tr>"
             ).append(cell);
+
+            console.log('polygonColorTable1: ', polygonColorTable);
+            console.log('polygonColorRow: ', row);
+
             polygonColorTable.append(row);
 
+            console.log($('#polygon-color-table').length); // Should be 1
+            console.log($('#polygon-color-table').html()); // Check current HTML content
+
         });
+
+        console.log('polygonColorTable2: ', polygonColorTable);
+
+
+        console.log($('#polygon-color-table').length); // Should be 1
+            console.log($('#polygon-color-table').html()); // Check current HTML content
+
 
         // PRE D3
         // this.commonService.temp.style.polygonColorMap = d3
@@ -1658,7 +1713,7 @@ initializeCytoscape() {
 
         this.widgets['polygons-show'] = flag;
 
-        this.showParallel = flag;
+        this.updateNodeGrouping(flag);
 
         if (flag) {
             if (this.widgets['polygons-color-show'] == true) {
@@ -1682,6 +1737,133 @@ initializeCytoscape() {
         }
 
     }
+
+    /**
+     * Updates node grouping based on the polygons-show flag.
+     * @param flag boolean indicating whether to show polygons/groups
+     */
+    private updateNodeGrouping(flag: boolean): void {
+        const cy = this.cy; // Reference to Cytoscape instance
+        if (!cy) {
+            console.error('Cytoscape instance is not initialized.');
+            return;
+        }
+
+        cy.batch(() => {
+            if (flag) {
+                this.addParentNodesAndGroupChildren(cy);
+            } else {
+                this.removeParentNodesAndUngroupChildren(cy);
+            }
+        });
+    }
+
+    /**
+     * Adds parent nodes for each group and assigns child nodes to these parents.
+     * @param cy Cytoscape instance
+     */
+    private addParentNodesAndGroupChildren(cy: cytoscape.Core): void {
+        // Extract unique groups from nodes
+         // Extract unique groups from nodes
+        const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
+        cy.nodes().forEach(node => {
+            const group = node.data('group');
+            if (group) {
+                if (!groupMap.has(group)) {
+                    groupMap.set(group, []);
+                }
+                groupMap.get(group)?.push(node);
+            }
+        });
+
+         // Convert groupMap to an array of { key, values }
+        const polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            key,
+            values: values.map(node => node.data('id')) // Assuming 'id' is the unique identifier
+        }));
+
+        // Store the structured groups to the commonService.temp.polygonGroups
+        this.commonService.temp.polygonGroups = polygonGroups;
+
+
+            // Add parent nodes for each group if they don't exist
+        groupMap.forEach((nodesInGroup, group) => {
+            const parentId = `${group}`;
+            if (cy.getElementById(parentId).length === 0) {
+
+                cy.add({
+                    group: 'nodes',
+                    data: { 
+                        id: parentId, 
+                        label: group, 
+                        isParent: true, 
+                        nodeColor: this.commonService.temp.style.polygonColorMap(group) || '#000' // this is the background color for group
+                    },
+                    classes: 'parent' // Optional: Add a class for styling
+                });
+            }
+        });
+
+        // Assign child nodes to their respective parents
+        cy.nodes().forEach(node => {
+            const group = node.data('group');
+            if (group) {
+                const parentId = `${group}`;
+                node.move({ parent: parentId });
+            }
+        });
+
+        // Optionally, update the layout to accommodate new parent nodes
+        // cy.layout({ name: 'cose-bilkent', animate: true }).run();
+    }
+
+    /**
+     * Removes all parent (group) nodes and unassigns child nodes from any parents.
+     * @param cy Cytoscape instance
+     */
+    private removeParentNodesAndUngroupChildren(cy: cytoscape.Core): void {
+        // Identify all parent nodes (assuming they have 'isParent' flag)
+        const parentNodes = cy.nodes('[isParent = true]');
+
+        // Unassign child nodes from parents
+        parentNodes.forEach(parent => {
+            cy.nodes(`[parent = "${parent.id()}"]`).forEach(child => {
+                child.move({ parent: null });
+            });
+        });
+
+        // Remove parent nodes
+        cy.remove(parentNodes);
+
+        // Optionally, update the layout after ungrouping
+        // cy.layout({ name: 'cose-bilkent', animate: true }).run();
+    }
+
+    private updateGroupNodeColors(): void {
+        // Retrieve the color mapping function
+        const groupColorMap = this.commonService.temp.style.polygonColorMap;
+        // Select all parent nodes (groups)
+        this.cy.nodes('.parent').forEach(parentNode => {
+
+            console.log('parentNode: ', parentNode);
+            const groupName = parentNode.data('id'); // Assuming parentId is the group name
+
+            if (!this.commonService.session.style.widgets['polygons-color-show']) {
+                const newColor = this.commonService.session.style.widgets['polygon-color'];
+
+                parentNode.data('nodeColor', newColor);
+
+            } else {
+                const newColor = groupColorMap(groupName) || '#000'; // Default to black if not found
+                // Update the nodeColor data attribute
+                parentNode.data('nodeColor', newColor);
+            }
+
+        });
+             
+        // Refresh Cytoscape styles to apply changes
+        this.cy.style().update();
+    }
     /**
      * This function is called when polygon-color-show widget is updated from the template.
      * This widget controls whether polygon should be colored the same or different.
@@ -1690,16 +1872,19 @@ initializeCytoscape() {
      * seems redundant/unnecessary. Evaluate whether function can be reduce/eliminated. XXXXX
      */
     polygonColorsToggle(e) {
+
+        console.log('polygonColorsToggle: ', e);
+
         if (e) {
             this.widgets['polygons-color-show'] = true;
             $("#polygon-color-value-row").slideUp();
             $("#polygon-color-table-row").slideDown();
             this.PolygonColorTableWrapperDialogSettings.setVisibility(true);
-            // this.updatePolygonColors();
 
             setTimeout(() => {
                 this.updatePolygonColors();
-                this.debouncedRerender();
+                this.updateGroupNodeColors();
+                // this.debouncedRerender();
             }, 200);
 
         }
@@ -1709,7 +1894,7 @@ initializeCytoscape() {
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-table").empty();
             this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
-
+            this.updateGroupNodeColors();
         }
     }
 
@@ -1723,7 +1908,7 @@ initializeCytoscape() {
      */
     onPolygonColorChanged(e) {
         this.widgets["polygon-color"] = e;
-        this.debouncedRerender();
+        this.updateGroupNodeColors();
     }
 
     /**
@@ -1736,14 +1921,16 @@ initializeCytoscape() {
      */
     polygonColorsTableToggle(e) {
 
+        console.log('polygonColorsTableToggle: ', e);
+
         if (e) {
-            this.onPolygonColorTableChange('Show')
+            this.onPolygonColorTableChange(e)
         }
         else {
-            this.onPolygonColorTableChange('Hide')
+            this.onPolygonColorTableChange(e)
         }
 
-        this.debouncedRerender();
+        // this.debouncedRerender();
     }
 
     private polygonNodeSelected = null;
@@ -2200,7 +2387,7 @@ initializeCytoscape() {
         if (tt_var_len == 0) {
           return null;
         } else if (tt_var_len == 1) {
-          tooltipHtml =  `${d[this.widgets['node-tooltip-variable']]}`
+         tooltipHtml =  `${d[this.widgets['node-tooltip-variable'][0]]}`
         } else {
           tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
         }
@@ -2299,15 +2486,12 @@ initializeCytoscape() {
     hideTooltip() {
         if (this.widgets['node-highlight']) {
             this.selectedNodeId = undefined;
-            console.log(' rerender hide tooltip 1');
-
-            this.debouncedRerender();
         }
-        // let tooltip = d3.select('#tooltip');
-        // tooltip
-        //     .transition().duration(100)
-        //     .style('opacity', 0)
-        //     .on('end', () => tooltip.style('z-index', -1));
+        let tooltip = d3.select('#tooltip');
+        tooltip
+            .transition().duration(100)
+            .style('opacity', 0)
+            .on('end', () => tooltip.style('z-index', -1));
     };
 
 
@@ -2464,10 +2648,11 @@ initializeCytoscape() {
     centerPolygons(e) {
 
         this.widgets['polygons-foci'] = e;
-        this.debouncedRerender();
+        // this.debouncedRerender();
         if (this.widgets['polygons-color-show'] == true) {
             $("#polygon-color-table").empty();
             this.updatePolygonColors();
+            this.updateGroupNodeColors();
             //   this.debouncedRerender();
         }
 
@@ -2494,7 +2679,7 @@ initializeCytoscape() {
      */
     onPolygonLabelOrientationChange(e) {
         this.widgets['polygons-label-orientation'] = e;
-        this.debouncedRerender();
+        // this.debouncedRerender();
     }
 
     /**
@@ -2510,7 +2695,7 @@ initializeCytoscape() {
             $('.polygons-label-row').slideUp();
         }
 
-        this.debouncedRerender();
+        // this.debouncedRerender();
     }
 
 
@@ -2519,13 +2704,22 @@ initializeCytoscape() {
      * from template e is true/false XXXXX
      */
     onPolygonColorTableChange(e) {
-        this.SelectedNetworkTableTypeVariable = e;
+        console.log('onPolygonColorTableChange: ', e);
+
         this.widgets["polygon-color-table-visible"] = e;
-        if (this.SelectedNetworkTableTypeVariable == 'Show') {
+
+        if (e) {
+            this.SelectedNetworkTableTypeVariable = 'Show';
+
             this.PolygonColorTableWrapperDialogSettings.setVisibility(true);
-        }
-        else {
-            // this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
+            setTimeout(() => {
+                this.updatePolygonColors();
+                this.updateGroupNodeColors()
+            }, 0);
+         } else {
+            this.SelectedNetworkTableTypeVariable = 'Hide';
+            this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
+
         }
     }
 
@@ -2547,7 +2741,7 @@ initializeCytoscape() {
             $('.node-label-row').css('display', 'flex');
         }
 
-        this.debouncedRerender();
+        // this.debouncedRerender();
     }
 
     /**
@@ -2618,7 +2812,8 @@ initializeCytoscape() {
      */
     setNodeLabelSize(size) {
         this.widgets['node-label-size'] = parseFloat(size);
-        document.documentElement.style.setProperty('--vis-graph-node-label-font-size', `${this.SelectedNodeLabelSizeVariable}pt`);
+        this.updateNodeLabelSizes(); // Update label sizes without rerendering the entire network
+        // document.documentElement.style.setProperty('--vis-graph-node-label-font-size', `${this.SelectedNodeLabelSizeVariable}pt`);
     }
 
 
@@ -2716,7 +2911,7 @@ initializeCytoscape() {
         this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
         console.log('symbol node');
 
-        this.debouncedRerender();
+        // this.debouncedRerender();
     }
 
     svgDefs = `
@@ -2912,7 +3107,7 @@ initializeCytoscape() {
     public onNodeBorderWidthChange(e) {
         this.widgets['node-border-width'] = e;
         this.updateMinMaxNode()
-        this.debouncedRerender();
+        this.updateNodeBorders(); // Update border widths without rerendering the entire network
     }
 
     /**
@@ -2921,8 +3116,7 @@ initializeCytoscape() {
     public onNodeRadiusChange(e) {
 
         this.widgets['node-radius'] = e;
-
-        this.debouncedRerender();
+        this.updateNodeSizes(); // Update node sizes without rerendering the entire network
 
     }
 
@@ -2949,12 +3143,12 @@ initializeCytoscape() {
         };
 
 
-// Determine autoFit based on node-timeline-variable
-if (networkData.nodes.length !== 0) {
-    this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
-} else {
-    this.autoFit = true;
-}
+        // Determine autoFit based on node-timeline-variable
+        if (networkData.nodes.length !== 0) {
+            this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
+        } else {
+            this.autoFit = true;
+        }
 
 
         if (this.debugMode) {
@@ -3031,6 +3225,8 @@ if (networkData.nodes.length !== 0) {
             panningEnabled: true,
             userPanningEnabled: true,
           });
+
+          this.attachCytoscapeEvents();
     }
 
         // Update the panels
@@ -3578,6 +3774,12 @@ if (networkData.nodes.length !== 0) {
             //  this.context.microbeTrace.generateNodeColorTable("#node-color-table-bottom", false);
         }
 
+        this.cy.nodes().forEach(node => {
+            const newColor = this.getNodeColor(node.data());
+            node.data('nodeColor', newColor);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+
 
         // Array.from(nodes._groups).forEach((x: any)=>{
         //     x.forEach(y=>{
@@ -3593,7 +3795,7 @@ if (networkData.nodes.length !== 0) {
 
         // })
 
-        this.debouncedRerender();
+        // this.debouncedRerender();
 
         // (data: Datum, event: MouseEvent, i: number, els: (SVGElement | HTMLElement)[])
 
@@ -3941,6 +4143,7 @@ if (networkData.nodes.length !== 0) {
         if (this.widgets['polygons-show']) {
             this.updatePolygonColors();
             this.polygonColorsToggle(this.widgets['polygon-color-table-visible'])
+            this.updateGroupNodeColors();
         }
 
         //Nodes|Label
@@ -4060,6 +4263,90 @@ if (networkData.nodes.length !== 0) {
         this.SelectedPolygonLabelOrientationVariable = this.widgets['polygon-label-orientation'];
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
     }
+
+    /**
+     * Updates the sizes of all nodes based on the current widget settings.
+     */
+    updateNodeSizes() {
+        this.cy.nodes().forEach(node => {
+            const newSize = this.getNodeSize(node.data());
+            node.data('nodeSize', newSize);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
+     /**
+     * Updates the border widths of all nodes based on the current widget settings.
+     */
+     updateNodeBorders() {
+        this.cy.nodes().forEach(node => {
+            const newBorderWidth = this.getNodeBorderWidth(node.data());
+            node.data('borderWidth', newBorderWidth);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
+    /**
+     * Updates the labels of all nodes based on the current widget settings.
+     */
+    updateNodeLabels() {
+        this.cy.nodes().forEach(node => {
+            const newLabel = this.getNodeLabel(node.data());
+            node.data('label', newLabel);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
+    /**
+     * Updates the font sizes of all node labels based on the current widget settings.
+     */
+    updateNodeLabelSizes() {
+        this.cy.nodes().forEach(node => {
+            const newFontSize = this.getNodeFontSize(node.data());
+            node.data('fontSize', newFontSize);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
+
+
+    /**
+     * Handles changes to the node label widget.
+     * @param e New label value from the widget.
+     */
+    onNodeLabelChange(e: string) {
+        this.widgets['node-label'] = e;
+        this.updateNodeLabels(); // Update labels without rerendering the entire network
+    }
+
+    /**
+     * Handles changes to the node color widget.
+     * @param e New color value from the widget.
+     */
+    onNodeColorChange(e: string) {
+        this.widgets['node-color'] = e;
+        this.updateNodeColors(); // Update node colors without rerendering the entire network
+    }
+
+    /**
+     * Retrieves the border width for a node based on current widget settings.
+     * @param node The node data object.
+     * @returns The border width.
+     */
+    getNodeBorderWidth(node: any): number {
+        return this.widgets['node-border-width'] || 2; // Default to 2 if not set
+    }
+
+
+    /**
+     * Retrieves the font size for a node label based on current widget settings.
+     * @param node The node data object.
+     * @returns The font size in pixels.
+     */
+    getNodeFontSize(node: any): number {
+        return this.widgets['node-label-size'] || 12; // Default to 12px if not set
+    }
+
 }
 
 export namespace TwoDComponent {

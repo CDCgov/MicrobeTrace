@@ -2940,7 +2940,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.temp.style.polygonColorMap = () => this.session.style.widgets['polygon-color'];
             return [];
         }
-    
+
         let aggregates = {};
         let groups = this.temp.polygonGroups;
 
@@ -4088,18 +4088,17 @@ export class CommonService extends AppComponentBase implements OnInit {
             .attr("width", 6)
             .attr("height", d => height - y(d.length));
 
+        let that = this;
+
         /**
          * Uses the position on the histogram to set the link thresehold value
          */
         function updateThreshold() {
             let xc = (d3 as any).mouse(svg.node())[0];
-            let decimalPlaces = (this.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+            let decimalPlaces = (that.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
 
-            this.session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
-            $("#link-threshold").val(parseFloat(this.session.style.widgets["link-threshold"].toFixed(decimalPlaces)));
-
-            this.visuals.microbeTrace.SelectedLinkThresholdVariable = parseFloat(this.session.style.widgets["link-threshold"].toFixed(decimalPlaces));
-            this.visuals.microbeTrace.onLinkThresholdChanged();
+            that.session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
+            $("#link-threshold").val(parseFloat(that.session.style.widgets["link-threshold"].toFixed(decimalPlaces)));
         }
 
         svg.on("click", () => {

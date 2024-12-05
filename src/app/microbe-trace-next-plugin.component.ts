@@ -782,6 +782,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.session.style.widgets["link-sort-variable"] = this.SelectedLinkSortVariable;
         this.commonService.updateThresholdHistogram();
+        this.SelectedLinkThresholdVariable = parseFloat(this.commonService.session.style.widgets["link-threshold"].toFixed((this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0));
+        this.onLinkThresholdChanged();
         this.commonService.updateNetwork();
     }
 
