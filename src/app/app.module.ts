@@ -69,7 +69,6 @@ import { ModalModule } from 'ngx-bootstrap/modal';
 import { BsDropdownModule } from 'ngx-bootstrap/dropdown';
 import { PopoverModule } from 'ngx-bootstrap/popover';
 
-import { VisGraphModule, VisSingleContainerModule, VisXYContainerModule, VisScatterModule, VisAxisModule, VisTooltipModule } from '@unovis/angular';
 import { GanttComponent } from './visualizationComponents/GanttComponent/gantt-plugin.component';
 import { GanttChartComponent } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.component';
 import { GanttChartService } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.service';
@@ -157,16 +156,10 @@ export class TestedComponent {
     SliderModule,
     LeafletModule,
     LeafletMarkerClusterModule,
-    VisGraphModule,
-    VisSingleContainerModule,
     OrderListModule,
     GoogleTagManagerModule.forRoot({id: 'G-0MWHB1NG2M',}),
     CommonModule,
     // PlotlyModule,
-    VisXYContainerModule, 
-    VisScatterModule, 
-    VisAxisModule,
-    VisTooltipModule,
   ],
   exports: [
     SelectButtonModule

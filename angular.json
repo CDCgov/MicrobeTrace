@@ -47,12 +47,7 @@
               "src/assets/common/data",
               "src/assets/images/Logo.png",
               "src/Logo.png",
-              "src/default.microbetrace",
-              "src/map.microbetrace",
-              "src/outbreak.microbetrace",
               "src/outbreaknorm.microbetrace",
-              "src/Bulg.microbetrace",
-              "src/test3.microbetrace",
               "src/outbreakover.microbetrace",
               "src/assets/parse-csv-matrix.js",
               "src/assets/papaparse.min.js"

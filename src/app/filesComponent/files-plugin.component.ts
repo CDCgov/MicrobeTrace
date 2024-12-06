@@ -12,6 +12,7 @@ import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
+import { cloneDeep } from 'lodash';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -27,6 +28,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   @Output() LoadDefaultVisualizationEvent = new EventEmitter();
 
+  auspiceUrlVal: any;
 
   SelectedDefaultDistanceMetricVariable: string = "tn93";
   SelectedAmbiguityResolutionStrategyVariable: string = "AVERAGE";
@@ -107,6 +109,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   public title: string;
   public id: string;
+  
 
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, elRef: ElementRef,
@@ -133,23 +136,24 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     //     }
     // }
 
-    this.visuals = commonService.visuals;
-    this.visuals.filesPlugin = this;
+    console.log('commonService: ', commonService);
+    // this.visuals = commonService.visuals;
+    // this.visuals.filesPlugin = this;
   }
 
   ngOnInit() {
 
     this.RefSeqIDTypes.push(
-      { label: 'Pol', value: this.visuals.microbeTrace.commonService.HXB2.substr(2000, 2100) });
+      { label: 'Pol', value: this.commonService.HXB2.substr(2000, 2100) });
 
     this.RefSeqIDTypes.push(
-      { label: 'Complete', value: this.visuals.microbeTrace.commonService.HXB2 });
+      { label: 'Complete', value: this.commonService.HXB2 });
 
 
-    this.SelectedDefaultDistanceThresholdVariable = this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
-    this.SelectedDefaultDistanceMetricVariable = this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable;
-    this.visuals.microbeTrace.commonService.LoadViewEvent.subscribe((v) => { this.loadDefaultVisualization(v); });
-    this.visuals.microbeTrace.commonService.session.data.reference = this.visuals.microbeTrace.commonService.HXB2.substr(2000, 2100);
+    this.SelectedDefaultDistanceThresholdVariable = this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
+    this.SelectedDefaultDistanceMetricVariable = this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable;
+    this.commonService.LoadViewEvent.subscribe((v) => { this.loadDefaultVisualization(v); });
+    this.commonService.session.data.reference = this.commonService.HXB2.substr(2000, 2100);
 
     if (this.eventEmitterService.subsVar==undefined) {    
       this.eventEmitterService.subsVar = this.eventEmitterService.    
@@ -158,13 +162,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         });    
     }  
 
+     // Subscribe to new session event
+     this.commonService.newSession.subscribe(() => {
+      this.removeAllFiles();
+    });
+
+    // Subscribe to style file applied event
+    this.commonService.styleFileApplied.subscribe(() => {
+      this.applyStyleFileSettings();
+    });
+
     // TODO: the rest of ngOnInit can be revised to take advantage of angular features
     $('.alignConfigRow').hide();
 
     $('#align-sw').parent().on('click', () => {
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['align-sw'] = true;
-      this.visuals.microbeTrace.commonService.session.style.widgets['align-none'] = false;
+      this.commonService.session.style.widgets['align-sw'] = true;
+      this.commonService.session.style.widgets['align-none'] = false;
       $('.alignConfigRow, #reference-file-row').slideDown();
       $('#alignment-preview').slideUp(function () {
 
@@ -176,8 +190,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     $('#align-none').parent().on('click', () => {
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['align-sw'] = false;
-      this.visuals.microbeTrace.commonService.session.style.widgets['align-none'] = true;
+      this.commonService.session.style.widgets['align-sw'] = false;
+      this.commonService.session.style.widgets['align-none'] = true;
       $('.alignConfigRow, #reference-file-row').slideUp();
       $('#alignment-preview').slideUp(function () {
 
@@ -191,27 +205,27 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-file'] = true;
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-first'] = false;
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-consensus'] = false;
-      this.visuals.microbeTrace.commonService.session.data.reference = $('#refSeqID').val().toString();
+      this.commonService.session.style.widgets['reference-source-file'] = true;
+      this.commonService.session.style.widgets['reference-source-first'] = false;
+      this.commonService.session.style.widgets['reference-source-consensus'] = false;
+      this.commonService.session.data.reference = $('#refSeqID').val().toString();
 
       //debugger;
 
-      if (!this.visuals.microbeTrace.commonService.session.style.widgets['align-none']) $('#reference-file-row').slideDown();
+      if (!this.commonService.session.style.widgets['align-none']) $('#reference-file-row').slideDown();
     });
 
     $('#reference-source-first').parent().on('click', () => {
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-file'] = false;
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-first'] = true;
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-consensus'] = false;
+      this.commonService.session.style.widgets['reference-source-file'] = false;
+      this.commonService.session.style.widgets['reference-source-first'] = true;
+      this.commonService.session.style.widgets['reference-source-consensus'] = false;
       $('#reference-file-row').slideUp();
     });
 
     $('#reference-source-consensus').parent().on('click', () => {
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-file'] = false;
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-first'] = false;
-      this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-consensus'] = true;
+      this.commonService.session.style.widgets['reference-source-file'] = false;
+      this.commonService.session.style.widgets['reference-source-first'] = false;
+      this.commonService.session.style.widgets['reference-source-consensus'] = true;
       $('#reference-file-row').slideUp();
     });
 
@@ -221,43 +235,43 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const file = this.visuals.microbeTrace.commonService.session.files[0];   //this.files[0];
-      const reader = new FileReader();
+      const file = this.commonService.session.files[0];   //this.files[0];
+      let reader = new FileReader();
       reader.onloadend = (e: any) => {
         if (e.target.readyState === FileReader.DONE) {
-          this.visuals.microbeTrace.commonService.parseFASTA(e.target.result).then(nodes => {
+          this.commonService.parseFASTA(e.target.result).then(nodes => {
             $('#refSeqID')
               .html(nodes.map((d, i) => `
-                                <option value="${this.visuals.microbeTrace.commonService.filterXSS(d.seq)}" ${i === 0 ? "selected" : ""}>${this.visuals.microbeTrace.commonService.filterXSS(d.id)}</option>
+                                <option value="${this.commonService.filterXSS(d.seq)}" ${i === 0 ? "selected" : ""}>${this.commonService.filterXSS(d.id)}</option>
                               `))
               .trigger('change');
           });
-          $('label[for="refSeqFileLoad"]').text(this.visuals.microbeTrace.commonService.filterXSS(file.name));
+          $('label[for="refSeqFileLoad"]').text(this.commonService.filterXSS(file.name));
         }
       };
       reader.readAsText(file);
     });
 
     $('#refSeqID').html(`
-          <option value="${this.visuals.microbeTrace.commonService.HXB2.substr(2000, 2100)}" selected>Pol</option>
-          <option value="${this.visuals.microbeTrace.commonService.HXB2}">Complete</option>
+          <option value="${this.commonService.HXB2.substr(2000, 2100)}" selected>Pol</option>
+          <option value="${this.commonService.HXB2}">Complete</option>
         `).on('change', (e) => {
 
           //debugger;
-          this.visuals.microbeTrace.commonService.session.data.reference = e.data;// this.value;
+          this.commonService.session.data.reference = e.data;// this.value;
 
         });
 
     $('#alignment-preview').on('click', () => {
       this.readFastas().then(data => {
-        if (this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-first']) {
+        if (this.commonService.session.style.widgets['reference-source-first']) {
 
           //debugger;
 
-          this.visuals.microbeTrace.commonService.session.data.reference = ""; //nodes[0].seq;
+          this.commonService.session.data.reference = ""; //nodes[0].seq;
         }
-        if (this.visuals.microbeTrace.commonService.session.style.widgets['reference-source-consensus']) {
-          this.visuals.microbeTrace.commonService.computeConsensus().then(consensus => this.visuals.microbeTrace.commonService.session.data.reference = consensus);
+        if (this.commonService.session.style.widgets['reference-source-consensus']) {
+          this.commonService.computeConsensus().then(consensus => this.commonService.session.data.reference = consensus);
         }
         this.updatePreview(data);
       });
@@ -321,7 +335,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //debugger;
 
       const lsv = e.data ? e.data : 'tn93';
-      this.visuals.microbeTrace.commonService.localStorageService.setItem('default-distance-metric', lsv);
+      this.commonService.localStorageService.setItem('default-distance-metric', lsv);
       $('#default-distance-metric').val(lsv);
       console.log(lsv);
       if (lsv.toLowerCase() === 'snps') {
@@ -329,26 +343,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold, #link-threshold')
           .attr('step', 1)
           .val(7);
-        this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"] = 7;
-        this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
+        this.commonService.session.style.widgets["link-threshold"] = 7;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.visuals.microbeTrace.onLinkThresholdChanged();
+        this.commonService.onLinkThresholdChanged();
       } else {
         $('#ambiguities-row').slideDown();
         $('#default-distance-threshold, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
-        this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"] = 0.015;
-        this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
+        this.commonService.session.style.widgets["link-threshold"] = 0.015;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
-        this.visuals.microbeTrace.onLinkThresholdChanged();
+        this.commonService.onLinkThresholdChanged();
       }
-      this.visuals.microbeTrace.commonService.session.style.widgets['default-distance-metric'] = lsv;
-      this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
+      this.commonService.session.style.widgets['default-distance-metric'] = lsv;
+      this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
     });
 
     let cachedLSV = "";
-    this.visuals.microbeTrace.commonService.localStorageService.getItem('default-distance-metric', (result) => {
+    this.commonService.localStorageService.getItem('default-distance-metric', (result) => {
       cachedLSV = result;
 
       if (cachedLSV) {
@@ -363,7 +377,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //debugger;
 
       const v = e.data; //this.value;
-      this.visuals.microbeTrace.commonService.session.style.widgets['ambiguity-resolution-strategy'] = v;
+      this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = v;
       if (v === 'HIVTRACE-G') {
         $('#ambiguity-threshold-row').slideDown();
       } else {
@@ -376,11 +390,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //debugger;
 
       const v = e.data; //this.value;
-      this.visuals.microbeTrace.commonService.session.style.widgets['ambiguity-threshold'] = v;
+      this.commonService.session.style.widgets['ambiguity-threshold'] = v;
     });
 
     let cachedView = "";
-    this.visuals.microbeTrace.commonService.localStorageService.getItem('default-view', (result) => {
+    this.commonService.localStorageService.getItem('default-view', (result) => {
       cachedView = result;
     });
 
@@ -390,52 +404,52 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         //debugger;
 
         const v = e.data;// this.value;
-        this.visuals.microbeTrace.commonService.localStorageService.setItem('default-view', v);
-        this.visuals.microbeTrace.commonService.session.style.widgets['default-view'] = v;
-        this.visuals.microbeTrace.commonService.session.layout.content[0].type = v;
+        this.commonService.localStorageService.setItem('default-view', v);
+        this.commonService.session.style.widgets['default-view'] = v;
+        this.commonService.session.layout.content[0].type = v;
       })
-      .val(cachedView ? cachedView : this.visuals.microbeTrace.commonService.session.style.widgets['default-view'])
+      .val(cachedView ? cachedView : this.commonService.session.style.widgets['default-view'])
       .trigger('change');
 
     //$('#generate-sequences').on('click', () => {
     //    $('#file-prompt').remove();
     //    $('#launch').prop('disabled', false).focus();
-    //    this.processFile(new File([Papa.unparse(this.visuals.microbeTrace.commonService.generateSeqs('gen-' + this.visuals.microbeTrace.commonService.session.meta.readyTime + '-', parseFloat($('#generate-number').val().toString()), 20))], 'generatedNodes.csv'));
+    //    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', parseFloat($('#generate-number').val().toString()), 20))], 'generatedNodes.csv'));
     //});
 
     $('#infer-directionality-false').parent().on('click', () => {
 
       //debugger;
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['infer-directionality-false'] = true;
+      this.commonService.session.style.widgets['infer-directionality-false'] = true;
     });
 
     $('#infer-directionality').parent().on('click', () => {
 
       //debugger;
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['infer-directionality-false'] = false;
+      this.commonService.session.style.widgets['infer-directionality-false'] = false;
     });
 
     $('#triangulate-false').parent().on('click', () => {
 
       //debugger;
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['triangulate-false'] = true;
+      this.commonService.session.style.widgets['triangulate-false'] = true;
     });
 
     $('#triangulate').parent().on('click', () => {
 
       //debugger;
 
-      this.visuals.microbeTrace.commonService.session.style.widgets['triangulate-false'] = false;
+      this.commonService.session.style.widgets['triangulate-false'] = false;
     });
 
     $('#stash-auto-yes').parent().on('click', () => {
 
       //debugger;
 
-      this.visuals.microbeTrace.commonService.localStorageService.setItem('stash-auto', 'true');
+      this.commonService.localStorageService.setItem('stash-auto', 'true');
     });
 
     if (localStorage.getItem('stash-auto') === 'true') {
@@ -446,19 +460,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      if (this.visuals.microbeTrace.commonService.temp.autostash) clearInterval(this.visuals.microbeTrace.commonService.temp.autostash.interval);
-      this.visuals.microbeTrace.commonService.localStorageService.setItem('stash-auto', 'false');
+      if (this.commonService.temp.autostash) clearInterval(this.commonService.temp.autostash.interval);
+      this.commonService.localStorageService.setItem('stash-auto', 'false');
     });
 
     if(this.commonService.session.network.launched){
       $('#launch').text('Update');
     }
 
+    
+
     // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
-    if(!this.commonService.session.network.initialLoad && this.visuals.microbeTrace.auspiceUrlVal === null) {
+    if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
       console.log('launching outbreak');
-      $.getJSON("outbreaknorm.microbetrace", (window as any).context.commonService.applySession);   
+      $.getJSON("outbreaknorm.microbetrace", this.commonService.applySession.bind(this.commonService));   
       this.commonService.session.network.launched = true; 
       this.commonService.session.network.initialLoad = true; 
       // if(this.commonService.session.files && this.commonService.session.files.length > 0) {
@@ -484,7 +500,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     // Give some time before adding to table
     setTimeout(() => {
-      const files = _.cloneDeep(this.commonService.session.files);
+      let files = cloneDeep(this.commonService.session.files);
       if(files && files.length > 0) {
         for(let i = 0; i < files.length; i++) {
           this.addToTable(files[i]);
@@ -521,7 +537,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * XXXXX not used XXXXX
    */
   InitView() {
-    this.IsDataAvailable = (this.visuals.microbeTrace.commonService.session.data.nodes.length === 0 ? false : true);
+    this.IsDataAvailable = (this.commonService.session.data.nodes.length === 0 ? false : true);
   }
 
   /**
@@ -536,9 +552,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   changeDefaultView(e) {
     const v = e.target.selectedOptions[0].innerText;
-    this.visuals.microbeTrace.commonService.localStorageService.setItem('default-view', v);
-    this.visuals.microbeTrace.commonService.session.style.widgets['default-view'] = v;
-    this.visuals.microbeTrace.commonService.session.layout.content[0].type = v;
+    this.commonService.localStorageService.setItem('default-view', v);
+    this.commonService.session.style.widgets['default-view'] = v;
+    this.commonService.session.layout.content[0].type = v;
   }
 
   /**
@@ -585,7 +601,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     setTimeout(() => {
 
-      this.visuals.microbeTrace.commonService.session.messages = [];
+      this.commonService.session.messages = [];
       this.messages = [];
       $('#loading-information').html('');
       $('#launch').prop('disabled', false).focus();
@@ -605,8 +621,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   showMessage(msg: string) {
 
     this.messages.push(msg);
-    this.visuals.microbeTrace.commonService.session.messages.push(msg);
-    $('#loading-information').html(this.visuals.microbeTrace.commonService.session.messages.join('<br>'));
+    this.commonService.session.messages.push(msg);
+    $('#loading-information').html(this.commonService.session.messages.join('<br>'));
   }
 
   /**
@@ -617,38 +633,38 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   launchClick() {
 
     console.log(this.displayloadingInformationModal);
-    this.visuals.microbeTrace.commonService.updateLegacyNodeSymbols();
-    const thresholdOnLaunch = this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"];
-    const metricOnLaunch = this.visuals.microbeTrace.commonService.session.style.widgets["default-distance-metric"];
-    const ambiguityOnLaunch = this.visuals.microbeTrace.commonService.session.style.widgets["ambiguity-resolution-strategy"];
-    const viewOnLaunch = this.visuals.microbeTrace.commonService.session.style.widgets["default-view"];
+    this.commonService.updateLegacyNodeSymbols();
+    const thresholdOnLaunch = this.commonService.session.style.widgets["link-threshold"];
+    const metricOnLaunch = this.commonService.session.style.widgets["default-distance-metric"];
+    const ambiguityOnLaunch = this.commonService.session.style.widgets["ambiguity-resolution-strategy"];
+    const viewOnLaunch = this.commonService.session.style.widgets["default-view"];
 
 
     console.log('launch click');
     if( this.commonService.session.network.launched) {
       console.log('launch click launched ', this.commonService.session.network.launched);
-      this.visuals.microbeTrace.commonService.session.data = this.visuals.microbeTrace.commonService.sessionSkeleton().data;
-      const newTempSkeleton = this.visuals.microbeTrace.commonService.tempSkeleton();
-      this.visuals.microbeTrace.commonService.temp.trees = newTempSkeleton.trees;
+      this.commonService.session.data = this.commonService.sessionSkeleton().data;
+      const newTempSkeleton = this.commonService.tempSkeleton();
+      this.commonService.temp.trees = newTempSkeleton.trees;
       $('#launch').text('Update');
       this.visuals.twoD.isLoading = true;
     }
     else if (!this.commonService.session.network.launched) {
       console.log('launch click not launched ', this.commonService.session.network.launched);
 
-      this.visuals.microbeTrace.commonService.resetData();
-      this.visuals.microbeTrace.commonService.session.network.launched = true;
+      this.commonService.resetData();
+      this.commonService.session.network.launched = true;
     }
 
-    this.visuals.microbeTrace.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
-    this.visuals.microbeTrace.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
-    this.visuals.microbeTrace.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
-    this.visuals.microbeTrace.commonService.session.style.widgets["default-view"] = viewOnLaunch;
+    this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
+    this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
+    this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
+    this.commonService.session.style.widgets["default-view"] = viewOnLaunch;
 
-    this.visuals.microbeTrace.commonService.session.messages = [];
+    this.commonService.session.messages = [];
     this.messages = [];
 
-    console.log('session files', this.visuals.microbeTrace.commonService.session.files);
+    console.log('session files', this.commonService.session.files);
 
     this.displayloadingInformationModal = true;
 
@@ -665,114 +681,112 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Adds/Updates nodes and links. After processing all files, calls processData.
    */
   creatLaunchSequences() {
-    this.visuals.microbeTrace.commonService.session.meta.startTime = Date.now();
+    this.commonService.session.meta.startTime = Date.now();
     $('#launch').prop('disabled', true);
 
     $('#loading-information').html('');
     console.log(this.displayloadingInformationModal);
-    this.visuals.microbeTrace.commonService.temp.messageTimeout = setTimeout(() => {
+    this.commonService.temp.messageTimeout = setTimeout(() => {
       $('#loadCancelButton').slideDown();
       // abp.notify.warn('If you stare long enough, you can reverse the DNA Molecule\'s spin direction');
     }, 20000);
-    const nFiles = this.visuals.microbeTrace.commonService.session.files.length - 1;
+    const nFiles = this.commonService.session.files.length - 1;
     const check = nFiles > 0;
 
     // sorts files based on hierarchy
     const hierarchy = ['auspice', 'newick', 'matrix', 'link', 'node', 'fasta'];
-    this.visuals.microbeTrace.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
+    this.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
 
-    this.visuals.microbeTrace.commonService.session.meta.anySequences = this.visuals.microbeTrace.commonService.session.files.some(file => (file.format === "fasta") || (file.format === "node" && file.field2 !== "None"));
+    this.commonService.session.meta.anySequences = this.commonService.session.files.some(file => (file.format === "fasta") || (file.format === "node" && file.field2 !== "None"));
 
-    this.visuals.microbeTrace.commonService.session.files.forEach((file, fileNum) => {
+    this.commonService.session.files.forEach((file, fileNum) => {
       const start = Date.now();
       const origin = [file.name];
       if (file.format === 'auspice') {
         this.showMessage(`Parsing ${file.name} as Auspice...`);
-        // this.visuals.microbeTrace.commonService.localStorageService.setItem('default-view', 'phylogenetic-tree');
-        // this.visuals.microbeTrace.commonService.localStorageService.setItem('default-distance-metric', 'SNPs');
-        this.visuals.microbeTrace.commonService.applyAuspice(file.contents).then(auspiceData => {
-          this.visuals.microbeTrace.commonService.clearData();
-          this.visuals.microbeTrace.commonService.session = this.visuals.microbeTrace.commonService.sessionSkeleton();
+        // this.commonService.localStorageService.setItem('default-view', 'phylogenetic-tree');
+        // this.commonService.localStorageService.setItem('default-distance-metric', 'SNPs');
+        this.commonService.applyAuspice(file.contents).then(auspiceData => {
+          this.commonService.clearData();
+          this.commonService.session = this.commonService.sessionSkeleton();
 
           console.log(auspiceData["tree"]["children"][0]);
           // This is a bizarre line, but I need to check if the div values are more or less than one. The first one is always zero, so we need to go to the second one
           if(auspiceData["tree"]["children"][0]["data"]["div"] > 0 && auspiceData["tree"]["children"][0]["data"]["div"] < 1){
-            this.visuals.microbeTrace.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-            this.visuals.microbeTrace.metric = 'tn93';
+            this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
             this.SelectedDefaultDistanceMetricVariable = 'tn93';
             this.onDistanceMetricChange('tn93');
-            this.visuals.microbeTrace.SelectedDistanceMetricVariable = 'tn93';
-            this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
+            this.commonService.onMetricChanged('tn93');
+            this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
             $('#default-distance-metric').val('tn93').trigger('change');
             console.log(this.displayloadingInformationModal);
             $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(0.015).trigger('change');
-            this.visuals.microbeTrace.commonService.session.style.widgets['link-threshold'] = 0.015;
+            this.commonService.session.style.widgets['link-threshold'] = 0.015;
             this.SelectedDefaultDistanceThresholdVariable = '0.015';
             this.onLinkThresholdChange('0.015');
-            this.visuals.microbeTrace.SelectedLinkThresholdVariable = '0.015';
-            this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
+            this.commonService.onLinkThresholdChanged(0.015);
+            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
           } else {
-            this.visuals.microbeTrace.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-            this.visuals.microbeTrace.metric = 'snps';
+            this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
+            this.commonService.onMetricChanged('snps');
             this.SelectedDefaultDistanceMetricVariable = 'snps';
             this.onDistanceMetricChange('snps');
-            this.visuals.microbeTrace.SelectedDistanceMetricVariable = 'snps';
-            this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
+            this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
             $('#default-distance-metric').val('SNPs').trigger('change');
             $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(7).trigger('change');
-            this.visuals.microbeTrace.commonService.session.style.widgets['link-threshold'] = 7;
+            this.commonService.session.style.widgets['link-threshold'] = 7;
             this.SelectedDefaultDistanceThresholdVariable = '7';
             this.onLinkThresholdChange('7');
-            this.visuals.microbeTrace.SelectedLinkThresholdVariable = '7';
-            this.visuals.microbeTrace.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
+            this.commonService.onLinkThresholdChanged(7);
+            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
           }
-          this.visuals.microbeTrace.commonService.session.meta.startTime = Date.now();
-          this.visuals.microbeTrace.commonService.session.data.tree = auspiceData['tree'];
-          this.visuals.microbeTrace.commonService.session.data.newickString = auspiceData['newick'];
+          this.commonService.session.meta.startTime = Date.now();
+          this.commonService.session.data.tree = auspiceData['tree'];
+          this.commonService.session.data.newickString = auspiceData['newick'];
           let nodeCount = 0;
           const nodeRegex = /^NODE_[0-9]{7}$/i;
           auspiceData['nodes'].forEach(node => {
             if (!nodeRegex.test(node.id) && node.id !== 'wrapper') {
               const nodeKeys = Object.keys(node);
               nodeKeys.forEach( key => {
-                if (this.visuals.microbeTrace.commonService.session.data.nodeFields.indexOf(key) === -1) {
-                  this.visuals.microbeTrace.commonService.session.data.nodeFields.push(key);
+                if (this.commonService.session.data.nodeFields.indexOf(key) === -1) {
+                  this.commonService.session.data.nodeFields.push(key);
                 }
                 if (! Object.prototype.hasOwnProperty.call(node, 'origin') ) {
                   node.origin = [];
                 }
-                nodeCount += this.visuals.microbeTrace.commonService.addNode(node, true);
+                nodeCount += this.commonService.addNode(node, true);
               });
             }
           });
           let linkCount = 0;
           auspiceData['links'].forEach(link => {
-            linkCount += this.visuals.microbeTrace.commonService.addLink(link, true);
+            linkCount += this.commonService.addLink(link, true);
           });
 
-          this.visuals.microbeTrace.commonService.runHamsters();
+          this.commonService.runHamsters();
           this.showMessage(` - Parsed ${nodeCount} New Nodes and ${linkCount} new Links from Auspice file.`);
           if (fileNum === nFiles) this.processData();
           return nodeCount;
         });
-        this.visuals.microbeTrace.commonService.updateNetwork();
-        this.visuals.microbeTrace.commonService.updateStatistics();
+        this.commonService.updateNetwork();
+        this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
-          console.log(this.visuals.microbeTrace.commonService.session);
+          console.log(this.commonService.session);
         }
       } else if (file.format === 'fasta') {
 
         this.showMessage(`Parsing ${file.name} as FASTA...`);
         let newNodes = 0;
-        this.visuals.microbeTrace.commonService.parseFASTA(file.contents).then(seqs => {
+        this.commonService.parseFASTA(file.contents).then(seqs => {
           const n = seqs.length;
           for (let i = 0; i < n; i++) {
             const node = seqs[i];
             if (!node) continue;
-            newNodes += this.visuals.microbeTrace.commonService.addNode({
-              _id: this.visuals.microbeTrace.commonService.filterXSS(node.id),
-              seq: this.visuals.microbeTrace.commonService.filterXSS(node.seq),
+            newNodes += this.commonService.addNode({
+              _id: this.commonService.filterXSS(node.id),
+              seq: this.commonService.filterXSS(node.seq),
               origin: origin
             }, check);
           }
@@ -800,7 +814,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           const safeLink = {};
           // for each key in link object
           for (let i = 0; i < n; i++) {
-            const key = this.visuals.microbeTrace.commonService.filterXSS(keys[i]);
+            let key = this.commonService.filterXSS(keys[i]);
             // console.log('key is: ',key);
 
             if(key === "distance") {
@@ -812,8 +826,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               safeLink['originColumnFromFile'] = link['originColumnFromFile'];
               link['origin'] = origin;
 
-              if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.linkFields, 'originColumnFromFile')) {
-                this.visuals.microbeTrace.commonService.session.data.linkFields.push('originColumnFromFile');
+              if (!this.commonService.includes(this.commonService.session.data.linkFields, 'originColumnFromFile')) {
+                this.commonService.session.data.linkFields.push('originColumnFromFile');
               }
             }
             
@@ -821,8 +835,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             // console.log('safelink key is: ',safeLink[key]);
             // console.log('safelink is: x',safeLink);
 
-            if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.linkFields, key)) {
-              this.visuals.microbeTrace.commonService.session.data.linkFields.push(key);
+            if (!this.commonService.includes(this.commonService.session.data.linkFields, key)) {
+              this.commonService.session.data.linkFields.push(key);
             }
           }
 
@@ -842,7 +856,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               
             // console.log('link same');
             // Set distance if distance set (field 3)
-            l += this.visuals.microbeTrace.commonService.addLink(Object.assign({
+            l += this.commonService.addLink(Object.assign({
                source: '' + safeLink[file.field1],
                target: '' + safeLink[file.field2],
                origin: origin,
@@ -870,7 +884,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           //         distanceOrigin: file.field3 != 'distance' ? '' : file.name
           //       }, safeLink)));
 
-           l += this.visuals.microbeTrace.commonService.addLink(Object.assign({
+           l += this.commonService.addLink(Object.assign({
                source: '' + safeLink[file.field1],
                target: '' + safeLink[file.field2],
                origin: origin,
@@ -903,7 +917,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             if (nodeIDs.indexOf(f1) === -1) {
               t++;
               nodeIDs.push(f1);
-              n += this.visuals.microbeTrace.commonService.addNode({
+              n += this.commonService.addNode({
                 _id: '' + f1,
                 origin: origin
               }, true);
@@ -912,7 +926,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             if (nodeIDs.indexOf(f2) === -1) {
               t++;
               nodeIDs.push(f2);
-              n += this.visuals.microbeTrace.commonService.addNode({
+              n += this.commonService.addNode({
                 _id: '' + f2,
                 origin: origin
               }, true);
@@ -932,10 +946,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link JSON.`);
             if (data.length > 0)
               Object.keys(data[0]).forEach(key => {
-                const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
+                const safeKey = this.commonService.filterXSS(key);
 
-                if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.linkFields, safeKey)) {
-                  this.visuals.microbeTrace.commonService.session.data.linkFields.push(safeKey);
+                if (!this.commonService.includes(this.commonService.session.data.linkFields, safeKey)) {
+                  this.commonService.session.data.linkFields.push(safeKey);
                 }
               });
             let newNodes = 0, totalNodes = 0;
@@ -948,7 +962,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               const f1 = l[file.field1];
               if (nodeIDs.indexOf(f1) === -1) {
                 totalNodes++;
-                newNodes += this.visuals.microbeTrace.commonService.addNode({
+                newNodes += this.commonService.addNode({
                   _id: '' + f1,
                   origin: origin
                 }, true);
@@ -956,7 +970,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               const f2 = l[file.field2];
               if (nodeIDs.indexOf(f2) === -1) {
                 totalNodes++;
-                newNodes += this.visuals.microbeTrace.commonService.addNode({
+                newNodes += this.commonService.addNode({
                   _id: '' + f2,
                   origin: origin
                 }, true);
@@ -977,10 +991,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 data.map(forEachLink);
                 this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link CSV.`);
                 results.meta.fields.forEach(key => {
-                  const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
+                  const safeKey = this.commonService.filterXSS(key);
 
-                  if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.linkFields, safeKey)) {
-                    this.visuals.microbeTrace.commonService.session.data.linkFields.push(safeKey);
+                  if (!this.commonService.includes(this.commonService.session.data.linkFields, safeKey)) {
+                    this.commonService.session.data.linkFields.push(safeKey);
                   }
                 });
                 let newNodes = 0, totalNodes = 0;
@@ -991,7 +1005,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                   const f1 = l[file.field1];
                   if (nodeIDs.indexOf(f1) === -1) {
                     totalNodes++;
-                    newNodes += this.visuals.microbeTrace.commonService.addNode({
+                    newNodes += this.commonService.addNode({
                       _id: '' + f1,
                       origin: origin
                     }, true);
@@ -999,7 +1013,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                   const f2 = l[file.field2];
                   if (nodeIDs.indexOf(f2) === -1) {
                     totalNodes++;
-                    newNodes += this.visuals.microbeTrace.commonService.addNode({
+                    newNodes += this.commonService.addNode({
                       _id: '' + f2,
                       origin: origin
                     }, true);
@@ -1027,19 +1041,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           const workbook = XLSX.read(file.contents, { type: 'array' });
           const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
           data.forEach(node => {
-            const safeNode = {
-              _id: this.visuals.microbeTrace.commonService.filterXSS('' + node[file.field1]),
-              seq: (file.field2 === 'None') ? '' : this.visuals.microbeTrace.commonService.filterXSS(node[file.field2]),
+            let safeNode = {
+              _id: this.commonService.filterXSS('' + node[file.field1]),
+              seq: (file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
               origin: origin
             };
             Object.keys(node).forEach(key => {
-              const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
-              if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.nodeFields, safeKey)) {
-                this.visuals.microbeTrace.commonService.session.data.nodeFields.push(safeKey);
+              let safeKey = this.commonService.filterXSS(key);
+              if (!this.commonService.includes(this.commonService.session.data.nodeFields, safeKey)) {
+                this.commonService.session.data.nodeFields.push(safeKey);
               }
-              safeNode[safeKey] = this.visuals.microbeTrace.commonService.filterXSS(node[key]);
+              safeNode[safeKey] = this.commonService.filterXSS(node[key]);
             });
-            m += this.visuals.microbeTrace.commonService.addNode(safeNode, check);
+            m += this.commonService.addNode(safeNode, check);
           });
 
           console.log('Node Excel Parse time:', (Date.now() - start).toLocaleString(), 'ms');
@@ -1056,20 +1070,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
               if (node[file.field1] && node[file.field1].toString().trim()) {
 
-                const safeNode = {
-                  _id: this.visuals.microbeTrace.commonService.filterXSS('' + node[file.field1]),
-                  seq: (file.field2 === 'None') ? '' : this.visuals.microbeTrace.commonService.filterXSS(node[file.field2]),
+                let safeNode = {
+                  _id: this.commonService.filterXSS('' + node[file.field1]),
+                  seq: (file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
                   origin: origin
                 };
 
                 Object.keys(node).forEach(key => {
-                  const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
-                  if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.nodeFields, safeKey)) {
-                    this.visuals.microbeTrace.commonService.session.data.nodeFields.push(safeKey);
+                  let safeKey = this.commonService.filterXSS(key);
+                  if (!this.commonService.includes(this.commonService.session.data.nodeFields, safeKey)) {
+                    this.commonService.session.data.nodeFields.push(safeKey);
                   }
-                  safeNode[safeKey] = this.visuals.microbeTrace.commonService.filterXSS(node[key]);
+                  safeNode[safeKey] = this.commonService.filterXSS(node[key]);
                 });
-                m += this.visuals.microbeTrace.commonService.addNode(safeNode, check);
+                m += this.commonService.addNode(safeNode, check);
               }
             })
 
@@ -1090,20 +1104,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
                 if (node[file.field1] && node[file.field1].toString().trim()) {
 
-                  const safeNode = {
-                    _id: this.visuals.microbeTrace.commonService.filterXSS('' + node[file.field1]),
-                    seq: (file.field2 === 'None') ? '' : this.visuals.microbeTrace.commonService.filterXSS(node[file.field2]),
+                  let safeNode = {
+                    _id: this.commonService.filterXSS('' + node[file.field1]),
+                    seq: (file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
                     origin: origin
                   };
 
                   Object.keys(node).forEach(key => {
-                    const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
-                    if (!this.visuals.microbeTrace.commonService.includes(this.visuals.microbeTrace.commonService.session.data.nodeFields, safeKey)) {
-                      this.visuals.microbeTrace.commonService.session.data.nodeFields.push(safeKey);
+                    let safeKey = this.commonService.filterXSS(key);
+                    if (!this.commonService.includes(this.commonService.session.data.nodeFields, safeKey)) {
+                      this.commonService.session.data.nodeFields.push(safeKey);
                     }
-                    safeNode[safeKey] = this.visuals.microbeTrace.commonService.filterXSS(node[key]);
+                    safeNode[safeKey] = this.commonService.filterXSS(node[key]);
                   });
-                  m += this.visuals.microbeTrace.commonService.addNode(safeNode, check);
+                  m += this.commonService.addNode(safeNode, check);
                 }
               },
               complete: () => {
@@ -1130,19 +1144,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               nodeIDs = row;
               nodeIDs.forEach((cell, k) => {
                 if (k > 0) {
-                  nn += this.visuals.microbeTrace.commonService.addNode({
-                    _id: this.visuals.microbeTrace.commonService.filterXSS('' + cell),
+                  nn += this.commonService.addNode({
+                    _id: this.commonService.filterXSS('' + cell),
                     origin: origin
                   }, check);
                 }
               });
             } else {
-              const source = this.visuals.microbeTrace.commonService.filterXSS('' + row[0]);
+              const source = this.commonService.filterXSS('' + row[0]);
               row.forEach((cell, j) => {
                 if (j === 0) return;
-                const target = this.visuals.microbeTrace.commonService.filterXSS('' + nodeIDs[j]);
+                const target = this.commonService.filterXSS('' + nodeIDs[j]);
                 if (source === target) return;
-                nl += this.visuals.microbeTrace.commonService.addLink({
+                nl += this.commonService.addLink({
                   source: source,
                   target: target,
                   origin: origin,
@@ -1162,7 +1176,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         } else {
 
-          this.visuals.microbeTrace.commonService.parseCSVMatrix(file).then((o: any) => {
+          this.commonService.parseCSVMatrix(file).then((o: any) => {
             this.showMessage(` - Parsed ${o.nn} New, ${o.tn} Total Nodes from Distance Matrix.`);
             this.showMessage(` - Parsed ${o.nl} New, ${o.tl} Total Links from Distance Matrix.`);
             if (fileNum === nFiles) this.processData();
@@ -1171,21 +1185,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       } else { // if(file.format === 'newick'){
 
-        this.visuals.microbeTrace.commonService.resetData();
+        this.commonService.resetData();
         let links = 0;
         let newLinks = 0;
         let newNodes = 0;
-        this.visuals.microbeTrace.commonService.session.data.newickString = file.contents;
+        this.commonService.session.data.newickString = file.contents;
         const tree = patristic.parseNewick(file.contents);
-        const m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.visuals.microbeTrace.commonService.filterXSS), n = labels.length;
+        let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.commonService.filterXSS), n = labels.length;
         for (let i = 0; i < n; i++) {
           const source = labels[i];
-          newNodes += this.visuals.microbeTrace.commonService.addNode({
+          newNodes += this.commonService.addNode({
             _id: source,
             origin: origin
           }, check);
           for (let j = 0; j < i; j++) {
-            newLinks += this.visuals.microbeTrace.commonService.addLink({
+            newLinks += this.commonService.addLink({
               source: source,
               target: labels[j],
               origin: origin,
@@ -1210,14 +1224,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Then calls processSequence
    */
   processData() {
-    const nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
+    let nodes = this.commonService.session.data.nodes;
     if(this.commonService.debugMode) {
       console.log(nodes);
     }
-    this.visuals.microbeTrace.commonService.session.data.nodeFilteredValues = nodes;
+    this.commonService.session.data.nodeFilteredValues = nodes;
     //Add links for nodes with no edges
     this.uniqueNodes.forEach(x => {
-      this.visuals.microbeTrace.commonService.addLink(Object.assign({
+      this.commonService.addLink(Object.assign({
         source: '' + x,
         target: '' + x,
         origin: origin,
@@ -1234,12 +1248,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   async processSequence() {
 
-    if (!this.visuals.microbeTrace.commonService.session.meta.anySequences) return this.visuals.microbeTrace.commonService.runHamsters();
-    this.visuals.microbeTrace.commonService.session.data.nodeFields.push('seq');
-    const subset = [];
-    const nodes = this.visuals.microbeTrace.commonService.session.data.nodes;
+    if (!this.commonService.session.meta.anySequences) return this.commonService.runHamsters();
+    this.commonService.session.data.nodeFields.push('seq');
+    let subset = [];
+    let nodes = this.commonService.session.data.nodes;
     const n = nodes.length;
-    const gapString = '-'.repeat(this.visuals.microbeTrace.commonService.session.data.reference.length);
+    const gapString = '-'.repeat(this.commonService.session.data.reference.length);
     for (let i = 0; i < n; i++) {
       const d = nodes[i];
       if (!d.seq) {
@@ -1248,10 +1262,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         subset.push(d);
       }
     }
-    if (this.visuals.microbeTrace.commonService.session.style.widgets['align-sw']) {
+    if (this.commonService.session.style.widgets['align-sw']) {
       this.showMessage('Aligning Sequences...');
-      const output = await (this.visuals.microbeTrace.commonService.session as any).align({
-        reference: this.visuals.microbeTrace.commonService.session.data.reference,
+      let output = await (this.commonService.session as any).align({
+        reference: this.commonService.session.data.reference,
         isLocal: $('#localAlign').is(':checked'),
         match: [$('#alignerMatch').val(), $('#alignerMismatch').val()].map(parseFloat),
         gap: [$('#alignerGapO').val(), $('#alignerGapE').val()].map(parseFloat),
@@ -1271,16 +1285,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     console.log("Integer Sequence Translation time: ", (Date.now() - start).toLocaleString(), "ms");
 
-    (this.visuals.microbeTrace.commonService.session.data as any).consensus = await this.visuals.microbeTrace.commonService.computeConsensus();
-    await this.visuals.microbeTrace.commonService.computeConsensusDistances();
+    (this.commonService.session.data as any).consensus = await this.commonService.computeConsensus();
+    await this.commonService.computeConsensusDistances();
     subset.sort((a, b) => a['_diff'] - b['_diff']);
-    if (this.visuals.microbeTrace.commonService.session.style.widgets['ambiguity-resolution-strategy']) {
-      await this.visuals.microbeTrace.commonService.computeAmbiguityCounts();
+    if (this.commonService.session.style.widgets['ambiguity-resolution-strategy']) {
+      await this.commonService.computeAmbiguityCounts();
     }
     this.showMessage('Computing Links based on Genomic Proximity...');
-    const k = await this.visuals.microbeTrace.commonService.computeLinks(subset);
+    const k = await this.commonService.computeLinks(subset);
     this.showMessage(` - Found ${k} New Links from Genomic Proximity`);
-    this.visuals.microbeTrace.commonService.runHamsters();
+    this.commonService.runHamsters();
 
 
     this.showMessage("Finishing...");
@@ -1337,7 +1351,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   processFile(rawfile?) {
     if(!rawfile) {
-      rawfile = this.visuals.microbeTrace.commonService.session.files[0];
+      rawfile = this.commonService.session.files[0];
     }
 
     if(this.commonService.debugMode) {
@@ -1356,7 +1370,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //     .then(zip => {
       //         zip.forEach((relativePath, zipEntry) => {
       //             zipEntry.async("text").then(c => {
-      //                 this.visuals.microbeTrace.commonService.processJSON(c, zipEntry.name.split('.').pop())
+      //                 this.commonService.processJSON(c, zipEntry.name.split('.').pop())
       //             });
       //         });
       //     });
@@ -1365,31 +1379,31 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     if (extension === 'microbetrace' || extension === 'hivtrace') {
       //debugger;
-      const reader = new FileReader();
-      reader.onloadend = out => this.visuals.microbeTrace.commonService.processJSON(out.target, extension);
+      let reader = new FileReader();
+      reader.onloadend = out => this.commonService.processJSON(out.target, extension);
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
     if (extension === 'svg') {
       //debugger;
-      const reader = new FileReader();
-      reader.onloadend = out => this.visuals.microbeTrace.commonService.processSVG(out.target);
+      let reader = new FileReader();
+      reader.onloadend = out => this.commonService.processSVG(out.target);
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
     if (extension === 'json') {
-      const fileName = this.visuals.microbeTrace.commonService.filterXSS(rawfile.name);
-      const reader = new FileReader();
+      const fileName = this.commonService.filterXSS(rawfile.name);
+      let reader = new FileReader();
       reader.onloadend = (out) => {
         const output = JSON.parse(out.target['result'] as string);
         console.log(output);
         if (output.meta && output.tree) {
           const auspiceFile = { contents: output, name: fileName, extension: extension};
-          this.visuals.microbeTrace.commonService.session.files.push(auspiceFile);
+          this.commonService.session.files.push(auspiceFile);
           this.addToTable(auspiceFile);
-          // this.visuals.microbeTrace.commonService.temp.auspiceOutput = output;
+          // this.commonService.temp.auspiceOutput = output;
         } else {
-          this.visuals.microbeTrace.commonService.processJSON(out.target, extension);
+          this.commonService.processJSON(out.target, extension);
         }
       };
       reader.readAsText(rawfile, 'UTF-8');
@@ -1398,9 +1412,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(file => {
       //debugger;
-      file.name = this.visuals.microbeTrace.commonService.filterXSS(file.name);
+      file.name = this.commonService.filterXSS(file.name);
       file.extension = file.name.split('.').pop().toLowerCase();
-      this.visuals.microbeTrace.commonService.session.files.push(file);
+      this.commonService.session.files.push(file);
       this.addToTable(file);
     });
   }
@@ -1413,10 +1427,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
-    this.commonService.session.files.forEach(file => {
-      this.removeFile(file.name, false);
-    })
-    this.visuals.microbeTrace.commonService.session.files = [];
+    this.commonService.session.files = [];
     this.nodeIds = [];
     this.edgeIds = [];
 
@@ -1432,21 +1443,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     //debugger;
-    const extension = file.extension ? file.extension : this.visuals.microbeTrace.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
+    const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
     const isFasta = extension.indexOf('fas') > -1;
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
-    const isNode = this.visuals.microbeTrace.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
+    const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
     if (isXL) {
       const workbook = XLSX.read(file.contents, { type: 'array' });
       const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
       const headers = [];
       data.forEach(row => {
         Object.keys(row).forEach(key => {
-          const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
-          if (!this.visuals.microbeTrace.commonService.includes(headers, safeKey)) headers.push(safeKey);
+          const safeKey = this.commonService.filterXSS(key);
+          if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
         });
       });
       addTableTile(headers, this);
@@ -1460,7 +1471,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           data = [file.contents];
         }
 
-        addTableTile(Object.keys(data[0]).map(this.visuals.microbeTrace.commonService.filterXSS), this);
+        addTableTile(Object.keys(data[0]).map(this.commonService.filterXSS), this);
 
         if (!isFasta && !isNewick && isNode) {
           this.loadNodes(file.name, data, true);
@@ -1483,7 +1494,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         header: true,
         skipEmptyLines: true,
         complete: output => {
-          addTableTile(output.meta.fields.map(this.visuals.microbeTrace.commonService.filterXSS), this);
+          addTableTile(output.meta.fields.map(this.commonService.filterXSS), this);
 
           if (!isFasta && !isNewick && isNode) {
             this.loadNodes(file.name, output, false);
@@ -1632,7 +1643,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const $el = $(el);
       const fname = $el.data('filename');
       const selects = $el.find('select');
-      const f = this.visuals.microbeTrace.commonService.session.files.find(file => file.name === fname);
+      const f = this.commonService.session.files.find(file => file.name === fname);
       console.log(f);
       if (f) {
         f.format = $el.find('input[type="radio"]:checked').data('type');
@@ -1761,13 +1772,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * @returns An array of sequencing objects [{id, seq},]
    */
   async readFastas() {
-    const fastas = this.visuals.microbeTrace.commonService.session.files.filter(f => this.visuals.microbeTrace.commonService.includes(f.extension, 'fas'));
-    const nodeFilesWithSeqs = this.visuals.microbeTrace.commonService.session.files.filter(f => f.format === "node" && f.field2 != "None" && f.field2 != "");
+    const fastas = this.commonService.session.files.filter(f => this.commonService.includes(f.extension, 'fas'));
+    const nodeFilesWithSeqs = this.commonService.session.files.filter(f => f.format === "node" && f.field2 != "None" && f.field2 != "");
     if (fastas.length === 0 && nodeFilesWithSeqs.length === 0) return [];
     let data = [];
     for (let i = 0; i < fastas.length; i++) {
-      const fasta = fastas[i];
-      const nodes = await this.visuals.microbeTrace.commonService.parseFASTA(fasta.contents);
+      let fasta = fastas[i];
+      let nodes = await this.commonService.parseFASTA(fasta.contents);
       data = data.concat(nodes);
     }
     
@@ -1797,8 +1808,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         const headers = [];
         dataJSON.forEach(row => {
           Object.keys(row).forEach(key => {
-            const safeKey = this.visuals.microbeTrace.commonService.filterXSS(key);
-            if (!this.visuals.microbeTrace.commonService.includes(headers, safeKey)) headers.push(safeKey);
+            const safeKey = this.commonService.filterXSS(key);
+            if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
           });
           if ( row[seqLabel] != '' || row[seqLabel] != undefined || row[seqLabel] != null ) {
             data = data.concat({
@@ -1819,9 +1830,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     $('#alignment-preview').empty().append('<div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
     if ($('#align-sw').is(':checked')) {
-      data = await this.visuals.microbeTrace.commonService.align({
+      data = await this.commonService.align({
         nodes: data,
-        reference: this.visuals.microbeTrace.commonService.session.data.reference,
+        reference: this.commonService.session.data.reference,
         match: [parseFloat($('#alignerMatch').val().toString()), -parseFloat($('#alignerMismatch').val().toString())],
         gap: [-parseFloat($('#alignerGapO').val().toString()), -parseFloat($('#alignerGapE').val().toString())]
       })
@@ -1841,9 +1852,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.visuals.microbeTrace.SelectedLinkThresholdVariable = parseFloat(e);
-    this.visuals.microbeTrace.commonService.session.style.widgets['link-threshold'] = parseFloat(e);
-    this.visuals.microbeTrace.onLinkThresholdChanged();
+    this.commonService.session.style.widgets['link-threshold'] = parseFloat(e);
+    this.commonService.onLinkThresholdChanged(parseFloat(e));
   }
 
   /**
@@ -1866,9 +1876,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         .trigger('change');
 
         $("#ambiguities-row").slideUp();
-      this.visuals.microbeTrace.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.visuals.microbeTrace.SelectedDistanceMetricVariable = 'snps';
-      this.visuals.microbeTrace.onDistanceMetricChanged();
+      this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
+      this.commonService.onMetricChanged('snps');
       this.onLinkThresholdChange('7');
     } else {
       $('#default-distance-threshold, #link-threshold')
@@ -1876,9 +1885,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         .val(0.015)
         .trigger('change');
         $("#ambiguities-row").slideDown();
-      this.visuals.microbeTrace.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-      this.visuals.microbeTrace.SelectedDistanceMetricVariable = 'tn93';
-      this.visuals.microbeTrace.onDistanceMetricChanged();
+      this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
+      this.commonService.onMetricChanged('tn93');
       this.onLinkThresholdChange('0.015');
     }
   }
@@ -1894,7 +1902,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   generateSequences() {
     $('#file-prompt').remove();
     $('#launch').prop('disabled', false).focus();
-    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.visuals.microbeTrace.commonService.session.meta.readyTime + '-', this.SelectedGenerateNumberVariable, 20))], 'generatedNodes.csv'));
+    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', this.SelectedGenerateNumberVariable, 20))], 'generatedNodes.csv'));
   }
 
   applyStyleFileSettings() {
