@@ -74,6 +74,7 @@ import { GanttComponent } from './visualizationComponents/GanttComponent/gantt-p
 import { GanttChartComponent } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.component';
 import { GanttChartService } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.service';
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
+import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 // import * as PlotlyJS from 'plotly.js-dist-min';
 // import { PlotlyModule } from 'angular-plotly.js';
@@ -113,6 +114,7 @@ export class TestedComponent {
     GanttComponent,
     HeatmapComponent,
     BubbleComponent,
+    WaterfallComponent,
   ],
   imports: [
     BrowserModule,
