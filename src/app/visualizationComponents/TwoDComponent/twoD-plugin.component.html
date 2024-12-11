@@ -19,58 +19,19 @@
     </span>
 </div>
 
-<div #cy id="cy" style="width: 100%; height: 100%;"></div>
+<!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
 
-<!-- <vis-single-container id="viz-force" *ngIf="!showParallel && data !== undefined" [data]="data" [svgDefs]="svgDefs" [height]="containerHeight">
-    <vis-graph
-      [layoutType]="layoutType"
-      [layoutAutofit]="autoFit"
-      [forceLayoutSettings]="forceLayoutSettings"
-
-      [events]="events"
-      [zoomScaleExtent]="zoomScaleExtent"
-      [selectedNodeId]="selectedNodeId"
-      (onNodeSelectionBrush)="onNodeSelectionBrush($event.selectedNodes, $event.event)"
-      (onNodeSelectionDrag)="onNodeSelectionDrag($event.selectedNodes, $event.event)"
-      ></vis-graph>
-</vis-single-container>
-
-<vis-single-container  id="viz-paralell" *ngIf="showParallel && data !== undefined" [data]="data" [height]="containerHeight">
-    <vis-graph
-        [layoutType]="layoutType2"
-        [layoutAutofit]="autoFit"
-        [layoutNodeGroup]="layoutNodeGroup"
-        [layoutParallelNodeSubGroup]="layoutParallelNodeSubGroup"
-        [layoutParallelNodesPerColumn]="7"
-        [layoutParallelSubGroupsPerRow]="4"
-        [linkLabel]="linkLabel"
-        [linkWidth]="linkWidth"
-        [linkStroke]="linkStroke"
-        [linkArrow]="linkArrow"
-        [nodeFill]="nodeFill"
-        [nodeStroke]="nodeStroke"
-        [nodeStrokeWidth]="nodeStrokeWidth"
-        [nodeLabel]="nodeLabel"
-        [nodeShape]="nodeShape"
-        [events]="events"
-        [panels]="panels"
-        [duration]="0"
-    ></vis-graph>
-  </vis-single-container> -->
+<div style="position: relative; width: 100%; height: 100%;">
+    <!-- Grid Overlay -->
+    <svg
+      id="grid-overlay"
+      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"
+    ></svg>
   
-<!-- <vis-single-container *ngIf="showParallel" [data]="data2" [height]="containerHeight">
-    <vis-graph
-      [events]="events2"
-      [layoutType]="layoutType2"
-      [layoutGroupOrder]="layoutGroupOrder"
-      [layoutParallelNodesPerColumn]="layoutParallelNodesPerColumn"
-      [panels]="panels"
-    ></vis-graph>
-  </vis-single-container> -->
+    <!-- Cytoscape Container -->
+    <div #cy id="cy" style="width: 100%; height: 100%;"></div>
+  </div>
 
-<!-- <div id="network"></div> -->
-
-<!-- <svg id="network" class="network" [ngStyle]="svgStyle" (click)="networkWhitespaceClicked()"></svg> -->
 
 <!-- May be able to remove this section <div class=row>, related to exportWork which isn't currently used-->
 <div class="row">
@@ -411,7 +372,8 @@
                                 <div class="col-4"><label for="polygons-label-orientation">Orientation</label></div>
                                 <div class="col-8">
                                     <select id="polygon-label-orientation" [(ngModel)]="SelectedPolygonLabelOrientationVariable" (ngModelChange)="onPolygonLabelOrientationChange($event)">
-                                        <option selected>top</option>
+                                        <option>top</option>
+                                        <option selected>middle</option>
                                         <option>bottom</option>
                                     </select>                                
                                 </div>

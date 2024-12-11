@@ -730,8 +730,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     onBackgroundChanged() {
         this.commonService.session.style.widgets['background-color'] = this.SelectedBackgroundColorVariable;
 
-        if ($('div.unovis-single-container > svg:first-of-type') != undefined) {
-            $('div.unovis-single-container > svg:first-of-type').css('background-color', this.SelectedBackgroundColorVariable);
+        if ($('#cy') != undefined) {
+            $('#cy').css('background-color', this.SelectedBackgroundColorVariable);
         }
     }
 
@@ -846,7 +846,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         else {
             this.SelectedEpsilonValue = Math.pow(10, this.widgets['filtering-epsilon']).toPrecision(3);
-            (window as any).context.commonService.session.style.widgets["filtering-epsilon"] = this.widgets['filtering-epsilon'];
+            this.commonService.session.style.widgets["filtering-epsilon"] = this.widgets['filtering-epsilon'];
             this.commonService.session.style.widgets["link-show-nn"] = true;
             $('#filtering-epsilon-row').slideDown();
             // TODO:: Removed to fix NN issue
@@ -911,6 +911,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onNodeColorTableChanged() {
 
+        console.log('node color table changed: ', this.SelectedNodeColorTableTypesVariable);
         if(this.commonService.debugMode) {
             console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
         }
@@ -1030,7 +1031,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
 
-            if (this.SelectedColorLinksByVariable != "None" && this.checkActiveView('link')) {
+            // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
+            if (this.SelectedColorLinksByVariable != "None") {
                 this.SelectedLinkColorTableTypesVariable = "Show";
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
                 this.cachedGlobalSettingsLinkColorVisibility = this.GlobalSettingsLinkColorDialogSettings.isVisible;
@@ -1514,7 +1516,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (!this.GlobalSettingsNodeColorDialogSettings.isVisible) {
 
-            if (this.SelectedColorNodesByVariable != "None" && this.checkActiveView('node')) {
+            console.log('currently hjidden');
+
+            // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
+            if (this.SelectedColorNodesByVariable != "None") {
+                console.log('note none and showing');
+
                 this.SelectedNodeColorTableTypesVariable = 'Show';
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
                 this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
@@ -1535,12 +1542,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             
             $('#node-color-value-row').slideUp();
 
+            console.log('currently ndoes is: ', this.SelectedColorNodesByVariable);
+
+
             //If hidden by default, unhide to perform slide up and down
             if(!this.ShowGlobalSettingsNodeColorTable){
+                console.log('currently if');
+
                 const element = this.el.nativeElement.querySelector('#node-color-table');
                 this.commonService.setNodeTableElement(element);
                 this.ShowGlobalSettingsNodeColorTable = true;
             } else {
+                console.log('currently else');
                 $('#node-color-table-row').slideDown();
             }
 
@@ -1548,6 +1561,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // if color nodes by equals None, then hide node color table
         } else {
+
+            console.log('currently ndoes is none');
+
             $('#node-color-table').empty();
             $('#node-color-value-row').slideDown();
             $('#node-color-table-row').slideUp();
