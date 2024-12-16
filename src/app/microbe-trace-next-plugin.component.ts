@@ -1262,11 +1262,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
-        // TODO::David Check Bubble View
         // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
-        // if ('bubble' in this.visuals) {
-        //     this.visuals.bubble.sortData(variable);
-        // }
+        if ('bubble' in this.commonService.visuals) {
+             this.commonService.visuals.bubble.sortData(variable);
+         }
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");
@@ -1447,7 +1446,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 clearInterval(this.commonService.session.timeline);
             } else {
                 this.playBtnText = "Pause";
-                this.commonService.session.timeline = setInterval(this.step, 200, this);
+                this.commonService.session.timeline = setInterval(this.step, this.timelineSpeed, this);
             }
 
     }
@@ -1605,7 +1604,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                   
 
-                    if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
+                    //if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
                           // Update table with new alpha value
                         // Need to get value from id since "this" keyword is used by angular
                         this.commonService.session.style.nodeColors.splice(i, 1, e.target['value']);
@@ -1615,13 +1614,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         // temp.style.nodeColorMap = d3
                             // .scaleOrdinal(session.style.nodeColorsTable[variable])
                             // .domain(session.style.nodeColorsTableKeys[variable]);
-                        } else {
-                            let temKey = this.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
-                            this.commonService.temp.style.nodeColor.splice(temKey, 1, e);
-                            this.commonService.temp.style.nodeColorMap = d3
-                                .scaleOrdinal(this.commonService.temp.style.nodeColor)
-                                .domain(this.commonService.temp.style.nodeColorKeys);
-                        }
+                        // } else {
+                        //     let temKey = this.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
+                        //     this.commonService.temp.style.nodeColor.splice(temKey, 1, e);
+                        //     this.commonService.temp.style.nodeColorMap = d3
+                        //         .scaleOrdinal(this.commonService.temp.style.nodeColor)
+                        //         .domain(this.commonService.temp.style.nodeColorKeys);
+                        // }
 
                     this.publishUpdateNodeColors();
 

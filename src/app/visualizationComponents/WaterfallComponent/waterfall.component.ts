@@ -1,7 +1,7 @@
 import { Component, OnInit, ViewChild, ElementRef, Inject, AfterViewInit } from '@angular/core';
 import { Table } from 'primeng/table';
 import { ComponentContainer } from 'golden-layout';
-//import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
@@ -43,7 +43,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private commonService: CommonService,
-    //private gtmService: GoogleTagManagerService
+    private gtmService: GoogleTagManagerService
     ) {
 
     super(elRef.nativeElement);
@@ -51,11 +51,11 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
   }
 
   ngOnInit() {
-    //this.gtmService.pushTag({
-      //event: "page_view",
-      //page_location: "/waterfall",
-      //page_title: "Waterfall View"
-    //});
+    this.gtmService.pushTag({
+      event: "page_view",
+      page_location: "/waterfall",
+      page_title: "Waterfall View"
+    });
 
     this.clusterTableData = [];
     this.nodeTableData = [];
