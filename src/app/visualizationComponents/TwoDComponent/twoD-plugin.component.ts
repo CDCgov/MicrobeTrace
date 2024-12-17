@@ -91,73 +91,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
     selectedNodeShape: string = 'circle'; // Default shapeDF
 
-    // linkLabel = (l: LinkDatum): GraphCircleLabel => this.getLinkLabel(l)
-    // nodeLabel = (n: NodeDatum) => this.getNodeLabel(n)
-    // nodeShape = (n: NodeDatum) => this.getNodeShape(n)
-    // linkStroke = (l: LinkDatum) => this.getLinkColor(l)
-    // linkStyle = (l: LinkDatum) => this.getLinkStyle(l)
-    // linkWidth = (l: LinkDatum) => this.getLinkWidth(l)
-    // linkArrow = (l: LinkDatum) => this.getLinkArrow(l)
-    // nodeFill = (n: NodeDatum) => this.getNodeColor(n)
-    // nodeStroke = (n: NodeDatum) => this.getNodeStroke(n)
-    // nodeSize = (n: NodeDatum) => this.getNodeSize(n)
-    // // onNodeSelectionBrush = (selectedNodes: GraphNode[], event: any)  => this.onSelectionBrush(selectedNodes)
-    // // onNodeSelectionDrag = (selectedNodes: GraphNode[], event: any) => this.onSelectionDrag(selectedNodes)
-
-    // onSelectionBrush(nodes: GraphNode[]) {
-    //     console.log('onSelectionNode: ', nodes);
-    // }
-
-    // getLinkStyle(l: LinkDatum) {
-
-    //     if ((l.source['_id'] === "KF773429" && l.target['_id'] === "KF773430") || (l.source['_id'] === "KF773430" && l.target['_id'] === "KF773429")) {
-    //         // console.log('setting link dashed: ', _.cloneDeep(l));
-    //     }
-
-    //     return l['origin'].length > 1 ? GraphLinkStyle.Dashed : GraphLinkStyle.Solid;
-    // }
-
-    // onSelectionDrag(nodes: GraphNode[]) {
-    //     console.log('onSelectionDrag: ', nodes);
-    // }
-
-    // events = {
-    //     [Graph.selectors.node]: {
-    //         click: (d: GraphNode) => {
-    //             console.log('selected node is: ', d);
-    //             this.selectedNodeId = d.id as string;
-    //             console.log('rerender selected node');
-    //             this.debouncedRerender();
-    //             // config.selectedNodeId = d.id
-    //             // Set the selected node id here, e.g.: config.selectedNodeId = d.id
-    //             // and trigger the component update if required by your UI framework
-    //         },
-    //         mouseover: (d: GraphNode, event: MouseEvent) => {
-    //             this.showNodeTooltip(d, event);
-    //             // Perform actions on hover, such as highlighting or displaying additional information
-    //         },
-    //         mouseout: (d: GraphNode) => {
-    //             this.hideTooltip();
-    //         },
-    //         brush: (selectedNodes: GraphNode[], event: any) => {
-    //             this.onSelectionBrush(selectedNodes);
-    //         },
-    //         drag: (selectedNodes: GraphNode[], event: any) => {
-    //             this.onSelectionDrag(selectedNodes);
-    //         }
-
-    //     },
-    //     [Graph.selectors.link]: {
-    //         mouseover: (d: GraphLink, event: MouseEvent) => {
-    //             this.showLinkTooltip(d, event);
-    //             // Perform actions on hover, such as highlighting or displaying additional information
-    //         },
-    //         mouseout: () => {
-    //             this.hideTooltip();
-    //         }
-
-    //     },
-    // }
 
 
     getNodeSize(node: any) {
@@ -166,13 +99,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let size = defaultSize, med = defaultSize, oldrng, min, max;
         let sizeVariable = this.widgets['node-radius-variable'];
 
-
-        // console.log('in size: ', this.widgets['node-radius-variable'])
-        // console.log('in size 2: ', this.widgets['node-radius']);
-
-        // if (this.widgets['node-radius'] > 90) this.widgets['node-radius'] = 10;
-        // console.log('node index by size: ',this.widgets['node-radius-variable'] );
-        // console.log('node Radius Var: ', this.widgets['node-radius']);
         if (this.widgets['node-radius-variable'] == 'None') {
             return this.widgets['node-radius'];
         } else {
@@ -267,9 +193,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // Method to handle shape change from the dropdown
     onNodeShapeChange(newShape: string) {
         this.selectedNodeShape = newShape;
-        console.log('rerender shape change');
-
-        this.debouncedRerender();
+        this.updateNodeShapes();
     }
 
 
@@ -321,7 +245,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     nodeMin: number = 3;
     nodeMax: number = 27;
-    nodeScale: any;
+    nodeScale: d3.ScaleLinear<number, number> = d3.scaleLinear().domain([0, 1]).range([0, 1]);    
     visNodes: any;
     nodeMid: number = 1;
 
@@ -575,6 +499,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                 selectedBorderColor: this.widgets['selected-color'],
                 fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
+                shape: this.getNodeShape(node),
                 // Include any additional node-specific data properties
                 ...node
             }
@@ -614,6 +539,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // 'border-color': '#000',
                     'text-valign': 'center',
                     'color': 'black',
+                    // @ts-ignore
+                    'shape': 'data(shape)',
                     // 'font-size': 'data(fontSize)' // Ensure this line is included
                 }
             },
@@ -637,6 +564,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node[fontSize]',
                 style: {
                     'font-size': 'data(fontSize)'
+                }
+            },
+            {
+                selector: 'node[shape]',
+                style: {
+                    // @ts-ignore
+                    'shape': 'data(shape)'
                 }
             },
 
@@ -666,11 +600,33 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             {
                 selector: 'edge:selected',
                 style: {
-                    'line-color': '#f00',
-                    'target-arrow-color': '#f00',
+                    // 'line-color': '#f00',
+                    // 'target-arrow-color': '#f00',
                     'width': 3
                 }
+            },
+             // ... other styles ...
+        {
+            selector: '.gridline',
+            style: {
+                'line-color': 'lightgray',
+                'width': 1,
+                'z-index': -1,
+                'events': 'no',
+                'curve-style': 'straight',
+                // @ts-ignore
+                'pointer-events': 'none'
             }
+        },
+        {
+            selector: '.gridnode',
+            style: {
+                'opacity': 0,
+                'events': 'no',
+                // @ts-ignore
+                'pointer-events': 'none'
+            }
+        }
         ];
     }
 
@@ -1476,28 +1432,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // return foreignObj;
     }
 
-    // PRE D3
-    /**
-     * This function is called when a polygonLabel drag is started; it moves <text> element to last under g.clusterLabels and adds class polygonText to the element
-     */
-    polygonLabelDragStarted(d) {
-        // d3.select(this).raise().attr("class", "polygonText");
-    }
-
-    /**
-     * Moves location of polygon label when it is dragged by updating transform="translate(x,y)"
-     */
-    polygonLabelDragged(d) {
-        // d3.select(this).attr("transform", "translate(" + d3.event.x + "," + d3.event.y + ")");
-    }
-
-    /**
-     * This function is called when a polygonLabel drag is ended; it removes class polygonText from <text> element
-     */
-    polygonLabelDragEnded(d) {
-        // d3.select(this).attr("class", "");
-    }
-
+  
     /**
      * Generates Polygon Color Selection Table, updates polygonColorMap and polygonAlphaMap functions, and then calls render to show/update network
      * 
@@ -1505,6 +1440,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * to get table to appear. Also not sorting correctly with names XXXXX
      */
     updatePolygonColors() {
+
+        console.log('updatePolygonColors: ', this.widgets['polygons-foci']);
+
         let polygonSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
             this.widgets["polygon-color-table-counts-sort"] = "";
             if (this.widgets["polygon-color-table-name-sort"] === "ASC")
@@ -1533,7 +1471,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             .append(countHeader)
             .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
             .append("<th>Color</th>");
-        console.log('polygonColorTable01: ', polygonColorTable);
+        
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
         let aggregates = this.commonService.createPolygonColorMap();
         let values = Object.keys(aggregates);
@@ -1565,7 +1503,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     that.commonService.temp.style.polygonColorMap = d3
                         .scaleOrdinal(that.commonService.session.style['polygonColors'])
                         .domain(values);
-                    that._rerender();
+                    that.updateGroupNodeColors();
+                    // that._rerender();
                 });
             let alphainput = $("<a>⇳</a>").on("click", e => {
                 $("#color-transparency-wrapper").css({
@@ -1581,7 +1520,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
                             .domain(values);
                         $("#color-transparency-wrapper").fadeOut();
-                        that._rerender();
+                        that.updateGroupNodeColors();
                     });
             });
             let cell = $("<td></td>")
@@ -1719,7 +1658,47 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 this.removeParentNodesAndUngroupChildren(cy);
             }
         });
+
+        // Trigger layout after grouping
+        // this.applyLayout();
     }
+
+    // private applyLayout(): void {
+    //     const cy = this.cy;
+    //     if (!cy) return;
+    
+    //     cy.layout({
+    //         name: 'cose-bilkent',
+    //         // @ts-ignore
+    //         padding: 30,
+    //         // @ts-ignore
+    //         animate: true,
+    //         // @ts-ignore
+    //         animationDuration: 1000,
+    //         // @ts-ignore
+    //         fit: true,
+    //         // @ts-ignore
+    //         nodeRepulsion: function (node: any) {
+    //             return 4500;
+    //         },
+    //         // @ts-ignore
+    //         idealEdgeLength: function (edge: any) {
+    //             return 100;
+    //         },
+    //         // @ts-ignore
+    //         edgeElasticity: function (edge: any) {
+    //             return 0.45;
+    //         },
+    //         // @ts-ignore
+    //         nestingFactor: 0.1,
+    //         // @ts-ignore
+    //         gravity: 0.25,
+    //         // @ts-ignore
+    //         componentSpacing: 100,
+    //         // @ts-ignore
+    //         nodeDimensionsIncludeLabels: true
+    //     }).run();
+    // }
 
     /**
      * Adds parent nodes for each group and assigns child nodes to these parents.
@@ -1745,7 +1724,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.temp.style.polygonGroups = polygonGroups;
 
         groupMap.forEach((nodesInGroup, group) => {
-            const parentId = `parent_${group}`;
+            const parentId = `${group}`;
             if (cy.getElementById(parentId).length === 0) {
                 cy.add({
                     group: 'nodes',
@@ -1763,10 +1742,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         cy.nodes().forEach(node => {
             const group = node.data('group');
             if (group) {
-                const parentId = `parent_${group}`;
+                const parentId = `${group}`;
                 node.move({ parent: parentId });
             }
         });
+
+          // **Step 6:** Create and Assign the `groups` Object for polygonGroups
+          const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            key,
+            values: values.map(node => node.data('id'))
+        }));
+
+        // Assign the groups to polygonGroups in commonService.temp
+        this.commonService.temp.polygonGroups = groups;
     }
     /**
      * Removes all parent (group) nodes and unassigns child nodes from any parents.
@@ -2439,14 +2427,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     centerPolygons(e) {
 
         this.widgets['polygons-foci'] = e;
-        // this.debouncedRerender();
-        console.log('centerPolygons: ', e);
         if (this.widgets['polygons-color-show'] == true) {
             console.log('centerPolygons: show ');
             $("#polygon-color-table").empty();
+            this.updateGroupAssignments(e);
             this.updatePolygonColors();
             this.updateGroupNodeColors();
-            //   this.debouncedRerender();
+        // Just update group assignments since not showing different colors
+        } else {
+            this.updateGroupAssignments(e);
         }
 
         if (e == 'None') {
@@ -2456,9 +2445,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $('#color-polygons').css('display', 'flex');
             $('#polygon-color-value-row').slideUp();
         }
-
-        // Update group assignments based on new foci
-    this.updateGroupAssignments(e);
     }
 
     updateGroupAssignments(foci: string): void {
@@ -2473,14 +2459,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const existingParents = cy.nodes('.parent');
             console.log('Removing existing parent nodes:', existingParents.map(p => p.id()));
             existingParents.forEach(parent => {
-                cy.remove(parent); // Remove old parent nodes
+                // **Step 1:** Ungroup child nodes by setting their parent to null
+                parent.children().forEach(child => {
+                    child.move({ parent: null });
+                    console.log(`Ungrouped child node: ${child.id()} from parent: ${parent.id()}`);
+                });
+    
+                // **Step 2:** Remove the parent node without affecting child nodes
+                cy.remove(parent);
+                console.log(`Removed parent node: ${parent.id()}`);
             });
     
             // Determine new groups based on foci
             const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
     
+            console.log('nodeee: ', foci);
             cy.nodes().forEach(node => {
-                const group = node.data(foci); // Assuming foci corresponds to a data attribute
+                // if(node.data('id') === '30578_KF773488_D99cl05') {
+                //     console.log('nodeee1: ', node.data());
+                //     console.log('nodeee2: ', node.data(foci));
+                // }
+                
+                const rawGroup = node.data(foci); // Assuming foci corresponds to a data attribute
+                const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup; // Use first element if array
+                
                 if (group && group !== 'None') { // Exclude nodes without a group
                     if (!groupMap.has(group)) {
                         groupMap.set(group, []);
@@ -2488,12 +2490,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     groupMap.get(group)?.push(node);
                 }
             });
-    
-            console.log('New group assignments:', groupMap);
-    
+        
             // Create new parent nodes and assign child nodes
             groupMap.forEach((nodesInGroup, groupName) => {
-                const parentId = `parent_${groupName}`;
+                const parentId = `${groupName}`;
     
                 // Add a new parent node
                 const parentNode = cy.add({
@@ -2506,9 +2506,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     },
                     classes: 'parent' // Assigning the 'parent' class
                 });
-    
-                console.log('Created parent node:', parentNode.data());
-    
+        
                 // Assign child nodes to the new parent
                 nodesInGroup.forEach(childNode => {
                     childNode.move({ parent: parentId });
@@ -2526,10 +2524,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Refresh Cytoscape styles to apply changes
             cy.style().update();
+
+             // **Step 6:** Create and Assign the `groups` Object for polygonGroups
+            const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+                key,
+                values: values.map(node => node.data('id'))
+            }));
+
+            // Assign the groups to polygonGroups in commonService.temp
+            // TODO: Decide on one
+            this.commonService.temp.polygonGroups = groups;
+            this.commonService.temp.style.polygonGroups = groups;
         });
     
-        // After updating group assignments, update group node colors
-        this.updateGroupNodeColors();
     }
 
     /**
@@ -2554,40 +2561,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onPolygonLabelOrientationChange(e) {
         this.widgets['polygons-label-orientation'] = e;
         // Adjust the orientation of the parent/group node labels in Cytoscape
-    if (this.cy) {
-        // let textValign: string;
-        // let textHalign: string = 'center'; // Default horizontal alignment
+        if (this.cy) {
+          
+            // Define specific types for text alignment to satisfy TypeScript
+            type TextAlignment = 'left' | 'center' | 'right';
+            type VerticalAlignment = 'top' | 'bottom' | 'center';
 
-         // Define specific types for text alignment to satisfy TypeScript
-    type TextAlignment = 'left' | 'center' | 'right';
-    type VerticalAlignment = 'top' | 'bottom' | 'center';
+            let textValign: VerticalAlignment;
+            let textHalign: TextAlignment = 'center'; // Default horizontal alignment
 
-    let textValign: VerticalAlignment;
-    let textHalign: TextAlignment = 'center'; // Default horizontal alignment
+            // Determine vertical alignment based on the selected orientation
+            switch (e.toLowerCase()) {
+                case 'top':
+                    textValign = 'top';
+                    break;
+                case 'bottom':
+                    textValign = 'bottom';
+                    break;
+                case 'middle':
+                default:
+                    textValign = 'center';
+                    break;
+            }
 
-        // Determine vertical alignment based on the selected orientation
-        switch (e.toLowerCase()) {
-            case 'top':
-                textValign = 'top';
-                break;
-            case 'bottom':
-                textValign = 'bottom';
-                break;
-            case 'middle':
-            default:
-                textValign = 'center';
-                break;
+            this.cy.style()
+                .selector('node.parent')
+                .style({
+                    'text-valign': textValign,
+                    'text-halign': textHalign
+                })
+                .update();
         }
-
-        this.cy.style()
-            .selector('node.parent')
-            .style({
-                'text-valign': textValign,
-                'text-halign': textHalign
-            })
-            .update();
-    }
-        // this.debouncedRerender();
     }
 
     /**
@@ -2847,6 +2851,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
         console.log('symbol node');
+        this.updateNodeShapes();
 
         // this.debouncedRerender();
     }
@@ -2861,25 +2866,36 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public generateNodeSymbolSelectionTable(tableId: string, variable: string, isEditable: boolean = true) {
         this.commonService.onTableCleared(tableId);
 
+        this.commonService.session.style.nodeSymbols =  [
+            'ellipse',
+            'triangle',
+            'rectangle',
+            'barrel',
+            'rhomboid',
+            'diamond',
+            'pentagon',
+            'hexagon',
+            'heptagon',
+            'octagon',
+            'star',
+            'tag',
+            'vee'
+        ];
+
         let symbolMapping: { key: string, value: string }[] = [
-            { key: 'symbolCircle', value: '&#11044; (Circle)' },
-            { key: "symbolTriangle", value: '&#9650; (Up Triangle)' },
-            // { key: "symbolTriangleDown", value: '&#9660; (Down Triangle)' },
-            // { key: "symbolTriangleLeft", value: '&#9664; (Left Triangle)' },
-            // { key: "symbolTriangleRight", value: '&#9654; (Right Triangle)' },
-            { key: "symbolDiamond", value: '&#10731; (Vertical Diamond)' },
-            // { key: "symbolDiamondAlt", value: '&#10731; (Horizontal Diamond)' },
-            { key: "symbolSquare", value: '&#9632; (Square)' },
-            // { key: "symbolDiamondSquare", value: '&#9670; (Tilted Square)' },
-            // { key: "symbolPentagon", value: '&#11039; (Pentagon)' },
-            { key: "symbolHexagon", value: '&#11042; (Hexagon)' },
-            // { key: "symbolHexagonAlt", value: '&#11043; (Tilted Hexagon)' },
-            // { key: "symbolOctagon", value: '&#11042; (Octagon)' },
-            // { key: "symbolOctagonAlt", value: '&#11043; (Tilted Octagon)' },
-            // { key: "symbolCross", value: '&#10010; (Addition Sign)' },
-            // { key: "symbolX", value: '&#10006; (Multiplication Sign)' },
-            // { key: "symbolWye", value: '&#120300; (Wye)' },
-            // { key: "symbolStar", value: '&#9733; (Star)' },
+            { key: 'ellipse', value: '&#11044; (Circle)' },
+            { key: "triangle", value: '&#9660; (Triangle)' },
+            { key: "diamond", value: '&#10731; (Diamond)' },
+            { key: "barrel", value: '&#10731; (Barrel)' },
+            { key: "rectangle", value: '&#9632; (Square)' },
+            { key: "rhomboid", value: '&#9670; (Rhombus)' },
+            { key: "pentagon", value: '&#11039; (Pentagon)' },
+            { key: "hexagon", value: '&#11042; (Hexagon)' },
+            { key: "heptagon", value: '&#11043; (Heptagon)' },
+            { key: "octagon", value: '&#11042; (Octagon)' },
+            { key: "star", value: '&#9733; (Star)' },
+            { key: "tag", value: '&#9733; (Tag)' },
+            { key: "vee", value: '&#9733; (Vee)' },
         ];
 
         setTimeout(() => {
@@ -2916,7 +2932,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     symbols = symbols.concat(this.commonService.session.style.nodeSymbols);
                 }
                 this.commonService.session.style.nodeSymbols = symbols;
-                // console.log('node symbols: ', symbols);
+                console.log('node symbols: ', symbols);
 
             }
 
@@ -2945,19 +2961,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
                 // Manually create options instead of using the existing select
                 let optionsHtml = `
-                    <option value="symbolCircle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'circle' ? 'selected' : ''}>&nbsp;&#11044; (Circle)</option>
-                    <option value="symbolSquare" ${this.commonService.temp.style.nodeSymbolMap(v) === 'square' ? 'selected' : ''}>&nbsp;&#9632; (Square)</option>
-                    <option value="symbolHexagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'hexagon' ? 'selected' : ''}>&nbsp;&#11042; (Hexagon)</option>
-                    <option value="symbolTriangle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'triangle' ? 'selected' : ''}>&nbsp;&#9650; (Triangle)</option>
-                    <option value="symbolDiamond" ${this.commonService.temp.style.nodeSymbolMap(v) === 'diamond' ? 'selected' : ''}>&nbsp;&#10731; (Diamond)</option>
+                    <option value="ellipse" ${this.commonService.temp.style.nodeSymbolMap(v) === 'ellipse' ? 'selected' : ''}>&nbsp;&#11044; (Circle)</option>
+                    <option value="rectangle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'rectangle' ? 'selected' : ''}>&nbsp;&#9632; (Square)</option>
+                    <option value="barrel" ${this.commonService.temp.style.nodeSymbolMap(v) === 'barrel' ? 'selected' : ''}>&nbsp;&#11042; (Barrel)</option>
+                    <option value="rhomboid" ${this.commonService.temp.style.nodeSymbolMap(v) === 'rhomboid' ? 'selected' : ''}>&nbsp;&#9650; (Rhombus)</option>
+                    <option value="diamond" ${this.commonService.temp.style.nodeSymbolMap(v) === 'diamond' ? 'selected' : ''}>&nbsp;&#10731; (Diamond)</option>
+                    <option value="pentagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'pentagon' ? 'selected' : ''}>&nbsp;&#11039; (Pentagon)</option>
+                    <option value="hexagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'hexagon' ? 'selected' : ''}>&nbsp;&#11042; (Hexagon)</option>
+                    <option value="heptagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'heptagon' ? 'selected' : ''}>&nbsp;&#11043; (Heptagon)</option>
+                    <option value="octagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'octagon' ? 'selected' : ''}>&nbsp;&#11042; (Octagon)</option>
+                    <option value="star" ${this.commonService.temp.style.nodeSymbolMap(v) === 'star' ? 'selected' : ''}>&nbsp;&#9733; (Star)</option>
+                    <option value="tag" ${this.commonService.temp.style.nodeSymbolMap(v) === 'tag' ? 'selected' : ''}>&nbsp;&#9733; (Tag)</option>
+                    <option value="vee" ${this.commonService.temp.style.nodeSymbolMap(v) === 'vee' ? 'selected' : ''}>&nbsp;&#9733; (Vee)</option>
                 `;
 
                 // console.log('symbol each value: ', v, this.commonService.temp.style.nodeSymbolMap(v));
                 let selector = $(`<select ${disabled}></select>`).append(optionsHtml).val(this.commonService.temp.style.nodeSymbolMap(v)).on('change', (e) => {
                     this.commonService.session.style.nodeSymbols.splice(i, 1, (e.target as any).value);
                     this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
-                    // this.debouncedRerender();
-                    // this.redrawNodes();
+                    this.updateNodeShapes();
                 });
                 let symbolText = symbolMapping.find(x => x.key === this.commonService.temp.style.nodeSymbolMap(v));
 
@@ -3025,6 +3047,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates node-radius-max widget and redraws nodes
      */
     public onNodeRadiusMaxChange(e) {
+        console.log('onNodeRadiusMaxChange: ', e);
         this.widgets['node-radius-max'] = e;
         this.updateMinMaxNode();
         this.updateNodeSizes();
@@ -3213,18 +3236,38 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             let type = this.commonService.temp.style.nodeSymbolMap(node[symbolVariable]);
 
-            switch (type) {
-                case 'symbolCircle':
-                    return 'circle';
-                case 'symbolSquare':
-                    return 'square';
-                case 'symbolHexagon':
-                    return 'hexagon';
-                case 'symbolTriangle':
-                    return 'triangle';
-                case 'symbolDiamond':
-                    return `<use href="#diamond" stroke-width="3" />`;
-            }
+            console.log('type: ', type);
+
+            return type;
+            // switch (type) {
+            //     case 'ellipse':
+            //         return 'circle';
+            //     case 'rectangle':
+            //         return 'square';
+            //     case 'symbolHexagon':
+            //         return 'hexagon';
+            //     case 'symbolTriangle':
+            //         return 'triangle';
+            //     case 'symbolDiamond':
+            //         return `<use href="#diamond" stroke-width="3" />`;
+            // }
+
+            // { key: 'ellipse', value: '&#11044; (Circle)' },
+            // { key: "symbolTriangle", value: '&#9650; (Up Triangle)' },
+            // { key: "triangle", value: '&#9660; (Triangle)' },
+            // { key: "symbolTriangleLeft", value: '&#9664; (Left Triangle)' },
+            // { key: "symbolTriangleRight", value: '&#9654; (Right Triangle)' },
+            // { key: "diamond", value: '&#10731; (Vertical Diamond)' },
+            // { key: "barrel", value: '&#10731; (barrel)' },
+            // { key: "rectangle", value: '&#9632; (Square)' },
+            // { key: "rhomboid", value: '&#9670; (Rhombus)' },
+            // { key: "pentagon", value: '&#11039; (Pentagon)' },
+            // { key: "hexagon", value: '&#11042; (Hexagon)' },
+            // { key: "heptagon", value: '&#11043; (Heptagon)' },
+            // { key: "octagon", value: '&#11042; (Octagon)' },
+            // { key: "star", value: '&#9733; (Star)' },
+            // { key: "tag", value: '&#9733; (Tag)' },
+            // { key: "vee", value: '&#9733; (Vee)' },
 
             // if (type === undefined) {
             //     type = that.customShapes.shapes[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
@@ -3640,60 +3683,114 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param show wheither to show or hide gridlines
      */
     drawGridlines(show: boolean): void {
-        const container = document.getElementById('viz-force');
-
-        // Ensure the container exists
-        if (!container) return;
-
-        // Reset width and height in case they have changed
-        this.halfWidth = container.parentElement.offsetWidth / 2;
-        this.halfHeight = container.parentElement.parentElement.parentElement.offsetHeight / 2;
-
-        // Create or select horizontal gridlines group
-        let horizontalGridlinesGroup = container.querySelector('g.horizontal-gridlines') as SVGGElement;
-        if (!horizontalGridlinesGroup) {
-            horizontalGridlinesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            horizontalGridlinesGroup.classList.add('horizontal-gridlines');
-            container.querySelector('svg').insertBefore(horizontalGridlinesGroup, container.querySelector('svg').firstChild);
-        }
-
-        // Create or select vertical gridlines group
-        let verticalGridlinesGroup = container.querySelector('g.vertical-gridlines') as SVGGElement;
-        if (!verticalGridlinesGroup) {
-            verticalGridlinesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            verticalGridlinesGroup.classList.add('vertical-gridlines');
-            container.querySelector('svg').insertBefore(verticalGridlinesGroup, container.querySelector('svg').firstChild);
-        }
-
-        // Clear existing lines
-        horizontalGridlinesGroup.innerHTML = '';
-        verticalGridlinesGroup.innerHTML = '';
-
+        // Early return if Cytoscape instance doesn't exist
+        if (!this.cy) return;
+    
+        // Remove existing gridlines if any
+        this.cy.$('.gridline').remove();
+    
         if (show) {
-            const range = Math.ceil(Math.max(this.halfWidth, this.halfHeight) / 50);
-            const ords = Array.from({ length: range }, (_, i) => i);
-
-            // Horizontal lines
-            ords.forEach(d => {
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', '0');
-                line.setAttribute('x2', (this.halfWidth * 2).toString());
-                line.setAttribute('y1', (d * 100).toString());
-                line.setAttribute('y2', (d * 100).toString());
-                line.setAttribute('stroke', 'lightgray');
-                horizontalGridlinesGroup.appendChild(line);
-            });
-
-            // Vertical lines
-            ords.forEach(d => {
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', (d * 100).toString());
-                line.setAttribute('x2', (d * 100).toString());
-                line.setAttribute('y1', '0');
-                line.setAttribute('y2', (this.halfHeight * 2).toString());
-                line.setAttribute('stroke', 'lightgray');
-                verticalGridlinesGroup.appendChild(line);
-            });
+            const container = this.cy.container();
+            const width = container.offsetWidth;
+            const height = container.offsetHeight;
+            const gridSpacing = 100; // Grid spacing in pixels
+    
+            // Calculate number of lines needed
+            const numHorizontalLines = Math.ceil(height / gridSpacing);
+            const numVerticalLines = Math.ceil(width / gridSpacing);
+    
+            // Create nodes for grid intersections (these will be invisible)
+            const gridNodes = [];
+            
+            // Create horizontal lines
+            for (let i = 0; i <= numHorizontalLines; i++) {
+                // Create start and end nodes for each horizontal line
+                const startNodeId = `h-start-${i}`;
+                const endNodeId = `h-end-${i}`;
+                
+                gridNodes.push(
+                    {
+                        group: 'nodes',
+                        data: { id: startNodeId },
+                        position: { x: 0, y: i * gridSpacing },
+                        classes: 'gridnode'
+                    },
+                    {
+                        group: 'nodes',
+                        data: { id: endNodeId },
+                        position: { x: width, y: i * gridSpacing },
+                        classes: 'gridnode'
+                    }
+                );
+    
+                // Create the horizontal line as an edge
+                this.cy.add({
+                    group: 'edges',
+                    data: {
+                        id: `h-gridline-${i}`,
+                        source: startNodeId,
+                        target: endNodeId
+                    },
+                    classes: 'gridline'
+                });
+            }
+    
+            // Create vertical lines
+            for (let i = 0; i <= numVerticalLines; i++) {
+                // Create start and end nodes for each vertical line
+                const startNodeId = `v-start-${i}`;
+                const endNodeId = `v-end-${i}`;
+                
+                gridNodes.push(
+                    {
+                        group: 'nodes',
+                        data: { id: startNodeId },
+                        position: { x: i * gridSpacing, y: 0 },
+                        classes: 'gridnode'
+                    },
+                    {
+                        group: 'nodes',
+                        data: { id: endNodeId },
+                        position: { x: i * gridSpacing, y: height },
+                        classes: 'gridnode'
+                    }
+                );
+    
+                // Create the vertical line as an edge
+                this.cy.add({
+                    group: 'edges',
+                    data: {
+                        id: `v-gridline-${i}`,
+                        source: startNodeId,
+                        target: endNodeId
+                    },
+                    classes: 'gridline'
+                });
+            }
+    
+            // Add all grid nodes at once
+            this.cy.add(gridNodes);
+    
+            // Update styles for grid elements
+            this.cy.style()
+                .selector('.gridline')
+                .style({
+                    'line-color': 'lightgray',
+                    'width': 1,
+                    'z-index': -1,
+                    'events': 'no',
+                    'curve-style': 'straight',
+                    // @ts-ignore
+                    'pointer-events': 'none'
+                })
+                .selector('.gridnode')
+                .style({
+                    'opacity': 0,
+                    'events': 'no',
+                    // @ts-ignore
+                    'pointer-events': 'none'
+                })
+                .update();
         }
     }
 
@@ -4307,6 +4404,15 @@ scaleLinkWidth() {
         this.cy.nodes().forEach(node => {
             const newFontSize = this.getNodeFontSize(node.data());
             node.data('fontSize', newFontSize);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
+    updateNodeShapes() {
+        this.cy.nodes().forEach(node => {
+            const newShape = this.getNodeShape(node.data());
+            console.log('newShape: ', newShape);
+            node.data('shape', newShape);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }

@@ -22,11 +22,7 @@
 <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
 
 <div style="position: relative; width: 100%; height: 100%;">
-    <!-- Grid Overlay -->
-    <svg
-      id="grid-overlay"
-      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"
-    ></svg>
+
   
     <!-- Cytoscape Container -->
     <div #cy id="cy" style="width: 100%; height: 100%;"></div>
@@ -156,10 +152,16 @@
                                 <div class="col-4"><label for="node-symbol">Shape</label></div>
                                 <div class="col-8">
                                     <select id="node-symbol" class="form-control form-control-sm" [(ngModel)]="selectedNodeShape" (ngModelChange)="onNodeShapeChange($event)">
-                                        <option value="symbolCircle" selected>&nbsp;&#11044; (Circle)</option>
-                                        <option value="symbolSquare">&nbsp;&#9632; (Square)</option>
-                                        <option value="symbolHexagon">&nbsp;&#11042; (Hexagon)</option>
-                                        <option value="symbolTriangle">&nbsp;&#9650; (Triangle)</option>
+                                        <option value="ellipse" selected>&nbsp;&#11044; (Circle)</option>
+                                        <option value="rectangle">&nbsp;&#9632; (Square)</option>
+                                        <option value="hexagon">&nbsp;&#11042; (Hexagon)</option>
+                                        <option value="triangle">&nbsp;&#9650; (Triangle)</option>
+                                        <option value="barrel">&nbsp;&#10731; (Barrel)</option>
+                                        <option value="pentagon">&nbsp;&#11039; (Pentagon)</option>
+                                        <option value="octagon">&nbsp;&#11042; (Octagon)</option>
+                                        <option value="star">&nbsp;&#9733; (Star)</option>
+                                        <option value="tag">&nbsp;&#120300; (Tag)</option>
+                                        <option value="vee">&nbsp;&#120300; (Vee)</option>
                                     </select>
                                         <!-- <option value="symbolCircle" selected>&nbsp;&#11044; (Circle)</option>
                                         <option value="symbolTriangle">&nbsp;&#9650; (Up Triangle)</option>

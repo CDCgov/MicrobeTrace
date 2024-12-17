@@ -317,7 +317,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-radius-variable': 'None',
             "node-radius-min": 20,
             "node-radius-max": 100,
-            'node-symbol': 'symbolCircle',
+            'node-symbol': 'ellipse',
             'node-symbol-table-counts': true,
             'node-symbol-table-frequencies': false,
             'node-symbol-variable': 'None',
@@ -438,24 +438,19 @@ export class CommonService extends AppComponentBase implements OnInit {
                 linkColorsTable: {},
                 linkColorsTableKeys: {},
                 nodeSymbols: [
-                    'symbolCircle',
-                    // 'symbolCross',
-                    'symbolDiamond',
-                    'symbolSquare',
-                    // 'symbolStar',
-                    'symbolTriangle',
-                    // 'symbolWye',
-                    // 'symbolTriangleDown',
-                    // 'symbolTriangleLeft',
-                    // 'symbolTriangleRight',
-                    // 'symbolDiamondAlt',
-                    // 'symbolDiamondSquare',
-                    // 'symbolPentagon',
-                    'symbolHexagon'
-                    // 'symbolHexagonAlt',
-                    // 'symbolOctagon',
-                    // 'symbolOctagonAlt',
-                    // 'symbolX'
+                    'ellipse',
+                    'triangle',
+                    'rectangle',
+                    'barrel',
+                    'rhomboid',
+                    'diamond',
+                    'pentagon',
+                    'hexagon',
+                    'heptagon',
+                    'octagon',
+                    'star',
+                    'tag',
+                    'vee'
                 ],
                 nodeSymbolsTable: {},
                 nodeSymbolsTableKeys: {},
@@ -572,11 +567,17 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     updateLegacyNodeSymbols() {
         this.session.style.nodeSymbols = [
-            'symbolCircle',
-            'symbolSquare',
-            'symbolTriangle',
-            'symbolHexagon',
-            'symbolDiamond'
+            'ellipse',
+            'square',
+            'triangle',
+            'hexagon',
+            'diamond',
+            'barrel',
+            'pentagon',
+            'octagon',
+            'star',
+            'tag',
+            'vee'
         ]
     }
 
@@ -2936,7 +2937,10 @@ export class CommonService extends AppComponentBase implements OnInit {
 	 * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
 	 */
     createPolygonColorMap = () => {
+        console.log('createPolygonColorMap1: ', this.temp.polygonGroups, !this.session.style.widgets['polygons-color-show']);
+
         if (!this.temp.polygonGroups || !this.session.style.widgets['polygons-color-show']) {
+            console.log('createPolygonColorMap2: ', this.session.style.widgets['polygon-color']);
             this.temp.style.polygonColorMap = () => this.session.style.widgets['polygon-color'];
             return [];
         }
