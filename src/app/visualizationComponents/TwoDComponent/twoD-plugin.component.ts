@@ -644,6 +644,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const node = evt.target;
             this.showNodeTooltip(node.data(), evt.originalEvent);
 
+            // Set cursor to grab
+            $('html,body').css('cursor', 'grab');
+
             if (this.widgets['node-highlight']) {
                 // Highlight connected edges
                 node.connectedEdges().addClass('highlighted');
@@ -656,6 +659,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const node = evt.target;
 
             this.hideTooltip();
+
+            $('html,body').css('cursor', 'default');
 
             if (this.widgets['node-highlight']) {
                 // Remove highlight from connected edges
@@ -2124,10 +2129,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d a node
      */
     showNodeTooltip(d, event) {
+
+        // Only show tooltip for nodes, not parent/group nodes
+        if(d.isParent) {
+            return;
+        }
+
         if (this.widgets['node-highlight']) {
           this.selectedNodeId = d.id;
-          this.cdref.detectChanges();
-      }
+        }
 
         let tt_var_len = this.widgets['node-tooltip-variable'].length
         let tooltipHtml: string;
