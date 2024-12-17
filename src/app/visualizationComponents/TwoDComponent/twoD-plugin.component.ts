@@ -14,22 +14,12 @@ import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { CustomShapes } from '@app/helperClasses/customShapes';
-//import { FormsModule } from '@angular/forms';
-import { DialogModule } from 'primeng/dialog';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
-import { MicrobeTraceNextHomeComponent } from '../../microbe-trace-next-plugin.component';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
-
-import { data, NodeDatum, LinkDatum, GraphData } from './data';
-// import { GraphCircleLabel, Graph, GraphForceLayoutSettings, GraphLayoutType, GraphNode, GraphLink, GraphPanelConfig, GraphLinkStyle } from '@unovis/ts';
-
-import { nodes, links, NodeDatum2, LinkDatum2, panels } from './data2';
-
+import { GraphData } from './data';
 import cytoscape, { Core, Style } from 'cytoscape';
-
 
 @Component({
     selector: 'TwoDComponent',
@@ -43,55 +33,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // TODO::David Please delete or update the below accordingly if still needed as we no longer are using unovis here
     // @ViewChild('twoDGraph') twoDGraph: Graph<GraphNode, GraphLink>;
 
-    svgStyle: {} = {
-        'height': '0px',
-        'width': '1000px'
-    };
-
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
 
     // Cytoscape core instance
     cy: Core;
-
     vizLoaded = true;
-
     data;
-
-    private rerenderTimeout: any;
-
-    data2: { nodes: NodeDatum2[]; links: LinkDatum2[] } = { nodes, links };
-
+    rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
-
     debugMode = false;
-
     overideTransparency = false;
-
-    // layoutType2 = GraphLayoutType.Parallel;
-    // layoutNodeGroup = (d: NodeDatum2): string => d.group;
-    // layoutParallelNodeSubGroup = (d: NodeDatum2): string => d.id;
-    // panels: GraphPanelConfig[] = panels;
-
-    // layoutType = GraphLayoutType.Force;
-
     containerHeight = 800; // or any other number you want
-
     graphData: GraphData = {
         nodes: [],
         links: []
     };
-
-    showParallel: boolean = false;
-
     selectedNodeId = undefined;
-
-    forceLayoutSettings: any = {
-        fixNodePositionAfterSimulation: true
-    }
     selectedNodeShape: string = 'circle'; // Default shapeDF
-
-
 
     getNodeSize(node: any) {
 
@@ -122,28 +81,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
                 return this.nodeScale; // Default to scalar if v is not a number
             }
-
-
-            // return this.commonService.temp.style.nodeColorMap(this.commonService.session.data.nodes[index][variable]);
-        }
-
-
-    }
-
-
-    getNodeStroke = (n: NodeDatum) => {
-
-        if (n.id == this.selectedNodeId) {
-            return this.widgets['selected-node-stroke-color'];
-        } else {
-            return '#000';
         }
 
     }
 
-    nodeStrokeWidth = (n: NodeDatum) => {
-        return this.nodeBorderWidth;
-    }
+
 
     getLinkArrow = (link: any) => {
         if (this.widgets['link-directed'] && this.widgets['link-bidirectional']) {
@@ -157,11 +99,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         let variable = this.widgets['node-color-variable'];
         let color = this.widgets['node-color'];
-
-        // Set cluster to group if showing paralell grouping
-        if (variable == "cluster" && this.showParallel) {
-            variable = "group";
-        }
 
         return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
 
@@ -845,14 +782,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
 
-            this.svgStyle = {
-                'height': '100%',
-                'min-width.%': 100,
-            };
-
             this.halfWidth = $('#network').parent().width() / 2;
             this.halfHeight = $('#network').parent().parent().parent().height() / 2;
-            this.containerHeight = this.halfHeight * 2 - 40;
 
             let networkData = {
                 nodes: this.commonService.getVisibleNodes(),
@@ -860,67 +791,48 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             this.data = this.commonService.convertToGraphDataArray(networkData);
-            // Now update panels
-            // this.updatePanels();
 
             if (this.debugMode) {
                 console.log('data: ', this.data);
             }
 
-            $(document).on("node-visibility", function () {
+            // TODO when done with view, remove this since we are sure we wont need it
+            // $(document).on("node-visibility", function () {
 
-                // if (!that.isLoading) {
-                //     console.log('render node-vis');
-                //     that.isLoading = true;
-                //     that.render(false);
-                //     setTimeout(() => {
-                //         that.isLoading = false;
-                //       }, 1000);
-                // }
-                // let networkData = { 
-                //     nodes : that.commonService.getVisibleNodes(), 
-                //     links : that.commonService.getVisibleLinks()
-                // }
+            //     let networkData = { 
+            //         nodes : that.commonService.getVisibleNodes(), 
+            //         links : that.commonService.getVisibleLinks()
+            //     }
 
-                // that.data = that.commonService.convertToGraphDataArray(networkData);
-            });
+            //     that.data = that.commonService.convertToGraphDataArray(networkData);
+            // });
 
-            $(document).on("link-visibility", async function () {
-                if (!that.isLoading) {
-                    that.isLoading = true;
+            // $(document).on("link-visibility", async function () {
 
-                    // that.debouncedRerender();
-                    that.isLoading = false;
+            // });
 
+            // $(document).on("cluster-visibility", function () {
 
-                }
-            });
-
-            $(document).on("cluster-visibility", function () {
-                // if (!that.isLoading) {
-                //     // console.log('render clus-vis');
-                //     that.isLoading = true;
-                //     that.render(true);
-                //     setTimeout(() => {
-                //         that.isLoading = false;
-                //       }, 1000);
-                // }     
-
-                // let networkData = { 
-                //     nodes : that.commonService.getVisibleNodes(), 
-                //     links : that.commonService.getVisibleLinks()
-                // }
-
-                // that.data = that.commonService.convertToGraphDataArray(networkData);
-            });
+            // });
 
             $(document).on("node-selected", function () {
-                if (!that.isLoading) {
-                    let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
-                    if (mtSelectedNode && mtSelectedNode.id) {
-                        that.selectedNodeId = mtSelectedNode.id;
-                    } else if (mtSelectedNode && !mtSelectedNode.id) {
-                        that.selectedNodeId = mtSelectedNode._id;
+
+                let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
+                if (mtSelectedNode && mtSelectedNode.id) {
+                    that.selectedNodeId = mtSelectedNode.id;
+                } else if (mtSelectedNode && !mtSelectedNode.id) {
+                    that.selectedNodeId = mtSelectedNode._id;
+                }
+
+                    // Deselect all nodes first
+                    that.cy.elements().unselect();
+
+                    // Select the newly selected node
+                    if (that.selectedNodeId) {
+                        const node = that.cy.getElementById(that.selectedNodeId);
+                        if (node) {
+                            node.select();
+                        }
                     }
 
                     // that.debouncedRerender();
@@ -928,8 +840,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         console.log('node-selected in 2d: ', that.selectedNodeId);
                         console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
                     }
-
-                }
             });
 
             // this.eventManager.addGlobalEventListener('window', "node-selected", () => {
@@ -2087,42 +1997,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         return tableHtml;
     }
-
-    /**
-     * Highlights the node and all of its neighbor (shares a link with) and the links that the node is 
-     * a source or target
-     * @param node node that is mouseover by user
-     */
-    highlightNeighbors(node) {
-        let links = this.getVLinks();
-        let lindices = [], neighbors = [node._id];
-
-        let n = links.length;
-        for (let i = 0; i < n; i++) {
-            let l = links[i];
-            if (l.source._id !== node._id && l.target._id !== node._id) {
-                lindices.push(l.index);
-            } else {
-                if (l.source._id == node._id) {
-                    neighbors.push(l.target._id);
-                } else {
-                    neighbors.push(l.source._id);
-                }
-            }
-        }
-        // highlights current node and its neighbors
-        // this.svg
-        //     .select('g.nodes')
-        //     .selectAll('g')
-        //     .selectAll('path')
-        //     .attr('opacity', d => this.commonService.includes(neighbors, d._id) ? 1 : .1);
-        // hightlights all of current node's links
-        // this.svg
-        //     .select('g.links')
-        //     .selectAll('line')
-        //     .data(links)
-        //     .attr('opacity', l => this.commonService.includes(lindices, l.index) ? .1 : 1);
-    };
 
     /**
      * Gets data from current node needed for tooltip and displays it in the tooltip also hightlights neighbors if that option is selected

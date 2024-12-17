@@ -548,12 +548,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 }
                 if (typeof node[field] == "string") {
                   node.selected = vre.test(node[field]);
-                  firstSelected = true;
+                  firstSelected = node.selected;
                 }
                 if (typeof node[field] == "number") {
                   node.selected = (node[field] + "" == val);
-                  firstSelected = true;
+                  firstSelected = node.selected;
                 }
+
             } else {
                 break;
             }
