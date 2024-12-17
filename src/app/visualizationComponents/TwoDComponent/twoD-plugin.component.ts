@@ -50,129 +50,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         links: []
     };
     selectedNodeId = undefined;
-    selectedNodeShape: string = 'circle'; // Default shapeDF
-
-    getNodeSize(node: any) {
-
-        let defaultSize = this.widgets['node-radius'];
-        let size = defaultSize, med = defaultSize, oldrng, min, max;
-        let sizeVariable = this.widgets['node-radius-variable'];
-
-        if (this.widgets['node-radius-variable'] == 'None') {
-            return this.widgets['node-radius'];
-        } else {
-
-            let v = node[sizeVariable];
-
-            if (!this.isNumber(v)) v = this.nodeMid;
-
-            // Check the type of v before calling linkScale
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.nodeScale(v);
-                if (this.debugMode) {
-                    console.log('link scale', scaleValue);
-                }
-                return scaleValue;
-            } else {
-                if (this.debugMode) {
-                    console.error('v is not a number:', v);
-                }
-                return this.nodeScale; // Default to scalar if v is not a number
-            }
-        }
-
-    }
-
-
-
-    getLinkArrow = (link: any) => {
-        if (this.widgets['link-directed'] && this.widgets['link-bidirectional']) {
-            return "double";
-        }
-        return this.widgets['link-directed'];
-    }
-
-
-    getNodeColor(node: any) {
-
-        let variable = this.widgets['node-color-variable'];
-        let color = this.widgets['node-color'];
-
-        return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
-
-    }
-
-    getLinkWidth(link: any) {
-        let scalar = this.widgets['link-width'];
-        let variable = this.widgets['link-width-variable'];
-
-        if (variable == 'None') return scalar;
-
-        else {
-            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
-            let v = link[variable];
-
-
-            if (!this.isNumber(v)) v = mid;
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.linkScale(v);
-                return scaleValue;
-            } else {
-                return scalar; // Default to scalar if v is not a number
-            }
-        }
-    }
-
-    // Method to handle shape change from the dropdown
-    onNodeShapeChange(newShape: string) {
-        this.selectedNodeShape = newShape;
-        this.updateNodeShapes();
-    }
-
-
-    getLinkColor(link: any) {
-        let variable = this.widgets['link-color-variable'];
-        let color = this.widgets['link-color'];
-
-        if ((link.source.id === "KF773429" && link.target.id === "KF773430") || (link.source.id === "KF773430" && link.target.id === "KF773429")) {
-            console.log('link variable: ', link[variable]);
-        }
-
-        let finalColor;
-        let alphaValue;
-
-        if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
-            finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
-            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link")
-            // this.commonService.temp.style.linkColorMap("Multi-Link"), alphaValue;
-        } else {
-
-            finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-            alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
-        }
-
-        if (this.overideTransparency) {
-            alphaValue = this.widgets['link-opacity'];
-        }
-
-        // console.log('color: ', finalColor);
-        return {
-            color: finalColor,
-            opacity: alphaValue
-        };
-
-    }
-
-    private customShapes: CustomShapes = new CustomShapes();
-
-    private symbolTableWrapper: HTMLElement | null = null;
-    private linkColorTableWrapper: HTMLElement | null = null;
-    private nodeColorTableWrapper: HTMLElement | null = null;
-
+    selectedNodeShape: string = 'ellipse'; // Default shapeDF
 
     linkMin: number = 3;
     linkMax: number = 27;
@@ -186,6 +64,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     visNodes: any;
     nodeMid: number = 1;
 
+    // TODO determine if this is needed anymore after transition to cytoscape
     autoFit: boolean = true;
 
     ShowNetworkAttributes: boolean = false;
@@ -193,7 +72,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     Show2DExportPane: boolean = false;
     Show2DSettingsPane: boolean = false;
     IsDataAvailable: boolean = false;
-    // svg: any = null;
+
     widgets: object;
     halfWidth: any = null;
     halfHeight: any = null;
@@ -201,10 +80,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     force: any = null;
     radToDeg: any = (180 / Math.PI);
     selected: any = null;
-    multidrag: boolean = false;
-    // clipboard = new ClipboardJS('#copyID, #copySeq');
     zoom: any = null;
-    brush: any = null;
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
     LinkToolTipList: SelectItem[] = [];
@@ -242,14 +118,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
     SelectedNetworkTableTypeVariable: string = "Hide";
 
-    private isExportClosed: boolean = false;
-    /* XXXXXnot sure if this boolean is necessary; Related to exportWork, and bottom-table s (ie. node-symbol-table-bottom)
-     currently exportWork2 is used which don't make use of isExporting and bottom-table s XXXXX */
-    public isExporting: boolean = false;
-
-    isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
-
-
     // Link Tab
     SelectedLinkTooltipVariable: any = "None";
     SelectedLinkLabelVariable: string = "None";
@@ -285,7 +153,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     SelectedLinkBidirectionalTypeVariable: string = "Hide";
 
-
     // Network 
     NeighborTypes: any = [
         { label: 'Normal', value: 'Normal' },
@@ -299,9 +166,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
-    SelectedNetworkChargeVariable: any = 200;
-    SelectedNetworkGravityVariable: any = .05;
-    SelectedNetworkFrictionVariable: any = .4;
     SelecetedNetworkLinkStrengthVariable: any = 0.123;
     SelectedNetworkExportFilenameVariable: string = "";
 
@@ -333,10 +197,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
 
-    private visuals: MicrobeTraceNextVisuals;
+    // TODO see if needed after transition to cytoscape
+    // zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
 
-    // Set the zoom scale extent
-    zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
+    private customShapes: CustomShapes = new CustomShapes();
+    private symbolTableWrapper: HTMLElement | null = null;
+    private linkColorTableWrapper: HTMLElement | null = null;
+    private nodeColorTableWrapper: HTMLElement | null = null;
+
+    private isExportClosed: boolean = false;
+    /* XXXXXnot sure if this boolean is necessary; Related to exportWork, and bottom-table s (ie. node-symbol-table-bottom)
+     currently exportWork2 is used which don't make use of isExporting and bottom-table s XXXXX */
+    public isExporting: boolean = false;
+
+    isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
 
     constructor(injector: Injector,
         private eventManager: EventManager,
@@ -360,23 +234,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
         //TODO::David Below the twoDGraph was used
-            this.container.on('hide', () => { 
-                this.viewActive = false; 
-                this.cdref.detectChanges();
-                setTimeout(() => {
-                    // (this.twoDGraph as any).component.fitView(500);
-                }, 50)
-            })
-            this.container.on('show', () => { 
-                this.viewActive = true; 
-                this.cdref.detectChanges();
-                setTimeout(() => {
-                    // (this.twoDGraph as any).component.fitView(500);
-                }, 50)
-            })
+        this.container.on('hide', () => { 
+            this.viewActive = false; 
+            this.cdref.detectChanges();
+            setTimeout(() => {
+                // (this.twoDGraph as any).component.fitView(500);
+            }, 50)
+        })
+        this.container.on('show', () => { 
+            this.viewActive = true; 
+            this.cdref.detectChanges();
+            setTimeout(() => {
+                // (this.twoDGraph as any).component.fitView(500);
+            }, 50)
+        })
 
-             // Initialize the selectedNodeShape from the settings
-            this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
+            // Initialize the selectedNodeShape from the settings
+        this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
 
     }
 
@@ -395,56 +269,56 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
-  mapDataToCytoscapeElements(data: any): cytoscape.ElementsDefinition {
+    mapDataToCytoscapeElements(data: any): cytoscape.ElementsDefinition {
 
-    // Create a set to track unique parent nodes
-    const parentNodes = new Set();
+        // Create a set to track unique parent nodes
+        const parentNodes = new Set();
 
-    const edges = data.links.map((link: any) => ({
-        data: {
-            id: `${link.source}-${link.target}`,
-            source: link.source,
-            target: link.target,
-            lineSelectedColor: this.widgets['selected-color'],
-            label: this.getLinkLabel(link).text, // Existing link label
-            lineColor: this.getLinkColor(link).color, // Default to black if not specified
-            lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
-            width: this.getLinkWidth(link),
-            // Include any additional edge-specific data properties
-            ...link
-        }
-    }));
-
-    const nodes = data.nodes.map((node: any) => {
-         // If the node has a parentId, add it to the parentNodes set
-        if (node.group && this.widgets['polygons-show']) {
-            parentNodes.add(node.group);
-        }
-
-        return {
+        const edges = data.links.map((link: any) => ({
             data: {
-                id: node.id,
-                label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
-                parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                nodeSize: this.getNodeSize(node), // Existing node size
-                nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
-                borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
-                selectedBorderColor: this.widgets['selected-color'],
-                fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
-                shape: this.getNodeShape(node),
-                // Include any additional node-specific data properties
-                ...node
+                id: `${link.source}-${link.target}`,
+                source: link.source,
+                target: link.target,
+                lineSelectedColor: this.widgets['selected-color'],
+                label: this.getLinkLabel(link).text, // Existing link label
+                lineColor: this.getLinkColor(link).color, // Default to black if not specified
+                lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
+                width: this.getLinkWidth(link),
+                // Include any additional edge-specific data properties
+                ...link
             }
+        }));
+
+        const nodes = data.nodes.map((node: any) => {
+            // If the node has a parentId, add it to the parentNodes set
+            if (node.group && this.widgets['polygons-show']) {
+                parentNodes.add(node.group);
+            }
+
+            return {
+                data: {
+                    id: node.id,
+                    label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
+                    parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
+                    nodeSize: this.getNodeSize(node), // Existing node size
+                    nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
+                    borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
+                    selectedBorderColor: this.widgets['selected-color'],
+                    fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
+                    shape: this.getNodeShape(node),
+                    // Include any additional node-specific data properties
+                    ...node
+                }
+            };
+        });
+    
+    
+    
+        return {
+            edges: edges,
+            nodes: nodes
         };
-    });
-  
- 
-  
-    return {
-        edges: edges,
-        nodes: nodes
-    };
-  }
+    }
 
     getCytoscapeStyles(): cytoscape.Stylesheet[] {
         return [
@@ -561,7 +435,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     attachCytoscapeEvents() {
-        // Example: Node click
         this.cy.on('tap', 'node', (evt) => {
             const node = evt.target;
             console.log('Selected node:', node.data());
@@ -576,7 +449,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         });
     
-        // Example: Hover events
         this.cy.on('mouseover', 'node', (evt) => {
             const node = evt.target;
             this.showNodeTooltip(node.data(), evt.originalEvent);
@@ -815,6 +687,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // });
 
+            // TODO move this to a subscribed event than use document jquery
             $(document).on("node-selected", function () {
 
                 let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
@@ -842,29 +715,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     }
             });
 
-            // this.eventManager.addGlobalEventListener('window', "node-selected", () => {
-            //     console.log('render node-sel2');
-            //     this.render(false);
-            // });
 
             if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
             this.commonService.onStatisticsChanged();
             this.loadSettings();
 
-            //For some mysterious reason, this really needed a delay...
-            setTimeout(async () => {
-
-                if (this.widgets['node-symbol-variable'] !== 'None') {
-                    $('#node-symbol-variable').change(); //.trigger('change');
-                }
-
-                if (this.debugMode) {
-                    console.log('data: ', this.data);
-                }
-                this.isLoading = false;
-
-            }, 1);
+            if (this.widgets['node-symbol-variable'] !== 'None') {
+                $('#node-symbol-variable').change(); //.trigger('change');
+            }
 
         }
 
@@ -2336,7 +2195,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const rawGroup = node.data(foci); // Assuming foci corresponds to a data attribute
                 const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup; // Use first element if array
                 
-                if (group && group !== 'None') { // Exclude nodes without a group
+                if (group !== undefined && group !== null && group !== 'None') {
                     if (!groupMap.has(group)) {
                         groupMap.set(group, []);
                     }
@@ -2535,6 +2394,111 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.updateNodeLabels();
         
+    }
+
+    // Method to handle shape change from the dropdown
+    onNodeShapeChange(newShape: string) {
+        this.selectedNodeShape = newShape;
+        this.updateNodeShapes();
+    }
+
+    getNodeSize(node: any) {
+
+        let defaultSize = this.widgets['node-radius'];
+        let size = defaultSize, med = defaultSize, oldrng, min, max;
+        let sizeVariable = this.widgets['node-radius-variable'];
+
+        if (this.widgets['node-radius-variable'] == 'None') {
+            return this.widgets['node-radius'];
+        } else {
+
+            let v = node[sizeVariable];
+
+            if (!this.isNumber(v)) v = this.nodeMid;
+
+            // Check the type of v before calling linkScale
+
+            // Ensure v is a number before using linkScale
+            if (typeof v === 'number') {
+                let scaleValue = this.nodeScale(v);
+                if (this.debugMode) {
+                    console.log('link scale', scaleValue);
+                }
+                return scaleValue;
+            } else {
+                if (this.debugMode) {
+                    console.error('v is not a number:', v);
+                }
+                return this.nodeScale; // Default to scalar if v is not a number
+            }
+        }
+
+    }
+
+    getNodeColor(node: any) {
+
+        let variable = this.widgets['node-color-variable'];
+        let color = this.widgets['node-color'];
+
+        return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
+
+    }
+
+    getLinkWidth(link: any) {
+        let scalar = this.widgets['link-width'];
+        let variable = this.widgets['link-width-variable'];
+
+        if (variable == 'None') return scalar;
+
+        else {
+            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
+            let v = link[variable];
+
+
+            if (!this.isNumber(v)) v = mid;
+
+            // Ensure v is a number before using linkScale
+            if (typeof v === 'number') {
+                let scaleValue = this.linkScale(v);
+                return scaleValue;
+            } else {
+                return scalar; // Default to scalar if v is not a number
+            }
+        }
+    }
+
+
+    getLinkColor(link: any) {
+        let variable = this.widgets['link-color-variable'];
+        let color = this.widgets['link-color'];
+
+        if ((link.source.id === "KF773429" && link.target.id === "KF773430") || (link.source.id === "KF773430" && link.target.id === "KF773429")) {
+            console.log('link variable: ', link[variable]);
+        }
+
+        let finalColor;
+        let alphaValue;
+
+        if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
+            finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
+            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link")
+            // this.commonService.temp.style.linkColorMap("Multi-Link"), alphaValue;
+        } else {
+
+            finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
+            alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
+        }
+
+        if (this.overideTransparency) {
+            alphaValue = this.widgets['link-opacity'];
+        }
+
+        // console.log('color: ', finalColor);
+        return {
+            color: finalColor,
+            opacity: alphaValue
+        };
+
     }
 
     /**
@@ -4122,23 +4086,12 @@ scaleLinkWidth() {
         this.SelectedNetworkGridLineTypeVariable = this.widgets['network-gridlines-show'] ? "Show" : "Hide";
         this.onNetworkGridlinesShowHideChange(this.SelectedNetworkGridLineTypeVariable);
 
-        //Network|Charge
-        this.SelectedNetworkChargeVariable = this.widgets['node-charge'];
-        this.onNodeChargeChange(this.SelectedNetworkChargeVariable);
-
-        //Network|Gravity
-        this.SelectedNetworkGravityVariable = this.widgets['network-gravity'];
-        this.onNetworkGravityChange(this.SelectedNetworkGravityVariable);
-
-        //Network|Friction
-        this.SelectedNetworkFrictionVariable = this.widgets['network-friction'];
-        this.onNetworkFrictionChange(this.SelectedNetworkFrictionVariable);
-
         //Network|Link Strength
         this.SelecetedNetworkLinkStrengthVariable = this.widgets['network-link-strength'];
         this.onNetworkFrictionChange(this.SelecetedNetworkLinkStrengthVariable);
 
-        if (this.widgets['polygon-label-orientation'] !== 'top' || this.widgets['polygon-label-orientation'] !== 'bottom') {
+        // Ensure proper orientation is set
+        if (this.widgets['polygon-label-orientation'] !== 'top' || this.widgets['polygon-label-orientation'] !== 'bottom' || this.widgets['polygon-label-orientation'] !== 'middle') {
             this.widgets['polygon-label-orientation'] = 'top';
         }
 
