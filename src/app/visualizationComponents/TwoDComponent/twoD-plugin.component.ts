@@ -3147,7 +3147,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 name: 'cose',
                 animate: false, // Disable animation for faster updates
                 fit: true, // Fit the graph within the viewport
-                padding: 30, // Padding around the graph
+                padding: 100, // Padding around the graph
                 nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
                 idealEdgeLength: (edge) => 100, // Ideal length of edges
                 edgeElasticity: (edge) => 100, // Elasticity of edges
@@ -3172,7 +3172,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               name: 'cose', // Use the cose layout
               animate: false, // Set to true for animation
               fit: true, // Fit the graph to the viewport
-              padding: 30, // Padding around the graph
+              padding: 100, // Padding around the graph
               nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
               idealEdgeLength: (edge) => 100, // Ideal length of edges
               edgeElasticity: (edge) => 100, // Elasticity of edges
