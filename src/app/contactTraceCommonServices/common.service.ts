@@ -342,7 +342,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'polygons-foci': 'cluster',
             'polygons-gather-force': 0,
             'polygons-label-show' : false,
-            'polygon-label-orientation' : 'Right',
+            'polygon-label-orientation' : 'top',
             'polygons-label-size' : 16,
             'polygons-show' : false,
             'polygon-color-table-visible': false,
@@ -1005,7 +1005,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           return {
             nodes: groupNodes.map(node => node.id),
             label: (this.session.style.widgets['polygons-label-show']) ? `${this.session.style.widgets['polygons-foci']} ${group}` : '',
-            labelPosition: (this.session.style.widgets['polygons-label-orientation']) ? this.session.style.widgets['polygons-label-orientation'] : 'top',
+            labelPosition: (this.session.style.widgets['polygon-label-orientation']) ? this.session.style.widgets['polygon-label-orientation'] : 'top',
             borderColor: groupColor,
             borderWidth: 2,
             fillColor: groupColor,

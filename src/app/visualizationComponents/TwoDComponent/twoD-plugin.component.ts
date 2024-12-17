@@ -483,6 +483,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // Create a set to track unique parent nodes
     const parentNodes = new Set();
 
+    const edges = data.links.map((link: any) => ({
+        data: {
+            id: `${link.source}-${link.target}`,
+            source: link.source,
+            target: link.target,
+            label: this.getLinkLabel(link).text, // Existing link label
+            lineColor: this.getLinkColor(link).color, // Default to black if not specified
+            lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
+            width: this.getLinkWidth(link),
+            // Include any additional edge-specific data properties
+            ...link
+        }
+    }));
+
     const nodes = data.nodes.map((node: any) => {
          // If the node has a parentId, add it to the parentNodes set
         if (node.group && this.widgets['polygons-show']) {
@@ -506,23 +520,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         };
     });
   
-    const edges = data.links.map((link: any) => ({
-        data: {
-            id: `${link.source}-${link.target}`,
-            source: link.source,
-            target: link.target,
-            label: this.getLinkLabel(link).text, // Existing link label
-            lineColor: this.getLinkColor(link).color, // Default to black if not specified
-            lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
-            width: this.getLinkWidth(link),
-            // Include any additional edge-specific data properties
-            ...link
-        }
-    }));
+ 
   
     return {
-        nodes: nodes,
-        edges: edges
+        edges: edges,
+        nodes: nodes
     };
   }
 
@@ -541,6 +543,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'color': 'black',
                     // @ts-ignore
                     'shape': 'data(shape)',
+                    'z-index': 10, // Not a standard Cytoscape property, but kept for clarity
                     // 'font-size': 'data(fontSize)' // Ensure this line is included
                 }
             },
@@ -573,7 +576,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'shape': 'data(shape)'
                 }
             },
-
+            {
+                selector: 'node.parent',
+                style: {
+                    'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
+                }
+            },
             {
                 selector: 'edge',
                 style: {
@@ -1628,6 +1636,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else {
                 $('#polygons-label-hide').click();
             }
+
+            // Ensure the label orientation is updated when polygons are turned on
+            this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
         } else {
             $(".polygons-settings-row").slideUp();
             $('.polygons-label-row').slideUp();
@@ -2556,10 +2567,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * Updates polygons-label-orientation widget and then redraws polygon labels
+     * Updates polygon-label-orientation widget and then redraws polygon labels
      */
     onPolygonLabelOrientationChange(e) {
-        this.widgets['polygons-label-orientation'] = e;
+        this.widgets['polygon-label-orientation'] = e;
         // Adjust the orientation of the parent/group node labels in Cytoscape
         if (this.cy) {
           
@@ -4210,7 +4221,7 @@ scaleLinkWidth() {
         this.onPolygonLabelSizeChange(this.SelectedPolygonLabelSizeVariable);
 
         //Node|Orientation
-        this.SelectedPolygonLabelOrientationVariable = this.widgets['polygons-label-orientation'];
+        this.SelectedPolygonLabelOrientationVariable = this.widgets['polygon-label-orientation'];
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
         this.polygonsToggle(this.widgets['polygons-show']);
