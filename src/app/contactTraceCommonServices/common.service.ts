@@ -965,7 +965,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           id: node._id, // Ensure the id property is set correctly
           group: node.cluster,
           color: this.getColorByIndex(node.index), // Add or override the color property
-          label: node.label ?? node._id, // Ensure label is defined
+          label: (this.session.style.widgets['node-label-variable'] === 'None') ? '' : node.label, // Ensure label is defined
             nodeSize: node.nodeSize ?? 20, // Default node size
             borderWidth: node.borderWidth ?? 1 // Default border width
         }));

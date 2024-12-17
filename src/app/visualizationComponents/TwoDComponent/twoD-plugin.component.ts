@@ -492,7 +492,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return {
             data: {
                 id: node.id,
-                label: node.label, // Existing label
+                label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
                 parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
                 nodeSize: this.getNodeSize(node), // Existing node size
                 nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
