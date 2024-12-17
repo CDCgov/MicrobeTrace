@@ -2937,10 +2937,8 @@ export class CommonService extends AppComponentBase implements OnInit {
 	 * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
 	 */
     createPolygonColorMap = () => {
-        console.log('createPolygonColorMap1: ', this.temp.polygonGroups, !this.session.style.widgets['polygons-color-show']);
 
         if (!this.temp.polygonGroups || !this.session.style.widgets['polygons-color-show']) {
-            console.log('createPolygonColorMap2: ', this.session.style.widgets['polygon-color']);
             this.temp.style.polygonColorMap = () => this.session.style.widgets['polygon-color'];
             return [];
         }

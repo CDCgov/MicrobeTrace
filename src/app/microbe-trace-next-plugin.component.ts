@@ -911,7 +911,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onNodeColorTableChanged() {
 
-        console.log('node color table changed: ', this.SelectedNodeColorTableTypesVariable);
         if(this.commonService.debugMode) {
             console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
         }
@@ -1515,11 +1514,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (!this.GlobalSettingsNodeColorDialogSettings.isVisible) {
 
-            console.log('currently hjidden');
-
             // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
             if (this.SelectedColorNodesByVariable != "None") {
-                console.log('note none and showing');
 
                 this.SelectedNodeColorTableTypesVariable = 'Show';
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
@@ -1541,18 +1537,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             
             $('#node-color-value-row').slideUp();
 
-            console.log('currently ndoes is: ', this.SelectedColorNodesByVariable);
-
-
             //If hidden by default, unhide to perform slide up and down
             if(!this.ShowGlobalSettingsNodeColorTable){
-                console.log('currently if');
 
                 const element = this.el.nativeElement.querySelector('#node-color-table');
                 this.commonService.setNodeTableElement(element);
                 this.ShowGlobalSettingsNodeColorTable = true;
             } else {
-                console.log('currently else');
                 $('#node-color-table-row').slideDown();
             }
 
@@ -1560,8 +1551,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // if color nodes by equals None, then hide node color table
         } else {
-
-            console.log('currently ndoes is none');
 
             $('#node-color-table').empty();
             $('#node-color-value-row').slideDown();
