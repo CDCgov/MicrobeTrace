@@ -154,6 +154,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.applyStyleFileSettings();
     });
 
+    this.commonService.FP_removeFiles.subscribe(() => {
+      this.commonService.session.files.forEach(file => {
+        this.removeFile(file.name, false);
+      })
+  });
+
     // TODO: the rest of ngOnInit can be revised to take advantage of angular features
     $('.alignConfigRow').hide();
 
@@ -1504,7 +1510,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
           parentContext.commonService.session.files.splice(parentContext.commonService.session.files.findIndex(f => f.name === file.name), 1);
-          context.visuals.filesPlugin.removeFile(file.name);
+          parentContext.removeFile(file.name);
           $('#launch').prop('disabled', false).focus();
           $('#launch').text('Update');
           root.slideUp(() => root.remove());

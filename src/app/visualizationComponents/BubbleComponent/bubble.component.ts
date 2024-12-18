@@ -228,7 +228,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
 
     this.cy.add(Axes);
-    this.cy.fit();
+    this.cy.fit(this.cy.nodes(), 30);
     this.cy.nodes().lock()
   }
 
@@ -305,7 +305,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       layout: {
         name: 'preset',
         fit: true,
-        padding: 20
+        padding: 30
       },
 
       zoomingEnabled: true,
@@ -413,7 +413,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         color: '#ff00ff',
         Xgroup: 0,
         Ygroup: 0,
-        strokeColor: node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000'
+        strokeColor: node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000',
+        totalCount: 1
       }
       if (this.xVariable != undefined || this.xVariable != 'None') {
         let nodeX = node[this.xVariable];
@@ -441,12 +442,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * updates values of visibleNodes based on SelectedNodeCollapsingTypeVariable and if timeline mode is active
    */
   updateVisibleNodes() {
+    // if no timeline and not collapsed
     if (this.widgets["node-timeline-variable"] == 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
       this.visibleData = this.allData;
-    } else if (this.SelectedNodeCollapsingTypeVariable){
-      if (this.commonService.getVisibleNodes().length == this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0)) { return }
-      this.getCollapsedData(false, false)
-    } else { 
+    // if timeline and not collapse
+    } else if (this.widgets["node-timeline-variable"] != 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
       let visibleNodes = this.commonService.getVisibleNodes();
       if (visibleNodes.length == this.visibleData.length) { return }
       this.visibleData = [];
@@ -455,6 +455,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           this.visibleData.push(node);
         }
       })
+    // if no timeline and collapse
+    } else if (this.widgets["node-timeline-variable"] == 'None'){
+      // console.log(this.commonService.getVisibleNodes().length, this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0))
+      this.getCollapsedData(false, false)
+    // if timeline and collapse
+    } else {
+      if (this.commonService.getVisibleNodes().length == this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0)) { return }
+      this.getCollapsedData(false, false);
     } 
     
 
@@ -573,9 +581,10 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.generatePieChartsSVGDefs(changedVisibleNodes);
 
     this.cy.remove('node');
-    this.getData();
     this.updateNodes();
 
+    this.cy.style().resetToDefault();
+    this.cy.style(this.getCytoscapeStyle())
     this.visibleData.forEach((node, i) => {
       if ( node.totalCount == 1 || node.counts.length == 1) {
         return;
@@ -732,7 +741,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   goldenLayoutComponentResize() {    
     this.viewHeight = this.container.height - 73;
     this.viewWidth = this.container.width - 42;
-    this.cy.fit();
+    setTimeout(() => this.cy.fit(this.cy.nodes(), 30), 300);
   }
 
   setSelectedNodes(that) {
@@ -822,7 +831,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         }
       })  
 
-      this.cy.fit();
+      this.cy.fit(this.cy.nodes(), 30);
       this.cy.nodes().lock();
     }
   }
@@ -835,7 +844,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           node.data('nodeSize', this.nodeSize * Math.sqrt(node.data().totalCount));
         });
         this.cy.style().update();
-        this.cy.fit();
+        this.cy.fit(this.cy.nodes(), 30);
       }
     } else {
       this.recalculatePositions();
@@ -844,7 +853,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           node.data('nodeSize', this.nodeSize);
         }); 
         this.cy.style().update(); 
-        this.cy.fit();
+        this.cy.fit(this.cy.nodes(), 30);
       }
     }
 }

@@ -1,4 +1,4 @@
-﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService, ExportOptions } from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 
@@ -686,10 +686,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log("Trying to prepare files");
         }
         // this.commonService.resetData();
-        // TODO:: David Check Below
-        // this.commonService.session.files.forEach(file => {
-        //     this.visuals.filesPlugin.removeFile(file.name, false);
-        //   })
+
+        this.commonService.FP_removeFiles.emit()
         this.commonService.session.files = [];
         if (!this.commonService.session.style.widgets) {
             this.commonService.session.style.widgets = this.commonService.defaultWidgets();
@@ -1116,6 +1114,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
 
             // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
+            // checkActiveView is reliant on commonService.visuals, under current implementation (12/17/24) always returns false and function may not be needed
             if (this.SelectedColorLinksByVariable != "None") {
                 this.SelectedLinkColorTableTypesVariable = "Show";
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
@@ -1351,7 +1350,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
         if ('bubble' in this.commonService.visuals) {
              this.commonService.visuals.bubble.sortData(variable);
-         }
+        }
+        this.commonService.twoD_saveNodePos.emit();
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");

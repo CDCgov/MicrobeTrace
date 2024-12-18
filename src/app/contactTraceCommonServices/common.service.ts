@@ -105,6 +105,12 @@ export class CommonService extends AppComponentBase implements OnInit {
     // EventEmitter to notify components of changes
     statisticsChanged: EventEmitter<string> = new EventEmitter();
 
+    // EventEmitter to notify components of changes
+    FP_removeFiles: EventEmitter<string> = new EventEmitter();
+
+    // EventEmitter to notify components of changes
+    twoD_saveNodePos: EventEmitter<string> = new EventEmitter();
+
     /**
      * Returns an object that will eventually be filled with data. It is accessed throught commonService.session.data
      * It will store a list of nodes, links, and clusters as well as fields that can be used for each
@@ -2662,7 +2668,6 @@ export class CommonService extends AppComponentBase implements OnInit {
         let n = nodes.length;
         for (let i = 0; i < n; i++) {
             const d = nodes[i];
-            if (!d.visible) continue;
             const dv = d[variable];
             if (dv in aggregates) {
                 if (!d.visible) continue;
