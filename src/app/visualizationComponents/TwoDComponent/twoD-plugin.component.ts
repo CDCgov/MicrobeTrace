@@ -226,11 +226,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.setExpanded(this.mainSite);
 
         this.widgets = this.commonService.session.style.widgets;
-        // window.addEventListener('resize', () => {
-        //     // Replace this with the logic to determine the current show/hide state
-        //     const showState: boolean = this.widgets['network-gridlines-show'];
-        //     this.drawGridlines(showState);
-        // });
 
 
         //TODO::David Below the twoDGraph was used
@@ -412,25 +407,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'width': '3px',
                     'opacity': 1,
                 }
-            },
-             // ... other styles ...
-        {
-            selector: '.gridline',
-            style: {
-                'line-color': 'lightgray',
-                'width': 1,
-                'z-index': -1,
-                'events': 'no',
-                'curve-style': 'straight',
             }
-        },
-        {
-            selector: '.gridnode',
-            style: {
-                'opacity': 0,
-                'events': 'no',
-            }
-        }
         ];
     }
 
@@ -582,17 +559,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.IsDataAvailable === true && this.zoom === null) {
 
-            // PRE D3
-            d3.select('svg#viz-force')
-                .append('g')
-                .attr('class', 'horizontal-gridlines');
-
-            d3.select('svg#viz-force')
-                .append('g')
-                .attr('class', 'vertical-gridlines');
-            // d3.select('svg#network').exit().remove();
-            // this.svg = d3.select('svg#network').append('g');
-
             // populate this.twoD.FieldList with [None, ...nodeFields]
             this.FieldList = [];
             this.FieldList.push({ label: "None", value: "None" });
@@ -606,7 +572,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
 
             });
-
 
             // populate this.ToolTipFieldList and this.LinkToolTipList
             this.ToolTipFieldList = [];
@@ -3452,128 +3417,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * Adds or removes vertical and horizontal gridlines from svg image
-     * @param show wheither to show or hide gridlines
-     */
-    drawGridlines(show: boolean): void {
-        // Early return if Cytoscape instance doesn't exist
-        if (!this.cy) return;
-    
-        // Remove existing gridlines if any
-        this.cy.$('.gridline').remove();
-    
-        if (show) {
-            const container = this.cy.container();
-            const width = container.offsetWidth;
-            const height = container.offsetHeight;
-            const gridSpacing = 100; // Grid spacing in pixels
-    
-            // Calculate number of lines needed
-            const numHorizontalLines = Math.ceil(height / gridSpacing);
-            const numVerticalLines = Math.ceil(width / gridSpacing);
-    
-            // Create nodes for grid intersections (these will be invisible)
-            const gridNodes = [];
-            
-            // Create horizontal lines
-            for (let i = 0; i <= numHorizontalLines; i++) {
-                // Create start and end nodes for each horizontal line
-                const startNodeId = `h-start-${i}`;
-                const endNodeId = `h-end-${i}`;
-                
-                gridNodes.push(
-                    {
-                        group: 'nodes',
-                        data: { id: startNodeId },
-                        position: { x: 0, y: i * gridSpacing },
-                        classes: 'gridnode'
-                    },
-                    {
-                        group: 'nodes',
-                        data: { id: endNodeId },
-                        position: { x: width, y: i * gridSpacing },
-                        classes: 'gridnode'
-                    }
-                );
-    
-                // Create the horizontal line as an edge
-                this.cy.add({
-                    group: 'edges',
-                    data: {
-                        id: `h-gridline-${i}`,
-                        source: startNodeId,
-                        target: endNodeId
-                    },
-                    classes: 'gridline'
-                });
-            }
-    
-            // Create vertical lines
-            for (let i = 0; i <= numVerticalLines; i++) {
-                // Create start and end nodes for each vertical line
-                const startNodeId = `v-start-${i}`;
-                const endNodeId = `v-end-${i}`;
-                
-                gridNodes.push(
-                    {
-                        group: 'nodes',
-                        data: { id: startNodeId },
-                        position: { x: i * gridSpacing, y: 0 },
-                        classes: 'gridnode'
-                    },
-                    {
-                        group: 'nodes',
-                        data: { id: endNodeId },
-                        position: { x: i * gridSpacing, y: height },
-                        classes: 'gridnode'
-                    }
-                );
-    
-                // Create the vertical line as an edge
-                this.cy.add({
-                    group: 'edges',
-                    data: {
-                        id: `v-gridline-${i}`,
-                        source: startNodeId,
-                        target: endNodeId
-                    },
-                    classes: 'gridline'
-                });
-            }
-    
-            // Add all grid nodes at once
-            this.cy.add(gridNodes);
-    
-            // Update styles for grid elements
-            this.cy.style()
-                .selector('.gridline')
-                .style({
-                    'line-color': 'lightgray',
-                    'width': 1,
-                    'z-index': -1,
-                    'events': 'no',
-                    'curve-style': 'straight',
-                })
-                .selector('.gridnode')
-                .style({
-                    'opacity': 0,
-                    'events': 'no',
-                })
-                .update();
-        }
-    }
-
-    /**
      * Take input from 2D Networks settings dialog box from template and update the widget and show/hides gridlines
      * @param e string either 'Show' or 'Hide'
      */
     onNetworkGridlinesShowHideChange(e: string): void {
         if (e === "Show") {
             this.widgets['network-gridlines-show'] = true;
-            this.drawGridlines(true);
         } else {
             this.widgets['network-gridlines-show'] = false;
-            this.drawGridlines(false);
         }
     }
 

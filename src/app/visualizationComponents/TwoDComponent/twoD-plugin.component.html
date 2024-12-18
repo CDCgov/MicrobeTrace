@@ -21,13 +21,10 @@
 
 <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
 
-<div style="position: relative; width: 100%; height: 100%;">
-
-  
-    <!-- Cytoscape Container -->
+<div class="cytoscape-container">
     <div #cy id="cy" style="width: 100%; height: 100%;"></div>
-  </div>
-
+    <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
+</div>
 
 <!-- May be able to remove this section <div class=row>, related to exportWork which isn't currently used-->
 <div class="row">
@@ -288,10 +285,11 @@
                                 <div class="col-4"><label for="link-width">Width</label></div>
                                 <div class="col-8"><input type="range" class="custom-range" id="link-width" min="0.3" max="30" step=".3" value="3" [(ngModel)]="SelectedLinkWidthVariable" (ngModelChange)="onLinkWidthChange($event)"></div>
                             </div>
+                            <!-- TODO Add back in if we figure out link length 
                             <div class="form-group row" title="How long should links be?">
                                 <div class="col-4"><label for="link-length">Length</label></div>
                                 <div class="col-8"><input type="range" class="custom-range" id="link-length" min="0" max="200" value="50" [(ngModel)]="SelectedLinkLengthVariable" (ngModelChange)="onLinkLengthChange($event)"></div>
-                            </div>
+                            </div> -->
                             <div class="form-group row hideForHIVTrace" title="Shoul arrowheads pointing to the">
                                 <div class="col-4">Arrows</div>
                                 <div class="col-8">
