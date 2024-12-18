@@ -1,0 +1,21 @@
+:host {
+    position: absolute;
+    overflow: hidden;
+    z-index: 1 !important;
+}
+
+.waterfall-wrapper {
+    padding: 40px 20px 10px 20px;
+}
+
+.rowExpansionContent {
+    background-color: #E3F2FD;
+    padding: 0px 0px 16px 16px;
+}
+
+.rowExpansionContent div {
+    overflow: hidden;
+    white-space: nowrap; 
+    text-overflow: ellipsis; 
+    display: block;
+}

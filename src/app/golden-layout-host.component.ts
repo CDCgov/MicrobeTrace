@@ -19,6 +19,7 @@ import { GanttComponent } from './visualizationComponents/GanttComponent/gantt-p
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { BubbleComponent } from './visualizationComponents/BubbleComponent/bubble.component';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
+import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 
 @Component({
   selector: 'app-golden-layout-host',
@@ -77,6 +78,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
     this.goldenLayoutComponentService.registerComponentType(HeatmapComponent.componentTypeName, HeatmapComponent);
     this.goldenLayoutComponentService.registerComponentType(BubbleComponent.componentTypeName, BubbleComponent);
     this.goldenLayoutComponentService.registerComponentType(SankeyComponent.componentTypeName, SankeyComponent);
+    this.goldenLayoutComponentService.registerComponentType(WaterfallComponent.componentTypeName, WaterfallComponent);
   }
 
   ngOnDestroy() {

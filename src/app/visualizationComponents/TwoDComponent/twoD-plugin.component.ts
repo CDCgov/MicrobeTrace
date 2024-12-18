@@ -1,35 +1,20 @@
 ﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
-import { CommonService } from '../../contactTraceCommonServices/common.service';
+import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
-import { forceAttract } from 'd3-force-attract';
 import { Clipboard } from '@angular/cdk/clipboard';
-//import * as ClipboardJS from 'clipboard';
-import * as saveAs from 'file-saver';
-import * as domToImage from 'dom-to-image-more';
 import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import * as _ from 'lodash';
-import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { CustomShapes } from '@app/helperClasses/customShapes';
-//import { FormsModule } from '@angular/forms';
-import { DialogModule } from 'primeng/dialog';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
-import { MicrobeTraceNextHomeComponent } from '../../microbe-trace-next-plugin.component';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
-
-import { data, NodeDatum, LinkDatum, GraphData } from './data';
-// import { GraphCircleLabel, Graph, GraphForceLayoutSettings, GraphLayoutType, GraphNode, GraphLink, GraphPanelConfig, GraphLinkStyle } from '@unovis/ts';
-
-import { nodes, links, NodeDatum2, LinkDatum2, panels } from './data2';
-
+import { GraphData } from './data';
 import cytoscape, { Core, Style } from 'cytoscape';
-
 
 @Component({
     selector: 'TwoDComponent',
@@ -43,275 +28,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // TODO::David Please delete or update the below accordingly if still needed as we no longer are using unovis here
     // @ViewChild('twoDGraph') twoDGraph: Graph<GraphNode, GraphLink>;
 
-    svgStyle: {} = {
-        'height': '0px',
-        'width': '1000px'
-    };
-
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
 
     // Cytoscape core instance
     cy: Core;
-
     vizLoaded = true;
-
     data;
-
-    private rerenderTimeout: any;
-
-    data2: { nodes: NodeDatum2[]; links: LinkDatum2[] } = { nodes, links };
-
+    rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
-
     debugMode = false;
-
     overideTransparency = false;
-
-    // layoutType2 = GraphLayoutType.Parallel;
-    // layoutNodeGroup = (d: NodeDatum2): string => d.group;
-    // layoutParallelNodeSubGroup = (d: NodeDatum2): string => d.id;
-    // panels: GraphPanelConfig[] = panels;
-
-    // layoutType = GraphLayoutType.Force;
-
     containerHeight = 800; // or any other number you want
-
     graphData: GraphData = {
         nodes: [],
         links: []
     };
-
-    showParallel: boolean = false;
-
     selectedNodeId = undefined;
-
-    forceLayoutSettings: any = {
-        fixNodePositionAfterSimulation: true
-    }
-    selectedNodeShape: string = 'circle'; // Default shapeDF
-
-    // linkLabel = (l: LinkDatum): GraphCircleLabel => this.getLinkLabel(l)
-    // nodeLabel = (n: NodeDatum) => this.getNodeLabel(n)
-    // nodeShape = (n: NodeDatum) => this.getNodeShape(n)
-    // linkStroke = (l: LinkDatum) => this.getLinkColor(l)
-    // linkStyle = (l: LinkDatum) => this.getLinkStyle(l)
-    // linkWidth = (l: LinkDatum) => this.getLinkWidth(l)
-    // linkArrow = (l: LinkDatum) => this.getLinkArrow(l)
-    // nodeFill = (n: NodeDatum) => this.getNodeColor(n)
-    // nodeStroke = (n: NodeDatum) => this.getNodeStroke(n)
-    // nodeSize = (n: NodeDatum) => this.getNodeSize(n)
-    // // onNodeSelectionBrush = (selectedNodes: GraphNode[], event: any)  => this.onSelectionBrush(selectedNodes)
-    // // onNodeSelectionDrag = (selectedNodes: GraphNode[], event: any) => this.onSelectionDrag(selectedNodes)
-
-    // onSelectionBrush(nodes: GraphNode[]) {
-    //     console.log('onSelectionNode: ', nodes);
-    // }
-
-    // getLinkStyle(l: LinkDatum) {
-
-    //     if ((l.source['_id'] === "KF773429" && l.target['_id'] === "KF773430") || (l.source['_id'] === "KF773430" && l.target['_id'] === "KF773429")) {
-    //         // console.log('setting link dashed: ', _.cloneDeep(l));
-    //     }
-
-    //     return l['origin'].length > 1 ? GraphLinkStyle.Dashed : GraphLinkStyle.Solid;
-    // }
-
-    // onSelectionDrag(nodes: GraphNode[]) {
-    //     console.log('onSelectionDrag: ', nodes);
-    // }
-
-    // events = {
-    //     [Graph.selectors.node]: {
-    //         click: (d: GraphNode) => {
-    //             console.log('selected node is: ', d);
-    //             this.selectedNodeId = d.id as string;
-    //             console.log('rerender selected node');
-    //             this.debouncedRerender();
-    //             // config.selectedNodeId = d.id
-    //             // Set the selected node id here, e.g.: config.selectedNodeId = d.id
-    //             // and trigger the component update if required by your UI framework
-    //         },
-    //         mouseover: (d: GraphNode, event: MouseEvent) => {
-    //             this.showNodeTooltip(d, event);
-    //             // Perform actions on hover, such as highlighting or displaying additional information
-    //         },
-    //         mouseout: (d: GraphNode) => {
-    //             this.hideTooltip();
-    //         },
-    //         brush: (selectedNodes: GraphNode[], event: any) => {
-    //             this.onSelectionBrush(selectedNodes);
-    //         },
-    //         drag: (selectedNodes: GraphNode[], event: any) => {
-    //             this.onSelectionDrag(selectedNodes);
-    //         }
-
-    //     },
-    //     [Graph.selectors.link]: {
-    //         mouseover: (d: GraphLink, event: MouseEvent) => {
-    //             this.showLinkTooltip(d, event);
-    //             // Perform actions on hover, such as highlighting or displaying additional information
-    //         },
-    //         mouseout: () => {
-    //             this.hideTooltip();
-    //         }
-
-    //     },
-    // }
-
-
-    getNodeSize(node: any) {
-
-        let defaultSize = this.widgets['node-radius'];
-        let size = defaultSize, med = defaultSize, oldrng, min, max;
-        let sizeVariable = this.widgets['node-radius-variable'];
-
-
-        // console.log('in size: ', this.widgets['node-radius-variable'])
-        // console.log('in size 2: ', this.widgets['node-radius']);
-
-        // if (this.widgets['node-radius'] > 90) this.widgets['node-radius'] = 10;
-        // console.log('node index by size: ',this.widgets['node-radius-variable'] );
-        // console.log('node Radius Var: ', this.widgets['node-radius']);
-        if (this.widgets['node-radius-variable'] == 'None') {
-            return this.widgets['node-radius'];
-        } else {
-
-            let v = node[sizeVariable];
-
-            if (!this.isNumber(v)) v = this.nodeMid;
-
-            // Check the type of v before calling linkScale
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.nodeScale(v);
-                if (this.debugMode) {
-                    console.log('link scale', scaleValue);
-                }
-                return scaleValue;
-            } else {
-                if (this.debugMode) {
-                    console.error('v is not a number:', v);
-                }
-                return this.nodeScale; // Default to scalar if v is not a number
-            }
-
-
-            // return this.commonService.temp.style.nodeColorMap(this.commonService.session.data.nodes[index][variable]);
-        }
-
-
-    }
-
-
-    getNodeStroke = (n: NodeDatum) => {
-
-        if (n.id == this.selectedNodeId) {
-            return this.widgets['selected-node-stroke-color'];
-        } else {
-            return '#000';
-        }
-
-    }
-
-    nodeStrokeWidth = (n: NodeDatum) => {
-        return this.nodeBorderWidth;
-    }
-
-    getLinkArrow = (link: any) => {
-        if (this.widgets['link-directed'] && this.widgets['link-bidirectional']) {
-            return "double";
-        }
-        return this.widgets['link-directed'];
-    }
-
-
-    getNodeColor(node: any) {
-
-        let variable = this.widgets['node-color-variable'];
-        let color = this.widgets['node-color'];
-
-        // Set cluster to group if showing paralell grouping
-        if (variable == "cluster" && this.showParallel) {
-            variable = "group";
-        }
-
-        return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
-
-    }
-
-    getLinkWidth(link: any) {
-        let scalar = this.widgets['link-width'];
-        let variable = this.widgets['link-width-variable'];
-
-        if (variable == 'None') return scalar;
-
-        else {
-            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
-            let v = link[variable];
-
-
-            if (!this.isNumber(v)) v = mid;
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.linkScale(v);
-                return scaleValue;
-            } else {
-                return scalar; // Default to scalar if v is not a number
-            }
-        }
-    }
-
-    // Method to handle shape change from the dropdown
-    onNodeShapeChange(newShape: string) {
-        this.selectedNodeShape = newShape;
-        console.log('rerender shape change');
-
-        this.debouncedRerender();
-    }
-
-
-    getLinkColor(link: any) {
-        let variable = this.widgets['link-color-variable'];
-        let color = this.widgets['link-color'];
-
-        if ((link.source.id === "KF773429" && link.target.id === "KF773430") || (link.source.id === "KF773430" && link.target.id === "KF773429")) {
-            console.log('link variable: ', link[variable]);
-        }
-
-        let finalColor;
-        let alphaValue;
-
-        if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
-            finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
-            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link")
-            // this.commonService.temp.style.linkColorMap("Multi-Link"), alphaValue;
-        } else {
-
-            finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-            alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
-        }
-
-        if (this.overideTransparency) {
-            alphaValue = this.widgets['link-opacity'];
-        }
-
-        // console.log('color: ', finalColor);
-        return {
-            color: finalColor,
-            opacity: alphaValue
-        };
-
-    }
-
-    private customShapes: CustomShapes = new CustomShapes();
-
-    private symbolTableWrapper: HTMLElement | null = null;
-    private linkColorTableWrapper: HTMLElement | null = null;
-    private nodeColorTableWrapper: HTMLElement | null = null;
-
+    selectedNodeShape: string = 'ellipse'; // Default shapeDF
 
     linkMin: number = 3;
     linkMax: number = 27;
@@ -321,10 +55,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     nodeMin: number = 3;
     nodeMax: number = 27;
-    nodeScale: any;
+    nodeScale: d3.ScaleLinear<number, number> = d3.scaleLinear().domain([0, 1]).range([0, 1]);    
     visNodes: any;
     nodeMid: number = 1;
 
+    // TODO determine if this is needed anymore after transition to cytoscape
     autoFit: boolean = true;
 
     ShowNetworkAttributes: boolean = false;
@@ -332,7 +67,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     Show2DExportPane: boolean = false;
     Show2DSettingsPane: boolean = false;
     IsDataAvailable: boolean = false;
-    // svg: any = null;
+
     widgets: object;
     halfWidth: any = null;
     halfHeight: any = null;
@@ -340,10 +75,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     force: any = null;
     radToDeg: any = (180 / Math.PI);
     selected: any = null;
-    multidrag: boolean = false;
-    // clipboard = new ClipboardJS('#copyID, #copySeq');
     zoom: any = null;
-    brush: any = null;
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
     LinkToolTipList: SelectItem[] = [];
@@ -381,14 +113,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
     SelectedNetworkTableTypeVariable: string = "Hide";
 
-    private isExportClosed: boolean = false;
-    /* XXXXXnot sure if this boolean is necessary; Related to exportWork, and bottom-table s (ie. node-symbol-table-bottom)
-     currently exportWork2 is used which don't make use of isExporting and bottom-table s XXXXX */
-    public isExporting: boolean = false;
-
-    isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
-
-
     // Link Tab
     SelectedLinkTooltipVariable: any = "None";
     SelectedLinkLabelVariable: string = "None";
@@ -424,7 +148,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     SelectedLinkBidirectionalTypeVariable: string = "Hide";
 
-
     // Network 
     NeighborTypes: any = [
         { label: 'Normal', value: 'Normal' },
@@ -438,9 +161,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
-    SelectedNetworkChargeVariable: any = 200;
-    SelectedNetworkGravityVariable: any = .05;
-    SelectedNetworkFrictionVariable: any = .4;
     SelecetedNetworkLinkStrengthVariable: any = 0.123;
     SelectedNetworkExportFilenameVariable: string = "";
 
@@ -448,7 +168,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         { label: 'png', value: 'png' },
         { label: 'jpeg', value: 'jpeg' },
         { label: 'webp', value: 'webp' },
-        { label: 'svg', value: 'svg' }
+        // { label: 'svg', value: 'svg' }
     ];
 
     SelectedNetworkExportFileTypeListVariable: string = "png";
@@ -472,10 +192,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
 
-    private visuals: MicrobeTraceNextVisuals;
+    // TODO see if needed after transition to cytoscape
+    // zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
 
-    // Set the zoom scale extent
-    zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
+    private customShapes: CustomShapes = new CustomShapes();
+    private symbolTableWrapper: HTMLElement | null = null;
+    private linkColorTableWrapper: HTMLElement | null = null;
+    private nodeColorTableWrapper: HTMLElement | null = null;
+
+    private isExportClosed: boolean = false;
+    /* XXXXXnot sure if this boolean is necessary; Related to exportWork, and bottom-table s (ie. node-symbol-table-bottom)
+     currently exportWork2 is used which don't make use of isExporting and bottom-table s XXXXX */
+    public isExporting: boolean = false;
+
+    isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
 
     constructor(injector: Injector,
         private eventManager: EventManager,
@@ -491,115 +221,94 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.setExpanded(this.mainSite);
 
         this.widgets = this.commonService.session.style.widgets;
-        // window.addEventListener('resize', () => {
-        //     // Replace this with the logic to determine the current show/hide state
-        //     const showState: boolean = this.widgets['network-gridlines-show'];
-        //     this.drawGridlines(showState);
-        // });
 
 
         //TODO::David Below the twoDGraph was used
-            this.container.on('hide', () => { 
-                this.viewActive = false; 
-                this.cdref.detectChanges();
-                setTimeout(() => {
-                    // (this.twoDGraph as any).component.fitView(500);
-                }, 50)
-            })
-            this.container.on('show', () => { 
-                this.viewActive = true; 
-                this.cdref.detectChanges();
-                setTimeout(() => {
-                    // (this.twoDGraph as any).component.fitView(500);
-                }, 50)
-            })
+        this.container.on('hide', () => { 
+            this.viewActive = false; 
+            this.cdref.detectChanges();
+            setTimeout(() => {
+                // (this.twoDGraph as any).component.fitView(500);
+            }, 50)
+        })
+        this.container.on('show', () => { 
+            this.viewActive = true; 
+            this.cdref.detectChanges();
+            setTimeout(() => {
+                // (this.twoDGraph as any).component.fitView(500);
+            }, 50)
+        })
 
-             // Initialize the selectedNodeShape from the settings
-            this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
+            // Initialize the selectedNodeShape from the settings
+        this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
 
     }
 
     ngOnInit() {
         
-        const windowProps = Object.getOwnPropertyNames(window);
-        console.log('Window Properties:', windowProps);
+        // Console log this out to see what the window objetc has like temp
+        // const windowKeys = Reflect.ownKeys(window);
 
-        // Alternatively, list all own keys, including symbols
-        const windowKeys = Reflect.ownKeys(window);
-        console.log('Window Keys:', windowKeys);
-
- 
         this.commonService.updateNetwork();
 
-               // List all own property names, including non-enumerable ones
-        const windowProps2 = Object.getOwnPropertyNames(window);
-        console.log('Window Properties2:', windowProps2);
+        this.InitView();
 
-        // Alternatively, list all own keys, including symbols
-        const windowKeys2 = Reflect.ownKeys(window);
-        console.log('Window Keys2:', windowKeys2);
-
-            this.InitView();
-
-                // List all own property names, including non-enumerable ones
-        const windowProps3 = Object.getOwnPropertyNames(window);
-        console.log('Window Properties3:', windowProps3);
-
-        // Alternatively, list all own keys, including symbols
-        const windowKeys3 = Reflect.ownKeys(window);
-        console.log('Window Keys3:', windowKeys3);
     }
 
     ngAfterViewInit(): void {
 
     }
 
-  mapDataToCytoscapeElements(data: any): cytoscape.ElementsDefinition {
+    mapDataToCytoscapeElements(data: any): cytoscape.ElementsDefinition {
 
-    // Create a set to track unique parent nodes
-    const parentNodes = new Set();
+        // Create a set to track unique parent nodes
+        const parentNodes = new Set();
 
-    const nodes = data.nodes.map((node: any) => {
-         // If the node has a parentId, add it to the parentNodes set
-        if (node.group && this.widgets['polygons-show']) {
-            parentNodes.add(node.group);
-        }
-
-        return {
+        const edges = data.links.map((link: any) => ({
             data: {
-                id: node.id,
-                label: node.label, // Existing label
-                parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                nodeSize: this.getNodeSize(node), // Existing node size
-                nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
-                borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
-                selectedBorderColor: this.widgets['selected-color'],
-                fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
-                // Include any additional node-specific data properties
-                ...node
+                id: `${link.source}-${link.target}`,
+                source: link.source,
+                target: link.target,
+                lineSelectedColor: this.widgets['selected-color'],
+                label: this.getLinkLabel(link).text, // Existing link label
+                lineColor: this.getLinkColor(link).color, // Default to black if not specified
+                lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
+                width: this.getLinkWidth(link),
+                // Include any additional edge-specific data properties
+                ...link
             }
+        }));
+
+        const nodes = data.nodes.map((node: any) => {
+            // If the node has a parentId, add it to the parentNodes set
+            if (node.group && this.widgets['polygons-show']) {
+                parentNodes.add(node.group);
+            }
+
+            return {
+                data: {
+                    id: node.id,
+                    label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
+                    parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
+                    nodeSize: this.getNodeSize(node), // Existing node size
+                    nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
+                    borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
+                    selectedBorderColor: this.widgets['selected-color'],
+                    fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
+                    shape: this.getNodeShape(node),
+                    // Include any additional node-specific data properties
+                    ...node
+                }
+            };
+        });
+    
+    
+    
+        return {
+            edges: edges,
+            nodes: nodes
         };
-    });
-  
-    const edges = data.links.map((link: any) => ({
-        data: {
-            id: `${link.source}-${link.target}`,
-            source: link.source,
-            target: link.target,
-            label: this.getLinkLabel(link).text, // Existing link label
-            lineColor: this.getLinkColor(link).color, // Default to black if not specified
-            lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
-            width: this.getLinkWidth(link),
-            // Include any additional edge-specific data properties
-            ...link
-        }
-    }));
-  
-    return {
-        nodes: nodes,
-        edges: edges
-    };
-  }
+    }
 
     getCytoscapeStyles(): cytoscape.Stylesheet[] {
         return [
@@ -614,6 +323,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // 'border-color': '#000',
                     'text-valign': 'center',
                     'color': 'black',
+                    // @ts-ignore
+                    'shape': 'data(shape)',
+                    'z-index': 10, // Not a standard Cytoscape property, but kept for clarity
                     // 'font-size': 'data(fontSize)' // Ensure this line is included
                 }
             },
@@ -639,7 +351,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'font-size': 'data(fontSize)'
                 }
             },
-
+            {
+                selector: 'node[shape]',
+                style: {
+                    // @ts-ignore
+                    'shape': 'data(shape)'
+                }
+            },
+            {
+                selector: 'node.parent',
+                style: {
+                    'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
+                }
+            },
             {
                 selector: 'edge',
                 style: {
@@ -666,16 +390,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             {
                 selector: 'edge:selected',
                 style: {
-                    'line-color': '#f00',
-                    'target-arrow-color': '#f00',
+                    // 'line-color': '#f00',
+                    // 'target-arrow-color': '#f00',
                     'width': 3
+                }
+            },
+            {
+                selector: 'edge.highlighted',
+                style: {
+                    'line-color': 'data(lineSelectedColor)', // Highlight color
+                    'width': '3px',
+                    'opacity': 1,
                 }
             }
         ];
     }
 
     attachCytoscapeEvents() {
-        // Example: Node click
         this.cy.on('tap', 'node', (evt) => {
             const node = evt.target;
             console.log('Selected node:', node.data());
@@ -690,14 +421,33 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         });
     
-        // Example: Hover events
         this.cy.on('mouseover', 'node', (evt) => {
             const node = evt.target;
             this.showNodeTooltip(node.data(), evt.originalEvent);
+
+            // Set cursor to grab
+            $('html,body').css('cursor', 'grab');
+
+            if (this.widgets['node-highlight']) {
+                // Highlight connected edges
+                node.connectedEdges().addClass('highlighted');
+            }
+
         });
     
-        this.cy.on('mouseout', 'node', () => {
+        this.cy.on('mouseout', 'node', (evt) => {
+
+            const node = evt.target;
+
             this.hideTooltip();
+
+            $('html,body').css('cursor', 'default');
+
+            if (this.widgets['node-highlight']) {
+                // Remove highlight from connected edges
+                node.connectedEdges().removeClass('highlighted');
+            }
+
         });
     
         // Edge events
@@ -804,17 +554,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.IsDataAvailable === true && this.zoom === null) {
 
-            // PRE D3
-            d3.select('svg#viz-force')
-                .append('g')
-                .attr('class', 'horizontal-gridlines');
-
-            d3.select('svg#viz-force')
-                .append('g')
-                .attr('class', 'vertical-gridlines');
-            // d3.select('svg#network').exit().remove();
-            // this.svg = d3.select('svg#network').append('g');
-
             // populate this.twoD.FieldList with [None, ...nodeFields]
             this.FieldList = [];
             this.FieldList.push({ label: "None", value: "None" });
@@ -828,7 +567,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
 
             });
-
 
             // populate this.ToolTipFieldList and this.LinkToolTipList
             this.ToolTipFieldList = [];
@@ -876,14 +614,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
 
-            this.svgStyle = {
-                'height': '100%',
-                'min-width.%': 100,
-            };
-
             this.halfWidth = $('#network').parent().width() / 2;
             this.halfHeight = $('#network').parent().parent().parent().height() / 2;
-            this.containerHeight = this.halfHeight * 2 - 40;
 
             let networkData = {
                 nodes: this.commonService.getVisibleNodes(),
@@ -891,67 +623,49 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             this.data = this.commonService.convertToGraphDataArray(networkData);
-            // Now update panels
-            // this.updatePanels();
 
             if (this.debugMode) {
                 console.log('data: ', this.data);
             }
 
-            $(document).on("node-visibility", function () {
+            // TODO when done with view, remove this since we are sure we wont need it
+            // $(document).on("node-visibility", function () {
 
-                // if (!that.isLoading) {
-                //     console.log('render node-vis');
-                //     that.isLoading = true;
-                //     that.render(false);
-                //     setTimeout(() => {
-                //         that.isLoading = false;
-                //       }, 1000);
-                // }
-                // let networkData = { 
-                //     nodes : that.commonService.getVisibleNodes(), 
-                //     links : that.commonService.getVisibleLinks()
-                // }
+            //     let networkData = { 
+            //         nodes : that.commonService.getVisibleNodes(), 
+            //         links : that.commonService.getVisibleLinks()
+            //     }
 
-                // that.data = that.commonService.convertToGraphDataArray(networkData);
-            });
+            //     that.data = that.commonService.convertToGraphDataArray(networkData);
+            // });
 
-            $(document).on("link-visibility", async function () {
-                if (!that.isLoading) {
-                    that.isLoading = true;
+            // $(document).on("link-visibility", async function () {
 
-                    // that.debouncedRerender();
-                    that.isLoading = false;
+            // });
 
+            // $(document).on("cluster-visibility", function () {
 
-                }
-            });
+            // });
 
-            $(document).on("cluster-visibility", function () {
-                // if (!that.isLoading) {
-                //     // console.log('render clus-vis');
-                //     that.isLoading = true;
-                //     that.render(true);
-                //     setTimeout(() => {
-                //         that.isLoading = false;
-                //       }, 1000);
-                // }     
-
-                // let networkData = { 
-                //     nodes : that.commonService.getVisibleNodes(), 
-                //     links : that.commonService.getVisibleLinks()
-                // }
-
-                // that.data = that.commonService.convertToGraphDataArray(networkData);
-            });
-
+            // TODO move this to a subscribed event than use document jquery
             $(document).on("node-selected", function () {
-                if (!that.isLoading) {
-                    let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
-                    if (mtSelectedNode && mtSelectedNode.id) {
-                        that.selectedNodeId = mtSelectedNode.id;
-                    } else if (mtSelectedNode && !mtSelectedNode.id) {
-                        that.selectedNodeId = mtSelectedNode._id;
+
+                let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
+                if (mtSelectedNode && mtSelectedNode.id) {
+                    that.selectedNodeId = mtSelectedNode.id;
+                } else if (mtSelectedNode && !mtSelectedNode.id) {
+                    that.selectedNodeId = mtSelectedNode._id;
+                }
+
+                    // Deselect all nodes first
+                    that.cy.elements().unselect();
+
+                    // Select the newly selected node
+                    if (that.selectedNodeId) {
+                        const node = that.cy.getElementById(that.selectedNodeId);
+                        if (node) {
+                            node.select();
+                        }
                     }
 
                     // that.debouncedRerender();
@@ -959,33 +673,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         console.log('node-selected in 2d: ', that.selectedNodeId);
                         console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
                     }
-
-                }
             });
 
-            // this.eventManager.addGlobalEventListener('window', "node-selected", () => {
-            //     console.log('render node-sel2');
-            //     this.render(false);
-            // });
 
             if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
             this.commonService.onStatisticsChanged();
             this.loadSettings();
 
-            //For some mysterious reason, this really needed a delay...
-            setTimeout(async () => {
-
-                if (this.widgets['node-symbol-variable'] !== 'None') {
-                    $('#node-symbol-variable').change(); //.trigger('change');
-                }
-
-                if (this.debugMode) {
-                    console.log('data: ', this.data);
-                }
-                this.isLoading = false;
-
-            }, 1);
+            if (this.widgets['node-symbol-variable'] !== 'None') {
+                $('#node-symbol-variable').change(); //.trigger('change');
+            }
 
         }
 
@@ -1003,45 +701,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-
-    /**
-     * Toggle the pointer events of the brush and overlay element
-     * 
-     * @param {boolean} enable - If true, pointer events are enabled; otherwise, they are disabled
-     */
-    private toggleBrush(enable: boolean): void {
-        // PRE D3
-        // d3.select('svg#network g.brush')
-        //   .attr('pointer-events', enable ? 'all' : 'none')
-        //   .select('rect.overlay')
-        //   .attr('pointer-events', enable ? 'all' : 'none');
-    }
-
-    /**
-     * XXXXX empty function XXXXX
-     */
-    onDataChange(event) {
-
-    }
-
-    // loadDefaultVisualization(e: String) {
-
-    //     setTimeout(() => {
-
-    //         this.commonService.session.messages = [];
-    //         // this.messages = [];
-    //         $('#loading-information').html('');
-    //         $('#launch').prop('disabled', false).focus();
-
-    //         // this.displayloadingInformationModal = false;
-
-    //     }, 1000);
-
-    //     this.LoadDefaultVisualizationEvent.emit(e);
-    // }
-
-
-
     /**
      * @returns an array [X, Y] of the position of mouse relative to twodcomponent. Global position (i.e. d3.event.pageX) doesn't work for a dashboard
      */
@@ -1053,30 +712,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return [X, Y];
     }
 
-    /**
-     * @returns an array [width, height] of the svg image
-     */
-    getImageDimensions() {
-        // let parent = this.svg.node().parentElement;
-        // return [parent.clientWidth, parent.clientHeight] 
-    }
 
     /**
-     * Sets CalculatedResolution variable to string such as '1250 x 855px'. Only called when export is first opened
+     * Updates calculated resolution based on scale
+     * @param event Event from scale input
      */
-    setCalculatedResolution() {
-        // let [width, height] = this.getImageDimensions();
-        // this.CalculatedResolution = (Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px");
-    }
-
-    /**
-     * Updates CalculatedResolution variable to string such as '1250 x 855px' based on ImageDimensions and SelectedNetworkExportScaleVariable. 
-     * This is called anytime SelectedNetworkExportScaleVariable is updated.
-     */
-    updateCalculatedResolution(event) {
-        // let [width, height] = this.getImageDimensions();
-        // this.CalculatedResolution = (Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px");
-        // this.cdref.detectChanges();
+    updateCalculatedResolution(event: any): void {
+        const scale = event;
+        const baseResolution = 1000; // Example base resolution, adjust as needed
+        const resolutionValue = baseResolution * scale;
+        this.CalculatedResolution = `${resolutionValue}x${resolutionValue}`;
     }
 
     /**
@@ -1110,27 +755,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     exportVisualization(event) {
 
+        // Prepare export options
+        const exportOptions: ExportOptions = {
+            filename: this.SelectedNetworkExportFilenameVariable,
+            filetype: this.SelectedNetworkExportFileTypeListVariable,
+            scale: this.SelectedNetworkExportScaleVariable,
+            quality: this.SelectedNetworkExportQualityVariable,
+        };
+    
+        // Set export options in the service
+        this.commonService.setExportOptions(exportOptions);
+    
+        // Request export
+        this.commonService.requestExport();
+    
+        // Optionally, close the export modal after initiating the export
         this.Show2DExportPane = false;
-        this.isExporting = true;
-
-        // if (this.widgets['node-symbol-variable'] != 'None') {
-        //     this.generateNodeSymbolSelectionTable("#node-symbol-table-bottom", this.widgets['node-symbol-variable'], false);
-        // }
-
-        // if (this.widgets['node-color-variable'] != 'None') {
-        //     this.visuals.microbeTrace.generateNodeColorTable("#node-color-table-bottom", false);
-        // }
-
-        // if (this.widgets['link-color-variable'] != 'None') {
-        //     this.visuals.microbeTrace.generateNodeLinkTable("#link-color-table-bottom", false);
-        // }
-
-        if (!this.isExportClosed) {
-            setTimeout(() => this.exportVisualization(undefined), 300);
-        }
-        else {
-            this.exportWork2();
-        }
     }
 
     /**
@@ -1138,6 +778,36 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onCloseExport() {
         this.isExportClosed = true;
+    }
+
+    /**
+     * Handles file type change
+     * @param event New file type value
+     */
+    onNetworkExportFiletypeChange(event: any): void {
+        this.SelectedNetworkExportFileTypeListVariable = event;
+
+        if (event == "svg") {
+                this.ShowAdvancedExport = false;
+            }
+            else {
+                this.ShowAdvancedExport = true;
+        }
+    }
+
+    /**
+     * Toggles advanced export options visibility
+     */
+    toggleAdvancedExport(): void {
+        this.ShowAdvancedExport = !this.ShowAdvancedExport;
+    }
+
+    /**
+     * Handles filename change
+     * @param event New filename value
+     */
+    onDataChange(event: any): void {
+        this.SelectedNetworkExportFilenameVariable = event;
     }
 
     /**
@@ -1155,349 +825,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
-    /**
-     * XXXXX Not currently used in codebase; exportWork2 is used instead XXXXX
-     */
-    exportWork() {
-        let network = document.getElementById('network');
-        let $network = $(network);
-        // PRE D3
-
-        // let watermark = d3.select(network).append('text')
-        // .attr('xlink:href', this.commonService.watermark)
-        // .attr('height', 128)
-        // .attr('width', 128)
-        // .attr('x', 10)
-        // .style('opacity', $('#network-export-opacity').val());
-        // let filetype = this.SelectedNetworkExportFileTypeListVariable, 
-        //     filename = this.SelectedNetworkExportFilenameVariable;
-        // if (filetype == 'svg') {
-
-        //     network.style.height = '100%';
-        //     network.style.width = '100%';
-        //     let content = this.commonService.unparseSVG(network);
-        //     let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-        //     saveAs(blob, filename + '.' + filetype);
-        //     watermark.remove();
-        //     const style: any = this.svgStyle;
-        //     network.style.height = style.height;
-        //     network.style.width = style.width;
-
-        // } else {
-        //     setTimeout(() => {
-        //         const scale: number = this.SelectedNetworkExportScaleVariable;
-        //         const element = document.querySelector('TwoDComponent').parentElement;
-        //         domToImage.toBlob(element, {
-        //             width: element.clientWidth * scale,
-        //             height: element.clientHeight * scale,
-        //             style: {
-        //                 transform: 'scale(' + scale + ')',
-        //                 transformOrigin: 'top left'
-        //             },
-        //             quality: this.SelectedNetworkExportQualityVariable
-        //         })
-        //             .then((blob) => {
-        //                 saveAs(blob, filename + '.' + filetype);
-
-        //                 watermark.remove();
-        //                 this.isExporting = false;
-        //                 // this.visuals.microbeTrace.clearTable("#node-symbol-table-bottom");
-        //                 // this.visuals.microbeTrace.clearTable("#node-color-table-bottom");
-        //                 // this.visuals.microbeTrace.clearTable("#link-color-table-bottom");
-
-        //                 // this.visuals.microbeTrace.GlobalSettingsDialogSettings.restoreStateAfterExport();
-        //                 // this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.restoreStateAfterExport();
-        //                 // this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.restoreStateAfterExport();
-        //                 // this.NodeSymbolTableWrapperDialogSettings.restoreStateAfterExport();
-        //                 // this.PolygonColorTableWrapperDialogSettings.restoreStateAfterExport();
-        //                 // this.Node2DNetworkExportDialogSettings.restoreStateAfterExport();
-        //             });
-        //     }, 1000);
-
-        // }
-    }
-
-    /**
-     * Exports twoD network svg as an svg, png, jpeg, or webp image
-     */
-    exportWork2() {
-        let network = document.getElementById('viz-force');
-        let $network = $(network);
-        // PRE D3
-        // add microbeTrace logo as a watermark
-        // let watermark = d3.select(network).append('image')
-        //     .attr('xlink:href', this.commonService.watermark)
-        //     .attr('height', 128)
-        //     .attr('width', 128)
-        //     .attr('x', 35)
-        //     .attr('y', 35)
-        //     .style('opacity', $('#network-export-opacity').val());
-
-        let filetype = this.SelectedNetworkExportFileTypeListVariable;
-        let filename = this.SelectedNetworkExportFilenameVariable;
-
-        // add node color table
-        let vnodes: any = this.commonService.getVisibleNodes();
-        let aggregates = this.commonService.createNodeColorMap();
-        let values = Object.keys(aggregates);
-        var columns = [];
-        columns.push('Node ' + this.commonService.titleize(this.widgets["node-color-variable"]));
-        if (this.widgets["node-color-table-counts"]) columns.push('Count');
-        if (this.widgets["node-color-table-frequencies"]) columns.push('Frequency');
-        columns.push('Color');
-        var data = [];
-        values.forEach((value, i) => {
-            let nodeValue = (this.commonService.session.style.nodeValueNames[value] ? this.commonService.session.style.nodeValueNames[value] : this.commonService.titleize("" + value));
-            let tableCounts = (this.widgets["node-color-table-counts"] ? aggregates[value] : undefined);
-            let tableFreq = (this.widgets["node-color-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined);
-            let line = {
-                Node: nodeValue,
-                Count: tableCounts,
-                Frequency: tableFreq,
-                Color: '<div  style="margin-left:5px; width:40px;height:12px;background:' + this.commonService.temp.style.nodeColorMap(value) + '"> </div>'
-            }
-            data.push(line);
-        })
-
-        let nodeWrapper = null;
-
-        this.commonService.currentNodeTableElement.subscribe((element) => {
-            if (element) {
-                nodeWrapper = element;
-            } else {
-                console.error('currentNodeTableElement is null');
-            }                // You can now interact with this.myElement
-        });
-        // private symbolTableWrapper: HTMLElement | null = null;
-        // private linkColorTableWrapper: HTMLElement | null = null;
-        // private nodeColorTableWrapper: HTMLElement | null = null;
-        // let nodeWrapper = this.parent.getElementById('node-color-table');
-
-        //console.log('node wrapper: ', nodeWrapper);
-        let nodeLegend = this.tabulate2(data, columns, nodeWrapper, network, 200, false);
-
-        // add link origin table
-        let vlinks = this.commonService.getVisibleLinks();
-        aggregates = this.commonService.createLinkColorMap();
-        values = Object.keys(aggregates);
-        columns = [];
-        columns.push('Link ' + this.commonService.titleize(this.widgets["link-color-variable"]));
-        if (this.widgets["link-color-table-counts"]) columns.push('Count');
-        if (this.widgets["link-color-table-frequencies"]) columns.push('Frequency');
-        columns.push('Color');
-        data = [];
-        values.forEach((value, i) => {
-            let nodeValue = (this.commonService.session.style.linkValueNames[value] ? this.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value));
-            let tableCounts = (this.widgets["link-color-table-counts"] ? aggregates[value] : undefined);
-            let tableFreq = (this.widgets["link-color-table-frequencies"] ? (aggregates[value] / vlinks.length).toLocaleString() : undefined);
-            let line = {
-                Link: nodeValue,
-                Count: tableCounts,
-                Frequency: tableFreq,
-                Color: '<div  style="margin-left:5px; width:40px;height:12px;background:' + this.commonService.temp.style.linkColorMap(value) + '"> </div>'
-            }
-            data.push(line);
-        })
-
-        let linkWrapper = null;
-
-        this.commonService.currentLinkTableElement.subscribe((element) => {
-            linkWrapper = element;
-            // You can now interact with this.myElement
-        });
-        // let linkWrapper = document.getElementById('link-color-table-wrapper');
-        let linkLegend = this.tabulate2(data, columns, linkWrapper, network, 600, false);
-
-        // add node symbol table
-        let variable = this.widgets['node-symbol-variable'];
-        values = [];
-        aggregates = {};
-        let nodes = this.commonService.session.data.nodes;
-        let n = nodes.length;
-        vnodes = 0;
-        for (let i = 0; i < n; i++) {
-            let d = nodes[i];
-            if (!d.visible) continue;
-            vnodes++;
-            let dv = d[variable];
-            if (values.indexOf(dv) == -1) values.push(dv);
-            if (dv in aggregates) {
-                aggregates[dv]++;
-            } else {
-                aggregates[dv] = 1;
-            }
-        }
-        columns = [];
-        columns.push('Node ' + this.commonService.titleize(variable));
-        if (this.widgets["node-symbol-table-counts"]) columns.push('Count');
-        if (this.widgets["node-symbol-table-frequencies"]) columns.push('Frequency');
-        columns.push('Shape');
-        data = [];
-        values.forEach((value, i) => {
-            let nodeValue = this.commonService.titleize("" + value);
-            let tableCounts = (this.widgets["node-symbol-table-counts"] ? aggregates[value] : undefined);
-            let tableFreq = (this.widgets["node-symbol-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined);
-            let line = {
-                Node: nodeValue,
-                Count: tableCounts,
-                Frequency: tableFreq,
-                Shape: $("#node-symbol-table option[value='" + this.commonService.temp.style.nodeSymbolMap(value) + "']").eq(parseInt(value)).text()
-            }
-            data.push(line);
-        })
-        let symbolWrapper = document.getElementById('node-symbol-table');
-        let symbolLegend;
-        if (symbolWrapper) {
-            symbolLegend = this.tabulate2(data, columns, symbolWrapper, network, 200, true);
-        }
-
-        // add network statistics table
-        let statsDiv = document.getElementById('network-statistics-wrapper');
-        // PRE D3
-        // let foreignObjStats = d3.select(network).append("svg:foreignObject")
-        //     .attr("x", statsDiv.offsetLeft)
-        //     .attr("y", statsDiv.offsetTop-10)
-        //     .attr("width", statsDiv.offsetWidth)
-        //     .attr("height", statsDiv.offsetHeight);
-        // foreignObjStats.append("xhtml:body").html(statsDiv.innerHTML);
-
-        if (filetype == 'svg') {
-            let content = this.commonService.unparseSVG(network);
-            let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-            saveAs(blob, filename + '.' + filetype);
-            // PRE D3
-            // if (watermark){
-            //     watermark.remove();
-            // }
-            if (nodeLegend) {
-                nodeLegend.remove();
-            }
-            if (linkLegend) {
-                linkLegend.remove();
-            }
-            if (symbolLegend) {
-                symbolLegend.remove();
-            }
-            // if (foreignObjStats){
-            //     foreignObjStats.remove();
-            // }
-        } else {
-            if (this.debugMode) {
-                console.log('network: ', network);
-                console.log('network: ', network.getBoundingClientRect());
-            }
-            saveSvgAsPng(network, filename + '.' + filetype, {
-                scale: this.SelectedNetworkExportScaleVariable,
-                backgroundColor: this.widgets['background-color'],
-                encoderType: 'image/' + filetype,
-                encoderOptions: this.SelectedNetworkExportQualityVariable
-            }).then(() => {
-                // PRE D3
-                // if (watermark){
-                //     watermark.remove();
-                // }
-                if (nodeLegend) {
-                    nodeLegend.remove();
-                }
-                if (linkLegend) {
-                    linkLegend.remove();
-                }
-                if (symbolLegend) {
-                    symbolLegend.remove();
-                }
-                // if (foreignObjStats){
-                //     foreignObjStats.remove();
-                // }
-            });
-        }
-    }
-
-    /**
-     * Converts table such as node color table, link color table or node symbol table from dialog window into element on twoD network svg when
-     * getting ready to export.
-     * @param data Object[] containing information in the table, such as color, count, node/groupLabel
-     * @param columns string array of table column names
-     * @param wrapper HTMLElement of table
-     * @param container HTMLElement of entive svg/network
-     * @param topOffset number
-     * @param leftOffset boolean
-     * @returns foreignObject that can be removed later by foreignObjectName.remove()
-     */
-    tabulate2 = (data, columns, wrapper, container, topOffset: number, leftOffset: boolean) => {
-
-        // console.log('wrapper: ', wrapper);
-        // console.log('left: ', wrapper.offsetLeft);
-        // console.log('container: ', container);
-        // let containerWidth = container.getBBox().width;
-        // let rightPosition = containerWidth - wrapper.offsetWidth;        
-        // console.log('right: ', rightPosition);
-
-        // PRE D3
-
-        return null;
-        // let foreignObj = d3.select(container).append("svg:foreignObject")
-        //   .attr("x", (leftOffset) ? rightPosition : wrapper.offsetLeft)
-        //   .attr("y", wrapper.offsetTop + topOffset)
-        //   .attr("width", wrapper.offsetWidth)
-        //   .attr("height", wrapper.offsetHeight);
-
-
-        // let body = foreignObj 
-        //   .append("xhtml:body")
-        //   .append("table")
-        //   .style('position', 'absolute')
-        //   .style('top', '0')
-        //   .style('width', '100%')
-        //   .style('height', '100%')
-        //   .attr('cellpadding', '1px')
-        //   .attr("class", "table-bordered");
-        //   // .html(nodeColorTable.innerHTML); SVG doesn't translate
-        // let thead = body.append("thead"),
-        //     tbody = body.append("tbody");
-        // thead.append("tr")
-        //   .selectAll("th")
-        //   .data(columns)
-        //   .enter()
-        //   .append("th")
-        //   .text(function(column) { return column; });
-        // let rows = tbody.selectAll("tr")
-        //   .data(data)
-        //   .enter()
-        //   .append("tr");
-        // let cells = rows.selectAll("td")
-        //   .data(function(row) {
-        //     return columns.map(function(column) {
-        //         return {column: column, value: row[column.split(" ")[0]]};
-        //     });
-        //   })
-        //   .enter()
-        //   .append("td")
-        //   .html(function(d) { return d.value; });
-        // return foreignObj;
-    }
-
-    // PRE D3
-    /**
-     * This function is called when a polygonLabel drag is started; it moves <text> element to last under g.clusterLabels and adds class polygonText to the element
-     */
-    polygonLabelDragStarted(d) {
-        // d3.select(this).raise().attr("class", "polygonText");
-    }
-
-    /**
-     * Moves location of polygon label when it is dragged by updating transform="translate(x,y)"
-     */
-    polygonLabelDragged(d) {
-        // d3.select(this).attr("transform", "translate(" + d3.event.x + "," + d3.event.y + ")");
-    }
-
-    /**
-     * This function is called when a polygonLabel drag is ended; it removes class polygonText from <text> element
-     */
-    polygonLabelDragEnded(d) {
-        // d3.select(this).attr("class", "");
-    }
-
+  
     /**
      * Generates Polygon Color Selection Table, updates polygonColorMap and polygonAlphaMap functions, and then calls render to show/update network
      * 
@@ -1505,6 +833,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * to get table to appear. Also not sorting correctly with names XXXXX
      */
     updatePolygonColors() {
+
+        console.log('updatePolygonColors: ', this.widgets['polygons-foci']);
+
         let polygonSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
             this.widgets["polygon-color-table-counts-sort"] = "";
             if (this.widgets["polygon-color-table-name-sort"] === "ASC")
@@ -1533,7 +864,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             .append(countHeader)
             .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
             .append("<th>Color</th>");
-        console.log('polygonColorTable01: ', polygonColorTable);
+        
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
         let aggregates = this.commonService.createPolygonColorMap();
         let values = Object.keys(aggregates);
@@ -1565,7 +896,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     that.commonService.temp.style.polygonColorMap = d3
                         .scaleOrdinal(that.commonService.session.style['polygonColors'])
                         .domain(values);
-                    that._rerender();
+                    that.updateGroupNodeColors();
                 });
             let alphainput = $("<a>⇳</a>").on("click", e => {
                 $("#color-transparency-wrapper").css({
@@ -1581,7 +912,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
                             .domain(values);
                         $("#color-transparency-wrapper").fadeOut();
-                        that._rerender();
+                        that.updateGroupNodeColors();
                     });
             });
             let cell = $("<td></td>")
@@ -1689,6 +1020,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else {
                 $('#polygons-label-hide').click();
             }
+
+            // Ensure the label orientation is updated when polygons are turned on
+            this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
         } else {
             $(".polygons-settings-row").slideUp();
             $('.polygons-label-row').slideUp();
@@ -1706,11 +1040,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param flag boolean indicating whether to show polygons/groups
      */
     private updateNodeGrouping(flag: boolean): void {
-        const cy = this.cy; // Reference to Cytoscape instance
-        if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
+        if (!this.cy) {
             return;
         }
+
+        const cy = this.cy; // Reference to Cytoscape instance
 
         cy.batch(() => {
             if (flag) {
@@ -1719,7 +1053,47 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 this.removeParentNodesAndUngroupChildren(cy);
             }
         });
+
+        // Trigger layout after grouping
+        // this.applyLayout();
     }
+
+    // private applyLayout(): void {
+    //     const cy = this.cy;
+    //     if (!cy) return;
+    
+    //     cy.layout({
+    //         name: 'cose-bilkent',
+    //         // @ts-ignore
+    //         padding: 30,
+    //         // @ts-ignore
+    //         animate: true,
+    //         // @ts-ignore
+    //         animationDuration: 1000,
+    //         // @ts-ignore
+    //         fit: true,
+    //         // @ts-ignore
+    //         nodeRepulsion: function (node: any) {
+    //             return 4500;
+    //         },
+    //         // @ts-ignore
+    //         idealEdgeLength: function (edge: any) {
+    //             return 100;
+    //         },
+    //         // @ts-ignore
+    //         edgeElasticity: function (edge: any) {
+    //             return 0.45;
+    //         },
+    //         // @ts-ignore
+    //         nestingFactor: 0.1,
+    //         // @ts-ignore
+    //         gravity: 0.25,
+    //         // @ts-ignore
+    //         componentSpacing: 100,
+    //         // @ts-ignore
+    //         nodeDimensionsIncludeLabels: true
+    //     }).run();
+    // }
 
     /**
      * Adds parent nodes for each group and assigns child nodes to these parents.
@@ -1745,7 +1119,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.temp.style.polygonGroups = polygonGroups;
 
         groupMap.forEach((nodesInGroup, group) => {
-            const parentId = `parent_${group}`;
+            const parentId = `${group}`;
             if (cy.getElementById(parentId).length === 0) {
                 cy.add({
                     group: 'nodes',
@@ -1763,10 +1137,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         cy.nodes().forEach(node => {
             const group = node.data('group');
             if (group) {
-                const parentId = `parent_${group}`;
+                const parentId = `${group}`;
                 node.move({ parent: parentId });
             }
         });
+
+          // **Step 6:** Create and Assign the `groups` Object for polygonGroups
+          const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            key,
+            values: values.map(node => node.data('id'))
+        }));
+
+        // Assign the groups to polygonGroups in commonService.temp
+        this.commonService.temp.polygonGroups = groups;
     }
     /**
      * Removes all parent (group) nodes and unassigns child nodes from any parents.
@@ -1834,7 +1217,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             setTimeout(() => {
                 this.updatePolygonColors();
                 this.updateGroupNodeColors();
-                // this.debouncedRerender();
             }, 200);
 
         }
@@ -1846,7 +1228,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
             setTimeout(() => {
                 this.updateNodeGrouping(false);
-                // this.debouncedRerender();
             }, 200);
         }
     }
@@ -1883,7 +1264,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.onPolygonColorTableChange(e)
         }
 
-        // this.debouncedRerender();
+        
     }
 
     private polygonNodeSelected = null;
@@ -2127,50 +1508,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * Highlights the node and all of its neighbor (shares a link with) and the links that the node is 
-     * a source or target
-     * @param node node that is mouseover by user
-     */
-    highlightNeighbors(node) {
-        let links = this.getVLinks();
-        let lindices = [], neighbors = [node._id];
-
-        let n = links.length;
-        for (let i = 0; i < n; i++) {
-            let l = links[i];
-            if (l.source._id !== node._id && l.target._id !== node._id) {
-                lindices.push(l.index);
-            } else {
-                if (l.source._id == node._id) {
-                    neighbors.push(l.target._id);
-                } else {
-                    neighbors.push(l.source._id);
-                }
-            }
-        }
-        // highlights current node and its neighbors
-        // this.svg
-        //     .select('g.nodes')
-        //     .selectAll('g')
-        //     .selectAll('path')
-        //     .attr('opacity', d => this.commonService.includes(neighbors, d._id) ? 1 : .1);
-        // hightlights all of current node's links
-        // this.svg
-        //     .select('g.links')
-        //     .selectAll('line')
-        //     .data(links)
-        //     .attr('opacity', l => this.commonService.includes(lindices, l.index) ? .1 : 1);
-    };
-
-    /**
      * Gets data from current node needed for tooltip and displays it in the tooltip also hightlights neighbors if that option is selected
      * @param d a node
      */
     showNodeTooltip(d, event) {
+
+        // Only show tooltip for nodes, not parent/group nodes
+        if(d.isParent) {
+            return;
+        }
+
         if (this.widgets['node-highlight']) {
           this.selectedNodeId = d.id;
-          this.cdref.detectChanges();
-      }
+        }
 
         let tt_var_len = this.widgets['node-tooltip-variable'].length
         let tooltipHtml: string;
@@ -2439,14 +1789,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     centerPolygons(e) {
 
         this.widgets['polygons-foci'] = e;
-        // this.debouncedRerender();
-        console.log('centerPolygons: ', e);
         if (this.widgets['polygons-color-show'] == true) {
             console.log('centerPolygons: show ');
             $("#polygon-color-table").empty();
+            this.updateGroupAssignments(e);
             this.updatePolygonColors();
             this.updateGroupNodeColors();
-            //   this.debouncedRerender();
+        // Just update group assignments since not showing different colors
+        } else {
+            this.updateGroupAssignments(e);
         }
 
         if (e == 'None') {
@@ -2456,9 +1807,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $('#color-polygons').css('display', 'flex');
             $('#polygon-color-value-row').slideUp();
         }
-
-        // Update group assignments based on new foci
-    this.updateGroupAssignments(e);
     }
 
     updateGroupAssignments(foci: string): void {
@@ -2473,27 +1821,41 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const existingParents = cy.nodes('.parent');
             console.log('Removing existing parent nodes:', existingParents.map(p => p.id()));
             existingParents.forEach(parent => {
-                cy.remove(parent); // Remove old parent nodes
+                // **Step 1:** Ungroup child nodes by setting their parent to null
+                parent.children().forEach(child => {
+                    child.move({ parent: null });
+                    console.log(`Ungrouped child node: ${child.id()} from parent: ${parent.id()}`);
+                });
+    
+                // **Step 2:** Remove the parent node without affecting child nodes
+                cy.remove(parent);
+                console.log(`Removed parent node: ${parent.id()}`);
             });
     
             // Determine new groups based on foci
             const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
     
+            console.log('nodeee: ', foci);
             cy.nodes().forEach(node => {
-                const group = node.data(foci); // Assuming foci corresponds to a data attribute
-                if (group && group !== 'None') { // Exclude nodes without a group
+                // if(node.data('id') === '30578_KF773488_D99cl05') {
+                //     console.log('nodeee1: ', node.data());
+                //     console.log('nodeee2: ', node.data(foci));
+                // }
+                
+                const rawGroup = node.data(foci); // Assuming foci corresponds to a data attribute
+                const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup; // Use first element if array
+                
+                if (group !== undefined && group !== null && group !== 'None') {
                     if (!groupMap.has(group)) {
                         groupMap.set(group, []);
                     }
                     groupMap.get(group)?.push(node);
                 }
             });
-    
-            console.log('New group assignments:', groupMap);
-    
+        
             // Create new parent nodes and assign child nodes
             groupMap.forEach((nodesInGroup, groupName) => {
-                const parentId = `parent_${groupName}`;
+                const parentId = `${groupName}`;
     
                 // Add a new parent node
                 const parentNode = cy.add({
@@ -2506,9 +1868,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     },
                     classes: 'parent' // Assigning the 'parent' class
                 });
-    
-                console.log('Created parent node:', parentNode.data());
-    
+        
                 // Assign child nodes to the new parent
                 nodesInGroup.forEach(childNode => {
                     childNode.move({ parent: parentId });
@@ -2526,10 +1886,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Refresh Cytoscape styles to apply changes
             cy.style().update();
+
+             // **Step 6:** Create and Assign the `groups` Object for polygonGroups
+            const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+                key,
+                values: values.map(node => node.data('id'))
+            }));
+
+            // Assign the groups to polygonGroups in commonService.temp
+            // TODO: Decide on one
+            this.commonService.temp.polygonGroups = groups;
+            this.commonService.temp.style.polygonGroups = groups;
         });
     
-        // After updating group assignments, update group node colors
-        this.updateGroupNodeColors();
     }
 
     /**
@@ -2549,45 +1918,42 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * Updates polygons-label-orientation widget and then redraws polygon labels
+     * Updates polygon-label-orientation widget and then redraws polygon labels
      */
     onPolygonLabelOrientationChange(e) {
-        this.widgets['polygons-label-orientation'] = e;
+        this.widgets['polygon-label-orientation'] = e;
         // Adjust the orientation of the parent/group node labels in Cytoscape
-    if (this.cy) {
-        // let textValign: string;
-        // let textHalign: string = 'center'; // Default horizontal alignment
+        if (this.cy) {
+          
+            // Define specific types for text alignment to satisfy TypeScript
+            type TextAlignment = 'left' | 'center' | 'right';
+            type VerticalAlignment = 'top' | 'bottom' | 'center';
 
-         // Define specific types for text alignment to satisfy TypeScript
-    type TextAlignment = 'left' | 'center' | 'right';
-    type VerticalAlignment = 'top' | 'bottom' | 'center';
+            let textValign: VerticalAlignment;
+            let textHalign: TextAlignment = 'center'; // Default horizontal alignment
 
-    let textValign: VerticalAlignment;
-    let textHalign: TextAlignment = 'center'; // Default horizontal alignment
+            // Determine vertical alignment based on the selected orientation
+            switch (e.toLowerCase()) {
+                case 'top':
+                    textValign = 'top';
+                    break;
+                case 'bottom':
+                    textValign = 'bottom';
+                    break;
+                case 'middle':
+                default:
+                    textValign = 'center';
+                    break;
+            }
 
-        // Determine vertical alignment based on the selected orientation
-        switch (e.toLowerCase()) {
-            case 'top':
-                textValign = 'top';
-                break;
-            case 'bottom':
-                textValign = 'bottom';
-                break;
-            case 'middle':
-            default:
-                textValign = 'center';
-                break;
+            this.cy.style()
+                .selector('node.parent')
+                .style({
+                    'text-valign': textValign,
+                    'text-halign': textHalign
+                })
+                .update();
         }
-
-        this.cy.style()
-            .selector('node.parent')
-            .style({
-                'text-valign': textValign,
-                'text-halign': textHalign
-            })
-            .update();
-    }
-        // this.debouncedRerender();
     }
 
     /**
@@ -2630,7 +1996,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .update();
             }
         }
-        // this.debouncedRerender();
+        
     }
 
 
@@ -2677,7 +2043,112 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         this.updateNodeLabels();
-        // this.debouncedRerender();
+        
+    }
+
+    // Method to handle shape change from the dropdown
+    onNodeShapeChange(newShape: string) {
+        this.selectedNodeShape = newShape;
+        this.updateNodeShapes();
+    }
+
+    getNodeSize(node: any) {
+
+        let defaultSize = this.widgets['node-radius'];
+        let size = defaultSize, med = defaultSize, oldrng, min, max;
+        let sizeVariable = this.widgets['node-radius-variable'];
+
+        if (this.widgets['node-radius-variable'] == 'None') {
+            return this.widgets['node-radius'];
+        } else {
+
+            let v = node[sizeVariable];
+
+            if (!this.isNumber(v)) v = this.nodeMid;
+
+            // Check the type of v before calling linkScale
+
+            // Ensure v is a number before using linkScale
+            if (typeof v === 'number') {
+                let scaleValue = this.nodeScale(v);
+                if (this.debugMode) {
+                    console.log('link scale', scaleValue);
+                }
+                return scaleValue;
+            } else {
+                if (this.debugMode) {
+                    console.error('v is not a number:', v);
+                }
+                return this.nodeScale; // Default to scalar if v is not a number
+            }
+        }
+
+    }
+
+    getNodeColor(node: any) {
+
+        let variable = this.widgets['node-color-variable'];
+        let color = this.widgets['node-color'];
+
+        return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
+
+    }
+
+    getLinkWidth(link: any) {
+        let scalar = this.widgets['link-width'];
+        let variable = this.widgets['link-width-variable'];
+
+        if (variable == 'None') return scalar;
+
+        else {
+            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
+            let v = link[variable];
+
+
+            if (!this.isNumber(v)) v = mid;
+
+            // Ensure v is a number before using linkScale
+            if (typeof v === 'number') {
+                let scaleValue = this.linkScale(v);
+                return scaleValue;
+            } else {
+                return scalar; // Default to scalar if v is not a number
+            }
+        }
+    }
+
+
+    getLinkColor(link: any) {
+        let variable = this.widgets['link-color-variable'];
+        let color = this.widgets['link-color'];
+
+        if ((link.source.id === "KF773429" && link.target.id === "KF773430") || (link.source.id === "KF773430" && link.target.id === "KF773429")) {
+            console.log('link variable: ', link[variable]);
+        }
+
+        let finalColor;
+        let alphaValue;
+
+        if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
+            finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
+            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link")
+            // this.commonService.temp.style.linkColorMap("Multi-Link"), alphaValue;
+        } else {
+
+            finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
+            alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
+        }
+
+        if (this.overideTransparency) {
+            alphaValue = this.widgets['link-opacity'];
+        }
+
+        // console.log('color: ', finalColor);
+        return {
+            color: finalColor,
+            opacity: alphaValue
+        };
+
     }
 
     /**
@@ -2846,9 +2317,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.cdref.detectChanges();
 
         this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
-        console.log('symbol node');
+        this.updateNodeShapes();
 
-        // this.debouncedRerender();
+        
     }
 
     svgDefs = `
@@ -2861,25 +2332,36 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public generateNodeSymbolSelectionTable(tableId: string, variable: string, isEditable: boolean = true) {
         this.commonService.onTableCleared(tableId);
 
+        this.commonService.session.style.nodeSymbols =  [
+            'ellipse',
+            'triangle',
+            'rectangle',
+            'barrel',
+            'rhomboid',
+            'diamond',
+            'pentagon',
+            'hexagon',
+            'heptagon',
+            'octagon',
+            'star',
+            'tag',
+            'vee'
+        ];
+
         let symbolMapping: { key: string, value: string }[] = [
-            { key: 'symbolCircle', value: '&#11044; (Circle)' },
-            { key: "symbolTriangle", value: '&#9650; (Up Triangle)' },
-            // { key: "symbolTriangleDown", value: '&#9660; (Down Triangle)' },
-            // { key: "symbolTriangleLeft", value: '&#9664; (Left Triangle)' },
-            // { key: "symbolTriangleRight", value: '&#9654; (Right Triangle)' },
-            { key: "symbolDiamond", value: '&#10731; (Vertical Diamond)' },
-            // { key: "symbolDiamondAlt", value: '&#10731; (Horizontal Diamond)' },
-            { key: "symbolSquare", value: '&#9632; (Square)' },
-            // { key: "symbolDiamondSquare", value: '&#9670; (Tilted Square)' },
-            // { key: "symbolPentagon", value: '&#11039; (Pentagon)' },
-            { key: "symbolHexagon", value: '&#11042; (Hexagon)' },
-            // { key: "symbolHexagonAlt", value: '&#11043; (Tilted Hexagon)' },
-            // { key: "symbolOctagon", value: '&#11042; (Octagon)' },
-            // { key: "symbolOctagonAlt", value: '&#11043; (Tilted Octagon)' },
-            // { key: "symbolCross", value: '&#10010; (Addition Sign)' },
-            // { key: "symbolX", value: '&#10006; (Multiplication Sign)' },
-            // { key: "symbolWye", value: '&#120300; (Wye)' },
-            // { key: "symbolStar", value: '&#9733; (Star)' },
+            { key: 'ellipse', value: '&#11044; (Circle)' },
+            { key: "triangle", value: '&#9660; (Triangle)' },
+            { key: "diamond", value: '&#10731; (Diamond)' },
+            { key: "barrel", value: '&#10731; (Barrel)' },
+            { key: "rectangle", value: '&#9632; (Square)' },
+            { key: "rhomboid", value: '&#9670; (Rhombus)' },
+            { key: "pentagon", value: '&#11039; (Pentagon)' },
+            { key: "hexagon", value: '&#11042; (Hexagon)' },
+            { key: "heptagon", value: '&#11043; (Heptagon)' },
+            { key: "octagon", value: '&#11042; (Octagon)' },
+            { key: "star", value: '&#9733; (Star)' },
+            { key: "tag", value: '&#9733; (Tag)' },
+            { key: "vee", value: '&#9733; (Vee)' },
         ];
 
         setTimeout(() => {
@@ -2916,7 +2398,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     symbols = symbols.concat(this.commonService.session.style.nodeSymbols);
                 }
                 this.commonService.session.style.nodeSymbols = symbols;
-                // console.log('node symbols: ', symbols);
+                console.log('node symbols: ', symbols);
 
             }
 
@@ -2945,19 +2427,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
                 // Manually create options instead of using the existing select
                 let optionsHtml = `
-                    <option value="symbolCircle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'circle' ? 'selected' : ''}>&nbsp;&#11044; (Circle)</option>
-                    <option value="symbolSquare" ${this.commonService.temp.style.nodeSymbolMap(v) === 'square' ? 'selected' : ''}>&nbsp;&#9632; (Square)</option>
-                    <option value="symbolHexagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'hexagon' ? 'selected' : ''}>&nbsp;&#11042; (Hexagon)</option>
-                    <option value="symbolTriangle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'triangle' ? 'selected' : ''}>&nbsp;&#9650; (Triangle)</option>
-                    <option value="symbolDiamond" ${this.commonService.temp.style.nodeSymbolMap(v) === 'diamond' ? 'selected' : ''}>&nbsp;&#10731; (Diamond)</option>
+                    <option value="ellipse" ${this.commonService.temp.style.nodeSymbolMap(v) === 'ellipse' ? 'selected' : ''}>&nbsp;&#11044; (Circle)</option>
+                    <option value="rectangle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'rectangle' ? 'selected' : ''}>&nbsp;&#9632; (Square)</option>
+                    <option value="barrel" ${this.commonService.temp.style.nodeSymbolMap(v) === 'barrel' ? 'selected' : ''}>&nbsp;&#11042; (Barrel)</option>
+                    <option value="rhomboid" ${this.commonService.temp.style.nodeSymbolMap(v) === 'rhomboid' ? 'selected' : ''}>&nbsp;&#9650; (Rhombus)</option>
+                    <option value="diamond" ${this.commonService.temp.style.nodeSymbolMap(v) === 'diamond' ? 'selected' : ''}>&nbsp;&#10731; (Diamond)</option>
+                    <option value="pentagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'pentagon' ? 'selected' : ''}>&nbsp;&#11039; (Pentagon)</option>
+                    <option value="hexagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'hexagon' ? 'selected' : ''}>&nbsp;&#11042; (Hexagon)</option>
+                    <option value="heptagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'heptagon' ? 'selected' : ''}>&nbsp;&#11043; (Heptagon)</option>
+                    <option value="octagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'octagon' ? 'selected' : ''}>&nbsp;&#11042; (Octagon)</option>
+                    <option value="star" ${this.commonService.temp.style.nodeSymbolMap(v) === 'star' ? 'selected' : ''}>&nbsp;&#9733; (Star)</option>
+                    <option value="tag" ${this.commonService.temp.style.nodeSymbolMap(v) === 'tag' ? 'selected' : ''}>&nbsp;&#9733; (Tag)</option>
+                    <option value="vee" ${this.commonService.temp.style.nodeSymbolMap(v) === 'vee' ? 'selected' : ''}>&nbsp;&#9733; (Vee)</option>
                 `;
 
                 // console.log('symbol each value: ', v, this.commonService.temp.style.nodeSymbolMap(v));
                 let selector = $(`<select ${disabled}></select>`).append(optionsHtml).val(this.commonService.temp.style.nodeSymbolMap(v)).on('change', (e) => {
                     this.commonService.session.style.nodeSymbols.splice(i, 1, (e.target as any).value);
                     this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
-                    // this.debouncedRerender();
-                    // this.redrawNodes();
+                    this.updateNodeShapes();
                 });
                 let symbolText = symbolMapping.find(x => x.key === this.commonService.temp.style.nodeSymbolMap(v));
 
@@ -3017,7 +2505,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         this.updateNodeSizes();
-        // this.debouncedRerender();
+        
 
     }
 
@@ -3025,10 +2513,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates node-radius-max widget and redraws nodes
      */
     public onNodeRadiusMaxChange(e) {
+        console.log('onNodeRadiusMaxChange: ', e);
         this.widgets['node-radius-max'] = e;
         this.updateMinMaxNode();
         this.updateNodeSizes();
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3038,7 +2527,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets['node-radius-min'] = e;
         this.updateMinMaxNode();
         this.updateNodeSizes();
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3071,12 +2560,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        console.log('rerendering');
-
-        // Fetch visible nodes and links
-    // const originalNodes = this.commonService.getVisibleNodes();
-    // const originalLinks = this.commonService.getVisibleLinks();
-
         const networkData = {
             nodes: this.commonService.getVisibleNodes(),
             links: this.commonService.getVisibleLinks()
@@ -3097,50 +2580,39 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.data = this.commonService.convertToGraphDataArray(networkData);
 
-        // document.documentElement.style.setProperty('--vis-graph-panel-fill-color', `${this.SelectedNodeLabelSizeVariable}pt`);
-
-        setTimeout(() => {
-            this.cdref.detectChanges();
-            this.cdref.markForCheck();
-        }, 0);
-
-        console.log('rerendering 2');
-
         // Update Cytoscape visualization if it exists
-    if (this.cy) {
-
-        console.log('updating cytoscape in rerender');
+        if (this.cy) {
         
-        this.cy.batch(() => {
-            // Remove existing elements
-            this.cy.elements().remove();
+            this.cy.batch(() => {
+                // Remove existing elements
+                this.cy.elements().remove();
 
-            // Add new nodes and edges
-            const newElements = this.mapDataToCytoscapeElements(this.data);
-            this.cy.add(newElements);
+                // Add new nodes and edges
+                const newElements = this.mapDataToCytoscapeElements(this.data);
+                this.cy.add(newElements);
 
-            // Apply the Cose layout to arrange the nodes
-            const layout = this.cy.layout({
-                name: 'cose',
-                animate: false, // Disable animation for faster updates
-                fit: true, // Fit the graph within the viewport
-                padding: 30, // Padding around the graph
-                nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
-                idealEdgeLength: (edge) => 100, // Ideal length of edges
-                edgeElasticity: (edge) => 100, // Elasticity of edges
-                gravity: 80, // Gravity factor
-                numIter: 1000, // Number of iterations
-                // tile: true, // Allow tiling
-                // tilingPaddingVertical: 10, // Vertical padding for tiling
-                // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
+                // Apply the Cose layout to arrange the nodes
+                const layout = this.cy.layout({
+                    name: 'cose',
+                    animate: false, // Disable animation for faster updates
+                    fit: true, // Fit the graph within the viewport
+                    padding: 100, // Padding around the graph
+                    nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
+                    idealEdgeLength: (edge) => 100, // Ideal length of edges
+                    edgeElasticity: (edge) => 100, // Elasticity of edges
+                    gravity: 80, // Gravity factor
+                    numIter: 1000, // Number of iterations
+                    // tile: true, // Allow tiling
+                    // tilingPaddingVertical: 10, // Vertical padding for tiling
+                    // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
+                });
+
+                layout.run();
             });
-
-            layout.run();
-        });
-    } else {
-        this.cy = cytoscape({
-            container: this.cyContainer.nativeElement, // container to render in
-        
+        } else {
+            this.cy = cytoscape({
+                container: this.cyContainer.nativeElement, // container to render in
+            
             elements: this.mapDataToCytoscapeElements(this.data), // convert your data
         
             style: this.getCytoscapeStyles(), // define your styles
@@ -3149,7 +2621,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               name: 'cose', // Use the cose layout
               animate: false, // Set to true for animation
               fit: true, // Fit the graph to the viewport
-              padding: 30, // Padding around the graph
+              padding: 100, // Padding around the graph
               nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
               idealEdgeLength: (edge) => 100, // Ideal length of edges
               edgeElasticity: (edge) => 100, // Elasticity of edges
@@ -3168,37 +2640,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           });
 
           this.attachCytoscapeEvents();
-    }
-
-        // Update the panels
-        // this.updatePanels();
+        }
 
     }
-
-    // public updatePanels(): void {
-    //     if (this.layoutType2 === GraphLayoutType.Parallel && this.showParallel) {
-    //         // Update nodes and generate new panels
-    //         const { updatedNodes, panels, groups } = this.commonService.updateNodesAndGeneratePanels(this.data);
-
-    //         // Update data with updated nodes
-    //         this.data = {
-    //             ...this.data,
-    //             nodes: updatedNodes
-    //         };
-
-    //         // Ensure panels are deep cloned
-    //         this.panels = JSON.parse(JSON.stringify(panels));
-
-    //         // Update polygonGroups
-    //         this.commonService.temp.polygonGroups = groups;
-
-    //         // Use setTimeout to trigger change detection in the next tick
-    //         setTimeout(() => {
-    //             this.cdref.detectChanges();
-    //             this.cdref.markForCheck();
-    //         }, 0);
-    //     }
-    // }
 
     public getNodeShape(node: any) {
 
@@ -3213,18 +2657,38 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             let type = this.commonService.temp.style.nodeSymbolMap(node[symbolVariable]);
 
-            switch (type) {
-                case 'symbolCircle':
-                    return 'circle';
-                case 'symbolSquare':
-                    return 'square';
-                case 'symbolHexagon':
-                    return 'hexagon';
-                case 'symbolTriangle':
-                    return 'triangle';
-                case 'symbolDiamond':
-                    return `<use href="#diamond" stroke-width="3" />`;
-            }
+            console.log('type: ', type);
+
+            return type;
+            // switch (type) {
+            //     case 'ellipse':
+            //         return 'circle';
+            //     case 'rectangle':
+            //         return 'square';
+            //     case 'symbolHexagon':
+            //         return 'hexagon';
+            //     case 'symbolTriangle':
+            //         return 'triangle';
+            //     case 'symbolDiamond':
+            //         return `<use href="#diamond" stroke-width="3" />`;
+            // }
+
+            // { key: 'ellipse', value: '&#11044; (Circle)' },
+            // { key: "symbolTriangle", value: '&#9650; (Up Triangle)' },
+            // { key: "triangle", value: '&#9660; (Triangle)' },
+            // { key: "symbolTriangleLeft", value: '&#9664; (Left Triangle)' },
+            // { key: "symbolTriangleRight", value: '&#9654; (Right Triangle)' },
+            // { key: "diamond", value: '&#10731; (Vertical Diamond)' },
+            // { key: "barrel", value: '&#10731; (barrel)' },
+            // { key: "rectangle", value: '&#9632; (Square)' },
+            // { key: "rhomboid", value: '&#9670; (Rhombus)' },
+            // { key: "pentagon", value: '&#11039; (Pentagon)' },
+            // { key: "hexagon", value: '&#11042; (Hexagon)' },
+            // { key: "heptagon", value: '&#11043; (Heptagon)' },
+            // { key: "octagon", value: '&#11042; (Octagon)' },
+            // { key: "star", value: '&#9733; (Star)' },
+            // { key: "tag", value: '&#9733; (Tag)' },
+            // { key: "vee", value: '&#9733; (Vee)' },
 
             // if (type === undefined) {
             //     type = that.customShapes.shapes[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
@@ -3303,7 +2767,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onNodeSymbolChange(e) {
         this.widgets['node-symbol'] = e;
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3340,6 +2804,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkLabelVariableChange(e) {
         let label: any = e;
         this.widgets['link-label-variable'] = label;
+        if (!this.cy) return;
         this.cy.edges().forEach(edge => {
             const newLabel = this.getLinkLabel(edge.data()).text;
             edge.data('label', newLabel);
@@ -3351,11 +2816,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onLinkDecimalVariableChange(e) {
         this.widgets['link-label-decimal-length'] = e;
+        if (!this.cy) return;
         this.cy.edges().forEach(edge => {
             const newLabel = this.getLinkLabel(edge.data()).text;
             edge.data('label', newLabel);
         });
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3366,7 +2832,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.overideTransparency = true;
         this.updateLinkColor();
         this.overideTransparency = false;
-        // this.debouncedRerender();
+        
     }
 
     updateLinkWidthRows(e) {
@@ -3395,7 +2861,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets['link-width-variable'] = e;
         this.updateMinMaxLink();
         this.scaleLinkWidth();
-        // this.debouncedRerender();
+        
     }
 
     updateMinMaxNode() {
@@ -3497,7 +2963,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         
         // this.scaleLinkWidth();
 
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3508,7 +2974,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateMinMaxLink();
         this.scaleLinkWidth();
 
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3518,7 +2984,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets['link-width-min'] = e;
         this.updateMinMaxLink();
         this.scaleLinkWidth();
-        // this.debouncedRerender();
+        
     }
 
     /**
@@ -3636,78 +3102,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * Adds or removes vertical and horizontal gridlines from svg image
-     * @param show wheither to show or hide gridlines
-     */
-    drawGridlines(show: boolean): void {
-        const container = document.getElementById('viz-force');
-
-        // Ensure the container exists
-        if (!container) return;
-
-        // Reset width and height in case they have changed
-        this.halfWidth = container.parentElement.offsetWidth / 2;
-        this.halfHeight = container.parentElement.parentElement.parentElement.offsetHeight / 2;
-
-        // Create or select horizontal gridlines group
-        let horizontalGridlinesGroup = container.querySelector('g.horizontal-gridlines') as SVGGElement;
-        if (!horizontalGridlinesGroup) {
-            horizontalGridlinesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            horizontalGridlinesGroup.classList.add('horizontal-gridlines');
-            container.querySelector('svg').insertBefore(horizontalGridlinesGroup, container.querySelector('svg').firstChild);
-        }
-
-        // Create or select vertical gridlines group
-        let verticalGridlinesGroup = container.querySelector('g.vertical-gridlines') as SVGGElement;
-        if (!verticalGridlinesGroup) {
-            verticalGridlinesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            verticalGridlinesGroup.classList.add('vertical-gridlines');
-            container.querySelector('svg').insertBefore(verticalGridlinesGroup, container.querySelector('svg').firstChild);
-        }
-
-        // Clear existing lines
-        horizontalGridlinesGroup.innerHTML = '';
-        verticalGridlinesGroup.innerHTML = '';
-
-        if (show) {
-            const range = Math.ceil(Math.max(this.halfWidth, this.halfHeight) / 50);
-            const ords = Array.from({ length: range }, (_, i) => i);
-
-            // Horizontal lines
-            ords.forEach(d => {
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', '0');
-                line.setAttribute('x2', (this.halfWidth * 2).toString());
-                line.setAttribute('y1', (d * 100).toString());
-                line.setAttribute('y2', (d * 100).toString());
-                line.setAttribute('stroke', 'lightgray');
-                horizontalGridlinesGroup.appendChild(line);
-            });
-
-            // Vertical lines
-            ords.forEach(d => {
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', (d * 100).toString());
-                line.setAttribute('x2', (d * 100).toString());
-                line.setAttribute('y1', '0');
-                line.setAttribute('y2', (this.halfHeight * 2).toString());
-                line.setAttribute('stroke', 'lightgray');
-                verticalGridlinesGroup.appendChild(line);
-            });
-        }
-    }
-
-    /**
      * Take input from 2D Networks settings dialog box from template and update the widget and show/hides gridlines
      * @param e string either 'Show' or 'Hide'
      */
     onNetworkGridlinesShowHideChange(e: string): void {
         if (e === "Show") {
             this.widgets['network-gridlines-show'] = true;
-            this.drawGridlines(true);
         } else {
             this.widgets['network-gridlines-show'] = false;
-            this.drawGridlines(false);
         }
     }
 
@@ -3761,13 +3163,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * If exportFileType = 'svg' don't show advanced setting; otherwise do show them
      * @param e string of filetype
      */
-    onNetworkExportFiletypeChange(e) {
-        if (e == "svg") {
-            this.ShowAdvancedExport = false;
-        }
-        else
-            this.ShowAdvancedExport = true;
-    }
+    // onNetworkExportFiletypeChange(e) {
+    //     if (e == "svg") {
+    //         this.ShowAdvancedExport = false;
+    //     }
+    //     else
+    //         this.ShowAdvancedExport = true;
+    // }
 
     /**
      * Updates the color of nodes and transparency based on node-color-variable, the value from nodeColorMap and nodeAlphaMap, and whether the node is selected
@@ -3879,6 +3281,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
  */
 scaleLinkWidth() {
     const variable = this.widgets['link-width-variable'];
+    if (!this.cy) return;
     if (variable === 'None') {
         // Apply a default width to all links
         this.cy.style().selector('edge').style({
@@ -3901,9 +3304,9 @@ scaleLinkWidth() {
     //     let vlinks = this.getVLinks();
     //     if (variable == 'None') return  scalar;
     //     let n = vlinks.length;
-        const maxWidth = this.widgets['link-width-max'];
-        const minWidth = this.widgets['link-width-min'];
-        const reciprocal = this.widgets['link-width-reciprocal'];
+    const maxWidth = this.widgets['link-width-max'];
+    const minWidth = this.widgets['link-width-min'];
+    const reciprocal = this.widgets['link-width-reciprocal'];
 
     // Iterate over each edge and set the scaled width
     this.cy.edges().forEach(edge => {
@@ -3983,13 +3386,6 @@ scaleLinkWidth() {
      * On click of export button, show export dialog
      */
     openExport() {
-
-        // this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
-        // this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
-        // this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
-        // this.NodeSymbolTableWrapperDialogSettings.setStateBeforeExport();
-        // this.Node2DNetworkExportDialogSettings.setStateBeforeExport();
-        this.setCalculatedResolution()
         this.isExportClosed = false;
         this.Show2DExportPane = true;
     }
@@ -3998,37 +3394,11 @@ scaleLinkWidth() {
      * On click of center button, show centers the view
      */
     openCenter() {
-        // TODO::David Below is what you put and then below that was what was refactored.  Please delete or update the below accordingly
-        // (this.twoDGraph as any).component.fitView();
-        this.fit(undefined, undefined);
-    }
-
-    /**
-     * On click of Pin All Nodes button, pin/unpins all nodes
-     */
-    openPinAllNodes() {
-
-        // this.showParallel = !this.showParallel;
-        // let nodes = this.svg
-        //     .select('g.nodes')
-        //     .selectAll('g')
-        //     .data(this.commonService.session.network.nodes)
-        //     .select('path');
-        // if (this.commonService.session.network.allPinned) {
-        //     nodes.each(function (d) {
-        //         delete d.fx;
-        //         delete d.fy;
-        //         d.fixed = false;
-        //     });
-        //     this.force.alpha(0.3).alphaTarget(0).restart();
-        // } else {
-        //     nodes.each(function (d) {
-        //         d.fx = d.x;
-        //         d.fy = d.y;
-        //         d.fixed = true;
-        //     });
-        // }
-        this.commonService.session.network.allPinned = !this.commonService.session.network.allPinned;
+        if (this.cy) {
+            this.cy.fit();
+        } else {
+            console.error('Cytoscape instance is not initialized.');
+        }
     }
 
     /**
@@ -4044,25 +3414,10 @@ scaleLinkWidth() {
     }
 
     /**
-     * XXXXX empty function; may be added later XXXXX
-     */
-    openSelectDataSetScreen() {
-
-    }
-
-    /**
      * renders the network
      */
     updateVisualization() {
         this._rerender();
-        if (!this.isLoading) {
-            // console.log('render update vis');
-            // this.isLoading = true;
-            // this.render();
-            // setTimeout(() => {
-            //     this.isLoading = false;
-            //   }, 1000);
-        }
     }
 
     applyStyleFileSettings() {
@@ -4071,8 +3426,6 @@ scaleLinkWidth() {
     }
 
     ngOnDestroy(): void {
-        //this.context.twoD.widgets['node-label-variable'] = 'None';
-
         $(document).off("link-visibility");
         $(document).off("cluster-visibility");
         $(document).off("node-selected");
@@ -4085,7 +3438,9 @@ scaleLinkWidth() {
         if (this.debugMode) {
             console.log('render new data');
         }
-        this.debouncedRerender();
+
+        console.log('onLoadNewData');
+        // this.debouncedRerender();
     }
 
     /**
@@ -4096,6 +3451,7 @@ scaleLinkWidth() {
             console.log('render filter change');
         }
 
+        console.log('onFilterDataChange');
         // render doesn't do anything unless this.isLoading == true; so need to ensure that before call render
         this.debouncedRerender();
     }
@@ -4113,7 +3469,7 @@ scaleLinkWidth() {
         this.onPolygonLabelSizeChange(this.SelectedPolygonLabelSizeVariable);
 
         //Node|Orientation
-        this.SelectedPolygonLabelOrientationVariable = this.widgets['polygons-label-orientation'];
+        this.SelectedPolygonLabelOrientationVariable = this.widgets['polygon-label-orientation'];
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
         this.polygonsToggle(this.widgets['polygons-show']);
@@ -4216,23 +3572,12 @@ scaleLinkWidth() {
         this.SelectedNetworkGridLineTypeVariable = this.widgets['network-gridlines-show'] ? "Show" : "Hide";
         this.onNetworkGridlinesShowHideChange(this.SelectedNetworkGridLineTypeVariable);
 
-        //Network|Charge
-        this.SelectedNetworkChargeVariable = this.widgets['node-charge'];
-        this.onNodeChargeChange(this.SelectedNetworkChargeVariable);
-
-        //Network|Gravity
-        this.SelectedNetworkGravityVariable = this.widgets['network-gravity'];
-        this.onNetworkGravityChange(this.SelectedNetworkGravityVariable);
-
-        //Network|Friction
-        this.SelectedNetworkFrictionVariable = this.widgets['network-friction'];
-        this.onNetworkFrictionChange(this.SelectedNetworkFrictionVariable);
-
         //Network|Link Strength
         this.SelecetedNetworkLinkStrengthVariable = this.widgets['network-link-strength'];
         this.onNetworkFrictionChange(this.SelecetedNetworkLinkStrengthVariable);
 
-        if (this.widgets['polygon-label-orientation'] !== 'top' || this.widgets['polygon-label-orientation'] !== 'bottom') {
+        // Ensure proper orientation is set
+        if (this.widgets['polygon-label-orientation'] !== 'top' || this.widgets['polygon-label-orientation'] !== 'bottom' || this.widgets['polygon-label-orientation'] !== 'middle') {
             this.widgets['polygon-label-orientation'] = 'top';
         }
 
@@ -4245,7 +3590,7 @@ scaleLinkWidth() {
      * Updates the sizes of all nodes based on the current widget settings.
      */
     updateLinkColor() {
-        // console.log('updating link color');
+        if (!this.cy) return;
         this.cy.edges().forEach(link => {
             const colorObject = this.getLinkColor(link.data());
             link.data('lineColor', colorObject.color);
@@ -4258,6 +3603,7 @@ scaleLinkWidth() {
      * Updates the sizes of all nodes based on the current widget settings.
      */
     updateNodeSizes() {
+        if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newSize = this.getNodeSize(node.data());
             node.data('nodeSize', newSize);
@@ -4269,6 +3615,7 @@ scaleLinkWidth() {
      * Updates the border widths of all nodes based on the current widget settings.
      */
      updateNodeBorders() {
+        if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newBorderWidth = this.getNodeBorderWidth(node.data());
             node.data('borderWidth', newBorderWidth);
@@ -4280,6 +3627,7 @@ scaleLinkWidth() {
      * Updates the labels of all nodes based on the current widget settings.
      */
     updateNodeLabels() {
+        if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newLabel = this.getNodeLabel(node.data());
             node.data('label', newLabel);
@@ -4304,9 +3652,20 @@ scaleLinkWidth() {
      * Updates the font sizes of all node labels based on the current widget settings.
      */
     updateNodeLabelSizes() {
+        if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newFontSize = this.getNodeFontSize(node.data());
             node.data('fontSize', newFontSize);
+        });
+        this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
+    updateNodeShapes() {
+        if (!this.cy) return;
+        this.cy.nodes().forEach(node => {
+            const newShape = this.getNodeShape(node.data());
+            console.log('newShape: ', newShape);
+            node.data('shape', newShape);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -4356,4 +3715,5 @@ scaleLinkWidth() {
 export namespace TwoDComponent {
     export const componentTypeName = '2D Network';
 }
+
 

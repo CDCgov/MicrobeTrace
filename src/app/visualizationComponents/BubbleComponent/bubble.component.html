@@ -1,4 +1,5 @@
 <div class="bubble-wrapper">
+    <span #bubbleTooltip id="bubbleTooltip" style="background-color: white;"></span>
     <div id="tool-btn-container" class="m-portlet">
         <span style="overflow: visible; position: relative; width: 110px;">
           <a title="Open Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
@@ -7,19 +8,8 @@
           <a title="Export Bubble Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
         </span>
     </div>
-    <div style="margin-top: 10px" id="bubbleViewContainer" [ngStyle]="{'height.px': viewHeight, 'width.px': viewWidth}">
-        <!--TODO:: David you can add this back or transfer over to cytoscape?  You can add unovis back temporaritly to have this if you'd like
-        <vis-xy-container [data]="data" [padding]="padding">
-            <vis-scatter #scatter [x]="x" [y]="y" [size]="sizing" [color]="color" [strokeColor]="strokeColor" [strokeWidth]="2"></vis-scatter>
-            <vis-axis #x_axis type="x" [tickValues]="X_tickValues" [tickFormat]="X_axisFormat" [gridLine]="false" [label]="commonService.capitalize(xVariable)" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
-            <vis-axis #y_axis type="y" [tickValues]="Y_tickValues" [tickFormat]="Y_axisFormat" [gridLine]="false" [label]="commonService.capitalize(yVariable)" [labelFontSize]="20" tickTextFontSize="20px"></vis-axis>
-            <vis-tooltip [triggers]="tooltipTriggers"></vis-tooltip>
-        </vis-xy-container> -->
-        <svg>
-          <defs id="bubbleDefs">  
-          </defs>
-        </svg>
-    </div>
+
+    <div #cyBubble id="cyBubble" [style.width.px]="viewWidth" [style.height.px]="viewHeight" style="border: 1px black solid;"></div>
 
     <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '400px'}" appendTo="body">
         <div class="form-group row" title="">
@@ -65,7 +55,7 @@
                       </div>
                       <div class="col-3">
                           <select [(ngModel)]="BubbleExportFileType" class="form-control form-control-sm">
-                              <option>svg</option>
+                              <!--option>svg</option-->
                               <option>png</option>
                           </select>
                       </div>

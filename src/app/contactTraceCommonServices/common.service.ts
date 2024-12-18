@@ -1,11 +1,9 @@
 ﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
-import * as GoldenLayout from 'golden-layout';
 import * as Papa from 'papaparse';
 import * as _ from 'lodash';
-// import { window } from 'ngx-bootstrap';
 import moment from 'moment';
 import { WorkerModule } from '../workers/workModule';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
@@ -20,17 +18,15 @@ import { AppComponentBase } from '@shared/common/app-component-base';
 import { StashObjects, StashObject } from '../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { HttpClient } from '@angular/common/http';
-import { map } from 'rxjs/operators';
-import { window } from 'ngx-bootstrap/utils';
-// import { MicrobeTraceLink, MicrobeTraceNode, MicrobeTraceSessionGraphData } from '@app/visualizationComponents/TwoDComponent/mockdata';
 import { GraphData, LinkDatum, NodeDatum } from '@app/visualizationComponents/TwoDComponent/data';
-import { group } from 'console';
-// import { GraphNodeShape, GraphPanelConfig } from '@unovis/ts';
 
 
-// import { GoldenLayoutService } from '@embedded-enterprises/ng6-golden-layout';
-// import { ConsoleReporter } from 'jasmine';
-
+export interface ExportOptions {
+    filename: string;
+    filetype: string;
+    scale: number;
+    quality: number;
+  }
 
 @Directive()
 @Injectable({
@@ -317,7 +313,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-radius-variable': 'None',
             "node-radius-min": 20,
             "node-radius-max": 100,
-            'node-symbol': 'symbolCircle',
+            'node-symbol': 'ellipse',
             'node-symbol-table-counts': true,
             'node-symbol-table-frequencies': false,
             'node-symbol-variable': 'None',
@@ -342,7 +338,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'polygons-foci': 'cluster',
             'polygons-gather-force': 0,
             'polygons-label-show' : false,
-            'polygon-label-orientation' : 'Right',
+            'polygon-label-orientation' : 'top',
             'polygons-label-size' : 16,
             'polygons-show' : false,
             'polygon-color-table-visible': false,
@@ -438,24 +434,19 @@ export class CommonService extends AppComponentBase implements OnInit {
                 linkColorsTable: {},
                 linkColorsTableKeys: {},
                 nodeSymbols: [
-                    'symbolCircle',
-                    // 'symbolCross',
-                    'symbolDiamond',
-                    'symbolSquare',
-                    // 'symbolStar',
-                    'symbolTriangle',
-                    // 'symbolWye',
-                    // 'symbolTriangleDown',
-                    // 'symbolTriangleLeft',
-                    // 'symbolTriangleRight',
-                    // 'symbolDiamondAlt',
-                    // 'symbolDiamondSquare',
-                    // 'symbolPentagon',
-                    'symbolHexagon'
-                    // 'symbolHexagonAlt',
-                    // 'symbolOctagon',
-                    // 'symbolOctagonAlt',
-                    // 'symbolX'
+                    'ellipse',
+                    'triangle',
+                    'rectangle',
+                    'barrel',
+                    'rhomboid',
+                    'diamond',
+                    'pentagon',
+                    'hexagon',
+                    'heptagon',
+                    'octagon',
+                    'star',
+                    'tag',
+                    'vee'
                 ],
                 nodeSymbolsTable: {},
                 nodeSymbolsTableKeys: {},
@@ -572,11 +563,17 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     updateLegacyNodeSymbols() {
         this.session.style.nodeSymbols = [
-            'symbolCircle',
-            'symbolSquare',
-            'symbolTriangle',
-            'symbolHexagon',
-            'symbolDiamond'
+            'ellipse',
+            'square',
+            'triangle',
+            'hexagon',
+            'diamond',
+            'barrel',
+            'pentagon',
+            'octagon',
+            'star',
+            'tag',
+            'vee'
         ]
     }
 
@@ -964,7 +961,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           id: node._id, // Ensure the id property is set correctly
           group: node.cluster,
           color: this.getColorByIndex(node.index), // Add or override the color property
-          label: node.label ?? node._id, // Ensure label is defined
+          label: (this.session.style.widgets['node-label-variable'] === 'None') ? '' : node.label, // Ensure label is defined
             nodeSize: node.nodeSize ?? 20, // Default node size
             borderWidth: node.borderWidth ?? 1 // Default border width
         }));
@@ -1004,7 +1001,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           return {
             nodes: groupNodes.map(node => node.id),
             label: (this.session.style.widgets['polygons-label-show']) ? `${this.session.style.widgets['polygons-foci']} ${group}` : '',
-            labelPosition: (this.session.style.widgets['polygons-label-orientation']) ? this.session.style.widgets['polygons-label-orientation'] : 'top',
+            labelPosition: (this.session.style.widgets['polygon-label-orientation']) ? this.session.style.widgets['polygon-label-orientation'] : 'top',
             borderColor: groupColor,
             borderWidth: 2,
             fillColor: groupColor,
@@ -2601,6 +2598,43 @@ export class CommonService extends AppComponentBase implements OnInit {
         $("#numberOfDisjointComponents").text(clusterCount);
     };
 
+    private exportRequestedSource = new Subject<void>();
+    exportRequested$ = this.exportRequestedSource.asObservable();
+
+     private exportOptions: ExportOptions = {
+        filename: 'network_export',
+        filetype: 'png',
+        scale: 1,
+        quality: 0.92,
+    };
+
+    /**
+     * Call this method to set export options before requesting an export.
+     * @param options ExportOptions object containing user-selected options
+     */
+    setExportOptions(options: ExportOptions): void {
+        this.exportOptions = { ...options };
+    }
+
+    /**
+     * Retrieve the current export options.
+     * @returns ExportOptions object
+     */
+    getExportOptions(): ExportOptions {
+        return this.exportOptions;
+    }
+
+     /**
+     * Notify subscribers that an export has been requested.
+     */
+    requestExport(): void {
+        this.exportRequestedSource.next();
+    }
+  
+    // requestExport(filename: string, type: string): void {
+    //   this.exportRequestedSource.next({filename, type});
+    // }
+
     /**
 	 * updates the functions that set the color and transparency of the nodes [commonService.temp.style.nodeColorMap() and commonService.temp.style.nodeAlphaMap()]
 	 * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
@@ -2936,6 +2970,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 	 * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
 	 */
     createPolygonColorMap = () => {
+
         if (!this.temp.polygonGroups || !this.session.style.widgets['polygons-color-show']) {
             this.temp.style.polygonColorMap = () => this.session.style.widgets['polygon-color'];
             return [];

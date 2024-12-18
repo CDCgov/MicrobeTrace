@@ -1,5 +1,5 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
-import { CommonService } from './contactTraceCommonServices/common.service';
+import { CommonService, ExportOptions } from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 
 import { AppComponentBase } from '@shared/common/app-component-base';
@@ -19,6 +19,8 @@ import { Subscription } from 'rxjs';
 import { GoldenLayoutHostComponent } from './golden-layout-host.component';
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
+import html2canvas from 'html2canvas';
+
 
 
 @Component({
@@ -38,6 +40,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     @ViewChild('goldenLayoutHost') _goldenLayoutHostComponent: GoldenLayoutHostComponent;
 
     @ViewChild('linkThresholdSparkline') linkThresholdSparkline: ElementRef;
+
+    @ViewChild('visualwrapper', { static: false }) visualWrapperRef!: ElementRef<HTMLDivElement>;
 
     public metric: string = "tn93";
     public ambiguity: string = "Average";
@@ -273,6 +277,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         this.getGlobalSettingsData();
 
+         // Subscribe to export requests
+        this.commonService.exportRequested$.subscribe(() => {
+            this.performExport();
+        });
+
         this.elem = document.documentElement;
 
         if (!this.GlobalSettingsDialogSettings) {
@@ -434,6 +443,81 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     /**
+     * Performs the export of the visualization, including tables.
+     */
+    private async performExport(): Promise<void> {
+        const visualWrapper = this.visualWrapperRef?.nativeElement;
+        if (!visualWrapper) {
+            console.error('Visual wrapper container not found');
+            return;
+        }
+    
+        try {
+            // Retrieve export options from the service
+            const options: ExportOptions = this.commonService.getExportOptions();
+    
+            // Capture the visual wrapper using html2canvas with onclone callback
+            const canvas = await html2canvas(visualWrapper, {
+                scale: options.scale || 1,
+                useCORS: true, // Enable CORS if images are loaded from external sources
+                onclone: (clonedDoc) => {
+                    // Replace color input elements with colored spans
+                    const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
+                    clonedInputs.forEach(input => {
+                        const color = input.getAttribute('value') || '#ffffff';
+                        const span = clonedDoc.createElement('span');
+                        span.style.display = 'inline-block';
+                        span.style.width = '20px';
+                        span.style.height = '20px';
+                        span.style.backgroundColor = color;
+                        span.style.border = '1px solid #000'; // Optional: Add border for visibility
+                        input.parentNode?.replaceChild(span, input);
+                    });
+    
+                    // Optionally, handle other elements that display hex codes
+                    // For example, if you have spans or divs showing hex values:
+                    /*
+                    const colorTextElements = clonedDoc.querySelectorAll('.color-text');
+                    colorTextElements.forEach(elem => {
+                        const color = elem.textContent;
+                        elem.style.backgroundColor = color;
+                        elem.textContent = '';
+                    });
+                    */
+                }
+            });
+    
+            // Convert canvas to desired image format
+            let imgData: string;
+            const filetype = options.filetype.toLowerCase();
+            const filename = options.filename || 'network_export';
+    
+            if (filetype === 'png') {
+                imgData = canvas.toDataURL('image/png');
+            } else if (filetype === 'jpeg' || filetype === 'jpg') {
+                imgData = canvas.toDataURL('image/jpeg', options.quality || 0.92);
+            } else if (filetype === 'webp') {
+                imgData = canvas.toDataURL('image/webp', options.quality || 0.92);
+            } else {
+                console.error('Unsupported file type:', filetype);
+                return;
+            }
+    
+            // Trigger the download
+            const link = document.createElement('a');
+            link.href = imgData;
+            link.download = `${filename}.${filetype}`;
+            document.body.appendChild(link); // Append to body to make it clickable in Firefox
+            link.click();
+            document.body.removeChild(link); // Remove from body after clicking
+    
+            console.log('Export completed successfully.');
+        } catch (error) {
+            console.error('Error during export:', error);
+        }
+    }
+
+    /**
      * Removes a component from this.homepageTabs
      * @param component name of the component to be removed
      */
@@ -548,12 +632,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 }
                 if (typeof node[field] == "string") {
                   node.selected = vre.test(node[field]);
-                  firstSelected = true;
+                  firstSelected = node.selected;
                 }
                 if (typeof node[field] == "number") {
                   node.selected = (node[field] + "" == val);
-                  firstSelected = true;
+                  firstSelected = node.selected;
                 }
+
             } else {
                 break;
             }
@@ -911,7 +996,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onNodeColorTableChanged() {
 
-        console.log('node color table changed: ', this.SelectedNodeColorTableTypesVariable);
         if(this.commonService.debugMode) {
             console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
         }
@@ -1264,11 +1348,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
-        // TODO::David Check Bubble View
         // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
-        // if ('bubble' in this.visuals) {
-        //     this.visuals.bubble.sortData(variable);
-        // }
+        if ('bubble' in this.commonService.visuals) {
+             this.commonService.visuals.bubble.sortData(variable);
+         }
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");
@@ -1449,7 +1532,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 clearInterval(this.commonService.session.timeline);
             } else {
                 this.playBtnText = "Pause";
-                this.commonService.session.timeline = setInterval(this.step, 200, this);
+                this.commonService.session.timeline = setInterval(this.step, this.timelineSpeed, this);
             }
 
     }
@@ -1516,11 +1599,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (!this.GlobalSettingsNodeColorDialogSettings.isVisible) {
 
-            console.log('currently hjidden');
-
             // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
             if (this.SelectedColorNodesByVariable != "None") {
-                console.log('note none and showing');
 
                 this.SelectedNodeColorTableTypesVariable = 'Show';
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
@@ -1542,18 +1622,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             
             $('#node-color-value-row').slideUp();
 
-            console.log('currently ndoes is: ', this.SelectedColorNodesByVariable);
-
-
             //If hidden by default, unhide to perform slide up and down
             if(!this.ShowGlobalSettingsNodeColorTable){
-                console.log('currently if');
 
                 const element = this.el.nativeElement.querySelector('#node-color-table');
                 this.commonService.setNodeTableElement(element);
                 this.ShowGlobalSettingsNodeColorTable = true;
             } else {
-                console.log('currently else');
                 $('#node-color-table-row').slideDown();
             }
 
@@ -1561,8 +1636,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // if color nodes by equals None, then hide node color table
         } else {
-
-            console.log('currently ndoes is none');
 
             $('#node-color-table').empty();
             $('#node-color-value-row').slideDown();
@@ -1621,7 +1694,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                   
 
-                    if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
+                    //if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
                           // Update table with new alpha value
                         // Need to get value from id since "this" keyword is used by angular
                         this.commonService.session.style.nodeColors.splice(i, 1, e.target['value']);
@@ -1631,13 +1704,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         // temp.style.nodeColorMap = d3
                             // .scaleOrdinal(session.style.nodeColorsTable[variable])
                             // .domain(session.style.nodeColorsTableKeys[variable]);
-                        } else {
-                            let temKey = this.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
-                            this.commonService.temp.style.nodeColor.splice(temKey, 1, e);
-                            this.commonService.temp.style.nodeColorMap = d3
-                                .scaleOrdinal(this.commonService.temp.style.nodeColor)
-                                .domain(this.commonService.temp.style.nodeColorKeys);
-                        }
+                        // } else {
+                        //     let temKey = this.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
+                        //     this.commonService.temp.style.nodeColor.splice(temKey, 1, e);
+                        //     this.commonService.temp.style.nodeColorMap = d3
+                        //         .scaleOrdinal(this.commonService.temp.style.nodeColor)
+                        //         .domain(this.commonService.temp.style.nodeColorKeys);
+                        // }
 
                     this.publishUpdateNodeColors();
 
@@ -2246,10 +2319,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     getHeight() {
         const timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
         if (this.officialInstance()) {
-            return window.innerHeight - 64 - 6 - timelineHeight;
+            return window.innerHeight - 80 - timelineHeight;
         } else {
             const warningHeight = $('#url-warning-div').height()
-            return window.innerHeight - 64 - 6 - warningHeight - timelineHeight;
+            return window.innerHeight - 80 - warningHeight - timelineHeight;
         }
     }
 

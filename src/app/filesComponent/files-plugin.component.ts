@@ -121,24 +121,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // this.title = this.container.title;
     this.id = this.container.parent.id;
 
-    // sets container.stateRequestEvent to a function that returns "state is here"
-    this.container.stateRequestEvent = () => this.handleContainerStateRequestEvent();
-    
-    const state = this.container.initialState;
-    // let color: string;
-    // if (state === undefined) {
-    //     color = ColorComponent.undefinedColor;
-    // } else {
-    //     if (typeof state !== 'string') {
-    //         color = 'IndianRed';
-    //     } else {
-    //         color = state;
-    //     }
-    // }
-
-    console.log('commonService: ', commonService);
-    // this.visuals = commonService.visuals;
-    // this.visuals.filesPlugin = this;
   }
 
   ngOnInit() {

@@ -14,6 +14,7 @@ import { GanttComponent } from "./visualizationComponents/GanttComponent/gantt-p
 import { HeatmapComponent } from "./visualizationComponents/HeatmapComponent/heatmap.component";
 import { BubbleComponent } from "./visualizationComponents/BubbleComponent/bubble.component";
 import { SankeyComponent } from "./visualizationComponents/SankeyComponent/sankey.component";
+import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 
 @Injectable({
     providedIn: 'root',
@@ -33,4 +34,5 @@ export class MicrobeTraceNextVisuals {
     public heatmap: HeatmapComponent;
     public bubble: BubbleComponent;
     public sankey: SankeyComponent;
+    public waterfall: WaterfallComponent;
 }

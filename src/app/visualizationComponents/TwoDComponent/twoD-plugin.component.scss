@@ -35,6 +35,34 @@
 
 }
 
+/* Ensure the container is positioned relatively to position the grid overlay correctly */
+.cytoscape-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Grid Overlay Styling */
+.grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+      linear-gradient(to right, lightgray 1px, transparent 1px),
+      linear-gradient(to bottom, lightgray 1px, transparent 1px);
+  background-size: 100px 100px; /* Adjust grid spacing here */
+  pointer-events: none; /* Make sure grid doesn't capture mouse events */
+  z-index: 1; /* Position grid above Cytoscape's canvas */
+  transition: opacity 0.3s ease;
+  opacity: 1;
+}
+
+.grid-overlay.hidden {
+  opacity: 0;
+}
+
 #cy {
   // position: absolute;
   width: 100%;

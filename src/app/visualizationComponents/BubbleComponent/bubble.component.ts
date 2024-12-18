@@ -1,16 +1,14 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnInit, Output, Renderer2, EventEmitter, ViewChild } from '@angular/core';
-import { EventManager } from '@angular/platform-browser';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import * as saveAs from 'file-saver';
-import { saveSvgAsPng } from 'save-svg-as-png';
+import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { ComponentContainer } from 'golden-layout';
- 
-// import { XYContainer, Scatter, Axis } from '@unovis/ts'
+import cytoscape, { Core } from 'cytoscape';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -22,9 +20,11 @@ type DataRecord = { index: number, id: string, x: number; y: number, color: stri
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
-  // @ViewChild('scatter') scatterPlot: Scatter<Object>;
-  // @ViewChild('x_axis') x_axis: Axis<DataRecord>;
-  // @ViewChild('y_axis') y_axis: Axis<DataRecord>;
+
+  @ViewChild('cyBubble', { static: false }) cyContainer: ElementRef;
+  @ViewChild('bubbleTooltip') toolTip: ElementRef;
+  
+  cy: Core;
   
   visuals: MicrobeTraceNextVisuals;
   widgets: any;
@@ -38,9 +38,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   SelectedBubbleExportScaleVariable: number = 1;
   CalculatedResolution: string;
 
-  viewHeight: number
-  viewWidth: number
-  padding = { left: 20, right: 20, top: 20, bottom: 20 }
+  viewHeight: number;
+  viewWidth: number;
 
   selectedFieldList: SelectItem[] = [];
   xVariable: string;
@@ -52,65 +51,13 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   visibleData: DataRecord[] = [];
 
   X_categories = []
-  X_axisFormat = (tick: number) => this.X_categories[tick]
   X_tickValues = []
 
   Y_categories = []
-  Y_axisFormat = (tick: number) => this.Y_categories[tick]
   Y_tickValues = []
-  
-  /* on-click effect, if we want functionality when a node is clicked (also add [events]="events" to vis-scatter in template)
-  events = {
-    [Scatter.selectors.point]: {
-      click: (d: DataRecord) => { 
-        //d.selected = true;
-        console.log(d);
-      }
-    }
-  }
-  */
 
-  // tooltipTriggers = {
-  //   [Scatter.selectors.point]: (d: DataRecord): string => {
-  //     if (this.SelectedNodeCollapsingTypeVariable) {
-  //       let output = `
-  //       <style>
-  //         #bubbleToolTip {
-  //           border-spacing: 0;
-  //           width: 100%;
-  //           //border: 1px solid #ddd;
-  //           z-index: 1000;
-  //         }
-
-  //         #bubbleToolTip td, #bubbleToolTip th {
-  //           text-align: center;
-  //           padding: 2px;
-  //           font-weight: 400;
-  //           border: 1px solid #ddd;
-  //         }
-
-  //         #bubbleToolTip tr:nth-child(even) {
-  //           background-color: #f2f2f2;
-  //         }
-
-  //         #bubbleToolTip tr:nth-child(odd) {
-  //           background-color: #fff;
-  //         } 
-  //       </style>
-  //       <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.visuals.microbeTrace.SelectedColorNodesByVariable)}</th><th> Count </th><th> % </th></thead><tbody>`
-  //       d.counts.forEach((x) => output += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
-  //       return output + '</tbody></table>';
-  //     } else {
-  //       return d.id
-  //     }
-  //   }
-  // }
-
-  x = (d: DataRecord) => d.x
-  y = (d: DataRecord) => d.y
-  color = (d: DataRecord) => d.color
-  strokeColor = (d: DataRecord) => d.strokeColor
-  sizing: (d: DataRecord) => number
+  scaleFactor: number = 200;
+  svgDefs: {} = {};
 
   NodeCollapsingTypes: any = [
     { label: 'On', value: true },
@@ -118,14 +65,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   ];
   SelectedNodeCollapsingTypeVariable: boolean;
 
-  constructor(injector: Injector,
-    private renderer: Renderer2,
-    private elem: ElementRef,
-    private eventManager: EventManager,
+  constructor(
     public commonService: CommonService,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
-    private cdref: ChangeDetectorRef
+    private cdref: ChangeDetectorRef,
+    private gtmService: GoogleTagManagerService
   ) {
     super(elRef.nativeElement);
 
@@ -135,6 +80,20 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   ngOnInit(): void {
+    this.gtmService.pushTag({
+      event: "page_view",
+      page_location: "/bubble",
+      page_title: "Bubble View"
+    });
+
+    try {
+      this.viewHeight = this.container.height - 73;
+      this.viewWidth = this.container.width - 42;
+    } catch (error) {
+      console.log('unable to set proper view sizes for bubble view, setting to default values');
+      this.viewWidth = 800;
+      this.viewHeight = 600;
+    } 
     
     this.selectedFieldList.push({ label: "None", value: "None"})
     this.commonService.session.data['nodeFields'].map((d) => {
@@ -177,21 +136,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     $( document ).on( "node-visibility", function( ) {
       //console.log('node visi event')
       that.updateVisibleNodes()
+      that.updateNodes();
     });
   }
 
   ngAfterViewInit(): void {
-    try {
-      setTimeout(() => this.updateViewRatio(), 10)
-    } catch (error) {
-      try {
-        setTimeout(() => this.updateViewRatio(), 1000)
-      } catch (error) {
-        console.log('unable to set proper view ratio for bubble view, setting to default values');
-        this.viewWidth = 800;
-        this.viewHeight = 600;
-      }
-    }    
+    this.generateCytoscape();
   }
 
   setWidgets() {
@@ -214,7 +164,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
 
     if (this.widgets['bubble-size'] < 10 || this.widgets['bubble-size'] > 40 || this.widgets['bubble-size'] == undefined || this.widgets['bubble-size'] == null || typeof this.widgets['bubble-size'] != 'number') {
-      this.widgets['bubble-size'] = 20;
+      this.widgets['bubble-size'] = 15;
     }
     this.nodeSize = this.widgets['bubble-size']
 
@@ -227,6 +177,223 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.widgets['bubble-collapsed'] = false;
     }
     this.SelectedNodeCollapsingTypeVariable = this.widgets['bubble-collapsed']
+  }
+
+  mapDataToCytoscapElements(data: DataRecord[]): cytoscape.ElementsDefinition {
+    const nodes = data.map((node) => {
+      let size = this.SelectedNodeCollapsingTypeVariable ? this.nodeSize * Math.sqrt(node.totalCount): this.nodeSize;
+      // probably do something here for node size
+      return {
+        data: {
+          id: node.id,
+          nodeSize: size,
+          nodeColor: node.color,
+          label: node.id,
+          counts: node.counts,
+          totalCount: node.totalCount,
+        },
+        position: {
+          x: node.x*this.scaleFactor,
+          y: node.y*this.scaleFactor
+        }
+      }
+    })
+
+    return { nodes: nodes, edges: null }
+  }
+
+  AddAxes() {
+    let Axes = [];
+    if ( this.xVariable != 'None') {
+      this.X_categories.forEach((value, i) => {
+        let label = value== null || value == undefined ? 'Unknown': value;
+        Axes.push(
+          {group: 'nodes', data: {id: `x_axis${i}`, label: label}, position: {x: i*this.scaleFactor, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis'],
+        })
+      })
+
+      Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.commonService.capitalize(this.xVariable)}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor+50}, classes: ['X_axis', 'axisLabel']})
+    }
+
+    if ( this.yVariable != 'None') {
+      this.Y_categories.forEach((value, i) => {
+        let label = value== null || value == undefined ? 'Unknown': value;
+        Axes.push(
+          {group: 'nodes', data: {id: `y_axis${i}`, label: label}, position: {x: -100, y: i*this.scaleFactor}, classes: ['Y_axis'],
+        })
+      })
+
+      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -150, y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
+
+    }
+
+    this.cy.add(Axes);
+    this.cy.fit();
+    this.cy.nodes().lock()
+  }
+
+  getCytoscapeStyle(): cytoscape.Stylesheet[] {
+    return [
+      {
+        selector: 'node',
+        style: {
+            //'background-color': 'data(nodeColor)', // Use dynamic node color
+            //'label': 'data(label)',
+            'width': 'data(nodeSize)',
+            'height': 'data(nodeSize)',
+            'border-width': 3, // Use dynamic border width
+            'border-color': '#000000',
+        }
+      },
+      // Apply styles only to nodes with nodeColor defined
+      {
+        selector: 'node[nodeColor]',
+        style: {
+            'background-color': 'data(nodeColor)'
+        }
+      },
+      {
+        selector: '.X_axis',
+        style: {
+          'label': 'data(label)',
+          'shape': 'rectangle',
+          'border-width': 0,
+          'background-color': 'white',
+          'width': 1,
+          'height': 1
+        }
+      },
+      {
+        selector: '.Y_axis',
+        style: {
+          'label': 'data(label)',
+          'shape': 'rectangle',
+          //'border-color': 'none',
+          'border-width': 0,
+          'background-color': 'white',
+          'width': 1,
+          'height': 1,
+          'text-valign': 'center'
+        }
+      },
+      {
+        selector: '#y_axis_Label',
+        style: {
+          'text-rotation': 4.71239
+        }
+      },
+      {
+        selector: '.axisLabel',
+        style: {
+          'font-size': 24
+        }
+      },
+      {
+        selector: 'node:selected',
+        style: {
+            'border-color': '#ff8300',
+        }
+      },
+    ]
+  }
+
+  generateCytoscape() {
+    this.cy = cytoscape({
+      container: this.cyContainer.nativeElement,
+      elements: this.mapDataToCytoscapElements(this.visibleData),
+      style: this.getCytoscapeStyle(),
+      layout: {
+        name: 'preset',
+        fit: true,
+        padding: 20
+      },
+
+      zoomingEnabled: true,
+      userZoomingEnabled: false,
+      panningEnabled: true,
+      userPanningEnabled: false,
+  
+    })
+
+    this.AddAxes();
+    this.cy.nodes().lock()
+
+    // Example: Hover events
+    this.cy.on('mouseover', 'node', (evt) => {
+      const node = evt.target;
+      if (node.classes().length > 0) return;
+      this.showTooltip(node.data(), evt.originalEvent);
+    });
+
+    this.cy.on('mouseout', 'node', () => {
+        this.hideTooltip();
+    });
+  }
+
+  showTooltip(d, e) {
+    let tooltipHTML: string = '';
+    if (this.SelectedNodeCollapsingTypeVariable) {
+      tooltipHTML = `
+      <style>
+        #bubbleToolTip {
+          border-spacing: 0;
+          width: 100%;
+          //border: 1px solid #ddd;
+          z-index: 1000;
+        }
+
+        #bubbleToolTip td, #bubbleToolTip th {
+          text-align: center;
+          padding: 2px;
+          font-weight: 400;
+          border: 1px solid #ddd;
+        }
+
+        #bubbleToolTip tr:nth-child(even) {
+          background-color: #f2f2f2;
+        }
+
+        #bubbleToolTip tr:nth-child(odd) {
+          background-color: #fff;
+        } 
+      </style>
+      <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable'])}</th><th> Count </th><th> % </th></thead><tbody>`;
+      d.counts.forEach((x) => tooltipHTML += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
+      tooltipHTML += '</tbody></table>';
+    } else {
+      tooltipHTML = `${d.id}`
+    }
+    let [X, Y] = this.getRelativeMousePosition(event);
+    
+    this.toolTip.nativeElement.innerHTML = tooltipHTML;
+    Object.assign(this.toolTip.nativeElement.style, {
+      position: 'absolute',
+      left: (X+20)+'px',
+      top: (Y+10)+'px',
+      zIndex: '1000',
+      transition: 'opacity 100ms',
+      opacity: '1'
+    })
+    this.toolTip.nativeElement.addEventListener('transitionend', () => {
+      this.toolTip.nativeElement.style.zIndex = '1000'
+    }, { once: true })
+  }
+
+  getRelativeMousePosition(event) {
+    let rect = this.cyContainer.nativeElement.getBoundingClientRect();
+    const X = event['clientX'] - rect.left;
+    const Y = event['clientY'] - rect.top;
+    return [X, Y]
+  }
+
+  hideTooltip() {
+    Object.assign(this.toolTip.nativeElement.style, {
+      transition: 'opacity 100ms',
+      opacity: 0
+    })
+    this.toolTip.nativeElement.addEventListener('transitionend', () => {
+      this.toolTip.nativeElement.style.zIndex = '-1'
+    }, { once: true })
   }
 
   /**
@@ -281,28 +448,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.getCollapsedData(false, false)
     } else { 
       let visibleNodes = this.commonService.getVisibleNodes();
-      if (visibleNodes.length +2 == this.visibleData.length) { return }
+      if (visibleNodes.length == this.visibleData.length) { return }
       this.visibleData = [];
-      this.visibleData.push({
-        id: '',
-        index: 10000,
-        x: -.4,
-        y: -.4,
-        color: '#ffffff',
-        Xgroup: -.4,
-        Ygroup: -.4,
-        strokeColor: '#ffffff'
-      })
-      this.visibleData.push({
-        id: '',
-        index: 10000,
-        x: this.X_categories.length - .6,
-        y: this.Y_categories.length - .6,
-        color: '#ffffff',
-        Xgroup: this.X_categories.length - .6,
-        Ygroup: this.Y_categories.length -.6,
-        strokeColor: '#ffffff'
-      })
       this.allData.forEach(node => {
         if (visibleNodes.find(vNode => vNode._id == node.id)) {
           this.visibleData.push(node);
@@ -375,21 +522,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         }
       })
     })
-
-    this.X_axisFormat = (tick: number) => {
-      if (this.X_categories[tick] == null || this.X_categories[tick] == undefined) {
-        return 'Unknown'
-      } else {
-        return this.X_categories[tick]
-      }
-    }
-    this.Y_axisFormat = (tick: number) => {
-      if (this.Y_categories[tick] == null || this.Y_categories[tick] == undefined) {
-        return 'Unknown'
-      } else {
-        return this.Y_categories[tick]
-      }
-    }
   }
 
   /**
@@ -418,14 +550,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
         let index = this.visibleData.findIndex((node) => node.Xgroup==X_group && node.Ygroup==Y_group);
         if (index == -1) {
-          console.log(X_group, Y_group)
+          //console.log(X_group, Y_group)
           let length = this.visibleData.length;
           this.visibleData.push({
             index: length,
-            id: `${length}`,
+            id: `cNode${length}`,
             x: X_group,
             y: Y_group,
-            color: this.commonService.session.style.widgets['node-color'],
+            color: node.color,
             Xgroup: X_group,
             Ygroup: Y_group,
             strokeColor: '#000000',
@@ -438,53 +570,23 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
 
     let changedVisibleNodes = this.generateCollapsedCounts();
-    let gradient = this.generatePieChartsSVGDefs(changedVisibleNodes);
-    let svgDef = this.elem.nativeElement.querySelector('#bubbleDefs');
-    changedVisibleNodes.forEach(nodeIndex => { 
-      let currentNode = svgDef.querySelector(`pattern[id='node${nodeIndex}']`)
-      if (currentNode != null) currentNode.remove()
-    })
-    let XMLS = new XMLSerializer();
-    svgDef.childNodes.forEach(cNode => gradient += XMLS.serializeToString(cNode))
-    this.renderer.setProperty(svgDef, 'innerHTML', gradient)
+    this.generatePieChartsSVGDefs(changedVisibleNodes);
 
-    if (this.widgets['node-timeline-variable'] && initial) {
-      // these 2 invisible nodes are to try to keep the graph frame consistent
-      this.visibleData.push({
-        id: '',
-        index: 10000,
-        x: -.4,
-        y: -.4,
-        color: '#ffffff',
-        Xgroup: -.4,
-        Ygroup: -.4,
-        strokeColor: '#000000',
-        counts: [],
-        totalCount: 0
-      })
-      this.visibleData.push({
-        id: '',
-        index: 10000,
-        x: this.X_categories.length - .6,
-        y: this.Y_categories.length - .6,
-        color: '#ffffff',
-        Xgroup: this.X_categories.length - .6,
-        Ygroup: this.Y_categories.length -.6,
-        strokeColor: '#000000',
-        counts: [],
-        totalCount: 0
-      })
-    }
+    this.cy.remove('node');
+    this.getData();
+    this.updateNodes();
 
-    this.color = (d: DataRecord) => {
-      if (d.id == '' && d.index == 10000) {
-        return '#ffffff'
-      } else if ( d.totalCount == 1 || d.counts.length == 1) {
-        return this.commonService.temp.style.nodeColorMap(d.counts[0].label)
+    this.visibleData.forEach((node, i) => {
+      if ( node.totalCount == 1 || node.counts.length == 1) {
+        return;
       } else {
-        return `url(#node${d.index})`
+        let size = this.nodeSize * Math.sqrt(node.totalCount);
+        let svgPattern = `<svg width='${size}' height='${size}' xmlns='http://www.w3.org/2000/svg'><defs>${this.svgDefs[`node${i}`]}</defs><circle fill="url(#node${i})" cx='${size/2}' cy='${size/2}' r='${size/2}'/></svg>`;
+        let b64 = 'data:image/svg+xml;base64,' + btoa(svgPattern);
+        this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-fit': 'cover', 'background-image': b64})
       }
-    };
+    })
+    this.cy.style().update();
 
     this.updateAxes();
   }
@@ -525,7 +627,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         node.totalCount += 1;
       })
       if (previousTotal != node.totalCount) {
-        console.log('node updated: ', node.totalCount, node.index)
+        //console.log('node updated: ', node.totalCount, node.index)
         changedVisibleNodes.push(node.index)
       }
     })
@@ -535,9 +637,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   /**
    * @returns a string representing the SVG def of the patterns needed to generate the pie chart
    */
-  generatePieChartsSVGDefs(changedVisibleNodes) : string {
-    let patternString = '';
-    changedVisibleNodes.forEach((indexNumber) => { //})
+  generatePieChartsSVGDefs(changedVisibleNodes) : void {
+    changedVisibleNodes.forEach((indexNumber) => {
+      let patternString = '';
       let node = this.visibleData.find(vNode => vNode.index == indexNumber);
 
       if (node.totalCount < 2 || node.counts.length == 1 || node == undefined) {
@@ -561,11 +663,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         let arcStart = i == 0 ? '1 0': coordinates[i-1][0] + ' ' + coordinates[i-1][1];
         let largeArcFlag = proportions[i] > .5 ? 1: 0 
         let arcEnd = i == coordinates.length-1 ? '1 0' : coordinates[i][0] + ' ' + coordinates[i][1]
-        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill=${colors[i]} />`
+        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${colors[i]}' />`
       }
       patternString += '</pattern>'
+      this.svgDefs[`node${indexNumber}`] = (patternString);
     })
-    return patternString;
   }
 
   /**
@@ -582,14 +684,22 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
     })
 
-    this.color = (d: DataRecord) => d.color
+    if (this.cy && this.cy.nodes().length > 0) {
+      this.cy.nodes().forEach(node => {
+        if (node.classes().length > 0) return;
+        let currentNode = this.allData.find(dataNode => dataNode.id == node.id());
+        node.data('nodeColor', currentNode.color);
+      });
+      this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+    }
+
   }
 
   /**
    * Calculates the position (x, y) for the array of nodes; nodes are positioned in a layers spiral/hexagonal pattern 
    */
   calculateHexagonalGridPositions(nodes: DataRecord[]) {
-    const layerDistance = this.nodeSpacing * Math.sqrt(3); // Distance between layers
+    const layerDistance = this.nodeSpacing + .02;
     let layer = 0;
     let nodesInLayer = 1;
 
@@ -612,47 +722,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.widgets['bubble-collapsed'] = this.SelectedNodeCollapsingTypeVariable;
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.getCollapsedData(true);
-      this.sizing = (d: DataRecord) => {
-        if (d.id == '') return 0;
-        return this.nodeSize * Math.sqrt(d.totalCount);
-      };
     } else {
+      this.cy.remove('node');
       this.getData();
-      this.sizing = (d: DataRecord) => {
-        if (d.id == '') return 1;
-        
-        return this.nodeSize
-      }
+      this.updateNodes();
     }
   }
 
   goldenLayoutComponentResize() {    
-    this.updateViewRatio()
-  }
-
-  /**
-   * Updates size of the scatter plot based on number of X and Y categories and the ratio between them and the available space
-   */
-  updateViewRatio() {
-    let count_x = this.X_categories.length;
-    let count_y = this.Y_categories.length;
-
-    let height = $('bubble-component').height() - 55 - 10
-    let width = $('bubble-component').width() - 40
-
-    // @ts-ignore
-    let x_axis_height = this.x_axis.component._axisSizeBBox.height;
-    // @ts-ignore
-    let y_axis_width = this.y_axis.component._axisSizeBBox.width
-
-    let ratio = Math.min((height-x_axis_height)/count_y, (width-y_axis_width)/count_x);
-
-    this.viewHeight = Math.floor(ratio*count_y) + x_axis_height;
-    this.viewWidth = Math.floor(ratio*count_x) + y_axis_width;
-
-    this.cdref.detectChanges();
-    // @ts-ignore
-    this.scatterPlot.ngOnChanges(this.visibleData);
+    this.viewHeight = this.container.height - 73;
+    this.viewWidth = this.container.width - 42;
+    this.cy.fit();
   }
 
   setSelectedNodes(that) {
@@ -671,14 +751,23 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     that.strokeColor = (d: DataRecord) => d.strokeColor;
   }
 
+  updateNodes() {
+    if (this.cy) {
+      this.cy.remove('node');
+      this.cy.add(this.mapDataToCytoscapElements(this.visibleData))
+      this.AddAxes();
+    }
+  }
+
   onDataChange(axis: string) {
-    this.updateAxisValues(axis);
+    this.updateAxisValues(axis)
+    this.svgDefs = {};
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.getCollapsedData(true);
     } else {
       this.getData();
     }
-    this.updateViewRatio();
+    this.updateNodes();
   }
 
   /**
@@ -697,6 +786,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.allData = allData;
     this.recalculatePositions();
     this.updateVisibleNodes();
+    this.updateNodes();
   }
 
   /**
@@ -721,25 +811,43 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   onNodeSpacingChange() {
     this.widgets['bubble-charge'] = this.nodeSpacing;
     this.recalculatePositions();
-    // @ts-ignore
-    this.scatterPlot.ngOnChanges(this.visibleData);
+    if (this.cy) {
+      this.cy.nodes().unlock();
+      this.cy.nodes().positions((node, i) => {
+        if (node.classes().length > 0) return;
+        let current = this.visibleData[i];
+        return {
+          x: current.x*this.scaleFactor,
+          y: current.y*this.scaleFactor
+        }
+      })  
+
+      this.cy.fit();
+      this.cy.nodes().lock();
+    }
   }
 
   onNodeSizeChange() {
     this.widgets['bubble-size'] = this.nodeSize;
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.sizing = (d: DataRecord) => {
-        if (d.id == '') return 0;
-        return this.nodeSize * Math.sqrt(d.totalCount);
-      };
+      if (this.cy) {
+        this.cy.nodes().forEach(node => {
+          node.data('nodeSize', this.nodeSize * Math.sqrt(node.data().totalCount));
+        });
+        this.cy.style().update();
+        this.cy.fit();
+      }
     } else {
       this.recalculatePositions();
-      this.sizing = (d: DataRecord) => {
-        if (d.id == '') return 0;
-        return this.nodeSize;
-      };
+      if (this.cy) {
+        this.cy.nodes().forEach(node => {
+          node.data('nodeSize', this.nodeSize);
+        }); 
+        this.cy.style().update(); 
+        this.cy.fit();
+      }
     }
-  }
+}
 
   /**
   * Opens Global Setting Dialog
@@ -751,18 +859,35 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   updateNodeColors() {
     if (this.SelectedNodeCollapsingTypeVariable) {
       let _ = this.generateCollapsedCounts();
-      let gradient2 = this.generatePieChartsSVGDefs(this.visibleData.map(obj => obj.index));
-      let svgDef = this.elem.nativeElement.querySelector('#bubbleDefs');
-      this.renderer.setProperty(svgDef, 'innerHTML', gradient2);
-      this.color = (d: DataRecord) => {
-        if ( d.totalCount == 0) {
-          return '#ffffff'
-        } else if ( d.totalCount == 1 || d.counts.length == 1) {
-          return this.commonService.temp.style.nodeColorMap(d.counts[0].label)
+      this.generatePieChartsSVGDefs(this.visibleData.map(obj => obj.index));
+      this.cy.remove('node');
+      this.getData();
+      this.updateNodes();
+
+      this.visibleData.forEach((node, i) => {
+        if ( node.totalCount == 1 || node.counts.length == 1) {
+          let currrentVar = node.counts[0].label
+          //console.log(node, currrentVar)
+          this.cy.style().selector(`#${node.id}`).style({ 'background-color': this.commonService.temp.style.nodeColorMap(currrentVar)})
+          return;
         } else {
-          return `url(#node${d.index})`
+          let size = this.nodeSize * Math.sqrt(node.totalCount);
+          let svgPattern = `<svg width='${size}' height='${size}' xmlns='http://www.w3.org/2000/svg'><defs>${this.svgDefs[`node${i}`]}</defs><circle fill="url(#node${i})" cx='${size/2}' cy='${size/2}' r='${size/2}'/></svg>`;
+          let b64 = 'data:image/svg+xml;base64,' + btoa(svgPattern);
+          this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-fit': 'cover', 'background-image': b64})
         }
-      };
+      })
+      this.cy.style().update();
+
+      let fillcolor = this.commonService.session.style.widgets['node-color']
+      let colorVariable = this.commonService.session.style.widgets['node-color-variable']
+  
+      let fullNodes = this.commonService.session.data.nodeFilteredValues;
+  
+      this.allData.forEach(node => {
+        let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
+        node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
+      })
     } else {
       this.updateColors();
     }
@@ -834,7 +959,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   * Sets CalculatedResolution variable to string such as '1250 x 855px'. Only called when export is first opened
   */
   setCalculatedResolution() {
-    this.CalculatedResolution = (Math.round(this.viewWidth * this.SelectedBubbleExportScaleVariable) + " x " + Math.round(this.viewHeight * this.SelectedBubbleExportScaleVariable) + "px");
+    this.CalculatedResolution = (Math.round((this.viewWidth-42) * this.SelectedBubbleExportScaleVariable) + " x " + Math.round((this.viewHeight-73) * this.SelectedBubbleExportScaleVariable) + "px");
   }
 
   /**
@@ -842,33 +967,35 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * This is called anytime SelectedNetworkExportScaleVariable is updated.
    */
   updateCalculatedResolution() {
-    this.CalculatedResolution = (Math.round(this.viewWidth * this.SelectedBubbleExportScaleVariable) + " x " + Math.round(this.viewHeight * this.SelectedBubbleExportScaleVariable) + "px");
+    this.CalculatedResolution = (Math.round((this.viewWidth-42) * this.SelectedBubbleExportScaleVariable) + " x " + Math.round((this.viewHeight-73) * this.SelectedBubbleExportScaleVariable) + "px");
     this.cdref.detectChanges();
   }
 
   exportVisualization() {
-    let svg = $('#bubbleViewContainer svg')[0]
+    //let svg = $('#bubbleViewContainer svg')[0]
     if (this.BubbleExportFileType == 'svg') {
-      let textElements = svg.querySelectorAll('text');
-      textElements.forEach(text => { text.setAttribute('fill', 'black');});
+      //this.cy.svg();
+      console.log('need to implement svg export')
+      // consider using something like alignment view or cytoscape-svg package // xxzx
 
-      let svgString = this.commonService.unparseSVG(svg);
-      let content;
-      if (this.SelectedNodeCollapsingTypeVariable) {
-        let svgDef = this.commonService.unparseSVG($('#bubbleDefs')[0])
-        content = svgString.slice(0, -6) + svgDef + svgString.slice(-6);
-      } else {
-        content = svgString;
-      }
-      let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-      saveAs(blob, this.BubbleExportFileName + '.' + this.BubbleExportFileType);
+      // let textElements = svg.querySelectorAll('text');
+      // textElements.forEach(text => { text.setAttribute('fill', 'black');});
+
+      // let svgString = this.commonService.unparseSVG(svg);
+      // let content;
+      // if (this.SelectedNodeCollapsingTypeVariable) {
+      //   let svgDef = this.commonService.unparseSVG($('#bubbleDefs')[0])
+      //   content = svgString.slice(0, -6) + svgDef + svgString.slice(-6);
+      // } else {
+      //   content = svgString;
+      // }
+      // let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
+      // saveAs(blob, this.BubbleExportFileName + '.' + this.BubbleExportFileType);
     } else {
-      saveSvgAsPng(svg, this.BubbleExportFileName + '.' + this.BubbleExportFileType, {
-          scale: this.SelectedBubbleExportScaleVariable,
-          backgroundColor: "#ffffff",
-          encoderType: 'image/' + this.BubbleExportFileType,
-          //encoderOptions: this.SelectedNetworkExportQualityVariable
-      });
+      let x = Math.round((this.viewWidth - 42 ) * this.SelectedBubbleExportScaleVariable)
+      let y = Math.round((this.viewHeight - 73 ) * this.SelectedBubbleExportScaleVariable)
+      let pngString = this.cy.png({bg:'white', maxHeight: y, maxWidth: x});
+      saveAs(pngString, this.BubbleExportFileName + '.png' )
     }
     this.exportOpen = false;
   }
