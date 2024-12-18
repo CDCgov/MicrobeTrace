@@ -2235,10 +2235,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     getHeight() {
         const timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
         if (this.officialInstance()) {
-            return window.innerHeight - 64 - 6 - timelineHeight;
+            return window.innerHeight - 80 - timelineHeight;
         } else {
             const warningHeight = $('#url-warning-div').height()
-            return window.innerHeight - 64 - 6 - warningHeight - timelineHeight;
+            return window.innerHeight - 80 - warningHeight - timelineHeight;
         }
     }
 

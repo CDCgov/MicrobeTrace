@@ -3716,9 +3716,11 @@ scaleLinkWidth() {
      * On click of center button, show centers the view
      */
     openCenter() {
-        // TODO::David Below is what you put and then below that was what was refactored.  Please delete or update the below accordingly
-        // (this.twoDGraph as any).component.fitView();
-        this.fit(undefined, undefined);
+        if (this.cy) {
+            this.cy.fit();
+        } else {
+            console.error('Cytoscape instance is not initialized.');
+        }
     }
 
     /**
