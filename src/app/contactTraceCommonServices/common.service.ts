@@ -1,11 +1,9 @@
 ﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
-import * as GoldenLayout from 'golden-layout';
 import * as Papa from 'papaparse';
 import * as _ from 'lodash';
-// import { window } from 'ngx-bootstrap';
 import moment from 'moment';
 import { WorkerModule } from '../workers/workModule';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
@@ -20,17 +18,15 @@ import { AppComponentBase } from '@shared/common/app-component-base';
 import { StashObjects, StashObject } from '../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { HttpClient } from '@angular/common/http';
-import { map } from 'rxjs/operators';
-import { window } from 'ngx-bootstrap/utils';
-// import { MicrobeTraceLink, MicrobeTraceNode, MicrobeTraceSessionGraphData } from '@app/visualizationComponents/TwoDComponent/mockdata';
 import { GraphData, LinkDatum, NodeDatum } from '@app/visualizationComponents/TwoDComponent/data';
-import { group } from 'console';
-// import { GraphNodeShape, GraphPanelConfig } from '@unovis/ts';
 
 
-// import { GoldenLayoutService } from '@embedded-enterprises/ng6-golden-layout';
-// import { ConsoleReporter } from 'jasmine';
-
+export interface ExportOptions {
+    filename: string;
+    filetype: string;
+    scale: number;
+    quality: number;
+  }
 
 @Directive()
 @Injectable({
@@ -2601,6 +2597,43 @@ export class CommonService extends AppComponentBase implements OnInit {
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
     };
+
+    private exportRequestedSource = new Subject<void>();
+    exportRequested$ = this.exportRequestedSource.asObservable();
+
+     private exportOptions: ExportOptions = {
+        filename: 'network_export',
+        filetype: 'png',
+        scale: 1,
+        quality: 0.92,
+    };
+
+    /**
+     * Call this method to set export options before requesting an export.
+     * @param options ExportOptions object containing user-selected options
+     */
+    setExportOptions(options: ExportOptions): void {
+        this.exportOptions = { ...options };
+    }
+
+    /**
+     * Retrieve the current export options.
+     * @returns ExportOptions object
+     */
+    getExportOptions(): ExportOptions {
+        return this.exportOptions;
+    }
+
+     /**
+     * Notify subscribers that an export has been requested.
+     */
+    requestExport(): void {
+        this.exportRequestedSource.next();
+    }
+  
+    // requestExport(filename: string, type: string): void {
+    //   this.exportRequestedSource.next({filename, type});
+    // }
 
     /**
 	 * updates the functions that set the color and transparency of the nodes [commonService.temp.style.nodeColorMap() and commonService.temp.style.nodeAlphaMap()]

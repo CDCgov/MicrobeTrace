@@ -1,18 +1,13 @@
 ﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
-import { CommonService } from '../../contactTraceCommonServices/common.service';
+import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
-import { forceAttract } from 'd3-force-attract';
 import { Clipboard } from '@angular/cdk/clipboard';
-//import * as ClipboardJS from 'clipboard';
-import * as saveAs from 'file-saver';
-import * as domToImage from 'dom-to-image-more';
 import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import * as _ from 'lodash';
-import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { CustomShapes } from '@app/helperClasses/customShapes';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
@@ -173,7 +168,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         { label: 'png', value: 'png' },
         { label: 'jpeg', value: 'jpeg' },
         { label: 'webp', value: 'webp' },
-        { label: 'svg', value: 'svg' }
+        // { label: 'svg', value: 'svg' }
     ];
 
     SelectedNetworkExportFileTypeListVariable: string = "png";
@@ -717,30 +712,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return [X, Y];
     }
 
-    /**
-     * @returns an array [width, height] of the svg image
-     */
-    getImageDimensions() {
-        // let parent = this.svg.node().parentElement;
-        // return [parent.clientWidth, parent.clientHeight] 
-    }
 
     /**
-     * Sets CalculatedResolution variable to string such as '1250 x 855px'. Only called when export is first opened
+     * Updates calculated resolution based on scale
+     * @param event Event from scale input
      */
-    setCalculatedResolution() {
-        // let [width, height] = this.getImageDimensions();
-        // this.CalculatedResolution = (Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px");
-    }
-
-    /**
-     * Updates CalculatedResolution variable to string such as '1250 x 855px' based on ImageDimensions and SelectedNetworkExportScaleVariable. 
-     * This is called anytime SelectedNetworkExportScaleVariable is updated.
-     */
-    updateCalculatedResolution(event) {
-        // let [width, height] = this.getImageDimensions();
-        // this.CalculatedResolution = (Math.round(width * this.SelectedNetworkExportScaleVariable) + " x " + Math.round(height * this.SelectedNetworkExportScaleVariable) + "px");
-        // this.cdref.detectChanges();
+    updateCalculatedResolution(event: any): void {
+        const scale = event;
+        const baseResolution = 1000; // Example base resolution, adjust as needed
+        const resolutionValue = baseResolution * scale;
+        this.CalculatedResolution = `${resolutionValue}x${resolutionValue}`;
     }
 
     /**
@@ -774,27 +755,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     exportVisualization(event) {
 
+        // Prepare export options
+        const exportOptions: ExportOptions = {
+            filename: this.SelectedNetworkExportFilenameVariable,
+            filetype: this.SelectedNetworkExportFileTypeListVariable,
+            scale: this.SelectedNetworkExportScaleVariable,
+            quality: this.SelectedNetworkExportQualityVariable,
+        };
+    
+        // Set export options in the service
+        this.commonService.setExportOptions(exportOptions);
+    
+        // Request export
+        this.commonService.requestExport();
+    
+        // Optionally, close the export modal after initiating the export
         this.Show2DExportPane = false;
-        this.isExporting = true;
-
-        // if (this.widgets['node-symbol-variable'] != 'None') {
-        //     this.generateNodeSymbolSelectionTable("#node-symbol-table-bottom", this.widgets['node-symbol-variable'], false);
-        // }
-
-        // if (this.widgets['node-color-variable'] != 'None') {
-        //     this.visuals.microbeTrace.generateNodeColorTable("#node-color-table-bottom", false);
-        // }
-
-        // if (this.widgets['link-color-variable'] != 'None') {
-        //     this.visuals.microbeTrace.generateNodeLinkTable("#link-color-table-bottom", false);
-        // }
-
-        if (!this.isExportClosed) {
-            setTimeout(() => this.exportVisualization(undefined), 300);
-        }
-        else {
-            this.exportWork2();
-        }
     }
 
     /**
@@ -802,6 +778,36 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onCloseExport() {
         this.isExportClosed = true;
+    }
+
+    /**
+     * Handles file type change
+     * @param event New file type value
+     */
+    onNetworkExportFiletypeChange(event: any): void {
+        this.SelectedNetworkExportFileTypeListVariable = event;
+
+        if (event == "svg") {
+                this.ShowAdvancedExport = false;
+            }
+            else {
+                this.ShowAdvancedExport = true;
+        }
+    }
+
+    /**
+     * Toggles advanced export options visibility
+     */
+    toggleAdvancedExport(): void {
+        this.ShowAdvancedExport = !this.ShowAdvancedExport;
+    }
+
+    /**
+     * Handles filename change
+     * @param event New filename value
+     */
+    onDataChange(event: any): void {
+        this.SelectedNetworkExportFilenameVariable = event;
     }
 
     /**
@@ -817,327 +823,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.session.network.nodes.forEach(node => {
             node.selected = false;
         });
-    }
-
-    /**
-     * XXXXX Not currently used in codebase; exportWork2 is used instead XXXXX
-     */
-    exportWork() {
-        let network = document.getElementById('network');
-        let $network = $(network);
-        // PRE D3
-
-        // let watermark = d3.select(network).append('text')
-        // .attr('xlink:href', this.commonService.watermark)
-        // .attr('height', 128)
-        // .attr('width', 128)
-        // .attr('x', 10)
-        // .style('opacity', $('#network-export-opacity').val());
-        // let filetype = this.SelectedNetworkExportFileTypeListVariable, 
-        //     filename = this.SelectedNetworkExportFilenameVariable;
-        // if (filetype == 'svg') {
-
-        //     network.style.height = '100%';
-        //     network.style.width = '100%';
-        //     let content = this.commonService.unparseSVG(network);
-        //     let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-        //     saveAs(blob, filename + '.' + filetype);
-        //     watermark.remove();
-        //     const style: any = this.svgStyle;
-        //     network.style.height = style.height;
-        //     network.style.width = style.width;
-
-        // } else {
-        //     setTimeout(() => {
-        //         const scale: number = this.SelectedNetworkExportScaleVariable;
-        //         const element = document.querySelector('TwoDComponent').parentElement;
-        //         domToImage.toBlob(element, {
-        //             width: element.clientWidth * scale,
-        //             height: element.clientHeight * scale,
-        //             style: {
-        //                 transform: 'scale(' + scale + ')',
-        //                 transformOrigin: 'top left'
-        //             },
-        //             quality: this.SelectedNetworkExportQualityVariable
-        //         })
-        //             .then((blob) => {
-        //                 saveAs(blob, filename + '.' + filetype);
-
-        //                 watermark.remove();
-        //                 this.isExporting = false;
-        //                 // this.visuals.microbeTrace.clearTable("#node-symbol-table-bottom");
-        //                 // this.visuals.microbeTrace.clearTable("#node-color-table-bottom");
-        //                 // this.visuals.microbeTrace.clearTable("#link-color-table-bottom");
-
-        //                 // this.visuals.microbeTrace.GlobalSettingsDialogSettings.restoreStateAfterExport();
-        //                 // this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.restoreStateAfterExport();
-        //                 // this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.restoreStateAfterExport();
-        //                 // this.NodeSymbolTableWrapperDialogSettings.restoreStateAfterExport();
-        //                 // this.PolygonColorTableWrapperDialogSettings.restoreStateAfterExport();
-        //                 // this.Node2DNetworkExportDialogSettings.restoreStateAfterExport();
-        //             });
-        //     }, 1000);
-
-        // }
-    }
-
-    /**
-     * Exports twoD network svg as an svg, png, jpeg, or webp image
-     */
-    exportWork2() {
-        let network = document.getElementById('viz-force');
-        let $network = $(network);
-        // PRE D3
-        // add microbeTrace logo as a watermark
-        // let watermark = d3.select(network).append('image')
-        //     .attr('xlink:href', this.commonService.watermark)
-        //     .attr('height', 128)
-        //     .attr('width', 128)
-        //     .attr('x', 35)
-        //     .attr('y', 35)
-        //     .style('opacity', $('#network-export-opacity').val());
-
-        let filetype = this.SelectedNetworkExportFileTypeListVariable;
-        let filename = this.SelectedNetworkExportFilenameVariable;
-
-        // add node color table
-        let vnodes: any = this.commonService.getVisibleNodes();
-        let aggregates = this.commonService.createNodeColorMap();
-        let values = Object.keys(aggregates);
-        var columns = [];
-        columns.push('Node ' + this.commonService.titleize(this.widgets["node-color-variable"]));
-        if (this.widgets["node-color-table-counts"]) columns.push('Count');
-        if (this.widgets["node-color-table-frequencies"]) columns.push('Frequency');
-        columns.push('Color');
-        var data = [];
-        values.forEach((value, i) => {
-            let nodeValue = (this.commonService.session.style.nodeValueNames[value] ? this.commonService.session.style.nodeValueNames[value] : this.commonService.titleize("" + value));
-            let tableCounts = (this.widgets["node-color-table-counts"] ? aggregates[value] : undefined);
-            let tableFreq = (this.widgets["node-color-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined);
-            let line = {
-                Node: nodeValue,
-                Count: tableCounts,
-                Frequency: tableFreq,
-                Color: '<div  style="margin-left:5px; width:40px;height:12px;background:' + this.commonService.temp.style.nodeColorMap(value) + '"> </div>'
-            }
-            data.push(line);
-        })
-
-        let nodeWrapper = null;
-
-        this.commonService.currentNodeTableElement.subscribe((element) => {
-            if (element) {
-                nodeWrapper = element;
-            } else {
-                console.error('currentNodeTableElement is null');
-            }                // You can now interact with this.myElement
-        });
-        // private symbolTableWrapper: HTMLElement | null = null;
-        // private linkColorTableWrapper: HTMLElement | null = null;
-        // private nodeColorTableWrapper: HTMLElement | null = null;
-        // let nodeWrapper = this.parent.getElementById('node-color-table');
-
-        //console.log('node wrapper: ', nodeWrapper);
-        let nodeLegend = this.tabulate2(data, columns, nodeWrapper, network, 200, false);
-
-        // add link origin table
-        let vlinks = this.commonService.getVisibleLinks();
-        aggregates = this.commonService.createLinkColorMap();
-        values = Object.keys(aggregates);
-        columns = [];
-        columns.push('Link ' + this.commonService.titleize(this.widgets["link-color-variable"]));
-        if (this.widgets["link-color-table-counts"]) columns.push('Count');
-        if (this.widgets["link-color-table-frequencies"]) columns.push('Frequency');
-        columns.push('Color');
-        data = [];
-        values.forEach((value, i) => {
-            let nodeValue = (this.commonService.session.style.linkValueNames[value] ? this.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value));
-            let tableCounts = (this.widgets["link-color-table-counts"] ? aggregates[value] : undefined);
-            let tableFreq = (this.widgets["link-color-table-frequencies"] ? (aggregates[value] / vlinks.length).toLocaleString() : undefined);
-            let line = {
-                Link: nodeValue,
-                Count: tableCounts,
-                Frequency: tableFreq,
-                Color: '<div  style="margin-left:5px; width:40px;height:12px;background:' + this.commonService.temp.style.linkColorMap(value) + '"> </div>'
-            }
-            data.push(line);
-        })
-
-        let linkWrapper = null;
-
-        this.commonService.currentLinkTableElement.subscribe((element) => {
-            linkWrapper = element;
-            // You can now interact with this.myElement
-        });
-        // let linkWrapper = document.getElementById('link-color-table-wrapper');
-        let linkLegend = this.tabulate2(data, columns, linkWrapper, network, 600, false);
-
-        // add node symbol table
-        let variable = this.widgets['node-symbol-variable'];
-        values = [];
-        aggregates = {};
-        let nodes = this.commonService.session.data.nodes;
-        let n = nodes.length;
-        vnodes = 0;
-        for (let i = 0; i < n; i++) {
-            let d = nodes[i];
-            if (!d.visible) continue;
-            vnodes++;
-            let dv = d[variable];
-            if (values.indexOf(dv) == -1) values.push(dv);
-            if (dv in aggregates) {
-                aggregates[dv]++;
-            } else {
-                aggregates[dv] = 1;
-            }
-        }
-        columns = [];
-        columns.push('Node ' + this.commonService.titleize(variable));
-        if (this.widgets["node-symbol-table-counts"]) columns.push('Count');
-        if (this.widgets["node-symbol-table-frequencies"]) columns.push('Frequency');
-        columns.push('Shape');
-        data = [];
-        values.forEach((value, i) => {
-            let nodeValue = this.commonService.titleize("" + value);
-            let tableCounts = (this.widgets["node-symbol-table-counts"] ? aggregates[value] : undefined);
-            let tableFreq = (this.widgets["node-symbol-table-frequencies"] ? (aggregates[value] / vnodes.length).toLocaleString() : undefined);
-            let line = {
-                Node: nodeValue,
-                Count: tableCounts,
-                Frequency: tableFreq,
-                Shape: $("#node-symbol-table option[value='" + this.commonService.temp.style.nodeSymbolMap(value) + "']").eq(parseInt(value)).text()
-            }
-            data.push(line);
-        })
-        let symbolWrapper = document.getElementById('node-symbol-table');
-        let symbolLegend;
-        if (symbolWrapper) {
-            symbolLegend = this.tabulate2(data, columns, symbolWrapper, network, 200, true);
-        }
-
-        // add network statistics table
-        let statsDiv = document.getElementById('network-statistics-wrapper');
-        // PRE D3
-        // let foreignObjStats = d3.select(network).append("svg:foreignObject")
-        //     .attr("x", statsDiv.offsetLeft)
-        //     .attr("y", statsDiv.offsetTop-10)
-        //     .attr("width", statsDiv.offsetWidth)
-        //     .attr("height", statsDiv.offsetHeight);
-        // foreignObjStats.append("xhtml:body").html(statsDiv.innerHTML);
-
-        if (filetype == 'svg') {
-            let content = this.commonService.unparseSVG(network);
-            let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-            saveAs(blob, filename + '.' + filetype);
-            // PRE D3
-            // if (watermark){
-            //     watermark.remove();
-            // }
-            if (nodeLegend) {
-                nodeLegend.remove();
-            }
-            if (linkLegend) {
-                linkLegend.remove();
-            }
-            if (symbolLegend) {
-                symbolLegend.remove();
-            }
-            // if (foreignObjStats){
-            //     foreignObjStats.remove();
-            // }
-        } else {
-            if (this.debugMode) {
-                console.log('network: ', network);
-                console.log('network: ', network.getBoundingClientRect());
-            }
-            saveSvgAsPng(network, filename + '.' + filetype, {
-                scale: this.SelectedNetworkExportScaleVariable,
-                backgroundColor: this.widgets['background-color'],
-                encoderType: 'image/' + filetype,
-                encoderOptions: this.SelectedNetworkExportQualityVariable
-            }).then(() => {
-                // PRE D3
-                // if (watermark){
-                //     watermark.remove();
-                // }
-                if (nodeLegend) {
-                    nodeLegend.remove();
-                }
-                if (linkLegend) {
-                    linkLegend.remove();
-                }
-                if (symbolLegend) {
-                    symbolLegend.remove();
-                }
-                // if (foreignObjStats){
-                //     foreignObjStats.remove();
-                // }
-            });
-        }
-    }
-
-    /**
-     * Converts table such as node color table, link color table or node symbol table from dialog window into element on twoD network svg when
-     * getting ready to export.
-     * @param data Object[] containing information in the table, such as color, count, node/groupLabel
-     * @param columns string array of table column names
-     * @param wrapper HTMLElement of table
-     * @param container HTMLElement of entive svg/network
-     * @param topOffset number
-     * @param leftOffset boolean
-     * @returns foreignObject that can be removed later by foreignObjectName.remove()
-     */
-    tabulate2 = (data, columns, wrapper, container, topOffset: number, leftOffset: boolean) => {
-
-        // console.log('wrapper: ', wrapper);
-        // console.log('left: ', wrapper.offsetLeft);
-        // console.log('container: ', container);
-        // let containerWidth = container.getBBox().width;
-        // let rightPosition = containerWidth - wrapper.offsetWidth;        
-        // console.log('right: ', rightPosition);
-
-        // PRE D3
-
-        return null;
-        // let foreignObj = d3.select(container).append("svg:foreignObject")
-        //   .attr("x", (leftOffset) ? rightPosition : wrapper.offsetLeft)
-        //   .attr("y", wrapper.offsetTop + topOffset)
-        //   .attr("width", wrapper.offsetWidth)
-        //   .attr("height", wrapper.offsetHeight);
-
-
-        // let body = foreignObj 
-        //   .append("xhtml:body")
-        //   .append("table")
-        //   .style('position', 'absolute')
-        //   .style('top', '0')
-        //   .style('width', '100%')
-        //   .style('height', '100%')
-        //   .attr('cellpadding', '1px')
-        //   .attr("class", "table-bordered");
-        //   // .html(nodeColorTable.innerHTML); SVG doesn't translate
-        // let thead = body.append("thead"),
-        //     tbody = body.append("tbody");
-        // thead.append("tr")
-        //   .selectAll("th")
-        //   .data(columns)
-        //   .enter()
-        //   .append("th")
-        //   .text(function(column) { return column; });
-        // let rows = tbody.selectAll("tr")
-        //   .data(data)
-        //   .enter()
-        //   .append("tr");
-        // let cells = rows.selectAll("td")
-        //   .data(function(row) {
-        //     return columns.map(function(column) {
-        //         return {column: column, value: row[column.split(" ")[0]]};
-        //     });
-        //   })
-        //   .enter()
-        //   .append("td")
-        //   .html(function(d) { return d.value; });
-        // return foreignObj;
     }
 
   
@@ -3478,13 +3163,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * If exportFileType = 'svg' don't show advanced setting; otherwise do show them
      * @param e string of filetype
      */
-    onNetworkExportFiletypeChange(e) {
-        if (e == "svg") {
-            this.ShowAdvancedExport = false;
-        }
-        else
-            this.ShowAdvancedExport = true;
-    }
+    // onNetworkExportFiletypeChange(e) {
+    //     if (e == "svg") {
+    //         this.ShowAdvancedExport = false;
+    //     }
+    //     else
+    //         this.ShowAdvancedExport = true;
+    // }
 
     /**
      * Updates the color of nodes and transparency based on node-color-variable, the value from nodeColorMap and nodeAlphaMap, and whether the node is selected
@@ -3701,13 +3386,6 @@ scaleLinkWidth() {
      * On click of export button, show export dialog
      */
     openExport() {
-
-        // this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
-        // this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
-        // this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
-        // this.NodeSymbolTableWrapperDialogSettings.setStateBeforeExport();
-        // this.Node2DNetworkExportDialogSettings.setStateBeforeExport();
-        this.setCalculatedResolution()
         this.isExportClosed = false;
         this.Show2DExportPane = true;
     }
@@ -3724,34 +3402,6 @@ scaleLinkWidth() {
     }
 
     /**
-     * On click of Pin All Nodes button, pin/unpins all nodes
-     */
-    openPinAllNodes() {
-
-        // this.showParallel = !this.showParallel;
-        // let nodes = this.svg
-        //     .select('g.nodes')
-        //     .selectAll('g')
-        //     .data(this.commonService.session.network.nodes)
-        //     .select('path');
-        // if (this.commonService.session.network.allPinned) {
-        //     nodes.each(function (d) {
-        //         delete d.fx;
-        //         delete d.fy;
-        //         d.fixed = false;
-        //     });
-        //     this.force.alpha(0.3).alphaTarget(0).restart();
-        // } else {
-        //     nodes.each(function (d) {
-        //         d.fx = d.x;
-        //         d.fy = d.y;
-        //         d.fixed = true;
-        //     });
-        // }
-        this.commonService.session.network.allPinned = !this.commonService.session.network.allPinned;
-    }
-
-    /**
      * XXXXX empty function; may be added later XXXXX
      */
     onRecallSession() {
@@ -3764,25 +3414,10 @@ scaleLinkWidth() {
     }
 
     /**
-     * XXXXX empty function; may be added later XXXXX
-     */
-    openSelectDataSetScreen() {
-
-    }
-
-    /**
      * renders the network
      */
     updateVisualization() {
         this._rerender();
-        if (!this.isLoading) {
-            // console.log('render update vis');
-            // this.isLoading = true;
-            // this.render();
-            // setTimeout(() => {
-            //     this.isLoading = false;
-            //   }, 1000);
-        }
     }
 
     applyStyleFileSettings() {
@@ -3791,8 +3426,6 @@ scaleLinkWidth() {
     }
 
     ngOnDestroy(): void {
-        //this.context.twoD.widgets['node-label-variable'] = 'None';
-
         $(document).off("link-visibility");
         $(document).off("cluster-visibility");
         $(document).off("node-selected");
@@ -4082,4 +3715,5 @@ scaleLinkWidth() {
 export namespace TwoDComponent {
     export const componentTypeName = '2D Network';
 }
+
 

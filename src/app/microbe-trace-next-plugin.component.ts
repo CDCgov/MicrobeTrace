@@ -1,5 +1,5 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
-import { CommonService } from './contactTraceCommonServices/common.service';
+import { CommonService, ExportOptions } from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 
 import { AppComponentBase } from '@shared/common/app-component-base';
@@ -19,6 +19,8 @@ import { Subscription } from 'rxjs';
 import { GoldenLayoutHostComponent } from './golden-layout-host.component';
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
+import html2canvas from 'html2canvas';
+
 
 
 @Component({
@@ -38,6 +40,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     @ViewChild('goldenLayoutHost') _goldenLayoutHostComponent: GoldenLayoutHostComponent;
 
     @ViewChild('linkThresholdSparkline') linkThresholdSparkline: ElementRef;
+
+    @ViewChild('visualwrapper', { static: false }) visualWrapperRef!: ElementRef<HTMLDivElement>;
 
     public metric: string = "tn93";
     public ambiguity: string = "Average";
@@ -273,6 +277,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         this.getGlobalSettingsData();
 
+         // Subscribe to export requests
+        this.commonService.exportRequested$.subscribe(() => {
+            this.performExport();
+        });
+
         this.elem = document.documentElement;
 
         if (!this.GlobalSettingsDialogSettings) {
@@ -431,6 +440,81 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.loadSettings();
         });
 
+    }
+
+    /**
+     * Performs the export of the visualization, including tables.
+     */
+    private async performExport(): Promise<void> {
+        const visualWrapper = this.visualWrapperRef?.nativeElement;
+        if (!visualWrapper) {
+            console.error('Visual wrapper container not found');
+            return;
+        }
+    
+        try {
+            // Retrieve export options from the service
+            const options: ExportOptions = this.commonService.getExportOptions();
+    
+            // Capture the visual wrapper using html2canvas with onclone callback
+            const canvas = await html2canvas(visualWrapper, {
+                scale: options.scale || 1,
+                useCORS: true, // Enable CORS if images are loaded from external sources
+                onclone: (clonedDoc) => {
+                    // Replace color input elements with colored spans
+                    const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
+                    clonedInputs.forEach(input => {
+                        const color = input.getAttribute('value') || '#ffffff';
+                        const span = clonedDoc.createElement('span');
+                        span.style.display = 'inline-block';
+                        span.style.width = '20px';
+                        span.style.height = '20px';
+                        span.style.backgroundColor = color;
+                        span.style.border = '1px solid #000'; // Optional: Add border for visibility
+                        input.parentNode?.replaceChild(span, input);
+                    });
+    
+                    // Optionally, handle other elements that display hex codes
+                    // For example, if you have spans or divs showing hex values:
+                    /*
+                    const colorTextElements = clonedDoc.querySelectorAll('.color-text');
+                    colorTextElements.forEach(elem => {
+                        const color = elem.textContent;
+                        elem.style.backgroundColor = color;
+                        elem.textContent = '';
+                    });
+                    */
+                }
+            });
+    
+            // Convert canvas to desired image format
+            let imgData: string;
+            const filetype = options.filetype.toLowerCase();
+            const filename = options.filename || 'network_export';
+    
+            if (filetype === 'png') {
+                imgData = canvas.toDataURL('image/png');
+            } else if (filetype === 'jpeg' || filetype === 'jpg') {
+                imgData = canvas.toDataURL('image/jpeg', options.quality || 0.92);
+            } else if (filetype === 'webp') {
+                imgData = canvas.toDataURL('image/webp', options.quality || 0.92);
+            } else {
+                console.error('Unsupported file type:', filetype);
+                return;
+            }
+    
+            // Trigger the download
+            const link = document.createElement('a');
+            link.href = imgData;
+            link.download = `${filename}.${filetype}`;
+            document.body.appendChild(link); // Append to body to make it clickable in Firefox
+            link.click();
+            document.body.removeChild(link); // Remove from body after clicking
+    
+            console.log('Export completed successfully.');
+        } catch (error) {
+            console.error('Error during export:', error);
+        }
     }
 
     /**
