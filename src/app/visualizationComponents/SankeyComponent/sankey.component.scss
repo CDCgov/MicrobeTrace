@@ -1,18 +1,15 @@
-#phylocanavas {
-    height: 100%;
-}
-
 :host {
   position: absolute;
   overflow: hidden;
   z-index: 1 !important;
 }
 
-#phyloTooltip {
+#sankey-tooltip-container {
     position: absolute;
     background: lightgray;
     border-radius: 0.25rem;
     padding: 0.25rem;
+    z-index: 1000 !important;
 }
 
 :host ::ng-deep {

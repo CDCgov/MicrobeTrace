@@ -74,6 +74,7 @@ import { GanttChartComponent } from './visualizationComponents/GanttComponent/ga
 import { GanttChartService } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.service';
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
+import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 // import * as PlotlyJS from 'plotly.js-dist-min';
 // import { PlotlyModule } from 'angular-plotly.js';
 
@@ -112,6 +113,7 @@ export class TestedComponent {
     GanttComponent,
     HeatmapComponent,
     BubbleComponent,
+    SankeyComponent,
   ],
   imports: [
     BrowserModule,
@@ -160,7 +162,7 @@ export class TestedComponent {
     // PlotlyModule,
   ],
   exports: [
-    SelectButtonModule
+    SelectButtonModule,
   ],
   providers: [
     AppSessionService,
