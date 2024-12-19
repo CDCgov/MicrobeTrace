@@ -1374,11 +1374,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.network.timelinePinned = this.commonService.session.network.allPinned;
         if(!this.commonService.session.network.allPinned) {
             this.commonService.updatePinNodes(true);
-
-            //TODO::David Check if needed
-            // this.openPinAllNodes(1);
         }
-        this.commonService.session.network.timelineNodes = this.commonService.getNetworkNodes();
+
         }
         let globalTimelineField =  (this.commonService.session.style.overwrite && variable == this.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.commonService.session.style.overwrite['globalTimelineField'] : this.commonService.titleize(variable));
         const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
@@ -3130,11 +3127,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.previousTab = activeComponentName;
     }
-
-   // openPinAllNodes(tabNdx: any): void {
-        //this.homepageTabs[tabNdx].componentRef.instance.openPinAllNodes();
-    //}
-
 
     addTab(tabLabel: any, tabTitle: any, tabPosition: any, componentRef: any, activate: boolean = true): void {
 

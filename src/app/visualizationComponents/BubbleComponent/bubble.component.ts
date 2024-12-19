@@ -208,11 +208,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.X_categories.forEach((value, i) => {
         let label = value== null || value == undefined ? 'Unknown': value;
         Axes.push(
-          {group: 'nodes', data: {id: `x_axis${i}`, label: label}, position: {x: i*this.scaleFactor, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis'],
+          {group: 'nodes', data: {id: `x_axis${i}`, label: label}, position: {x: i*this.scaleFactor, y: this.Y_categories.length*this.scaleFactor-50}, classes: ['X_axis'],
         })
       })
 
-      Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.commonService.capitalize(this.xVariable)}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor+50}, classes: ['X_axis', 'axisLabel']})
+      Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.commonService.capitalize(this.xVariable)}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis', 'axisLabel']})
     }
 
     if ( this.yVariable != 'None') {
@@ -433,6 +433,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.updateColors();
     if (this.widgets["node-timeline-variable"] != 'None') {
       this.sortData(this.widgets["node-timeline-variable"])
+      let currentLength = this.allData.length;
+      this.visibleData = this.allData.slice(0, currentLength);
     }
     this.updateVisibleNodes();
 
