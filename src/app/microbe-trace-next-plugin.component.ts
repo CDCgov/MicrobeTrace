@@ -81,6 +81,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     version: string = '2.0';
     auspiceUrlVal: string|null = '';
 
+    private thresholdSubscription: Subscription;
+
+
     saveFileName: string = '';
     saveByCluster: boolean = false;
     saveFileTypeOptions = [
@@ -282,6 +285,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.performExport();
         });
 
+        // Subscribe to threshold changes from the service
+        this.thresholdSubscription = this.commonService.linkThreshold$.subscribe(
+            (newThreshold: number) => {
+                // Only update local state if changed
+                if (this.SelectedLinkThresholdVariable !== newThreshold) {
+                    this.onLinkThresholdChanged(newThreshold);
+                }
+            }
+        );
+
         this.elem = document.documentElement;
 
         if (!this.GlobalSettingsDialogSettings) {
@@ -293,11 +306,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (!this.GlobalSettingsNodeColorDialogSettings) {
             this.GlobalSettingsNodeColorDialogSettings = new DialogSettings('#global-settings-node-color-table', false);
         }
-
-        // Subscribe to threshold changes
-        this.commonService.linkThresholdChanged.subscribe((newThreshold?: number) => {
-            this.onLinkThresholdChanged(newThreshold); // Existing method to handle updates
-        });
 
         // Subscribe to metric changes
         this.commonService.metricChanged.subscribe((metric: string) => {
@@ -1912,7 +1920,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             ["cluster", "link", "node"].forEach(thing => $(document).trigger(thing + "-visibility"));
 
 
-            this.updatedVisualization();
+            // this.updatedVisualization();
+            this.commonService.setLinkThreshold(this.SelectedLinkThresholdVariable);
+
 
             this.commonService.updateStatistics();
 

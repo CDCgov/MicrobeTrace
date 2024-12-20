@@ -206,6 +206,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public isExporting: boolean = false;
 
     isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
+    thresholdSubscription: any;
+    threshold: number;
 
     constructor(injector: Injector,
         private eventManager: EventManager,
@@ -250,6 +252,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // const windowKeys = Reflect.ownKeys(window);
 
         this.commonService.updateNetwork();
+
+         // Subscribe to threshold changes from the service
+         this.thresholdSubscription = this.commonService.linkThreshold$.subscribe(
+            (newThreshold: number) => {
+                // Only update local state if changed
+                if (this.threshold !== newThreshold) {
+                    console.log('partial threshold changed', newThreshold);
+                    this._partialUpdate();
+                    // ... do whatever you need, e.g. re-render ...
+                }
+            }
+        );
 
         this.InitView();
 
@@ -546,6 +560,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.styleFileApplied.subscribe(() => {
             this.applyStyleFileSettings();
         });
+
 
         // Use this method to prepare your variables before they're used in the template
         this.commonService.session.style.widgets['node-tooltip-variable'] = this.ensureArray(this.commonService.session.style.widgets['node-tooltip-variable']);
@@ -2565,6 +2580,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             links: this.commonService.getVisibleLinks()
         };
 
+        console.log('link threhold network links: ', networkData.links.length);
 
         // Determine autoFit based on node-timeline-variable
         if (networkData.nodes.length !== 0) {
@@ -3417,8 +3433,105 @@ scaleLinkWidth() {
      * renders the network
      */
     updateVisualization() {
+        console.log('updateVisualization');
         this._rerender();
     }
+
+    /**
+ * Synchronizes current Cytoscape instance with new data (adds/removes/updates
+ * nodes and links) instead of completely rerendering.
+ */
+private _partialUpdate() {
+    if (!this.cy) {
+      console.error('Cytoscape instance not initialized; cannot update partially.');
+      return;
+    }
+
+    console.log('partial update: ', this.cy.nodes());
+
+
+    // 1. Retrieve fresh node/link data
+    const networkData = {
+      nodes: this.commonService.getVisibleNodes(),
+      links: this.commonService.getVisibleLinks()
+    };
+
+    this.data = this.commonService.convertToGraphDataArray(networkData);
+
+    const newElements = this.mapDataToCytoscapeElements(this.data);
+
+    /**
+     * -- 2. Remove nodes/edges that no longer exist in the new data --
+     * First collect up the new IDs for quick membership checks.
+     */
+    // @ts-ignore   
+    const newNodeIds = new Set(newElements.nodes.map(n => n.id));
+    // @ts-ignore
+    const newLinkIds = new Set(newElements.edges.map(l => {
+      // If you build link IDs a certain way, do it here
+      // @ts-ignore
+      return `${l.source}-${l.target}`;
+    }));
+
+    // 4. Remove old nodes that are not in newNodeIds
+//   this.cy.nodes().forEach(node => {
+//     if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
+//       this.cy.remove(node);
+//     }
+//   });
+
+  // 5. Remove old edges that are not in newLinkIds
+  this.cy.edges().forEach(edge => {
+    if (!newLinkIds.has(edge.id())) {
+      this.cy.remove(edge);
+    }
+  });
+
+  // 6. Add/Update new nodes
+//   newElements.nodes.forEach(n => {
+//     const cyNode = this.cy.getElementById(n.data.id);
+//     if (!cyNode || !cyNode.length) {
+//       // Node does not exist; add it
+//       this.cy.add(n);
+//     } else {
+//       // Node exists; merge new data if desired
+//       cyNode.data({ ...cyNode.data(), ...n.data });
+//     }
+//   });
+
+  // 7. Add/Update new edges
+  newElements.edges.forEach(e => {
+    const cyEdge = this.cy.getElementById(e.data.id);
+    if (!cyEdge || !cyEdge.length) {
+      // Edge does not exist; add it
+      this.cy.add(e);
+    } else {
+      // Merge updated data if needed
+      cyEdge.data({ ...cyEdge.data(), ...e.data });
+    }
+  });
+
+
+    // 5. Optionally re-run your layout if you want to reposition
+    //    or skip if you only do incremental changes
+    // const layout = this.cy.layout({
+    //   name: 'cose',
+    //   animate: false,
+    //   fit: true,
+    //   padding: 100,
+    //   nodeRepulsion: () => 400000,
+    //   idealEdgeLength: () => 100,
+    //   edgeElasticity: () => 100,
+    //   gravity: 80,
+    //   numIter: 1000
+    // });
+    // layout.run();
+
+    // 6. (Optional) If you have style changes, apply them anew:
+    // this.cy.style().update();
+
+    console.log('Partial network update complete.');
+}
 
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;

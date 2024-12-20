@@ -325,19 +325,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold, #link-threshold')
           .attr('step', 1)
           .val(7);
-        this.commonService.session.style.widgets["link-threshold"] = 7;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.commonService.onLinkThresholdChanged();
+        this.commonService.setLinkThreshold(7);
       } else {
         $('#ambiguities-row').slideDown();
         $('#default-distance-threshold, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
-        this.commonService.session.style.widgets["link-threshold"] = 0.015;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
-        this.commonService.onLinkThresholdChanged();
+        this.commonService.setLinkThreshold(0.015);
       }
       this.commonService.session.style.widgets['default-distance-metric'] = lsv;
       this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
@@ -707,7 +705,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['link-threshold'] = 0.015;
             this.SelectedDefaultDistanceThresholdVariable = '0.015';
             this.onLinkThresholdChange('0.015');
-            this.commonService.onLinkThresholdChanged(0.015);
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
           } else {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
@@ -720,7 +717,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['link-threshold'] = 7;
             this.SelectedDefaultDistanceThresholdVariable = '7';
             this.onLinkThresholdChange('7');
-            this.commonService.onLinkThresholdChanged(7);
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
           }
           this.commonService.session.meta.startTime = Date.now();
@@ -1834,8 +1830,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.commonService.session.style.widgets['link-threshold'] = parseFloat(e);
-    this.commonService.onLinkThresholdChanged(parseFloat(e));
+    this.commonService.setLinkThreshold(parseFloat(e));
   }
 
   /**
