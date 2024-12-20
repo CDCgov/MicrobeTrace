@@ -83,10 +83,6 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedApplyStyleVariable: '',
         SelectedRevealTypesVariable: 'Everything'
     };
-
-    // EventEmitter to notify components of changes
-    linkThresholdChanged: EventEmitter<number> = new EventEmitter();
-
     // EventEmitter to notify components of changes
     metricChanged: EventEmitter<string> = new EventEmitter();
 
@@ -602,10 +598,26 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
-    // Shared method to notify components of link threshold changes
-    onLinkThresholdChanged( newThreshold?: number) {
-        this.linkThresholdChanged.emit(newThreshold);
+    // BehaviorSubject to store the threshold
+    private _linkThreshold$ = new BehaviorSubject<number>(0.015);
+
+    // Expose as observable so components can subscribe
+    linkThreshold$ = this._linkThreshold$.asObservable();
+
+     // Call this to set a new threshold value
+     setLinkThreshold(newThreshold: number): void {
+        // Only emit if the value actually changed
+        if (this._linkThreshold$.value !== newThreshold) {
+            this.session.style.widgets["link-threshold"] = newThreshold;
+            this._linkThreshold$.next(newThreshold);
+        }
     }
+
+    // Example: read-only convenience accessor to get the current threshold
+    get linkThreshold(): number {
+        return this._linkThreshold$.value;
+    }
+
 
     // Shared method to notify components of link threshold changes
     onMetricChanged( metric: string) {
