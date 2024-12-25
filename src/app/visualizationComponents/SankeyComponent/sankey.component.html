@@ -1,13 +1,16 @@
 <div class="m-content">
     <div id="tool-btn-container" class="m-portlet">
         <span style="overflow: visible; position: relative; width: 110px;">
-            <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+            <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
+                (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
         </span>
         <span style="overflow: visible; position: relative; width: 110px;">
-            <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+            <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
+                (click)="openExport()"><i class="flaticon-download primary"></i></a>
         </span>
         <span style="overflow: visible; position: relative; width: 110px;">
-            <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+            <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
+                (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
         </span>
     </div>
     <div class="m-portlet__body" style="height: 100%;">
@@ -17,61 +20,51 @@
 </div>
 <div class="view-controls">
 
-    <p-dialog *ngIf="viewActive" id="sankey-settings-pane" 
-              [(visible)]="SankeyExportDialogSettings.isVisible"  
-              [contentStyle]="{'overflow': 'visible'}"
-              header="Sankey Chart Settings" appendTo="body"
-              >
-              <tabset class="tab-container tabbable-line">
-              <tab heading="{{'Tree' | localize}}" [active]="true" customClass="m-tabs__item">
-              <p-accordion [multiple]='true'>
-                  <p-accordionTab style="color:#495057" header="Layout">
-                      <div #treecontrolslabels>
-                          <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
-                              <div class="col-4"><label for="tree-layout">Layout</label></div>
-                              <div class="col-8">
-                                  <p-dropdown id="tree-layout" appendTo="body" [options]="TreeLayouts" [(ngModel)]="SelectedTreeLayoutVariable" (ngModelChange)="onTreeLayoutChange($event)"> </p-dropdown>
-                              </div>
-                          </div>
-                      </div>
-                  </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Mode">
-                      <div #treecontrolslabels>
-                          <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
-                              <div class="col-4"><label for="tree-mode">Mode</label></div>
-                              <div class="col-8">
-                                  <p-dropdown id="tree-mode" appendTo="body" [options]="TreeModes" [(ngModel)]="SelectedTreeModeVariable" (ngModelChange)="onTreeModeChange($event)"> </p-dropdown>
-                              </div>
-                          </div>
-                      </div>
-                  </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Type">
-                      <div #treecontrolslabels>
-                          <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
-                              <div class="col-4"><label for="tree-type">Type</label></div>
-                              <div class="col-8">
-                                  <p-dropdown id="tree-type" appendTo="body" [options]="TreeTypes" [(ngModel)]="SelectedTreeTypeVariable" (ngModelChange)="onTreeTypeChange($event)"> </p-dropdown>
-                              </div>
-                          </div>
-                      </div>
-                  </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Stretch">
-                      <div #treecontrolslabels>
-                          <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
-                              <div class="col-4"><label for="horizontal-stretch">Horizontal Stretch</label></div>
-                                <input type="range" class="custom-range" id="horizontal-stretch" min="0" value="1" step="0.2" max="10" [(ngModel)]="SelectedHorizontalStretchVariable" (change)="onHorizontalStretchChange($event)">
-                              <div class="col-4"><label for="vertical-stretch">Vertical Stretch</label></div>
-                                <input type="range" class="custom-range" id="vertical-stretch" min="0" value="1" step="0.2" max="10" [(ngModel)]="SelectedVerticalStretchVariable" (change)="onVerticalStretchChange($event)">
-                          </div>
-                      </div>
-                  </p-accordionTab>
-              </p-accordion>
-              </tab>
+    <p-dialog *ngIf="viewActive" id="sankey-settings-pane" [(visible)]="SankeyExportDialogSettings.isVisible"
+        [contentStyle]="{'overflow': 'visible'}" header="Sankey Chart Settings" appendTo="body">
+        <tabset class="tab-container tabbable-line">
+            <tab heading="{{'Tree' | localize}}" [active]="true" customClass="m-tabs__item">
+                <p-accordion [multiple]='true'>
+                    <p-accordionTab style="color:#495057" header="New Entry" [selected]="true">
+                        <div #entrycontrols>
+                           
+                            <div class="form-group row gantt-start-row" title="What field would you like to add to the Sankey Chart?"
+                                style="overflow:visible">
+                                <div class="col-4"><label for="sankey-fieldname">Field Name</label></div>
+                                <div class="col-4">
+                                    <p-dropdown id="sankey-fieldname" appendTo="body" [options]="FieldList"
+                                        [(ngModel)]="SelectedFieldName"> </p-dropdown>
+                                </div>
+                                <div class="col-4">
+                                    <button type="button" id="add-field-button" class="btn btn-primary" (click)="addSelectedField()" [disabled]="fieldListFull()">
+                                        Add Field
+                                    </button>
+                            </div>
+                        </div>
+                            <p-table [value]="SankeyFieldNames" styleClass="p-datatable-striped" *ngIf="SankeyFieldNames.length > 0">
+                            <ng-template pTemplate="header">
+                                <tr>
+                                    <th class='p-1 table-header-row'>Name</th>
+                                    <th>Remove</th>
+                                </tr>
+                            </ng-template>
+                            <ng-template pTemplate="body" let-rowData>
+                                <tr>
+                                    <td>{{ rowData }}</td>
+                                    <td><button (click)="remove(rowData)">Remove</button></td>
+                                </tr>
+                            </ng-template>
+                            </p-table>
+                        </div>
+                    </p-accordionTab>
+                </p-accordion>
+            </tab>
 
-              </tabset>
+        </tabset>
     </p-dialog>
 </div>
-<p-dialog *ngIf="viewActive" id="network-export-modal" [(visible)]="ShowSankeyExportPane" header="Export Sankey Chart" class="dialogSize" (onHide)="onCloseExport()" appendTo="body">
+<p-dialog *ngIf="viewActive" id="network-export-modal" [(visible)]="ShowSankeyExportPane" header="Export Sankey Chart"
+    class="dialogSize" (onHide)="onCloseExport()" appendTo="body">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-body" style='min-width: 500px; height: 100%;'>
@@ -79,21 +72,23 @@
                     <p-accordionTab header="Export Image of Sankey Chart" style="color:#495057" [selected]="true">
                         <div class="form-group row">
                             <div class="col-8">
-                                <input type="text" id="sankey-image-filename" class="form-control form-control-sm" placeholder="Image Filename" [(ngModel)]="SelectedSankeyImageFilenameVariable" >
+                                <input type="text" id="sankey-image-filename" class="form-control form-control-sm"
+                                    placeholder="Image Filename" [(ngModel)]="SelectedSankeyImageFilenameVariable">
                             </div>
                             <div class="col-3">
-                                <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList" [(ngModel)]="SelectedNetworkExportFileTypeListVariable" ></p-dropdown>
+                                <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList"
+                                    [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-dropdown>
                             </div>
                             <div class="col-8">
-                                <button type="button" id="export-Sankey" class="btn btn-primary" (click)="saveImage($event)">Save Image</button>
+                                <button type="button" id="export-Sankey" class="btn btn-primary"
+                                    (click)="saveImage($event)">Save Image</button>
                             </div>
                         </div>
                     </p-accordionTab>
                 </p-accordion>
             </div>
-                <div class="modal-footer">
-                </div>
+            <div class="modal-footer">
+            </div>
         </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->
 </p-dialog><!-- /.modal -->
-

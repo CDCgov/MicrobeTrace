@@ -38,9 +38,10 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
   sankey: ApexSankey;
   ShowNetworkAttributes = false;
   ShowStatistics = false;
-  ShowPhylogeneticExportPane = false;
-  ShowPhylogeneticSettingsPane = false;
+  ShowSankeyExportPane = false;
+  ShowSankeySettingsPane = false;
   IsDataAvailable = false;
+  isExportClosed = true;
   svg: any = {};
   settings: object = this.commonService.session.style.widgets;
   radToDeg: number = (180 / Math.PI);
@@ -55,16 +56,19 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     { label: 'svg', value: 'svg' }
   ];
 
+  SelectedSankeyImageFilename = 'sankey_export'
   SelectedNetworkExportFileTypeListVariable = 'png';
   SelectedNetworkExportScaleVariable: number = 1;
   SelectedNetworkExportQualityVariable: number = 0.92;
-  CalculatedResolutionWidth: number = 1918;
-  CalculatedResolutionHeight: number = 909;
+  CalculatedResolutionWidth: number = 1900;
+  CalculatedResolutionHeight: number = 800;
   CalculatedResolution: string = ((this.CalculatedResolutionWidth * this.SelectedNetworkExportScaleVariable) + ' x ' + (
     this.CalculatedResolutionHeight * this.SelectedNetworkExportScaleVariable) + 'px');
 
 
   ShowAdvancedExport = true;
+  SankeyFieldNames: string[] = [];
+  SelectedFieldName: string = "";
 
   SankeyExportDialogSettings: DialogSettings = new DialogSettings('#sankey-settings-pane', false);
   private visuals: MicrobeTraceNextVisuals;
@@ -143,16 +147,59 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
       fontColor: "#101010",
       fontWeight: 400,
    };
+
+   this.visuals.sankey.FieldList.push(
+      {
+        label: "None",
+        value: "",
+      }
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    this.commonService.session.data['nodeFields'].map((d, i) => {
+
+      this.visuals.sankey.FieldList.push(
+        {
+          label: this.visuals.sankey.commonService.capitalize(d.replace('_', '')),
+          value: d
+        });
+    });
+
    // @ts-ignore
    this.sankey = new ApexSankey(document.getElementById('sankey-container'), options);
    // @ts-ignore
+   this.goldenLayoutComponentResize()
    this.updateGraph() 
+
+    this.container.on('resize', () => { this.goldenLayoutComponentResize() })
+    this.container.on('hide', () => { 
+      this.viewActive = false; 
+      this.cdref.detectChanges();
+    })
+    this.container.on('show', () => { 
+      this.viewActive = true; 
+      this.cdref.detectChanges();
+    })
+
+    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
+    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
   }
 
+  goldenLayoutComponentResize() {
+    $('#sankey-container').height($('sankeycomponent').height()-19);
+    $('#sankey-container').width($('sankeycomponent').width()-1)
+  }
+  
+
   updateGraph() {
-    this.createSankeyData(["gender","transmission risk","subtype"])
-    // @ts-ignore
-    const graph = this.sankey.render(this.data);
+    if(this.SankeyFieldNames.length === 0) {
+      // this.SankeyFieldNames = ["gender","transmission risk","subtype"];
+      this.openSettings();
+    } else {
+      this.createSankeyData(this.SankeyFieldNames);
+      // @ts-ignore
+      const graph = this.sankey.render(this.data);
+    }
   }
 
   createSankeyData(sankeyFields: string[]): void {
@@ -221,12 +268,67 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     return fieldValues;
   }
 
+  addSelectedField(): void {
+    if (this.SankeyFieldNames.length < 3){
+      this.SankeyFieldNames.push(this.SelectedFieldName);
+    }
+    this.updateGraph();
+  }
 
-  openExport(): void {}
+
+  openExport(): void {
+    this.ShowSankeyExportPane = true;
+
+    this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
+    //this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
+    //this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
+    this.isExportClosed = false;
+  }
   openSettings(): void {
     this.visuals.sankey.SankeyExportDialogSettings.setVisibility(true);
   }
   openCenter(): void {}
+
+
+  saveImage(event): void {
+    const fileName = this.SelectedSankeyImageFilename;
+    const domId = 'sankey-container';
+    const exportImageType = this.SelectedNetworkExportFileTypeListVariable ;
+    const content = document.getElementById(domId);
+    if (exportImageType === 'png') {
+      domToImage.toPng(content).then(
+        dataUrl => {
+          saveAs(dataUrl, fileName);
+      });
+    } else if (exportImageType === 'jpeg') {
+        domToImage.toJpeg(content, { quality: 0.85 }).then(
+          dataUrl => {
+            saveAs(dataUrl, fileName);
+          });
+    } else if (exportImageType === 'svg') {
+        // The tooltips were being displayed as black bars, so I add a rule to hide them.
+        // Have to parse the string into a document, get the right element, add the rule, and reserialize it
+        let svgContent = this.visuals.gantt.commonService.unparseSVG(content);
+        const parser = new DOMParser();
+        const deserialized = parser.parseFromString(svgContent, 'text/xml')
+        console.log(deserialized);
+        const style = deserialized.getElementsByTagName('style');
+        console.log(style);
+        // style[0].innerHTML = ".tooltip { display: none !important; } .small { font-size: 80%; font-family: Roboto, 'Helvetica Neue', sans-serif; }";
+        const serializer = new XMLSerializer();
+        svgContent = serializer.serializeToString(deserialized);
+        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+        saveAs(blob, fileName);
+    }
+
+  }
+
+  fieldListFull(): boolean {
+    if(this.SankeyFieldNames.length < 3) {
+      return false;
+    }
+    return true;
+  }
 }
 export namespace SankeyComponent {
   export const componentTypeName = 'Sankey';
