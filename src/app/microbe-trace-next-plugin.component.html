@@ -223,7 +223,7 @@
                                     <div class="form-group row" title="By what algorithm would you like to prune links from the network?">
                                         <div class="col-4">Prune With</div>
                                         <div class="col-8">
-                                            <p-selectButton [options]="PruneWityTypes" [(ngModel)]="SelectedPruneWityTypesVariable" (onChange)="onPruneWithTypesChanged()"></p-selectButton>
+                                            <p-selectButton [options]="PruneWityTypes" [(ngModel)]="SelectedPruneWityTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWityTypesVariable)"></p-selectButton>
                                         </div>
                                     </div>
                                     <div id="filtering-epsilon-row" class="form-group row" style="display: none;" title="Select a value for epislon to add links back to minimum spanning network. See 'A Novel Network Representation of SARS-CoV-2 Sequencing Data' for algorithm details.">

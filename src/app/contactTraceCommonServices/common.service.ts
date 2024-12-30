@@ -618,6 +618,20 @@ export class CommonService extends AppComponentBase implements OnInit {
         return this._linkThreshold$.value;
     }
 
+     // BehaviorSubject to store the threshold
+     private _networkUpdated$ = new BehaviorSubject<boolean>(false);
+
+     // Expose as observable so components can subscribe
+     networkUpdated$ = this._networkUpdated$.asObservable();
+ 
+     get networkUpdated(): boolean {
+         return this._networkUpdated$.value;
+     }
+ 
+     setNetworkUpdated(newPruned: boolean): void {
+         this._networkUpdated$.next(newPruned);
+     }
+
 
     // Shared method to notify components of link threshold changes
     onMetricChanged( metric: string) {
@@ -895,7 +909,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         }
 
-
+        if (newLink.origin.length > 1 && (!this.session.style.widgets['link-origin-array-order'] || this.session.style.widgets['link-origin-array-order'].length == 0)) {
+            this.session.style.widgets['link-origin-array-order'] = newLink.origin;
+        }
         
        
         return linkIsNew;
@@ -3855,9 +3871,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             const link = links[i];
 
-            if((link.source === "KF773429" && link.target === "KF773430") || (link.source === "KF773430" && link.target === "KF773429")) {
-                // console.log('setting link vis: ', _.cloneDeep(link));
-            }
+            // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
+            //     console.log('setting link vis: ', _.cloneDeep(link));
+            // }
 
 
             let visible = true;
@@ -3865,6 +3881,11 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             // Add back the distance origin if it was removed and the link has distance to it
             if ( link.hasDistance && !link.origin.includes(link.distanceOrigin)) {
+
+                if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
+                    console.log('adding back distance origin: ', _.cloneDeep(link));
+                }
+
                 link.origin.push(link.distanceOrigin);
             }
 
@@ -3891,6 +3912,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
 
                     if (!visible) {
+
 
                         // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be executed since the link would not have distance
                         if (
@@ -3925,29 +3947,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
                     }
 
-                    visible = link[metric] <= threshold;
-
-                    if (!visible) {
-
-                    // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be executed since the link would not have distance
-                        if (
-                            link.origin.length > 1 &&
-                            link.origin.filter(fileName => {
-                            const hasAuspice = /[Aa]uspice/.test(fileName);
-                            const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
-                            return fileName && !includesDistanceOrigin && !hasAuspice;
-                            }).length > 0
-                        ) {
-                            // Set visible and origin to only show the file outside of Distance
-                            link.origin = link.origin.filter(fileName => {
-                            const hasAuspice = /[Aa]uspice/.test(fileName);
-                            const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
-                            return fileName && !includesDistanceOrigin && !hasAuspice;
-                            });
-                            overrideNN = true;
-                            visible = true;
-                        }
-                    }
                 } else {
 
                     // If has no distance, then link should be visible and unnaffected by NN
@@ -3974,11 +3973,19 @@ export class CommonService extends AppComponentBase implements OnInit {
                 visible = visible && cluster.visible;
             }
 
+            
+
             if(visible && link.origin.length > 1){
                 link.origin = this.session.style.widgets['link-origin-array-order'];
             }
 
+
+
             link.visible = visible;
+
+            // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
+            //     console.log('link color 12345: ', _.cloneDeep(link));
+            // }
 
         }
         
@@ -3998,9 +4005,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         let min = this.session.style.widgets["cluster-minimum-size"];
         let clusters = this.session.data.clusters;
         let n = clusters.length;
+        console.log('cluster nodes ', clusters);
         for (let i = 0; i < n; i++) {
             const cluster = clusters[i];
-            // console.log('cluster nodes ', cluster);
+           
             cluster.visible = cluster.nodes >= min;
         }
         if (!silent) $(document).trigger("cluster-visibility");//$window.trigger("cluster-visibility");
@@ -4054,7 +4062,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * Clicking on the histogram will update the link threshold
      * @param [histogram] - optional parameter
      */
-    updateThresholdHistogram(histogram?: any) {
+    async updateThresholdHistogram(histogram?: any) {
 
         let width = 260,
         height = 48,
@@ -4072,40 +4080,40 @@ export class CommonService extends AppComponentBase implements OnInit {
         .attr("height", height);
 
         // add all link distances to data, find max and min distances
-        // let lsv = this.session.style.widgets["link-sort-variable"],
-        //     n = this.session.data.links.length,
-        //     max = Number.MIN_SAFE_INTEGER,
-        //     min = Number.MAX_SAFE_INTEGER,
-        //     data = Array(n),
-        //     dist = null;
-        // for (let i = 0; i < n; i++) {
-        //     dist = this.session.data.links[i][lsv];
-        //     data[i] = dist;
-        //     if (dist < min) min = dist;
-        //     if (dist > max) max = dist;
-        // }
+        let lsv = this.session.style.widgets["link-sort-variable"],
+            n = this.session.data.links.length,
+            max = Number.MIN_SAFE_INTEGER,
+            min = Number.MAX_SAFE_INTEGER,
+            data = Array(n),
+            dist = null;
+        for (let i = 0; i < n; i++) {
+            dist = this.session.data.links[i][lsv];
+            data[i] = dist;
+            if (dist < min) min = dist;
+            if (dist > max) max = dist;
+        }
 
         // Add all link distances to data, find max and min distances
-        const links = this.session.data.links;
-        const lsv = this.session.style.widgets["link-sort-variable"];
-        const n = links.length;
-        let max = -Infinity;
-        let min = Infinity;
+        // const links = this.session.data.links;
+        // const lsv = this.session.style.widgets["link-sort-variable"];
+        // const n = links.length;
+        // let max = -Infinity;
+        // let min = Infinity;
         // const data: number[] = new Array(n);
         // let dist: number;
 
         // First pass: Compute min and max distances without storing them in a separate array
-        for (let i = 0; i < n; i++) {
-            const dist = typeof links[i][lsv] === 'string' ? parseFloat(links[i][lsv]) : links[i][lsv];
+        // for (let i = 0; i < n; i++) {
+        //     const dist = typeof links[i][lsv] === 'string' ? parseFloat(links[i][lsv]) : links[i][lsv];
 
-            // Update min and max
-            if (dist < min) {
-                min = dist;
-            }
-            if (dist > max) {
-                max = dist;
-            }
-        }
+        //     // Update min and max
+        //     if (dist < min) {
+        //         min = dist;
+        //     }
+        //     if (dist > max) {
+        //         max = dist;
+        //     }
+        // }
 
         
         let range = max - min;
@@ -4119,7 +4127,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const bins = d3
             .histogram()
             .domain((x as any).domain())
-            .thresholds(x.ticks(ticks))(links);
+            .thresholds(x.ticks(ticks))(data);
 
         const y = d3
             .scaleLinear()
@@ -4174,6 +4182,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                     .on("mouseleave", null);
             });
         });
+
+        data = [];
+
     };
 
 }

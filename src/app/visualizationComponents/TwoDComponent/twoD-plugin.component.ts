@@ -1,4 +1,4 @@
-import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
@@ -32,6 +32,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // Cytoscape core instance
     cy: Core;
     vizLoaded = true;
+    nodePositions: Map<string, { x: number; y: number }> = new Map();
     data;
     rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
@@ -206,7 +207,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
     thresholdSubscription: any;
     threshold: number;
-
+    networkUpdatedSubscription: any;
     constructor(injector: Injector,
         private eventManager: EventManager,
         public commonService: CommonService,
@@ -260,6 +261,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         );
 
+        this.networkUpdatedSubscription = this.commonService.networkUpdated$.subscribe(
+            (newPruned: boolean) => {
+                console.log('network pruned', newPruned);
+                this._rerender();
+            }
+        );
+
         this.InitView();
 
     }
@@ -297,6 +305,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (node.group && this.widgets['polygons-show']) {
             parentNodes.add(node.group);
         }
+
         if (timelineTick) {
             return {
                 data: {
@@ -332,6 +341,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     shape: this.getNodeShape(node),
                     // Include any additional node-specific data properties
                     ...node
+                },
+                position: { 
+                    x: this.nodePositions.get(node.id)?.x || node._fx || Math.random() * 500,
+                    y: this.nodePositions.get(node.id)?.y || node._fy || Math.random() * 500
                 }
             };
         }
@@ -370,6 +383,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'height': 'mapData(nodeSize, 0, 100, 10, 50)'
                 }
             },
+                {
+                    selector: '.hidden',
+                    style: {
+                        display: 'none'
+                    }
+                },
             // Apply styles only to nodes with nodeColor defined
             {
                 selector: 'node[nodeColor]',
@@ -2129,7 +2148,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             alphaValue = this.widgets['link-opacity'];
         }
 
-        // console.log('color: ', finalColor);
         return {
             color: finalColor,
             opacity: alphaValue
@@ -2588,38 +2606,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log('link vis rerender: ', this.commonService.getVisibleLinks());
         }
 
-        this.data = this.commonService.convertToGraphDataArray(networkData);
 
         // Update Cytoscape visualization if it exists
         if (this.cy && !timelineTick) {
         
-            this.cy.batch(() => {
-                // Remove existing elements
-                this.cy.elements().remove();
+            this._partialUpdate();
 
-                // Add new nodes and edges
-                const newElements = this.mapDataToCytoscapeElements(this.data);
-                this.cy.add(newElements);
-
-                // Apply the Cose layout to arrange the nodes
-                const layout = this.cy.layout({
-                    name: 'cose',
-                    animate: false, // Disable animation for faster updates
-                    fit: true, // Fit the graph within the viewport
-                    padding: 100, // Padding around the graph
-                    nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
-                    idealEdgeLength: (edge) => 100, // Ideal length of edges
-                    edgeElasticity: (edge) => 100, // Elasticity of edges
-                    gravity: 80, // Gravity factor
-                    numIter: 1000, // Number of iterations
-                    // tile: true, // Allow tiling
-                    // tilingPaddingVertical: 10, // Vertical padding for tiling
-                    // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
-                });
-
-            layout.run();
-        });
     } else if (this.cy && timelineTick) {
+        this.data = this.commonService.convertToGraphDataArray(networkData);
+
         // Add new nodes and edges
         this.cy.elements().remove();
         const newElements = this.mapDataToCytoscapeElements(this.data, true);
@@ -2637,6 +2632,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     } else{
+        this.data = this.commonService.convertToGraphDataArray(networkData);
+
         this.cy = cytoscape({
             container: this.cyContainer.nativeElement, // container to render in
         
@@ -3037,17 +3034,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         // Update Cytoscape edge styles
         if (this.cy) {
+            const isDirected = this.widgets['link-directed'];
             this.cy.style()
                 .selector('edge')
                 .style({
                     'target-arrow-shape': this.widgets['link-directed'] ? 'triangle' : 'none',
                     'source-arrow-shape': 'none', // Ensure source arrow is hidden when undirected
-                    'curve-style': 'bezier'
+                    'curve-style': isDirected ? 'unbundled-bezier' : 'straight',
                     // Add more style properties here if needed
                 })
                 .update();
         }
     }
+
 
     onLinkBidirectionalChange(e) {
         // Determine the arrow shapes based on the selected option
@@ -3059,12 +3058,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         // Update Cytoscape edge styles
         if (this.cy) {
+            const isDirected = this.widgets['link-directed'];
+
             this.cy.style()
                 .selector('edge')
                 .style({
                     'source-arrow-shape': sourceArrowShape,
                     'target-arrow-shape': targetArrowShape,
-                    'curve-style': 'bezier'
+                    'curve-style': isDirected ? 'unbundled-bezier' : 'straight',
                     // Add more style properties here if needed
                 })
                 .update();
@@ -3442,90 +3443,80 @@ private _partialUpdate() {
       return;
     }
 
-    console.log('partial update: ', this.cy.nodes());
-
-
-    // 1. Retrieve fresh node/link data
-    const networkData = {
-      nodes: this.commonService.getVisibleNodes(),
-      links: this.commonService.getVisibleLinks()
-    };
-
-    this.data = this.commonService.convertToGraphDataArray(networkData);
-
-    const newElements = this.mapDataToCytoscapeElements(this.data);
-
-    /**
-     * -- 2. Remove nodes/edges that no longer exist in the new data --
-     * First collect up the new IDs for quick membership checks.
-     */
-    // @ts-ignore   
-    const newNodeIds = new Set(newElements.nodes.map(n => n.id));
-    // @ts-ignore
-    const newLinkIds = new Set(newElements.edges.map(l => {
-      // If you build link IDs a certain way, do it here
-      // @ts-ignore
-      return `${l.source}-${l.target}`;
-    }));
-
-    // 4. Remove old nodes that are not in newNodeIds
-//   this.cy.nodes().forEach(node => {
-//     if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
-//       this.cy.remove(node);
-//     }
-//   });
-
-  // 5. Remove old edges that are not in newLinkIds
-  this.cy.edges().forEach(edge => {
-    if (!newLinkIds.has(edge.id())) {
-      this.cy.remove(edge);
+    // Cache positions BEFORE making changes to the graph
+    if (!this.nodePositions) {
+        this.nodePositions = new Map<string, { x: number; y: number }>();
     }
-  });
+    this.cy.nodes().forEach(node => {
+        const currentPosition = node.position();
+        if (!this.nodePositions.has(node.id())) {
+            this.nodePositions.set(node.id(), currentPosition); // Cache position
+        }
+    });
 
-  // 6. Add/Update new nodes
-//   newElements.nodes.forEach(n => {
-//     const cyNode = this.cy.getElementById(n.data.id);
-//     if (!cyNode || !cyNode.length) {
-//       // Node does not exist; add it
-//       this.cy.add(n);
-//     } else {
-//       // Node exists; merge new data if desired
-//       cyNode.data({ ...cyNode.data(), ...n.data });
-//     }
-//   });
+    // Use batch mode to disable auto-panning during updates
+    this.cy.batch(() => {
+        // Retrieve fresh node/link data
+        const networkData = {
+            nodes: this.commonService.getVisibleNodes(),
+            links: this.commonService.getVisibleLinks()
+        };
 
-  // 7. Add/Update new edges
-  newElements.edges.forEach(e => {
-    const cyEdge = this.cy.getElementById(e.data.id);
-    if (!cyEdge || !cyEdge.length) {
-      // Edge does not exist; add it
-      this.cy.add(e);
-    } else {
-      // Merge updated data if needed
-      cyEdge.data({ ...cyEdge.data(), ...e.data });
-    }
-  });
+        this.data = this.commonService.convertToGraphDataArray(networkData);
+        const newElements = this.mapDataToCytoscapeElements(this.data);
 
+        // Collect new IDs for membership checks
+        const newNodeIds = new Set(newElements.nodes.map(n => n.data.id));
+        // @ts-ignore
+        const newLinkIds = new Set(newElements.edges.map(l => `${l.source}-${l.target}`));
 
-    // 5. Optionally re-run your layout if you want to reposition
-    //    or skip if you only do incremental changes
-    // const layout = this.cy.layout({
-    //   name: 'cose',
-    //   animate: false,
-    //   fit: true,
-    //   padding: 100,
-    //   nodeRepulsion: () => 400000,
-    //   idealEdgeLength: () => 100,
-    //   edgeElasticity: () => 100,
-    //   gravity: 80,
-    //   numIter: 1000
-    // });
-    // layout.run();
+        console.log('newNodeIds:', newNodeIds);
 
-    // 6. (Optional) If you have style changes, apply them anew:
-    // this.cy.style().update();
+        // Update node visibility and restore positions
+        this.cy.nodes().forEach(node => {
+            if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
+                // Hide node but keep its cached position
+                node.addClass('hidden');
+            } else {
+                // Ensure node is visible
+                node.removeClass('hidden');
 
-    console.log('Partial network update complete.');
+                // Restore position from cache
+                const position = this.nodePositions.get(node.id());
+                if (position) {
+                    node.position(position);
+                }
+            }
+        });
+
+        // Remove old edges
+        this.cy.edges().forEach(edge => {
+            if (!newLinkIds.has(edge.id())) {
+                this.cy.remove(edge);
+            }
+        });
+
+        // Add/Update new edges
+        newElements.edges.forEach(e => {
+            const cyEdge = this.cy.getElementById(e.data.id);
+            if (!cyEdge || !cyEdge.length) {
+                this.cy.add(e); // Add edge
+            } else {
+                cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
+            }
+        });
+    });
+
+        // Restore positions for all visible nodes explicitly
+        this.cy.nodes(':visible').forEach(node => {
+            const position = this.nodePositions.get(node.id());
+            if (position) {
+                node.position(position);
+            }
+        });
+
+        this.fit();
+
 }
 
     applyStyleFileSettings() {

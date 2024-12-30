@@ -859,7 +859,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $(document).trigger(thing + "-visibility");
           });
           this.commonService.updateStatistics();
-          this.updatedVisualization();
+          this.commonService.setNetworkUpdated(true);
+        //   this.updatedVisualization();
 
         });
 
@@ -919,28 +920,41 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     onEpsilonValueChange() {
         this.commonService.session.style.widgets["mst-computed"] =false;
-        this.onPruneWithTypesChanged(); 
+        this.onPruneWithTypesChanged(this.SelectedPruneWityTypesVariable); 
     }
 
-    onPruneWithTypesChanged() {
+    async onPruneWithTypesChanged(newValue: string) {
 
+        this.SelectedPruneWityTypesVariable = newValue;
         this.commonService.GlobalSettingsModel.SelectedPruneWityTypesVariable = this.SelectedPruneWityTypesVariable;
-
-        //debugger;
 
         if (this.SelectedPruneWityTypesVariable == "None") {
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
             this.commonService.updateNetwork();
-
-            this.updatedVisualization();
+            this.commonService.setNetworkUpdated(true);
+            // this.updatedVisualization();
         }
         else {
             this.SelectedEpsilonValue = Math.pow(10, this.widgets['filtering-epsilon']).toPrecision(3);
             this.commonService.session.style.widgets["filtering-epsilon"] = this.widgets['filtering-epsilon'];
             this.commonService.session.style.widgets["link-show-nn"] = true;
             $('#filtering-epsilon-row').slideDown();
-            // TODO:: Removed to fix NN issue
+            
+
+            this.commonService.computeMST().then(() => {
+                this.commonService.updateNetwork();
+                this.commonService.setNetworkUpdated(true);
+                    // TODO:: David is this needed?
+                if ('tableComp' in this.commonService.visuals) {
+                    if (this.commonService.visuals.tableComp.dataSetViewSelected == 'Link') {
+                        this.commonService.visuals.tableComp.openSelectDataSetScreen({value: 'Link'});
+                    }
+                }
+            });
+                  
+                    return;
+            // TODO:: David Removed to fix NN issue
             // if(!this.commonService.session.style.widgets["mst-computed"]) {
             //     this.commonService.computeMST().then(() => {
             //         this.commonService.updateNetwork();
@@ -973,11 +987,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             //     return;
             // } else {
 
-                this.commonService.updateNetwork();
-
-            // }
-
-            this.updatedVisualization();
         }
 
     }
@@ -1945,7 +1954,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.GlobalSettingsLinkColorDialogSettings.isVisible = true;
         this.GlobalSettingsNodeColorDialogSettings.isVisible = true;
 
-        this.updatedVisualization();
+        this.commonService.setNetworkUpdated(true);
+        // this.updatedVisualization();
 
         this.commonService.updateStatistics();
 
@@ -3181,7 +3191,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         //Filtering|Prune With
         this.SelectedPruneWityTypesVariable = this.commonService.session.style.widgets["link-show-nn"] ? "Nearest Neighbor" : "None";
-        this.onPruneWithTypesChanged();
+        // this.onPruneWithTypesChanged();
 
         //Filtering|Minimum Cluster Size
         this.SelectedClusterMinimumSizeVariable = this.commonService.session.style.widgets["cluster-minimum-size"];
