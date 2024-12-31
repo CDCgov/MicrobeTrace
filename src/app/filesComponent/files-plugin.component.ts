@@ -1,4 +1,4 @@
-﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
@@ -114,7 +114,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, elRef: ElementRef,
     private eventEmitterService: EventEmitterService,
-    public commonService: CommonService) {
+    public commonService: CommonService,
+    private cdr: ChangeDetectorRef) {
 
     super(elRef.nativeElement);
 
@@ -629,11 +630,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     console.log('launch click');
     if( this.commonService.session.network.launched) {
       console.log('launch click launched ', this.commonService.session.network.launched);
-      this.commonService.session.data = this.commonService.sessionSkeleton().data;
-      const newTempSkeleton = this.commonService.tempSkeleton();
-      this.commonService.temp.trees = newTempSkeleton.trees;
+
+      this.commonService.resetData();
+
       $('#launch').text('Update');
-      this.visuals.twoD.isLoading = true;
+      // this.visuals.twoD.isLoading = true;
     }
     else if (!this.commonService.session.network.launched) {
       console.log('launch click not launched ', this.commonService.session.network.launched);
@@ -838,7 +839,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           // Link is the same -> bidirectional
           if(srcIndex != -1 && tgtIndex != -1) {
               
-            // console.log('link same');
             // Set distance if distance set (field 3)
             l += this.commonService.addLink(Object.assign({
                source: '' + safeLink[file.field1],
@@ -1214,15 +1214,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     this.commonService.session.data.nodeFilteredValues = nodes;
     //Add links for nodes with no edges
-    this.uniqueNodes.forEach(x => {
-      this.commonService.addLink(Object.assign({
-        source: '' + x,
-        target: '' + x,
-        origin: origin,
-        visible: true,
-        distance: 0,
-      }, 'generated'));
-    });
+    // TODO: This was here before but not sure why we needed this
+    // this.uniqueNodes.forEach(x => {
+    //   console.log('link same 4: ', x);
+    //   this.commonService.addLink(Object.assign({
+    //     source: '' + x,
+    //     target: '' + x,
+    //     origin: origin,
+    //     visible: true,
+    //     distance: 0,
+    //   }, 'generated'));
+    // });
 
     this.processSequence()
   }
@@ -1235,6 +1237,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!this.commonService.session.meta.anySequences) return this.commonService.runHamsters();
     this.commonService.session.data.nodeFields.push('seq');
     let subset = [];
+    console.log('link same nodes22: ', this.commonService.session.data.nodes.length, this.commonService.session.data.nodes);
     let nodes = this.commonService.session.data.nodes;
     const n = nodes.length;
     const gapString = '-'.repeat(this.commonService.session.data.reference.length);
@@ -1246,6 +1249,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         subset.push(d);
       }
     }
+
+    console.log('link same nodes33: ', subset);
+
     if (this.commonService.session.style.widgets['align-sw']) {
       this.showMessage('Aligning Sequences...');
       let output = await (this.commonService.session as any).align({
@@ -1283,6 +1289,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.showMessage("Finishing...");
     this.displayloadingInformationModal = false;
+    setTimeout(() => {
+      this.cdr.detectChanges(); 
+    }, 1000);
 
   };
 
