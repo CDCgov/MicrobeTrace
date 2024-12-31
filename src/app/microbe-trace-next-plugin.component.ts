@@ -1,4 +1,4 @@
-﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService, ExportOptions } from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 
@@ -80,6 +80,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     displayLedgerLoaderDialog: boolean = false;
     version: string = '2.0';
     auspiceUrlVal: string|null = '';
+
+    private thresholdSubscription: Subscription;
+
 
     saveFileName: string = '';
     saveByCluster: boolean = false;
@@ -282,6 +285,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.performExport();
         });
 
+        // Subscribe to threshold changes from the service
+        this.thresholdSubscription = this.commonService.linkThreshold$.subscribe(
+            (newThreshold: number) => {
+                // Only update local state if changed
+                if (this.SelectedLinkThresholdVariable !== newThreshold) {
+                    this.onLinkThresholdChanged(newThreshold);
+                }
+            }
+        );
+
         this.elem = document.documentElement;
 
         if (!this.GlobalSettingsDialogSettings) {
@@ -293,11 +306,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (!this.GlobalSettingsNodeColorDialogSettings) {
             this.GlobalSettingsNodeColorDialogSettings = new DialogSettings('#global-settings-node-color-table', false);
         }
-
-        // Subscribe to threshold changes
-        this.commonService.linkThresholdChanged.subscribe((newThreshold?: number) => {
-            this.onLinkThresholdChanged(newThreshold); // Existing method to handle updates
-        });
 
         // Subscribe to metric changes
         this.commonService.metricChanged.subscribe((metric: string) => {
@@ -686,10 +694,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log("Trying to prepare files");
         }
         // this.commonService.resetData();
-        // TODO:: David Check Below
-        // this.commonService.session.files.forEach(file => {
-        //     this.visuals.filesPlugin.removeFile(file.name, false);
-        //   })
+
+        this.commonService.FP_removeFiles.emit()
         this.commonService.session.files = [];
         if (!this.commonService.session.style.widgets) {
             this.commonService.session.style.widgets = this.commonService.defaultWidgets();
@@ -853,7 +859,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $(document).trigger(thing + "-visibility");
           });
           this.commonService.updateStatistics();
-          this.updatedVisualization();
+          this.commonService.setNetworkUpdated(true);
+        //   this.updatedVisualization();
 
         });
 
@@ -913,28 +920,41 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     onEpsilonValueChange() {
         this.commonService.session.style.widgets["mst-computed"] =false;
-        this.onPruneWithTypesChanged(); 
+        this.onPruneWithTypesChanged(this.SelectedPruneWityTypesVariable); 
     }
 
-    onPruneWithTypesChanged() {
+    async onPruneWithTypesChanged(newValue: string) {
 
+        this.SelectedPruneWityTypesVariable = newValue;
         this.commonService.GlobalSettingsModel.SelectedPruneWityTypesVariable = this.SelectedPruneWityTypesVariable;
-
-        //debugger;
 
         if (this.SelectedPruneWityTypesVariable == "None") {
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
             this.commonService.updateNetwork();
-
-            this.updatedVisualization();
+            this.commonService.setNetworkUpdated(true);
+            // this.updatedVisualization();
         }
         else {
             this.SelectedEpsilonValue = Math.pow(10, this.widgets['filtering-epsilon']).toPrecision(3);
             this.commonService.session.style.widgets["filtering-epsilon"] = this.widgets['filtering-epsilon'];
             this.commonService.session.style.widgets["link-show-nn"] = true;
             $('#filtering-epsilon-row').slideDown();
-            // TODO:: Removed to fix NN issue
+            
+
+            this.commonService.computeMST().then(() => {
+                this.commonService.updateNetwork();
+                this.commonService.setNetworkUpdated(true);
+                    // TODO:: David is this needed?
+                if ('tableComp' in this.commonService.visuals) {
+                    if (this.commonService.visuals.tableComp.dataSetViewSelected == 'Link') {
+                        this.commonService.visuals.tableComp.openSelectDataSetScreen({value: 'Link'});
+                    }
+                }
+            });
+                  
+                    return;
+            // TODO:: David Removed to fix NN issue
             // if(!this.commonService.session.style.widgets["mst-computed"]) {
             //     this.commonService.computeMST().then(() => {
             //         this.commonService.updateNetwork();
@@ -967,11 +987,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             //     return;
             // } else {
 
-                this.commonService.updateNetwork();
-
-            // }
-
-            this.updatedVisualization();
         }
 
     }
@@ -1116,6 +1131,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
 
             // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
+            // checkActiveView is reliant on commonService.visuals, under current implementation (12/17/24) always returns false and function may not be needed
             if (this.SelectedColorLinksByVariable != "None") {
                 this.SelectedLinkColorTableTypesVariable = "Show";
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
@@ -1351,7 +1367,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
         if ('bubble' in this.commonService.visuals) {
              this.commonService.visuals.bubble.sortData(variable);
-         }
+        }
+        this.commonService.twoD_saveNodePos.emit();
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");
@@ -1374,11 +1391,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.network.timelinePinned = this.commonService.session.network.allPinned;
         if(!this.commonService.session.network.allPinned) {
             this.commonService.updatePinNodes(true);
-
-            //TODO::David Check if needed
-            // this.openPinAllNodes(1);
         }
-        this.commonService.session.network.timelineNodes = this.commonService.getNetworkNodes();
+
         }
         let globalTimelineField =  (this.commonService.session.style.overwrite && variable == this.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.commonService.session.style.overwrite['globalTimelineField'] : this.commonService.titleize(variable));
         const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
@@ -1912,7 +1926,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             ["cluster", "link", "node"].forEach(thing => $(document).trigger(thing + "-visibility"));
 
 
-            this.updatedVisualization();
+            // this.updatedVisualization();
+            this.commonService.setLinkThreshold(this.SelectedLinkThresholdVariable);
+
 
             this.commonService.updateStatistics();
 
@@ -1938,7 +1954,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.GlobalSettingsLinkColorDialogSettings.isVisible = true;
         this.GlobalSettingsNodeColorDialogSettings.isVisible = true;
 
-        this.updatedVisualization();
+        this.commonService.setNetworkUpdated(true);
+        // this.updatedVisualization();
 
         this.commonService.updateStatistics();
 
@@ -3131,11 +3148,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.previousTab = activeComponentName;
     }
 
-   // openPinAllNodes(tabNdx: any): void {
-        //this.homepageTabs[tabNdx].componentRef.instance.openPinAllNodes();
-    //}
-
-
     addTab(tabLabel: any, tabTitle: any, tabPosition: any, componentRef: any, activate: boolean = true): void {
 
         /*/
@@ -3179,7 +3191,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         //Filtering|Prune With
         this.SelectedPruneWityTypesVariable = this.commonService.session.style.widgets["link-show-nn"] ? "Nearest Neighbor" : "None";
-        this.onPruneWithTypesChanged();
+        // this.onPruneWithTypesChanged();
 
         //Filtering|Minimum Cluster Size
         this.SelectedClusterMinimumSizeVariable = this.commonService.session.style.widgets["cluster-minimum-size"];

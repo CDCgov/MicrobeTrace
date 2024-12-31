@@ -1,4 +1,4 @@
-﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
@@ -114,7 +114,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, elRef: ElementRef,
     private eventEmitterService: EventEmitterService,
-    public commonService: CommonService) {
+    public commonService: CommonService,
+    private cdr: ChangeDetectorRef) {
 
     super(elRef.nativeElement);
 
@@ -153,6 +154,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.styleFileApplied.subscribe(() => {
       this.applyStyleFileSettings();
     });
+
+    this.commonService.FP_removeFiles.subscribe(() => {
+      this.commonService.session.files.forEach(file => {
+        this.removeFile(file.name, false);
+      })
+  });
 
     // TODO: the rest of ngOnInit can be revised to take advantage of angular features
     $('.alignConfigRow').hide();
@@ -325,19 +332,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold, #link-threshold')
           .attr('step', 1)
           .val(7);
-        this.commonService.session.style.widgets["link-threshold"] = 7;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.commonService.onLinkThresholdChanged();
+        this.commonService.setLinkThreshold(7);
       } else {
         $('#ambiguities-row').slideDown();
         $('#default-distance-threshold, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
-        this.commonService.session.style.widgets["link-threshold"] = 0.015;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
-        this.commonService.onLinkThresholdChanged();
+        this.commonService.setLinkThreshold(0.015);
       }
       this.commonService.session.style.widgets['default-distance-metric'] = lsv;
       this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
@@ -625,11 +630,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     console.log('launch click');
     if( this.commonService.session.network.launched) {
       console.log('launch click launched ', this.commonService.session.network.launched);
-      this.commonService.session.data = this.commonService.sessionSkeleton().data;
-      const newTempSkeleton = this.commonService.tempSkeleton();
-      this.commonService.temp.trees = newTempSkeleton.trees;
+
+      this.commonService.resetData();
+
       $('#launch').text('Update');
-      this.visuals.twoD.isLoading = true;
+      // this.visuals.twoD.isLoading = true;
     }
     else if (!this.commonService.session.network.launched) {
       console.log('launch click not launched ', this.commonService.session.network.launched);
@@ -707,7 +712,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['link-threshold'] = 0.015;
             this.SelectedDefaultDistanceThresholdVariable = '0.015';
             this.onLinkThresholdChange('0.015');
-            this.commonService.onLinkThresholdChanged(0.015);
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
           } else {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
@@ -720,7 +724,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['link-threshold'] = 7;
             this.SelectedDefaultDistanceThresholdVariable = '7';
             this.onLinkThresholdChange('7');
-            this.commonService.onLinkThresholdChanged(7);
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
           }
           this.commonService.session.meta.startTime = Date.now();
@@ -836,7 +839,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           // Link is the same -> bidirectional
           if(srcIndex != -1 && tgtIndex != -1) {
               
-            // console.log('link same');
             // Set distance if distance set (field 3)
             l += this.commonService.addLink(Object.assign({
                source: '' + safeLink[file.field1],
@@ -1212,15 +1214,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     this.commonService.session.data.nodeFilteredValues = nodes;
     //Add links for nodes with no edges
-    this.uniqueNodes.forEach(x => {
-      this.commonService.addLink(Object.assign({
-        source: '' + x,
-        target: '' + x,
-        origin: origin,
-        visible: true,
-        distance: 0,
-      }, 'generated'));
-    });
+    // TODO: This was here before but not sure why we needed this
+    // this.uniqueNodes.forEach(x => {
+    //   console.log('link same 4: ', x);
+    //   this.commonService.addLink(Object.assign({
+    //     source: '' + x,
+    //     target: '' + x,
+    //     origin: origin,
+    //     visible: true,
+    //     distance: 0,
+    //   }, 'generated'));
+    // });
 
     this.processSequence()
   }
@@ -1233,6 +1237,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!this.commonService.session.meta.anySequences) return this.commonService.runHamsters();
     this.commonService.session.data.nodeFields.push('seq');
     let subset = [];
+    console.log('link same nodes22: ', this.commonService.session.data.nodes.length, this.commonService.session.data.nodes);
     let nodes = this.commonService.session.data.nodes;
     const n = nodes.length;
     const gapString = '-'.repeat(this.commonService.session.data.reference.length);
@@ -1244,6 +1249,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         subset.push(d);
       }
     }
+
+    console.log('link same nodes33: ', subset);
+
     if (this.commonService.session.style.widgets['align-sw']) {
       this.showMessage('Aligning Sequences...');
       let output = await (this.commonService.session as any).align({
@@ -1281,6 +1289,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.showMessage("Finishing...");
     this.displayloadingInformationModal = false;
+    setTimeout(() => {
+      this.cdr.detectChanges(); 
+    }, 1000);
 
   };
 
@@ -1504,7 +1515,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
           parentContext.commonService.session.files.splice(parentContext.commonService.session.files.findIndex(f => f.name === file.name), 1);
-          context.visuals.filesPlugin.removeFile(file.name);
+          parentContext.removeFile(file.name);
           $('#launch').prop('disabled', false).focus();
           $('#launch').text('Update');
           root.slideUp(() => root.remove());
@@ -1834,8 +1845,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.commonService.session.style.widgets['link-threshold'] = parseFloat(e);
-    this.commonService.onLinkThresholdChanged(parseFloat(e));
+    this.commonService.setLinkThreshold(parseFloat(e));
   }
 
   /**

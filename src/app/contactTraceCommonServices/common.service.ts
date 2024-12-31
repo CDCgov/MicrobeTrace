@@ -85,9 +85,6 @@ export class CommonService extends AppComponentBase implements OnInit {
     };
 
     // EventEmitter to notify components of changes
-    linkThresholdChanged: EventEmitter<number> = new EventEmitter();
-
-    // EventEmitter to notify components of changes
     metricChanged: EventEmitter<string> = new EventEmitter();
 
     // EventEmitter to notify components of changes
@@ -104,6 +101,12 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     // EventEmitter to notify components of changes
     statisticsChanged: EventEmitter<string> = new EventEmitter();
+
+    // EventEmitter to notify components of changes
+    FP_removeFiles: EventEmitter<string> = new EventEmitter();
+
+    // EventEmitter to notify components of changes
+    twoD_saveNodePos: EventEmitter<string> = new EventEmitter();
 
     /**
      * Returns an object that will eventually be filled with data. It is accessed throught commonService.session.data
@@ -519,7 +522,7 @@ export class CommonService extends AppComponentBase implements OnInit {
          // (window as any).context = ((window as any).context == undefined ? {} : (window as any).context);
          this.computer = new WorkerModule();
          this.resetData();
-         console.log('Constructor: Temp initialized:', this.temp);
+                console.log('Constructor: Temp initialized:', this.temp);
 
         // this.initialize();
     }
@@ -596,10 +599,40 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
-    // Shared method to notify components of link threshold changes
-    onLinkThresholdChanged( newThreshold?: number) {
-        this.linkThresholdChanged.emit(newThreshold);
+    // BehaviorSubject to store the threshold
+    private _linkThreshold$ = new BehaviorSubject<number>(0.015);
+
+    // Expose as observable so components can subscribe
+    linkThreshold$ = this._linkThreshold$.asObservable();
+
+     // Call this to set a new threshold value
+     setLinkThreshold(newThreshold: number): void {
+        // Only emit if the value actually changed
+        if (this._linkThreshold$.value !== newThreshold) {
+            this.session.style.widgets["link-threshold"] = newThreshold;
+            this._linkThreshold$.next(newThreshold);
+        }
     }
+
+    // Example: read-only convenience accessor to get the current threshold
+    get linkThreshold(): number {
+        return this._linkThreshold$.value;
+    }
+
+     // BehaviorSubject to store the threshold
+     private _networkUpdated$ = new BehaviorSubject<boolean>(false);
+
+     // Expose as observable so components can subscribe
+     networkUpdated$ = this._networkUpdated$.asObservable();
+ 
+     get networkUpdated(): boolean {
+         return this._networkUpdated$.value;
+     }
+ 
+     setNetworkUpdated(newPruned: boolean): void {
+         this._networkUpdated$.next(newPruned);
+     }
+
 
     // Shared method to notify components of link threshold changes
     onMetricChanged( metric: string) {
@@ -877,7 +910,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         }
 
-
+        if (newLink.origin.length > 1 && (!this.session.style.widgets['link-origin-array-order'] || this.session.style.widgets['link-origin-array-order'].length == 0)) {
+            this.session.style.widgets['link-origin-array-order'] = newLink.origin;
+        }
         
        
         return linkIsNew;
@@ -1483,70 +1518,97 @@ export class CommonService extends AppComponentBase implements OnInit {
       });
     };
 
+    private fromWorker(worker: Worker): Observable<MessageEvent<any>> {
+        return new Observable(observer => {
+          const messageHandler = (event: MessageEvent<any>) => observer.next(event);
+          const errorHandler = (error: ErrorEvent) => observer.error(error);
+      
+          worker.addEventListener('message', messageHandler);
+          worker.addEventListener('error', errorHandler);
+      
+          // Cleanup function
+          return () => {
+            worker.removeEventListener('message', messageHandler);
+            worker.removeEventListener('error', errorHandler);
+            worker.terminate();
+          };
+        });
+      }
+
     /**
      * Asynchronously parses csv matrix file content and adds nodes and links to session.data
      * @param {string} file content from csv matrix file
      * @returns {Promise} A Promise that resolves to an object with {numberOfNodesAdded, numberOfLinksAdded, totalNumberofNodes, totalNumberofLinks}
      */
-    parseCSVMatrix(file) {
-        console.log('parsing csv matrix');
-        return new Promise((resolve) => {
-            let check = this.session.files.length > 1;
-            const origin = [file.name];
-            let nn = 0,
-              nl = 0;        
-            this.computer.compute_parse_csv_matrixWorker.postMessage(file.contents);
-        
-            this.computer.compute_parse_csv_matrixWorker.onmessage = (response) => {
-              const data = JSON.parse(
-                this.decode(new Uint8Array(response.data.data))
-              );
-              if(this.debugMode) {
-                console.log(
-                    'CSV Matrix Transit time: ',
-                    (Date.now() - response.data.start).toLocaleString(),
-                    'ms'
-                  );              
+   parseCSVMatrix(file) {
+    console.log('parsing csv matrix');
+    return new Promise((resolve, reject) => { // Added reject for error handling
+        let check = this.session.files.length > 1;
+        const origin = [file.name];
+        let nn = 0,
+            nl = 0;        
+        this.computer.compute_parse_csv_matrixWorker.postMessage(file.contents);
+
+        // Convert worker messages to Observable
+        const workerObservable = this.fromWorker(this.computer.compute_parse_csv_matrixWorker);
+
+        const sub = workerObservable.subscribe({
+            next: (response: MessageEvent<any>) => {
+                const data = JSON.parse(
+                    this.decode(new Uint8Array(response.data.data))
+                );
+                if(this.debugMode) {
+                    console.log(
+                        'CSV Matrix Transit time: ',
+                        (Date.now() - response.data.start).toLocaleString(),
+                        'ms'
+                    );              
                 }
              
-              const start = Date.now();
-              const nodes = data.nodes;
-              const tn = nodes.length;
-              for (let i = 0; i < tn; i++) {
-                nn += this.addNode(
-                  {
-                    _id: this.filterXSS(nodes[i]),
-                    origin: origin,
-                  },
-                  check
-                );
-              }
-              const links = data.links;
-              const tl = links.length;
-              for (let j = 0; j < tl; j++) {
-                // console.log('has distance is true: ', JSON.stringify(links[j]));
-                nl += this.addLink(
-                  Object.assign(links[j], {
-                    origin: origin,
-                    hasDistance: true,
-                    distanceOrigin: origin,
-                  }),
-                  check
-                );
-              }
-
-              if(this.debugMode) {
-                console.log(
-                    'CSV Matrix Merge time: ',
-                    (Date.now() - start).toLocaleString(),
-                    'ms'
-                  );             
+                const start = Date.now();
+                const nodes = data.nodes;
+                const tn = nodes.length;
+                for (let i = 0; i < tn; i++) {
+                    nn += this.addNode(
+                        {
+                            _id: this.filterXSS(nodes[i]),
+                            origin: origin,
+                        },
+                        check
+                    );
                 }
-  
-              resolve({ nn, nl, tn, tl });
-            };
-          });
-    };
+                const links = data.links;
+                const tl = links.length;
+                for (let j = 0; j < tl; j++) {
+                    nl += this.addLink(
+                        Object.assign(links[j], {
+                            origin: origin,
+                            hasDistance: true,
+                            distanceOrigin: origin,
+                        }),
+                        check
+                    );
+                }
+
+                if(this.debugMode) {
+                    console.log(
+                        'CSV Matrix Merge time: ',
+                        (Date.now() - start).toLocaleString(),
+                        'ms'
+                    );             
+                }
+
+                resolve({ nn, nl, tn, tl });
+                sub.unsubscribe();
+            },
+            error: (err: ErrorEvent) => {
+                console.error('Worker error:', err);
+                reject(err);
+                sub.unsubscribe();
+            }
+        });
+    });
+};
 
     /**
      * XXXXX function not currently called XXXXX
@@ -1735,7 +1797,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.computer.compute_align_swWorker.postMessage(params);
 
 
-            this.computer.compute_align_swWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_align_swWorker.onmessage().subscribe((response) => {
 
                 let subset = JSON.parse(this.decode(new Uint8Array(response.data.nodes)));
                 console.log("Alignment transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
@@ -1761,7 +1823,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 this.session.data.nodeFields.push('_cigar');
                 console.log("Alignment Padding time: ", (Date.now() - start).toLocaleString(), "ms");
                 resolve(subset);
-
+                sub.unsubscribe();
             });
         });
     };
@@ -1775,13 +1837,13 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             this.computer.compute_consensusWorker.postMessage({ data: nodes });
 
-            this.computer.compute_consensusWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_consensusWorker.onmessage().subscribe((response) => {
 
                 if(this.debugMode) {
                     console.log("Consensus Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                 }
                 resolve(this.decode(new Uint8Array(response.data.consensus)));
-
+                sub.unsubscribe();
             });
 
             //let computer: WorkerModule = new WorkerModule();
@@ -1804,7 +1866,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             this.computer.compute_ambiguity_countsWorker.postMessage(subset);
 
-            this.computer.compute_ambiguity_countsWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_ambiguity_countsWorker.onmessage().subscribe((response) => {
 
                 console.log("Ambiguity Count Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
                 const start = Date.now();
@@ -1815,7 +1877,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 this.session.data.nodeFields.push('_ambiguity');
                 console.log("Ambiguity Count Merge time: ", (Date.now() - start).toLocaleString(), "ms");
                 resolve();
-
+                sub.unsubscribe();
             });
 
             //let computer: WorkerModule = new WorkerModule();
@@ -1867,7 +1929,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }
             });
 
-            this.computer.compute_consensusWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_consensusWorker.onmessage().subscribe((response) => {
 
                 const dists = new Uint16Array(response.data.dists);
                 console.log("Consensus Difference Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
@@ -1878,7 +1940,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 this.session.data.nodeFields.push('_diff');
                 console.log("Consensus Difference Merge time: ", (Date.now() - start).toLocaleString(), "ms");
                 resolve();
-
+                sub.unsubscribe();
             });
         });
     };
@@ -1900,7 +1962,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 threshold: this.session.style.widgets["ambiguity-threshold"]
             });
 
-            this.computer.compute_linksWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_linksWorker.onmessage().subscribe((response) => {
 
                 let dists = this.session.style.widgets['default-distance-metric'].toLowerCase() == 'snps' ?
                     new Uint16Array(response.data.links) :
@@ -1912,10 +1974,12 @@ export class CommonService extends AppComponentBase implements OnInit {
                 let check = this.session.files.length > 1;
                 let n = subset.length;
                 let l = 0;
+                console.log('link same compute---', n);
                 for (let i = 0; i < n; i++) {
                     const sourceID = subset[i]._id;
                     for (let j = 0; j < i; j++) {
                         let targetID = subset[j]._id;
+                        console.log('link same compute')
                         k += this.addLink({
                             source: sourceID,
                             target: targetID,
@@ -1931,10 +1995,12 @@ export class CommonService extends AppComponentBase implements OnInit {
                     console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
                 }
                 resolve(k);
+                sub.unsubscribe(); // remove the subscription once done
             });
         });
     };
 
+    
 
     getDM(): Promise<any> {
         const start = Date.now();
@@ -1999,7 +2065,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 });
 
 
-                this.computer.compute_treeWorker.onmessage().subscribe((response) => {
+                const sub = this.computer.compute_treeWorker.onmessage().subscribe((response) => {
 
                   const treeObj = this.decode(new Uint8Array(response.data.tree));
 
@@ -2026,7 +2092,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 tree: this.temp.tree
             });
 
-            this.computer.compute_directionalityWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_directionalityWorker.onmessage().subscribe((response) => {
 
                 const flips = new Uint8Array(response.data.output);
                 if(this.debugMode) {
@@ -2063,7 +2129,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 metric: this.session.style.widgets['link-sort-variable']
             });
 
-            this.computer.compute_mstWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_mstWorker.onmessage().subscribe((response) => {
             if (response.data == "Error") {
               return reject("MST washed out");
             }
@@ -2081,6 +2147,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
             }
             resolve();
+            sub.unsubscribe();
           });
         });
       };
@@ -2096,7 +2163,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 metric: this.session.style.widgets['link-sort-variable']
             });
 
-            this.computer.compute_nnWorker.onmessage().subscribe((response) => {
+            const sub = this.computer.compute_nnWorker.onmessage().subscribe((response) => {
 
                 if (response.data == "Error") {
                     return reject("Nearest Neighbor washed out");
@@ -2115,6 +2182,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                     console.log("NN Merge time: ", (Date.now() - start).toLocaleString(), "ms");
                 }
                 resolve();
+                sub.unsubscribe();
             });
         });
     };
@@ -2128,7 +2196,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                     matrix: dm
                 });
 
-                this.computer.compute_triangulationWorker.onmessage().subscribe((response) => {
+                const sub = this.computer.compute_triangulationWorker.onmessage().subscribe((response) => {
 
                     if (response.data == "Error") return reject("Triangulation washed out");
                     if(this.debugMode) {
@@ -2158,6 +2226,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                         console.log("Triangulation Merge time: ", (Date.now() - start).toLocaleString(), "ms");
                     }
                     resolve();
+                    sub.unsubscribe();
                 })
             });
         });
@@ -2662,7 +2731,6 @@ export class CommonService extends AppComponentBase implements OnInit {
         let n = nodes.length;
         for (let i = 0; i < n; i++) {
             const d = nodes[i];
-            if (!d.visible) continue;
             const dv = d[variable];
             if (dv in aggregates) {
                 if (!d.visible) continue;
@@ -3838,9 +3906,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             const link = links[i];
 
-            if((link.source === "KF773429" && link.target === "KF773430") || (link.source === "KF773430" && link.target === "KF773429")) {
-                // console.log('setting link vis: ', _.cloneDeep(link));
-            }
+            // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
+            //     console.log('setting link vis: ', _.cloneDeep(link));
+            // }
 
 
             let visible = true;
@@ -3848,6 +3916,11 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             // Add back the distance origin if it was removed and the link has distance to it
             if ( link.hasDistance && !link.origin.includes(link.distanceOrigin)) {
+
+                if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
+                    console.log('adding back distance origin: ', _.cloneDeep(link));
+                }
+
                 link.origin.push(link.distanceOrigin);
             }
 
@@ -3874,6 +3947,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
 
                     if (!visible) {
+
 
                         // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be executed since the link would not have distance
                         if (
@@ -3908,29 +3982,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
                     }
 
-                    visible = link[metric] <= threshold;
-
-                    if (!visible) {
-
-                    // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be executed since the link would not have distance
-                        if (
-                            link.origin.length > 1 &&
-                            link.origin.filter(fileName => {
-                            const hasAuspice = /[Aa]uspice/.test(fileName);
-                            const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
-                            return fileName && !includesDistanceOrigin && !hasAuspice;
-                            }).length > 0
-                        ) {
-                            // Set visible and origin to only show the file outside of Distance
-                            link.origin = link.origin.filter(fileName => {
-                            const hasAuspice = /[Aa]uspice/.test(fileName);
-                            const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
-                            return fileName && !includesDistanceOrigin && !hasAuspice;
-                            });
-                            overrideNN = true;
-                            visible = true;
-                        }
-                    }
                 } else {
 
                     // If has no distance, then link should be visible and unnaffected by NN
@@ -3957,11 +4008,19 @@ export class CommonService extends AppComponentBase implements OnInit {
                 visible = visible && cluster.visible;
             }
 
+            
+
             if(visible && link.origin.length > 1){
                 link.origin = this.session.style.widgets['link-origin-array-order'];
             }
 
+
+
             link.visible = visible;
+
+            // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
+            //     console.log('link color 12345: ', _.cloneDeep(link));
+            // }
 
         }
         
@@ -3981,9 +4040,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         let min = this.session.style.widgets["cluster-minimum-size"];
         let clusters = this.session.data.clusters;
         let n = clusters.length;
+        console.log('cluster nodes ', clusters);
         for (let i = 0; i < n; i++) {
             const cluster = clusters[i];
-            // console.log('cluster nodes ', cluster);
+           
             cluster.visible = cluster.nodes >= min;
         }
         if (!silent) $(document).trigger("cluster-visibility");//$window.trigger("cluster-visibility");
@@ -4037,7 +4097,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * Clicking on the histogram will update the link threshold
      * @param [histogram] - optional parameter
      */
-    updateThresholdHistogram(histogram?: any) {
+    async updateThresholdHistogram(histogram?: any) {
 
         let width = 260,
         height = 48,
@@ -4055,40 +4115,40 @@ export class CommonService extends AppComponentBase implements OnInit {
         .attr("height", height);
 
         // add all link distances to data, find max and min distances
-        // let lsv = this.session.style.widgets["link-sort-variable"],
-        //     n = this.session.data.links.length,
-        //     max = Number.MIN_SAFE_INTEGER,
-        //     min = Number.MAX_SAFE_INTEGER,
-        //     data = Array(n),
-        //     dist = null;
-        // for (let i = 0; i < n; i++) {
-        //     dist = this.session.data.links[i][lsv];
-        //     data[i] = dist;
-        //     if (dist < min) min = dist;
-        //     if (dist > max) max = dist;
-        // }
+        let lsv = this.session.style.widgets["link-sort-variable"],
+            n = this.session.data.links.length,
+            max = Number.MIN_SAFE_INTEGER,
+            min = Number.MAX_SAFE_INTEGER,
+            data = Array(n),
+            dist = null;
+        for (let i = 0; i < n; i++) {
+            dist = this.session.data.links[i][lsv];
+            data[i] = dist;
+            if (dist < min) min = dist;
+            if (dist > max) max = dist;
+        }
 
         // Add all link distances to data, find max and min distances
-        const links = this.session.data.links;
-        const lsv = this.session.style.widgets["link-sort-variable"];
-        const n = links.length;
-        let max = -Infinity;
-        let min = Infinity;
+        // const links = this.session.data.links;
+        // const lsv = this.session.style.widgets["link-sort-variable"];
+        // const n = links.length;
+        // let max = -Infinity;
+        // let min = Infinity;
         // const data: number[] = new Array(n);
         // let dist: number;
 
         // First pass: Compute min and max distances without storing them in a separate array
-        for (let i = 0; i < n; i++) {
-            const dist = typeof links[i][lsv] === 'string' ? parseFloat(links[i][lsv]) : links[i][lsv];
+        // for (let i = 0; i < n; i++) {
+        //     const dist = typeof links[i][lsv] === 'string' ? parseFloat(links[i][lsv]) : links[i][lsv];
 
-            // Update min and max
-            if (dist < min) {
-                min = dist;
-            }
-            if (dist > max) {
-                max = dist;
-            }
-        }
+        //     // Update min and max
+        //     if (dist < min) {
+        //         min = dist;
+        //     }
+        //     if (dist > max) {
+        //         max = dist;
+        //     }
+        // }
 
         
         let range = max - min;
@@ -4102,7 +4162,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const bins = d3
             .histogram()
             .domain((x as any).domain())
-            .thresholds(x.ticks(ticks))(links);
+            .thresholds(x.ticks(ticks))(data);
 
         const y = d3
             .scaleLinear()
@@ -4157,6 +4217,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                     .on("mouseleave", null);
             });
         });
+
+        data = [];
+
     };
 
 }
