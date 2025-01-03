@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
@@ -307,10 +307,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         if (timelineTick) {
+            // otherwise data: label gets overridden to be undefined
+            node.label = this.getNodeLabel(node);
             return {
                 data: {
                     id: node.id,
-                    label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
                     nodeSize: this.getNodeSize(node), // Existing node size
                     nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
@@ -2162,13 +2163,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getNodeLabel(node: any) {
 
         // If no label variable then should be none
-        return (this.widgets['node-label-variable'] == 'None') ? '' : (node[this.widgets['node-label-variable']] || '');
+        return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
     }
 
     /**
      * Gets the label for a link based on link label variable
-     * @param node the link we retrieve to get the value of the variable
+     * @param link the link we retrieve to get the value of the variable
      */
     getLinkLabel(link: any) {
 
@@ -3431,6 +3432,8 @@ scaleLinkWidth() {
     updateVisualization() {
         console.log('updateVisualization');
         this._rerender();
+        
+        if (this.SelectedNodeLabelVariable != 'None') { this.updateNodeLabels(); }
     }
 
     /**
