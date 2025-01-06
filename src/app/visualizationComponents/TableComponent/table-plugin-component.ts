@@ -118,11 +118,11 @@ export class TableComponent extends BaseComponentDirective implements OnInit, On
 
         this.dataSetViewSelected = "Node";
 
-        this.visuals.tableComp.IsDataAvailable = (this.visuals.tableComp.commonService.session.data.nodes.length == 0 ? false : true);
+        this.IsDataAvailable = (this.commonService.session.data.nodes.length == 0 ? false : true);
 
-        if (this.visuals.tableComp.IsDataAvailable == true) {
+        if (this.IsDataAvailable == true) {
             if (!this.SelectedTableData || this.SelectedTableData.tableColumns.length == 0) {
-                this.visuals.tableComp.createTable(this.visuals.microbeTrace.dataSetViewSelected);
+                this.createTable(this.dataSetViewSelected);
             }
         }
 
