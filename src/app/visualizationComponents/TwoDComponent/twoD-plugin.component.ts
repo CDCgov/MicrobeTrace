@@ -1,4 +1,4 @@
-import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
@@ -1044,6 +1044,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else {
                 $('#polygons-label-hide').click();
             }
+            
 
             // Ensure the label orientation is updated when polygons are turned on
             this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
@@ -1081,43 +1082,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Trigger layout after grouping
         // this.applyLayout();
     }
-
-    // private applyLayout(): void {
-    //     const cy = this.cy;
-    //     if (!cy) return;
-    
-    //     cy.layout({
-    //         name: 'cose-bilkent',
-    //         // @ts-ignore
-    //         padding: 30,
-    //         // @ts-ignore
-    //         animate: true,
-    //         // @ts-ignore
-    //         animationDuration: 1000,
-    //         // @ts-ignore
-    //         fit: true,
-    //         // @ts-ignore
-    //         nodeRepulsion: function (node: any) {
-    //             return 4500;
-    //         },
-    //         // @ts-ignore
-    //         idealEdgeLength: function (edge: any) {
-    //             return 100;
-    //         },
-    //         // @ts-ignore
-    //         edgeElasticity: function (edge: any) {
-    //             return 0.45;
-    //         },
-    //         // @ts-ignore
-    //         nestingFactor: 0.1,
-    //         // @ts-ignore
-    //         gravity: 0.25,
-    //         // @ts-ignore
-    //         componentSpacing: 100,
-    //         // @ts-ignore
-    //         nodeDimensionsIncludeLabels: true
-    //     }).run();
-    // }
 
     /**
      * Adds parent nodes for each group and assigns child nodes to these parents.
@@ -2091,14 +2055,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
-    getNodeColor(node: any) {
-
-        let variable = this.widgets['node-color-variable'];
-        let color = this.widgets['node-color'];
-
-        return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
-
-    }
+    getNodeColor(node: any): string {
+        // If this node is a parent (polygon group), keep using polygonColorMap
+        if (node.isParent) {
+          return this.commonService.temp.style.polygonColorMap(node.label);
+        }
+      
+        // Otherwise, use nodeColorMap or a single color from the widget
+        const variable = this.widgets['node-color-variable'];
+        if (variable === 'None') {
+          return this.widgets['node-color'];
+        }
+        return this.commonService.temp.style.nodeColorMap(node[variable]);
+      }
 
     getLinkWidth(link: any) {
         let scalar = this.widgets['link-width'];
