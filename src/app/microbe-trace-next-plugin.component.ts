@@ -829,12 +829,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     /**
      * Updates GlobalSetingModel variable and cluster-minimum-size widget. Removes and adds clusters when needed
-     * 
-     * XXXXX bug: when minimum cluster size is set to 9 in test dataset, the smallest cluster disappears as expected. When set to 8 it doesn't reappear. Have to 
-     * value to 1 to get the small cluster to appear. Then even though the small clusters has links, the nodes within it are treated as different cluster (node color by cluster)
-     * and network statistics table; however link color by cluster treats them as one cluster. When you set cluster size to 2, the problem resolves. XXXXX
      */
     onMinimumClusterSizeChanged() {
+        this.commonService.twoD_saveNodePos.emit();
 
         this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
 
@@ -851,7 +848,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // this.commonService.updateStatistics();
 
         this.commonService.setLinkVisibility(true);
-        this.commonService.tagClusters().then(() => {
+        // this.commonService.tagClusters().then(() => { // removed because it was leading to clusters being split when minimum cluster size was increased
             this.commonService.setClusterVisibility(true);
             this.commonService.setNodeVisibility(true);
             this.commonService.setLinkVisibility(true);
@@ -862,7 +859,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           this.commonService.setNetworkUpdated(true);
         //   this.updatedVisualization();
 
-        });
+        //});
 
     }
 

@@ -307,10 +307,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         if (timelineTick) {
+            // otherwise data: label gets overridden to be undefined
+            node.label = this.getNodeLabel(node);
             return {
                 data: {
                     id: node.id,
-                    label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
                     nodeSize: this.getNodeSize(node), // Existing node size
                     nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
@@ -1043,6 +1044,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else {
                 $('#polygons-label-hide').click();
             }
+            
 
             // Ensure the label orientation is updated when polygons are turned on
             this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
@@ -1080,43 +1082,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Trigger layout after grouping
         // this.applyLayout();
     }
-
-    // private applyLayout(): void {
-    //     const cy = this.cy;
-    //     if (!cy) return;
-    
-    //     cy.layout({
-    //         name: 'cose-bilkent',
-    //         // @ts-ignore
-    //         padding: 30,
-    //         // @ts-ignore
-    //         animate: true,
-    //         // @ts-ignore
-    //         animationDuration: 1000,
-    //         // @ts-ignore
-    //         fit: true,
-    //         // @ts-ignore
-    //         nodeRepulsion: function (node: any) {
-    //             return 4500;
-    //         },
-    //         // @ts-ignore
-    //         idealEdgeLength: function (edge: any) {
-    //             return 100;
-    //         },
-    //         // @ts-ignore
-    //         edgeElasticity: function (edge: any) {
-    //             return 0.45;
-    //         },
-    //         // @ts-ignore
-    //         nestingFactor: 0.1,
-    //         // @ts-ignore
-    //         gravity: 0.25,
-    //         // @ts-ignore
-    //         componentSpacing: 100,
-    //         // @ts-ignore
-    //         nodeDimensionsIncludeLabels: true
-    //     }).run();
-    // }
 
     /**
      * Adds parent nodes for each group and assigns child nodes to these parents.
@@ -2090,14 +2055,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
-    getNodeColor(node: any) {
-
-        let variable = this.widgets['node-color-variable'];
-        let color = this.widgets['node-color'];
-
-        return (variable == 'None') ? color : this.commonService.temp.style.nodeColorMap(node[variable]);
-
-    }
+    getNodeColor(node: any): string {
+        // If this node is a parent (polygon group), keep using polygonColorMap
+        if (node.isParent) {
+          return this.commonService.temp.style.polygonColorMap(node.label);
+        }
+      
+        // Otherwise, use nodeColorMap or a single color from the widget
+        const variable = this.widgets['node-color-variable'];
+        if (variable === 'None') {
+          return this.widgets['node-color'];
+        }
+        return this.commonService.temp.style.nodeColorMap(node[variable]);
+      }
 
     getLinkWidth(link: any) {
         let scalar = this.widgets['link-width'];
@@ -2162,13 +2132,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getNodeLabel(node: any) {
 
         // If no label variable then should be none
-        return (this.widgets['node-label-variable'] == 'None') ? '' : (node[this.widgets['node-label-variable']] || '');
+        return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
     }
 
     /**
      * Gets the label for a link based on link label variable
-     * @param node the link we retrieve to get the value of the variable
+     * @param link the link we retrieve to get the value of the variable
      */
     getLinkLabel(link: any) {
 
@@ -3431,6 +3401,8 @@ scaleLinkWidth() {
     updateVisualization() {
         console.log('updateVisualization');
         this._rerender();
+        
+        if (this.SelectedNodeLabelVariable != 'None') { this.updateNodeLabels(); }
     }
 
     /**
