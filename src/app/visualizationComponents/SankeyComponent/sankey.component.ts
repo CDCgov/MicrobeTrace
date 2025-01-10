@@ -60,7 +60,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
   SelectedNetworkExportFileTypeListVariable = 'png';
   SelectedNetworkExportScaleVariable: number = 1;
   SelectedNetworkExportQualityVariable: number = 0.92;
-  CalculatedResolutionWidth: number = 1900;
+  CalculatedResolutionWidth: number = 1800;
   CalculatedResolutionHeight: number = 800;
   CalculatedResolution: string = ((this.CalculatedResolutionWidth * this.SelectedNetworkExportScaleVariable) + ' x ' + (
     this.CalculatedResolutionHeight * this.SelectedNetworkExportScaleVariable) + 'px');
@@ -289,6 +289,11 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
   }
   openCenter(): void {}
 
+  remove(value): void {
+    const index = this.SankeyFieldNames.indexOf(value);
+    this.SankeyFieldNames.splice(index, 1);
+    this.updateGraph();
+  }
 
   saveImage(event): void {
     const fileName = this.SelectedSankeyImageFilename;
@@ -308,7 +313,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     } else if (exportImageType === 'svg') {
         // The tooltips were being displayed as black bars, so I add a rule to hide them.
         // Have to parse the string into a document, get the right element, add the rule, and reserialize it
-        let svgContent = this.visuals.gantt.commonService.unparseSVG(content);
+        let svgContent = this.visuals.sankey.commonService.unparseSVG(content);
         const parser = new DOMParser();
         const deserialized = parser.parseFromString(svgContent, 'text/xml')
         console.log(deserialized);
