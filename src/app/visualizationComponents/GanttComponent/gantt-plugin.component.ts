@@ -30,36 +30,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     width: '1000px'
   };
 
-  ganttChartData: object[] = [
-    {
-      name: 'Market Team',
-      color: '#EAC435',
-      timelines: {
-        'Market Research': [
-          {from: new Date('June 9, 2019'), to: new Date('July 20, 2019')},
-          {from: new Date('October 9, 2019'), to: new Date('November 20, 2019')}
-        ],
-        'User Documentation': [
-          {from: new Date('August 10, 2019'), to: new Date('September 15, 2019')}
-        ]
-      }
-    },
-    {
-      name: 'Development Team',
-      color: '#345995',
-      timelines: {
-        'Software Development': [
-          {from: new Date('July 9, 2019'), to: new Date('October 20, 2019')}
-        ],
-        'Testing': [
-          {from: new Date('October 25, 2019'), to: new Date('November 15, 2019')}
-        ],
-        'User Documentation': [
-          {from: new Date('August 1, 2019'), to: new Date('August 15, 2019')}
-        ]
-      }
-    }
-  ];
+  ganttChartData: object[];
 
   private customShapes: CustomShapes = new CustomShapes();
 
