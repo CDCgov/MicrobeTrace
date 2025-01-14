@@ -104,8 +104,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeShapeVariable: string = "symbolCircle";
     SelectedNodeRadiusVariable: string = "None";
     SelectedNodeRadiusSizeVariable: string = "None";
-    SelectedNodeRadiusSizeMaxVariable: string = "None";
-    SelectedNodeRadiusSizeMinVariable: string = "None";
+
     TableTypes: any = [
         { label: 'Show', value: 'Show' },
         { label: 'Hide', value: 'Hide' }
@@ -309,13 +308,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (timelineTick) {
             // otherwise data: label gets overridden to be undefined
             node.label = this.getNodeLabel(node);
+            node.nodeSize = Number(this.getNodeSize(node));
             return {
                 data: {
                     id: node.id,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                    nodeSize: this.getNodeSize(node), // Existing node size
                     nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
-                    borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                     selectedBorderColor: this.widgets['selected-color'],
                     fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
                     shape: this.getNodeShape(node),
@@ -1151,7 +1149,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         id: parentId, 
                         label: group, 
                         isParent: true, 
-                        nodeColor: this.commonService.temp.style.polygonColorMap(group) || '#000' 
+                        nodeColor: this.commonService.temp.style.polygonColorMap(group) || '#000',
+                        borderWidth: 1,
+                        shape: 'rectangle', 
                     },
                     classes: 'parent' // Assigning the 'parent' class
                 });
@@ -1870,7 +1870,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         id: parentId,
                         label: groupName,
                         isParent: true,
-                        nodeColor: this.commonService.temp.style.polygonColorMap(groupName) || '#000' // Default to black if not found
+                        nodeColor: this.commonService.temp.style.polygonColorMap(groupName) || '#000', // Default to black if not found
+                        borderWidth: 0,
+                        shape: 'rectangle',
                     },
                     classes: 'parent' // Assigning the 'parent' class
                 });
@@ -1878,7 +1880,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 // Assign child nodes to the new parent
                 nodesInGroup.forEach(childNode => {
                     childNode.move({ parent: parentId });
-                    console.log(`Moved child node ${childNode.id()} to parent ${parentId}`);
                 });
             });
     
@@ -1886,7 +1887,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             cy.nodes().forEach(node => {
                 if (!node.parent().length && node.data(foci) !== 'None') {
                     node.move({ parent: null });
-                    console.log(`Ungrouped node ${node.id()}`);
                 }
             });
     
@@ -2504,6 +2504,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $('#node-min-radius-row').slideUp();
             $('#node-radius-row').slideDown();
         } else {
+            this.updateMinMaxNode()
             $('#node-max-radius-row').css('display', 'flex');
             $('#node-min-radius-row').css('display', 'flex');
             $('#node-radius-row').slideUp();
@@ -2631,6 +2632,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         layout.run();
 
+        if (this.widgets['polygons-show']) {
+            this.polygonsToggle(true)
+            this.centerPolygons(this.widgets['polygons-foci']);
+        }
 
     } else{
         this.data = this.commonService.convertToGraphDataArray(networkData);

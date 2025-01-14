@@ -1023,7 +1023,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
           const workbook = XLSX.read(file.contents, { type: 'array' });
-          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false, dateNF: 'yyyy-mm-dd'});
           data.forEach(node => {
             let safeNode = {
               _id: this.commonService.filterXSS('' + node[file.field1]),

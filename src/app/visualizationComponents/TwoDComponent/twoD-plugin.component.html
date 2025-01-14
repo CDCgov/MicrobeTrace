@@ -1,4 +1,4 @@
-﻿
+
 
 <span id="tooltip" style="background-color: white;"></span>
 
@@ -164,13 +164,13 @@
                             <div id="node-max-radius-row" class="form-group row" title="Should node max radius to this variable?">
                                 <div class="col-4"><label for="node-radius-max">Max Size</label></div>
                                 <div class="col-8">
-                                    <input type="range" class="custom-range" id="node-radius-max" min="20" value="25" step="1" max="60" [(ngModel)]="SelectedNodeRadiusSizeMaxVariable" (ngModelChange)="onNodeRadiusMaxChange($event)">
+                                    <input type="range" class="custom-range" id="node-radius-max" min="20" value="25" step="1" max="100" [(ngModel)]="widgets['node-radius-max']" (ngModelChange)="onNodeRadiusMaxChange($event)">
                                 </div>
                               </div>
                               <div id="node-min-radius-row" class="form-group row" title="Should node min radius to this variable?">
                                 <div class="col-4"><label for="node-radius-min">Min Size</label></div>
                                 <div class="col-8">
-                                    <input type="range" class="custom-range" id="node-radius-min" min="5" value="10" step="1" max="55" [(ngModel)]="SelectedNodeRadiusSizeMinVariable" (ngModelChange)="onNodeRadiusMinChange($event)">
+                                    <input type="range" class="custom-range" id="node-radius-min" min="5" value="10" step="1" max="55" [(ngModel)]="widgets['node-radius-min']" (ngModelChange)="onNodeRadiusMinChange($event)">
                                 </div>
                             </div>
                             <div id="node-radius-row" class="form-group row" title="How big should the nodes be?">
