@@ -3,6 +3,8 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { NgModule, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
+import { RouterModule, ExtraOptions } from '@angular/router';
+
 import { AppComponent } from './app.component';
 import * as $ from 'jquery';
 import { HttpClientModule, HttpClientJsonpModule } from '@angular/common/http';
@@ -81,6 +83,9 @@ import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
 
+const routerOptions: ExtraOptions = {
+  // Your router configurations
+};
 // PlotlyModule.plotlyjs = PlotlyJS;
 
 @Component({
