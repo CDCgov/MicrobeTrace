@@ -357,11 +357,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         };
     }
 
-    getCytoscapeStyles(): cytoscape.Stylesheet[] {
+    getCytoscapeStyles(): cytoscape.StylesheetCSS[] {
         return [
             {
                 selector: 'node',
-                style: {
+                css: {
                     'background-color': 'data(nodeColor)', // Use dynamic node color
                     'label': 'data(label)',
                     // 'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Existing dynamic sizing
@@ -379,47 +379,47 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               // Apply styles only to nodes with nodeSize defined
             {
                 selector: 'node[nodeSize]',
-                style: {
+                css: {
                     'width': 'mapData(nodeSize, 0, 100, 10, 50)',
                     'height': 'mapData(nodeSize, 0, 100, 10, 50)'
                 }
             },
                 {
                     selector: '.hidden',
-                    style: {
+                    css: {
                         display: 'none'
                     }
                 },
             // Apply styles only to nodes with nodeColor defined
             {
                 selector: 'node[nodeColor]',
-                style: {
+                css: {
                     'background-color': 'data(nodeColor)'
                 }
             },
             // Apply styles only to nodes with fontSize defined
             {
                 selector: 'node[fontSize]',
-                style: {
+                css: {
                     'font-size': 'data(fontSize)'
                 }
             },
             {
                 selector: 'node[shape]',
-                style: {
+                css: {
                     // @ts-ignore
                     'shape': 'data(shape)'
                 }
             },
             {
                 selector: 'node.parent',
-                style: {
+                css: {
                     'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
                 }
             },
             {
                 selector: 'edge',
-                style: {
+                css: {
                     'width': 'data(width)', // Existing dynamic edge width
                     'line-color': 'data(lineColor)', // Maps 'lineColor' data attribute to 'line-color' style
                     'line-opacity': function(ele) {
@@ -434,7 +434,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             },
             {
                 selector: 'node:selected',
-                style: {
+                css: {
                     'background-color': 'data(nodeColor)',
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
@@ -442,7 +442,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             },
             {
                 selector: 'edge:selected',
-                style: {
+                css: {
                     // 'line-color': '#f00',
                     // 'target-arrow-color': '#f00',
                     'width': 3
@@ -450,7 +450,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             },
             {
                 selector: 'edge.highlighted',
-                style: {
+                css: {
                     'line-color': 'data(lineSelectedColor)', // Highlight color
                     'width': '3px',
                     'opacity': 1,

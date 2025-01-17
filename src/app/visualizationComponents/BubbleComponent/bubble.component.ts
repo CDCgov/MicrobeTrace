@@ -232,11 +232,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cy.nodes().lock()
   }
 
-  getCytoscapeStyle(): cytoscape.Stylesheet[] {
+  getCytoscapeStyle(): cytoscape.StylesheetCSS[] {
     return [
       {
         selector: 'node',
-        style: {
+        css: {
             //'background-color': 'data(nodeColor)', // Use dynamic node color
             //'label': 'data(label)',
             'width': 'data(nodeSize)',
@@ -248,13 +248,13 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       // Apply styles only to nodes with nodeColor defined
       {
         selector: 'node[nodeColor]',
-        style: {
+        css: {
             'background-color': 'data(nodeColor)'
         }
       },
       {
         selector: '.X_axis',
-        style: {
+        css: {
           'label': 'data(label)',
           'shape': 'rectangle',
           'border-width': 0,
@@ -265,7 +265,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       },
       {
         selector: '.Y_axis',
-        style: {
+        css: {
           'label': 'data(label)',
           'shape': 'rectangle',
           //'border-color': 'none',
@@ -278,19 +278,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       },
       {
         selector: '#y_axis_Label',
-        style: {
+        css: {
           'text-rotation': 4.71239
         }
       },
       {
         selector: '.axisLabel',
-        style: {
+        css: {
           'font-size': 24
         }
       },
       {
         selector: 'node:selected',
-        style: {
+        css: {
             'border-color': '#ff8300',
         }
       },

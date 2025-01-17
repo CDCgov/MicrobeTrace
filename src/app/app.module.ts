@@ -5,6 +5,9 @@ import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
 
+import  Lara  from '@primeng/themes/lara';
+import { providePrimeNG } from 'primeng/config';
+
 import { AppComponent } from './app.component';
 import * as $ from 'jquery';
 import { provideHttpClient, withInterceptorsFromDi, withJsonpSupport } from '@angular/common/http';
@@ -163,6 +166,11 @@ export class TestedComponent {
         OrderListModule,
         GoogleTagManagerModule.forRoot({ id: 'G-0MWHB1NG2M', }),
         CommonModule], providers: [
+          providePrimeNG({
+            theme: {
+                preset: Lara,
+            },
+        }),
         AppSessionService,
         AppUiCustomizationService,
         AppUrlService,

@@ -41,6 +41,11 @@
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
             "tsConfig": "src/tsconfig.app.json",
+            "stylePreprocessorOptions": {
+              "includePaths": [
+                "node_modules"
+              ]
+            },
             "assets": [
               "src/favicon.ico",
               "src/assets",
@@ -59,12 +64,6 @@
               },
               {
                 "input": "src/styles.scss"
-              },
-              {
-                "input": "node_modules/primeng/resources/primeng.min.css"
-              },
-              {
-                "input": "node_modules/primeng/resources/themes/saga-blue/theme.css"
               },
               {
                 "input": "node_modules/primeicons/primeicons.css"
