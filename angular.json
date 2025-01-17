@@ -147,14 +147,14 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "MicrobeTrace:build"
+            "buildTarget": "MicrobeTrace:build"
           },
           "configurations": {
             "development": {
-              "browserTarget": "MicrobeTrace:build:development"
+              "buildTarget": "MicrobeTrace:build:development"
             },
             "production": {
-              "browserTarget": "MicrobeTrace:build:production"
+              "buildTarget": "MicrobeTrace:build:production"
             }
           },
           "defaultConfiguration": "development"
@@ -162,7 +162,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "MicrobeTrace:build"
+            "buildTarget": "MicrobeTrace:build"
           }
         },
         "test": {
