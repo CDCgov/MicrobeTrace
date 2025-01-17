@@ -74,7 +74,7 @@
     "sharp": "^0.28.3",
     "tabulator-tables": "^5.4.4",
     "typescript-eslint": "^8.2.0",
-    "zone.js": "^0.13.0"
+    "zone.js": "^0.14.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^16.2.16",
@@ -128,7 +128,7 @@
     "tn93": "^0.3.5",
     "ts-node": "~7.0.0",
     "tslib": "^2.5.0",
-    "typescript": "~5.1.6",
+    "typescript": "~5.2",
     "webpack": "^5.82.0",
     "webpack-bundle-analyzer": "^4.10.2",
     "xlsx": "^0.18.5"
