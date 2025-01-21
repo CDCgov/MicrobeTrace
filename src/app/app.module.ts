@@ -3,9 +3,14 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { NgModule, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
+import { RouterModule, ExtraOptions } from '@angular/router';
+
+import  Lara  from '@primeng/themes/lara';
+import { providePrimeNG } from 'primeng/config';
+
 import { AppComponent } from './app.component';
 import * as $ from 'jquery';
-import { HttpClientModule, HttpClientJsonpModule } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi, withJsonpSupport } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 // import { ServiceProxyModule } from '@shared/service-proxies/service-proxy.module';
 import { UtilsModule } from '@shared/utils/utils.module';
@@ -81,6 +86,9 @@ import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
 
+const routerOptions: ExtraOptions = {
+  // Your router configurations
+};
 // PlotlyModule.plotlyjs = PlotlyJS;
 
 @Component({
@@ -93,84 +101,81 @@ export class TestedComponent {
 }
 
 
-@NgModule({
-  declarations: [
-    AppComponent,
-    MicrobeTraceNextHomeComponent,
-    FilesComponent,
-    TwoDComponent,
-    TableComponent,
-    GoldenLayoutHostComponent,
-    MapComponent,
-    TestedComponent,
-    DndDirective,
-    PhylogeneticComponent,
-    TimelineComponent,
-    AlignmentViewComponent,
-    CrosstabComponent,
-    AggregateComponent,
-    GanttChartComponent,
-    GanttComponent,
-    HeatmapComponent,
-    BubbleComponent,
-    WaterfallComponent,
-  ],
-  imports: [
-    BrowserModule,
-    BrowserAnimationsModule,
-    FormsModule,
-    HttpClientModule,
-    MatButtonModule,
-    MatInputModule,
-    MatMenuModule,
-    MatSliderModule,
-    MatToolbarModule,
-    MatSelectModule,
-    MatProgressSpinnerModule,
-    MatIconModule,
-    HttpClientJsonpModule,
-    ModalModule.forRoot(),
-    TooltipModule.forRoot(),
-    TabsModule.forRoot(),
-    BsDropdownModule.forRoot(),
-    PopoverModule.forRoot(),
-    FileUploadModule,
-    AppRoutingModule,
-    UtilsModule,
-    TableModule,
-    ListboxModule,   
-    RadioButtonModule,     
-    CalendarModule,
-    PaginatorModule,
-    ProgressBarModule,
-    CoreModule,
-    ConfirmDialogModule,    
-    DropdownModule,
-    TabViewModule,
-    SelectButtonModule,
-    TreeModule,
-    DialogModule,
-    AccordionModule,
-    SidebarModule,
-    MultiSelectModule,
-    SliderModule,
-    LeafletModule,
-    LeafletMarkerClusterModule,
-    OrderListModule,
-    GoogleTagManagerModule.forRoot({id: 'G-0MWHB1NG2M',}),
-    CommonModule,
-    // PlotlyModule,
-  ],
-  exports: [
-    SelectButtonModule
-  ],
-  providers: [
-    AppSessionService,
-    AppUiCustomizationService,
-    AppUrlService,
-    GanttChartService,
-    GoldenLayoutComponentService,
-  ],
-  bootstrap: [AppComponent]
-})
+@NgModule({ declarations: [
+        AppComponent,
+        MicrobeTraceNextHomeComponent,
+        FilesComponent,
+        TwoDComponent,
+        TableComponent,
+        GoldenLayoutHostComponent,
+        MapComponent,
+        TestedComponent,
+        DndDirective,
+        PhylogeneticComponent,
+        TimelineComponent,
+        AlignmentViewComponent,
+        CrosstabComponent,
+        AggregateComponent,
+        GanttChartComponent,
+        GanttComponent,
+        HeatmapComponent,
+        BubbleComponent,
+        WaterfallComponent,
+    ],
+    exports: [
+        SelectButtonModule
+    ],
+    bootstrap: [AppComponent], imports: [BrowserModule,
+        BrowserAnimationsModule,
+        FormsModule,
+        MatButtonModule,
+        MatInputModule,
+        MatMenuModule,
+        MatSliderModule,
+        MatToolbarModule,
+        MatSelectModule,
+        MatProgressSpinnerModule,
+        MatIconModule,
+        ModalModule.forRoot(),
+        TooltipModule.forRoot(),
+        TabsModule.forRoot(),
+        BsDropdownModule.forRoot(),
+        PopoverModule.forRoot(),
+        FileUploadModule,
+        AppRoutingModule,
+        UtilsModule,
+        TableModule,
+        ListboxModule,
+        RadioButtonModule,
+        CalendarModule,
+        PaginatorModule,
+        ProgressBarModule,
+        CoreModule,
+        ConfirmDialogModule,
+        DropdownModule,
+        TabViewModule,
+        SelectButtonModule,
+        TreeModule,
+        DialogModule,
+        AccordionModule,
+        SidebarModule,
+        MultiSelectModule,
+        SliderModule,
+        LeafletModule,
+        LeafletMarkerClusterModule,
+        OrderListModule,
+        GoogleTagManagerModule.forRoot({ id: 'G-0MWHB1NG2M', }),
+        CommonModule], providers: [
+          providePrimeNG({
+            theme: {
+                preset: Lara,
+            },
+        }),
+        AppSessionService,
+        AppUiCustomizationService,
+        AppUrlService,
+        GanttChartService,
+        GoldenLayoutComponentService,
+        provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
+    ] })
 export class AppModule { }
