@@ -234,6 +234,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cdref.detectChanges();
             setTimeout(() => {
                 this.fit()
+                this.commonService.onStatisticsChanged("Show");
             }, 50)
         })
 
