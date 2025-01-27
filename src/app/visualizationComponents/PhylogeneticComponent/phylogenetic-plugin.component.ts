@@ -85,7 +85,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   // Leaves Tab
   SelectedLeafLabelShowVariable = true;
-  SelectedLeafLabelVariable = 'None';
+  SelectedLeafLabelVariable = '_id';
   LeafLabelFieldList: object[] = [];
   SelectedLeafLabelSizeVariable = 12;
   SelectedLeafTooltipShowVariable = true;
@@ -252,6 +252,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.updateMinMaxNode();
     }
     this.tree.eachLeafNode(this.styleLeafNode);
+    this.onLeafLabelVariableChange(this.SelectedLeafLabelVariable);
     this.tree.setLeafLabels(this.SelectedLeafLabelShowVariable);
     this.tree.eachLeafLabel(this.styleLeafLabel);
     const branchEls = document.querySelectorAll('g.tidytree-link > path');
@@ -512,18 +513,21 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onTreeLayoutChange(event) {
     this.SelectedTreeLayoutVariable = event;
     this.tree.setLayout(event);
+    this.openCenter();
     this.styleTree();
   }
 
   onTreeModeChange(event) {
     this.SelectedTreeModeVariable = event;
     this.tree.setMode(event);
+    this.openCenter();
     this.styleTree();
   }
 
   onTreeTypeChange(event) {
     this.SelectedTreeTypeVariable = event;
     this.tree.setType(event);
+    this.openCenter();
     this.styleTree();
   }
 
