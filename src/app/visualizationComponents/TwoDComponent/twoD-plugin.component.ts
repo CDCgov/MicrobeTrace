@@ -233,6 +233,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cdref.detectChanges();
             setTimeout(() => {
                 this.fit()
+                this.commonService.onStatisticsChanged("Show");
             }, 50)
         })
 
@@ -413,6 +414,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node.parent',
                 css: {
                     'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
+                    // We also need to ensure that it uses data(...) for color & alpha:
+                    'background-color': 'data(nodeColor)',    
+                    // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
+                    // @ts-ignore
+                    'background-opacity': 'data(bgOpacity)',
+                    // 'z-compound-depth': 'back',  // ensures parent is behind children
                 }
             },
             {
@@ -420,9 +427,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 css: {
                     'width': 'data(width)', // Existing dynamic edge width
                     'line-color': 'data(lineColor)', // Maps 'lineColor' data attribute to 'line-color' style
-                    'line-opacity': function(ele) {
-                            return ele.data('lineOpacity'); // Retrieves 'lineOpacity' data attribute as a number
-                    },
+                    // @ts-ignore
+                    'line-opacity': 'data(lineOpacity)', // Explicitly control link transparency
+
                     'label' : 'data(label)',                   
                     // 'target-arrow-color': '#ccc',
                     // 'target-arrow-shape': 'triangle',
@@ -856,8 +863,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updatePolygonColors() {
 
-        console.log('updatePolygonColors: ', this.widgets['polygons-foci']);
-
         let polygonSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
             this.widgets["polygon-color-table-counts-sort"] = "";
             if (this.widgets["polygon-color-table-name-sort"] === "ASC")
@@ -891,9 +896,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let aggregates = this.commonService.createPolygonColorMap();
         let values = Object.keys(aggregates);
 
-        console.log('values', values);
-        console.log('aggregates', aggregates);
-
         if (this.widgets["polygon-color-table-counts-sort"] == "ASC")
             values.sort(function (a, b) { return aggregates[a] - aggregates[b] });
         else if (this.widgets["polygon-color-table-counts-sort"] == "DESC")
@@ -909,7 +911,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let that = this;
 
         values.forEach((value, i) => {
-            console.log('value: ', value);
             that.commonService.session.style['polygonColors'].splice(i, 1, that.commonService.temp.style.polygonColorMap(value));
             that.commonService.session.style['polygonAlphas'].splice(i, 1, that.commonService.temp.style.polygonAlphaMap(value));
             let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '">')
@@ -1172,9 +1173,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // Determine the new color based on the groupColorMap
             const newColor = this.commonService.temp.style.polygonColorMap(groupName) || '#000'; // Default to black
+            const alphaVal = this.commonService.temp.style.polygonAlphaMap(groupName) ?? 1;  // fallback = 1
 
             // Update the nodeColor data attribute
             parentNode.data('nodeColor', newColor);
+            parentNode.data('bgOpacity', alphaVal);  // <--- The crucial piece!
 
             // Optionally, update the node's color style if not data-driven
             // parentNode.style('background-color', newColor);
@@ -1952,7 +1955,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'font-size': '12px', // Adjust as needed
                     'text-background-color': '#ffffff',
                     'text-background-opacity': 1,
-                    'text-background-padding': '2px'
+                    'text-background-padding': '2px',
+                    // We also need to ensure that it uses data(...) for color & alpha:
+                    'background-color': 'data(nodeColor)',    
+                    // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
+                    // @ts-ignore
+                    'background-opacity': 'data(bgOpacity)',
                 })
                 .update();
         } else {
@@ -3069,7 +3077,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return null;
         }
 
-        const vlinks = this.getVLinks().filter(link => this.isNumber(link[variable]));
+        const vlinks = this.commonService.getVisibleLinks(true).filter(link => {
+            console.log("link", link);
+            console.log("variable", variable);
+            console.log("value", link[variable]);
+            const value = link[variable];
+            return this.isNumber(value) || (!this.isNumber(value) && !isNaN(Number(value)));
+        });        
+        
         if (vlinks.length === 0) {
             console.warn('No valid link-width data available for scaling.');
             return null;
@@ -3668,10 +3683,10 @@ private _partialUpdate() {
     updateLinkColor() {
         if (!this.cy) return;
         this.cy.edges().forEach(link => {
-            const colorObject = this.getLinkColor(link.data());
-            link.data('lineColor', colorObject.color);
-            link.data('lineOpacity', colorObject.opacity);
-        });
+            const { color, opacity } = this.getLinkColor(link.data());
+            link.data('lineColor', color);
+            link.data('lineOpacity', opacity); // Ensure transparency is explicitly set
+          });
         // this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
 

@@ -930,6 +930,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.style.widgets["link-show-nn"] = false;
             this.commonService.updateNetwork();
             this.commonService.setNetworkUpdated(true);
+            this.commonService.onStatisticsChanged("Show");
             // this.updatedVisualization();
         }
         else {
@@ -948,6 +949,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         this.commonService.visuals.tableComp.openSelectDataSetScreen({value: 'Link'});
                     }
                 }
+
+                this.commonService.onStatisticsChanged("Show");
             });
                   
                     return;
