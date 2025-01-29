@@ -84,7 +84,7 @@
             </div>
 
         <p-dialog class="table-z-index" id="global-settings-link-color-table" 
-            [position]="GlobalSettingsLinkColorDialogSettings.linkLeft" 
+            position="right" 
             [(visible)]="GlobalSettingsLinkColorDialogSettings.isVisible"  
             [style]="{'z-index': '1'}"
             (onShow)="showLinkColorTable()"
@@ -115,7 +115,7 @@
 
 
         <p-dialog id="global-settings-node-color-table" 
-            [position]="GlobalSettingsNodeColorDialogSettings.nodeLeft" 
+            position="left" 
             [(visible)]="GlobalSettingsNodeColorDialogSettings.isVisible"  
             (onShow)="showNodeColorTable()"
             (onHide)="hideNodeColorTable()"      

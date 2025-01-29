@@ -1,4 +1,4 @@
-﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -315,7 +315,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-radius': 20,
             'node-radius-variable': 'None',
             "node-radius-min": 20,
-            "node-radius-max": 100,
+            "node-radius-max": 60,
             'node-symbol': 'ellipse',
             'node-symbol-table-counts': true,
             'node-symbol-table-frequencies': false,
@@ -998,7 +998,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           color: this.getColorByIndex(node.index), // Add or override the color property
           label: (this.session.style.widgets['node-label-variable'] === 'None') ? '' : node.label, // Ensure label is defined
             nodeSize: node.nodeSize ?? 20, // Default node size
-            borderWidth: node.borderWidth ?? 1 // Default border width
+            borderWidth: node.borderWidth ?? this.session.style.widgets['node-border-width'] ?? 1 // Default border width
         }));
       
         const links = microbeData.links.map((link) => ({
@@ -2293,7 +2293,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 const minTimeString = new Date(minTime).toString();
                 // for each node d, if d[field] == null or empty string ("", " ", "  " ...) set d[field] to minTimeString
                 this.session.data.nodes.forEach(d => {
-                    if (d[field] == null || (d[field] && String(d[field]).trim() == ""))  {
+                    if (d[field] == null || (d[field] && String(d[field]).trim() == "") || d[field] == 'null')  {
                         d[field] = minTimeString;
                     } 
                 });
