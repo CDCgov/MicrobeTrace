@@ -22,12 +22,36 @@
 
 <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
 
-<div class="cytoscape-container" style="position: relative;">
+<div #exportContainer class="cytoscape-container" style="position: relative;">
     <div #cy id="cy" style="width: 100%; height: 100%; position: relative;"></div>
     <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
     
     <!-- Static Watermark (Optional) -->
     <div id="watermark" class="watermark"></div>
+    <div id="network-statistics-wrapper">
+      <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
+      <table #networkStats id="network-statistics-table">
+          <tr>
+              <td class="text-right">
+                  <span id="numberOfNodes"></span>
+                  (<span id="numberOfSelectedNodes"></span>)
+              </td>
+              <td>Nodes (Selected)</td>
+          </tr>
+          <tr>
+              <td id="numberOfVisibleLinks" class="text-right"></td>
+              <td>Links</td>
+          </tr>
+          <tr>
+              <td id="numberOfDisjointComponents" class="text-right"></td>
+              <td>Clusters</td>
+          </tr>
+          <tr>
+              <td id="numberOfSingletonNodes" class="text-right"></td>
+              <td>Singletons</td>
+          </tr>
+      </table>
+  </div>
 </div>
 
 
@@ -39,33 +63,6 @@
         </div>
     </div>
 </div>
-
-
-<div id="network-statistics-wrapper">
-    <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
-    <table id="network-statistics-table">
-        <tr>
-            <td class="text-right">
-                <span id="numberOfNodes"></span>
-                (<span id="numberOfSelectedNodes"></span>)
-            </td>
-            <td>Nodes (Selected)</td>
-        </tr>
-        <tr>
-            <td id="numberOfVisibleLinks" class="text-right"></td>
-            <td>Links</td>
-        </tr>
-        <tr>
-            <td id="numberOfDisjointComponents" class="text-right"></td>
-            <td>Clusters</td>
-        </tr>
-        <tr>
-            <td id="numberOfSingletonNodes" class="text-right"></td>
-            <td>Singletons</td>
-        </tr>
-    </table>
-</div>
-
 
 
 <div class="view-controls">
@@ -398,7 +395,7 @@
                 (onShow)="onNodeSymbolTableChange('Show')"
                 >
         <div class="col-12" style="width:100%;max-height:50vh;" title="Node Shapes and Size Selection.">          
-             <table id="node-symbol-table" style="width:100%;height:100%;"></table>          
+             <table #nodeSymbolTable id="node-symbol-table" style="width:100%;height:100%;"></table>          
         </div>
     
 <!--         
@@ -433,7 +430,7 @@
                 (onShow)="onPolygonColorTableChange(true)"
                 >
         <div class="col-12" style="width:100%;max-height:50vh;" title="Group Color Selection.">          
-             <table id="polygon-color-table" style="width:100%;height:100%;"></table>          
+             <table #polygonColorTable id="polygon-color-table" style="width:100%;height:100%;"></table>          
         </div>
         <select id="polygon-color2" [hidden]="'true'" class="form-control form-control-sm">
 
@@ -544,15 +541,7 @@
         </div>
         <div>
           <!-- Toggle Advanced Export Options -->
-          <button
-            type="button"
-            class="btn btn-link"
-            (click)="toggleAdvancedExport()"
-          >
-            {{ ShowAdvancedExport ? 'Hide' : 'Show' }} Advanced Options
-          </button>
-
-          <div [hidden]="!ShowAdvancedExport">
+          <div [hidden]="SelectedNetworkExportFileTypeListVariable=='svg'">
             <p-accordion>
               <p-accordionTab style="color:#495057" header="Advanced">
                 <div id="network-export-advanced">
@@ -569,7 +558,7 @@
                         max="2"
                         step="0.1"
                         [(ngModel)]="SelectedNetworkExportScaleVariable"
-                        (ngModelChange)="updateCalculatedResolution($event)"
+                        (ngModelChange)="updateCalculatedResolution()"
                       />
                     </div>
                   </div>

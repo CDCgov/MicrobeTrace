@@ -14,6 +14,7 @@
                       <!-- <button mat-menu-item (click)="FileClick('Stash Session')">Stash</button> -->
                       <!-- <button mat-menu-item (click)="FileClick('Recall Session')">Recall</button> -->
                       <button mat-menu-item (click)="FileClick('Save Session')">Save</button>
+                      <button mat-menu-item (click)="OpenExportDashboard()">Export Dashboard</button>
                       <!-- <button mat-menu-item (click)="FileClick('Open Session')">Open</button> -->
                       <button mat-menu-item (click)="FileClick('Open URL')">Open URL</button>
                       <button mat-menu-item (click)="FileClick('Add Data')">Add Data</button>
@@ -108,7 +109,7 @@
                 </div>
             </ng-template>
             <div style="max-height: 50vh">
-                <table id="link-color-table" style="width:100%;height:100%;"></table>
+                <table #linkColorTable id="link-color-table" style="width:100%;height:100%;"></table>
             </div>
         </p-dialog>
 
@@ -138,7 +139,7 @@
                 </div>
             </ng-template>
             <div style="max-height: 50vh">
-                <table id="node-color-table" style="width:100%;height:100%;"></table>
+                <table #nodeColorTable id="node-color-table" style="width:100%;height:100%;"></table>
             </div>
         </p-dialog>
         </div>
@@ -411,6 +412,51 @@
                 </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
         </p-dialog><!-- /.modal -->
+
+        <p-dialog [(visible)]="showExportDashboardMenu"  header="Export Dashboard"  class="dialogSize"  (onHide)="showExportDashboardMenu=false"  appendTo="body">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+            <div class="modal-body" style="min-width: 400px; height: 100%;">
+                <div class="form-group row">
+                    <div class="col-9">
+                        <input type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="ExportDashboardFilename" />
+                    </div>
+                    <div class="col-3">
+                        <select class="form-control form-control-sm">
+                            <option selected>png</option>
+                        </select>
+                    </div>
+            </div>
+            <div>  <!-- Toggle Advanced Export Options -->
+                <p-accordion>
+                    <p-accordionTab style="color:#495057" header="Advanced">
+                        <div>
+                            <div class="form-group row">
+                                <div class="col-3">
+                                    <label for="network-export-scale">Scale</label>
+                                </div>
+                                <div class="col-9">
+                                    <input type="number" class="form-control form-control-sm" min="1" max="5" step="0.1" [(ngModel)]="ExportDashboardScale" (ngModelChange)="updateExportResolution()">
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-3">Resolution</div>
+                                <div id="network-export-dimensions" class="col-9 text-right">{{ ExportDashboardResolution.summary }}</div>
+                            </div>
+                        </div>
+                    </p-accordionTab>
+                </p-accordion>
+              </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-error" (click)="showExportDashboardMenu = false">Cancel</button>
+                <button type="button" id="network-export"  class="btn btn-primary" (click)="ExportDashboard()">Export</button>
+            </div>
+            </div>
+            <!-- /.modal-content -->
+        </div>
+        <!-- /.modal-dialog -->
+        </p-dialog>
 
         <p-dialog id="session-stash-modal" [(visible)]="displayStashDialog" header="Save Session">
             <div class="modal-dialog" role="document">

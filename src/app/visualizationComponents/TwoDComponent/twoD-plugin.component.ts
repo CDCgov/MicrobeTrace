@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
@@ -15,6 +15,7 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
 import cytoscape, { Core, Style } from 'cytoscape';
+import svg from 'cytoscape-svg';
 
 @Component({
     selector: 'TwoDComponent',
@@ -28,6 +29,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
+    @ViewChild('exportContainer') exportContainer: ElementRef;
+    @ViewChild('nodeSymbolTable') nodeSymbolTable!: ElementRef;
+    @ViewChild('polygonColorTable') polygonColorTable!: ElementRef;
+    @ViewChild('networkStats') networkStatisticsTable!: ElementRef;
 
     // Cytoscape core instance
     cy: Core;
@@ -166,7 +171,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         { label: 'png', value: 'png' },
         { label: 'jpeg', value: 'jpeg' },
         { label: 'webp', value: 'webp' },
-        // { label: 'svg', value: 'svg' }
+        { label: 'svg', value: 'svg' }
     ];
 
     SelectedNetworkExportFileTypeListVariable: string = "png";
@@ -746,11 +751,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates calculated resolution based on scale
      * @param event Event from scale input
      */
-    updateCalculatedResolution(event: any): void {
-        const scale = event;
-        const baseResolution = 1000; // Example base resolution, adjust as needed
-        const resolutionValue = baseResolution * scale;
-        this.CalculatedResolution = `${resolutionValue}x${resolutionValue}`;
+    updateCalculatedResolution(): void {
+        let height = Math.floor(this.cyContainer.nativeElement.offsetHeight * this.SelectedNetworkExportScaleVariable);
+        let width  = Math.floor(this.cyContainer.nativeElement.offsetWidth  * this.SelectedNetworkExportScaleVariable);
+
+        this.CalculatedResolution = `${width} x ${height}`;
     }
 
     /**
@@ -794,9 +799,44 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         // Set export options in the service
         this.commonService.setExportOptions(exportOptions);
-    
-        // Request export
-        this.commonService.requestExport();
+
+        if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
+            cytoscape.use(svg);
+            let options = { scale: 1, full: true, bg: '#ffffff'};
+            let content = (this.cy as any).svg(options);
+
+            // gets width and height which is needed to position the network statistics table
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(content, 'image/svg+xml');
+            const svg1 = doc.documentElement;          
+            let width = parseFloat(svg1.getAttribute('width'));
+            let height = parseFloat(svg1.getAttribute('height')); 
+
+            // Add the network statistics table to the svg
+            let statTable = this.commonService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
+            statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height-2})" fill="#f8f9fa">`);
+            content = content.replace('</svg>', statTable.svg + '</svg>');
+
+            let elementsToExport: HTMLTableElement[] = [];
+            if (this.ShowNodeSymbolTable) {
+                elementsToExport.push(this.nodeSymbolTable.nativeElement)
+            }
+            if (this.widgets["polygon-color-table-visible"]) {
+                elementsToExport.push(this.polygonColorTable.nativeElement);
+            }
+            this.commonService.requestSVGExport(elementsToExport, content, true, true); 
+
+        } else {
+            // Request export
+            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement];
+            if (this.ShowNodeSymbolTable) {
+                elementsToExport.push(this.nodeSymbolTable.nativeElement)
+            }
+            if (this.widgets["polygon-color-table-visible"]) {
+                elementsToExport.push(this.polygonColorTable.nativeElement);
+            }
+            this.commonService.requestExport(elementsToExport, true, true);
+        }
     
         // Optionally, close the export modal after initiating the export
         this.Show2DExportPane = false;
@@ -863,7 +903,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updatePolygonColors() {
 
-        let polygonSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
+        let polygonSort = $("<a class='sort-button' style='cursor: pointer;'>&#8645;</a>").on("click", e => {
             this.widgets["polygon-color-table-counts-sort"] = "";
             if (this.widgets["polygon-color-table-name-sort"] === "ASC")
                 this.widgets["polygon-color-table-name-sort"] = "DESC"
@@ -873,7 +913,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
         let polygonColorHeaderTitle = (this.commonService.session.style['overwrite'] && this.commonService.session.style['overwrite']['polygonColorHeaderVariable'] && this.commonService.session.style['overwrite']['polygonColorHeaderVariable'] == this.widgets['polygons-foci'] ? this.commonService.session.style['overwrite']['polygonColorHeaderTitle'] : "Polygon " + this.commonService.titleize(this.widgets['polygons-foci']));
         let polygonHeader = $("<th class='p-1' contenteditable>" + polygonColorHeaderTitle + "</th>").append(polygonSort);
-        let countSort = $("<a style='cursor: pointer;'>&#8645;</a>").on("click", e => {
+        let countSort = $("<a class='sort-button' style='cursor: pointer;'>&#8645;</a>").on("click", e => {
 
             this.widgets["polygon-color-table-name-sort"] = "";
             if (this.widgets["polygon-color-table-counts-sort"] === "ASC")
@@ -886,11 +926,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         console.log('polygonColorTable0: ', $("#polygon-color-table"));
         let polygonColorTable = $("#polygon-color-table")
             .empty()
-            .append($("<tr></tr>"))
-            .append(polygonHeader)
-            .append(countHeader)
-            .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
-            .append("<th>Color</th>");
+            .append(            
+                "<tr>" +
+                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Polygon " + this.commonService.titleize(this.widgets['polygons-foci']) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
+                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+                "<th>Color</th>" +
+                "</tr>");
+            //.append(polygonHeader)
+            // .append(countHeader)
+            // .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
+            // .append("<th>Color</th>");
         
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
         let aggregates = this.commonService.createPolygonColorMap();
@@ -914,14 +960,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             that.commonService.session.style['polygonColors'].splice(i, 1, that.commonService.temp.style.polygonColorMap(value));
             that.commonService.session.style['polygonAlphas'].splice(i, 1, that.commonService.temp.style.polygonAlphaMap(value));
             let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '">')
-                .on("change", function () {
+                .on("change", function (e) {
+                    // need to update the value in the dom which is used when exportings
+                    e.currentTarget.attributes[1].value = e.target['value'];
+
                     that.commonService.session.style['polygonColors'].splice(i, 1, $(this).val() as string);
                     that.commonService.temp.style.polygonColorMap = d3
                         .scaleOrdinal(that.commonService.session.style['polygonColors'])
                         .domain(values);
                     that.updateGroupNodeColors();
                 });
-            let alphainput = $("<a>⇳</a>").on("click", e => {
+            let alphainput = $("<a class='transparency-symbol'>⇳</a>").on("click", e => {
                 $("#color-transparency-wrapper").css({
                     top: e.clientY + 129,
                     left: e.clientX,
@@ -3390,6 +3439,7 @@ scaleLinkWidth() {
     openExport() {
         this.isExportClosed = false;
         this.Show2DExportPane = true;
+        this.updateCalculatedResolution();
     }
 
     /**
