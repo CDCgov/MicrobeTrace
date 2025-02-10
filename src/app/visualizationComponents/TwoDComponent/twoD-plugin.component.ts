@@ -244,6 +244,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // Initialize the selectedNodeShape from the settings
         this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
+        cytoscape.use(svg);
 
     }
 
@@ -801,7 +802,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.setExportOptions(exportOptions);
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
-            cytoscape.use(svg);
+
             let options = { scale: 1, full: true, bg: '#ffffff'};
             let content = (this.cy as any).svg(options);
 
@@ -818,7 +819,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             content = content.replace('</svg>', statTable.svg + '</svg>');
 
             let elementsToExport: HTMLTableElement[] = [];
-            if (this.ShowNodeSymbolTable) {
+            if (this.widgets['node-symbol-table-visible'] != 'Hide') {
                 elementsToExport.push(this.nodeSymbolTable.nativeElement)
             }
             if (this.widgets["polygon-color-table-visible"]) {
@@ -829,7 +830,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else {
             // Request export
             let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement];
-            if (this.ShowNodeSymbolTable) {
+            if (this.widgets['node-symbol-table-visible'] != 'Hide') {
                 elementsToExport.push(this.nodeSymbolTable.nativeElement)
             }
             if (this.widgets["polygon-color-table-visible"]) {

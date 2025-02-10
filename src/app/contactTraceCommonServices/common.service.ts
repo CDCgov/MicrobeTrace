@@ -3566,7 +3566,11 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             if (window.getComputedStyle(cells[j]).display === 'none') { continue; }
             if (cells[j].querySelector('select')) {
-                rowData.push(cells[j].querySelector('select option[selected]').innerHTML.replace(/&nbsp;/g, ' '));
+                if (cells[j].querySelector('select option[selected]')) {
+                    rowData.push(cells[j].querySelector('select option[selected]').innerHTML.replace(/&nbsp;/g, ' '));
+                } else {
+                    rowData.push(''); // empty cell
+                }
             } else if (cells[j].querySelector('input[type="color"]')) {
                 let color = (cells[j].querySelector('input[type="color"]') as HTMLInputElement).value;
                 rowData.push(color);

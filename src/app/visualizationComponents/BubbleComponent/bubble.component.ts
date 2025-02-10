@@ -997,7 +997,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.commonService.setExportOptions(exportOptions);
 
     if (this.BubbleExportFileType == 'svg') {
-      cytoscape.use(svg);
       let options = { scale: 1, full: true, bg: '#ffffff'};
       let content = (this.cy as any).svg(options);
 
