@@ -42,6 +42,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     @ViewChild('linkThresholdSparkline') linkThresholdSparkline: ElementRef;
 
     @ViewChild('visualwrapper', { static: false }) visualWrapperRef!: ElementRef<HTMLDivElement>;
+    @ViewChild('nodeColorTable') nodeColorTable!: ElementRef;
+    @ViewChild('linkColorTable') linkColorTable!: ElementRef;
 
     public metric: string = "tn93";
     public ambiguity: string = "Average";
@@ -58,6 +60,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     showButtonGroup: boolean = false;
     showSorting: boolean = false;
 
+    showExportDashboardMenu: boolean = false;
+    ExportDashboardFilename: string = '';
+    ExportDashboardScale: number = 1;
+    ExportDashboardResolution: { width: number, height:number, summary:string} = {width: 0, height: 0, summary: ''};
 
     downloadedBlocks: string[] = [];
     ledgerOptions: TreeNode[] = [];
@@ -281,8 +287,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.getGlobalSettingsData();
 
          // Subscribe to export requests
-        this.commonService.exportRequested$.subscribe(() => {
-            this.performExport();
+        this.commonService.exportRequested$.subscribe((info) => {
+            this.performExport(info.element, info.exportNodeTable, info.exportLinkTable);
+        });
+
+        this.commonService.exportSVG$.subscribe((info) => {
+            this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable);
         });
 
         // Subscribe to threshold changes from the service
@@ -453,9 +463,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Performs the export of the visualization, including tables.
      */
-    private async performExport(): Promise<void> {
-        const visualWrapper = this.visualWrapperRef?.nativeElement;
-        if (!visualWrapper) {
+    private async performExport(elementsForExport: HTMLDivElement[] = [this.visualWrapperRef.nativeElement], exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
+        if (!elementsForExport[0]) {
             console.error('Visual wrapper container not found');
             return;
         }
@@ -463,11 +472,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.commonService.getExportOptions();
-    
-            // Capture the visual wrapper using html2canvas with onclone callback
-            const canvas = await html2canvas(visualWrapper, {
+            let canvas: HTMLCanvasElement;
+            let settings = {
                 scale: options.scale || 1,
-                useCORS: true, // Enable CORS if images are loaded from external sources
+                useCORS: true, // Enable CORS if images are loaded from external sources,
+                allowTaint: true,
                 onclone: (clonedDoc) => {
                     // Replace color input elements with colored spans
                     const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
@@ -493,7 +502,77 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     });
                     */
                 }
-            });
+            }
+            
+            if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None') {  
+                elementsForExport.splice(1, 0, this.linkColorTable.nativeElement);
+            }
+            if (exportNodeTable && this.commonService.session.style.widgets['node-color-variable'] !== 'None') {
+                elementsForExport.splice(1, 0,this.nodeColorTable.nativeElement);
+            }
+
+            Promise.all(
+                elementsForExport.map((input) => { 
+                    return html2canvas(input, settings);
+                })
+            ).then((canvasArray) => {
+                canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+
+                // Set the width and height of the combined canvas
+                let width = canvasArray[0].width;
+                let height = canvasArray[0].height;
+                let offsets = [[0,0]];
+                let previousColWidth, currentColWidth = 0;
+                for (let i = 1; i < canvasArray.length; i++) {
+                    if (i == 1) {
+                        width += canvasArray[i].width+5;
+                        height = Math.max(height, canvasArray[i].height+5);
+                        offsets.push([canvasArray[0].width, 5]);
+                        previousColWidth = canvasArray[0].width;
+                        currentColWidth = canvasArray[1].width;
+                    } else {
+                        //if need to add a new column
+                        if (canvasArray[i].height+5 > height) {
+                            width += canvasArray[i].width+5;
+                            height = canvasArray[i].height +5;
+                            offsets.push([offsets[i-1][0] + previousColWidth, 5]);
+                            
+                            previousColWidth = currentColWidth;
+                            currentColWidth = canvasArray[i].width+5;
+                        }
+                        // need to add a new column
+                        else if (offsets[i-1][1]+canvasArray[i-1].height + canvasArray[i].height + 5 > height) {
+                            width += canvasArray[i].width+5;
+                            offsets.push([offsets[i-1][0] + canvasArray[i-1].width, 5]);
+                            
+                            previousColWidth = currentColWidth;
+                            currentColWidth = canvasArray[i].width+5;
+                        } else { // don't need to add a new column
+                            offsets.push([offsets[i-1][0], offsets[i-1][1]+canvasArray[i-1].height+5]);
+                            if (canvasArray[i].width+5 > currentColWidth) {
+                                width += (canvasArray[i].width - currentColWidth +5);
+                                currentColWidth = canvasArray[i].width+5;
+                            }
+                        }
+                    }
+                }
+                canvas.width = width;
+                canvas.height =height;
+
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+
+                context.strokeStyle = '#000000'
+
+                // Draw the canvases onto the combined canvas
+                for (let i = 0; i < canvasArray.length; i++) {
+                    context.drawImage(canvasArray[i], offsets[i][0], offsets[i][1]);
+                    if (i > 0 ) {
+                        // draw a rect around each additional drawImage element
+                        context.strokeRect(offsets[i][0], offsets[i][1], canvasArray[i].width, canvasArray[i].height);
+                    }
+                }
     
             // Convert canvas to desired image format
             let imgData: string;
@@ -520,9 +599,78 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             document.body.removeChild(link); // Remove from body after clicking
     
             console.log('Export completed successfully.');
+        })
         } catch (error) {
             console.error('Error during export:', error);
         }
+    }
+
+    private async performExportSVG(elementsForExport: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
+        console.log('Exporting SVG');
+
+        if (exportLinkTable) {
+            elementsForExport.unshift(this.linkColorTable.nativeElement);
+        }
+        if (exportNodeTable) {
+            elementsForExport.unshift(this.nodeColorTable.nativeElement);
+        }
+
+        const options: ExportOptions = this.commonService.getExportOptions();
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(mainSVGString, 'image/svg+xml');
+        const svg1 = doc.documentElement;
+        
+        // i'll need some way to check when to add new col to export; but for now do this;            
+        let width = parseFloat(svg1.getAttribute('width')+5);
+        let height = parseFloat(svg1.getAttribute('height')+5); 
+        let tableSVGStrings = '';
+        let currentOffsetX = width;
+        let currentOffsetY = 5;
+        let currentColWidth = 0;
+
+        elementsForExport.forEach((element, index) => {
+            let output = this.commonService.exportTableAsSVG(element);
+            
+            // exact logic from exporting a png
+            if (index == 0) {
+                width += output.width;
+                height = Math.max(height, output.height);
+                currentColWidth = output.width;
+            } else {
+                // if need to add a new column
+                if (output.height > height) {
+                    width += output.width+5;
+                    height = output.height +5;
+                    currentOffsetX += currentColWidth;
+                    currentOffsetY = 5;
+                    currentColWidth = output.width;
+                } else if (currentOffsetY+output.height + 5 > height) { // need to add a new column
+                    width += output.width+5;
+                    currentOffsetX += currentColWidth;
+                    currentOffsetY = 5;
+                    currentColWidth = output.width;
+                } else { // don't need to add a new column
+                    if (output.width+5 > currentColWidth) {
+                        width += (output.width - currentColWidth +5);
+                        currentColWidth = output.width+5;
+                    }
+                }
+            }
+            let updatedSVGString = output.svg.replace('<g>', `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">`);
+            tableSVGStrings += updatedSVGString;
+
+            currentOffsetY += output.height+5;
+        });
+
+        svg1.style.width = `${width}px`
+        svg1.style.height = `${height}px`
+        let mainSVG = String(svg1.outerHTML);
+        let combinedSvgString = mainSVG.replace('</svg>', tableSVGStrings + '</svg>')
+
+        let blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
+        
+        saveAs(blob, `${options.filename}.svg`);
     }
 
     /**
@@ -1216,6 +1364,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // Create color input element with color value and assign id to retrieve new value on change
             const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
                 .on("change", e => {
+                    // need to update the value in the dom which is used when exportings
+                    e.currentTarget.attributes[1].value = e.target['value'];
 
                     // Need to get value from id since "this" keyword is used by angular
                     // Update that value at the index in the color table
@@ -1693,7 +1843,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
                 .on("change", e => {
-
+                    // need to update the value in the dom which is used when exportings
+                    e.currentTarget.attributes[1].value = e.target['value'];
 
                     if(this.commonService.debugMode) {
                         console.log('color: ', this.SelectedColorNodesByVariable);
@@ -2459,6 +2610,45 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     DisplayAbout() {
         this.displayAbout = !this.displayAbout;
+    }
+
+    OpenExportDashboard() {
+        this.showExportDashboardMenu = true;
+        this.updateExportResolution();
+    }
+
+    ExportDashboard() {
+        console.log('exporting Dashboard cool');
+        console.log(this.ExportDashboardFilename);
+
+        // Prepare export options
+        const exportOptions: ExportOptions = {
+            filename: this.ExportDashboardFilename,
+            filetype: 'png',
+            scale: this.ExportDashboardScale,
+            quality: 1,
+        };
+    
+        // Set export options in the service
+        this.commonService.setExportOptions(exportOptions);
+    
+        // Request export
+        this.performExport();
+
+        this.showExportDashboardMenu = false;
+        
+    }
+
+    updateExportResolution() {
+        const visualWrapper = this.visualWrapperRef.nativeElement;
+        console.log(visualWrapper)
+        let height = visualWrapper.offsetHeight;
+        let width = visualWrapper.offsetWidth;
+
+        this.ExportDashboardResolution.width = Math.floor(width * this.ExportDashboardScale);
+        this.ExportDashboardResolution.height = Math.floor(height * this.ExportDashboardScale);
+        this.ExportDashboardResolution.summary = `${this.ExportDashboardResolution.width} x ${this.ExportDashboardResolution.height}`;
+
     }
 
 

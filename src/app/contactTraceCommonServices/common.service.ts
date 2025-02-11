@@ -2667,8 +2667,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         $("#numberOfDisjointComponents").text(clusterCount);
     };
 
-    private exportRequestedSource = new Subject<void>();
+    private exportRequestedSource = new Subject<{element: HTMLDivElement[], exportNodeTable: boolean, exportLinkTable: boolean}>();
     exportRequested$ = this.exportRequestedSource.asObservable();
+
+    private exportSVG = new Subject<{element: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean, exportLinkTable: boolean}>();
+    exportSVG$ = this.exportSVG.asObservable();
 
      private exportOptions: ExportOptions = {
         filename: 'network_export',
@@ -2696,13 +2699,13 @@ export class CommonService extends AppComponentBase implements OnInit {
      /**
      * Notify subscribers that an export has been requested.
      */
-    requestExport(): void {
-        this.exportRequestedSource.next();
+    requestExport(element: HTMLDivElement[], exportNodeTable: boolean, exportLinkTable: boolean): void {
+        this.exportRequestedSource.next({element, exportNodeTable, exportLinkTable});
     }
   
-    // requestExport(filename: string, type: string): void {
-    //   this.exportRequestedSource.next({filename, type});
-    // }
+    requestSVGExport(element: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean, exportLinkTable: boolean): void {
+        this.exportSVG.next({element, mainSVGString, exportNodeTable, exportLinkTable});
+    }
 
     /**
 	 * updates the functions that set the color and transparency of the nodes [commonService.temp.style.nodeColorMap() and commonService.temp.style.nodeAlphaMap()]
@@ -3537,6 +3540,64 @@ export class CommonService extends AppComponentBase implements OnInit {
     //        this.launchView(component.type);
     //    }
     //};
+
+    /**
+     * This function converts tables into SVG to be used for export
+     * @param tableElement HTMLTableElement (just the main table not the entire dialog box); ie. Node Color Table 
+     * @returns object with svg string (<g>...</g>), width, and height
+     */
+    exportTableAsSVG(tableElement: HTMLTableElement): {svg: string, width: number, height: number} {
+
+        const rows = tableElement.rows;
+        let tableData = [];
+        let widthOffsets = [10];
+        let heightOffsets = [15];
+        for (let i = 0; i < rows.length; i++) {
+          const cells = rows[i].cells;
+          const rowData: string[] = [];
+          
+          for (let j = 0; j < cells.length; j++) {
+            if (i==0) {
+                widthOffsets.push(widthOffsets[j]+cells[j].offsetWidth+15)
+            }
+            if (j==0) {
+                heightOffsets.push(heightOffsets[i] + cells[0].offsetHeight)
+            }
+
+            if (window.getComputedStyle(cells[j]).display === 'none') { continue; }
+            if (cells[j].querySelector('select')) {
+                if (cells[j].querySelector('select option[selected]')) {
+                    rowData.push(cells[j].querySelector('select option[selected]').innerHTML.replace(/&nbsp;/g, ' '));
+                } else {
+                    rowData.push(''); // empty cell
+                }
+            } else if (cells[j].querySelector('input[type="color"]')) {
+                let color = (cells[j].querySelector('input[type="color"]') as HTMLInputElement).value;
+                rowData.push(color);
+            }  else {
+                rowData.push(cells[j].innerText.replace('⇅', ''));
+            }
+          }
+          
+          tableData.push(rowData);
+        }
+
+        let out = `<g><rect x="0" y="0" width="${widthOffsets[widthOffsets.length-1]-20}" height="${heightOffsets[heightOffsets.length-1]-10}" stroke="black" stroke-width="1"></rect>`;
+       
+        tableData.forEach((row, rowIndex) => {
+            row.forEach((cell, colIndex) => {
+                if (cell.length === 7 && cell[0] == '#') { 
+                    out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" width="20" height="20" fill="${cell}"></rect>`; 
+                } else {
+                    out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Verdana" font-size="15" fill="black">${cell}</text>`;
+                }
+                
+            });
+        });
+
+        out += '</g>';
+        return {svg: out, width: widthOffsets[widthOffsets.length-1]-20, height: heightOffsets[heightOffsets.length-1]-10};
+    }
 
     /**
      * Extracts the SVG from the DOM with CSS included. Used during exporting/saving a view as a SVG

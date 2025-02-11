@@ -9,7 +9,7 @@
         </span>
     </div>
 
-    <div #cyBubble id="cyBubble" [style.width.px]="viewWidth" [style.height.px]="viewHeight" style="border: 1px black solid;"></div>
+    <div #cyBubble id="cyBubble" [style.width.px]="viewWidth" [style.height.px]="viewHeight"></div>
 
     <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '400px'}" appendTo="body">
         <div class="form-group row" title="">
@@ -55,7 +55,7 @@
                       </div>
                       <div class="col-3">
                           <select [(ngModel)]="BubbleExportFileType" class="form-control form-control-sm">
-                              <!--option>svg</option-->
+                              <option>svg</option>
                               <option>png</option>
                           </select>
                       </div>

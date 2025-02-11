@@ -4,11 +4,12 @@ import * as saveAs from 'file-saver';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
-import { CommonService } from '@app/contactTraceCommonServices/common.service';
+import { CommonService, ExportOptions } from '@app/contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { ComponentContainer } from 'golden-layout';
 import cytoscape, { Core } from 'cytoscape';
+import svg from 'cytoscape-svg';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -77,6 +78,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.visuals = commonService.visuals;
     this.visuals.bubble = this;
     this.widgets = this.commonService.session.style.widgets;
+
+    cytoscape.use(svg);
   }
 
   ngOnInit(): void {
@@ -983,30 +986,23 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   exportVisualization() {
-    //let svg = $('#bubbleViewContainer svg')[0]
+    const exportOptions: ExportOptions = {
+      filename: this.BubbleExportFileName,
+      filetype: this.BubbleExportFileType,
+      scale: this.SelectedBubbleExportScaleVariable,
+      quality: 1,
+    };
+
+    // Set export options in the service
+    this.commonService.setExportOptions(exportOptions);
+
     if (this.BubbleExportFileType == 'svg') {
-      //this.cy.svg();
-      console.log('need to implement svg export')
-      // consider using something like alignment view or cytoscape-svg package // xxzx
+      let options = { scale: 1, full: true, bg: '#ffffff'};
+      let content = (this.cy as any).svg(options);
 
-      // let textElements = svg.querySelectorAll('text');
-      // textElements.forEach(text => { text.setAttribute('fill', 'black');});
-
-      // let svgString = this.commonService.unparseSVG(svg);
-      // let content;
-      // if (this.SelectedNodeCollapsingTypeVariable) {
-      //   let svgDef = this.commonService.unparseSVG($('#bubbleDefs')[0])
-      //   content = svgString.slice(0, -6) + svgDef + svgString.slice(-6);
-      // } else {
-      //   content = svgString;
-      // }
-      // let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-      // saveAs(blob, this.BubbleExportFileName + '.' + this.BubbleExportFileType);
+      this.commonService.requestSVGExport([], content, true, false); 
     } else {
-      let x = Math.round((this.viewWidth - 42 ) * this.SelectedBubbleExportScaleVariable)
-      let y = Math.round((this.viewHeight - 73 ) * this.SelectedBubbleExportScaleVariable)
-      let pngString = this.cy.png({bg:'white', maxHeight: y, maxWidth: x});
-      saveAs(pngString, this.BubbleExportFileName + '.png' )
+      this.commonService.requestExport([this.cyContainer.nativeElement], true, false);
     }
     this.exportOpen = false;
   }
