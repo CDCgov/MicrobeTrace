@@ -10,14 +10,13 @@ import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { CustomShapes } from '@app/helperClasses/customShapes';
 import * as d3 from 'd3';
+import * as d3sankey from 'd3-sankey';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
-import ApexSankey from 'apexsankey';
-import { SankeyOptions } from 'apexsankey/lib/models/Options';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } from 'constants';
-import { Edge, Node } from 'apexsankey/lib/models/Graph';
+import type { SankeyNode, SankeyLink } from './sankey-types';
 
 @Component({
   selector: 'SankeyComponent',
@@ -35,7 +34,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
 
   private customShapes: CustomShapes = new CustomShapes();
 
-  sankey: ApexSankey;
+  sankey = d3sankey.sankey();
   ShowNetworkAttributes = false;
   ShowStatistics = false;
   ShowSankeyExportPane = false;
@@ -76,40 +75,37 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
   data = {
     nodes: [
         {
-            "id": "a",
-            "title": "AAA",
+            "index": 0,
+            "name": "AAA",
         },
         {
-            "id": "b",
-            "title": "BBB",
+            "index": 1,
+            "name": "BBB",
         },
         {
-            "id": "c",
-            "title": "CCC",
+            "index": 2,
+            "name": "CCC",
         },
         {
-            "id": "d",
-            "title": "DDD",
+            "index": 3,
+            "name": "DDD",
         },
     ],
-    edges: [
+    links: [
         {
-            "source": "a",
-            "target": "c",
+            "source": "AAA",
+            "target": "CCC",
             "value": 1,
-            "type": "A",
         },
         {
-            "source": "b",
-            "target": "c",
+            "source": "BBB",
+            "target": "CCC",
             "value": 2,
-            "type": "A",
         },
         {
-            "source": "c",
-            "target": "d",
+            "source": "CCC",
+            "target": "DDD",
             "value": 3,
-            "type": "A",
         }
     ],
   };
@@ -203,8 +199,9 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
   }
 
   createSankeyData(sankeyFields: string[]): void {
-    const nodes: Node[] = [];
-    const edges: Edge[] = [];
+    const nodes: SankeyNode[] = [];
+    let nodeIndex = 0;
+    const edges: SankeyLink[] = [];
     //const order: string[][][] = [[[]]];
     const variables: string[][] = [];
     for(let i=0; i<sankeyFields.length; i++){
@@ -213,7 +210,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
       const variableValues = Object.keys(variableCounts);
       variables.push(variableValues);
       for(let j=0; j<variableValues.length; j++){
-        nodes.push({"id": variableValues[j], "title": variableValues[j]})
+        nodes.push({"index": nodeIndex, "id": variableValues[j]})
       }
     }
     for(let i=1; i<sankeyFields.length; i++){
@@ -228,14 +225,14 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
             secondValue: variables[i][r],
           }
           const edgeVal: number = this.getEdgeValue(queryObj);
-          edges.push({source: queryObj["firstValue"], target: queryObj["secondValue"], value: edgeVal, type: null});
+          edges.push({source: queryObj["firstValue"], target: queryObj["secondValue"], value: edgeVal});
         }
       }
     }
     console.log(nodes);
     console.log(edges);
     // @ts-ignore
-    this.data = {nodes: nodes, edges: edges}
+    this.data = {nodes: nodes, links: edges}
   }
 
   getEdgeValue(queryObj: object): number {
