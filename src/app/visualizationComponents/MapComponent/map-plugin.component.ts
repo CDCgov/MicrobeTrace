@@ -1591,7 +1591,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     loadSettings() {
         //Components|Online|Basemap
+        console.log('SelectedBasemapTypeVariable: ', this.SelectedBasemapTypeVariable);
+
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
+
         if (this.SelectedBasemapTypeVariable === 'Show') {
             this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
         }
@@ -1600,6 +1603,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.SelectedSatelliteTypeVariable = this.commonService.session.style.widgets['map-satellite-show'] ? 'Show' : 'Hide';
         if (this.SelectedSatelliteTypeVariable === 'Show') {
             this.onSatelliteChange(this.SelectedSatelliteTypeVariable, true);
+        }
+
+        if(this.SelectedBasemapTypeVariable === 'Hide' && this.SelectedSatelliteTypeVariable === 'Hide') {
+            this.SelectedBasemapTypeVariable = 'Show';
+            this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
         }
 
         //Components|Network|Nodes

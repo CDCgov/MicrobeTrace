@@ -461,7 +461,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // Use this when building production (.ie gh-pages branch)
     if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
       console.log('launching outbreak');
-      $.getJSON("outbreaknorm.microbetrace", this.commonService.applySession.bind(this.commonService));   
+      $.getJSON("COVID_DUMMY.microbetrace", this.commonService.applySession.bind(this.commonService));   
       this.commonService.session.network.launched = true; 
       this.commonService.session.network.initialLoad = true; 
       // if(this.commonService.session.files && this.commonService.session.files.length > 0) {

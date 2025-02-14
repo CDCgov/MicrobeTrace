@@ -54,6 +54,7 @@
               "src/Logo.png",
               "src/outbreaknorm.microbetrace",
               "src/outbreakover.microbetrace",
+              "src/COVID_DUMMY.microbetrace",
               "src/assets/parse-csv-matrix.js",
               "src/assets/papaparse.min.js"
             ],
