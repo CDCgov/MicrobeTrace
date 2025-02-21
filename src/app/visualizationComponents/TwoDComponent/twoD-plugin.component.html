@@ -118,37 +118,20 @@
                             <div id="node-symbol-row" [hidden]="ShowNodeSymbolWrapper" class="form-group row" title="What shape should the nodes be?">
                                 <div class="col-4"><label for="node-symbol">Shape</label></div>
                                 <div class="col-8">
-                                    <select id="node-symbol" class="form-control form-control-sm" [(ngModel)]="selectedNodeShape" (ngModelChange)="onNodeShapeChange($event)">
-                                        <option value="ellipse" selected>&nbsp;&#11044; (Circle)</option>
-                                        <option value="rectangle">&nbsp;&#9632; (Square)</option>
-                                        <option value="hexagon">&nbsp;&#11042; (Hexagon)</option>
-                                        <option value="triangle">&nbsp;&#9650; (Triangle)</option>
-                                        <option value="barrel">&nbsp;&#10731; (Barrel)</option>
-                                        <option value="pentagon">&nbsp;&#11039; (Pentagon)</option>
-                                        <option value="octagon">&nbsp;&#11042; (Octagon)</option>
-                                        <option value="star">&nbsp;&#9733; (Star)</option>
-                                        <option value="tag">&nbsp;&#120300; (Tag)</option>
-                                        <option value="vee">&nbsp;&#120300; (Vee)</option>
-                                    </select>
-                                        <!-- <option value="symbolCircle" selected>&nbsp;&#11044; (Circle)</option>
-                                        <option value="symbolTriangle">&nbsp;&#9650; (Up Triangle)</option>
-                                        <option value="symbolTriangleDown">&nbsp;&#9660; (Down Triangle)</option>
-                                        <option value="symbolTriangleLeft">&nbsp;&#9664; (Left Triangle)</option>
-                                        <option value="symbolTriangleRight">&nbsp;&#9654; (Right Triangle)</option>
-                                        <option value="symbolDiamond">&nbsp;&#10731; (Vertical Diamond)</option>
-                                        <option value="symbolDiamondAlt">&nbsp;&#10731; (Horizontal Diamond)</option>
-                                        <option value="symbolSquare">&nbsp;&#9632; (Square)</option>
-                                        <option value="symbolDiamondSquare">&nbsp;&#9670; (Tilted Square)</option>
-                                        <option value="symbolPentagon">&nbsp;&#11039; (Pentagon)</option>
-                                        <option value="symbolHexagon">&nbsp;&#11042; (Hexagon)</option>
-                                        <option value="symbolHexagonAlt">&nbsp;&#11043; (Tilted Hexagon)</option>
-                                        <option value="symbolOctagon">&nbsp;&#11042; (Octagon)</option>
-                                        <option value="symbolOctagonAlt">&nbsp;&#11043; (Tilted Octagon)</option>
-                                        <option value="symbolCross">&nbsp;&#10010; (Addition Sign)</option>
-                                        <option value="symbolX">&nbsp;&#10006; (Multiplication Sign)</option>
-                                        <option value="symbolWye">&nbsp;&#120300; (Wye)</option>
-                                        <option value="symbolStar">&nbsp;&#9733; (Star)</option> -->
-                                    <!-- </select> -->
+                                  <p-dropdown [options]="symbolMapping" optionValue="key" [(ngModel)]="selectedNodeShape" (ngModelChange)="onNodeShapeChange($event)">
+                                    <ng-template let-symbol pTemplate="selectedItem">
+                                      <div>
+                                        <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
+                                        {{ symbol.name}}
+                                      </div>
+                                    </ng-template>
+                                    <ng-template pTemplate="item" let-symbol>
+                                      <div *ngIf="symbol">
+                                        <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
+                                        {{ symbol.name}}
+                                      </div>
+                                    </ng-template>
+                                  </p-dropdown>
                                 </div>
                             </div>
 
@@ -180,7 +163,7 @@
                             <div class="form-group row" title="What should the width of the node border be?">
                                 <div class="col-4"><label for="node-radius-variable">Border Width</label></div>
                                 <div class="col-8">
-                                    <input type="number" class="form-control form-control-sm" id="node-border-width" min="0" step="0.5" value="2" [(ngModel)]="nodeBorderWidth" (ngModelChange)="onNodeBorderWidthChange($event)">
+                                    <input type="number" class="form-control form-control-sm" id="node-border-width" min="0.5" step="0.5" value="2" [(ngModel)]="nodeBorderWidth" (ngModelChange)="onNodeBorderWidthChange($event)">
                                 </div>
                             </div>
 
@@ -364,7 +347,7 @@
                               <div *ngIf="commonService.session.style.widgets['polygons-color-show']" id="polygon-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
                                 <div class="col-4">Polygon Color Table</div>
                                 <div class="col-8">
-                                    <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']" (ngModelChange)="polygonColorsTableToggle($event)"></p-selectButton>
+                                    <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']" (ngModelChange)="onPolygonColorTableChange($event)"></p-selectButton>
                                 </div>
                               </div>
                               <div *ngIf="!commonService.session.style.widgets['polygons-color-show']" id="polygon-color-value-row" class="form-group row" title="What color should the polygons be?">
@@ -387,48 +370,94 @@
 </div>
 
     <p-dialog id="node-symbol-table-wrapper" 
-                [position]="NodeSymbolTableWrapperDialogSettings.shapeRight"
-                [(visible)]="NodeSymbolTableWrapperDialogSettings.isVisible"  
-                header="Node Symbol Selection Table"  
-                [style]="{width: '45vw', maxWidth: '450px'}"
-                (onHide)="onNodeSymbolTableChange('Hide')"
-                (onShow)="onNodeSymbolTableChange('Show')"
-                >
-        <div class="col-12" style="width:100%;max-height:50vh;" title="Node Shapes and Size Selection.">          
-             <table #nodeSymbolTable id="node-symbol-table" style="width:100%;height:100%;"></table>          
+      [position]="NodeSymbolTableWrapperDialogSettings.shapeRight"
+      [(visible)]="NodeSymbolTableWrapperDialogSettings.isVisible"  
+      [style]="{width: '50vw', maxWidth: '500px'}"
+      (onHide)="onNodeSymbolTableChange('Hide')"
+      (onShow)="onNodeSymbolTableChange('Show')"
+    >
+      <ng-template pTemplate="header">
+        <div style="display: flex; justify-content: space-between; width: 100%;">
+            <span>Node Symbol Table</span>
+            <span style="overflow: visible; position: relative;">
+              <button title="Settings" class="btn btn-sm btn-clean btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-shape')"><i class="pi pi-cog"></i></button>
+              <div id="nodeShapeTableSettings" class="dropdown-menu" style="display: none;">
+                    <button id="nodeShapeCounts" class="dropdown-item" (click)="toggleTableColumns('node-shape', 'tableCounts')">
+                        <span>Show Counts</span>
+                        <i [className]="this.widgets['node-symbol-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
+                    </button>
+                    <button id="nodeShapeFrequencies" class="dropdown-item" (click)="toggleTableColumns('node-shape', 'tableFreq')">
+                        <span>Show Frequencies</span>
+                        <i [className]="this.widgets['node-symbol-table-frequencies'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
+                    </button>
+                </div>
+            </span>
         </div>
-    
-<!--         
-            <option value="symbolCircle" selected>&nbsp;&#11044; (Circle)</option>
-            <option value="symbolTriangle">&nbsp;&#9650; (Up Triangle)</option>
-            <option value="symbolTriangleDown">&nbsp;&#9660; (Down Triangle)</option>
-            <option value="symbolTriangleLeft">&nbsp;&#9664; (Left Triangle)</option>
-            <option value="symbolTriangleRight">&nbsp;&#9654; (Right Triangle)</option>
-            <option value="symbolDiamond">&nbsp;&#10731; (Vertical Diamond)</option>
-            <option value="symbolDiamondAlt">&nbsp;&#10731; (Horizontal Diamond)</option>
-            <option value="symbolSquare">&nbsp;&#9632; (Square)</option>
-            <option value="symbolDiamondSquare">&nbsp;&#9670; (Tilted Square)</option>
-            <option value="symbolPentagon">&nbsp;&#11039; (Pentagon)</option>
-            <option value="symbolHexagon">&nbsp;&#11042; (Hexagon)</option>
-            <option value="symbolHexagonAlt">&nbsp;&#11043; (Tilted Hexagon)</option>
-            <option value="symbolOctagon">&nbsp;&#11042; (Octagon)</option>
-            <option value="symbolOctagonAlt">&nbsp;&#11043; (Tilted Octagon)</option>
-            <option value="symbolCross">&nbsp;&#10010; (Addition Sign)</option>
-            <option value="symbolX">&nbsp;&#10006; (Multiplication Sign)</option>
-            <option value="symbolWye">&nbsp;&#120300; (Wye)</option>
-            <option value="symbolStar">&nbsp;&#9733; (Star)</option>
-        </select> -->
-
+    </ng-template>
+        <div class="col-12" style="width:100%;max-height:50vh;" title="Node Shapes and Size Selection.">          
+             <table #nodeSymbolTable style="width:100%;height:100%;">
+              <tr>
+                <th class="table-header-row" contenteditable>
+                  <div class="header-content sortable">Node {{ commonService.titleize(this.widgets['node-symbol-variable']) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
+                </th>
+                <th class="table-header-row tableCount" *ngIf="widgets['node-symbol-table-counts']" contenteditable>
+                  <div class="header-content sortable">Count<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
+                </th>
+                <th class="table-header-row tableFrequency" *ngIf="widgets['node-symbol-table-frequencies']" contenteditable>
+                  <div class="header-content sortable">Frequency<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
+                </th>
+                <th>Shape</th>
+              </tr>
+              <tr *ngFor="let group of shapeAggregates">
+                <td contenteditable>{{commonService.titleize(group.key)}}</td>
+                <td class="tableCount" *ngIf="widgets['node-symbol-table-counts']">{{group.count}}</td>
+                <td class="tableFrequency" *ngIf="widgets['node-symbol-table-frequencies']">{{group.frequency}}</td>
+                <td>
+                  <p-dropdown [options]="symbolMapping" optionValue="key" [ngModel]="commonService.temp.style.nodeSymbolMap(group.key)" (ngModelChange)="onNodeShapeTableChange($event, group.key)" appendTo="body" styleClass="shapeDropdown">
+                    <ng-template let-symbol pTemplate="selectedItem">
+                      <div>
+                        <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
+                        {{ symbol.name}}
+                      </div>
+                    </ng-template>
+                    <ng-template pTemplate="item" let-symbol>
+                      <div *ngIf="symbol">
+                        <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
+                        {{ symbol.name}}
+                      </div>
+                    </ng-template>
+                  </p-dropdown>
+                </td>
+              </tr>
+             </table>          
+        </div>
     </p-dialog>
 
     <p-dialog id="polygon-color-table-wrapper" 
-                [position]="PolygonColorTableWrapperDialogSettings.polygonRight" 
-                [(visible)]="PolygonColorTableWrapperDialogSettings.isVisible"  
-                header="Group Color Selection Table" 
-                [style]="{width: '45vw', maxWidth: '450px'}" 
-                (onHide)="onPolygonColorTableChange(false)"
-                (onShow)="onPolygonColorTableChange(true)"
-                >
+      [position]="PolygonColorTableWrapperDialogSettings.polygonRight" 
+      [(visible)]="PolygonColorTableWrapperDialogSettings.isVisible"  
+      [style]="{width: '45vw', maxWidth: '450px'}" 
+      (onHide)="onPolygonColorTableChange(false)"
+      (onShow)="onPolygonColorTableChange(true)"
+    >
+          <ng-template pTemplate="header">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <span>Polygon Color Table</span>
+                <span style="overflow: visible; position: relative;">
+                  <button title="Settings" class="btn btn-sm btn-clean btn-icon-md" style="float:left" (click)="toggleColorTableSettings('polygon-color')"><i class="pi pi-cog"></i></button>
+                    <div id="polygonColorTableSettings" class="dropdown-menu" style="display: none;">
+                        <button id="polygonColorCounts" class="dropdown-item" (click)="toggleTableColumns('polygon-color', 'tableCounts')">
+                            <span>Show Counts</span>
+                            <i [className]="this.widgets['polygon-color-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
+                        </button>
+                        <button id="polygonColorFrequencies" class="dropdown-item" (click)="toggleTableColumns('polygon-color', 'tableFreq')">
+                            <span>Show Frequencies</span>
+                            <i [className]="this.widgets['polygon-color-table-frequencies'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
+                        </button>
+                    </div>
+                </span>
+            </div>
+        </ng-template>
         <div class="col-12" style="width:100%;max-height:50vh;" title="Group Color Selection.">          
              <table #polygonColorTable id="polygon-color-table" style="width:100%;height:100%;"></table>          
         </div>

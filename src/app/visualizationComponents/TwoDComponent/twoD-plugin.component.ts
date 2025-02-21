@@ -50,6 +50,27 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     };
     selectedNodeId = undefined;
     selectedNodeShape: string = 'ellipse'; // Default shapeDF
+    symbolMapping: { key: string, value: string, name:string }[] = [
+        { key: 'ellipse', value: '\u2b24', name:' (Circle) ' }, 
+        { key: "triangle", value: '\u25b2', name: ' (Triangle)' },
+        { key: "rectangle", value: '\u25fc', name: ' (Square)' },
+        { key: "rhomboid", value: '\u25b0', name: ' (Rhombus)' },
+        { key: "diamond", value: '\u25c6', name: ' (Diamond)' },
+        { key: "heptagon", value: '\u2b23', name: ' (Heptagon)' },
+        { key: "pentagon", value: '\u2b1f', name: ' (Pentagon)' },
+        { key: "hexagon", value: '\u2b22', name: ' (Hexagon)' },
+        { key: "barrel", value: '', name: ' (Barrel)' },
+        { key: "octagon", value: '\u2bc3', name: ' (Octagon)' },
+        { key: "star", value: '\u2605', name: ' (Star)' },
+        { key: "tag", value: '\u2617', name: ' (Tag)' },
+        { key: "vee", value: 'V', name: ' (Vee)' },
+    ];
+    shapeAggregates: { key: string, count: Number, frequency: Number }[] = [];
+    shapeSort: { key: string, assending: boolean} = { key: 'count', assending: true};
+
+
+    /// XXXXX abccc null should be (empty); that how other tables work and how node shape table used to work; so work on that, ok?
+    // also, I don't know if I need the setTimeout down there, when creating node shape by table XXXXX
 
     linkMin: number = 3;
     linkMax: number = 27;
@@ -898,9 +919,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
   
     /**
      * Generates Polygon Color Selection Table, updates polygonColorMap and polygonAlphaMap functions, and then calls render to show/update network
-     * 
-     * XXXXX this function needs revisiting. Doesn't always populate table. I had to hide color polygons, then show it, and then show polygon color table setting
-     * to get table to appear. Also not sorting correctly with names XXXXX
      */
     updatePolygonColors() {
 
@@ -997,8 +1015,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 "<td data-value='" + value + "'>" +
                 (that.commonService.session.style['polygonValueNames'][value] ? that.commonService.session.style['polygonValueNames'][value] : that.commonService.titleize("" + value)) +
                 "</td>" +
-                (that.widgets["polygon-color-table-counts"] ? "<td>" + aggregates[value] + "</td>" : "") +
-                (that.widgets["polygon-color-table-frequencies"] ? "<td>" + (aggregates[value] / total).toLocaleString() + "</td>" : "") +
+                `<td class='tableCount' ${that.widgets["polygon-color-table-counts"] ? '' : "style='display: none'"}>${aggregates[value]}</td>` +
+                `<td class='tableFrequency' ${that.widgets["polygon-color-table-frequencies"] ? '' : "style='display: none'"}>${ (aggregates[value] / total).toLocaleString()}</td>` +
                 "</tr>"
             ).append(cell);
 
@@ -1046,10 +1064,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
         let isAscending = true;  // add this line before the click event handler
-
+        $('#polygonColorTableSettings').on('mouseleave', () => $('#polygonColorTableSettings').delay(500).css('display', 'none'));
 
         // The sorting functionality is added here
-        $('#polygon-color-table').on('click', 'th', function () {
+        $('#polygon-color-table').on('click', '.sort-button', function () {
             let table = $(this).parents('table').eq(0);
             let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).index()));
             isAscending = !isAscending;  // replace 'this.asc' with 'isAscending'
@@ -1060,7 +1078,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         function comparer(index) {
             return function (a, b) {
                 let valA = getCellValue(a, index), valB = getCellValue(b, index);
-                console.log(`Comparing: ${valA} and ${valB}`);  // New line
                 return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
             }
         }
@@ -1285,31 +1302,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets["polygon-color"] = e;
         this.updateGroupNodeColors();
     }
-
-    /**
-     * This function is called when polygon-color-table-visible widget is updated from the template. 
-     * It is only available when polygon-color-show is true/show
-     * This widget controls whether the polygon color table is visible.
-     * 
-     * XXXXX I think this function wasn't updated with the move to Angular. 
-     * Evaluate whether function can be reduce/eliminated. XXXXX
-     */
-    polygonColorsTableToggle(e) {
-
-        console.log('polygonColorsTableToggle: ', e);
-
-        if (e) {
-            this.onPolygonColorTableChange(e)
-        }
-        else {
-            this.onPolygonColorTableChange(e)
-        }
-
-        
-    }
-
-    private polygonNodeSelected = null;
-
 
     /**
      * Gets a list of all visible links objects; Similar to getLlinks(), and commonService.getVisibleLinks()
@@ -2027,10 +2019,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         
     }
 
-
     /**
-     * XXXXX reevaluate if need to be combined with polygonColorsTableToggle; when called from polygonColorsTableToggle e is 'Show'/'Hide' when called
-     * from template e is true/false XXXXX
+     *
      */
     onPolygonColorTableChange(e) {
         console.log('onPolygonColorTableChange: ', e);
@@ -2072,6 +2062,48 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.updateNodeLabels();
         
+    }
+
+    onNodeShapeSort(sortBy: string) {
+        if (sortBy == this.shapeSort.key) {
+            this.shapeSort.assending = !this.shapeSort.assending;
+        } else {
+            this.shapeSort.key = sortBy;
+            this.shapeSort.assending = true;
+        }
+
+        if (sortBy == 'key' && this.shapeSort.assending) {
+            this.shapeAggregates.sort((a, b) => {
+                let aKey : string = a.key == 'null' ? '(Empty)' : a.key.toString()
+                let bKey : string = b.key == 'null' ? '(Empty)' : b.key.toString()
+                return bKey.localeCompare(aKey)
+            });
+        } else if (sortBy == 'key') {
+            this.shapeAggregates.sort((a, b) => {
+                let aKey : string = a.key == 'null' ? '(Empty)' : a.key.toString()
+                let bKey : string = b.key == 'null' ? '(Empty)' : b.key.toString()
+                return aKey.localeCompare(bKey)
+            });
+        } else if (this.shapeSort.assending) {
+            this.shapeAggregates.sort((a, b) => Number(b[this.shapeSort.key]) - Number(a[this.shapeSort.key]));
+        } else {
+            this.shapeAggregates.sort((a, b) => Number(a[this.shapeSort.key]) - Number(b[this.shapeSort.key]));
+        }
+    }
+
+    /**
+     * updates the value of the nodeSymbolMap and updates the nodes on the 2D network. Called from node shape table dropdown
+     * @param newShape a string of node shape (see this.symbolMapping.key)
+     * @param group a string of the group to change
+     */
+    onNodeShapeTableChange(newShape: string, group: string) {
+        let i = this.shapeAggregates.findIndex(x => x.key === group);
+        console.log(this.shapeAggregates);
+        
+        this.commonService.session.style.nodeSymbols.splice(i, 1, newShape);
+        let values = this.shapeAggregates.map(x => x.key);
+        this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
+        this.updateNodeShapes();
     }
 
     // Method to handle shape change from the dropdown
@@ -2349,9 +2381,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.cdref.detectChanges();
 
         this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
-        this.updateNodeShapes();
-
-        
     }
 
     svgDefs = `
@@ -2368,38 +2397,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             'ellipse',
             'triangle',
             'rectangle',
-            'barrel',
             'rhomboid',
             'diamond',
+            'heptagon',
             'pentagon',
             'hexagon',
-            'heptagon',
+            'barrel',
             'octagon',
             'star',
             'tag',
             'vee'
         ];
 
-        let symbolMapping: { key: string, value: string }[] = [
-            { key: 'ellipse', value: '&#11044; (Circle)' },
-            { key: "triangle", value: '&#9660; (Triangle)' },
-            { key: "diamond", value: '&#10731; (Diamond)' },
-            { key: "barrel", value: '&#10731; (Barrel)' },
-            { key: "rectangle", value: '&#9632; (Square)' },
-            { key: "rhomboid", value: '&#9670; (Rhombus)' },
-            { key: "pentagon", value: '&#11039; (Pentagon)' },
-            { key: "hexagon", value: '&#11042; (Hexagon)' },
-            { key: "heptagon", value: '&#11043; (Heptagon)' },
-            { key: "octagon", value: '&#11042; (Octagon)' },
-            { key: "star", value: '&#9733; (Star)' },
-            { key: "tag", value: '&#9733; (Tag)' },
-            { key: "vee", value: '&#9733; (Vee)' },
-        ];
 
-        setTimeout(() => {
-
-            let table = $(tableId)
-            const disabled: string = isEditable ? '' : 'disabled';
+        //setTimeout(() => {
 
             this.widgets['node-symbol-variable'] = variable;
 
@@ -2423,6 +2434,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             }
 
+            this.shapeAggregates = [];
+            this.shapeAggregates = Object.keys(aggregates).map((key) => ({ 'key': key, 'count': aggregates[key], 'frequency': aggregates[key] / vnodes }));
+            this.shapeAggregates.sort((a, b) => Number(b.count) - Number(a.count));
+
             if (values.length > this.commonService.session.style.nodeSymbols.length) {
                 let symbols = [];
                 let m = Math.ceil(values.length / this.commonService.session.style.nodeSymbols.length);
@@ -2430,95 +2445,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     symbols = symbols.concat(this.commonService.session.style.nodeSymbols);
                 }
                 this.commonService.session.style.nodeSymbols = symbols;
-                console.log('node symbols: ', symbols);
-
             }
-
-            table.empty().append(
-                "<tr>" +
-                `<th class="${isEditable ? 'table-header-row' : ''}" ${isEditable ? 'contenteditable' : ''}><div class="header-content sortable">Node ${this.commonService.titleize(variable)}<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-                (this.widgets['node-symbol-table-counts']
-                    ? `<th class="table-header-row"><div class="header-content sortable">Count<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>`
-                    : '') +
-                (this.widgets['node-symbol-table-frequencies']
-                    ? `<th class="table-header-row"><div class="header-content sortable">Frequency<a class='sort-button' style='cursor: pointer'>⇅</a></div></th>`
-                    : '') +
-                '<th>Shape</th>' +
-                '</tr>'
-            );
 
             values.sort((a, b) => {
                 return aggregates[b] - aggregates[a];
             });
-
-
             this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
 
-            values.forEach((v, i) => {
-                // PRE D3
-
-                // Manually create options instead of using the existing select
-                let optionsHtml = `
-                    <option value="ellipse" ${this.commonService.temp.style.nodeSymbolMap(v) === 'ellipse' ? 'selected' : ''}>&nbsp;&#11044; (Circle)</option>
-                    <option value="rectangle" ${this.commonService.temp.style.nodeSymbolMap(v) === 'rectangle' ? 'selected' : ''}>&nbsp;&#9632; (Square)</option>
-                    <option value="barrel" ${this.commonService.temp.style.nodeSymbolMap(v) === 'barrel' ? 'selected' : ''}>&nbsp;&#11042; (Barrel)</option>
-                    <option value="rhomboid" ${this.commonService.temp.style.nodeSymbolMap(v) === 'rhomboid' ? 'selected' : ''}>&nbsp;&#9650; (Rhombus)</option>
-                    <option value="diamond" ${this.commonService.temp.style.nodeSymbolMap(v) === 'diamond' ? 'selected' : ''}>&nbsp;&#10731; (Diamond)</option>
-                    <option value="pentagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'pentagon' ? 'selected' : ''}>&nbsp;&#11039; (Pentagon)</option>
-                    <option value="hexagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'hexagon' ? 'selected' : ''}>&nbsp;&#11042; (Hexagon)</option>
-                    <option value="heptagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'heptagon' ? 'selected' : ''}>&nbsp;&#11043; (Heptagon)</option>
-                    <option value="octagon" ${this.commonService.temp.style.nodeSymbolMap(v) === 'octagon' ? 'selected' : ''}>&nbsp;&#11042; (Octagon)</option>
-                    <option value="star" ${this.commonService.temp.style.nodeSymbolMap(v) === 'star' ? 'selected' : ''}>&nbsp;&#9733; (Star)</option>
-                    <option value="tag" ${this.commonService.temp.style.nodeSymbolMap(v) === 'tag' ? 'selected' : ''}>&nbsp;&#9733; (Tag)</option>
-                    <option value="vee" ${this.commonService.temp.style.nodeSymbolMap(v) === 'vee' ? 'selected' : ''}>&nbsp;&#9733; (Vee)</option>
-                `;
-
-                // console.log('symbol each value: ', v, this.commonService.temp.style.nodeSymbolMap(v));
-                let selector = $(`<select ${disabled}></select>`).append(optionsHtml).val(this.commonService.temp.style.nodeSymbolMap(v)).on('change', (e) => {
-                    this.commonService.session.style.nodeSymbols.splice(i, 1, (e.target as any).value);
-                    this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
-                    this.updateNodeShapes();
-                });
-                let symbolText = symbolMapping.find(x => x.key === this.commonService.temp.style.nodeSymbolMap(v));
-
-                let cell = $('<td></td>').append(isEditable ? selector : symbolText ? symbolText.value : '');
-                let row = $(
-                    '<tr>' +
-                    `<td ${isEditable ? 'contenteditable' : ''}> ${this.commonService.titleize('' + v)} </td> ` +
-                    (this.widgets['node-symbol-table-counts'] ? ('<td>' + aggregates[v] + '</td>') : '') +
-                    (this.widgets['node-symbol-table-frequencies'] ? ('<td>' + (aggregates[v] / vnodes).toLocaleString() + '</td>') : '') +
-                    '</tr>'
-                ).append(cell);
-                table.append(row);
-            });
-
-
-            let isAscending = true;  // add this line before the click event handler
-
-            // The sorting functionality is added here
-            $(tableId).on('click', 'th', function () {
-                let table = $(this).parents('table').eq(0);
-                let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).index()));
-                isAscending = !isAscending;  // replace 'this.asc' with 'isAscending'
-                if (!isAscending) { rows = rows.reverse(); }
-                for (let i = 0; i < rows.length; i++) { table.append(rows[i]); }
-            });
-
-            function comparer(index) {
-                return function (a, b) {
-                    let valA = getCellValue(a, index), valB = getCellValue(b, index);
-                    if (this.debugMode) {
-                        console.log(`Comparing: ${valA} and ${valB}`);  // New line
-                    }
-                    return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
-                }
-            }
-
-            function getCellValue(row, index) {
-                return $(row).children('td').eq(index).text();
-            }
-
-        }, 100);
+            this.updateNodeShapes();
+            $('#nodeShapeTableSettings').on('mouseleave', () => $('#nodeShapeTableSettings').delay(500).css('display', 'none'))
+        //}, 100);
 
     }
 
@@ -2717,39 +2653,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log('type: ', type);
 
             return type;
-            // switch (type) {
-            //     case 'ellipse':
-            //         return 'circle';
-            //     case 'rectangle':
-            //         return 'square';
-            //     case 'symbolHexagon':
-            //         return 'hexagon';
-            //     case 'symbolTriangle':
-            //         return 'triangle';
-            //     case 'symbolDiamond':
-            //         return `<use href="#diamond" stroke-width="3" />`;
-            // }
-
-            // { key: 'ellipse', value: '&#11044; (Circle)' },
-            // { key: "symbolTriangle", value: '&#9650; (Up Triangle)' },
-            // { key: "triangle", value: '&#9660; (Triangle)' },
-            // { key: "symbolTriangleLeft", value: '&#9664; (Left Triangle)' },
-            // { key: "symbolTriangleRight", value: '&#9654; (Right Triangle)' },
-            // { key: "diamond", value: '&#10731; (Vertical Diamond)' },
-            // { key: "barrel", value: '&#10731; (barrel)' },
-            // { key: "rectangle", value: '&#9632; (Square)' },
-            // { key: "rhomboid", value: '&#9670; (Rhombus)' },
-            // { key: "pentagon", value: '&#11039; (Pentagon)' },
-            // { key: "hexagon", value: '&#11042; (Hexagon)' },
-            // { key: "heptagon", value: '&#11043; (Heptagon)' },
-            // { key: "octagon", value: '&#11042; (Octagon)' },
-            // { key: "star", value: '&#9733; (Star)' },
-            // { key: "tag", value: '&#9733; (Tag)' },
-            // { key: "vee", value: '&#9733; (Vee)' },
-
-            // if (type === undefined) {
-            //     type = that.customShapes.shapes[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
-            // }
         }
 
         // // Custom Shape Selected
@@ -2817,6 +2720,68 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         //   });
 
+    }
+
+    /**
+     * Updates the appropriate widget value and then updates the 'polygon-color' or 'node-shape' table
+     * @param table 'polygon-color' or 'node-shape'
+     * @param column 'tableCouts' or 'tableFreq' 
+    */
+    toggleTableColumns(table: string, column: string) {
+        if (table == 'node-shape' && column == 'tableCounts') {
+            this.widgets['node-symbol-table-counts'] = !this.widgets['node-symbol-table-counts'];
+            console.log(this.widgets['node-symbol-table-counts'])
+        } else if (table == 'node-shape' && column == 'tableFreq') {
+            this.widgets['node-symbol-table-frequencies'] = !this.widgets['node-symbol-table-frequencies'];
+            console.log(this.widgets['node-symbol-table-frequencies'])
+        } else if (table == 'polygon-color' && column == 'tableCounts') {
+            this.widgets['polygon-color-table-counts'] = !this.widgets['polygon-color-table-counts']
+        } else if (table == 'polygon-color' && column == 'tableFreq') {
+            this.widgets['polygon-color-table-frequencies'] = !this.widgets['polygon-color-table-frequencies']
+        } else {
+            return;
+        }
+        if (table == 'polygon-color') {
+            this.updateCountFreqTable(table);
+        }
+    }
+
+    /**
+     * Toggles the setting menu for polygon-color or node-shape table. This menu allow users to show/hide counts and/or frequencies
+     * @param tableName 'polygon-color' or 'node-shape'
+     */
+    toggleColorTableSettings(tableName: string) {
+        let settingsPane;
+        if (tableName == 'node-shape') {
+            settingsPane = $('#nodeShapeTableSettings')
+        } else if (tableName == 'polygon-color') {
+            settingsPane = $('#polygonColorTableSettings')
+        } else {
+            return;
+        }
+        
+        if (settingsPane.css('display') == 'none') {
+            settingsPane.css('display', 'block')
+        } else {
+            settingsPane.css('display', 'none')
+        }
+    }
+
+        /**
+     * Updates the polygon-color-table based on value of widgets; it doesn't recalculate anything; just shows/hide columns (No longer need for node shape table)
+     * @param tableName 'polygon-color'
+     */
+    updateCountFreqTable(tableName) {
+        let tableReferenceName, showCount, showFreq;
+        if (tableName == 'polygon-color') {
+            tableReferenceName = '#polygon-color-table-wrapper';
+            showCount = this.widgets['polygon-color-table-counts'];
+            showFreq = this.widgets['polygon-color-table-frequencies'];
+        }
+        const countColumn = $(tableReferenceName + ' .tableCount');
+        const freqColumn = $(tableReferenceName + ' .tableFrequency');
+        (showCount) ? countColumn.slideDown() : countColumn.slideUp();
+        (showFreq) ? freqColumn.slideDown() : freqColumn.slideUp();
     }
 
     /**
@@ -3806,7 +3771,7 @@ private _partialUpdate() {
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newShape = this.getNodeShape(node.data());
-            console.log('newShape: ', newShape);
+            //console.log('newShape: ', newShape);
             node.data('shape', newShape);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes

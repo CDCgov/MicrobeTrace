@@ -3564,12 +3564,16 @@ export class CommonService extends AppComponentBase implements OnInit {
                 heightOffsets.push(heightOffsets[i] + cells[0].offsetHeight)
             }
 
-            if (window.getComputedStyle(cells[j]).display === 'none') { continue; }
-            if (cells[j].querySelector('select')) {
-                if (cells[j].querySelector('select option[selected]')) {
-                    rowData.push(cells[j].querySelector('select option[selected]').innerHTML.replace(/&nbsp;/g, ' '));
+            if (window.getComputedStyle(cells[j]).display === 'none') { continue; };
+            if (cells[j].querySelector('p-dropdown')) {
+                if (cells[j].querySelector('p-dropdown div a').className == 'rhombus'){
+                    rowData.push('shapeRhombus')
+                } else if (cells[j].querySelector('p-dropdown div a').className == 'tag'){
+                    rowData.push('shapeTag')
+                } else if (cells[j].querySelector('p-dropdown div a').className == 'barrel'){
+                    rowData.push('shapeBarrel')
                 } else {
-                    rowData.push(''); // empty cell
+                    rowData.push(cells[j].querySelector('p-dropdown div').innerHTML.replace(/&nbsp;/g, ' '));
                 }
             } else if (cells[j].querySelector('input[type="color"]')) {
                 let color = (cells[j].querySelector('input[type="color"]') as HTMLInputElement).value;
@@ -3588,6 +3592,21 @@ export class CommonService extends AppComponentBase implements OnInit {
             row.forEach((cell, colIndex) => {
                 if (cell.length === 7 && cell[0] == '#') { 
                     out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" width="20" height="20" fill="${cell}"></rect>`; 
+                } else if (cell === 'shapeRhombus') { 
+                    out += `<g font-family="Verdana" font-size="15" fill="black">
+                    <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="80">▰</text>
+                    <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Rhombus)</text>
+                    </g>`;
+                } else if (cell === 'shapeTag') { 
+                    out += `<g font-family="Verdana" font-size="15" fill="black">
+                    <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="90">☗</text>
+                    <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Tag)</text>
+                    </g>`;
+                } else if (cell === 'shapeBarrel') { 
+                    out += `<g font-family="Verdana" font-size="15" fill="black">
+                    <rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" width="12" height="12" rx="4" ry="4"/>
+                    <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Barrel)</text>
+                    </g>`;
                 } else {
                     out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Verdana" font-size="15" fill="black">${cell}</text>`;
                 }
