@@ -68,10 +68,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     shapeAggregates: { key: string, count: Number, frequency: Number }[] = [];
     shapeSort: { key: string, assending: boolean} = { key: 'count', assending: true};
 
-
-    /// XXXXX abccc null should be (empty); that how other tables work and how node shape table used to work; so work on that, ok?
-    // also, I don't know if I need the setTimeout down there, when creating node shape by table XXXXX
-
     linkMin: number = 3;
     linkMax: number = 27;
     linkScale: any;
@@ -127,7 +123,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeLabelVariable: string = "None";
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeSymbolVariable: string = "None";
-    SelectedNodeShapeVariable: string = "symbolCircle";
+    SelectedNodeShapeVariable: string = "ellipse";
     SelectedNodeRadiusVariable: string = "None";
     SelectedNodeRadiusSizeVariable: string = "None";
 
@@ -264,7 +260,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         })
 
             // Initialize the selectedNodeShape from the settings
-        this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
+        this.widgets['node-symbol'] = this.mapPreviousShapeNameToCurrent(this.widgets['node-symbol']);
+        this.selectedNodeShape = this.widgets['node-symbol'];
+
         cytoscape.use(svg);
 
     }
@@ -2064,6 +2062,47 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         
     }
 
+    mapPreviousShapeNameToCurrent(name: string): string {
+        if (this.symbolMapping.some(x => x.key === name)) {
+            return name;
+        }
+        switch (name) {
+            case 'symbolCircle':
+                return 'ellipse';
+            case "symbolTriangle":
+            case "symbolTriangleDown":
+                return 'triangle';
+            case "symbolSquare":
+                return 'rectangle';
+            case "symbolDiamond":
+            case "symbolDiamondAlt":
+                return 'rhomboid';
+            case "symbolDiamondSquare":
+                return 'diamond';
+            case "symbolOctagonAlt":
+            case "symbolHexagonAlt":
+                return 'heptagon';
+            case "symbolPentagon":
+                return 'pentagon';
+            case "symbolHexagon":
+                return 'hexagon';
+            case "symbolCross":
+                return 'barrel';
+            case "symbolOctagon":
+                return 'octagon';
+            case "symbolStar":
+                return 'star';
+            case "symbolTriangleLeft":
+            case "symbolTriangleRight":
+                return 'tag';
+            case "symbolX":
+            case "symbolWye":
+                return 'vee';
+            default:
+                return 'ellipse';
+        }
+    }
+
     onNodeShapeSort(sortBy: string) {
         if (sortBy == this.shapeSort.key) {
             this.shapeSort.assending = !this.shapeSort.assending;
@@ -3613,6 +3652,7 @@ private _partialUpdate() {
 
 
         //Nodes|Shape
+        this.widgets['node-symbol'] = this.mapPreviousShapeNameToCurrent(this.widgets['node-symbol']);
         this.SelectedNodeShapeVariable = this.widgets['node-symbol'];
         this.onNodeSymbolChange(this.SelectedNodeShapeVariable);
 
