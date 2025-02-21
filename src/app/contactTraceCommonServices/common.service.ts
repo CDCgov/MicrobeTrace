@@ -1,4 +1,4 @@
-import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -277,7 +277,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-width-variable': 'None',
             'link-width-reciprocal': true,
             'link-origin-array-order': [],
-            'map-basemap-show': false,
+            'map-basemap-show': true,
             'map-collapsing-on': true,
             'map-counties-show': false,
             'map-countries-show': true,
@@ -3153,7 +3153,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         if(this.debugMode) {
             console.log('reset data called');
-            console.log('session files1', JSON.stringify(this.visuals.microbeTrace.commonService.session.files));
             console.log('session files2', JSON.stringify(this.session.files));
 
             console.log('session data files: ', JSON.stringify(files));
