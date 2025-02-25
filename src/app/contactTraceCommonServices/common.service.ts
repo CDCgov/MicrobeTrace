@@ -46,7 +46,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     activeTab: string = 'Files';
 
     // Set this to true to enable the debug mode/console logs to appear
-    public debugMode: boolean = true;
+    public debugMode: boolean = false;
 
     private linkElementSource = new BehaviorSubject<HTMLElement | null>(null);
     private nodeElementSource = new BehaviorSubject<HTMLElement | null>(null);
@@ -113,6 +113,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     // EventEmitter to notify components of changes
     twoD_saveNodePos: EventEmitter<string> = new EventEmitter();
+
+    // check for not interfering with networks outside of inital demo
+    demoNetworkRendered: boolean = false;
 
     /**
      * Returns an object that will eventually be filled with data. It is accessed throught commonService.session.data
@@ -424,6 +427,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 initialLoad: false,
                 launched : false,
                 isFullyLoaded: false,
+                rendered: false,
+                rendering: false,
                 settingsLoaded: false,
             },
             state: {
@@ -642,6 +647,46 @@ export class CommonService extends AppComponentBase implements OnInit {
         return this._linkThreshold$.value;
     }
 
+    // BehaviorSubject to store the threshold
+    private _networkRendered$ = new BehaviorSubject<boolean>(false);
+
+    // Expose as observable so components can subscribe
+    networkRendered$ = this._networkRendered$.asObservable();
+
+     // Call this to set a new threshold value
+     setNetworkRendered(isRendered: boolean): void {
+        // Only emit if the value actually changed
+        console.log('--- setNetworkRendered called: ', isRendered);
+        this._networkRendered$.next(isRendered);
+    }
+
+    // Example: read-only convenience accessor to get the current threshold
+    get networkRendered(): boolean {
+        return this._networkRendered$.value;
+    }
+
+    // ----
+
+    // BehaviorSubject to store the threshold
+    private _loadingMessageUpdated$ = new BehaviorSubject<string>("");
+
+    // Expose as observable so components can subscribe
+    loadingMessageUpdated$ = this._loadingMessageUpdated$.asObservable();
+
+     // Call this to set a new threshold value
+     setLoadingMessageUpdated(message: string): void {
+        // Only emit if the value actually changed
+        console.log('--- setLoadingMessageUpdated called: ', message);
+        this._loadingMessageUpdated$.next(message);
+    }
+
+    // Example: read-only convenience accessor to get the current threshold
+    get loadingMessageUpdated(): string {
+        return this._loadingMessageUpdated$.value;
+    }
+
+    // ---
+
      // BehaviorSubject to store the threshold
      private _networkUpdated$ = new BehaviorSubject<boolean>(false);
 
@@ -652,9 +697,9 @@ export class CommonService extends AppComponentBase implements OnInit {
          return this._networkUpdated$.value;
      }
  
-     setNetworkUpdated(newPruned: boolean): void {
-        console.log('--- setNetworkUpdated called: ', newPruned);
-         this._networkUpdated$.next(newPruned);
+     setNetworkUpdated(isUpdated: boolean): void {
+        console.log('--- setNetworkUpdated called: ', isUpdated);
+         this._networkUpdated$.next(isUpdated);
      }
 
       // BehaviorSubject to store the settings loaded
@@ -2398,7 +2443,7 @@ align(params): Promise<any> {
         } catch (error) {
             console.error(error);
 
-            $("#loading-information-modal").hide();
+            // $("#loading-information-modal").hide();
             // abp.notify.error("Something went wrong! Please click here to start a new session and try again.");
             //.delay(0)
             //.ondismiss(() => window.location.reload());

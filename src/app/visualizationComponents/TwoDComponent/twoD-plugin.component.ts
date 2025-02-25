@@ -251,6 +251,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // Initialize the selectedNodeShape from the settings
         this.selectedNodeShape = this.widgets['node-symbol'] || 'circle';
+        // TODO: see if this impacts performance
         cytoscape.use(svg);
 
     }
@@ -273,6 +274,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if(this.data && this.commonService.settingsLoaded){
                 console.log('--- TwoD DATA network updated pruned', newPruned);
                 this._rerender();
+                this.loadSettings();
             }
         });
 
@@ -281,7 +283,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .subscribe(loaded => {
             if(loaded) {
 
-                console.log('--- TwoD settings loaded render');
+                console.log('--- TwoD settings loaded get data');
 
                   let networkData = {
                     nodes: this.commonService.getVisibleNodes(),
@@ -289,8 +291,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
 
                 this.data = this.commonService.convertToGraphDataArray(networkData);
-                // this._rerender();
-                // this.loadSettings();
+
             }
         });
 
@@ -576,35 +577,71 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
-    // A helper function that uses D3 to assign (x, y) to each node.
-    precomputePositionsWithD3(nodes: any[], links: any[]): { nodes: any[], links: any[] } {
+    async precomputePositionsWithD3(
+        nodes: any[],
+        links: any[]
+      ): Promise<{ nodes: any[]; links: any[] }> {
+        console.log(
+          '--- TwoD precomputePositionsWithD3 called links: ',
+          _.cloneDeep(links),
+          'nodes: ',
+          nodes
+        );
+        
+        const simulation = d3.forceSimulation(nodes)
+          .force('charge', d3.forceManyBody().strength(-30))
+          .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+          .force('center', d3.forceCenter(0, 0))
+          .stop(); // Stop auto-stepping so we can control the ticks manually
+      
+        const maxTicks = 300;
+        let tickCount = 0;
+      
+        return new Promise((resolve) => {
+          function tick() {
+            simulation.tick();
+            tickCount++;
+            if (tickCount < maxTicks) {
+              // Use setTimeout to yield control to the browser between ticks
+              setTimeout(tick, 0);
+            } else {
+              // After all ticks, resolve the promise with the updated nodes and links.
+              resolve({ nodes, links });
+            }
+          }
+          tick();
+        });
+      }
 
-        // D3 requires each link to have `source` and `target` references
-        // that match the node objects or node IDs. Typically:
-        //    forceLink(links).id(d => d.id)
-        // if your nodes have an 'id' property.
-        // If your node objects use something else, adapt accordingly.
-    console.log('--- TwoD precomputePositionsWithD3 called links: ', _.cloneDeep(links)
-        , 'nodes: ', nodes
-    );
-        const simulation = d3f.forceSimulation(nodes)
-        .force('charge', d3f.forceManyBody().strength(-30))
-        .force('link', d3f.forceLink(links).id((d: any) => d.id).distance(50))
-        .force('center', d3f.forceCenter(0, 0))
-        .stop(); // stop auto-stepping to let us do it manually
+    // // A helper function that uses D3 to assign (x, y) to each node.
+    // precomputePositionsWithD3(nodes: any[], links: any[]): { nodes: any[], links: any[] } {
+
+    //     // D3 requires each link to have `source` and `target` references
+    //     // that match the node objects or node IDs. Typically:
+    //     //    forceLink(links).id(d => d.id)
+    //     // if your nodes have an 'id' property.
+    //     // If your node objects use something else, adapt accordingly.
+    // console.log('--- TwoD precomputePositionsWithD3 called links: ', _.cloneDeep(links)
+    //     , 'nodes: ', nodes
+    // );
+    //     const simulation = d3f.forceSimulation(nodes)
+    //     .force('charge', d3f.forceManyBody().strength(-30))
+    //     .force('link', d3f.forceLink(links).id((d: any) => d.id).distance(50))
+    //     .force('center', d3f.forceCenter(0, 0))
+    //     .stop(); // stop auto-stepping to let us do it manually
     
-        // Manually "tick" the simulation to run it to completion.
-        // The exact number of ticks is up to you.  
-        // 100-300 is typical. More ticks => more stable layout => more time.
-        const maxTicks = 1000;
-        for (let i = 0; i < maxTicks; i++) {
-        simulation.tick();
-        }
+    //     // Manually "tick" the simulation to run it to completion.
+    //     // The exact number of ticks is up to you.  
+    //     // 100-300 is typical. More ticks => more stable layout => more time.
+    //     const maxTicks = 300;
+    //     for (let i = 0; i < maxTicks; i++) {
+    //     simulation.tick();
+    //     }
     
-        // Now each node in `nodes` has x,y set.
-        // Return them with the links as well, in case we want them.
-        return { nodes, links };
-    }
+    //     // Now each node in `nodes` has x,y set.
+    //     // Return them with the links as well, in case we want them.
+    //     return { nodes, links };
+    // }
 
     saveNodePos() {
         if (this.cy) {
@@ -2685,227 +2722,229 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Rerenders whole data set by resetting data object
      */
-    private _rerender(timelineTick=false) {
+    private async _rerender(timelineTick=false) {
 
         console.log('--- TwoD DATA network rerender');
 
+        // If the network is in the middle of rendering, don't rerender
+        if(this.commonService.session.network.rendering) return;
+
+        // Set rendering to true to prevent actions during rerendering
+        this.commonService.session.network.rendering = true;
+
+        // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
+        this.commonService.setNetworkRendered(false);
 
         if (this.data === undefined) {
             return;
         }
 
 
-    let networkData;
-    if (timelineTick) {
-        let nodes = this.commonService.getVisibleNodes();
-        if (nodes.length == this.data.nodes.length) { 
-            return;
-         }
-        let links = this.commonService.getVisibleLinks();
-        let visLinks = [];
-        links.forEach((d) => {
-            if (!d.visible) return;
-            var source = nodes.find(node => node._id == d.source && node.visible);
-            var target = nodes.find(node => node._id == d.target && node.visible);
-    
-            if (source && target) {
-                visLinks.push(d);
+        let networkData;
+        if (timelineTick) {
+            let nodes = this.commonService.getVisibleNodes();
+            if (nodes.length == this.data.nodes.length) { 
+                return;
             }
-        })
-        networkData = { 
-            nodes : nodes, 
-            links : visLinks
-        }
-    } else {
-        networkData = {
-            nodes: this.commonService.getVisibleNodes(),
-            links: this.commonService.getVisibleLinks()
-        };
-
-    }
-
-    networkData.nodes.forEach(node => {
-        node.id = node._id.toString();
-      });
-    networkData.links.forEach((link, i) => {
-        // Set a unique link id if desired
-        link.id = i.toString();  // or link.index.toString()
-      
-        // console.log('--- TwoD link: ', link.source);
-        // If link.source is an object, grab its _id and convert to string
-        if (typeof link.source === 'object') {
-          link.source = link.source._id.toString();
-        }
-
-        // console.log('--- TwoD link: ', link.source);
-
-      
-        // Same for link.target
-        if (typeof link.target === 'object') {
-          link.target = link.target._id.toString();
-        }
-      });
-
-      const nodeIds = new Set(networkData.nodes.map(n => n.id));
-
-networkData.links.forEach(link => {
-  if (!nodeIds.has(link.source)) {
-    console.warn('Link source not found in nodes:', link.source, link);
-  }
-  if (!nodeIds.has(link.target)) {
-    console.warn('Link target not found in nodes:', link.target, link);
-  }
-});
-
-console.log('--- TwoD networkData: ', _.cloneDeep(networkData.links));
-    // 2. Precompute positions with D3 (only if nodes/links have changed)
-    //    This assumes your precomputePositionsWithD3 function returns an object with
-    //    { nodes: laidOutNodes, links: laidOutLinks } where each node has x and y computed.
-    const { nodes: laidOutNodes, links: laidOutLinks } = this.precomputePositionsWithD3(
-        networkData.nodes,
-        networkData.links
-    );
-
-    console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
-
-    
-    // Update networkData with the precomputed positions
-    networkData.nodes = laidOutNodes;
-    networkData.links = laidOutLinks;
-
-    networkData.links.forEach((link, i) => {
-        // Set a unique link id if desired
-        link.id = i.toString();  // or link.index.toString()
-      
-        // console.log('--- TwoD link: ', link.source);
-        // If link.source is an object, grab its _id and convert to string
-        if (typeof link.source === 'object') {
-          link.source = link.source._id.toString();
-        }
-
-        // console.log('--- TwoD link: ', link.source);
-
-      
-        // Same for link.target
-        if (typeof link.target === 'object') {
-          link.target = link.target._id.toString();
-        }
-      });
-
-    console.log('--- TwoD networkData after precompute1: ', _.cloneDeep(networkData.links));
-
-    
-    console.log('--- TwoD laidOutLinks: ', laidOutLinks);
-    console.log('--- TwoD laidOutNodes: ', laidOutNodes);
-    console.log('link threshold network links: ', networkData.links.length);
-
-    
-
-        console.log('link threhold network links: ', networkData.links.length);
-
-        // Determine autoFit based on node-timeline-variable
-        if (networkData.nodes.length !== 0) {
-            this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
+            let links = this.commonService.getVisibleLinks();
+            let visLinks = [];
+            links.forEach((d) => {
+                if (!d.visible) return;
+                var source = nodes.find(node => node._id == d.source && node.visible);
+                var target = nodes.find(node => node._id == d.target && node.visible);
+        
+                if (source && target) {
+                    visLinks.push(d);
+                }
+            })
+            networkData = { 
+                nodes : nodes, 
+                links : visLinks
+            }
         } else {
-            this.autoFit = true;
+            networkData = {
+                nodes: this.commonService.getVisibleNodes(),
+                links: this.commonService.getVisibleLinks()
+            };
+
         }
 
-
-        if (this.debugMode) {
-            console.log('link vis rerender: ', this.commonService.getVisibleLinks());
-        }
-
-
-        // Update Cytoscape visualization if it exists
-        if (this.cy && !timelineTick) {
+        networkData.nodes.forEach(node => {
+            node.id = node._id.toString();
+        });
+        networkData.links.forEach((link, i) => {
+            // Set a unique link id if desired
+            link.id = i.toString();  // or link.index.toString()
         
-            this._partialUpdate();
+            // console.log('--- TwoD link: ', link.source);
+            // If link.source is an object, grab its _id and convert to string
+            if (typeof link.source === 'object') {
+            link.source = link.source._id.toString();
+            }
 
-    } else if (this.cy && timelineTick) {
-        this.data = this.commonService.convertToGraphDataArray(networkData);
+            // console.log('--- TwoD link: ', link.source);
 
-        // Add new nodes and edges
-        this.cy.elements().remove();
-        const newElements = this.mapDataToCytoscapeElements(this.data, true);
-        this.cy.add(newElements);
+        
+            // Same for link.target
+            if (typeof link.target === 'object') {
+            link.target = link.target._id.toString();
+            }
+        });
 
-        // Apply the Cose layout to arrange the nodes
-        const layout = this.cy.layout({
-            name: 'preset',
-            fit: true, // Fit the graph within the viewport
-            padding: 30, // Padding around the graph
+        const nodeIds = new Set(networkData.nodes.map(n => n.id));
+
+        networkData.links.forEach(link => {
+        if (!nodeIds.has(link.source)) {
+            console.warn('Link source not found in nodes:', link.source, link);
+        }
+        if (!nodeIds.has(link.target)) {
+            console.warn('Link target not found in nodes:', link.target, link);
+        }
+        });
+
+        console.log('--- TwoD networkData: ', _.cloneDeep(networkData.links));
+        // 2. Precompute positions with D3 (only if nodes/links have changed)
+        //    This assumes your precomputePositionsWithD3 function returns an object with
+        //    { nodes: laidOutNodes, links: laidOutLinks } where each node has x and y computed.
+       // Instead of calling synchronously, await the precomputation:
+        const { nodes: laidOutNodes, links: laidOutLinks } =
+        await this.precomputePositionsWithD3(networkData.nodes, networkData.links);
+
+        console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
+
+        
+        // Update networkData with the precomputed positions
+        networkData.nodes = laidOutNodes;
+        networkData.links = laidOutLinks;
+
+        networkData.links.forEach((link, i) => {
+            // Set a unique link id if desired
+            link.id = i.toString();  // or link.index.toString()
+        
+            // console.log('--- TwoD link: ', link.source);
+            // If link.source is an object, grab its _id and convert to string
+            if (typeof link.source === 'object') {
+            link.source = link.source._id.toString();
+            }
+
+            // console.log('--- TwoD link: ', link.source);
+
+        
+            // Same for link.target
+            if (typeof link.target === 'object') {
+            link.target = link.target._id.toString();
+            }
+        });
+
+        console.log('--- TwoD networkData after precompute1: ', _.cloneDeep(networkData.links));
+
+        
+        console.log('--- TwoD laidOutLinks: ', laidOutLinks);
+        console.log('--- TwoD laidOutNodes: ', laidOutNodes);
+        console.log('link threshold network links: ', networkData.links.length);
+
+        
+
+            console.log('link threhold network links: ', networkData.links.length);
+
+            // Determine autoFit based on node-timeline-variable
+            if (networkData.nodes.length !== 0) {
+                this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
+            } else {
+                this.autoFit = true;
+            }
+
+
+            if (this.debugMode) {
+                console.log('link vis rerender: ', this.commonService.getVisibleLinks());
+            }
+
+
+            // Update Cytoscape visualization if it exists
+            if (this.cy && !timelineTick) {
             
-        });
+                this._partialUpdate();
 
-        layout.run();
+        } else if (this.cy && timelineTick) {
+            this.data = this.commonService.convertToGraphDataArray(networkData);
 
-        if (this.widgets['polygons-show']) {
-            this.polygonsToggle(true)
-            this.centerPolygons(this.widgets['polygons-foci']);
-        }
+            // Add new nodes and edges
+            this.cy.elements().remove();
+            const newElements = this.mapDataToCytoscapeElements(this.data, true);
+            this.cy.add(newElements);
 
-    } else{
-        this.data = this.commonService.convertToGraphDataArray(networkData);
+            // Apply the Cose layout to arrange the nodes
+            const layout = this.cy.layout({
+                name: 'preset',
+                fit: true, // Fit the graph within the viewport
+                padding: 30, // Padding around the graph
+                
+            });
 
-        if (this.cy) {
-            this.cy.destroy();
-          }
+            layout.run();
 
-        const el = this.mapDataToCytoscapeElements(this.data);
-          console.log('--- TwoD Creating CY');
+            if (this.widgets['polygons-show']) {
+                this.polygonsToggle(true)
+                this.centerPolygons(this.widgets['polygons-foci']);
+            }
 
-          console.log('--- TwoD Creating CY el: ', el);
+        } else{
+            this.data = this.commonService.convertToGraphDataArray(networkData);
 
-           // Track start time
-        let startTime;
+            if (this.cy) {
+                this.cy.destroy();
+            }
 
-        cytoscape.use(fcose);
-        
-        this.cy = cytoscape({
-            container: this.cyContainer.nativeElement, // container to render in
-        
-            elements: el, // convert your data
-        
-            style: this.getCytoscapeStyles(), // define your styles
+            const el = this.mapDataToCytoscapeElements(this.data);
+            console.log('--- TwoD Creating CY');
 
-            layout: {
-              name: 'cose', // Use the cose layout
-                            //@ts-ignore
+            console.log('--- TwoD Creating CY el: ', el);
+
+            // Track start time
+            let startTime;
+
+            // cytoscape.use(fcose);
             
-              fit: true, // Fit the graph to the viewport
-              padding: 100 // Padding around the graph
-             
-            },
-        
-            // Enable zooming and panning
-            zoomingEnabled: true,
-            userZoomingEnabled: true,
-            panningEnabled: true,
-            userPanningEnabled: true,
-          });
+            this.cy = cytoscape({
+                container: this.cyContainer.nativeElement, // container to render in
+                elements: el, // convert your data
+                style: this.getCytoscapeStyles(), // define your styles
+                layout: {
+                name: 'preset', // Use the cose layout
+                fit: true, // Fit the graph to the viewport
+                padding: 100 // Padding around the graph
+                },
+            
+                // Enable zooming and panning
+                zoomingEnabled: true,
+                userZoomingEnabled: true,
+                panningEnabled: true,
+                userPanningEnabled: true,
+            });
 
-          this.attachCytoscapeEvents();
+            this.attachCytoscapeEvents();
 
-         // Attach event listener BEFORE layout starts
-        this.cy.one('layoutstart', () => {
-            startTime = performance.now();
-            console.log(`🟢 Cytoscape layout started at: ${startTime.toFixed(2)}ms`)
-        });
+            // Attach event listener BEFORE layout starts
+            this.cy.one('layoutstart', () => {
+                startTime = performance.now();
+                console.log(`🟢 Cytoscape layout started at: ${startTime.toFixed(2)}ms`)
+            });
 
-        this.cy.one('layoutstop', () => {
-            const endTime = performance.now();
-            console.log(`✅ Cytoscape layout rendering completed in ${(endTime - startTime).toFixed(2)}ms`);
-        });
+            this.cy.one('layoutstop', () => {
+                const endTime = performance.now();
+                console.log(`✅ Cytoscape layout rendering completed in ${(endTime - startTime).toFixed(2)}ms`);
+                // Set rendered to true now that network has rendered
+                this.commonService.setNetworkRendered(true);  
+                // Now we can ensure the demo at least the demo network has been rendered
+                this.commonService.demoNetworkRendered = true;          
+            });
 
-        // Run the layout
-        //@ts-ignore
-        this.cy.layout({ name: 'preset', animate: "end" }).run();
+            // Run the layout
+            //@ts-ignore
+            this.cy.layout({ name: 'preset', animate: "end" }).run();
 
-        }
-
-        console.log('--- TwoD DATA network rerender complete');
-
-
+         }
+            console.log('--- TwoD DATA network rerender complete');
     }
 
     public getNodeShape(node: any) {
@@ -3844,6 +3883,7 @@ private _partialUpdate() {
 
         //Nodes|Label
         this.SelectedNodeLabelVariable = this.widgets['node-label-variable'];
+        console.log('----TWOD SelectedNodeLabelVariable: ', this.SelectedNodeLabelVariable);
         this.onNodeLabelVaribleChange(this.SelectedNodeLabelVariable);
 
         //Node|Label Size
@@ -3990,11 +4030,15 @@ private _partialUpdate() {
      * Updates the labels of all nodes based on the current widget settings.
      */
     updateNodeLabels() {
+        console.log('----TWOD updateNodeLabels called');
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newLabel = this.getNodeLabel(node.data());
             node.data('label', newLabel);
         });
+
+        console.log('--- TwoDComponent updateNodeLabels ended ');
+
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
 

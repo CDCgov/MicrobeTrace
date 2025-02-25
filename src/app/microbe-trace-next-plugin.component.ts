@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
+﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService, ExportOptions } from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 
@@ -9,7 +9,7 @@ import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
 import * as saveAs from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
-import { Observable, forkJoin } from 'rxjs';
+import { Observable, Subject, forkJoin, takeUntil } from 'rxjs';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 // import * as moment from 'moment';
 import moment from 'moment';
@@ -25,7 +25,7 @@ import { debounce } from 'lodash';
 
 
 @Component({
-    changeDetection: ChangeDetectionStrategy.Default,
+    changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'contact-trace',
     encapsulation: ViewEncapsulation.None,
     templateUrl: './microbe-trace-next-plugin.component.html',
@@ -85,6 +85,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     displayMTDialog: boolean = false;
     displayRecallStashDialog: boolean = false;
     displayLedgerLoaderDialog: boolean = false;
+    displayloadingInformationModal: boolean = false;
+
+    // messages to display in loading modal
+    messages: string[] = [];
+
     version: string = '2.0';
     auspiceUrlVal: string|null = '';
 
@@ -103,6 +108,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     searchText: string = '';
 
     private subscription: Subscription;
+    private networkRenderedSubscription: Subscription;
+    private loadingMessageUpdatedSubscription: Subscription;
+    private destroy$ = new Subject<void>();
+
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
     // Blockchaindata: BlockchainProofHashDto = new BlockchainProofHashDto();
@@ -264,14 +273,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.currentUrl = window.location.href;
         
-
-        // setTimeout(() => {
-        //     srv.createNewComponent(srv.getRegisteredComponents()[0]);
-        //   }, 1000);
-
-        //   setTimeout(() => {
-        //     srv.createNewComponent(srv.getRegisteredComponents()[0]);
-        //   }, 10000);
     }
 
     getElementById(id: string): HTMLElement | null {
@@ -302,6 +303,38 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             if(loaded && !this.commonService.settingsLoaded) {
                 this.loadUISettings();
             }
+        });
+
+         // Subscribe to network rendered
+        this.networkRenderedSubscription = this.commonService.networkRendered$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(rendered => {
+            console.log('--miceobtrace :', this.commonService.session.network.isFullyLoaded);
+            // console.log('--- Network Rendered: ', rendered);
+            if(rendered) {
+                this.displayloadingInformationModal = false;
+                this.messages = [];
+                this.onLinkColorTableChanged();
+                this.cdref.detectChanges();
+            
+            // Only show loading modal when loading network outside of demo network to not have it appear on load
+            } else if (!rendered && this.commonService.demoNetworkRendered  && this.commonService.session.network.isFullyLoaded) {
+                // Clear messages for loading modal
+                // this.messages = [];
+                this.displayloadingInformationModal = true;
+                this.showMessage('Rendering Network...');
+            }
+        });
+
+        // Subscribe to network rendered
+        this.loadingMessageUpdatedSubscription = this.commonService.loadingMessageUpdated$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(message => {
+            console.log('--- message updated: ', message);
+            if(message) {
+                this.displayloadingInformationModal = true;
+                this.showMessage(message);
+            } 
         });
 
         // Subscribe to threshold changes from the service
@@ -448,6 +481,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, 5000);
            
     }
+
+    showMessage(msg: string) {
+
+        this.messages = [...this.messages, msg];        
+        setTimeout(() => {
+            this.cdref.detectChanges();
+          }, 0);
+      }
 
     addComponent( component: string ) {
 
