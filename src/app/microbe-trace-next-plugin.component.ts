@@ -1356,7 +1356,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (this.SelectedColorLinksByVariable != "None") {
 
-            // this.generateNodeLinkTable("#link-color-table");
+            this.generateNodeLinkTable("#link-color-table");
 
             $('#link-color-value-row').slideUp();
 
