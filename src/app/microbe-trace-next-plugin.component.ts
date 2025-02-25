@@ -20,6 +20,7 @@ import { GoldenLayoutHostComponent } from './golden-layout-host.component';
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
+import { debounce } from 'lodash';
 
 
 
@@ -262,6 +263,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.dataSetViewSelected = "Node";
 
         this.currentUrl = window.location.href;
+        
 
         // setTimeout(() => {
         //     srv.createNewComponent(srv.getRegisteredComponents()[0]);
@@ -293,6 +295,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.exportSVG$.subscribe((info) => {
             this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable);
+        });
+
+        this.commonService.networkUpdated$.subscribe((loaded) => {
+            console.log('--- nework updated: ', loaded);
+            if(loaded && !this.commonService.settingsLoaded) {
+                this.loadUISettings();
+            }
         });
 
         // Subscribe to threshold changes from the service
@@ -383,13 +392,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         const that = this;
 
-        $( document ).on( "link-visibility", function( ) {
-            that.generateNodeLinkTable("#link-color-table");
-        });
+        // $( document ).on( "link-visibility", function( ) {
+        //     that.generateNodeLinkTable("#link-color-table");
+        // });
 
-        $( document ).on('node-visibility', function () {
-            that.generateNodeColorTable('#node-color-table'); 
-        })
+        // $( document ).on('node-visibility', function () {
+        //     that.generateNodeColorTable('#node-color-table'); 
+        // })
 
         setTimeout(() => {
             $('#top-toolbar').fadeTo("slow", 1);
@@ -442,6 +451,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     addComponent( component: string ) {
 
+        console.log('--- addComponent called');
+
+        this.commonService.session.tabLoaded = false;
+
         // const componentType = this._selectedRegisteredComponentTypeName;
         const goldenLayoutComponent = this._goldenLayoutHostComponent.goldenLayout.newComponent(component);
 
@@ -449,13 +462,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         
         this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
         
-        
-        setTimeout(() => {
-          
-            // this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1].DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
+        console.log('--- addComponent Tab added');
 
+        // TODO:: GOLDEN LAYOUT USES ASYNCHONOUS Loading of Components, settimout waits for it
+        setTimeout(() => {
+            console.log('--- GOLDEN LAYOUT COMPONENT LOADED');
+            this.commonService.session.tabLoaded = true;
+            this.commonService.session.network.isFullyLoaded = true;
             this.setActiveTabProperties();
-            this.loadSettings();
+            this.loadFilterSettings();
         });
 
     }
@@ -904,6 +919,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
+    private _lastLinkThreshold: number = this.commonService.session.style.widgets["link-threshold"];
+
+
     /**
      * Updates ambiguity based on selection and store in style widgets
      * @param value - ambiguity selected
@@ -975,53 +993,94 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
 
+    private _lastClusterMinimum: number = this.commonService.session.style.widgets["cluster-minimum-size"];
+
+
     /**
      * Updates GlobalSetingModel variable and cluster-minimum-size widget. Removes and adds clusters when needed
      */
-    onMinimumClusterSizeChanged() {
-        this.commonService.twoD_saveNodePos.emit();
+    onMinimumClusterSizeChanged(silent: boolean = false) {
 
+        //consol nodes from commonService
+
+        console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
         this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
+
 
         let val = parseInt(this.SelectedClusterMinimumSizeVariable);
 
         this.commonService.session.style.widgets["cluster-minimum-size"] = val;
 
-        // this.commonService.setClusterVisibility(true);
-        // this.commonService.setLinkVisibility(true);
-        // this.commonService.setNodeVisibility(true);
 
-        // this.updatedVisualization();
+        if(this.commonService.session.data.nodes.length === 0) {
+            return;
+        }
 
-        // this.commonService.updateStatistics();
+         // Check if the cluster minimum value really changed
+        if (val === this._lastClusterMinimum && this.commonService.settingsLoaded) {
+            console.log("Cluster minimum unchanged; no update needed.");
+            return;
+        }
 
-        this.commonService.setLinkVisibility(true);
-        // this.commonService.tagClusters().then(() => { // removed because it was leading to clusters being split when minimum cluster size was increased
-            this.commonService.setClusterVisibility(true);
-            this.commonService.setNodeVisibility(true);
+        if(!silent) {
+            this.commonService.twoD_saveNodePos.emit();
             this.commonService.setLinkVisibility(true);
-          ["cluster", "link", "node"].forEach(thing => {
-            $(document).trigger(thing + "-visibility");
-          });
-          this.commonService.updateStatistics();
-          this.commonService.setNetworkUpdated(true);
-        //   this.updatedVisualization();
+            this.commonService.updateNetworkVisuals();
+        }
 
-        //});
+        // console.log('onMinimumClusterSizeChanged called');
+
+        console.log('tagClusterslink vis min cluster size');
+
+
 
     }
+
+    private _lastLinkSortValue: string = this.commonService.session.style.widgets["link-sort-variable"];
+
 
     /**
      * Updates GlobalSettingsModel variable and link-sort-variable widget. Updates link threshold histogram and then updates network
      */
-    onLinkSortChanged() {
+    onLinkSortChanged(silent: boolean = false) {
+
+        if(this.commonService.session.data.nodes.length === 0) {
+            return;
+        }
+
+        // Only update if the sort variable is different
+        if (this.SelectedLinkSortVariable === this._lastLinkSortValue && this.commonService.settingsLoaded) {
+            console.log("Link sort variable unchanged; skipping update.");
+            return;
+        }
+
+        
+        // Otherwise, update the stored value and proceed
+        this._lastLinkSortValue = this.SelectedLinkSortVariable;
+
+
+        console.log('onLinkSortChanged called');
         this.commonService.GlobalSettingsModel.SelectedLinkSortVariable = this.SelectedLinkSortVariable;
 
         this.commonService.session.style.widgets["link-sort-variable"] = this.SelectedLinkSortVariable;
-        this.commonService.updateThresholdHistogram();
-        this.SelectedLinkThresholdVariable = parseFloat(this.commonService.session.style.widgets["link-threshold"].toFixed((this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0));
-        this.onLinkThresholdChanged();
-        this.commonService.updateNetwork();
+        // this.commonService.updateThresholdHistogram();
+
+       // 1) Parse the threshold value to a number
+       const linkThresholdValue = parseFloat(String(this.commonService.session.style.widgets["link-threshold"]));
+
+    // 2) Now you can safely call toFixed on a numeric value
+    const decimals = (this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+    const fixedThresholdValue = linkThresholdValue.toFixed(decimals);
+
+    // 3) If you want to store it back as a number (not a string), parseFloat again:
+    this.SelectedLinkThresholdVariable = parseFloat(fixedThresholdValue);
+
+        // If not loading all settings at once, update link threshold
+        if(!silent) {
+            this.onLinkThresholdChanged();
+        }
+        // this.commonService._debouncedUpdateNetworkVisuals();
+    
     }
 
     /**
@@ -1070,14 +1129,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     async onPruneWithTypesChanged(newValue: string) {
 
+        console.log('onPruneWithTypesChanged: ', newValue);
+
         this.SelectedPruneWityTypesVariable = newValue;
         this.commonService.GlobalSettingsModel.SelectedPruneWityTypesVariable = this.SelectedPruneWityTypesVariable;
 
         if (this.SelectedPruneWityTypesVariable == "None") {
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
-            this.commonService.updateNetwork();
-            this.commonService.setNetworkUpdated(true);
+            this.commonService._debouncedUpdateNetworkVisuals();
             this.commonService.onStatisticsChanged("Show");
             // this.updatedVisualization();
         }
@@ -1089,8 +1149,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             
 
             this.commonService.computeMST().then(() => {
-                this.commonService.updateNetwork();
-                this.commonService.setNetworkUpdated(true);
+                this.commonService._debouncedUpdateNetworkVisuals();
                     // TODO:: David is this needed?
                 if ('tableComp' in this.commonService.visuals) {
                     if (this.commonService.visuals.tableComp.dataSetViewSelected == 'Link') {
@@ -1141,7 +1200,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
 
-    onLinkColorTableChanged() {
+    onLinkColorTableChanged(silent: boolean = false) {
 
         this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable = this.SelectedLinkColorTableTypesVariable;
 
@@ -1149,7 +1208,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
         }
         else {
-            this.onColorLinksByChanged();
+            this.onColorLinksByChanged(silent);
         }
     }
 
@@ -1157,7 +1216,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates this.commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable and 
      * then hides the node color table or calls onColorNodesByChanged
      */
-    onNodeColorTableChanged() {
+    onNodeColorTableChanged(silent: boolean = false) {
 
         if(this.commonService.debugMode) {
             console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
@@ -1168,7 +1227,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
         }
         else {
-            this.onColorNodesByChanged();         
+
+            this.onColorNodesByChanged(silent);         
         }
     }
 
@@ -1221,11 +1281,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Updates node-color widget and published node color to each view to update them. Only relevant when color nodes by = None
      */
-    onNodeColorChanged() {
+    onNodeColorChanged(silent: boolean = false) {
         const variable = this.SelectedNodeColorVariable;
         this.commonService.session.style.widgets["node-color"] = variable;
 
-        this.publishUpdateNodeColors();
+        if(!silent) this.publishUpdateNodeColors();
+        
     }
 
     /**
@@ -1261,16 +1322,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         })
     }
 
-    public onLinkColorChanged() : void {
+    public onLinkColorChanged(silent: boolean = false) : void {
 
 
         this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
 
-        this.publishUpdateLinkColor();
+        if(!silent) this.publishUpdateLinkColor();
 
     }
 
-    onColorLinksByChanged() {
+    onColorLinksByChanged(silent: boolean = false) {
 
         this.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
 
@@ -1295,7 +1356,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (this.SelectedColorLinksByVariable != "None") {
 
-            this.generateNodeLinkTable("#link-color-table");
+            // this.generateNodeLinkTable("#link-color-table");
 
             $('#link-color-value-row').slideUp();
 
@@ -1308,16 +1369,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 $('#link-color-table-row').slideDown();
             }
 
-            this.publishUpdateLinkColor();
+            if(!silent) this.publishUpdateLinkColor();
         }
         else {
             $('#link-color-table').empty();
             $('#link-color-value-row').slideDown();
             $('#link-color-table-row').slideUp();
             this.SelectedLinkColorTableTypesVariable='Hide';
-            this.onLinkColorTableChanged();
+            this.onLinkColorTableChanged(silent);
 
-            this.publishUpdateLinkColor();
+            if(!silent) this.publishUpdateLinkColor();
 
         }
     }
@@ -1756,7 +1817,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Called when SelectedColorNodesByVariable (keeps track of what variable to use to color nodes by) is changed.
      */
-    onColorNodesByChanged() {
+    onColorNodesByChanged(silent: boolean = false) {
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
 
@@ -1780,9 +1841,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.session.style.widgets["node-color-variable"] = this.SelectedColorNodesByVariable;
 
 
+        if(this.commonService.session.data.nodes.length === 0) {
+            return;
+        }
+
         if (this.SelectedColorNodesByVariable !== "None") {
 
-            this.generateNodeColorTable("#node-color-table");
+            // this.generateNodeColorTable("#node-color-table");
             
             $('#node-color-value-row').slideUp();
 
@@ -1796,7 +1861,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 $('#node-color-table-row').slideDown();
             }
 
-            this.publishUpdateNodeColors();
+            // if not loading all settings at once, update node colors
+            if(!silent) {
+                this.publishUpdateNodeColors();
+            }
 
         // if color nodes by equals None, then hide node color table
         } else {
@@ -1805,9 +1873,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $('#node-color-value-row').slideDown();
             $('#node-color-table-row').slideUp();
             this.SelectedNodeColorTableTypesVariable='Hide';
-            this.onNodeColorTableChanged();
-            
-            this.publishUpdateNodeColors();
+            this.onNodeColorTableChanged(silent);
+
+            if(!silent) {
+                this.publishUpdateNodeColors();
+            }
         }
     }
 
@@ -2033,7 +2103,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates clusters and cluster visibility, link visibility, and node visibility. Finallys updates
      * visualizations and stastistics
      */
-    onLinkThresholdChanged( newThreshold?: number) {
+    onLinkThresholdChanged( newThreshold?: number, silent: boolean = false) {
+
+        if(this.commonService.session.data.nodes.length === 0) {
+            return;
+        }
+
+        // Determine the new threshold
+        const parsedThreshold = newThreshold !== undefined 
+        ? parseFloat(newThreshold.toString()) 
+        : parseFloat(this.SelectedLinkThresholdVariable);
+
+        // Only update if the threshold is different
+        if (parsedThreshold === this._lastLinkThreshold && this.commonService.session.network.isFullyLoaded) {
+        console.log("Threshold unchanged; skipping full network update.");
+        return;
+        }
         //debugger;
 
         // If a new threshold is provided, update the SelectedLinkThresholdVariable
@@ -2041,52 +2126,42 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.SelectedLinkThresholdVariable = newThreshold;
         }
 
+        this._lastLinkThreshold = this.SelectedLinkThresholdVariable;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.commonService.session.style.widgets["link-threshold"] = parseFloat(this.SelectedLinkThresholdVariable);
         this.threshold = this.SelectedLinkThresholdVariable;
 
-        const minClust = $("#cluster-minimum-size").val();
+        // const minClust = $("#cluster-minimum-size").val();
         
 
         // Unset MST construction since links might have been changed
         this.commonService.session.style.widgets["mst-computed"] = false;
 
-        if (minClust !== "1" ){
+        console.log('min clust is: ', this.commonService.session.style.widgets["cluster-minimum-size"]);
+        if (this.commonService.session.style.widgets["cluster-minimum-size"] !== 1 ){
             if(this.commonService.debugMode) {
                 console.log('reseting min clust'); 
             }
             $("#cluster-minimum-size").val("1");
             $("#cluster-minimum-size").trigger("change");
-            $("#cluster-minimum-size").val(minClust);
+            $("#cluster-minimum-size").val(this.commonService.session.style.widgets["cluster-minimum-size"]);
             $("#cluster-minimum-size").trigger("change");
         } 
 
-        this.commonService.setLinkVisibility(false, false);
-        this.commonService.tagClusters().then(() => {
-            this.commonService.setClusterVisibility(true);
-            // $(document).trigger("cluster-visibility");
+        console.log('onLinkThresholdChanged called 2');
 
-            //To catch links that should be filtered out based on cluster size:
-            this.commonService.setLinkVisibility(true);
-            this.commonService.setNodeVisibility(true);
+        if(!silent) {
+            // Immediately hide links
+            this.commonService.setLinkVisibility(false, false);
 
-            //Because the network isn't robust to the order in which these operations
-            //take place, we just do them all silently and then react as though we did
-            //them each after all of them are already done.
+            console.log('tagClusters called link threshold change');
 
-            ["cluster", "link", "node"].forEach(thing => $(document).trigger(thing + "-visibility"));
-
-
-            // this.updatedVisualization();
-            this.commonService.setLinkThreshold(this.SelectedLinkThresholdVariable);
-
-
-            this.commonService.updateStatistics();
-
-
-        });
+            // Now schedule the heavy update (tag clusters, update visibilities, stats) using debouncing
+            this.commonService.updateNetworkVisuals();
+        }
 
     }
+        
 
     revealClicked() : void {
 
@@ -2159,6 +2234,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     updatedVisualization() {
 
+        console.log('updatedVisualization called');
+
         this.publishUpdateVisualization();
 
         // console.log('active tab ind: ', this.homepageTabs,this.homepageTabs[this.activeTabIndex]);
@@ -2193,6 +2270,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     getGlobalSettingsData() {
+        console.log('--- getGlobalSettingsData called');
         this.FieldList = [];
 
         this.FieldList.push({ label: "None", value: "None" });
@@ -2224,29 +2302,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         //this.commonService.updateThresholdHistogram();
 
+        console.log('--- getGlobalSettingsData end - last of loadDefaultVisualization in MT');
+
     }
-
-
-
-    /**
-     * XXXXX no current use or functionality XXXXX 
-     */
-    getUserRoles() {
-
-        // this._userService.getUserForEdit(this.appSession.userId).subscribe(userResult => {
-
-        //     this.user = userResult.user;
-
-        //     userResult.roles.map(x => {
-
-        //         if (x.isAssigned === true) {
-        //             this.roles.push(x.roleName);
-        //         }
-        //     });
-
-        // });
-    }
-
 
     /**
      * XXXXX move XXXXX
@@ -2255,7 +2313,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // let factory = this.cfr.resolveComponentFactory(FilesComponent);
         // this.cmpRef = this.targets.first.createComponent(factory);
-        setTimeout(() => {
+        // setTimeout(() => {
             this._goldenLayoutHostComponent.initialise();
             
             // headerHeight (tab) is updated so that goldenLayout knows what the css is set to. 
@@ -2289,13 +2347,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             });
             */
           }
-          if(this.commonService.debugMode) {
-            console.log('golden comp ref: ', this.homepageTabs[0].componentRef.instance);
-        }
+
+        // Subscribe to the files view to see when its time to load the visualization
         this.subscription = this.homepageTabs[0].componentRef.instance.LoadDefaultVisualizationEvent.subscribe((v) => {
+            // if(this.commonService.debugMode) {
+            //     console.log('--- INIT Homepage [0] LoadDefaultloading default: ', this.homepageTabs[0].componentRef.instance, v);
+            // }
+
             if(this.commonService.debugMode) {
-                console.log('loading default1: ', v);
+                console.log('init Files Load Default subscription-: ', this.homepageTabs[0].componentRef.instance);
             }
+
             this.loadDefaultVisualization(v);
             this.publishLoadNewData();
             this.getGlobalSettingsData();
@@ -2309,6 +2371,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this._goldenLayoutHostComponent.TabChangedEvent.subscribe((v) => {
 
             this.commonService.activeTab = v;
+
+            console.log('tab changed settigns viz: ', v);
             
             if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart") {
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
@@ -2337,9 +2401,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.SelectedLinkColorTableTypesVariable = 'Hide';
             }
         });
-        }, 0);
+        // }, 0);
         
 
+        console.log('tab changed end: ');
         // this.setActiveTabProperties();
 
         // this.cdref.detectChanges();
@@ -2508,6 +2573,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     public loadDefaultVisualization(e: string) {
 
+        console.log('--- Load Default Visualization called - reset layout ', e);
+
         e = e.replace("_", " ");
 
         if (e === "2d network"){
@@ -2516,11 +2583,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.resetLayout();
 
-        setTimeout(() => {
-            if (this.homepageTabs.findIndex(x => x.label == e) === -1) {
-                this.Viewclick(e);
-            }
-        }, 500);
+        // TODO:: see if timeout needed
+        // setTimeout(() => {
+        if (this.homepageTabs.findIndex(x => x.label == e) === -1) {
+            console.log('--- Load Default Visualization end - view click');
+            this.Viewclick(e);
+        }
+        // }, 500);
         
     }
 
@@ -2543,7 +2612,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
 
         if(this.commonService.debugMode) {
-            console.log('process files::');
+            console.log('GetFile Ontent Called');
         }
         // TODO: unccomment back when updated
         // this.srv.removeTab(0,1);
@@ -2555,21 +2624,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.homepageTabs.map(x => {
             if (x.label === "Files") {
                 if (x.componentRef != null) {
+                    // Unsubscribe from previous files view subscription in get file contents
                     this.subscription.unsubscribe();
                     this.subscription = this.homepageTabs[0].componentRef.instance.LoadDefaultVisualizationEvent.subscribe((v) => {
-                        if(this.commonService.debugMode) {
-                            console.log('loading default2: ', v);
-                        }
+                        console.log('--- Files loading default from subscription: ');
+
                         // this.loadSettings();
                         this.loadDefaultVisualization(v);
                         this.publishLoadNewData();
                     });
+
+                    // Process files in the files view
                     x.componentRef.instance.processFiles(fileList);
 
-                    // ensure files table is populated after processing
-                    setTimeout(() => {
-                        x.componentRef.instance.populateTable();
-                    }, 1000);
+                    // Populate table
+                    x.componentRef.instance.populateTable();
+
                 }
             }
         });
@@ -3102,11 +3172,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     //   });
 
     Viewclick(viewName: string) {
-
         if(this.commonService.debugMode) {
-             console.log('viewClick: ', viewName);
+            console.log('--- viewClick: ', viewName);
             console.log(this.commonService.session.style.widgets['link-threshold']);
-            console.log('homepage tabs1: ' , this.homepageTabs);
+            console.log('homepage tabs: ' , this.homepageTabs);
         }
        
 
@@ -3121,6 +3190,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         /*/
         if (tabNdx == -1) {
 
+            console.log('--- viewClick new view - add component');
+
             this.activeTabIndex = this.activeTabIndex + 1;
             this.addComponent(viewName);
 
@@ -3130,6 +3201,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const container = this._goldenLayoutHostComponent.focusComponent(viewName);
 
             const instance = this._goldenLayoutHostComponent.getComponentRef(container).instance as any;
+
+            console.log('--- viewClick exisitng view - load settings');
 
              //Load global settings changes if changed in another view
             if (instance.loadSettings) {        
@@ -3232,7 +3305,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // this.activeTabIndex = tabNdx;
         if(this.commonService.debugMode) {
-            console.log('tab switched is: ', tabNdx);
+            console.log('-- set active tab tab switched is: ', tabNdx);
             console.log('global l: ', this.GlobalSettingsLinkColorDialogSettings);
             console.log('global n: ', this.GlobalSettingsNodeColorDialogSettings);
        }
@@ -3344,6 +3417,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     addTab(tabLabel: any, tabTitle: any, tabPosition: any, componentRef: any, activate: boolean = true): void {
 
+        console.log('--- addTab called');
         /*/
          * Ensure that all tabs are not selected before we set the next new tab.
          * This will ensure that the newly created component appears on the currently selected tab, 
@@ -3369,6 +3443,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // componentRef: this.goldenLayout.componentInstances[this.goldenLayout.componentInstances.length - 1]
         });
 
+        
+        console.log('--- addTab end: ', this.homepageTabs, componentRef);
+
     }
 
     clearTable(tableId) {
@@ -3377,10 +3454,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     onReloadScreen() {
         this.commonService.session.style.widgets = this.commonService.defaultWidgets();
-        this.loadSettings();
+        this.loadFilterSettings();
     }
 
-    loadSettings() {
+    loadFilterSettings() {
+
+        this.commonService.setSettingsLoaded(false);
+
+        this.commonService.session.network.settingsLoaded = false;
         this.getGlobalSettingsData();
 
         //Filtering|Prune With
@@ -3389,50 +3470,61 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         //Filtering|Minimum Cluster Size
         this.SelectedClusterMinimumSizeVariable = this.commonService.session.style.widgets["cluster-minimum-size"];
-        this.onMinimumClusterSizeChanged();
+        this.onMinimumClusterSizeChanged(true);
         
         //Filtering|Filter Links on
         this.SelectedLinkSortVariable = this.commonService.session.style.widgets["link-sort-variable"];
-        this.onLinkSortChanged();
+        this.onLinkSortChanged(true);
+
 
         //Filtering|Filtering Threshold
+        console.log('--- loadSettings link-threshold changed: ', this.commonService.session.style.widgets["link-threshold"]);
         this.SelectedLinkThresholdVariable = this.commonService.session.style.widgets["link-threshold"];
         this.onLinkThresholdChanged();
 
-        //Styling|Color Nodes By
-        this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
-        this.onColorNodesByChanged();
+    }
 
-        //Styling|Nodes
-        this.SelectedNodeColorVariable = this.commonService.session.style.widgets["node-color"];
-        this.onNodeColorChanged();
+    loadUISettings() {
 
-        //Styling|Color Links By
-        if (this.commonService.session.style.widgets['link-color-variable'] === "None") {
-            this.commonService.session.style.widgets['link-color-variable'] = "origin";
-        }
+         //Styling|Color Nodes By
+         this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
+         this.onColorNodesByChanged(true);
+ 
+         //Styling|Nodes
+         this.SelectedNodeColorVariable = this.commonService.session.style.widgets["node-color"];
+         this.onNodeColorChanged(true);
+         
+ 
+         //Styling|Color Links By
+         if (this.commonService.session.style.widgets['link-color-variable'] === "None") {
+             this.commonService.session.style.widgets['link-color-variable'] = "origin";
+         }
+ 
+         this.SelectedColorLinksByVariable = this.commonService.session.style.widgets['link-color-variable'];
+         this.onColorLinksByChanged(true);
+ 
+          //Styling|Links
+          this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"];
+          this.onLinkColorChanged(true);
+ 
+         //Styling|Selected
+         this.SelectedColorVariable = this.commonService.session.style.widgets['selected-color'];
+ 
+         //Styling|Background
+         this.SelectedBackgroundColorVariable = this.commonService.session.style.widgets['background-color'];
+         this.onBackgroundChanged();
+ 
+         console.log('--- loadSettings settings loaded 1: ', this.commonService.settingsLoaded);
+ 
+         this.commonService.setSettingsLoaded(true);
+ 
+         this.updateGlobalSettingsModel();
 
-        this.SelectedColorLinksByVariable = this.commonService.session.style.widgets['link-color-variable'];
-        this.onColorLinksByChanged();
-
-         //Styling|Links
-         this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"];
-         this.onLinkColorChanged();
-
-        //Styling|Link Color Table
-
-        //Styling|Selected
-        this.SelectedColorVariable = this.commonService.session.style.widgets['selected-color'];
-
-        //Styling|Background
-        this.SelectedBackgroundColorVariable = this.commonService.session.style.widgets['background-color'];
-        this.onBackgroundChanged();
-
-        this.updateGlobalSettingsModel();
     }
 
     publishLoadNewData() {
 
+        console.log('--- publishLoadNewData called');
         // this.goldenLayout.componentInstances[1].onLoadNewData();
         this.homepageTabs.forEach(tab => {
             // componentRef.instance.onLoadNewData ?

@@ -1,4 +1,4 @@
-import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
@@ -16,6 +16,10 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
+import { Subject, Subscription, takeUntil } from 'rxjs';
+import fcose from 'cytoscape-fcose';
+import * as d3f from 'd3-force';
+
 
 @Component({
     selector: 'TwoDComponent',
@@ -212,6 +216,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     thresholdSubscription: any;
     threshold: number;
     networkUpdatedSubscription: any;
+    settingsLoadedSubscription: any;
+    private styleFileSub: any;
+    private saveNodePosSub: any;
     constructor(injector: Injector,
         private eventManager: EventManager,
         public commonService: CommonService,
@@ -248,39 +255,61 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
+    private destroy$ = new Subject<void>();
+
+
     ngOnInit() {
         
         // Console log this out to see what the window objetc has like temp
         // const windowKeys = Reflect.ownKeys(window);
 
-        this.commonService.updateNetwork();
+        // this.commonService.updateNetwork();
 
-         // Subscribe to threshold changes from the service
-         this.thresholdSubscription = this.commonService.linkThreshold$.subscribe(
-            (newThreshold: number) => {
-                // Only update local state if changed
-                if (this.threshold !== newThreshold) {
-                    console.log('partial threshold changed', newThreshold);
-                    this._partialUpdate();
-                    // ... do whatever you need, e.g. re-render ...
-                }
-            }
-        );
+        console.log('--- TwoD ngOnInit called');
 
-        this.networkUpdatedSubscription = this.commonService.networkUpdated$.subscribe(
-            (newPruned: boolean) => {
-                console.log('network pruned', newPruned);
+        this.networkUpdatedSubscription = this.commonService.networkUpdated$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(newPruned => {
+            if(this.data && this.commonService.settingsLoaded){
+                console.log('--- TwoD DATA network updated pruned', newPruned);
                 this._rerender();
             }
-        );
+        });
 
+        this.settingsLoadedSubscription = this.commonService.settingsLoaded$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(loaded => {
+            if(loaded) {
+
+                console.log('--- TwoD settings loaded render');
+
+                  let networkData = {
+                    nodes: this.commonService.getVisibleNodes(),
+                    links: this.commonService.getVisibleLinks()
+                }
+
+                this.data = this.commonService.convertToGraphDataArray(networkData);
+                // this._rerender();
+                // this.loadSettings();
+            }
+        });
+
+    this.thresholdSubscription = this.commonService.linkThreshold$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(newThreshold => {
+            if (!this.commonService.session.network.isFullyLoaded) return;
+            if (this.threshold !== newThreshold) {
+                console.log('--- TwoD partial threshold changed', newThreshold);
+                this._partialUpdate();
+            }
+        });
         this.InitView();
 
     }
 
     ngAfterViewInit(): void {
 
-        this.commonService.twoD_saveNodePos.subscribe(() => {
+        this.saveNodePosSub = this.commonService.twoD_saveNodePos.subscribe(() => {
             this.saveNodePos();
             console.log(this.commonService.getVisibleNodes()[0])
         })
@@ -288,6 +317,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
 
+    console.log('--- TwoD mapDataToCytoscapeElements called');
         // Create a set to track unique parent nodes
     const parentNodes = new Set();
 
@@ -305,6 +335,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             ...link
         }
     }));
+
+    console.log('--- TwoD mapDataToCytoscapeElements Links Done');
+
 
     const nodes = data.nodes.map((node: any) => {
          // If the node has a parentId, add it to the parentNodes set
@@ -348,13 +381,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // Include any additional node-specific data properties
                     ...node
                 },
-                position: { 
-                    x: this.nodePositions.get(node.id)?.x || node._fx || Math.random() * 500,
-                    y: this.nodePositions.get(node.id)?.y || node._fy || Math.random() * 500
-                }
+                position: {
+                    x: node.x || this.nodePositions.get(node.id)?.x || node._fx || Math.random() * 500,
+                    y: node.y || this.nodePositions.get(node.id)?.y || node._fy || Math.random() * 500
+                  }
+                  
             };
         }
     });
+
+    console.log('--- TwoD mapDataToCytoscapeElements nodes done');
+
 
     return {
         edges: edges,
@@ -539,6 +576,36 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    // A helper function that uses D3 to assign (x, y) to each node.
+    precomputePositionsWithD3(nodes: any[], links: any[]): { nodes: any[], links: any[] } {
+
+        // D3 requires each link to have `source` and `target` references
+        // that match the node objects or node IDs. Typically:
+        //    forceLink(links).id(d => d.id)
+        // if your nodes have an 'id' property.
+        // If your node objects use something else, adapt accordingly.
+    console.log('--- TwoD precomputePositionsWithD3 called links: ', _.cloneDeep(links)
+        , 'nodes: ', nodes
+    );
+        const simulation = d3f.forceSimulation(nodes)
+        .force('charge', d3f.forceManyBody().strength(-30))
+        .force('link', d3f.forceLink(links).id((d: any) => d.id).distance(50))
+        .force('center', d3f.forceCenter(0, 0))
+        .stop(); // stop auto-stepping to let us do it manually
+    
+        // Manually "tick" the simulation to run it to completion.
+        // The exact number of ticks is up to you.  
+        // 100-300 is typical. More ticks => more stable layout => more time.
+        const maxTicks = 1000;
+        for (let i = 0; i < maxTicks; i++) {
+        simulation.tick();
+        }
+    
+        // Now each node in `nodes` has x,y set.
+        // Return them with the links as well, in case we want them.
+        return { nodes, links };
+    }
+
     saveNodePos() {
         if (this.cy) {
             this.cy.nodes().forEach(node => {
@@ -570,6 +637,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     InitView() {
 
+        console.log('--- TwoD InitView called');
+
         this.gtmService.pushTag({
             event: "page_view",
             page_location: "/2d_network",
@@ -584,7 +653,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         // Subscribe to style file applied event
-        this.commonService.styleFileApplied.subscribe(() => {
+        this.styleFileSub = this.commonService.styleFileApplied.subscribe(() => {
+            console.log('--- TwoD InitView stylefile sub');
+
             this.applyStyleFileSettings();
         });
 
@@ -596,6 +667,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.IsDataAvailable === true && this.zoom === null) {
 
+            console.log('--- TwoD InitView IsDataAvailable true');
             // populate this.twoD.FieldList with [None, ...nodeFields]
             this.FieldList = [];
             this.FieldList.push({ label: "None", value: "None" });
@@ -659,20 +731,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.halfWidth = $('#network').parent().width() / 2;
             this.halfHeight = $('#network').parent().parent().parent().height() / 2;
 
-            let networkData = {
-                nodes: this.commonService.getVisibleNodes(),
-                links: this.commonService.getVisibleLinks()
-            }
+            // let networkData = {
+            //     nodes: this.commonService.getVisibleNodes(),
+            //     links: this.commonService.getVisibleLinks()
+            // }
 
-            this.data = this.commonService.convertToGraphDataArray(networkData);
+            // this.data = this.commonService.convertToGraphDataArray(networkData);
 
-            if (this.debugMode) {
-                console.log('data: ', this.data);
-            }
+            // if (this.debugMode) {
+            //     console.log('data: ', this.data);
+            // }
 
-            $(document).on("node-visibility", function () {
-                that._rerender(true);
-            });
+            // this._rerender();
+
+            // $(document).on("node-visibility", function () {
+            //     console.log('node-visibility called');
+            //     that._rerender(true);
+            // });
 
             // $(document).on("link-visibility", async function () {
 
@@ -713,13 +788,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
+            
+            console.log('--- TwoD InitView onStatisticsChanged');
             this.commonService.onStatisticsChanged();
+
+            console.log('--- TwoD InitView loadSettings');
             this.loadSettings();
 
             if (this.widgets['node-symbol-variable'] !== 'None') {
                 $('#node-symbol-variable').change(); //.trigger('change');
             }
 
+            console.log('--- TwoD InitView End');
+        } else {
+            console.log('--- TwoD InitView DATA NOTE AVAILABLE');
         }
 
 
@@ -2162,13 +2244,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let finalColor;
         let alphaValue;
 
+        if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
+            console.log('-----link COLOR by origin: ', link.source, link.origin);
+        }
+
         if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
             finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
-            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link")
+            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
+            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
+                console.log('-----link COLOR DUO ', link.source);
+            }
             // this.commonService.temp.style.linkColorMap("Multi-Link"), alphaValue;
         } else {
 
             finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
+            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
+                console.log('-----link COLOR NOT DUO ', link.source);
+            }
             alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
         }
 
@@ -2283,6 +2375,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     onNodeSymbolVariableChange(e, setVisibility = true) {
 
+        console.log('sumbol variable: ', this.widgets['node-symbol-variable']);
+        console.log('selected node symbol variable: ', this.SelectedNodeSymbolVariable);
         this.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
 
 
@@ -2348,8 +2442,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // this.cdref.detectChanges();
 
-        this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
-        this.updateNodeShapes();
+        // this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
+        // this.updateNodeShapes();
 
         
     }
@@ -2412,16 +2506,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             let vnodes = 0;
             for (let i = 0; i < n; i++) {
                 let d = nodes[i];
+                if (!d || typeof d !== 'object') continue; // guard against null/undefined
                 if (!d.visible) continue;
                 vnodes++;
                 let dv = d[variable];
-                if (values.indexOf(dv) == -1) values.push(dv);
-                if (dv in aggregates) {
-                    aggregates[dv]++;
-                } else {
-                    aggregates[dv] = 1;
+                // Optionally, if you expect the value to be defined:
+                if (dv === undefined) {
+                  console.warn(`Node at index ${i} does not have property "${variable}"`);
+                  continue;
                 }
-            }
+                if (values.indexOf(dv) === -1) values.push(dv);
+                if (dv in aggregates) {
+                  aggregates[dv]++;
+                } else {
+                  aggregates[dv] = 1;
+                }
+              }
 
             if (values.length > this.commonService.session.style.nodeSymbols.length) {
                 let symbols = [];
@@ -2587,11 +2687,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     private _rerender(timelineTick=false) {
 
-        
+        console.log('--- TwoD DATA network rerender');
+
 
         if (this.data === undefined) {
             return;
         }
+
 
     let networkData;
     if (timelineTick) {
@@ -2619,7 +2721,85 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             nodes: this.commonService.getVisibleNodes(),
             links: this.commonService.getVisibleLinks()
         };
+
     }
+
+    networkData.nodes.forEach(node => {
+        node.id = node._id.toString();
+      });
+    networkData.links.forEach((link, i) => {
+        // Set a unique link id if desired
+        link.id = i.toString();  // or link.index.toString()
+      
+        // console.log('--- TwoD link: ', link.source);
+        // If link.source is an object, grab its _id and convert to string
+        if (typeof link.source === 'object') {
+          link.source = link.source._id.toString();
+        }
+
+        // console.log('--- TwoD link: ', link.source);
+
+      
+        // Same for link.target
+        if (typeof link.target === 'object') {
+          link.target = link.target._id.toString();
+        }
+      });
+
+      const nodeIds = new Set(networkData.nodes.map(n => n.id));
+
+networkData.links.forEach(link => {
+  if (!nodeIds.has(link.source)) {
+    console.warn('Link source not found in nodes:', link.source, link);
+  }
+  if (!nodeIds.has(link.target)) {
+    console.warn('Link target not found in nodes:', link.target, link);
+  }
+});
+
+console.log('--- TwoD networkData: ', _.cloneDeep(networkData.links));
+    // 2. Precompute positions with D3 (only if nodes/links have changed)
+    //    This assumes your precomputePositionsWithD3 function returns an object with
+    //    { nodes: laidOutNodes, links: laidOutLinks } where each node has x and y computed.
+    const { nodes: laidOutNodes, links: laidOutLinks } = this.precomputePositionsWithD3(
+        networkData.nodes,
+        networkData.links
+    );
+
+    console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
+
+    
+    // Update networkData with the precomputed positions
+    networkData.nodes = laidOutNodes;
+    networkData.links = laidOutLinks;
+
+    networkData.links.forEach((link, i) => {
+        // Set a unique link id if desired
+        link.id = i.toString();  // or link.index.toString()
+      
+        // console.log('--- TwoD link: ', link.source);
+        // If link.source is an object, grab its _id and convert to string
+        if (typeof link.source === 'object') {
+          link.source = link.source._id.toString();
+        }
+
+        // console.log('--- TwoD link: ', link.source);
+
+      
+        // Same for link.target
+        if (typeof link.target === 'object') {
+          link.target = link.target._id.toString();
+        }
+      });
+
+    console.log('--- TwoD networkData after precompute1: ', _.cloneDeep(networkData.links));
+
+    
+    console.log('--- TwoD laidOutLinks: ', laidOutLinks);
+    console.log('--- TwoD laidOutNodes: ', laidOutNodes);
+    console.log('link threshold network links: ', networkData.links.length);
+
+    
 
         console.log('link threhold network links: ', networkData.links.length);
 
@@ -2667,26 +2847,34 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     } else{
         this.data = this.commonService.convertToGraphDataArray(networkData);
 
+        if (this.cy) {
+            this.cy.destroy();
+          }
+
+        const el = this.mapDataToCytoscapeElements(this.data);
+          console.log('--- TwoD Creating CY');
+
+          console.log('--- TwoD Creating CY el: ', el);
+
+           // Track start time
+        let startTime;
+
+        cytoscape.use(fcose);
+        
         this.cy = cytoscape({
             container: this.cyContainer.nativeElement, // container to render in
         
-            elements: this.mapDataToCytoscapeElements(this.data), // convert your data
+            elements: el, // convert your data
         
             style: this.getCytoscapeStyles(), // define your styles
-        
+
             layout: {
               name: 'cose', // Use the cose layout
-              animate: false, // Set to true for animation
+                            //@ts-ignore
+            
               fit: true, // Fit the graph to the viewport
-              padding: 100, // Padding around the graph
-              nodeRepulsion: (node) => 400000, // Higher values increase node repulsion
-              idealEdgeLength: (edge) => 100, // Ideal length of edges
-              edgeElasticity: (edge) => 100, // Elasticity of edges
-              gravity: 80, // Gravity factor
-              numIter: 1000, // Number of iterations
-              // tile: true, // Allow tiling
-              // tilingPaddingVertical: 10, // Vertical padding for tiling
-              // tilingPaddingHorizontal: 10 // Horizontal padding for tiling
+              padding: 100 // Padding around the graph
+             
             },
         
             // Enable zooming and panning
@@ -2697,11 +2885,32 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           });
 
           this.attachCytoscapeEvents();
+
+         // Attach event listener BEFORE layout starts
+        this.cy.one('layoutstart', () => {
+            startTime = performance.now();
+            console.log(`🟢 Cytoscape layout started at: ${startTime.toFixed(2)}ms`)
+        });
+
+        this.cy.one('layoutstop', () => {
+            const endTime = performance.now();
+            console.log(`✅ Cytoscape layout rendering completed in ${(endTime - startTime).toFixed(2)}ms`);
+        });
+
+        // Run the layout
+        //@ts-ignore
+        this.cy.layout({ name: 'preset', animate: "end" }).run();
+
         }
+
+        console.log('--- TwoD DATA network rerender complete');
+
 
     }
 
     public getNodeShape(node: any) {
+
+        return "ellipse";
 
         //* Shapes:
         let symbolVariable = this.widgets['node-symbol-variable'];
@@ -3244,6 +3453,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updateNodeColors() {
 
+        if(!this.cy) this._rerender();
+
 
         let variable = this.widgets['node-color-variable'];
         let color = this.widgets['node-color']
@@ -3568,9 +3779,19 @@ private _partialUpdate() {
     }
 
     ngOnDestroy(): void {
-        $(document).off("link-visibility");
-        $(document).off("cluster-visibility");
-        $(document).off("node-selected");
+
+        this.destroy$.next();
+        this.destroy$.complete();
+
+        this.styleFileSub.unsubscribe();
+        this.saveNodePosSub.unsubscribe();
+        this.settingsLoadedSubscription.unsubscribe();
+
+        this.cy.removeAllListeners();
+        this.cy.destroy();
+        this.cyContainer = null;
+
+
     }
 
     /**

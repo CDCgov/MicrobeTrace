@@ -471,11 +471,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       // }   
     }
 
-    setTimeout(() => {
-      this.populateTable();
-  }, 2000);
+  //   setTimeout(() => {
+  //     this.populateTable();
+  // }, 2000);
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
+  }
+
+  ngOnDestroy() {
+    console.log('---files-plugin.component.ts ngOnDestroy');
+    //unsubscribe on destroy of files tab
+    this.eventEmitterService.subsVar = this.eventEmitterService.    
+    invokeFirstComponentFunction.subscribe((name:string) => {    
+      this.processFile();    
+    });   
+    this.eventEmitterService.invokeFirstComponentFunction.unsubscribe();
+    this.commonService.newSession.unsubscribe();
+    this.commonService.styleFileApplied.unsubscribe();  
+    this.commonService.FP_removeFiles.unsubscribe();
+    this.commonService.LoadViewEvent.unsubscribe();
+
   }
 
   /**
@@ -485,14 +500,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
-    // Give some time before adding to table
-    setTimeout(() => {
-      let files = cloneDeep(this.commonService.session.files);
-      if(files && files.length > 0) {
-        for(let i = 0; i < files.length; i++) {
-          this.addToTable(files[i]);
-        }
-      }  }, 500);
+    let files = cloneDeep(this.commonService.session.files);
+    console.log('---  Populate TABLE Row Files 2: ', files);
+
+    console.log('--- files table 2 : ', $(".file-table-row"));
+
+    if(files && files.length > 0) {
+      console.log('--- Populate for: ', files);
+      for(let i = 0; i < files.length; i++) {
+        this.addToTable(files[i]);
+      }
+
+      console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
+
+    } 
 
   }
   
@@ -586,7 +607,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   loadDefaultVisualization(e: string) {
 
-    setTimeout(() => {
+    console.log('---loadDefaultVisualization Called - stop loading modal');
+
+    // setTimeout(() => {
 
       this.commonService.session.messages = [];
       this.messages = [];
@@ -595,7 +618,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       this.displayloadingInformationModal = false;
 
-    }, 1000);
+    // }, 1000);
+
+    console.log('---loadDefaultVisualization End - Lodi');
 
     this.LoadDefaultVisualizationEvent.emit(e);
   }
@@ -611,6 +636,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.messages.push(msg);
     $('#loading-information').html(this.commonService.session.messages.join('<br>'));
   }
+  
 
   /**
    * Resets the value of session.data, temp.trees if previously launched (or more if not previously launched). Retains the values of following 
@@ -618,6 +644,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Calls creatLaunchSequences to process the data files loaded.
    */
   launchClick() {
+
+    // Set to false to indicate that the network is not fully loaded  as new network is launching
+    this.commonService.session.network.isFullyLoaded = false;
+
+    this.commonService.cleanupData();
 
     console.log(this.displayloadingInformationModal);
     this.commonService.updateLegacyNodeSymbols();
@@ -755,7 +786,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           if (fileNum === nFiles) this.processData();
           return nodeCount;
         });
-        this.commonService.updateNetwork();
+        this.commonService._debouncedUpdateNetworkVisuals();
         this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
@@ -1319,19 +1350,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (Array.from(files).length > 0) {
 
       Array.from(files).map(file => {
-        if(this.commonService.debugMode) {
-          console.log('files: ', file);
-        }
         this.processFile(file);
       });
+
     }
 
     this.isLoadingFiles = false;
 
-    setTimeout(() => {
-      this.isLoadingFiles = false;
-
-    }, 2000);
   };
 
   /**
@@ -1352,9 +1377,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
 
+    // Loading informaiton null
     $('#loading-information').html('');
 
     const extension = rawfile.name.split('.').pop().toLowerCase();
+
+    console.log('process file end');
     if (extension === 'zip') {
       //debugger;
       // let new_zip = new JSZip();
@@ -1432,7 +1460,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   addToTable(file) {
     if(this.commonService.debugMode) {
-      console.log(file);
+      console.log('addToTable: ', file);
     }
 
     //debugger;
@@ -1454,6 +1482,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         });
       });
       addTableTile(headers, this);
+      if(this.commonService.debugMode) {
+        console.log('addToTable xls end: ', file);
+      }
     } else if (isJSON) {
         let data = [];
         console.log('This is a JSON file');
@@ -1497,8 +1528,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }
 
           this.nodeEdgeCheck();
+
+          if(this.commonService.debugMode) {
+            console.log('addToTable parse end: ', file);
+          }
         }
+
+        
       });
+
+      if(this.commonService.debugMode) {
+        console.log('addToTabl End: ', file);
+      }
     }
 
     //For the love of all that's good...
@@ -1509,6 +1550,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     function addTableTile(headers, context) {
 
 
+      console.log('addTableTile: ', headers);
       const parentContext = context;
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
       const fnamerow = $('<div class="row w-100"></div>');
@@ -1622,6 +1664,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           parentContext.updateMetadata(file);
         });
       }
+
+      console.log('addTableTile end: ', headers);
+
 
       $(`[name="options-${file.name}"]`).on("change", refit);
       refit();
