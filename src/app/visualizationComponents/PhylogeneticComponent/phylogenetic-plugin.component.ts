@@ -18,6 +18,7 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { runInThisContext } from 'vm';
 import { MatHint } from '@angular/material/form-field';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 /**
@@ -151,7 +152,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService) {
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService) {
 
     super(elRef.nativeElement);
 
@@ -666,7 +668,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
           saveAs(dataUrl, fileName);
         });
     } else if (exportImageType === 'svg') {
-      const svgContent = this.visuals.phylogenetic.commonService.unparseSVG(content);
+      const svgContent = this.exportService.unparseSVG(content);
       const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
       saveAs(blob, fileName);
     }

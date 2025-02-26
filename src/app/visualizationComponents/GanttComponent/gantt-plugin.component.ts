@@ -14,6 +14,7 @@ import { GanttChartService } from './gantt-chart/gantt-chart.service';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
@@ -72,7 +73,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
               elRef: ElementRef,
               ganttChartService: GanttChartService,
               private cdref: ChangeDetectorRef,
-              private gtmService: GoogleTagManagerService) {
+              private gtmService: GoogleTagManagerService,
+              private exportService: ExportService) {
 
     super(elRef.nativeElement);
 
@@ -260,7 +262,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     } else if (exportImageType === 'svg') {
         // The tooltips were being displayed as black bars, so I add a rule to hide them.
         // Have to parse the string into a document, get the right element, add the rule, and reserialize it
-        let svgContent = this.visuals.gantt.commonService.unparseSVG(content);
+        let svgContent = this.exportService.unparseSVG(content);
         const parser = new DOMParser();
         const deserialized = parser.parseFromString(svgContent, 'text/xml')
         console.log(deserialized);

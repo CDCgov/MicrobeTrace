@@ -1,7 +1,7 @@
 ﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
-import { CommonService, ExportOptions } from '../../contactTraceCommonServices/common.service';
+import { CommonService } from '../../contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { SelectItem } from 'primeng/api';
@@ -19,6 +19,8 @@ import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
@@ -226,7 +228,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
         private clipboard: Clipboard,
-        private gtmService: GoogleTagManagerService) {
+        private gtmService: GoogleTagManagerService,
+        private store: CommonStoreService,
+        private exportService: ExportService
+    ) {
 
         super(elRef.nativeElement);
 
@@ -268,17 +273,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('--- TwoD ngOnInit called');
 
-        this.networkUpdatedSubscription = this.commonService.networkUpdated$
+        this.networkUpdatedSubscription = this.store.networkUpdated$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
-            if(this.data && this.commonService.settingsLoaded){
+            if(this.data && this.store.settingsLoadedValue){
                 console.log('--- TwoD DATA network updated pruned', newPruned);
                 this._rerender();
                 this.loadSettings();
             }
         });
 
-        this.settingsLoadedSubscription = this.commonService.settingsLoaded$
+        this.settingsLoadedSubscription = this.store.settingsLoaded$
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {
             if(loaded) {
@@ -295,7 +300,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
-    this.thresholdSubscription = this.commonService.linkThreshold$
+    this.thresholdSubscription = this.store.linkThreshold$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newThreshold => {
             if (!this.commonService.session.network.isFullyLoaded) return;
@@ -310,7 +315,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ngAfterViewInit(): void {
 
-        this.saveNodePosSub = this.commonService.twoD_saveNodePos.subscribe(() => {
+        this.saveNodePosSub = this.store.twoD_saveNodePos$.subscribe(() => {
             this.saveNodePos();
             console.log(this.commonService.getVisibleNodes()[0])
         })
@@ -690,7 +695,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         // Subscribe to style file applied event
-        this.styleFileSub = this.commonService.styleFileApplied.subscribe(() => {
+        this.styleFileSub = this.store.styleFileApplied$.subscribe(() => {
             console.log('--- TwoD InitView stylefile sub');
 
             this.applyStyleFileSettings();
@@ -918,7 +923,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         };
     
         // Set export options in the service
-        this.commonService.setExportOptions(exportOptions);
+        this.exportService.setExportOptions(exportOptions);
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
 
@@ -933,7 +938,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             let height = parseFloat(svg1.getAttribute('height')); 
 
             // Add the network statistics table to the svg
-            let statTable = this.commonService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
+            let statTable = this.exportService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
             statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height-2})" fill="#f8f9fa">`);
             content = content.replace('</svg>', statTable.svg + '</svg>');
 
@@ -944,7 +949,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
-            this.commonService.requestSVGExport(elementsToExport, content, true, true); 
+            this.exportService.requestSVGExport(elementsToExport, content, true, true); 
 
         } else {
             // Request export
@@ -955,7 +960,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
-            this.commonService.requestExport(elementsToExport, true, true);
+            this.exportService.requestExport(elementsToExport, true, true);
         }
     
         // Optionally, close the export modal after initiating the export
@@ -2733,7 +2738,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.session.network.rendering = true;
 
         // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
-        this.commonService.setNetworkRendered(false);
+        this.store.setNetworkRendered(false);
 
         if (this.data === undefined) {
             return;
@@ -2934,7 +2939,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const endTime = performance.now();
                 console.log(`✅ Cytoscape layout rendering completed in ${(endTime - startTime).toFixed(2)}ms`);
                 // Set rendered to true now that network has rendered
-                this.commonService.setNetworkRendered(true);  
+                this.store.setNetworkRendered(true);  
                 // Now we can ensure the demo at least the demo network has been rendered
                 this.commonService.demoNetworkRendered = true;          
             });

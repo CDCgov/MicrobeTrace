@@ -14,6 +14,7 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { cloneDeep } from 'lodash';
 import { Subject, Subscription, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -117,7 +118,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, elRef: ElementRef,
     private eventEmitterService: EventEmitterService,
     public commonService: CommonService,
-    private cdr: ChangeDetectorRef) {
+    private cdr: ChangeDetectorRef,
+    private store: CommonStoreService
+    ) {
 
     super(elRef.nativeElement);
 
@@ -148,16 +151,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }  
 
      // Subscribe to new session event
-     this.commonService.newSession.subscribe(() => {
+     this.store.newSession$.subscribe(() => {
       this.removeAllFiles();
     });
 
     // Subscribe to style file applied event
-    this.commonService.styleFileApplied.subscribe(() => {
+    this.store.styleFileApplied$.subscribe(() => {
       this.applyStyleFileSettings();
     });
 
-    this.commonService.FP_removeFiles.subscribe(() => {
+    this.store.FP_removeFiles$.subscribe(() => {
       this.commonService.session.files.forEach(file => {
         this.removeFile(file.name, false);
       })
@@ -336,7 +339,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           .val(7);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.commonService.setLinkThreshold(7);
+        this.store.setLinkThreshold(7);
       } else {
         $('#ambiguities-row').slideDown();
         $('#default-distance-threshold, #link-threshold')
@@ -344,7 +347,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           .val(0.015);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
-        this.commonService.setLinkThreshold(0.015);
+        this.store.setLinkThreshold(0.015);
       }
       this.commonService.session.style.widgets['default-distance-metric'] = lsv;
       this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
@@ -491,9 +494,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     //   this.processFile();    
     // });   
     this.eventEmitterService.invokeFirstComponentFunction.unsubscribe();
-    this.commonService.newSession.unsubscribe();
-    this.commonService.styleFileApplied.unsubscribe();  
-    this.commonService.FP_removeFiles.unsubscribe();
+    this.store.setNewSession(false);
+    this.store.setStyleFileApplied(false);  
+    this.store.setFP_removeFiles(false);
     this.commonService.LoadViewEvent.unsubscribe();
 
   }
@@ -641,7 +644,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // this.commonService.session.messages.push(msg);
     // $('#loading-information').html(this.commonService.session.messages.join('<br>'));
 
-    this.commonService.setLoadingMessageUpdated(msg);
+    this.store.setLoadingMessageUpdated(msg);
   }
   
 
@@ -656,7 +659,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
      this.commonService.session.network.isFullyLoaded = false;
      
     // launching new network, so set network rendered to false to start loading modal
-    this.commonService.setNetworkRendered(false);
+    this.store.setNetworkRendered(false);
    
 
     this.commonService.cleanupData();
@@ -744,7 +747,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
             this.SelectedDefaultDistanceMetricVariable = 'tn93';
             this.onDistanceMetricChange('tn93');
-            this.commonService.onMetricChanged('tn93');
+            this.store.setMetricChanged('tn93');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
             $('#default-distance-metric').val('tn93').trigger('change');
             $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(0.015).trigger('change');
@@ -754,7 +757,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
           } else {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-            this.commonService.onMetricChanged('snps');
+            this.store.setMetricChanged('snps');
             this.SelectedDefaultDistanceMetricVariable = 'snps';
             this.onDistanceMetricChange('snps');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
@@ -1898,7 +1901,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.commonService.setLinkThreshold(parseFloat(e));
+    this.store.setLinkThreshold(parseFloat(e));
   }
 
   /**
@@ -1922,7 +1925,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         $("#ambiguities-row").slideUp();
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.commonService.onMetricChanged('snps');
+      this.store.setMetricChanged('snps');
       this.onLinkThresholdChange('7');
     } else {
       $('#default-distance-threshold, #link-threshold')
@@ -1931,7 +1934,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         .trigger('change');
         $("#ambiguities-row").slideDown();
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-      this.commonService.onMetricChanged('tn93');
+      this.store.setMetricChanged('tn93');
       this.onLinkThresholdChange('0.015');
     }
   }
