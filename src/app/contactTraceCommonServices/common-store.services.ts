@@ -5,9 +5,11 @@ import { BehaviorSubject } from 'rxjs';
   providedIn: 'root'
 })
 export class CommonStoreService {
+
   // ----------------------------
-  // General State Subjects
+  // State Subjects
   // ----------------------------
+
   private _linkThreshold$ = new BehaviorSubject<number>(0.015);
   linkThreshold$ = this._linkThreshold$.asObservable();
 
@@ -23,9 +25,6 @@ export class CommonStoreService {
   private _settingsLoaded$ = new BehaviorSubject<boolean>(false);
   settingsLoaded$ = this._settingsLoaded$.asObservable();
 
-  // ----------------------------
-  // Event Subjects
-  // ----------------------------
   private _metricChanged$ = new BehaviorSubject<string>(null);
   metricChanged$ = this._metricChanged$.asObservable();
 
@@ -63,7 +62,7 @@ export class CommonStoreService {
   }
 
   // ----------------------------
-  // Getters & Setters: General State
+  // Getters & Setters
   // ----------------------------
   get linkThresholdValue(): number {
     return this._linkThreshold$.value;
@@ -100,9 +99,6 @@ export class CommonStoreService {
     this.updateValue(this._settingsLoaded$, loaded);
   }
 
-  // ----------------------------
-  // Getters & Setters: Event Subjects
-  // ----------------------------
   get metricChangedValue(): string {
     return this._metricChanged$.value;
   }

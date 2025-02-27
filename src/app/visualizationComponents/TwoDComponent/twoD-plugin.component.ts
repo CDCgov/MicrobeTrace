@@ -288,14 +288,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .subscribe(loaded => {
             if(loaded) {
 
-                console.log('--- TwoD settings loaded get data');
-
-                  let networkData = {
-                    nodes: this.commonService.getVisibleNodes(),
-                    links: this.commonService.getVisibleLinks()
-                }
-
-                this.data = this.commonService.convertToGraphDataArray(networkData);
+                 this._rerender();
 
             }
         });
@@ -2740,13 +2733,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
         this.store.setNetworkRendered(false);
 
-        if (this.data === undefined) {
-            return;
-        }
+        
 
 
         let networkData;
         if (timelineTick) {
+
+            if (this.data === undefined) {
+                return;
+            }
             let nodes = this.commonService.getVisibleNodes();
             if (nodes.length == this.data.nodes.length) { 
                 return;
@@ -2940,6 +2935,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 console.log(`✅ Cytoscape layout rendering completed in ${(endTime - startTime).toFixed(2)}ms`);
                 // Set rendered to true now that network has rendered
                 this.store.setNetworkRendered(true);  
+                this.commonService.session.network.rendering = false;
                 // Now we can ensure the demo at least the demo network has been rendered
                 this.commonService.demoNetworkRendered = true;          
             });

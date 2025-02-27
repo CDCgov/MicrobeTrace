@@ -1,9 +1,11 @@
-﻿import { OnInit, NgModule } from '@angular/core';
+﻿import { OnInit, NgModule, Injectable } from '@angular/core';
 import { InlineWorker } from '../helperClasses/inlineWorker';
 import Papa from 'papaparse';
 import * as bioseq from 'bioseq';
 
-@NgModule({})
+@Injectable({
+  providedIn: 'root'
+})
 export class WorkerModule implements OnInit {
 
   // This one is still a traditional worker.
