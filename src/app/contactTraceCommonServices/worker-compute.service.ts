@@ -18,19 +18,33 @@ export class WorkerComputeService {
   /**
    * Helper that converts a Worker’s events into an RxJS Observable.
    */
-  private fromWorker(worker: Worker): Observable<MessageEvent<any>> {
+  private fromWorker(worker: any): Observable<MessageEvent<any>> {
     return new Observable(observer => {
-      const messageHandler = (event: MessageEvent<any>) => observer.next(event);
-      const errorHandler = (error: ErrorEvent) => observer.error(error);
-
-      worker.addEventListener('message', messageHandler);
-      worker.addEventListener('error', errorHandler);
-
-      return () => {
-        worker.removeEventListener('message', messageHandler);
-        worker.removeEventListener('error', errorHandler);
-        worker.terminate();
-      };
+      // If the worker implements addEventListener, use it.
+      if (typeof worker.addEventListener === 'function') {
+        const messageHandler = (event: MessageEvent<any>) => observer.next(event);
+        const errorHandler = (error: ErrorEvent) => observer.error(error);
+        worker.addEventListener('message', messageHandler);
+        worker.addEventListener('error', errorHandler);
+  
+        return () => {
+          worker.removeEventListener('message', messageHandler);
+          worker.removeEventListener('error', errorHandler);
+          worker.terminate();
+        };
+      } else {
+        // Fallback for InlineWorker (or any non-standard worker)
+        // Use the onmessage and onerror properties.
+        worker.onmessage = (event: MessageEvent<any>) => observer.next(event);
+        worker.onerror = (error: ErrorEvent) => observer.error(error);
+        
+        return () => {
+          // If your InlineWorker provides a terminate() method, call it.
+          if (typeof worker.terminate === 'function') {
+            worker.terminate();
+          }
+        };
+      }
     });
   }
 
@@ -443,12 +457,12 @@ export class WorkerComputeService {
   /**
    * Compute MST, storing an nn:true property on any MST edges, like old code.
    */
-  public computeMST(session: any): Promise<void> {
+  public computeMST(session: any, temp: any): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const mstWorker = this.computer.getMSTWorker() as unknown as Worker;
       mstWorker.postMessage({
         links: session.data.links,
-        matrix: session.temp.matrix,
+        matrix: temp.matrix,
         epsilon: session.style.widgets["filtering-epsilon"],
         metric: session.style.widgets['link-sort-variable']
       });
@@ -486,22 +500,22 @@ export class WorkerComputeService {
   /**
    * Compute NN, storing nn:true on the nearest neighbor edges.
    */
-  public computeNN(session: any): Promise<void> {
+  public computeNN(session: any, temp: any): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const nnWorker = this.computer.getNNWorker() as unknown as Worker;
       nnWorker.postMessage({
         links: session.data.links,
-        matrix: session.temp.matrix,
+        matrix: temp.matrix,  // use temp.matrix (not session.temp)
         epsilon: session.style.widgets["filtering-epsilon"],
-        metric: session.style.widgets['link-sort-variable']
+        metric: session.style.widgets["link-sort-variable"]
       });
-
-      const sub = this.fromWorker(nnWorker).subscribe(response => {
+  
+      const sub = this.fromWorker(nnWorker).subscribe((response: MessageEvent<any>) => {
         if (response.data === 'Error') {
           return reject('Nearest Neighbor washed out');
         }
         const output = new Uint8Array(response.data.links);
-
+  
         if (session.debugMode) {
           console.log(
             'NN Transit time: ',
@@ -510,6 +524,7 @@ export class WorkerComputeService {
           );
         }
         const start = Date.now();
+        // Loop over all links in session.data.links and update the nn property.
         for (let i = 0; i < session.data.links.length; i++) {
           session.data.links[i].nn = output[i] ? true : false;
         }
@@ -530,14 +545,18 @@ export class WorkerComputeService {
   /**
    * Compute Triangulation, adding invisible placeholders for missing edges, etc.
    */
-  public computeTriangulation(session: any): Promise<void> {
+  public computeTriangulation(
+    session: any,
+    temp: any,
+    addLink: (link: any, check: any) => number
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const metric = session.style.widgets['link-sort-variable'];
       this.getDM(session).then(dm => {
         const triangulationWorker = this.computer.getTriangulationWorker() as unknown as Worker;
         triangulationWorker.postMessage({ matrix: dm });
-
-        const sub = this.fromWorker(triangulationWorker).subscribe(response => {
+        
+        const sub = this.fromWorker(triangulationWorker).subscribe((response: MessageEvent<any>) => {
           if (response.data === 'Error') {
             return reject('Triangulation washed out');
           }
@@ -548,36 +567,38 @@ export class WorkerComputeService {
               'ms'
             );
           }
-          const start = Date.now();
+          const mergeStart = Date.now();
           const decoder = new TextDecoder('utf-8');
           const matrixObj = JSON.parse(decoder.decode(new Uint8Array(response.data.matrix)));
-
-          const labels = Object.keys(session.temp.matrix);
+  
+          // Use the labels from the temp object (not session.temp)
+          const labels = Object.keys(temp.matrix);
           const n = labels.length;
           for (let i = 0; i < n; i++) {
             const source = labels[i];
-            const row = session.temp.matrix[source];
+            const row = temp.matrix[source];
             for (let j = 0; j < i; j++) {
               const target = labels[j];
-              // If missing link, add one
+              // If the temporary matrix is missing an entry, call the addLink callback.
               if (!row[target]) {
-                if (session.addLink) {
-                  session.addLink({
+                addLink(
+                  {
                     source: source,
                     target: target,
                     origin: ['Triangulation'],
                     visible: false
-                  });
-                }
+                  },
+                  false // or whatever "check" flag you need
+                );
               }
+              // Update the distance for this metric.
               row[target][metric] = matrixObj[i][j];
             }
           }
-
           if (session.debugMode) {
             console.log(
               'Triangulation Merge time: ',
-              (Date.now() - start).toLocaleString(),
+              (Date.now() - mergeStart).toLocaleString(),
               'ms'
             );
           }

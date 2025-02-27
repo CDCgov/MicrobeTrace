@@ -1156,7 +1156,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onPruneWithTypesChanged(this.SelectedPruneWityTypesVariable); 
     }
 
-    async onPruneWithTypesChanged(newValue: string) {
+    onPruneWithTypesChanged(newValue: string) {
 
         console.log('onPruneWithTypesChanged: ', newValue);
 
@@ -1178,7 +1178,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             
 
             this.commonService.computeMST().then(() => {
-                this.commonService._debouncedUpdateNetworkVisuals();
+                console.log('computeMST for nearest neighbor');
+                //console log link that source is MZ798055 and target is MZ375596
+                console.log('link after computeMST: ', this.commonService.session.data.links.filter(link => link.source === "MZ798055" && link.target === "MZ375596"));
+                // this.commonService.setLinkVisibility(true);
+                // this.commonService.updateNetworkVisuals(true);
+                this.store.setLinkThreshold(this.SelectedLinkThresholdVariable);
                     // TODO:: David is this needed?
                 if ('tableComp' in this.commonService.visuals) {
                     if (this.commonService.visuals.tableComp.dataSetViewSelected == 'Link') {

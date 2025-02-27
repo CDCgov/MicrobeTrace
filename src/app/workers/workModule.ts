@@ -274,6 +274,8 @@ export class WorkerModule implements OnInit {
           matrix.push(targets);
           map.push(nodeid);
         }
+        console.log('dm: ', dm);
+        console.log('mst matrix: ', matrix);
         const minKey = (key, mstSet, V) => {
           let min = Number.MAX_VALUE;
           let min_index = -1;
@@ -375,7 +377,7 @@ export class WorkerModule implements OnInit {
         }
         console.log('MST Compute time: ', (Date.now() - start).toLocaleString(), 'ms');
         let response = { links: output.buffer, start: Date.now(), data: output.buffer };
-        postMessage(response, null, null);
+        postMessage(response);
       };
       onmessage = (evt) => {
         compute_mst(evt.data);

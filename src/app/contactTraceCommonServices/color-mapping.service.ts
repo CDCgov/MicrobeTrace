@@ -190,6 +190,7 @@ export class ColorMappingService {
     updatedLinkColorsTable: any;
     updatedLinkColorsTableKeys: any;
   } {
+    
 
     // If user hasn't chosen a variable
     if (linkColorVariable === 'None') {
@@ -204,6 +205,7 @@ export class ColorMappingService {
         updatedLinkColorsTableKeys: linkColorsTableKeys
       };
     }
+    
 
     if (debugMode) {
       console.log('[createLinkColorMap] Starting, var =', linkColorVariable);
@@ -221,6 +223,8 @@ export class ColorMappingService {
       updatedLinkColors = [...updatedLinkColorsTable[linkColorVariable]];
     }
 
+    let multiLinkCount = 0; // Initialize Multi-Link count
+
     // Collect aggregates
     const aggregates: Record<string, number> = {};
     links.forEach(l => {
@@ -230,13 +234,33 @@ export class ColorMappingService {
         l.origin.forEach(o => {
           aggregates[o] = (aggregates[o] || 0) + 1;
         });
+
+        // Count Multi-Links separately
+        if (l.origin.length == 2) {  
+            multiLinkCount++;
+        }
+
       } else {
         const val = l[linkColorVariable];
         aggregates[val] = (aggregates[val] || 0) + 1;
       }
     });
 
+    // Add Multi-Link to aggregates if it exists
+    if (multiLinkCount > 0) {
+        aggregates["Duo-Link"] = multiLinkCount;
+    }
+
+    // Adjust counts for other links by subtracting Multi-Link count
+    Object.keys(aggregates).forEach(key => {
+        if (key !== "Duo-Link") {
+            aggregates[key] -= multiLinkCount; // Subtract Multi-Link count
+        }
+    });
+
     const distinctValues = Object.keys(aggregates);
+
+
 
     // Possibly handle “multi-link” or other specifics if needed
     // For now, we skip that for clarity. If needed, you can replicate your duo-link logic.

@@ -2009,8 +2009,12 @@ align(params): Promise<any> {
             const start = Date.now();
             let links = this.session.data.links;
             const numLinks = links.length;
+            console.log('-----setting NN');
             for (let i = 0; i < numLinks; i++) {
               links[i].nn = output[i] ? true : false;
+              if(output[i] ? true : false){
+                console.log('-- NN true: ', _.cloneDeep(links[i]));
+              }
             }
             if (this.debugMode) {
               console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
@@ -2025,82 +2029,19 @@ align(params): Promise<any> {
 
 
       computeNN(): Promise<void> {
-        return new Promise((resolve, reject) => {
-          const nnWorker = this.computer.getNNWorker();
-          nnWorker.postMessage({
-            links: this.session.data.links,
-            matrix: this.temp.matrix,
-            epsilon: this.session.style.widgets["filtering-epsilon"],
-            metric: this.session.style.widgets['link-sort-variable']
-          });
-          const sub = nnWorker.onmessage().subscribe((response) => {
-            if (response.data === "Error") {
-              return reject("Nearest Neighbor washed out");
-            }
-            const output = new Uint8Array(response.data.links);
-            if (this.debugMode) {
-              console.log("NN Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-            }
-            const start = Date.now();
-            let links = this.session.data.links;
-            const numLinks = links.length;
-            for (let i = 0; i < numLinks; i++) {
-              links[i].nn = output[i] ? true : false;
-            }
-            if (this.debugMode) {
-              console.log("NN Merge time: ", (Date.now() - start).toLocaleString(), "ms");
-            }
-            resolve();
-            nnWorker.terminate();
-            sub.unsubscribe();
-          });
-        });
+        return this.workerComputeService.computeNN(this.session, this.temp);
       }
       
 
-      computeTriangulation(): Promise<void> {
-        return new Promise((resolve, reject) => {
-          const metric = this.session.style.widgets['link-sort-variable'];
-          this.getDM().then(dm => {
-            const triangulationWorker = this.computer.getTriangulationWorker();
-            triangulationWorker.postMessage({ matrix: dm });
-            const sub = triangulationWorker.onmessage().subscribe((response) => {
-              if (response.data === "Error") {
-                return reject("Triangulation washed out");
-              }
-              if (this.debugMode) {
-                console.log("Triangulation Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-              }
-              const start = Date.now();
-              let matrix = JSON.parse(this.decode(new Uint8Array(response.data.matrix)));
-              let labels = Object.keys(this.temp.matrix);
-              const n = labels.length;
-              for (let i = 0; i < n; i++) {
-                let source = labels[i];
-                let row = this.temp.matrix[source];
-                for (let j = 0; j < i; j++) {
-                  const target = labels[j];
-                  if (!row[target]) {
-                    this.addLink({
-                      source: source,
-                      target: target,
-                      origin: ['Triangulation'],
-                      visible: false
-                    });
-                  }
-                  row[target][metric] = matrix[i][j];
-                }
-              }
-              if (this.debugMode) {
-                console.log("Triangulation Merge time: ", (Date.now() - start).toLocaleString(), "ms");
-              }
-              resolve();
-              triangulationWorker.terminate();
-              sub.unsubscribe();
-            });
-          });
+     public computeTriangulation() {
+        this.workerComputeService.computeTriangulation(this.session, this.temp, this.addLink.bind(this))
+        .then(() => {
+          // continue processing after triangulation is complete
+        })
+        .catch(error => {
+          console.error('Error in triangulation:', error);
         });
-      }
+    }
 
     async runHamsters() {
 
@@ -2599,6 +2540,8 @@ align(params): Promise<any> {
 	 * @returns {Object} where keys are the values to group (ie. origin A, origin B) and values are counts of the number of links for each key
 	 */
     public createLinkColorMap() {
+
+        console.log('create link color map');
         // 1) Gather
         const linkColorVariable = this.session.style.widgets['link-color-variable'];
         const links = this.session.data.links;
@@ -2618,6 +2561,7 @@ align(params): Promise<any> {
           linkColorsTableKeys,
           this.debugMode
         );
+
       
         // 3) Store updated scales back into session & temp
         this.temp.style.linkColorMap = result.colorMap;
@@ -3122,15 +3066,19 @@ align(params): Promise<any> {
 
           console.log('metric: ', metric);
           console.log('threshold: ', threshold);
+          
         for (let i = 0; i < n; i++) {
             
             // console.log('---setting link vis: ', links[i]);
 
             const link = links[i];
 
-            if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
-                console.log('setting link vis: ', _.cloneDeep(link));
+            
+
+            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
+                console.log('-----link: ', _.cloneDeep(link));
             }
+    
 
 
             let visible = true;
@@ -3248,8 +3196,8 @@ align(params): Promise<any> {
 
             link.visible = visible;
 
-            if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
-                console.log('setting link vis 3: ', _.cloneDeep(link));
+            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
+                console.log('-----link2: ', _.cloneDeep(link));
             }
             // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
             //     console.log('link color 12345: ', _.cloneDeep(link));
