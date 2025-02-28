@@ -1,9 +1,11 @@
-﻿import { OnInit, NgModule } from '@angular/core';
+﻿import { OnInit, NgModule, Injectable } from '@angular/core';
 import { InlineWorker } from '../helperClasses/inlineWorker';
 import Papa from 'papaparse';
 import * as bioseq from 'bioseq';
 
-@NgModule({})
+@Injectable({
+  providedIn: 'root'
+})
 export class WorkerModule implements OnInit {
 
   // This one is still a traditional worker.
@@ -246,6 +248,12 @@ export class WorkerModule implements OnInit {
       const compute_mst = (e): any => {
         const start = Date.now();
         const links = e.links;
+        const found = links.find(l => 
+          (l.source === "MZ712879" && l.target === "MZ745515") ||
+          (l.source === "MZ745515" && l.target === "MZ712879")
+        );
+        console.log("Found link in links array?", found);
+        
         const dm = e.matrix;
         const labels = Object.keys(dm);
         const epsilon = Math.pow(10, e.epsilon);
@@ -267,11 +275,12 @@ export class WorkerModule implements OnInit {
               continue;
             }
             let value = cell[metric];
-            targets.push(value);
+            targets.push(value);           
           }
           matrix.push(targets);
           map.push(nodeid);
         }
+
         const minKey = (key, mstSet, V) => {
           let min = Number.MAX_VALUE;
           let min_index = -1;
@@ -351,13 +360,52 @@ export class WorkerModule implements OnInit {
               if (visited[u]) return;
               queue.push(u);
               const value = Math.max(weights[v][u], Math.max(longest_edge[root][u], longest_edge[root][v]));
+               // LOG if root=19 or 9, or if (v,u) = (19,0)/(0,9)/(9,0)/(0,19)
+              if (root === 19 || root === 9 || v === 19 || v === 9 || u === 19 || u === 9) {
+                console.log(
+                  `BFS root=${root}, v=${v}, u=${u}`,
+                  'weights[v][u]=', weights[v][u],
+                  'longest_edge[root][v]=', longest_edge[root][v],
+                  'longest_edge[root][u]=', longest_edge[root][u],
+                  '=> new value=', value
+                );
+              }
               longest_edge[root][u] = value;
               longest_edge[u][root] = value;
             });
           }
         };
+
+          // Right before or after building `map` in compute_mst:
+          console.log('Index of MZ712879:', map.indexOf('MZ712879'));
+          console.log('Index of MZ745515:', map.indexOf('MZ745515'));
+          // Right after building 'matrix'
+          const idxA = map.indexOf('MZ712879');
+          const idxB = map.indexOf('MZ745515');
+          if (idxA >= 0 && idxB >= 0) {
+            console.log(
+              'Distance from MZ712879 -> MZ745515:',
+              matrix[idxA][idxB],
+              'Distance from MZ745515 -> MZ712879:',
+              matrix[idxB][idxA]
+            );
+          }
+     
         const mst = primMST(matrix);
+        
         const nng = nearest_neighbour_graph(matrix, mst, epsilon);
+
+        
+        // After `const mst = primMST(matrix);`
+        console.log('Parent array from MST:', mst);
+
+        // Then specifically:
+        console.log(
+          'Parent of MZ712879 (idxA):', mst[idxA],
+          'Parent of MZ745515 (idxB):', mst[idxB]
+        );
+
+       
         for (let i = 0; i < n; i++) {
           const source = map[i];
           nng[i].push(mst[i]);
@@ -365,15 +413,20 @@ export class WorkerModule implements OnInit {
             const target = map[parseInt(u as string)];
             for (let k = 0; k < m; k++) {
               let l = links[k];
+              
               if ((l.source === source && l.target === target) || (l.source === target && l.target === source)) {
                 output[k] = 1;
               }
             }
           });
+          if (source === "MZ712879" || source === "MZ745515") {
+            console.log("nng[i] for", source, nng[i]);
+            console.log("MST parent for", source, mst[i]);
+          }
         }
         console.log('MST Compute time: ', (Date.now() - start).toLocaleString(), 'ms');
         let response = { links: output.buffer, start: Date.now(), data: output.buffer };
-        postMessage(response, null, null);
+        postMessage(response);
       };
       onmessage = (evt) => {
         compute_mst(evt.data);

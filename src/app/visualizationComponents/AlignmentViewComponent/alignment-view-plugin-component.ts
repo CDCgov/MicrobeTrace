@@ -11,6 +11,7 @@ import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
 import { svgAsPngUri } from 'save-svg-as-png';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 @Component({
   selector: 'AlignmentViewComponent',
@@ -128,12 +129,12 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   AlignmentExportFileTypeData: string = "fasta";
 
   constructor(injector: Injector,
-    private eventManager: EventManager,
     public commonService: CommonService,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService) {
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService) {
 
     super(elRef.nativeElement);
 
@@ -1672,7 +1673,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     top.style.height = 150+canvas.height+'px'
     top.appendChild(foreignObj);
 
-    let content = this.commonService.unparseSVG(top);
+    let content = this.exportService.unparseSVG(top);
     let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
     saveAs(blob, this.AlignmentExportFileName + '.svg');
 
