@@ -1166,9 +1166,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.SelectedPruneWityTypesVariable == "None") {
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
-            this.commonService._debouncedUpdateNetworkVisuals();
+            this.commonService.setLinkVisibility(true);
+            this.commonService.updateNetworkVisuals(true);
+            this.store.setLinkThreshold(this.SelectedLinkThresholdVariable);
             this.commonService.onStatisticsChanged("Show");
-            // this.updatedVisualization();
         }
         else {
             this.SelectedEpsilonValue = Math.pow(10, this.widgets['filtering-epsilon']).toPrecision(3);
@@ -1179,11 +1180,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             this.commonService.computeMST().then(() => {
                 console.log('computeMST for nearest neighbor');
+
+                console.log('Link (MZ745515-MZ712879) after MST:', 
+                this.commonService.session.data.links.filter(link => 
+                    (link.source === "MZ745515" && link.target === "MZ712879") ||
+                    (link.source === "MZ712879" && link.target === "MZ745515")
+                ));
                 //console log link that source is MZ798055 and target is MZ375596
                 console.log('link after computeMST: ', this.commonService.session.data.links.filter(link => link.source === "MZ798055" && link.target === "MZ375596"));
-                // this.commonService.setLinkVisibility(true);
-                // this.commonService.updateNetworkVisuals(true);
+                this.commonService.setLinkVisibility(true);
+                this.commonService.updateNetworkVisuals(true);
                 this.store.setLinkThreshold(this.SelectedLinkThresholdVariable);
+
+                this.onLinkColorTableChanged();
                     // TODO:: David is this needed?
                 if ('tableComp' in this.commonService.visuals) {
                     if (this.commonService.visuals.tableComp.dataSetViewSelected == 'Link') {
@@ -1212,27 +1221,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             //      return;
             //    } else {
 
-            /// TODO:: David Check/Update Below
-            // if(!this.visuals.microbeTrace.commonService.session.style.widgets["mst-computed"]) {
-            //     this.visuals.microbeTrace.commonService.computeMST().then(() => {
-            //         this.visuals.microbeTrace.commonService.updateNetwork();
-            //         this.visuals.microbeTrace.updatedVisualization();
-            //         if ('tableComp' in this.commonService.visuals) {
-            //             if (this.commonService.visuals.tableComp.dataSetViewSelected == 'Link') {
-            //                 this.commonService.visuals.tableComp.openSelectDataSetScreen({value: 'Link'});
-            //             }
-            //         }
-            //     });
-            //     this.visuals.microbeTrace.commonService.session.style.widgets["mst-computed"] = true;
-            //     console.log('updated compute:' , this.visuals.microbeTrace.commonService.session.style.widgets["mst-computed"]);
-            //     return;
-            // } else {
-
         }
-
     }
-
-
 
     onLinkColorTableChanged(silent: boolean = false) {
 

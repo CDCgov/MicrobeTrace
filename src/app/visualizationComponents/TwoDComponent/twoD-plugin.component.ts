@@ -1305,6 +1305,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             values: values.map(node => node.data('id'))
         }));
 
+
         // Assign the groups to polygonGroups in commonService.temp
         this.commonService.temp.polygonGroups = groups;
     }
@@ -1993,10 +1994,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     groupMap.get(group)?.push(node);
                 }
             });
-        
+
             // Create new parent nodes and assign child nodes
             groupMap.forEach((nodesInGroup, groupName) => {
-                const parentId = `${groupName}`;
+                const parentId = `group-${groupName}`;
     
                 // Add a new parent node
                 const parentNode = cy.add({

@@ -724,12 +724,12 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     addLink(newLink: any, check: any = true): number {
 
-        if(newLink.source === "KF773571" && newLink.target === "KF773578"){
+        if(newLink.source === "MZ745515" && newLink.target === "MZ712879"){
             console.log('new link 1: ', JSON.stringify(newLink));
             // console.log('new link 2: ', JSON.stringify(newLink));
         }
 
-        if(newLink.source === "KF773430" && newLink.target === "KF773432"){
+        if(newLink.source === "MZ712879" && newLink.target === "MZ745515"){
             console.log('new link 2: ', JSON.stringify(newLink));
             // console.log('new link 2: ', JSON.stringify(newLink));
         }
@@ -1991,6 +1991,12 @@ align(params): Promise<any> {
 
       computeMST(): Promise<void> {
         return new Promise((resolve, reject) => {
+            const links = this.session.data.links;
+        const found = links.find(l => 
+        (l.source === "MZ712879" && l.target === "MZ745515") ||
+        (l.source === "MZ745515" && l.target === "MZ712879")
+        );
+        console.log(" common service Found link in links array?", found);
           const mstWorker = this.computer.getMSTWorker();
           mstWorker.postMessage({
             links: this.session.data.links,
@@ -3064,8 +3070,6 @@ align(params): Promise<any> {
           //log all links that are visible and their origin
           console.log('--- visible links1: ', links.filter(l => l.visible));
 
-          console.log('metric: ', metric);
-          console.log('threshold: ', threshold);
           
         for (let i = 0; i < n; i++) {
             
@@ -3075,8 +3079,8 @@ align(params): Promise<any> {
 
             
 
-            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-                console.log('-----link: ', _.cloneDeep(link));
+            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
+                console.log('-----link is : ', _.cloneDeep(link));
             }
     
 
@@ -3165,10 +3169,13 @@ align(params): Promise<any> {
 
             }
 
-            if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
-                console.log('setting link vis 2: ', _.cloneDeep(link));
-            }
+            // if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
+            //     console.log('setting link vis 2: ', _.cloneDeep(link));
+            // }
 
+            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
+                console.log('-----link is 2: ', _.cloneDeep(link));
+            }
 
             if (visible && showNN && !overrideNN) {
                 visible = visible && link.nn;
@@ -3191,6 +3198,9 @@ align(params): Promise<any> {
                 link.origin = this.session.style.widgets['link-origin-array-order'];
             }
             
+            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
+                console.log('-----link is 3: ', _.cloneDeep(link));
+            }
 
 
 
