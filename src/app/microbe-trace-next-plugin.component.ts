@@ -1052,7 +1052,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         if(!silent) {
-            this.store.setTwoD_saveNodePos(true);
+            this.store.setTwoD_saveNodePos(true); // test if needed when this function is working properly
             this.commonService.setLinkVisibility(true);
             this.commonService.updateNetworkVisuals();
         }
@@ -1603,7 +1603,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if ('bubble' in this.commonService.visuals) {
              this.commonService.visuals.bubble.sortData(variable);
         }
-        this.store.setTwoD_saveNodePos(true);
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");

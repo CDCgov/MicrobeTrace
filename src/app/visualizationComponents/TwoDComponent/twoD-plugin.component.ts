@@ -17,7 +17,7 @@ import { GraphData } from './data';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
-import fcose from 'cytoscape-fcose';
+//import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
@@ -309,6 +309,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ngAfterViewInit(): void {
 
+          // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
         this.saveNodePosSub = this.store.twoD_saveNodePos$.subscribe(() => {
             this.saveNodePos();
             console.log(this.commonService.getVisibleNodes()[0])
@@ -361,8 +362,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     ...node
                 },
                 position: { 
-                    x:node._fx,
-                    y:node._fy
+                    x:node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
+                    y:node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
                 }
             }
         } else {
@@ -382,8 +383,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     ...node
                 },
                 position: {
-                    x: node.x || this.nodePositions.get(node.id)?.x || node._fx || Math.random() * 500,
-                    y: node.y || this.nodePositions.get(node.id)?.y || node._fy || Math.random() * 500
+                    x: node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
+                    y: node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
                   }
                   
             };
@@ -642,6 +643,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     //     return { nodes, links };
     // }
 
+    // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
     saveNodePos() {
         if (this.cy) {
             this.cy.nodes().forEach(node => {
@@ -658,8 +660,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updateNodePos(node) {
       let globalNode = this.commonService.session.data.nodeFilteredValues.find(x => x._id == node.data('id'))
-      globalNode['_fx'] = node.position().x;
-      globalNode['_fy'] = node.position().y;
+      globalNode['x'] = node.position().x;
+      globalNode['y'] = node.position().y;
 
     }
 
@@ -780,10 +782,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // this._rerender();
 
-            // $(document).on("node-visibility", function () {
-            //     console.log('node-visibility called');
-            //     that._rerender(true);
-            // });
+            $(document).on("node-visibility", function () {
+                console.log('node-visibility called');
+                //that._rerender(true);
+                that._partialUpdate();
+            });
 
             // $(document).on("link-visibility", async function () {
 
@@ -3917,7 +3920,9 @@ private _partialUpdate() {
         this.destroy$.complete();
 
         this.styleFileSub.unsubscribe();
+          // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
         this.saveNodePosSub.unsubscribe();
+
         this.settingsLoadedSubscription.unsubscribe();
 
         this.cy.removeAllListeners();
