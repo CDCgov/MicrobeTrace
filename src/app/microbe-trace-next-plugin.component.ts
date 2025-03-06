@@ -2424,13 +2424,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.SelectedLinkColorTableTypesVariable = 'Hide';
             }
         });
-        // }, 0);
         
 
         console.log('tab changed end: ');
-        // this.setActiveTabProperties();
-
-        // this.cdref.detectChanges();
     }
 
 

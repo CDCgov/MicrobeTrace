@@ -277,7 +277,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
-            if(this.data && this.store.settingsLoadedValue && newPruned){
+            if(this.data && this.store.settingsLoadedValue && newPruned && this.commonService.activeTab === '2D Network'){
                 console.log('--- TwoD DATA network updated pruned', newPruned);
                 this._rerender();
                 this.loadSettings();
@@ -287,7 +287,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.settingsLoadedSubscription = this.store.settingsLoaded$
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {
-            if(loaded) {
+            if(loaded && this.commonService.activeTab === '2D Network') {
 
                  this._rerender();
 
@@ -298,9 +298,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newThreshold => {
             if (!this.commonService.session.network.isFullyLoaded) return;
-            if (this.threshold !== newThreshold) {
-                console.log('--- TwoD partial threshold changed', newThreshold);
-                this._partialUpdate();
+
+            if(this.commonService.activeTab === '2D Network') {
+                if (this.threshold !== newThreshold) {
+                    console.log('--- TwoD partial threshold changed', newThreshold);
+                    this._partialUpdate();
+                }
             }
         });
         this.InitView();
@@ -309,10 +312,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ngAfterViewInit(): void {
 
+        console.log('--- TwoD ngAfterViewInit called');
           // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
         this.saveNodePosSub = this.store.twoD_saveNodePos$.subscribe(() => {
-            this.saveNodePos();
-            console.log(this.commonService.getVisibleNodes()[0])
+
+            if(this.commonService.activeTab === '2D Network') {
+                this.saveNodePos();
+            }
         })
     }
 
@@ -3748,6 +3754,7 @@ scaleLinkWidth() {
  * nodes and links) instead of completely rerendering.
  */
 private _partialUpdate() {
+    console.log('--- TwoD _partialUpdate called');
     if (!this.cy) {
       console.error('Cytoscape instance not initialized; cannot update partially.');
       return;
