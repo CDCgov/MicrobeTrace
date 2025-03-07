@@ -499,7 +499,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.tabLoaded = true;
             this.commonService.session.network.isFullyLoaded = true;
             this.setActiveTabProperties();
-            this.loadFilterSettings();
+
+            if(!this.store.settingsLoadedValue) {
+                console.log('--- GOLDEN LAYOUT COMPONENT filter settings');
+
+                this.loadFilterSettings();
+            }
         });
 
     }
@@ -1320,6 +1325,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.homepageTabs.forEach(tab => {
             if (tab.componentRef &&
                 tab.componentRef.instance.updateNodeColors) {
+                console.log('publishUpdateNodeColors - updateNodeColors called');
                 tab.componentRef.instance.updateNodeColors();
             }
         })
@@ -1357,7 +1363,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     onColorLinksByChanged(silent: boolean = false) {
 
-        this.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
+        console.log('oncolorLinksByChanged - selected color links by variable: ', this.SelectedColorLinksByVariable);
+        console.log('oncolorLinksByChanged - selected color links by variable: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
 
@@ -1366,10 +1373,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
             // checkActiveView is reliant on commonService.visuals, under current implementation (12/17/24) always returns false and function may not be needed
             if (this.SelectedColorLinksByVariable != "None") {
+                console.log('onColorLinksByChanged - selected color links by variable2: ', this.SelectedColorLinksByVariable);
                 this.SelectedLinkColorTableTypesVariable = "Show";
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
                 this.cachedGlobalSettingsLinkColorVisibility = this.GlobalSettingsLinkColorDialogSettings.isVisible;
-                
+                this.ShowGlobalSettingsLinkColorTable = false;
                 this.cdref.detectChanges();
             }
         }
@@ -1382,13 +1390,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             this.generateNodeLinkTable("#link-color-table");
 
+            console.log('onColorLinksByChanged - selected color links by variable4: ', this.SelectedColorLinksByVariable);
+
             $('#link-color-value-row').slideUp();
 
+            console.log('show global settings link color table: ', this.ShowGlobalSettingsLinkColorTable);
             //If hidden by default, unhide to perform slide up and down
             if(!this.ShowGlobalSettingsLinkColorTable){
                 const element = this.el.nativeElement.querySelector('#link-color-table');
                 this.commonService.setLinkTableElement(element);
                 this.ShowGlobalSettingsLinkColorTable = true;
+                this.cdref.detectChanges();
+                console.log('element: ', element);
             } else {
                 $('#link-color-table-row').slideDown();
             }
@@ -1396,6 +1409,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             if(!silent) this.publishUpdateLinkColor();
         }
         else {
+            console.log('show hide global settings link color table: ', this.ShowGlobalSettingsLinkColorTable);
             $('#link-color-table').empty();
             $('#link-color-value-row').slideDown();
             $('#link-color-table-row').slideUp();
@@ -1842,11 +1856,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onColorNodesByChanged(silent: boolean = false) {
 
+        console.log('on color nodes by changed - visible: ', this.GlobalSettingsNodeColorDialogSettings.isVisible);
+
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
 
 
         if (!this.GlobalSettingsNodeColorDialogSettings.isVisible) {
 
+            console.log('on color nodes by changed - visible: ', this.SelectedColorNodesByVariable);
             // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
             if (this.SelectedColorNodesByVariable != "None") {
 
@@ -1854,7 +1871,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
                 this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
                 const prevColorNodesByVariable = this.SelectedColorNodesByVariable;
-
+                // this reset to false to trigger showing the node color table
+                this.ShowGlobalSettingsNodeColorTable = false;
                 // this detect changes leads to SelectedColorNodesByVariable being set to default value when loading MT files that have both 2D and map view
                 this.cdref.detectChanges();
                 if (prevColorNodesByVariable != this.SelectedColorNodesByVariable) this.SelectedColorNodesByVariable = prevColorNodesByVariable;
@@ -1863,14 +1881,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.session.style.widgets["node-color-variable"] = this.SelectedColorNodesByVariable;
 
+        console.log('on color nodes by changed5 - visible: ', this.SelectedColorNodesByVariable);
 
         if(this.commonService.session.data.nodes.length === 0) {
             return;
         }
 
+        console.log('on color nodes by changed6 - visible: ', this.ShowGlobalSettingsNodeColorTable);
+
         if (this.SelectedColorNodesByVariable !== "None") {
 
-            // this.generateNodeColorTable("#node-color-table");
+            this.generateNodeColorTable("#node-color-table");
             
             $('#node-color-value-row').slideUp();
 
@@ -1884,6 +1905,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 $('#node-color-table-row').slideDown();
             }
 
+            console.log('--- onColorNodesByChanged called');
             // if not loading all settings at once, update node colors
             if(!silent) {
                 this.publishUpdateNodeColors();
@@ -3505,10 +3527,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     loadUISettings() {
 
+        this.ShowGlobalSettingsLinkColorTable = false;
+        this.ShowGlobalSettingsNodeColorTable = false;
+
+        console.log('oncolorNodesByChanged - selected color nodes by variable: ');
          //Styling|Color Nodes By
          this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
-         this.onColorNodesByChanged(true);
+         this.onColorNodesByChanged(false);
  
+         console.log('oncolorNodesByChanged 2 - selected color nodes by variable: ', this.SelectedColorNodesByVariable);
+
          //Styling|Nodes
          this.SelectedNodeColorVariable = this.commonService.session.style.widgets["node-color"];
          this.onNodeColorChanged(true);
@@ -3520,6 +3548,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          }
  
          this.SelectedColorLinksByVariable = this.commonService.session.style.widgets['link-color-variable'];
+         console.log('oncolorLinksByChanged - selected color links by variable: ', this.SelectedColorLinksByVariable);
          this.onColorLinksByChanged(true);
  
           //Styling|Links
@@ -3533,6 +3562,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          this.SelectedBackgroundColorVariable = this.commonService.session.style.widgets['background-color'];
          this.onBackgroundChanged();
   
+         console.log('this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
          this.store.setSettingsLoaded(true);
  
          this.updateGlobalSettingsModel();
@@ -3572,6 +3602,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Calls onLinkThresholdChanged to updated links
      */
   onDistanceMetricChanged = () => {
+    if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
       $('#default-distance-threshold, #link-threshold')
         .attr('step', 1)

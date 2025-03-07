@@ -3515,7 +3515,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updateNodeColors() {
 
-        if(!this.cy) this._rerender();
+        if(!this.cy) return;
 
 
         let variable = this.widgets['node-color-variable'];
@@ -3912,7 +3912,11 @@ private _partialUpdate() {
 
         this.fit();
 
-        this.updateLinkColor();
+           // Set rendered to true now that network has rendered
+           this.store.setNetworkRendered(true); 
+           // Now we can set network update to false after its been updated fully
+           this.store.setNetworkUpdated(false); 
+           this.commonService.session.network.rendering = false;
 
 }
 

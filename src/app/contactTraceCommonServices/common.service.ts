@@ -1080,6 +1080,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         //session files from older versions of MicrobeTrace.
         $("#launch").prop("disabled", true);
 
+         // Set to false to indicate that the network is not fully loaded  as new network is launching
+        this.session.network.isFullyLoaded = false;
+
+        // launching new network, so set network rendered to false to start loading modal
+        this.store.setNetworkRendered(false);
+        this.store.setSettingsLoaded(false);
+    
+
         console.log('applySession - temp:', this.temp);
 
         $(document).trigger("stop-force-simulation"); // stop previous network ticks so previous polygon won't show up
@@ -1145,8 +1153,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         // TODO: See about this process data functionality.  DO we need this?
         this.processData();
 
-
         if (oldSession.network) this.session.network = oldSession.network;
+
+        // Set to false to indicate that the network is not fully loaded  as new network is launching
+        this.session.network.isFullyLoaded = false;
+
          if (oldSession.data.geoJSONLayerName !== "") {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
             this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
@@ -2241,6 +2252,7 @@ align(params): Promise<any> {
           if (!silent) this.store.setNetworkUpdated(true);
           console.log('---- Update network visuals end');
 
+          console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
             // If network wasn't loaded already, launch default view
             if (!this.session.network.isFullyLoaded) {
                 this.session.meta.loadTime = Date.now() - this.session.meta.startTime;
