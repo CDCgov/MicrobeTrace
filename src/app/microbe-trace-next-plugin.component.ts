@@ -671,8 +671,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const svg1 = doc.documentElement;
         
         // i'll need some way to check when to add new col to export; but for now do this;            
-        let width = parseFloat(svg1.getAttribute('width')+5);
-        let height = parseFloat(svg1.getAttribute('height')+5); 
+        let width = parseFloat(svg1.getAttribute('width'))+5;
+        let height = parseFloat(svg1.getAttribute('height'))+5; 
         let tableSVGStrings = '';
         let currentOffsetX = width;
         let currentOffsetY = 5;
@@ -1562,18 +1562,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         function comparer(index) {
             return function(a, b) {
                 const valA = getCellValue(a, index), valB = getCellValue(b, index);
-                if(this.commonService.debugMode) {
-                    console.log(`Comparing: ${valA} and ${valB}`);  // New line
-                }
                 return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
             }
         }
         
         function getCellValue(row, index){ 
             const value = $(row).children('td').eq(index).text();
-            if(this.commonService.debugMode) {
-                console.log(`Cell value: ${value}`);  // New line
-            }
             return value;
         }        
      }
