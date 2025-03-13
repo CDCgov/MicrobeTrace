@@ -21,7 +21,7 @@ import { UtilsModule } from '@shared/utils/utils.module';
 
 import { GoldenLayoutComponentService } from './golden-layout-component.service';
 import { GoldenLayoutHostComponent } from './golden-layout-host.component';
-
+import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { FileUploadModule } from 'primeng/fileupload';
 import { ListboxModule } from 'primeng/listbox';
@@ -129,6 +129,7 @@ export class TestedComponent {
         BrowserAnimationsModule,
         FormsModule,
         MatButtonModule,
+        ButtonModule,
         MatInputModule,
         MatMenuModule,
         MatSliderModule,

@@ -2137,7 +2137,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onNodeShapeTableChange(newShape: string, group: string) {
         let i = this.shapeAggregates.findIndex(x => x.key === group);
-        console.log(this.shapeAggregates);
         
         this.commonService.session.style.nodeSymbols.splice(i, 1, newShape);
         let values = this.shapeAggregates.map(x => x.key);
@@ -2474,7 +2473,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             this.shapeAggregates = [];
-            this.shapeAggregates = Object.keys(aggregates).map((key) => ({ 'key': key, 'count': aggregates[key], 'frequency': aggregates[key] / vnodes }));
+            this.shapeAggregates = Object.keys(aggregates).map((key) => ({ 'key': key, 'count': aggregates[key], 'frequency': parseFloat((aggregates[key] / vnodes).toFixed(3)) }));
             this.shapeAggregates.sort((a, b) => Number(b.count) - Number(a.count));
 
             if (values.length > this.commonService.session.style.nodeSymbols.length) {

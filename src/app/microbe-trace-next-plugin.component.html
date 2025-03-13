@@ -15,6 +15,7 @@
                       <!-- <button mat-menu-item (click)="FileClick('Recall Session')">Recall</button> -->
                       <button mat-menu-item (click)="FileClick('Save Session')">Save</button>
                       <button mat-menu-item (click)="OpenExportDashboard()">Export Dashboard</button>
+                      <button mat-menu-item (click)="OpenExportTables()">Export Tables</button>
                       <!-- <button mat-menu-item (click)="FileClick('Open Session')">Open</button> -->
                       <button mat-menu-item (click)="FileClick('Open URL')">Open URL</button>
                       <button mat-menu-item (click)="FileClick('Add Data')">Add Data</button>
@@ -254,7 +255,7 @@
                                             <div class="col-4"><label for="link-threshold">Filtering Threshold</label></div>
                                             <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
                                             <div class="col-8  offset-4">
-                                                <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" step="0.001" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="onLinkThresholdChanged()">
+                                                <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" step="currentThresholdStepSize" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="onLinkThresholdChanged()">
                                             </div>
                                         </div>
                                         <div class="form-group row" title="Click to reveal all hidden elements of the network.">
@@ -457,6 +458,68 @@
         </div>
         <!-- /.modal-dialog -->
         </p-dialog>
+
+        <p-dialog [(visible)]="showExportTablesMenu"  header="Export Tables"  class="dialogSize"  (onHide)="showExportTablesMenu=false"  appendTo="body">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                <div class="modal-body" style="min-width: 400px; height: 100%;">
+                    <div class="form-group row">
+                        <div class="col-9">
+                            <input type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="ExportTablesFilename" />
+                        </div>
+                        <div class="col-3">
+                            <select class="form-control form-control-sm" [(ngModel)]="ExportTablesFileType">
+                                <option >png</option>
+                                <option >svg</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex align-items-center row">
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox1" [(ngModel)]="exportTables['node-color']" [disabled]="SelectedColorNodesByVariable=='None'" style="margin-left: 10px;"/>
+                            <label for="checkbox1" [class.disabled]="SelectedColorNodesByVariable=='None'">Node Color Table</label>
+                        </div>
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox2" [(ngModel)]="exportTables['link-color']" [disabled]="SelectedColorLinksByVariable=='None'" style="margin-left: 10px;"/>
+                            <label for="checkbox2" [class.disabled]="SelectedColorLinksByVariable=='None'">Link Color Table</label>
+                        </div>
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox3" [(ngModel)]="exportTables['node-symbol']" [disabled]="commonService.session.style.widgets['node-symbol-variable']=='None'" style="margin-left: 10px;"/>
+                            <label for="checkbox3" [class.disabled]="commonService.session.style.widgets['node-symbol-variable']=='None'">Node Shape Table</label>
+                        </div>
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox4" [(ngModel)]="exportTables['polygon-color']" [disabled]="commonService.session.style.widgets['polygons-color-show']==false" style="margin-left: 10px;"/>
+                            <label for="checkbox4" [class.disabled]="commonService.session.style.widgets['polygons-color-show']==false">Polygon Table</label>
+                        </div>
+                        <br />
+                        
+                    </div>
+                    <div>  <!-- Toggle Advanced Export Options -->
+                        <p-accordion *ngIf="ExportTablesFileType === 'png'">
+                            <p-accordionTab style="color:#495057" header="Advanced">
+                                <div>
+                                    <div class="form-group row">
+                                        <div class="col-3">
+                                            <label for="network-export-scale">Scale</label>
+                                        </div>
+                                        <div class="col-9">
+                                            <input type="number" class="form-control form-control-sm" min="1" max="5" step="0.1" [(ngModel)]="ExportTablesScale">
+                                        </div>
+                                    </div>
+                                </div>
+                            </p-accordionTab>
+                        </p-accordion>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-error" (click)="showExportTablesMenu = false">Cancel</button>
+                    <button type="button" id="network-export"  class="btn btn-primary" (click)="ExportTables()">Export</button>
+                </div>
+                </div>
+                <!-- /.modal-content -->
+            </div>
+            <!-- /.modal-dialog -->
+            </p-dialog>
 
         <p-dialog id="session-stash-modal" [(visible)]="displayStashDialog" header="Save Session">
             <div class="modal-dialog" role="document">

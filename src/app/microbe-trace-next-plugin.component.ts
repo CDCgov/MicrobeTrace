@@ -20,6 +20,7 @@ import { GoldenLayoutHostComponent } from './golden-layout-host.component';
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 
 
 
@@ -65,12 +66,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ExportDashboardScale: number = 1;
     ExportDashboardResolution: { width: number, height:number, summary:string} = {width: 0, height: 0, summary: ''};
 
-    downloadedBlocks: string[] = [];
-    ledgerOptions: TreeNode[] = [];
-    ledgerOptionSelected: any[] = [];
-    ledgerOptionSelectedFlag: boolean = true;
-    selectedItemsLabel = 'Choose';
-
+    showExportTablesMenu: boolean = false;
+    ExportTablesFilename: string = '';
+    ExportTablesFileType: string = 'png';
+    ExportTablesScale: number = 1;
+    exportTables = { 'node-color': false, 'link-color': false, 'node-symbol': false, 'polygon-color': false };
+    
     dataSetView: SelectItem[];
     dataSetViewSelected: string;
     tabSet: any;
@@ -109,8 +110,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // Inputdownloadblock: DownloadFilteredBlockDto = new DownloadFilteredBlockDto();
     Filepath: SafeResourceUrl;
 
-    BlockChainLedgerNodeList: any[] = [];
-    BlockChainLedgerEdgeList: any[] = [];
+    //BlockChainLedgerNodeList: any[] = [];
+    //BlockChainLedgerEdgeList: any[] = [];
 
 
 
@@ -216,7 +217,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
     @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
 
-
+    currentThresholdStepSize: Number = 0.001
 
     public HideThisForNow: boolean = false;
 
@@ -463,8 +464,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Performs the export of the visualization, including tables.
      */
-    private async performExport(elementsForExport: HTMLDivElement[] = [this.visualWrapperRef.nativeElement], exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
-        if (!elementsForExport[0]) {
+    private async performExport(elementsForExport: HTMLDivElement[] | HTMLTableElement[] = [this.visualWrapperRef.nativeElement], exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
+        if (!elementsForExport[0] && !exportNodeTable && !exportLinkTable) {
             console.error('Visual wrapper container not found');
             return;
         }
@@ -503,12 +504,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     */
                 }
             }
-            
+            // if pos == 0, exporting just tables and not a view
+            let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
             if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None') {  
-                elementsForExport.splice(1, 0, this.linkColorTable.nativeElement);
+                elementsForExport.splice(pos, 0, this.linkColorTable.nativeElement);
             }
             if (exportNodeTable && this.commonService.session.style.widgets['node-color-variable'] !== 'None') {
-                elementsForExport.splice(1, 0,this.nodeColorTable.nativeElement);
+                elementsForExport.splice(pos, 0,this.nodeColorTable.nativeElement);
             }
 
             Promise.all(
@@ -522,21 +524,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 // Set the width and height of the combined canvas
                 let width = canvasArray[0].width;
                 let height = canvasArray[0].height;
-                let offsets = [[0,0]];
+                let offsets = pos == 0 ? [[5,5]] : [[0,0]];
                 let previousColWidth, currentColWidth = 0;
                 for (let i = 1; i < canvasArray.length; i++) {
                     if (i == 1) {
                         width += canvasArray[i].width+5;
                         height = Math.max(height, canvasArray[i].height+5);
-                        offsets.push([canvasArray[0].width, 5]);
-                        previousColWidth = canvasArray[0].width;
+                        offsets.push([canvasArray[0].width+offsets[0][0], 5]);
+                        previousColWidth = canvasArray[0].width+offsets[0][0];
                         currentColWidth = canvasArray[1].width;
                     } else {
                         //if need to add a new column
                         if (canvasArray[i].height+5 > height) {
                             width += canvasArray[i].width+5;
                             height = canvasArray[i].height +5;
-                            offsets.push([offsets[i-1][0] + previousColWidth, 5]);
+                            offsets.push([offsets[i-1][0] + currentColWidth, 5]);
                             
                             previousColWidth = currentColWidth;
                             currentColWidth = canvasArray[i].width+5;
@@ -557,8 +559,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         }
                     }
                 }
-                canvas.width = width;
-                canvas.height =height;
+                canvas.width = width+10;
+                canvas.height = height+10;
 
                 context.fillStyle = '#ffffff';
                 context.fillRect(0, 0, canvas.width, canvas.height);
@@ -568,7 +570,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 // Draw the canvases onto the combined canvas
                 for (let i = 0; i < canvasArray.length; i++) {
                     context.drawImage(canvasArray[i], offsets[i][0], offsets[i][1]);
-                    if (i > 0 ) {
+                    if (i > 0 || pos==0) {
                         // draw a rect around each additional drawImage element
                         context.strokeRect(offsets[i][0], offsets[i][1], canvasArray[i].width, canvasArray[i].height);
                     }
@@ -607,6 +609,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private async performExportSVG(elementsForExport: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
         console.log('Exporting SVG');
+        if (mainSVGString == '') {
+            mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="fill: transparent;"></svg>'
+        }
 
         if (exportLinkTable) {
             elementsForExport.unshift(this.linkColorTable.nativeElement);
@@ -622,15 +627,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const svg1 = doc.documentElement;
         
         // i'll need some way to check when to add new col to export; but for now do this;            
-        let width = parseFloat(svg1.getAttribute('width'))+5;
-        let height = parseFloat(svg1.getAttribute('height'))+5; 
+        let width = parseFloat(svg1.getAttribute('width'))+5 || 5;
+        let height = parseFloat(svg1.getAttribute('height'))+5 || 5; 
         let tableSVGStrings = '';
         let currentOffsetX = width;
         let currentOffsetY = 5;
         let currentColWidth = 0;
 
         elementsForExport.forEach((element, index) => {
-            let output = this.commonService.exportTableAsSVG(element);
+            let output = this.commonService.exportTableAsSVG(element, true);
             
             // exact logic from exporting a png
             if (index == 0) {
@@ -663,10 +668,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             currentOffsetY += output.height+5;
         });
 
-        svg1.style.width = `${width}px`
-        svg1.style.height = `${height}px`
+        svg1.style.width = `${width + 5}px`
+        svg1.style.height = `${height + 5 }px`
         let mainSVG = String(svg1.outerHTML);
-        let combinedSvgString = mainSVG.replace('</svg>', tableSVGStrings + '</svg>')
+        let combinedSvgString: string;
+        if (mainSVG.endsWith('/>')) {
+            combinedSvgString = mainSVG.replace('/>', '>' + tableSVGStrings + '</svg>')
+        } else {
+            combinedSvgString = mainSVG.replace('</svg>', tableSVGStrings + '</svg>')
+        }
 
         let blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
         
@@ -1318,6 +1328,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.onLinkColorTableChanged();
 
             this.publishUpdateLinkColor();
+            this.exportTables['link-color'] = false;
 
         }
     }
@@ -1802,6 +1813,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.onNodeColorTableChanged();
             
             this.publishUpdateNodeColors();
+            this.exportTables['node-color'] = false;
         }
     }
 
@@ -2330,6 +2342,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             } else if (!this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedLinkColorTableTypesVariable == 'Show') {
                 this.SelectedLinkColorTableTypesVariable = 'Hide';
             }
+
+            this.updatecurrentThresholdStepSize();
         });
         }, 0);
         
@@ -2612,10 +2626,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.updateExportResolution();
     }
 
-    ExportDashboard() {
-        console.log('exporting Dashboard cool');
-        console.log(this.ExportDashboardFilename);
+    OpenExportTables() {
+        this.showExportTablesMenu = true;
+    }
 
+    ExportDashboard() {
         // Prepare export options
         const exportOptions: ExportOptions = {
             filename: this.ExportDashboardFilename,
@@ -2632,6 +2647,38 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.showExportDashboardMenu = false;
         
+    }
+
+    ExportTables() {
+        const exportOptions: ExportOptions = {
+            filename: this.ExportTablesFilename,
+            filetype: this.ExportTablesFileType,
+            scale: this.ExportTablesScale,
+            quality: 1,
+        };
+        this.commonService.setExportOptions(exportOptions);
+
+        let elementsToExport: HTMLTableElement[] = [];
+
+        if (this.exportTables['node-symbol']) {
+            let nodeSymbolTable = $('#nodeSymbolTable')[0]
+            elementsToExport.push(nodeSymbolTable as HTMLTableElement) 
+            console.log(nodeSymbolTable, elementsToExport)
+        }
+        if (this.exportTables['polygon-color']) {
+            let polygonTable = $('#polygon-color-table')[0]
+            elementsToExport.push(polygonTable as HTMLTableElement)
+        }
+        if (elementsToExport.length == 0 && this.exportTables['node-color'] == false && this.exportTables['link-color'] == false) {
+            console.log('nothing to export');
+             return; 
+        }
+
+        if (this.ExportTablesFileType == 'svg') {
+            this.performExportSVG(elementsToExport, '', this.exportTables['node-color'], this.exportTables['link-color']);
+        } else {
+            this.performExport(elementsToExport, this.exportTables['node-color'], this.exportTables['link-color']);
+        }
     }
 
     updateExportResolution() {
@@ -2767,6 +2814,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                           saveAs(content, `${that.saveFileName}.zip`);
                       });
                 } else {
+                    this.commonService.session.files.forEach(file => {
+                        if (file.extension == 'xlsx' || file.extension == 'xls') {
+                            this.convertFileToCSV(file);
+                        }
+                    });
+
                     const stash: StashObjects = {
                         session: this.commonService.session,
                         tabs: lightTabs
@@ -2803,6 +2856,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         }
         this.displayStashDialog = !this.displayStashDialog;
+    }
+
+    /**
+     * Converts an excel file array buffer to a CSV string use when exporting
+     * @param file excel file in commonService.session.files
+     */
+    convertFileToCSV(file) { 
+        if (file.extension == 'xlsx' || file.extension == 'xls') {
+
+            let x = new Uint8Array(file.contents)
+            let workbook = XLSX.read(x, { type: 'array' });
+            let csvString = XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]]);
+
+            file.extension = 'csv';
+            file.name = file.name.replace('.xlsx', '.csv').replace('.xls', '.csv');
+            file.contents = csvString;
+            file.type = "text/csv";
+        }
     }
 
     getAuspiceName(url: string) {
@@ -3452,11 +3523,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.NewSession();
     }
 
+    updatecurrentThresholdStepSize() {
+        this.currentThresholdStepSize = this.SelectedDistanceMetricVariable === 'snps' ? 1 : 0.001
+    }
+
     /**
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
      */
   onDistanceMetricChanged = () => {
+    this.updatecurrentThresholdStepSize();
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
       $('#default-distance-threshold, #link-threshold')
         .attr('step', 1)

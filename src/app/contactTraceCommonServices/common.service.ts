@@ -3545,7 +3545,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @param tableElement HTMLTableElement (just the main table not the entire dialog box); ie. Node Color Table 
      * @returns object with svg string (<g>...</g>), width, and height
      */
-    exportTableAsSVG(tableElement: HTMLTableElement): {svg: string, width: number, height: number} {
+    exportTableAsSVG(tableElement: HTMLTableElement, hasHeaderRow: boolean = false): {svg: string, width: number, height: number} {
 
         const rows = tableElement.rows;
         let tableData = [];
@@ -3592,22 +3592,24 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if (cell.length === 7 && cell[0] == '#') { 
                     out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" width="20" height="20" fill="${cell}"></rect>`; 
                 } else if (cell === 'shapeRhombus') { 
-                    out += `<g font-family="Verdana" font-size="15" fill="black">
+                    out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
                     <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="80">▰</text>
                     <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Rhombus)</text>
                     </g>`;
                 } else if (cell === 'shapeTag') { 
-                    out += `<g font-family="Verdana" font-size="15" fill="black">
+                    out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
                     <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="90">☗</text>
                     <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Tag)</text>
                     </g>`;
                 } else if (cell === 'shapeBarrel') { 
-                    out += `<g font-family="Verdana" font-size="15" fill="black">
+                    out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
                     <rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" width="12" height="12" rx="4" ry="4"/>
                     <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Barrel)</text>
                     </g>`;
+                } else if (hasHeaderRow && rowIndex === 0) { 
+                    out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black" font-weight="bold">${cell}</text>`;
                 } else {
-                    out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Verdana" font-size="15" fill="black">${cell}</text>`;
+                    out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">${cell}</text>`;
                 }
                 
             });
@@ -4022,7 +4024,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if (link.hasDistance) {
 
 
-                    visible = link[metric] < threshold;
+                    visible = link[metric] <= threshold;
 
 
                     if (!visible) {

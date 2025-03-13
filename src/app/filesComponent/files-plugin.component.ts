@@ -1444,16 +1444,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
     const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
     if (isXL) {
-      const workbook = XLSX.read(file.contents, { type: 'array' });
-      const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-      const headers = [];
-      data.forEach(row => {
-        Object.keys(row).forEach(key => {
-          const safeKey = this.commonService.filterXSS(key);
-          if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
+      try {
+        const workbook = XLSX.read(file.contents, { type: 'array' });
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const headers = [];
+        data.forEach(row => {
+          Object.keys(row).forEach(key => {
+            const safeKey = this.commonService.filterXSS(key);
+            if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
+          });
         });
-      });
-      addTableTile(headers, this);
+        addTableTile(headers, this);
+      } catch {
+        console.log('Unable to read excel file: ', file.name);
+        addTableTile([file.field1, file.field2, file.field3], this);
+        return;
+      }
     } else if (isJSON) {
         let data = [];
         console.log('This is a JSON file');
