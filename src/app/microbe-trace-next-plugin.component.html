@@ -555,6 +555,33 @@
             </div><!-- /.modal-dialog -->
         </p-dialog><!-- /.modal -->
 
+        <div class="view-controls">
+            <p-dialog id="loading-information-modal" [(visible)]="displayloadingInformationModal" header="Processing Files...">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                       
+    
+                            <img class="img-responsive" [src]="commonService.appRootUrl() + 'assets/common/images/giphy.gif'" alt="logo" height="300" />
+    
+                            <div id="loading-information-collapse" class="collapse show">
+                                <div id="loading-information" class="card card-body">
+    
+                                    <div *ngFor="let message of messages">
+                                        {{ message }}
+                                      </div> 
+                                    <br>
+    
+                                </div>
+                            </div>
+                        
+                        <p-footer>
+                            <button type="button" class="btn btn-success" data-dismiss="modal" (click)="displayloadingInformationModal=false">Close</button>
+                        </p-footer>
+                    </div><!-- /.modal-content -->
+                </div><!-- /.modal-dialog -->
+            </p-dialog>
+        </div><!-- Loading Files/.modal -->
+
 
         <p-dialog id="about-dialog" [(visible)]="displayAbout" header="About Microbetrace">
             <div class="modal-dialog modal-lg" role="document">

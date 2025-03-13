@@ -11,6 +11,7 @@ import * as saveAs from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
@@ -75,7 +76,8 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService) {
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService) {
 
       super(elRef.nativeElement);
       this.visuals = commonService.visuals;
@@ -1045,7 +1047,7 @@ openExport() {
 
 exportVisualization() {
   if (this.EpiExportFileType == 'svg') {
-      let content = this.commonService.unparseSVG(this.epiCurveSVGElement.nativeElement);
+      let content = this.exportService.unparseSVG(this.epiCurveSVGElement.nativeElement);
       let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
       saveAs(blob, this.EpiExportFileName + '.' + this.EpiExportFileType);
   } else {

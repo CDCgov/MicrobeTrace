@@ -13,6 +13,8 @@ import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { cloneDeep } from 'lodash';
+import { Subject, Subscription, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -105,17 +107,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   uniqueNodes: string[] = [];
   uniqueEdgeNodes: string[] = [];
 
-  private visuals: MicrobeTraceNextVisuals;
-
   public title: string;
   public id: string;
+
+  private destroy$ = new Subject<void>();
+
   
 
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, elRef: ElementRef,
     private eventEmitterService: EventEmitterService,
     public commonService: CommonService,
-    private cdr: ChangeDetectorRef) {
+    private cdr: ChangeDetectorRef,
+    private store: CommonStoreService
+    ) {
 
     super(elRef.nativeElement);
 
@@ -146,16 +151,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }  
 
      // Subscribe to new session event
-     this.commonService.newSession.subscribe(() => {
+     this.store.newSession$.subscribe(() => {
       this.removeAllFiles();
     });
 
     // Subscribe to style file applied event
-    this.commonService.styleFileApplied.subscribe(() => {
+    this.store.styleFileApplied$.subscribe(() => {
       this.applyStyleFileSettings();
     });
 
-    this.commonService.FP_removeFiles.subscribe(() => {
+    this.store.FP_removeFiles$.subscribe(() => {
       this.commonService.session.files.forEach(file => {
         this.removeFile(file.name, false);
       })
@@ -334,7 +339,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           .val(7);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.commonService.setLinkThreshold(7);
+        this.store.setLinkThreshold(7);
       } else {
         $('#ambiguities-row').slideDown();
         $('#default-distance-threshold, #link-threshold')
@@ -342,7 +347,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           .val(0.015);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
-        this.commonService.setLinkThreshold(0.015);
+        this.store.setLinkThreshold(0.015);
       }
       this.commonService.session.style.widgets['default-distance-metric'] = lsv;
       this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
@@ -471,11 +476,29 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       // }   
     }
 
-    setTimeout(() => {
-      this.populateTable();
-  }, 2000);
+  //   setTimeout(() => {
+  //     this.populateTable();
+  // }, 2000);
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
+  }
+
+  ngOnDestroy() {
+    console.log('---files-plugin.component.ts ngOnDestroy');
+
+    this.destroy$.next();
+    this.destroy$.complete();
+    //unsubscribe on destroy of files tab
+    // this.eventEmitterService.subsVar = this.eventEmitterService.    
+    // invokeFirstComponentFunction.subscribe((name:string) => {    
+    //   this.processFile();    
+    // });   
+    this.eventEmitterService.invokeFirstComponentFunction.unsubscribe();
+    this.store.setNewSession(false);
+    this.store.setStyleFileApplied(false);  
+    this.store.setFP_removeFiles(false);
+    this.commonService.LoadViewEvent.unsubscribe();
+
   }
 
   /**
@@ -485,14 +508,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
-    // Give some time before adding to table
-    setTimeout(() => {
-      let files = cloneDeep(this.commonService.session.files);
-      if(files && files.length > 0) {
-        for(let i = 0; i < files.length; i++) {
-          this.addToTable(files[i]);
-        }
-      }  }, 500);
+    let files = cloneDeep(this.commonService.session.files);
+    console.log('---  Populate TABLE Row Files 2: ', files);
+
+    console.log('--- files table 2 : ', $(".file-table-row"));
+
+    if(files && files.length > 0) {
+      console.log('--- Populate for: ', files);
+      for(let i = 0; i < files.length; i++) {
+        this.addToTable(files[i]);
+      }
+
+      console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
+
+    } 
 
   }
   
@@ -586,16 +615,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   loadDefaultVisualization(e: string) {
 
-    setTimeout(() => {
+    console.log('---loadDefaultVisualization Called - stop loading modal');
 
-      this.commonService.session.messages = [];
-      this.messages = [];
-      $('#loading-information').html('');
+    // setTimeout(() => {
+
+      // this.commonService.session.messages = [];
+      // this.messages = [];
+      // $('#loading-information').html('');
       $('#launch').prop('disabled', false).focus();
 
       this.displayloadingInformationModal = false;
 
-    }, 1000);
+    // }, 1000);
+
+    console.log('---loadDefaultVisualization End - Lodi');
 
     this.LoadDefaultVisualizationEvent.emit(e);
   }
@@ -607,10 +640,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   showMessage(msg: string) {
 
-    this.messages.push(msg);
-    this.commonService.session.messages.push(msg);
-    $('#loading-information').html(this.commonService.session.messages.join('<br>'));
+    // this.messages.push(msg);
+    // this.commonService.session.messages.push(msg);
+    // $('#loading-information').html(this.commonService.session.messages.join('<br>'));
+
+    this.store.setLoadingMessageUpdated(msg);
   }
+  
 
   /**
    * Resets the value of session.data, temp.trees if previously launched (or more if not previously launched). Retains the values of following 
@@ -619,7 +655,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   launchClick() {
 
-    console.log(this.displayloadingInformationModal);
+     // Set to false to indicate that the network is not fully loaded  as new network is launching
+     this.commonService.session.network.isFullyLoaded = false;
+     
+    // launching new network, so set network rendered to false to start loading modal
+    this.store.setNetworkRendered(false);
+   
+
+    this.commonService.cleanupData();
+
     this.commonService.updateLegacyNodeSymbols();
     const thresholdOnLaunch = this.commonService.session.style.widgets["link-threshold"];
     const metricOnLaunch = this.commonService.session.style.widgets["default-distance-metric"];
@@ -653,7 +697,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('session files', this.commonService.session.files);
 
-    this.displayloadingInformationModal = true;
+    // this.displayloadingInformationModal = true;
 
     this.showMessage("Starting...");
 
@@ -671,8 +715,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.meta.startTime = Date.now();
     $('#launch').prop('disabled', true);
 
-    $('#loading-information').html('');
-    console.log(this.displayloadingInformationModal);
+    // $('#loading-information').html('');
     this.commonService.temp.messageTimeout = setTimeout(() => {
       $('#loadCancelButton').slideDown();
       // abp.notify.warn('If you stare long enough, you can reverse the DNA Molecule\'s spin direction');
@@ -704,10 +747,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
             this.SelectedDefaultDistanceMetricVariable = 'tn93';
             this.onDistanceMetricChange('tn93');
-            this.commonService.onMetricChanged('tn93');
+            this.store.setMetricChanged('tn93');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
             $('#default-distance-metric').val('tn93').trigger('change');
-            console.log(this.displayloadingInformationModal);
             $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(0.015).trigger('change');
             this.commonService.session.style.widgets['link-threshold'] = 0.015;
             this.SelectedDefaultDistanceThresholdVariable = '0.015';
@@ -715,7 +757,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
           } else {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-            this.commonService.onMetricChanged('snps');
+            this.store.setMetricChanged('snps');
             this.SelectedDefaultDistanceMetricVariable = 'snps';
             this.onDistanceMetricChange('snps');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
@@ -755,7 +797,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           if (fileNum === nFiles) this.processData();
           return nodeCount;
         });
-        this.commonService.updateNetwork();
+        this.commonService._debouncedUpdateNetworkVisuals();
         this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
@@ -1288,7 +1330,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
 
     this.showMessage("Finishing...");
-    this.displayloadingInformationModal = false;
+    // this.displayloadingInformationModal = false;
     setTimeout(() => {
       this.cdr.detectChanges(); 
     }, 1000);
@@ -1319,19 +1361,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (Array.from(files).length > 0) {
 
       Array.from(files).map(file => {
-        if(this.commonService.debugMode) {
-          console.log('files: ', file);
-        }
         this.processFile(file);
       });
+
     }
 
     this.isLoadingFiles = false;
 
-    setTimeout(() => {
-      this.isLoadingFiles = false;
-
-    }, 2000);
   };
 
   /**
@@ -1352,9 +1388,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
 
-    $('#loading-information').html('');
+    // Loading informaiton null
+    // $('#loading-information').html('');
 
     const extension = rawfile.name.split('.').pop().toLowerCase();
+
+    console.log('process file end');
     if (extension === 'zip') {
       //debugger;
       // let new_zip = new JSZip();
@@ -1432,7 +1471,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   addToTable(file) {
     if(this.commonService.debugMode) {
-      console.log(file);
+      console.log('addToTable: ', file);
     }
 
     //debugger;
@@ -1503,8 +1542,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }
 
           this.nodeEdgeCheck();
+
+          if(this.commonService.debugMode) {
+            console.log('addToTable parse end: ', file);
+          }
         }
+
+        
       });
+
+      if(this.commonService.debugMode) {
+        console.log('addToTabl End: ', file);
+      }
     }
 
     //For the love of all that's good...
@@ -1515,6 +1564,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     function addTableTile(headers, context) {
 
 
+      console.log('addTableTile: ', headers);
       const parentContext = context;
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
       const fnamerow = $('<div class="row w-100"></div>');
@@ -1628,6 +1678,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           parentContext.updateMetadata(file);
         });
       }
+
+      console.log('addTableTile end: ', headers);
+
 
       $(`[name="options-${file.name}"]`).on("change", refit);
       refit();
@@ -1851,7 +1904,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.commonService.setLinkThreshold(parseFloat(e));
+    this.store.setLinkThreshold(parseFloat(e));
   }
 
   /**
@@ -1875,7 +1928,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         $("#ambiguities-row").slideUp();
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.commonService.onMetricChanged('snps');
+      this.store.setMetricChanged('snps');
       this.onLinkThresholdChange('7');
     } else {
       $('#default-distance-threshold, #link-threshold')
@@ -1884,7 +1937,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         .trigger('change');
         $("#ambiguities-row").slideDown();
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-      this.commonService.onMetricChanged('tn93');
+      this.store.setMetricChanged('tn93');
       this.onLinkThresholdChange('0.015');
     }
   }
