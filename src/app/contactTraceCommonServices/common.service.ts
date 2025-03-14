@@ -165,13 +165,13 @@ export class CommonService extends AppComponentBase implements OnInit {
                 'ambig': '#ffffff',
             },
             'alignView-labelField': '_id',
-            'alignView-rulerMinorInterval': 20,
-            'alignView-selectedSize': 'l',
+            'alignView-rulerMinorInterval': 50,
+            'alignView-selectedSize': 's',
             'alignView-showMiniMap': true,
             'alignView-sortField': 'index',
             'alignView-spanWidth': 10,
             'alignView-spanHeight': 16,
-            'alignView-topDisplay': 'logo',
+            'alignView-topDisplay': 'barplot',
             'ambiguity-resolution-strategy': 'AVERAGE',
             'ambiguity-threshold': 0.015,
             'background-color': '#ffffff',
@@ -2867,85 +2867,6 @@ align(params): Promise<any> {
 
 
     };
-    // TODO : DAVID move updated exportTableAsSVG to appropriate service
-    /**
-     * This function converts tables into SVG to be used for export
-     * @param tableElement HTMLTableElement (just the main table not the entire dialog box); ie. Node Color Table 
-     * @returns object with svg string (<g>...</g>), width, and height
-     */
-    exportTableAsSVG(tableElement: HTMLTableElement, hasHeaderRow: boolean = false): {svg: string, width: number, height: number} {
-
-        const rows = tableElement.rows;
-        let tableData = [];
-        let widthOffsets = [10];
-        let heightOffsets = [15];
-        for (let i = 0; i < rows.length; i++) {
-          const cells = rows[i].cells;
-          const rowData: string[] = [];
-          
-          for (let j = 0; j < cells.length; j++) {
-            if (i==0) {
-                widthOffsets.push(widthOffsets[j]+cells[j].offsetWidth+15)
-            }
-            if (j==0) {
-                heightOffsets.push(heightOffsets[i] + cells[0].offsetHeight)
-            }
-
-            if (window.getComputedStyle(cells[j]).display === 'none') { continue; };
-            if (cells[j].querySelector('p-dropdown')) {
-                if (cells[j].querySelector('p-dropdown div a').className == 'rhombus'){
-                    rowData.push('shapeRhombus')
-                } else if (cells[j].querySelector('p-dropdown div a').className == 'tag'){
-                    rowData.push('shapeTag')
-                } else if (cells[j].querySelector('p-dropdown div a').className == 'barrel'){
-                    rowData.push('shapeBarrel')
-                } else {
-                    rowData.push(cells[j].querySelector('p-dropdown div').innerHTML.replace(/&nbsp;/g, ' '));
-                }
-            } else if (cells[j].querySelector('input[type="color"]')) {
-                let color = (cells[j].querySelector('input[type="color"]') as HTMLInputElement).value;
-                rowData.push(color);
-            }  else {
-                rowData.push(cells[j].innerText.replace('⇅', ''));
-            }
-          }
-          
-          tableData.push(rowData);
-        }
-
-        let out = `<g><rect x="0" y="0" width="${widthOffsets[widthOffsets.length-1]-20}" height="${heightOffsets[heightOffsets.length-1]-10}" stroke="black" stroke-width="1"></rect>`;
-       
-        tableData.forEach((row, rowIndex) => {
-            row.forEach((cell, colIndex) => {
-                if (cell.length === 7 && cell[0] == '#') { 
-                    out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" width="20" height="20" fill="${cell}"></rect>`; 
-                } else if (cell === 'shapeRhombus') { 
-                    out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
-                    <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="80">▰</text>
-                    <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Rhombus)</text>
-                    </g>`;
-                } else if (cell === 'shapeTag') { 
-                    out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
-                    <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="90">☗</text>
-                    <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Tag)</text>
-                    </g>`;
-                } else if (cell === 'shapeBarrel') { 
-                    out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
-                    <rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" width="12" height="12" rx="4" ry="4"/>
-                    <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Barrel)</text>
-                    </g>`;
-                } else if (hasHeaderRow && rowIndex === 0) { 
-                    out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black" font-weight="bold">${cell}</text>`;
-                } else {
-                    out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">${cell}</text>`;
-                }
-                
-            });
-        });
-
-        out += '</g>';
-        return {svg: out, width: widthOffsets[widthOffsets.length-1]-20, height: heightOffsets[heightOffsets.length-1]-10};
-    }   
 
     /**
      * Gives the size of a variable in MB

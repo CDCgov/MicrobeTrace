@@ -224,7 +224,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   setDefaultWidgets() {
     //size
     if (this.widgets['alignView-selectedSize'] == undefined) {
-      this.widgets['alignView-selectedSize'] = 'l';
+      this.widgets['alignView-selectedSize'] = 's';
     }
     // height and width are declare/checked in this.onSelectedSizeChanged()
 
@@ -262,7 +262,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     }
 
     if (this.widgets['alignView-rulerMinorInterval'] == undefined) {
-      this.widgets['alignView-rulerMinorInterval'] = 20;
+      this.widgets['alignView-rulerMinorInterval'] = 50;
     }
 
     // main canvas

@@ -1044,8 +1044,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Generates Polygon Color Selection Table, updates polygonColorMap and polygonAlphaMap functions, and then calls render to show/update network
      * 
-     * XXXXX this function needs revisiting. Doesn't always populate table. I had to hide color polygons, then show it, and then show polygon color table setting
-     * to get table to appear. Also not sorting correctly with names XXXXX
      */
     updatePolygonColors() {
 
@@ -1142,8 +1140,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 "<td data-value='" + value + "'>" +
                 (that.commonService.session.style['polygonValueNames'][value] ? that.commonService.session.style['polygonValueNames'][value] : that.commonService.titleize("" + value)) +
                 "</td>" +
-                (that.widgets["polygon-color-table-counts"] ? "<td>" + aggregates[value] + "</td>" : "") +
-                (that.widgets["polygon-color-table-frequencies"] ? "<td>" + (aggregates[value] / total).toLocaleString() + "</td>" : "") +
+                `<td class='tableCount' ${that.widgets["polygon-color-table-counts"] ? "" : "style='display: none'"}>${aggregates[value]}</td>` + 
+                `<td class='tableFrequency' ${that.widgets["polygon-color-table-frequencies"] ? "" : "style='display: none'"}>${(aggregates[value] / total).toLocaleString()}</td>` +
                 "</tr>"
             ).append(cell);
 
@@ -2610,16 +2608,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             'ellipse',
             'triangle',
             'rectangle',
-            'barrel',
+            'pentagon',
             'rhomboid',
             'diamond',
-            'pentagon',
             'hexagon',
-            'heptagon',
-            'octagon',
-            'star',
             'tag',
-            'vee'
+            'star',
+            'vee',
+            'heptagon',
+            'barrel',
+            'octagon',
         ];
 
 
@@ -2676,7 +2674,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
 
             this.updateNodeShapes();
-            $('#nodeShapeTableSettings').on('mouseleave', () => $('#nodeShapeTableSettings').delay(500).css('display', 'none'))
         //}, 100);
 
     }
@@ -2699,6 +2696,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateNodeSizes();
         
 
+    }
+
+    closeSettingsPane(id: string) {
+        //$('#nodeShapeTableSettings').on('mouseleave', () => { console.log('abc'); 
+        $(`#${id}`).delay(500).css('display', 'none')
     }
 
     /**
@@ -3072,10 +3074,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     toggleTableColumns(table: string, column: string) {
         if (table == 'node-shape' && column == 'tableCounts') {
             this.widgets['node-symbol-table-counts'] = !this.widgets['node-symbol-table-counts'];
-            console.log(this.widgets['node-symbol-table-counts'])
         } else if (table == 'node-shape' && column == 'tableFreq') {
             this.widgets['node-symbol-table-frequencies'] = !this.widgets['node-symbol-table-frequencies'];
-            console.log(this.widgets['node-symbol-table-frequencies'])
         } else if (table == 'polygon-color' && column == 'tableCounts') {
             this.widgets['polygon-color-table-counts'] = !this.widgets['polygon-color-table-counts']
         } else if (table == 'polygon-color' && column == 'tableFreq') {
@@ -3084,6 +3084,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
         if (table == 'polygon-color') {
+            console.log('cool!')
             this.updateCountFreqTable(table);
         }
     }
@@ -3122,6 +3123,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         const countColumn = $(tableReferenceName + ' .tableCount');
         const freqColumn = $(tableReferenceName + ' .tableFrequency');
+        console.log(showCount, showFreq, countColumn, freqColumn);
         (showCount) ? countColumn.slideDown() : countColumn.slideUp();
         (showFreq) ? freqColumn.slideDown() : freqColumn.slideUp();
     }

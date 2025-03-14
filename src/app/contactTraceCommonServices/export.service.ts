@@ -87,7 +87,7 @@ export class ExportService {
    * @param tableElement The HTMLTableElement (for example, a Node Color Table).
    * @returns An object containing the SVG string (<g>...</g>), width, and height.
    */
-  exportTableAsSVG(tableElement: HTMLTableElement): { svg: string, width: number, height: number } {
+  exportTableAsSVG(tableElement: HTMLTableElement, hasHeaderRow: boolean = false): { svg: string, width: number, height: number } {
     const rows = tableElement.rows;
     let tableData: string[][] = [];
     let widthOffsets: number[] = [10];
@@ -108,17 +108,18 @@ export class ExportService {
         if (window.getComputedStyle(cells[j]).display === 'none') {
           continue;
         }
-        const selectElem = cells[j].querySelector('select');
-        const inputColor = cells[j].querySelector('input[type="color"]') as HTMLInputElement;
-        if (selectElem) {
-          const selectedOption = selectElem.querySelector('option[selected]');
-          if (selectedOption) {
-            rowData.push(selectedOption.innerHTML.replace(/&nbsp;/g, ' '));
+        if (cells[j].querySelector('p-dropdown')) {
+          if (cells[j].querySelector('p-dropdown div a').className == 'rhombus'){
+            rowData.push('shapeRhombus')
+          } else if (cells[j].querySelector('p-dropdown div a').className == 'tag'){
+            rowData.push('shapeTag')
+          } else if (cells[j].querySelector('p-dropdown div a').className == 'barrel'){
+            rowData.push('shapeBarrel')
           } else {
-            rowData.push('');
+            rowData.push(cells[j].querySelector('p-dropdown div').innerHTML.replace(/&nbsp;/g, ' '));
           }
-        } else if (inputColor) {
-          let color = inputColor.value;
+        } else if (cells[j].querySelector('input[type="color"]')) {
+          let color = (cells[j].querySelector('input[type="color"]') as HTMLInputElement).value;
           rowData.push(color);
         } else {
           rowData.push(cells[j].innerText.replace('⇅', ''));
@@ -133,8 +134,25 @@ export class ExportService {
       row.forEach((cell, colIndex) => {
         if (cell.length === 7 && cell[0] === '#') {
           out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex] - 12}" width="20" height="20" fill="${cell}"></rect>`;
+        } else if (cell === 'shapeRhombus') { 
+          out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+            <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="80">▰</text>
+            <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Rhombus)</text>
+            </g>`;
+        } else if (cell === 'shapeTag') { 
+          out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+            <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="90">☗</text>
+            <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Tag)</text>
+            </g>`;
+        } else if (cell === 'shapeBarrel') { 
+          out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+            <rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" width="12" height="12" rx="4" ry="4"/>
+            <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Barrel)</text>
+            </g>`;
+        } else if (hasHeaderRow && rowIndex === 0) { 
+          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black" font-weight="bold">${cell}</text>`;
         } else {
-          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Verdana" font-size="15" fill="black">${cell}</text>`;
+          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">${cell}</text>`;
         }
       });
     });

@@ -684,8 +684,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         let currentColWidth = 0;
 
         elementsForExport.forEach((element, index) => {
-            // TODO: DAVID, update to use this.exportService.exportTableAsSVG, but need to update that function
-            let output = this.commonService.exportTableAsSVG(element, true);
+            let output = this.exportService.exportTableAsSVG(element, true);
             
             // exact logic from exporting a png
             if (index == 0) {
@@ -2764,7 +2763,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             scale: this.ExportTablesScale,
             quality: 1,
         };
-        this.commonService.setExportOptions(exportOptions);
+        this.exportService.setExportOptions(exportOptions);
 
         let elementsToExport: HTMLTableElement[] = [];
 
