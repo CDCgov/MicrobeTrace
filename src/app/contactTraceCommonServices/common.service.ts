@@ -675,19 +675,19 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         //  If _id, set id to _id 
         if(newNode._id) {
+            if (typeof newNode._id !== 'string') {
+                newNode._id = newNode._id.toString();  
+            }  
+            newNode._id = newNode._id.trim();
             newNode.id = newNode._id;
 
         } else if (newNode.id) {
+            if (typeof newNode.id !== 'string') {
+                newNode.id = newNode.id.toString();  
+            }  
+            newNode.id = newNode.id.trim();
             newNode._id = newNode.id;
         }
-
-
-        // If node id is not already a string, convert it to a string and trim it
-        if (typeof newNode._id !== 'string') {
-            newNode._id = newNode._id.toString();
-            newNode._id = newNode._id.trim();
-            newNode.id = newNode._id;
-        }       
 
 
         if (this.session.data.nodeExclusions.indexOf(newNode._id) > -1) {
@@ -2247,6 +2247,13 @@ align(params): Promise<any> {
     updateNetworkVisuals(silent: boolean = false) {
         console.log('--- Update network visuals called- silent: ', silent);
         console.log('network nodes: ', this.session.data.nodes);
+
+        // if nodes have node with id 30576_KF773440_B96cl58    
+        if (this.session.data.nodes.some(node => node._id ==  '30576_KF773440_B96cl58')) {
+            console.log('--- node 1id!!: ', this.session.data.nodes[0]);
+        }  else {
+            console.log('--- node 2id!!: ', this.session.data.nodes[0]);
+        }
         console.log('network links: ', this.session.data.links);
         console.log('network clusters: ', this.session.data.clusters);
         this.tagClusters().then(() => {

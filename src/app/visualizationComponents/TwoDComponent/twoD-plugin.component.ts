@@ -2846,6 +2846,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const nodeIds = new Set(networkData.nodes.map(n => n.id));
 
+        const nodeIds2 = new Set(this.commonService.session.data.nodes.map(n => n.id));
+
+        // if nodeids 2 includes 30576_KF773440_B96cl58
+        if (nodeIds2.has('30576_KF773440_B96cl58')) {
+            console.log('--- TwoD nodeIds2 includes 30576_KF773440_B96cl58');
+        } else {
+            console.log('--- TwoD nodeIds2 does not include 30576_KF773440_B96cl58');
+        }
+
         networkData.links.forEach(link => {
         if (!nodeIds.has(link.source)) {
             console.warn('Link source not found in nodes:', link.source, link);
