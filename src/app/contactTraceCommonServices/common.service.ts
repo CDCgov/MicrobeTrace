@@ -926,8 +926,9 @@ export class CommonService extends AppComponentBase implements OnInit {
             borderWidth: node.borderWidth ?? this.session.style.widgets['node-border-width'] ?? 1 // Default border width
         }));
       
-        const links = microbeData.links.map((link) => ({
+        const links = microbeData.links.map((link, i) => ({
           ...link, // Spread existing properties
+          id : 'edge-' + i, // If 
           source: link.source, // Ensure source is correctly set
           target: link.target, // Ensure target is correctly set
           group: link.cluster ?? null, // Ensure group is set, default to null if undefined
@@ -2477,6 +2478,7 @@ align(params): Promise<any> {
         if ($("#network-statistics-hide").is(":checked")) return;
         let vnodes = this.getVisibleNodes();
         let vlinks = this.getVisibleLinks();
+        console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
         if (this.session.style.widgets["timeline-date-field"] == 'None') {

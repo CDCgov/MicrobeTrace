@@ -348,7 +348,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     const edges = data.links.map((link: any) => ({
         data: {
-            id: `${link.source}-${link.target}`,
+            id: link.id,
             source: link.source,
             target: link.target,
             lineSelectedColor: this.widgets['selected-color'],
@@ -533,6 +533,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     attachCytoscapeEvents() {
+        console.log('--- TwoD attachCytoscapeEvents called');
         this.cy.on('tap', 'node', (evt) => {
             const node = evt.target;
             console.log('Selected node:', node.data());
@@ -550,6 +551,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cy.on('mouseover', 'node', (evt) => {
             const node = evt.target;
             this.showNodeTooltip(node.data(), evt.originalEvent);
+            console.log('--- TwoD mouseover node: ', node.data());
 
             // Set cursor to grab
             $('html,body').css('cursor', 'grab');
@@ -2357,6 +2359,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let scalar = this.widgets['link-width'];
         let variable = this.widgets['link-width-variable'];
 
+        // console.log('--- TwoD getLinkWidth link1: ', scalar, variable);
         if (variable == 'None') return scalar;
 
         else {
@@ -2369,8 +2372,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Ensure v is a number before using linkScale
             if (typeof v === 'number') {
                 let scaleValue = this.linkScale(v);
+
                 return scaleValue;
             } else {
+
                 return scalar; // Default to scalar if v is not a number
             }
         }
@@ -2917,64 +2922,110 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else{
             this.data = this.commonService.convertToGraphDataArray(networkData);
 
+            // 1) Log raw incoming data
+            console.log("🚀 Debug: raw networkData links:", networkData.links);
+            console.log("🚀 Debug: raw networkData nodes:", networkData.nodes);
+            
+            // 2) Log the “converted” data
+            console.log("🚀 Debug: data from convertToGraphDataArray:", this.data);
+            
+            // Destroy old instance if any
             if (this.cy) {
-                this.cy.destroy();
+              this.cy.destroy();
             }
-
+            
+            // 3) Build Cytoscape “elements”
             const el = this.mapDataToCytoscapeElements(this.data);
-            // console.log('--- TwoD Creating CY');
-
-            console.log('--- TwoD Creating CY el: ', el);
-
-            const newLinkIds = new Set(el.edges.map(l => l.data.id));
-
-            console.log('----newLinkIds:', newLinkIds);
-
-            // Track start time
-            let startTime;
-
-            // cytoscape.use(fcose);
+            console.log("🚀 Debug: mapDataToCytoscapeElements output:", _.cloneDeep(el));
             
+            // Optional: check for duplicates & invalid references
+            const seenIds = new Set();
+            el.edges.forEach(edge => {
+              const { id, source, target } = edge.data;
+            
+              // 3A) Check for duplicate edge IDs
+              if (seenIds.has(id)) {
+                console.warn("❌ Duplicate edge ID:", id, edge);
+              } else {
+                seenIds.add(id);
+              }
+            
+              // 3B) Check for missing node references
+              const hasSource = el.nodes.some(n => n.data.id === source);
+              const hasTarget = el.nodes.some(n => n.data.id === target);
+              if (!hasSource || !hasTarget) {
+                console.warn("❌ Edge references invalid node:", edge.data);
+              }
+            });
+            
+            // 4) Actually create Cytoscape
+            let startTime: number;
             this.cy = cytoscape({
-                container: this.cyContainer.nativeElement, // container to render in
-                elements: el, // convert your data
-                style: this.getCytoscapeStyles(), // define your styles
-                layout: {
-                name: 'preset', // Use the cose layout
-                fit: true, // Fit the graph to the viewport
-                padding: 100 // Padding around the graph
-                },
+              container: this.cyContainer.nativeElement,
+              elements: el,
+              style: this.getCytoscapeStyles(),
+              layout: {
+                name: 'preset',
+                fit: true,
+                padding: 100
+              },
+              zoomingEnabled: true,
+              userZoomingEnabled: true,
+              panningEnabled: true,
+              userPanningEnabled: true
+            });
             
-                // Enable zooming and panning
-                zoomingEnabled: true,
-                userZoomingEnabled: true,
-                panningEnabled: true,
-                userPanningEnabled: true,
-            });
-
+            // Attach events
             this.attachCytoscapeEvents();
-
-            // Attach event listener BEFORE layout starts
+            
+            // 5) Debug layout start & stop
             this.cy.one('layoutstart', () => {
-                startTime = performance.now();
-                console.log(`🟢 Cytoscape layout started at: ${startTime.toFixed(2)}ms`)
+              startTime = performance.now();
+              console.log(`🟢 Cytoscape layout started at: ${startTime.toFixed(2)}ms`);
             });
-
+            
             this.cy.one('layoutstop', () => {
-                const endTime = performance.now();
-                console.log(`✅ Cytoscape layout rendering completed in ${(endTime - startTime).toFixed(2)}ms`);
-                // Set rendered to true now that network has rendered
-                this.store.setNetworkRendered(true); 
-                // Now we can set network update to false after its been updated fully
-                this.store.setNetworkUpdated(false); 
-                this.commonService.session.network.rendering = false;
-                // Now we can ensure the demo at least the demo network has been rendered
-                this.commonService.demoNetworkRendered = true;          
-            });
+              const endTime = performance.now();
+              console.log(`✅ Cytoscape layout done in ${(endTime - startTime).toFixed(2)}ms`);
+            
+              // Check which edges made it into cy
+              el.edges.forEach(e => {
 
+                const ele = this.cy.getElementById(e.data.id);
+                console.log(
+                'element with id', e.data.id, 
+                'exists:', ele.length > 0, 
+                'isEdge?', ele.isEdge(), 
+                'group:', ele.group()
+                );
+                // const id = e.data.id;
+                // if (!this.cy.getElementById(id).length) {
+                //   console.warn("❌ Missing in final cy.edges():", e);
+                // } else {
+                //   console.log("✅ Present in cy.edges():", e);
+                // }
+              });
+
+              
+            
+              // Also log final edges in Cytoscape to compare
+              const finalEdges = this.cy.edges().map(ed => ed.data());
+              console.log("🚀 finalEdges in Cytoscape:", finalEdges);
+            
+              // Then do your link‐width updates
+              this.updateLinkWidths();
+            
+              // Mark as rendered
+              this.store.setNetworkRendered(true);
+              this.store.setNetworkUpdated(false);
+              this.commonService.session.network.rendering = false;
+              this.commonService.demoNetworkRendered = true;
+            });
+            
             // Run the layout
-            //@ts-ignore
-            this.cy.layout({ name: 'preset', animate: "end" }).run();
+            // @ts-ignore
+            this.cy.layout({ name: 'preset', animate: 'end' }).run();
+            
 
          }
             console.log('--- TwoD DATA network rerender complete');
@@ -3822,17 +3873,15 @@ private _partialUpdate() {
         });
         networkData.links.forEach((link, i) => {
             // Set a unique link id if desired
-            link.id = i.toString();  // or link.index.toString()
+            link.id =  i.toString();  // or link.index.toString()
         
             // console.log('--- TwoD link: ', link.source);
             // If link.source is an object, grab its _id and convert to string
             if (typeof link.source === 'object') {
-            link.source = link.source._id.toString();
+                link.source = link.source._id.toString();
             }
-
             // console.log('--- TwoD link: ', link.source);
 
-        
             // Same for link.target
             if (typeof link.target === 'object') {
             link.target = link.target._id.toString();
@@ -3848,25 +3897,6 @@ private _partialUpdate() {
         if (!nodeIds.has(link.target)) {
             console.warn('Link target not found in nodes:', link.target, link);
         }
-        });
-
-        networkData.links.forEach((link, i) => {
-            // Set a unique link id if desired
-            link.id = i.toString();  // or link.index.toString()
-        
-            // console.log('--- TwoD link: ', link.source);
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-            link.source = link.source._id.toString();
-            }
-
-            // console.log('--- TwoD link: ', link.source);
-
-        
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
         });
 
         console.log('--- TwoDComponent _partialUpdate called:  ', networkData.links);
