@@ -684,7 +684,14 @@ export class CommonService extends AppComponentBase implements OnInit {
                 newNode._id = newNode.id;
             }
         }
-        newNode._id = newNode._id.trim();
+
+        // If node id is not already a string, convert it to a string and trim it
+        if (typeof newNode._id !== 'string') {
+            newNode._id = newNode._id.toString();
+            newNode._id = newNode._id.trim();
+            newNode.id = newNode._id;
+        }       
+
 
         if (this.session.data.nodeExclusions.indexOf(newNode._id) > -1) {
             return 0;
@@ -2564,9 +2571,29 @@ align(params): Promise<any> {
         console.log('create link color map');
         // 1) Gather
         const linkColorVariable = this.session.style.widgets['link-color-variable'];
+
+        if (linkColorVariable == "None") {
+            this.temp.style.linkColorMap = () => this.session.style.widgets["link-color"];
+            this.temp.style.linkAlphaMap = () => 1 - this.session.style.widgets["link-opacity"];
+            return [];
+        }
+
         const links = this.session.data.links;
       
-        const linkColors = this.session.style.linkColors;       // e.g. d3.schemePaired
+        let linkColors;
+        if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {
+            linkColors =  this.session.style.linkColorsTable[linkColorVariable];
+        } else if (linkColorVariable == 'source' || linkColorVariable == 'target') {
+            this.session.style.linkColorsTable = {};
+            this.session.style.linkColorsTableKeys = {};
+            linkColors =  this.session.style.linkColorsTable[linkColorVariable] = [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2));
+            this.session.style.linkColors = [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2));
+        } else {
+            this.session.style.linkColorsTable = {};
+            this.session.style.linkColorsTableKeys = {};
+            linkColors =  this.session.style.linkColorsTable[linkColorVariable] = d3.schemePaired;
+            this.session.style.linkColors = d3.schemePaired;
+        }
         const linkAlphas = this.session.style.linkAlphas;       // e.g. [1, 1, ...]
         const linkColorsTable = this.session.style.linkColorsTable;
         const linkColorsTableKeys = this.session.style.linkColorsTableKeys;
@@ -2593,6 +2620,11 @@ align(params): Promise<any> {
         this.session.style.linkColorsTable  = result.updatedLinkColorsTable;
         this.session.style.linkColorsTableKeys = result.updatedLinkColorsTableKeys;
       
+        console.log('create link color map 1: ', this.session.style.linkColorsTable);
+        console.log('create link color map 2: ', this.session.style.linkColorsTableKeys);
+        console.log('create link color map 3: ', this.session.style.linkColors);
+        console.log('create link color map 4: ', this.session.style.linkAlphas);
+
         return result.aggregates;
       }
     
@@ -2602,9 +2634,16 @@ align(params): Promise<any> {
 	 */
     public createPolygonColorMap() {
         // If you store your “polygonGroups” in this.temp, do:
+        if (!this.temp.polygonGroups || !this.session.style.widgets['polygons-color-show']) {
+            this.temp.style.polygonColorMap = () => this.session.style.widgets['polygon-color'];
+            return [];
+        }
         const polygonGroups = this.temp.polygonGroups || [];
         const polygonColors = this.session.style.polygonColors;
         const polygonAlphas = this.session.style.polygonAlphas;
+        console.log('--- polygonGroups: ', polygonGroups);
+        console.log('--- polygonColors: ', polygonGroups);
+
         
         const result = this.colorMappingService.createPolygonColorMap(
           polygonGroups,

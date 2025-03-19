@@ -211,6 +211,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private bpaaSPayloadWrappers: BpaaSPayloadWrapper[] = [];
 
+    private networkRendered: boolean = false;
+
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
     // @ViewChild(TabView) tabView: TabView;
@@ -294,25 +296,36 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         });
 
          // Subscribe to network rendered
-        this.networkRenderedSubscription = this.store.networkRendered$
-        .pipe(takeUntil(this.destroy$))
-        .subscribe(rendered => {
-            console.log('--miceobtrace :', this.commonService.session.network.isFullyLoaded);
-            // console.log('--- Network Rendered: ', rendered);
-            if(rendered) {
-                this.displayloadingInformationModal = false;
-                this.messages = [];
-                this.onLinkColorTableChanged();
-                this.cdref.detectChanges();
-            
-            // Only show loading modal when loading network outside of demo network to not have it appear on load
-            } else if (!rendered && this.commonService.demoNetworkRendered  && this.commonService.session.network.isFullyLoaded) {
-                // Clear messages for loading modal
-                // this.messages = [];
-                this.displayloadingInformationModal = true;
-                this.showMessage('Rendering Network...');
-            }
-        });
+         this.networkRenderedSubscription = this.store.networkRendered$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(rendered => {
+        console.log('DEBUG: networkRenderedSubscription fired. rendered =', rendered);
+        console.log('DEBUG: session.network.isFullyLoaded?', this.commonService.session.network.isFullyLoaded);
+
+        if (rendered) {
+          this.displayloadingInformationModal = false;
+          this.messages = [];
+          console.log('DEBUG: Calling onLinkColorTableChanged from networkRenderedSubscription...');
+          console.log('DEBUG: #link-color-table rowcount BEFORE = ', $('#link-color-table').find('tr').length);
+
+          // Optionally call or not call your method:
+          // this.onLinkColorTableChanged();
+
+          this.networkRendered = true;
+          // Also see if forcing a detect changes right here changes the outcome:
+          console.log('DEBUG: inrender sub => about to detect changes manually...');
+
+          this.cdref.detectChanges();
+
+          console.log('DEBUG: #link-color-table rowcount AFTER  = ', $('#link-color-table').find('tr').length);
+
+        } else if (!rendered && this.commonService.demoNetworkRendered &&
+                   this.commonService.session.network.isFullyLoaded) {
+          this.displayloadingInformationModal = true;
+          this.showMessage('Rendering Network...');
+          this.networkRendered = false;
+        }
+      });
 
         // Subscribe to network rendered
         this.loadingMessageUpdatedSubscription = this.store.loadingMessageUpdated$
@@ -475,6 +488,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.messages = [...this.messages, msg];        
         setTimeout(() => {
+            console.log('DEBUG: inshowmessage => about to detect changes manually...');
+
             this.cdref.detectChanges();
           }, 0);
       }
@@ -1157,6 +1172,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
+            console.log('link colorTable - applystylefile: ', $('#link-color-table'));
+
             this.onColorLinksByChanged();
         }
 
@@ -1207,6 +1224,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.commonService.updateNetworkVisuals(true);
                 this.store.setLinkThreshold(this.SelectedLinkThresholdVariable);
 
+                console.log('onlink compute mst')
                 this.onLinkColorTableChanged();
                     // TODO:: David is this needed?
                 if ('tableComp' in this.commonService.visuals) {
@@ -1239,17 +1257,39 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
     }
 
-    onLinkColorTableChanged(silent: boolean = false) {
+      // This is the method that actually toggles the link-color dialog & table
+  onLinkColorTableChanged(silent: boolean = false) {
+    console.log('DEBUG: onLinkColorTableChanged fired. value=', this.SelectedLinkColorTableTypesVariable, 'silent=', silent);
 
-        this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable = this.SelectedLinkColorTableTypesVariable;
+    // Keep your GlobalSettingsModel in sync
+    this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable = this.SelectedLinkColorTableTypesVariable;
 
-        if (this.SelectedLinkColorTableTypesVariable == "Hide") {
-            this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-        }
-        else {
-            this.onColorLinksByChanged(silent);
-        }
+    if (this.SelectedLinkColorTableTypesVariable === 'Hide') {
+      console.log('DEBUG: Hiding link color dialog and clearing table');
+      this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
+      $('#link-color-table').empty();
+    } else {
+      console.log('DEBUG: Showing link color dialog & building table');
+      this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+
+      if (this.SelectedColorLinksByVariable === 'None') {
+        console.log('DEBUG: Link color variable=NONE => empty table');
+        $('#link-color-table').empty();
+      } else {
+        console.log('DEBUG: Generating link table. Table element =', this.linkColorTable?.nativeElement);
+        this.generateNodeLinkTable('#link-color-table');
+      }
+      $('#link-color-table-row').slideDown();
     }
+
+    // If OnPush, sometimes you might also need:
+    if (!silent) {
+      console.log('DEBUG: onLinkColorTableChanged => Marking for check');
+      this.cdref.markForCheck();
+      // or .detectChanges() if you want an immediate synchronous check
+      // this.cdref.detectChanges();
+    }
+  }
 
     /**
      * Updates this.commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable and 
@@ -1371,89 +1411,146 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
+
     onColorLinksByChanged(silent: boolean = false) {
-
-        console.log('oncolorLinksByChanged - selected color links by variable: ', this.SelectedColorLinksByVariable);
-        console.log('oncolorLinksByChanged - selected color links by variable: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
-
-        this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
-
-        if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
-
-            // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
-            // checkActiveView is reliant on commonService.visuals, under current implementation (12/17/24) always returns false and function may not be needed
-            if (this.SelectedColorLinksByVariable != "None") {
-                console.log('onColorLinksByChanged - selected color links by variable2: ', this.SelectedColorLinksByVariable);
-                this.SelectedLinkColorTableTypesVariable = "Show";
-                this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
-                this.cachedGlobalSettingsLinkColorVisibility = this.GlobalSettingsLinkColorDialogSettings.isVisible;
-                this.ShowGlobalSettingsLinkColorTable = false;
-                this.cdref.detectChanges();
-            }
-        }
-
+        console.log('DEBUG: onColorLinksByChanged fired. variable =', this.SelectedColorLinksByVariable, 'silent=', silent);
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
         this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
-
-
-        if (this.SelectedColorLinksByVariable != "None") {
-
-            this.generateNodeLinkTable("#link-color-table");
-
-            console.log('onColorLinksByChanged - selected color links by variable4: ', this.SelectedColorLinksByVariable);
-
-            $('#link-color-value-row').slideUp();
-
-            console.log('show global settings link color table: ', this.ShowGlobalSettingsLinkColorTable);
-            //If hidden by default, unhide to perform slide up and down
-            if(!this.ShowGlobalSettingsLinkColorTable){
-                const element = this.el.nativeElement.querySelector('#link-color-table');
-                this.commonService.setLinkTableElement(element);
-                this.ShowGlobalSettingsLinkColorTable = true;
-                this.cdref.detectChanges();
-                console.log('element: ', element);
-            } else {
-                $('#link-color-table-row').slideDown();
-            }
-
-            if(!silent) this.publishUpdateLinkColor();
+    
+        if (this.SelectedColorLinksByVariable !== 'None') {
+          console.log('DEBUG: onColorLinksByChanged => user picked something, setting table to Show');
+          this.SelectedLinkColorTableTypesVariable = 'Show';
+        } else {
+          console.log('DEBUG: onColorLinksByChanged => user picked None, setting table to Hide');
+          this.SelectedLinkColorTableTypesVariable = 'Hide';
         }
-        else {
-            console.log('show hide global settings link color table: ', this.ShowGlobalSettingsLinkColorTable);
-            $('#link-color-table').empty();
-            $('#link-color-value-row').slideDown();
-            $('#link-color-table-row').slideUp();
-            this.SelectedLinkColorTableTypesVariable='Hide';
-            this.onLinkColorTableChanged(silent);
-
-            if(!silent) this.publishUpdateLinkColor();
-            this.exportTables['link-color'] = false;
-
+    
+        if (!silent) {
+          console.log('DEBUG: onColorLinksByChanged => publishing link-color updates to views');
+          this.publishUpdateLinkColor();
         }
-    }
+    
+        this.onLinkColorTableChanged(silent);
+      }
 
-    generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
-        const linkColorTable = $(tableId)
-        .empty()
-        .append(
-            "<tr>" +
-            ("<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Link " + this.commonService.titleize(this.SelectedColorLinksByVariable) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>") +
-            `<th class='table-header-row tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-            `<th class='table-header-row tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-            "<th>Color</th>" +
-            "</tr>"
-        );
+    // onColorLinksByChanged(silent: boolean = false) {
 
-        if (!this.commonService.session.style.linkValueNames)
-            this.commonService.session.style.linkValueNames = {};
+    //     // console.log('oncolorLinksByChanged - selected color links by variable: ', this.SelectedColorLinksByVariable);
+    //     console.log('oncolorLinksByChanged 2 - is visible: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
+    //     // console.log('3 onColorLinksByChanged - show link: ', this.ShowGlobalSettingsLinkColorTable);
+
+    //     this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
+
+    //     if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
+
+    //         // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
+    //         // checkActiveView is reliant on commonService.visuals, under current implementation (12/17/24) always returns false and function may not be needed
+    //         // if (this.SelectedColorLinksByVariable != "None") {
+    //         //     console.log('onColorLinksByChanged - selected color links by variable2: ', this.SelectedColorLinksByVariable);
+    //         //     this.SelectedLinkColorTableTypesVariable = "Show";
+    //         //     this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+    //         //     this.cachedGlobalSettingsLinkColorVisibility = this.GlobalSettingsLinkColorDialogSettings.isVisible;
+    //         //     this.ShowGlobalSettingsLinkColorTable = false;
+    //         //     this.cdref.detectChanges();
+    //         // }
+    //     }
+
+
+    //     this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
+    //     this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
+
+
+    //     if (this.SelectedColorLinksByVariable != "None") {
+
+    //         // console.log('1 onColorLinksByChanged - selected color links by variable3: ', this.SelectedColorLinksByVariable);
+
+    //         console.log('color links by changed: ', $('#link-color-table'));
+    //         // this.ShowGlobalSettingsLinkColorTable = true;
+    //         this.generateNodeLinkTable("#link-color-table");
+
+
+
+    //         // console.log('onColorLinksByChanged - selected color links by variable4: ', this.SelectedColorLinksByVariable);
+
+    //         $('#link-color-value-row').slideUp();
+
+    //         console.log('xy global show: ', $('#link-color-table'));
+    //         //If hidden by default, unhide to perform slide up and down
+    //         if(!this.ShowGlobalSettingsLinkColorTable){
+    //             console.log('xy global in');
+
+    //             this.ShowGlobalSettingsLinkColorTable = true;
+    //             this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+    //             // const element = this.el.nativeElement.querySelector('#link-color-table');
+    //             // this.commonService.setLinkTableElement(element);
+    //             // this.generateNodeLinkTable("#link-color-table");
+
+    //             this.cdref.detectChanges();
+    //         } else {
+    //             console.log('xy global else');
+    //             this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+    //             // this.generateNodeLinkTable("#link-color-table");
+    //             $('#link-color-table-row').slideDown();
+    //         }
+
+    //         console.log('xy global show 2: ', $('#link-color-table'));
+
+
+    //         if(!silent) this.publishUpdateLinkColor();
+    //     }
+    //     else {
+    //         console.log('---- gnerenate Link Color Table empty -------', $('#link-color-table'));
             
-        let aggregates = this.commonService.createLinkColorMap();
-        if(this.commonService.debugMode) {
-            console.log('link aggregates: ', aggregates);
-        }
-        let vlinks = this.commonService.getVisibleLinks();
-        let aggregateValues = Object.keys(aggregates);
+    //         $('#link-color-table').empty();
+    //         $('#link-color-value-row').slideDown();
+    //         $('#link-color-table-row').slideUp();
+    //         this.SelectedLinkColorTableTypesVariable='Hide';
+    //         console.log('onLinkColorTableChanged - onColorLinksByChanged');
+    //         console.log('4 color links by changed: ', $('#link-color-table'));
 
+    //         this.onLinkColorTableChanged(silent);
+    //         console.log('5color links by changed: ', $('#link-color-table'));
+
+
+    //         if(!silent) this.publishUpdateLinkColor();
+    //         this.exportTables['link-color'] = false;
+
+    //     }
+
+    //     console.log('oncolorLinksByChanged 7 - is visible: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
+
+    //     console.log('3this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
+
+    // }
+
+    // The actual function that builds your color table
+  generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
+    console.log('DEBUG: generateNodeLinkTable called. tableId=', tableId);
+    console.log('DEBUG: table before .empty(): child rowcount=', $(tableId).find('tr').length);
+
+    const linkColorTable = $(tableId).empty().append(
+      '<tr>' +
+      "<th class='p-1 table-header-row'><div class='header-content'><span>Link " + 
+        this.commonService.titleize(this.SelectedColorLinksByVariable) + 
+      "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
+      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+      '<th>Color</th>' +
+      '</tr>'
+    );
+
+    // Debug checks
+    console.log('DEBUG: after appending header, table rowcount=', $(tableId).find('tr').length);
+
+    // If you suspect linkColorMap may be empty or never updated, log it:
+    const aggregates = this.commonService.createLinkColorMap();
+    console.log('DEBUG: createLinkColorMap =>', aggregates);
+
+    const vlinks = this.commonService.getVisibleLinks();
+    console.log('DEBUG: getVisibleLinks =>', vlinks?.length);
+
+    const aggregateValues = Object.keys(aggregates);
+    console.log('DEBUG: aggregateValues =>', aggregateValues);
         const disabled: string = isEditable ? '' : 'disabled';
 
         aggregateValues.forEach((value, i) => {
@@ -1461,12 +1558,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             if (aggregates[value] == 0) {
                 return;
             }
-            if(this.commonService.debugMode) {      
-                console.log('link color aggregates value: ', aggregates[value]);
-                console.log('link color value: ', value);
-                console.log('link color map: ', this.commonService.temp.style.linkColorMap);
-                console.log('link color map value: ', this.commonService.temp.style.linkColorMap(value));
-            }
+                // console.log('link color aggregates value: ', aggregates[value]);
+                // console.log('link color value: ', value);
+                // console.log('link color map: ', this.commonService.temp.style.linkColorMap);
+                // console.log('link color map value: ', this.commonService.temp.style.linkColorMap(value));
+            
 
             // Grab color of link from session
             const color = this.commonService.temp.style.linkColorMap(value);
@@ -1529,6 +1625,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 "</tr>"
             );
 
+
             const nonEditCell = `<td style="background-color:${color}"></td>`;
 
             if (isEditable) {
@@ -1537,8 +1634,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 row.append(nonEditCell);
             }
 
+            console.log('---- link colorTable: ', i, linkColorTable);
             linkColorTable.append(row);
+
         });
+
+        console.log('DEBUG: after building rows, rowcount=', $(tableId).find('tr').length);
+    // At the end, we do a final check of the DOM:
+    const finalCount = $(tableId).find('tr').length;
+    console.log('DEBUG: final rowcount in table:', finalCount);
 
         if (isEditable) {
             linkColorTable
@@ -1559,6 +1663,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.updateCountFreqTable('link-color')
         $('#linkColorTableSettings').on('mouseleave', () => $('#linkColorTableSettings').delay(500).css('display', 'none'));
 
+        // console lof the rows in the table
         $(tableId).on('click', '.sort-button', function() {
             const table = $(this).parents('table').eq(0);
             let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
@@ -1843,6 +1948,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     showLinkColorTable() {
+        console.log('onLinkColorTableChanged - show');
+
         if (this.SelectedLinkColorTableTypesVariable !=' Show') {
             this.SelectedLinkColorTableTypesVariable='Show';
             this.onLinkColorTableChanged();
@@ -1850,6 +1957,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     hideLinkColorTable() {
+
+        if (this.ShowGlobalSettingsLinkColorTable) {
+            // This was just the initial load (or a code-based hide).
+            return;
+          }
+
         if (this.SelectedLinkColorTableTypesVariable != 'Hide') {
            this.SelectedLinkColorTableTypesVariable='Hide';
            this.onLinkColorTableChanged()
@@ -1870,18 +1983,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             console.log('on color nodes by changed - visible: ', this.SelectedColorNodesByVariable);
             // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
-            if (this.SelectedColorNodesByVariable != "None") {
+            // if (this.SelectedColorNodesByVariable != "None") {
 
-                this.SelectedNodeColorTableTypesVariable = 'Show';
-                this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
-                this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
-                const prevColorNodesByVariable = this.SelectedColorNodesByVariable;
-                // this reset to false to trigger showing the node color table
-                this.ShowGlobalSettingsNodeColorTable = false;
-                // this detect changes leads to SelectedColorNodesByVariable being set to default value when loading MT files that have both 2D and map view
-                this.cdref.detectChanges();
-                if (prevColorNodesByVariable != this.SelectedColorNodesByVariable) this.SelectedColorNodesByVariable = prevColorNodesByVariable;
-            }
+            //     this.SelectedNodeColorTableTypesVariable = 'Show';
+            //     this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+            //     this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
+            //     const prevColorNodesByVariable = this.SelectedColorNodesByVariable;
+            //     // this reset to false to trigger showing the node color table
+            //     this.ShowGlobalSettingsNodeColorTable = false;
+            //     // this detect changes leads to SelectedColorNodesByVariable being set to default value when loading MT files that have both 2D and map view
+            //     this.cdref.detectChanges();
+            //     if (prevColorNodesByVariable != this.SelectedColorNodesByVariable) this.SelectedColorNodesByVariable = prevColorNodesByVariable;
+            // }
         }
 
         this.commonService.session.style.widgets["node-color-variable"] = this.SelectedColorNodesByVariable;
@@ -1896,6 +2009,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (this.SelectedColorNodesByVariable !== "None") {
 
+            this.ShowGlobalSettingsNodeColorTable = true;
             this.generateNodeColorTable("#node-color-table");
             
             $('#node-color-value-row').slideUp();
@@ -2276,6 +2390,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.GlobalSettingsModel.SelectedApplyStyleVariable = this.SelectedApplyStyleVariable;
 
 
+        this.ShowGlobalSettingsLinkColorTable = this.GlobalSettingsLinkColorDialogSettings.isVisible;
+        console.log('3 this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
+        console.log('4 this.ShowGlobalSettingsLinkColorTable: ', this.GlobalSettingsLinkColorDialogSettings.isVisible); 
+        // print out #global-settings-link-color-table element
+        console.log('xy link color table 3: ', $('#link-color-table'));
+
     }
 
     /**
@@ -2424,6 +2544,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.activeTab = v;
 
             console.log('tab changed settigns viz: ', v);
+
+            // If network is not even renered yet, no need ot update these values
+            if (!this.networkRendered) {
+                return;
+            }
             
             if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart") {
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
@@ -2451,6 +2576,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             } else if (!this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedLinkColorTableTypesVariable == 'Show') {
                 this.SelectedLinkColorTableTypesVariable = 'Hide';
             }
+            console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
             this.updatecurrentThresholdStepSize();
         });
@@ -2652,8 +2778,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     public getfileContent(fileList: FileList) {
 
+        // Loading new data so setting network rendered to false
+        this.networkRendered = false;
+
         this.GlobalSettingsDialogSettings.setVisibility(false);
         this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
+        console.log('link table vis - false get file content');
+
         this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
 
         if(this.commonService.debugMode) {
@@ -3591,8 +3722,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.ShowGlobalSettingsLinkColorTable = false;
         this.ShowGlobalSettingsNodeColorTable = false;
 
-        console.log('oncolorNodesByChanged - selected color nodes by variable: ');
-         //Styling|Color Nodes By
+        // console.log('xy link color table: ', linkColorTable);
+        console.log('xy link color table 1.5: ', $('#link-color-table'));
+        //Styling|Color Nodes By
          this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
          this.onColorNodesByChanged(false);
  
@@ -3602,20 +3734,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          this.SelectedNodeColorVariable = this.commonService.session.style.widgets["node-color"];
          this.onNodeColorChanged(true);
          
+         console.log('xy link color table 2: ', $('#link-color-table'));
+ 
  
          //Styling|Color Links By
          if (this.commonService.session.style.widgets['link-color-variable'] === "None") {
              this.commonService.session.style.widgets['link-color-variable'] = "origin";
          }
+
+        //  console.log('1this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
+
  
          this.SelectedColorLinksByVariable = this.commonService.session.style.widgets['link-color-variable'];
-         console.log('oncolorLinksByChanged - selected color links by variable: ', this.SelectedColorLinksByVariable);
+         console.log('oncolorLinksByChanged - loadUISettings - selected color links by variable: ', this.SelectedColorLinksByVariable);
+         console.log('link colorTable - loadui1: ', $('#link-color-table'));
+
          this.onColorLinksByChanged(true);
  
+         console.log('xy link colorTable 3 - loadui2: ', $('#link-color-table'));
+
           //Styling|Links
           this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"];
           this.onLinkColorChanged(true);
- 
+
          //Styling|Selected
          this.SelectedColorVariable = this.commonService.session.style.widgets['selected-color'];
  
@@ -3623,8 +3764,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          this.SelectedBackgroundColorVariable = this.commonService.session.style.widgets['background-color'];
          this.onBackgroundChanged();
   
-         console.log('this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
+        //  console.log('xy link color table 3: ', linkColorTable);
+
+        //  console.log('this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
+        //  console.log('2 this.ShowGlobalSettingsLinkColorTable: ', this.GlobalSettingsLinkColorDialogSettings.isVisible); 
+
          this.store.setSettingsLoaded(true);
+
+         console.log('link colorTable - loadui3: ', $('#link-color-table'));
+
  
          this.updateGlobalSettingsModel();
 

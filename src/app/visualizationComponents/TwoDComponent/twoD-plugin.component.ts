@@ -395,7 +395,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return {
                 data: {
                     id: node.id,
-                    label: (this.widgets['node-label-variable'] === 'None') ? '' : node.label, // Existing label
+                    label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
                     nodeSize: this.getNodeSize(node), // Existing node size
                     nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
@@ -430,7 +430,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node',
                 css: {
                     'background-color': 'data(nodeColor)', // Use dynamic node color
-                    'label': 'data(label)',
                     // 'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Existing dynamic sizing
                     // 'height': 'mapData(nodeSize, 0, 100, 10, 50)',
                     'border-width': 'data(borderWidth)', // Use dynamic border width
@@ -443,6 +442,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // 'font-size': 'data(fontSize)' // Ensure this line is included
                 }
             },
+            {
+                selector: 'node[label]',
+                css: {
+                  'label': 'data(label)' 
+                }
+              },
+              {
+                selector: 'node[!label]',
+                css: {
+                  'label': '' // or omit entirely
+                }
+              },
               // Apply styles only to nodes with nodeSize defined
             {
                 selector: 'node[nodeSize]',
@@ -485,9 +496,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // We also need to ensure that it uses data(...) for color & alpha:
                     'background-color': 'data(nodeColor)',    
                     // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
+                    // 'z-compound-depth': 'back',  // ensures parent is behind children
+                }
+            },
+            {
+                selector: 'node.parent[bgOpacity]',
+                css: {
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)',
-                    // 'z-compound-depth': 'back',  // ensures parent is behind children
                 }
             },
             {
@@ -1362,8 +1378,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        console.log('Updating Group Node Colors...');
-
         cy.nodes('.parent').forEach(parentNode => {
             const groupName = parentNode.data('label'); // Assuming 'label' holds the group name
 
@@ -1993,18 +2007,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 // **Step 1:** Ungroup child nodes by setting their parent to null
                 parent.children().forEach(child => {
                     child.move({ parent: null });
-                    console.log(`Ungrouped child node: ${child.id()} from parent: ${parent.id()}`);
                 });
     
                 // **Step 2:** Remove the parent node without affecting child nodes
                 cy.remove(parent);
-                console.log(`Removed parent node: ${parent.id()}`);
             });
     
             // Determine new groups based on foci
             const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
     
-            console.log('nodeee: ', foci);
             cy.nodes().forEach(node => {
                 // if(node.data('id') === '30578_KF773488_D99cl05') {
                 //     console.log('nodeee1: ', node.data());
@@ -2636,24 +2647,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             let nodes = this.commonService.session.data.nodes;
             let n = nodes.length;
             let vnodes = 0;
-            for (let i = 0; i < n; i++) {
-                let d = nodes[i];
-                if (!d || typeof d !== 'object') continue; // guard against null/undefined
-                if (!d.visible) continue;
-                vnodes++;
-                let dv = d[variable];
-                // Optionally, if you expect the value to be defined:
-                if (dv === undefined) {
-                  console.warn(`Node at index ${i} does not have property "${variable}"`);
-                  continue;
-                }
-                if (values.indexOf(dv) === -1) values.push(dv);
-                if (dv in aggregates) {
-                  aggregates[dv]++;
-                } else {
-                  aggregates[dv] = 1;
-                }
-              }
+
+            // So aggrate to get since just one symbol
+            if(variable !== 'None'){
+                for (let i = 0; i < n; i++) {
+                    let d = nodes[i];
+                    if (!d || typeof d !== 'object') continue; // guard against null/undefined
+                    if (!d.visible) continue;
+                    vnodes++;
+                    let dv = d[variable];
+                    // Optionally, if you expect the value to be defined:
+                    if (dv === undefined) {
+                      console.warn(`Node at index ${i} does not have property "${variable}"`);
+                      continue;
+                    }
+                    if (values.indexOf(dv) === -1) values.push(dv);
+                    if (dv in aggregates) {
+                      aggregates[dv]++;
+                    } else {
+                      aggregates[dv] = 1;
+                    }
+                  }
+            }
+
 
             this.shapeAggregates = [];
             this.shapeAggregates = Object.keys(aggregates).map((key) => ({ 'key': key, 'count': aggregates[key], 'frequency': parseFloat((aggregates[key] / vnodes).toFixed(3)) }));
@@ -2914,10 +2930,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             layout.run();
 
-            if (this.widgets['polygons-show']) {
-                this.polygonsToggle(true)
-                this.centerPolygons(this.widgets['polygons-foci']);
-            }
 
         } else{
             this.data = this.commonService.convertToGraphDataArray(networkData);
@@ -2988,33 +3000,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               const endTime = performance.now();
               console.log(`✅ Cytoscape layout done in ${(endTime - startTime).toFixed(2)}ms`);
             
-              // Check which edges made it into cy
-              el.edges.forEach(e => {
+              // Update polygons to show if they should be
+              if (this.widgets['polygons-show']) {
+                this.polygonsToggle(true)
+                this.centerPolygons(this.widgets['polygons-foci']);
+               }
 
-                const ele = this.cy.getElementById(e.data.id);
-                console.log(
-                'element with id', e.data.id, 
-                'exists:', ele.length > 0, 
-                'isEdge?', ele.isEdge(), 
-                'group:', ele.group()
-                );
-                // const id = e.data.id;
-                // if (!this.cy.getElementById(id).length) {
-                //   console.warn("❌ Missing in final cy.edges():", e);
-                // } else {
-                //   console.log("✅ Present in cy.edges():", e);
-                // }
-              });
-
-              
-            
-              // Also log final edges in Cytoscape to compare
-              const finalEdges = this.cy.edges().map(ed => ed.data());
-              console.log("🚀 finalEdges in Cytoscape:", finalEdges);
-            
-              // Then do your link‐width updates
-              this.updateLinkWidths();
-            
               // Mark as rendered
               this.store.setNetworkRendered(true);
               this.store.setNetworkUpdated(false);
