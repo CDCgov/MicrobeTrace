@@ -2816,6 +2816,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         }
 
+        console.log('--- TwoD networkDataL: ', _.cloneDeep(networkData.links));
+        console.log('--- TwoD networkDataN: ', _.cloneDeep(networkData.nodes));
+
         networkData.nodes.forEach(node => {
             node.id = node._id.toString();
         });
@@ -2837,6 +2840,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             link.target = link.target._id.toString();
             }
         });
+
+        console.log('--- TwoD networkDataL 2: ', _.cloneDeep(networkData.links));
+        console.log('--- TwoD networkDataN 2: ', _.cloneDeep(networkData.nodes));
 
         const nodeIds = new Set(networkData.nodes.map(n => n.id));
 

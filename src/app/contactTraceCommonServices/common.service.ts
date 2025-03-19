@@ -673,17 +673,14 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     addNode(newNode: any, check: any = null): number {
 
-        //  If no _id, set _id to id
-        if (this.isNumber(newNode._id)) {
-            newNode._id = '' + newNode._id;
-            if (!newNode._id || newNode._id === '') {
-                newNode._id = newNode.id;
-            }
-        } else {
-            if (newNode.id) {
-                newNode._id = newNode.id;
-            }
+        //  If _id, set id to _id 
+        if(newNode._id) {
+            newNode.id = newNode._id;
+
+        } else if (newNode.id) {
+            newNode._id = newNode.id;
         }
+
 
         // If node id is not already a string, convert it to a string and trim it
         if (typeof newNode._id !== 'string') {
