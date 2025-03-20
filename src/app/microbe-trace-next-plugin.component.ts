@@ -226,8 +226,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
     @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
 
-    currentThresholdStepSize: Number = 0.001
-
     public HideThisForNow: boolean = false;
 
     files: any[] = [];
@@ -2550,7 +2548,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 return;
             }
             
-            if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart") {
+            if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart" || v === "Waterfall") {
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
             } else {
@@ -2578,10 +2576,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
-            this.updatecurrentThresholdStepSize();
         });
         
-
+        this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
     }
 
@@ -3806,8 +3803,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.NewSession();
     }
 
-    updatecurrentThresholdStepSize() {
-        this.currentThresholdStepSize = this.SelectedDistanceMetricVariable === 'snps' ? 1 : 0.001
+    getCurrentThresholdStepSize() {
+        return this.store.currentThresholdStepSizeValue;
     }
 
     /**
@@ -3816,9 +3813,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
   onDistanceMetricChanged = () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
-    this.updatecurrentThresholdStepSize();
+    this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 1)
         .val(7)
         .trigger('change');
@@ -3826,7 +3823,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.SelectedLinkThresholdVariable = '7';
       this.onLinkThresholdChanged();
     } else {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 0.001)
         .val(0.015)
         .trigger('change');

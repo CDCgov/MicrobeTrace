@@ -398,3 +398,10 @@ Maintain Codon will convert codon CT- to X (Unknown).">
         </tab>
     </tabset>
 </p-dialog><!-- /.modal -->
+
+<p-dialog *ngIf="viewActive" header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
+    <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain a sequence and were omitted from Alignment View.</span>
+    <ol>
+        <li *ngFor="let node of nodesWithoutSeq">Node index: {{ node.index }}, ID: {{ node.ID }} </li>
+    </ol>
+</p-dialog>

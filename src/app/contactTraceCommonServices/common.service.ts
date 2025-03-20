@@ -1061,7 +1061,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (extension == 'microbetrace') {
             this.session = this.sessionSkeleton();
 
-            this.applySession(data);
+            return this.applySession(data);
         } else {
             if (data.meta && data.tree) {
               // this.applyAuspice(data);
@@ -1080,7 +1080,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     /**
      * Updates commonService.session with information from stashObject. Variables updated include data, files, state, style, and layout.
      */
-    applySession(stashObject: StashObjects) {
+    async applySession(stashObject: StashObjects) {
         //If anything here seems eccentric, assume it's to maintain compatibility with
         //session files from older versions of MicrobeTrace.
         $("#launch").prop("disabled", true);
@@ -2241,6 +2241,7 @@ align(params): Promise<any> {
 
         // }, 1000);
         $(".hideForHIVTrace").css("display", "flex");
+        this.store.updatecurrentThresholdStepSize(this.session.style.widgets["default-distance-metric"]);
     };
 
 

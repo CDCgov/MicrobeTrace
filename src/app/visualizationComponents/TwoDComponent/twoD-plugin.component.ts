@@ -2641,6 +2641,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['node-symbol-variable'] = variable;
 
             if (variable === 'None' && !isEditable) return;
+            if (variable == 'None') return;
 
             let values = [];
             let aggregates = {};
