@@ -1954,31 +1954,10 @@ align(params): Promise<any> {
             return resolve(this.session.data['newick']);
           } else {
             this.getDM().then(dm => {
-<<<<<<< HEAD
-                this.computer.compute_treeWorker.postMessage({
-                    // labels: Object.keys(this.temp.matrix).sort(), <- This doesn't work because temp.matrix retains blank objects
-                    labels: this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
-                    matrix: dm,
-                    round: this.session.style.widgets["tree-round"]
-                });
-
-
-                const sub = this.computer.compute_treeWorker.onmessage().subscribe((response) => {
-
-                  const treeObj = this.decode(new Uint8Array(response.data.tree));
-
-                  const treeString = patristic.parseJSON(treeObj).toNewick();
-
-                  if(this.debugMode) {
-                    console.log('Tree Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
-                  }
-                  resolve(treeString);
-
-=======
               // Get a fresh tree worker from the factory.
               const treeWorker = this.computer.getTreeWorker();
               treeWorker.postMessage({
-                labels: this.session.data.nodes.map(a => a._id),
+                labels: this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
                 matrix: dm,
                 round: this.session.style.widgets["tree-round"]
               });
@@ -1993,7 +1972,6 @@ align(params): Promise<any> {
                 // Clean up: terminate the worker and unsubscribe.
                 treeWorker.terminate();
                 sub.unsubscribe();
->>>>>>> e3f73acc22b7dca7a96afc1000b5d0864dd0a635
               });
             });
           }
