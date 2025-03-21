@@ -14,6 +14,7 @@ import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
@@ -72,7 +73,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         private cdref: ChangeDetectorRef,
         private gtmService: GoogleTagManagerService,
         private renderer: Renderer2,
-        // private plotlyModule: PlotlyModule
+        private exportService: ExportService,
       ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
@@ -321,7 +322,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
               saveAs(dataUrl, fileName+"."+exportImageType);
             });
       } else if (exportImageType === 'svg') {
-          const svgContent = this.commonService.unparseSVG(fixedContent);
+          const svgContent = this.exportService.unparseSVG(fixedContent);
           const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
           saveAs(blob, fileName+"."+exportImageType);
       }

@@ -4,12 +4,13 @@ import * as saveAs from 'file-saver';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
-import { CommonService, ExportOptions } from '@app/contactTraceCommonServices/common.service';
+import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { ComponentContainer } from 'golden-layout';
 import cytoscape, { Core } from 'cytoscape';
 import svg from 'cytoscape-svg';
+import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -71,7 +72,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService
   ) {
     super(elRef.nativeElement);
 
@@ -994,15 +996,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     };
 
     // Set export options in the service
-    this.commonService.setExportOptions(exportOptions);
+    this.exportService.setExportOptions(exportOptions);
 
     if (this.BubbleExportFileType == 'svg') {
       let options = { scale: 1, full: true, bg: '#ffffff'};
       let content = (this.cy as any).svg(options);
 
-      this.commonService.requestSVGExport([], content, true, false); 
+      this.exportService.requestSVGExport([], content, true, false); 
     } else {
-      this.commonService.requestExport([this.cyContainer.nativeElement], true, false);
+      this.exportService.requestExport([this.cyContainer.nativeElement], true, false);
     }
     this.exportOpen = false;
   }

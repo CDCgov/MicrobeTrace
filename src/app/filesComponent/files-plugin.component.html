@@ -306,34 +306,6 @@
     </div><!-- Files Settings & Sequence Settings/.modal -->
 
 
-    <div class="view-controls">
-        <p-dialog id="loading-information-modal" [(visible)]="displayloadingInformationModal" header="Processing Files...">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                   
-
-                        <img class="img-responsive" [src]="commonService.appRootUrl() + 'assets/common/images/giphy.gif'" alt="logo" height="300" />
-
-                        <div id="loading-information-collapse" class="collapse show">
-                            <div id="loading-information" class="card card-body">
-
-                                <a *ngFor="let message of messages">
-                                    {{ message }}
-                                </a>
-                                <br>
-
-                            </div>
-                        </div>
-                    
-                    <p-footer>
-                        <button type="button" class="btn btn-success" data-dismiss="modal" (click)="displayloadingInformationModal=false">Close</button>
-                    </p-footer>
-                </div><!-- /.modal-content -->
-            </div><!-- /.modal-dialog -->
-        </p-dialog>
-    </div><!-- Loading Files/.modal -->
-
-
     <div id="file-footer">
         <!-- <p-accordion (onOpen)="accordianToggle(1)" (onClose)="accordianToggle(0)" >
             <p-accordionTab *ngIf="uniqueNodes.length > 0" header="{{uniqueNodes.length}} node(s) missing in edge list">

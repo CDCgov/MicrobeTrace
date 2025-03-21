@@ -171,7 +171,7 @@
                     </p-accordionTab>
 
                     <p-accordionTab style="color:#495057" [selected]="false" header="Colors">
-                        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()"></button>
+                        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                     </p-accordionTab>
 
                 </p-accordion>
@@ -260,7 +260,7 @@
 
 
                     <p-accordionTab style="color:#495057" header="Colors">
-                        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()"></button>
+                        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                     </p-accordionTab>
 
                 </p-accordion>
@@ -381,7 +381,7 @@
             <span>Node Symbol Table</span>
             <span style="overflow: visible; position: relative;">
               <button title="Settings" class="btn btn-sm btn-clean btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-shape')"><i class="pi pi-cog"></i></button>
-              <div id="nodeShapeTableSettings" class="dropdown-menu" style="display: none;">
+              <div id="nodeShapeTableSettings" class="dropdown-menu" style="display: none;" (mouseleave)="closeSettingsPane('nodeShapeTableSettings')">
                     <button id="nodeShapeCounts" class="dropdown-item" (click)="toggleTableColumns('node-shape', 'tableCounts')">
                         <span>Show Counts</span>
                         <i [className]="this.widgets['node-symbol-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
@@ -395,7 +395,7 @@
         </div>
     </ng-template>
         <div class="col-12" style="width:100%;max-height:50vh;" title="Node Shapes and Size Selection.">          
-             <table #nodeSymbolTable style="width:100%;height:100%;">
+             <table #nodeSymbolTable id="nodeSymbolTable" style="width:100%;height:100%;">
               <tr>
                 <th class="table-header-row" contenteditable>
                   <div class="header-content sortable">Node {{ commonService.titleize(this.widgets['node-symbol-variable']) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
@@ -445,7 +445,7 @@
                 <span>Polygon Color Table</span>
                 <span style="overflow: visible; position: relative;">
                   <button title="Settings" class="btn btn-sm btn-clean btn-icon-md" style="float:left" (click)="toggleColorTableSettings('polygon-color')"><i class="pi pi-cog"></i></button>
-                    <div id="polygonColorTableSettings" class="dropdown-menu" style="display: none;">
+                    <div id="polygonColorTableSettings" class="dropdown-menu" style="display: none;" (mouseleave)="closeSettingsPane('polygonColorTableSettings')">
                         <button id="polygonColorCounts" class="dropdown-item" (click)="toggleTableColumns('polygon-color', 'tableCounts')">
                             <span>Show Counts</span>
                             <i [className]="this.widgets['polygon-color-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
