@@ -1,0 +1,58 @@
+.primeng-datatable-container div.ui-chkbox-box {
+  color: #57625F !important;
+}
+.primeng-datatable-container div.ui-chkbox-box.ui-state-active {
+  border: 1px solid #BDD4CF;
+  background-color: #fff;
+}
+.primeng-datatable-container td {
+  border-left: 1px solid #ececec !important;
+}
+.primeng-datatable-container table thead tr th {
+  background-color: #e6e6e6 !important;
+}
+.primeng-datatable-container table thead tr th.ui-state-highlight {
+  color: #58DCC2 !important;
+}
+.primeng-datatable-container table tbody tr:nth-child(even) {
+  background-color: #F3FBF9 !important;
+}
+.primeng-datatable-container table tbody tr.ui-state-highlight {
+  background-color: #58DCC2 !important;
+  color: #fff !important;
+}
+.primeng-datatable-container table tbody tr.ui-table-even.ui-state-highlight {
+  color: #212827;
+}
+.primeng-paging-container .ui-paginator span a {
+  color: #58DCC2 !important;
+}
+.primeng-paging-container .ui-paginator span a.ui-state-active {
+  background: #6ACAB6;
+  color: #fff !important;
+}
+.primeng-paging-container .ui-paginator span a:hover {
+  background-color: #DCF3EE;
+}
+.primeng-paging-container .ui-paginator span a:hover.ui-state-active {
+  background-color: #8BD9C9 !important;
+}
+.primeng-paging-container .ui-paginator a {
+  background-color: #ECF7F5;
+  color: #fff !important;
+}
+.primeng-paging-container .ui-paginator a:hover {
+  background-color: #DCF3EE;
+}
+.primeng-paging-container .ui-paginator a:hover.ui-state-active {
+  background-color: #8BD9C9 !important;
+  color: #fff !important;
+}
+.primeng-paging-container .ui-paginator a span {
+  color: #58DCC2 !important;
+}
+.ui-table-footer {
+  background: none !important;
+  border: 1px solid #ececec;
+  background-color: #f5f5f5 !important;
+}
