@@ -2000,7 +2000,13 @@ export class CommonService extends AppComponentBase implements OnInit {
         });
     };
 
-    
+
+    hasSeq = x => {
+        if (x.seq.includes("a") || x.seq.includes("c") || x.seq.includes("g") || x.seq.includes("t")){
+            return true;
+        }
+        return false;
+    }
 
     getDM(): Promise<any> {
         const start = Date.now();
@@ -2010,7 +2016,10 @@ export class CommonService extends AppComponentBase implements OnInit {
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
-                let labels = this.session.data.nodes.map(d => d._id);
+                console.log(this.temp.matrix);
+                console.log(this.session.data.nodes.filter(this.hasSeq).map(d => d._id).length);
+                console.log(this.session.data.nodes.map(d => d._id).length);
+                let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
                 labels = labels.sort();
                 let metric = this.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
@@ -2021,16 +2030,15 @@ export class CommonService extends AppComponentBase implements OnInit {
                     dm[i][i] = 0;
                     let source = labels[i];
                     let row = this.temp.matrix[source];
-                    if (!row) {
-                        console.error('Incompletely populated temp.matrix! Couldn\'t find ' + source);
-                        continue;
-                    }
-                    for (let j = 0; j < i; j++) {
-                        const link = row[labels[j]];
-                        if (link) {
-                            dm[i][j] = dm[j][i] = link[metric];
-                        } else {
-                            dm[i][j] = dm[j][i] = null;
+                    if (row) {
+                        for (let j = 0; j < i; j++) {
+                            const link = row[labels[j]];
+                            if (link && link["distanceOrigin"] === "Genetic Distance") {
+                                console.log(source + " " + labels[j]);
+                                dm[i][j] = dm[j][i] = link[metric];
+                            } else {
+                                dm[i][j] = dm[j][i] = null;
+                            }
                         }
                     }
                 }
@@ -2059,7 +2067,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.getDM().then(dm => {
                 this.computer.compute_treeWorker.postMessage({
                     // labels: Object.keys(this.temp.matrix).sort(), <- This doesn't work because temp.matrix retains blank objects
-                    labels: this.session.data.nodes.map(a => a._id),
+                    labels: this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
                     matrix: dm,
                     round: this.session.style.widgets["tree-round"]
                 });
