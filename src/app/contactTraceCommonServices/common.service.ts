@@ -1,4 +1,4 @@
-﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -932,7 +932,7 @@ export class CommonService extends AppComponentBase implements OnInit {
       
         const links = microbeData.links.map((link, i) => ({
           ...link, // Spread existing properties
-          id : 'edge-' + i, // If 
+          id : link.id, //'edge-' + i, // If 
           source: link.source, // Ensure source is correctly set
           target: link.target, // Ensure target is correctly set
           group: link.cluster ?? null, // Ensure group is set, default to null if undefined
@@ -2246,17 +2246,6 @@ align(params): Promise<any> {
 
 
     updateNetworkVisuals(silent: boolean = false) {
-        console.log('--- Update network visuals called- silent: ', silent);
-        console.log('network nodes: ', this.session.data.nodes);
-
-        // if nodes have node with id 30576_KF773440_B96cl58    
-        if (this.session.data.nodes.some(node => node._id ==  '30576_KF773440_B96cl58')) {
-            console.log('--- node 1id!!: ', this.session.data.nodes[0]);
-        }  else {
-            console.log('--- node 2id!!: ', this.session.data.nodes[0]);
-        }
-        console.log('network links: ', this.session.data.links);
-        console.log('network clusters: ', this.session.data.clusters);
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -3231,9 +3220,6 @@ align(params): Promise<any> {
             //     console.log('setting link vis 2: ', _.cloneDeep(link));
             // }
 
-            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
-                console.log('-----link is 2: ', _.cloneDeep(link));
-            }
 
             if (visible && showNN && !overrideNN) {
                 visible = visible && link.nn;
@@ -3256,20 +3242,11 @@ align(params): Promise<any> {
                 link.origin = this.session.style.widgets['link-origin-array-order'];
             }
             
-            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
-                console.log('-----link is 3: ', _.cloneDeep(link));
-            }
 
 
 
             link.visible = visible;
 
-            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-                console.log('-----link2: ', _.cloneDeep(link));
-            }
-            // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
-            //     console.log('link color 12345: ', _.cloneDeep(link));
-            // }
 
         }
 

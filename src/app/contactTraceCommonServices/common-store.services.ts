@@ -48,9 +48,6 @@ export class CommonStoreService {
 
   private currentThresholdStepSize: Number = 0.001;
 
-  // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-  private _twoD_saveNodePos$ = new BehaviorSubject<boolean>(null);
-  twoD_saveNodePos$ = this._twoD_saveNodePos$.asObservable();
 
   constructor() {}
 
@@ -158,11 +155,4 @@ export class CommonStoreService {
     return this.currentThresholdStepSize;
   }
 
-  // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-  get twoD_saveNodePosValue(): boolean {
-    return this._twoD_saveNodePos$.value;
-  }
-  setTwoD_saveNodePos(value: boolean): void {
-    this.updateValue(this._twoD_saveNodePos$, value);
-  }
 }
