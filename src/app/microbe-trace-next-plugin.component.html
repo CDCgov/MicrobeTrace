@@ -164,11 +164,11 @@
                     <a class="here-link primary" for="fileDropRef">here</a>
                     <span class="primary"> or Drag & Drop files to load data</span>
                 </div>
-                <div class="add-btns primary">
+                <!-- <div class="add-btns primary"> -->
                     <!-- TODO: add back in when recall is ready-->
                     <!-- <button mat-raised-button color="primary" class="recall" (click)="recallClicked()">Recall Previous Session</button> -->
-                    <button mat-raised-button color="primary" (click)="continueClicked()">Continue with Sample Dataset</button>
-                </div>
+                    <!-- <button mat-raised-button color="primary" (click)="continueClicked()">Continue with Sample Dataset</button> -->
+                <!-- </div> -->
             </div>
             <!-- <div id="onload-container" class="launch-options-container primary">
                 <span class="onload-bold">Onload Settings:</span>
@@ -372,19 +372,7 @@
             </div>
         </p-dialog><!-- /.modal -->
 
-        <p-dialog id="session-recall-modal" [(visible)]="displayRecallStashDialog" header="Recall Stash">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div #stashes id="recall-stashes-available" class="table-sm"></div>
-
-                    <div class="modal-footer">
-                        <button *ngIf="!HideThisForNow" type="button" class="btn btn-danger" id="recall-delete-stash" (click)="DisplayRecallStashDialog('Delete')">Delete</button>
-                        <button type="button" class="btn" (click)="DisplayRecallStashDialog('Cancel')">Cancel</button>
-                        <button type="button" class="btn btn-success" id="recall-load-stash" (click)="DisplayRecallStashDialog('Recall')">Recall</button>
-                    </div>
-                </div><!-- /.modal-content -->
-            </div><!-- /.modal-dialog -->
-        </p-dialog><!-- /.modal -->
+       
 
         <p-dialog id="open-auspice-url" [(visible)]="displayUrlDialog" header="Open Auspice JSON via URL">
             <div class="modal-dialog" role="document">

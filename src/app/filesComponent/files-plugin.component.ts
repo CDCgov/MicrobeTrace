@@ -580,26 +580,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.displayFileSettings = !this.displayFileSettings;
   }
 
-  openExport() {
-
-  }
-
-  openCenter() {
-
-  }
-
-  //openPinAllNodes() {
-
-
-  //}
-
-  openRefreshScreen() {
-
-  }
-
-  openSelectDataSetScreen() {
-
-  }
 
   /**
    * Opens/Closes Sequence Controls modal/dialog box
@@ -617,16 +597,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('---loadDefaultVisualization Called - stop loading modal');
 
-    // setTimeout(() => {
-
-      // this.commonService.session.messages = [];
-      // this.messages = [];
-      // $('#loading-information').html('');
       $('#launch').prop('disabled', false).focus();
 
       this.displayloadingInformationModal = false;
-
-    // }, 1000);
 
     console.log('---loadDefaultVisualization End - Lodi');
 
@@ -639,10 +612,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * @param {string} msg message to add to messages arrays 
    */
   showMessage(msg: string) {
-
-    // this.messages.push(msg);
-    // this.commonService.session.messages.push(msg);
-    // $('#loading-information').html(this.commonService.session.messages.join('<br>'));
 
     this.store.setLoadingMessageUpdated(msg);
   }
