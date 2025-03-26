@@ -656,35 +656,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             })
         }
     }
-    // // A helper function that uses D3 to assign (x, y) to each node.
-    // precomputePositionsWithD3(nodes: any[], links: any[]): { nodes: any[], links: any[] } {
-
-    //     // D3 requires each link to have `source` and `target` references
-    //     // that match the node objects or node IDs. Typically:
-    //     //    forceLink(links).id(d => d.id)
-    //     // if your nodes have an 'id' property.
-    //     // If your node objects use something else, adapt accordingly.
-    // console.log('--- TwoD precomputePositionsWithD3 called links: ', _.cloneDeep(links)
-    //     , 'nodes: ', nodes
-    // );
-    //     const simulation = d3f.forceSimulation(nodes)
-    //     .force('charge', d3f.forceManyBody().strength(-30))
-    //     .force('link', d3f.forceLink(links).id((d: any) => d.id).distance(50))
-    //     .force('center', d3f.forceCenter(0, 0))
-    //     .stop(); // stop auto-stepping to let us do it manually
-    
-    //     // Manually "tick" the simulation to run it to completion.
-    //     // The exact number of ticks is up to you.  
-    //     // 100-300 is typical. More ticks => more stable layout => more time.
-    //     const maxTicks = 300;
-    //     for (let i = 0; i < maxTicks; i++) {
-    //     simulation.tick();
-    //     }
-    
-    //     // Now each node in `nodes` has x,y set.
-    //     // Return them with the links as well, in case we want them.
-    //     return { nodes, links };
-    // }
 
     /**
      * Updates the saved postion of a node when it is dragged by the user
