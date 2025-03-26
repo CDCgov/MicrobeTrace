@@ -626,6 +626,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // launching new network, so set network rendered to false to start loading modal
     this.store.setNetworkRendered(false);
    
+    this.store.setSettingsLoaded(false);
 
     this.commonService.cleanupData();
 
