@@ -2570,9 +2570,10 @@ align(params): Promise<any> {
 	 */
     public createLinkColorMap() {
 
-        console.log('create link color map');
         // 1) Gather
         const linkColorVariable = this.session.style.widgets['link-color-variable'];
+
+        console.log('create link color map: ', linkColorVariable);
 
         if (linkColorVariable == "None") {
             this.temp.style.linkColorMap = () => this.session.style.widgets["link-color"];
@@ -2590,7 +2591,12 @@ align(params): Promise<any> {
             this.session.style.linkColorsTableKeys = {};
             linkColors =  this.session.style.linkColorsTable[linkColorVariable] = [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2));
             this.session.style.linkColors = [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2));
-        } else {
+
+        } else if (this.session.style.linkColors) {
+            this.session.style.linkColorsTable = {};
+            this.session.style.linkColorsTableKeys = {};
+            linkColors = this.session.style.linkColors;
+        }else {
             this.session.style.linkColorsTable = {};
             this.session.style.linkColorsTableKeys = {};
             linkColors =  this.session.style.linkColorsTable[linkColorVariable] = d3.schemePaired;
