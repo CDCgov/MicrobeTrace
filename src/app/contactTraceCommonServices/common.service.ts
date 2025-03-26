@@ -1,4 +1,4 @@
-﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -932,7 +932,7 @@ export class CommonService extends AppComponentBase implements OnInit {
       
         const links = microbeData.links.map((link, i) => ({
           ...link, // Spread existing properties
-          id : 'edge-' + i, // If 
+          id : link.id, //'edge-' + i, // If 
           source: link.source, // Ensure source is correctly set
           target: link.target, // Ensure target is correctly set
           group: link.cluster ?? null, // Ensure group is set, default to null if undefined
@@ -1061,7 +1061,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (extension == 'microbetrace') {
             this.session = this.sessionSkeleton();
 
-            this.applySession(data);
+            return this.applySession(data);
         } else {
             if (data.meta && data.tree) {
               // this.applyAuspice(data);
@@ -1080,7 +1080,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     /**
      * Updates commonService.session with information from stashObject. Variables updated include data, files, state, style, and layout.
      */
-    applySession(stashObject: StashObjects) {
+    async applySession(stashObject: StashObjects) {
         //If anything here seems eccentric, assume it's to maintain compatibility with
         //session files from older versions of MicrobeTrace.
         $("#launch").prop("disabled", true);
@@ -1890,7 +1890,13 @@ align(params): Promise<any> {
   }
   
 
-    
+
+    hasSeq = x => {
+        if (x.seq.includes("a") || x.seq.includes("c") || x.seq.includes("g") || x.seq.includes("t")){
+            return true;
+        }
+        return false;
+    }
 
     getDM(): Promise<any> {
         const start = Date.now();
@@ -1900,7 +1906,10 @@ align(params): Promise<any> {
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
-                let labels = this.session.data.nodes.map(d => d._id);
+                console.log(this.temp.matrix);
+                console.log(this.session.data.nodes.filter(this.hasSeq).map(d => d._id).length);
+                console.log(this.session.data.nodes.map(d => d._id).length);
+                let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
                 labels = labels.sort();
                 let metric = this.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
@@ -1911,16 +1920,15 @@ align(params): Promise<any> {
                     dm[i][i] = 0;
                     let source = labels[i];
                     let row = this.temp.matrix[source];
-                    if (!row) {
-                        console.error('Incompletely populated temp.matrix! Couldn\'t find ' + source);
-                        continue;
-                    }
-                    for (let j = 0; j < i; j++) {
-                        const link = row[labels[j]];
-                        if (link) {
-                            dm[i][j] = dm[j][i] = link[metric];
-                        } else {
-                            dm[i][j] = dm[j][i] = null;
+                    if (row) {
+                        for (let j = 0; j < i; j++) {
+                            const link = row[labels[j]];
+                            if (link && link["distanceOrigin"] === "Genetic Distance") {
+                                console.log(source + " " + labels[j]);
+                                dm[i][j] = dm[j][i] = link[metric];
+                            } else {
+                                dm[i][j] = dm[j][i] = null;
+                            }
                         }
                     }
                 }
@@ -1949,7 +1957,7 @@ align(params): Promise<any> {
               // Get a fresh tree worker from the factory.
               const treeWorker = this.computer.getTreeWorker();
               treeWorker.postMessage({
-                labels: this.session.data.nodes.map(a => a._id),
+                labels: this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
                 matrix: dm,
                 round: this.session.style.widgets["tree-round"]
               });
@@ -2241,21 +2249,11 @@ align(params): Promise<any> {
 
         // }, 1000);
         $(".hideForHIVTrace").css("display", "flex");
+        this.store.updatecurrentThresholdStepSize(this.session.style.widgets["default-distance-metric"]);
     };
 
 
     updateNetworkVisuals(silent: boolean = false) {
-        console.log('--- Update network visuals called- silent: ', silent);
-        console.log('network nodes: ', this.session.data.nodes);
-
-        // if nodes have node with id 30576_KF773440_B96cl58    
-        if (this.session.data.nodes.some(node => node._id ==  '30576_KF773440_B96cl58')) {
-            console.log('--- node 1id!!: ', this.session.data.nodes[0]);
-        }  else {
-            console.log('--- node 2id!!: ', this.session.data.nodes[0]);
-        }
-        console.log('network links: ', this.session.data.links);
-        console.log('network clusters: ', this.session.data.clusters);
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -3230,9 +3228,6 @@ align(params): Promise<any> {
             //     console.log('setting link vis 2: ', _.cloneDeep(link));
             // }
 
-            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
-                console.log('-----link is 2: ', _.cloneDeep(link));
-            }
 
             if (visible && showNN && !overrideNN) {
                 visible = visible && link.nn;
@@ -3255,20 +3250,11 @@ align(params): Promise<any> {
                 link.origin = this.session.style.widgets['link-origin-array-order'];
             }
             
-            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
-                console.log('-----link is 3: ', _.cloneDeep(link));
-            }
 
 
 
             link.visible = visible;
 
-            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-                console.log('-----link2: ', _.cloneDeep(link));
-            }
-            // if((link.source === "30582_KF773578_H96cl11" && link.target === "30576_KF773439_B96cl57") || (link.source === "30576_KF773439_B96cl57" && link.target === "30582_KF773578_H96cl11")) {
-            //     console.log('link color 12345: ', _.cloneDeep(link));
-            // }
 
         }
 

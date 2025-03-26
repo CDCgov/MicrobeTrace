@@ -237,7 +237,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     networkUpdatedSubscription: any;
     settingsLoadedSubscription: any;
     private styleFileSub: any;
-    private saveNodePosSub: any;
     constructor(injector: Injector,
         private eventManager: EventManager,
         public commonService: CommonService,
@@ -331,13 +330,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ngAfterViewInit(): void {
 
         console.log('--- TwoD ngAfterViewInit called');
-          // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-        this.saveNodePosSub = this.store.twoD_saveNodePos$.subscribe(() => {
-
-            if(this.commonService.activeTab === '2D Network') {
-                this.saveNodePos();
-            }
-        })
     }
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
@@ -391,13 +383,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             }
         } else {
-
+            node.label = this.getNodeLabel(node);
             return {
                 data: {
                     id: node.id,
-                    label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
+                    //label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                    nodeSize: this.getNodeSize(node), // Existing node size
+                    nodeSize: Number(this.getNodeSize(node)), // Existing node size
                     nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
                     borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                     selectedBorderColor: this.widgets['selected-color'],
@@ -567,7 +559,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cy.on('mouseover', 'node', (evt) => {
             const node = evt.target;
             this.showNodeTooltip(node.data(), evt.originalEvent);
-            console.log('--- TwoD mouseover node: ', node.data());
 
             // Set cursor to grab
             $('html,body').css('cursor', 'grab');
@@ -665,6 +656,35 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             })
         }
     }
+    // // A helper function that uses D3 to assign (x, y) to each node.
+    // precomputePositionsWithD3(nodes: any[], links: any[]): { nodes: any[], links: any[] } {
+
+    //     // D3 requires each link to have `source` and `target` references
+    //     // that match the node objects or node IDs. Typically:
+    //     //    forceLink(links).id(d => d.id)
+    //     // if your nodes have an 'id' property.
+    //     // If your node objects use something else, adapt accordingly.
+    // console.log('--- TwoD precomputePositionsWithD3 called links: ', _.cloneDeep(links)
+    //     , 'nodes: ', nodes
+    // );
+    //     const simulation = d3f.forceSimulation(nodes)
+    //     .force('charge', d3f.forceManyBody().strength(-30))
+    //     .force('link', d3f.forceLink(links).id((d: any) => d.id).distance(50))
+    //     .force('center', d3f.forceCenter(0, 0))
+    //     .stop(); // stop auto-stepping to let us do it manually
+    
+    //     // Manually "tick" the simulation to run it to completion.
+    //     // The exact number of ticks is up to you.  
+    //     // 100-300 is typical. More ticks => more stable layout => more time.
+    //     const maxTicks = 300;
+    //     for (let i = 0; i < maxTicks; i++) {
+    //     simulation.tick();
+    //     }
+    
+    //     // Now each node in `nodes` has x,y set.
+    //     // Return them with the links as well, in case we want them.
+    //     return { nodes, links };
+    // }
 
     /**
      * Updates the saved postion of a node when it is dragged by the user
@@ -1133,22 +1153,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 "</tr>"
             ).append(cell);
 
-            console.log('polygonColorTable1: ', polygonColorTable);
-            console.log('polygonColorRow: ', row);
-
             polygonColorTable.append(row);
-
-            console.log($('#polygon-color-table').length); // Should be 1
-            console.log($('#polygon-color-table').html()); // Check current HTML content
-
         });
-
-        console.log('polygonColorTable2: ', polygonColorTable);
-
-
-        console.log($('#polygon-color-table').length); // Should be 1
-            console.log($('#polygon-color-table').html()); // Check current HTML content
-
 
         // PRE D3
         // this.commonService.temp.style.polygonColorMap = d3
@@ -2388,6 +2394,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['node-symbol-variable'] = variable;
 
             if (variable === 'None' && !isEditable) return;
+            if (variable == 'None') return;
 
             let values = [];
             let aggregates = {};
@@ -2822,7 +2829,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
         if (table == 'polygon-color') {
-            console.log('cool!')
             this.updateCountFreqTable(table);
         }
     }
@@ -3345,9 +3351,6 @@ scaleLinkWidth() {
 }
     /**
      * centers the view
-     * @param thing undefined
-     * @param bounds undefined
-     * @returns 
      */
     fit() {
         if (this.cy) this.cy.fit(this.cy.nodes(), 30);
@@ -3461,7 +3464,7 @@ private _partialUpdate() {
         });
         networkData.links.forEach((link, i) => {
             // Set a unique link id if desired
-            link.id =  i.toString();  // or link.index.toString()
+            //link.id =  i.toString();  // or link.index.toString()
         
             // console.log('--- TwoD link: ', link.source);
             // If link.source is an object, grab its _id and convert to string
@@ -3562,7 +3565,7 @@ private _partialUpdate() {
         this.cy.nodes(':visible').forEach(node => {
             const position = this.nodePositions.get(node.id());
             if (position) {
-                node.position(position);
+                node.position({x: position.x, y: position.y });
             }
         });
 
@@ -3587,8 +3590,6 @@ private _partialUpdate() {
         this.destroy$.complete();
 
         this.styleFileSub.unsubscribe();
-          // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-        this.saveNodePosSub.unsubscribe();
 
         this.settingsLoadedSubscription.unsubscribe();
 
@@ -3684,6 +3685,9 @@ private _partialUpdate() {
         this.onNodeRadiusVariableChange(this.SelectedNodeRadiusVariable);
 
         //Nodes|Size
+        if (Number(this.widgets['node-radius']) > 100 || Number(this.widgets['node-radius']) < 0) {
+            this.widgets['node-radius'] = 20;
+        }
         this.SelectedNodeRadiusSizeVariable = this.widgets['node-radius'].toString();
         this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
 
@@ -3776,7 +3780,7 @@ private _partialUpdate() {
     updateNodeSizes() {
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
-            const newSize = this.getNodeSize(node.data());
+            const newSize = Number(this.getNodeSize(node.data()));
             node.data('nodeSize', newSize);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes

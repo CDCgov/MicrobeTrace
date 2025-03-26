@@ -226,8 +226,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
     @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
 
-    currentThresholdStepSize: Number = 0.001
-
     public HideThisForNow: boolean = false;
 
     files: any[] = [];
@@ -1060,16 +1058,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onMinimumClusterSizeChanged(silent: boolean = false) {
 
-        //consol nodes from commonService
-
         console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
         this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
 
-
         let val = parseInt(this.SelectedClusterMinimumSizeVariable);
-
         this.commonService.session.style.widgets["cluster-minimum-size"] = val;
-
 
         if(this.commonService.session.data.nodes.length === 0) {
             return;
@@ -1082,17 +1075,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         if(!silent) {
-            this.store.setTwoD_saveNodePos(true); // test if needed when this function is working properly
-            this.commonService.setLinkVisibility(true);
-            this.commonService.updateNetworkVisuals();
+            let previousNumberOfVisibleClusters = this.commonService.session.data.clusters.filter(cluster => cluster.visible).length;
+            this.commonService.setClusterVisibility(true);
+            // if number of visible clusters changed, then update network
+            if (previousNumberOfVisibleClusters != this.commonService.session.data.clusters.filter(cluster => cluster.visible).length) {
+                this.commonService.setNodeVisibility(true);
+                this.commonService.setLinkVisibility(true);
+                this.commonService.updateStatistics();
+                $(document).trigger("node-visibility"); // this.store.setNetworkUpdated(true); leads to incorrect link being removed
+            }
         }
 
-        // console.log('onMinimumClusterSizeChanged called');
-
-        console.log('tagClusterslink vis min cluster size');
-
-
-
+        this._lastClusterMinimum = val;
     }
 
     private _lastLinkSortValue: string = this.commonService.session.style.widgets["link-sort-variable"];
@@ -2435,7 +2429,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 return;
             }
             
-            if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart") {
+            if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart" || v === "Waterfall") {
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
             } else {
@@ -2463,10 +2457,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
-            this.updatecurrentThresholdStepSize();
         });
         
-
+        this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
     }
 
@@ -3478,8 +3471,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.NewSession();
     }
 
-    updatecurrentThresholdStepSize() {
-        this.currentThresholdStepSize = this.SelectedDistanceMetricVariable === 'snps' ? 1 : 0.001
+    getCurrentThresholdStepSize() {
+        return this.store.currentThresholdStepSizeValue;
     }
 
     /**
@@ -3488,9 +3481,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
   onDistanceMetricChanged = () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
-    this.updatecurrentThresholdStepSize();
+    this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 1)
         .val(7)
         .trigger('change');
@@ -3498,7 +3491,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.SelectedLinkThresholdVariable = '7';
       this.onLinkThresholdChanged();
     } else {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 0.001)
         .val(0.015)
         .trigger('change');
