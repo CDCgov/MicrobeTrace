@@ -80,9 +80,10 @@ import { GanttChartService } from './visualizationComponents/GanttComponent/gant
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
-// import * as PlotlyJS from 'plotly.js-dist-min';
-// import { PlotlyModule } from 'angular-plotly.js';
+import * as PlotlyJS from 'plotly.js-dist-min';
+import { PlotlyModule } from 'angular-plotly.js';
 
+PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
 
@@ -177,6 +178,7 @@ export class TestedComponent {
         AppUrlService,
         GanttChartService,
         GoldenLayoutComponentService,
+        PlotlyModule,
         provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
     ] })
 export class AppModule { }
