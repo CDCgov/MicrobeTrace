@@ -237,7 +237,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     networkUpdatedSubscription: any;
     settingsLoadedSubscription: any;
     private styleFileSub: any;
-    private saveNodePosSub: any;
     constructor(injector: Injector,
         private eventManager: EventManager,
         public commonService: CommonService,
@@ -331,13 +330,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ngAfterViewInit(): void {
 
         console.log('--- TwoD ngAfterViewInit called');
-          // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-        this.saveNodePosSub = this.store.twoD_saveNodePos$.subscribe(() => {
-
-            if(this.commonService.activeTab === '2D Network') {
-                this.saveNodePos();
-            }
-        })
     }
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
@@ -391,13 +383,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             }
         } else {
-
+            node.label = this.getNodeLabel(node);
             return {
                 data: {
                     id: node.id,
-                    label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
+                    //label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                    nodeSize: this.getNodeSize(node), // Existing node size
+                    nodeSize: Number(this.getNodeSize(node)), // Existing node size
                     nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
                     borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                     selectedBorderColor: this.widgets['selected-color'],
@@ -567,7 +559,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cy.on('mouseover', 'node', (evt) => {
             const node = evt.target;
             this.showNodeTooltip(node.data(), evt.originalEvent);
-            console.log('--- TwoD mouseover node: ', node.data());
 
             // Set cursor to grab
             $('html,body').css('cursor', 'grab');
@@ -654,36 +645,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           tick();
         });
       }
-
-    // // A helper function that uses D3 to assign (x, y) to each node.
-    // precomputePositionsWithD3(nodes: any[], links: any[]): { nodes: any[], links: any[] } {
-
-    //     // D3 requires each link to have `source` and `target` references
-    //     // that match the node objects or node IDs. Typically:
-    //     //    forceLink(links).id(d => d.id)
-    //     // if your nodes have an 'id' property.
-    //     // If your node objects use something else, adapt accordingly.
-    // console.log('--- TwoD precomputePositionsWithD3 called links: ', _.cloneDeep(links)
-    //     , 'nodes: ', nodes
-    // );
-    //     const simulation = d3f.forceSimulation(nodes)
-    //     .force('charge', d3f.forceManyBody().strength(-30))
-    //     .force('link', d3f.forceLink(links).id((d: any) => d.id).distance(50))
-    //     .force('center', d3f.forceCenter(0, 0))
-    //     .stop(); // stop auto-stepping to let us do it manually
-    
-    //     // Manually "tick" the simulation to run it to completion.
-    //     // The exact number of ticks is up to you.  
-    //     // 100-300 is typical. More ticks => more stable layout => more time.
-    //     const maxTicks = 300;
-    //     for (let i = 0; i < maxTicks; i++) {
-    //     simulation.tick();
-    //     }
-    
-    //     // Now each node in `nodes` has x,y set.
-    //     // Return them with the links as well, in case we want them.
-    //     return { nodes, links };
-    // }
 
     // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
     saveNodePos() {
@@ -1163,22 +1124,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 "</tr>"
             ).append(cell);
 
-            console.log('polygonColorTable1: ', polygonColorTable);
-            console.log('polygonColorRow: ', row);
-
             polygonColorTable.append(row);
-
-            console.log($('#polygon-color-table').length); // Should be 1
-            console.log($('#polygon-color-table').html()); // Check current HTML content
-
         });
-
-        console.log('polygonColorTable2: ', polygonColorTable);
-
-
-        console.log($('#polygon-color-table').length); // Should be 1
-            console.log($('#polygon-color-table').html()); // Check current HTML content
-
 
         // PRE D3
         // this.commonService.temp.style.polygonColorMap = d3
@@ -1582,63 +1529,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d the node right clicked
      */
     showContextMenu(d) {
-        // d3.event.preventDefault();
-        // this.hideTooltip();
-        // $('#copyID').attr('data-clipboard-text', d._id);
-        // if (d.seq === null || d.seq === undefined || d.seq === "") {
-        //     $('#copySeq').prop('disabled', true);
-        // } else {
-        //     $('#copySeq').prop('disabled', false).attr('data-clipboard-text', d.seq);
-        // }
 
-        // d3.select('#viewAttributes').on('click', () => {
-
-        //     this.ContextSelectedNodeAttributes = [];
-
-        //     this.hideContextMenu();
-
-        //     this.ShowNetworkAttributes = true;
-        //     this.cdref.detectChanges();
-
-        //     let nd = this.commonService.session.data.nodes.find(nd => nd._id == d._id);
-        //     for (let attribute in nd) {
-        //         if (attribute[0] == '_' && attribute !== '_id' || attribute == 'data') continue; // DC: where is data being added as an attribute to each node should data be removed here
-        //         this.ContextSelectedNodeAttributes.push({attribute: this.commonService.titleize(attribute), value: d[attribute]});
-        //     }
-
-        //     this.ContextSelectedNodeAttributes = this.ContextSelectedNodeAttributes
-        //         .filter(x=>x.attribute !== "Seq" && x.value !== undefined && x.value !== null && x.value !== "" )
-        //         .concat(this.ContextSelectedNodeAttributes.filter(x=>x.attribute !== "Seq" && (x.value === undefined || x.value === null || x.value === "" )))
-        //         .concat(this.ContextSelectedNodeAttributes.filter(x=>x.attribute === "Seq"));
-
-        // }).node().focus();
-        // if (d.fixed) {
-        //     $('#pinNode').text('Unpin Node').on('click', () => {
-
-        //         d.fx = null;
-        //         d.fy = null;
-        //         d.fixed = false;
-        //         this.force.alpha(0.3).alphaTarget(0).restart();
-        //         this.hideContextMenu();
-        //     });
-
-        // } else {
-        //     $('#pinNode').text('Pin Node').on('click', () => {
-
-        //         d.fx = d.x;
-        //         d.fy = d.y;
-        //         d.fixed = true;
-        //         this.hideContextMenu();
-        //     });
-        // }
-
-        // let [X, Y] = this.getRelativeMousePosition();
-        // $('#context-menu').css({
-        //     'z-index': 1000,
-        //     'display': 'block',
-        //     'left': (X-200) + 'px',
-        //     'top': (Y+30) + 'px',
-        // }).animate({ 'opacity': 1 }, 80);
     };
 
     /**
@@ -1826,143 +1717,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return typeof a == "number";
     };
 
-    /**
-     * This function updates the nodes based on node-symbol, node-symbol-variable, node-radius, node-radius-variable, node-radius-min, node-radius-max.
-     * It does not add new nodes to the DOM.
-     */
-    redrawNodes() {
-
-
-        //Things to track in the function:
-        //* Shapes:
-        // let type = d3[this.widgets['node-symbol']];
-        let symbolVariable = this.widgets['node-symbol-variable'];
-
-        // // Custom Shape Selected
-        // if (type === undefined) {
-        //     type = this.customShapes.shapes[this.widgets['node-symbol']];
-        // }
-
-        // //* Sizes:
-        // let defaultSize = this.widgets['node-radius'];
-        // let size = defaultSize, med = defaultSize, oldrng, min, max;
-        // let sizeVariable = this.widgets['node-radius-variable'];
-        // let scale;
-        // let nodes;
-        // if (sizeVariable !== 'None') {
-        //     if (this.widgets["timeline-date-field"] == 'None') nodes = this.commonService.session.network.nodes;
-        //     else nodes = this.commonService.session.network.timelineNodes;
-        //     let n = this.commonService.session.network.nodes.length;
-        //     min = Number.MAX_VALUE;
-        //     max = Number.MIN_VALUE;
-        //     for (let i = 0; i < n; i++) {
-        //         let size = this.commonService.session.network.nodes[i][sizeVariable];
-        //         if (typeof size == 'undefined') continue;
-        //         if (size < min) min = size;
-        //         if (size > max) max = size;
-        //     }
-        //     oldrng = max - min;
-        //     med = oldrng / 2;
-
-        //     let maxWidth = this.widgets['node-radius-max'];
-        //     let minWidth = this.widgets['node-radius-min'];
-        //     // scale = d3.scaleLinear()
-        //     // .domain([min, max])
-        //     // .range([minWidth, maxWidth]);
-        //     }
-
-        // nodes = this.svg.select('g.nodes').selectAll('g').data(this.commonService.session.network.nodes);
-
-        // // TODO: Hides table row by default if no symbol variable - clean up
-        // if(symbolVariable === 'None') {
-        //     $('#node-symbol-table-row').slideUp();
-        // }
-
-        // // console.log('nodes: ', nodes);
-
-        // let that = this;
-
-        // nodes.selectAll('path').each(function (d) {
-
-        //     if (symbolVariable !== 'None') {
-
-        //         // type = d3[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
-
-        //         // if (type === undefined) {
-        //         //     type = that.customShapes.shapes[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
-        //         // }
-
-        //     } 
-        //     if (sizeVariable !== 'None') {
-        //       size = d[sizeVariable];
-        //       if (!that.isNumber(size)) size = med;
-        //       size = scale(size);
-        //     }
-
-        //     // d3.select(this).attr('d', d3.symbol().size(size).type(type));    
-
-        //   });
-    };
-
-    /**
-     * redraws/updates node borders based on node-border-width
-     */
-    private redrawNodeBorder() {
-        // let nodes = this.svg.select('g.nodes').selectAll('g').data(this.commonService.session.network.nodes);
-        // nodes
-        //   .selectAll('path')
-        //   .style('stroke', 'black')
-        //   .style('stroke-width', this.widgets['node-border-width']);
-    }
-
-    /**
-     * uses values from node-label-variable, node-label-size, and node-label-orietation to add/remove labels from the the nodes
-     */
-    redrawLabels() {
-
-        // let nodes = this.svg.select('g.nodes').selectAll('g').data(this.commonService.session.network.nodes).select('text'),
-        //     labelVar = this.widgets['node-label-variable'];
-        // if (labelVar == 'None') {
-        //     nodes.text('');
-        // } else {
-        //     let size = this.widgets['node-label-size'],
-        //         orientation = this.widgets['node-label-orientation'];
-        //     nodes
-        //         .text(n => n[labelVar])
-        //         .style('font-size', size + 'px');
-        //     switch (orientation) {
-        //         case 'Left':
-        //             nodes
-        //                 .attr('text-anchor', 'end')
-        //                 .attr('dx', -8)
-        //                 .attr('dy', (size - 4) / 2);
-        //             break;
-        //         case 'Top':
-        //             nodes
-        //                 .attr('text-anchor', 'middle')
-        //                 .attr('dx', 0)
-        //                 .attr('dy', 4 - size);
-        //             break;
-        //         case 'Bottom':
-        //             nodes
-        //                 .attr('text-anchor', 'middle')
-        //                 .attr('dx', 0)
-        //                 .attr('dy', size + 4);
-        //             break;
-        //         case 'Middle':
-        //             nodes
-        //                 .attr('text-anchor', 'middle')
-        //                 .attr('dx', 0)
-        //                 .attr('dy', (size - 4) / 2);
-        //             break;
-        //         default: //'right'
-        //             nodes
-        //                 .attr('text-anchor', 'start')
-        //                 .attr('dx', 8)
-        //                 .attr('dy', (size - 4) / 2);
-        //     }
-        // }
-    };
 
     /**
      * This is called when the variable used to grouped by/created polygons is changed
@@ -2520,7 +2274,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onNodeLabelOrientationChange(e) {
         this.widgets['node-label-orientation'] = e;
-        this.redrawLabels();
     }
 
     /**
@@ -2577,35 +2330,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
         }
-        // if(e !== 'None' && setVisibility){
-        //     this.NodeSymbolTableWrapperDialogSettings.setVisibility(true);
-        //     this.SelectedNetworkTableTypeVariable = "Show";
-
-        //     if (this.SelectedNodeSymbolVariable !== 'None') {
-
-        //         $('#node-symbol-row').slideUp();
-
-        //         //If hidden by default, unhide to perform slide up and down
-        //         if(!this.ShowNodeSymbolTable){
-        //             this.ShowNodeSymbolTable = true;
-        //         } else {
-        //             $('#node-symbol-table-row').slideDown();
-        //         }
-
-        //     // No shape by variable selected
-        //     // show shape, hide table 
-        //     } else {
-
-        //         $('#node-symbol-row').slideDown();
-        //         $('#node-symbol-table-row').slideUp();
-        //         this.onNodeSymbolTableChange('Hide');
-
-        //     }
-
-        // }
-
-
-        // this.cdref.detectChanges();
 
         this.generateNodeSymbolSelectionTable("#node-symbol-table", e);
     }
@@ -2641,6 +2365,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['node-symbol-variable'] = variable;
 
             if (variable === 'None' && !isEditable) return;
+            if (variable == 'None') return;
 
             let values = [];
             let aggregates = {};
@@ -3055,72 +2780,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return type;
 
         }
-
-        // // Custom Shape Selected
-        // if (type === undefined) {
-        //     type = this.customShapes.shapes[this.widgets['node-symbol']];
-        // }
-
-        // //* Sizes:
-        // let defaultSize = this.widgets['node-radius'];
-        // let size = defaultSize, med = defaultSize, oldrng, min, max;
-        // let sizeVariable = this.widgets['node-radius-variable'];
-        // let scale;
-        // let nodes;
-        // if (sizeVariable !== 'None') {
-        //     if (this.widgets["timeline-date-field"] == 'None') nodes = this.commonService.session.network.nodes;
-        //     else nodes = this.commonService.session.network.timelineNodes;
-        //     let n = this.commonService.session.network.nodes.length;
-        //     min = Number.MAX_VALUE;
-        //     max = Number.MIN_VALUE;
-        //     for (let i = 0; i < n; i++) {
-        //         let size = this.commonService.session.network.nodes[i][sizeVariable];
-        //         if (typeof size == 'undefined') continue;
-        //         if (size < min) min = size;
-        //         if (size > max) max = size;
-        //     }
-        //     oldrng = max - min;
-        //     med = oldrng / 2;
-
-        //     let maxWidth = this.widgets['node-radius-max'];
-        //     let minWidth = this.widgets['node-radius-min'];
-        //     // scale = d3.scaleLinear()
-        //     // .domain([min, max])
-        //     // .range([minWidth, maxWidth]);
-        //     }
-
-        // nodes = this.svg.select('g.nodes').selectAll('g').data(this.commonService.session.network.nodes);
-
-        // // TODO: Hides table row by default if no symbol variable - clean up
-        // if(symbolVariable === 'None') {
-        //     $('#node-symbol-table-row').slideUp();
-        // }
-
-        // // console.log('nodes: ', nodes);
-
-        // let that = this;
-
-        // nodes.selectAll('path').each(function (d) {
-
-        //     if (symbolVariable !== 'None') {
-
-        //         // type = d3[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
-
-        //         // if (type === undefined) {
-        //         //     type = that.customShapes.shapes[that.commonService.temp.style.nodeSymbolMap(d[symbolVariable])];
-        //         // }
-
-        //     } 
-        //     if (sizeVariable !== 'None') {
-        //       size = d[sizeVariable];
-        //       if (!that.isNumber(size)) size = med;
-        //       size = scale(size);
-        //     }
-
-        //     // d3.select(this).attr('d', d3.symbol().size(size).type(type));    
-
-        //   });
-
     }
 
     /**
@@ -3141,7 +2800,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
         if (table == 'polygon-color') {
-            console.log('cool!')
             this.updateCountFreqTable(table);
         }
     }
@@ -3361,32 +3019,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onLinkWidthChange(e) {
         this.widgets['link-width'] = e;
-        this.scaleLinkWidth();
-
-        // let scalar = this.widgets['link-width'];
-        // let variable = this.widgets['link-width-variable'];
-        // let vlinks = this.getVLinks();
-        // if (variable == 'None') return  scalar;
-        // let n = vlinks.length;
-        // let maxWidth = this.widgets['link-width-max'];
-        // let minWidth = this.widgets['link-width-min'];
-
-        // let max = -Infinity;
-        // let min = Infinity;
-        // for (let i = 0; i < n; i++) {
-        //     let l = vlinks[i][variable];
-        //     if (!this.isNumber(l)) return;
-        //     if (l > max) max = l;
-        //     if (l < min) min = l;
-        // }
-        // let mid = (max - min) / 2 + min;
-        // let scale = d3.scaleLinear()
-        //     .domain(this.widgets['link-width-reciprocal'] ? [max, min] : [min, max])
-        //     .range([minWidth, maxWidth]);
-        
-        // this.scaleLinkWidth();
-
-        
+        this.scaleLinkWidth();        
     }
 
     /**
@@ -3594,18 +3227,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * If exportFileType = 'svg' don't show advanced setting; otherwise do show them
-     * @param e string of filetype
-     */
-    // onNetworkExportFiletypeChange(e) {
-    //     if (e == "svg") {
-    //         this.ShowAdvancedExport = false;
-    //     }
-    //     else
-    //         this.ShowAdvancedExport = true;
-    // }
-
-    /**
      * Updates the color of nodes and transparency based on node-color-variable, the value from nodeColorMap and nodeAlphaMap, and whether the node is selected
      */
     updateNodeColors() {
@@ -3646,68 +3267,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     };
 
-
-    /**
-     * Updates the color of links and transparency based on link-color-variable and value from linkColorMap and linkAlphaMap
-     */
-    // updateLinkColor() {
-
-        // let variable = this.widgets['link-color-variable'];
-        // // console.log('updating variable: ',variable );
-        // let links = this.svg.select('g.links').selectAll('line');
-        // if (variable == 'None') {
-        //     let color = this.widgets['link-color'],
-        //         opacity = 1 - this.widgets['link-opacity'];
-        //     links
-        //         .attr('stroke', color)
-        //         .attr('opacity', opacity);
-
-        //     // this.context.microbeTrace.clearTable("#link-color-table-bottom");
-        // } else {
-        //     // this.context.microbeTrace.generateNodeLinkTable("#link-color-table-bottom", false);
-        //     if (variable == 'source' || variable == 'target') {
-        //         links
-        //         .data(this.getVLinks())
-        //         .attr('stroke', l => this.commonService.temp.style.linkColorMap(l[variable]['_id']))
-        //         .attr('opacity', l => this.commonService.temp.style.linkAlphaMap(l[variable]['_id']))
-        //         .attr('stroke-dasharray', l => {
-        //             //This quirky little algorithm creates the dasharray code necessary to make dash-y links.
-        //             let length = 15;
-        //             let out = new Array(l.origins * 2);
-        //             let ofs = new Array(l.origins).fill(1);
-        //             let ons = new Array(l.origins).fill(0);
-        //             ons[l.oNum] = 1;
-        //             ofs[l.oNum] = 0;
-        //             for (let i = 0; i < l.origins; i++) {
-        //                 out[2 * i] = ons[i] * length;
-        //                 out[2 * i + 1] = ofs[i] * length;
-        //             }
-        //             return out.join(', ');
-        //         });
-        //     } else {
-        //         links
-        //             .data(this.getVLinks())
-        //             .attr('stroke', l => this.commonService.temp.style.linkColorMap(l[variable]))
-        //             .attr('opacity', l => this.commonService.temp.style.linkAlphaMap(l[variable]))
-        //             .attr('stroke-dasharray', l => {
-        //                 //This quirky little algorithm creates the dasharray code necessary to make dash-y links.
-        //                 let length = 15;
-        //                 let out = new Array(l.origins * 2);
-        //                 let ofs = new Array(l.origins).fill(1);
-        //                 let ons = new Array(l.origins).fill(0);
-        //                 ons[l.oNum] = 1;
-        //                 ofs[l.oNum] = 0;
-        //                 for (let i = 0; i < l.origins; i++) {
-        //                     out[2 * i] = ons[i] * length;
-        //                     out[2 * i + 1] = ofs[i] * length;
-        //                 }
-        //                 return out.join(', ');
-        //             });
-        //     }
-        // }
-
-    //     this.debouncedRerender();
-    // };
 
     /**
      * Updates the width of the links using link-width, link-width-variable, link-width-max, link-width-min, and link-width-reciprocal
@@ -3763,9 +3322,6 @@ scaleLinkWidth() {
 }
     /**
      * centers the view
-     * @param thing undefined
-     * @param bounds undefined
-     * @returns 
      */
     fit() {
         if (this.cy) this.cy.fit(this.cy.nodes(), 30);
@@ -3879,7 +3435,7 @@ private _partialUpdate() {
         });
         networkData.links.forEach((link, i) => {
             // Set a unique link id if desired
-            link.id =  i.toString();  // or link.index.toString()
+            //link.id =  i.toString();  // or link.index.toString()
         
             // console.log('--- TwoD link: ', link.source);
             // If link.source is an object, grab its _id and convert to string
@@ -3980,7 +3536,7 @@ private _partialUpdate() {
         this.cy.nodes(':visible').forEach(node => {
             const position = this.nodePositions.get(node.id());
             if (position) {
-                node.position(position);
+                node.position({x: position.x, y: position.y });
             }
         });
 
@@ -4005,8 +3561,6 @@ private _partialUpdate() {
         this.destroy$.complete();
 
         this.styleFileSub.unsubscribe();
-          // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-        this.saveNodePosSub.unsubscribe();
 
         this.settingsLoadedSubscription.unsubscribe();
 
@@ -4102,6 +3656,9 @@ private _partialUpdate() {
         this.onNodeRadiusVariableChange(this.SelectedNodeRadiusVariable);
 
         //Nodes|Size
+        if (Number(this.widgets['node-radius']) > 100 || Number(this.widgets['node-radius']) < 0) {
+            this.widgets['node-radius'] = 20;
+        }
         this.SelectedNodeRadiusSizeVariable = this.widgets['node-radius'].toString();
         this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
 
@@ -4194,7 +3751,7 @@ private _partialUpdate() {
     updateNodeSizes() {
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
-            const newSize = this.getNodeSize(node.data());
+            const newSize = Number(this.getNodeSize(node.data()));
             node.data('nodeSize', newSize);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes

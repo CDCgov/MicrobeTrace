@@ -62,3 +62,4 @@ slr/*
 slr_linux.tgz
 .agignore
 
+.scignore

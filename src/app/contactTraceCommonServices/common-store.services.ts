@@ -46,9 +46,8 @@ export class CommonStoreService {
   private _FP_removeFiles$ = new BehaviorSubject<boolean>(null);
   FP_removeFiles$ = this._FP_removeFiles$.asObservable();
 
-  // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-  private _twoD_saveNodePos$ = new BehaviorSubject<boolean>(null);
-  twoD_saveNodePos$ = this._twoD_saveNodePos$.asObservable();
+  private currentThresholdStepSize: Number = 0.001;
+
 
   constructor() {}
 
@@ -149,11 +148,11 @@ export class CommonStoreService {
     this.updateValue(this._FP_removeFiles$, value);
   }
 
-  // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-  get twoD_saveNodePosValue(): boolean {
-    return this._twoD_saveNodePos$.value;
+  updatecurrentThresholdStepSize(distanceMetric: string) {
+    this.currentThresholdStepSize = distanceMetric === 'snps' ? 1 : 0.001
+}
+  get currentThresholdStepSizeValue(): Number {
+    return this.currentThresholdStepSize;
   }
-  setTwoD_saveNodePos(value: boolean): void {
-    this.updateValue(this._twoD_saveNodePos$, value);
-  }
+
 }

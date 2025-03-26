@@ -334,7 +334,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log(lsv);
       if (lsv.toLowerCase() === 'snps') {
         $('#ambiguities-row').slideUp();
-        $('#default-distance-threshold, #link-threshold')
+        $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
           .val(7);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
@@ -342,7 +342,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.store.setLinkThreshold(7);
       } else {
         $('#ambiguities-row').slideDown();
-        $('#default-distance-threshold, #link-threshold')
+        $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
@@ -466,14 +466,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // Use this when building production (.ie gh-pages branch)
     if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
       console.log('launching outbreak');
-      $.getJSON("COVID_DUMMY.microbetrace", this.commonService.applySession.bind(this.commonService));   
+      $.getJSON("COVID_DUMMY.microbetrace", this.commonService.applySession.bind(this.commonService)).then(() => { this.populateTable()});   
       this.commonService.session.network.launched = true; 
       this.commonService.session.network.initialLoad = true; 
-      // if(this.commonService.session.files && this.commonService.session.files.length > 0) {
-      //   for(let i = 0; i < this.commonService.session.files.length; i++) {
-      //     this.addToTable(this.commonService.session.files[i]);
-      //   }
-      // }   
+
     }
 
   //   setTimeout(() => {
@@ -580,26 +576,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.displayFileSettings = !this.displayFileSettings;
   }
 
-  openExport() {
-
-  }
-
-  openCenter() {
-
-  }
-
-  //openPinAllNodes() {
-
-
-  //}
-
-  openRefreshScreen() {
-
-  }
-
-  openSelectDataSetScreen() {
-
-  }
 
   /**
    * Opens/Closes Sequence Controls modal/dialog box
@@ -617,16 +593,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('---loadDefaultVisualization Called - stop loading modal');
 
-    // setTimeout(() => {
-
-      // this.commonService.session.messages = [];
-      // this.messages = [];
-      // $('#loading-information').html('');
       $('#launch').prop('disabled', false).focus();
 
       this.displayloadingInformationModal = false;
-
-    // }, 1000);
 
     console.log('---loadDefaultVisualization End - Lodi');
 
@@ -639,10 +608,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * @param {string} msg message to add to messages arrays 
    */
   showMessage(msg: string) {
-
-    // this.messages.push(msg);
-    // this.commonService.session.messages.push(msg);
-    // $('#loading-information').html(this.commonService.session.messages.join('<br>'));
 
     this.store.setLoadingMessageUpdated(msg);
   }
@@ -661,6 +626,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // launching new network, so set network rendered to false to start loading modal
     this.store.setNetworkRendered(false);
    
+    this.store.setSettingsLoaded(false);
 
     this.commonService.cleanupData();
 
@@ -750,7 +716,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.store.setMetricChanged('tn93');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
             $('#default-distance-metric').val('tn93').trigger('change');
-            $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(0.015).trigger('change');
+            $('#default-distance-threshold').attr('step', 1).val(0.015).trigger('change');
             this.commonService.session.style.widgets['link-threshold'] = 0.015;
             this.SelectedDefaultDistanceThresholdVariable = '0.015';
             this.onLinkThresholdChange('0.015');
@@ -762,7 +728,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.onDistanceMetricChange('snps');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
             $('#default-distance-metric').val('SNPs').trigger('change');
-            $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(7).trigger('change');
+            $('#default-distance-threshold').attr('step', 1).val(7).trigger('change');
             this.commonService.session.style.widgets['link-threshold'] = 7;
             this.SelectedDefaultDistanceThresholdVariable = '7';
             this.onLinkThresholdChange('7');
@@ -1412,7 +1378,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (extension === 'microbetrace' || extension === 'hivtrace') {
       //debugger;
       let reader = new FileReader();
-      reader.onloadend = out => this.commonService.processJSON(out.target, extension);
+      reader.onloadend = out => {this.commonService.processJSON(out.target, extension).then(() => this.populateTable())};
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
@@ -1576,8 +1542,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           $('#launch').text('Update');
           root.slideUp(() => root.remove());
         }))
-        .append($('<a href="javascript:void(0);" class="far flaticon2-download-1 align-middle p-1" title="Resave this file"></a>').on('click', () => {
-          saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+        .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
+          if (parentContext.isFileContentsEmpty(file)) {
+            alert('Unable to resave this file.');
+          } else {
+            saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+          }
         }))
         .append('<span class="p-1">' + file.name + '</span>')
         .append(`
@@ -1686,6 +1656,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       refit();
     }
   };
+
+  isFileContentsEmpty(file): boolean {
+    if (file.contents === null || file.contents === undefined) {
+      return true;
+    } else if (file.contents instanceof ArrayBuffer && file.contents.byteLength > 0) {
+      return false;
+    } else if (Object.keys(file.contents).length === 0 || file.contents == '') {
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   /**
    * Updates commonService.session.files info, such as field1, field2 ...etc, based on value user selects
@@ -1917,11 +1899,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('distance ch:', e);
     }
     this.SelectedDefaultDistanceMetricVariable = e;
+    this.store.updatecurrentThresholdStepSize(e.toLowerCase())
     if (e.toLowerCase() === 'snps') {
       if(this.commonService.debugMode) {
         console.log("saw snps");
       }
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 1)
         .val(7)
         .trigger('change');
@@ -1931,7 +1914,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.store.setMetricChanged('snps');
       this.onLinkThresholdChange('7');
     } else {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 0.001)
         .val(0.015)
         .trigger('change');

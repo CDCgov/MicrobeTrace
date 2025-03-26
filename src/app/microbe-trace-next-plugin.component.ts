@@ -226,8 +226,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
     @ViewChild('pinbutton') pinBtn: ElementRef<HTMLElement>;
 
-    currentThresholdStepSize: Number = 0.001
-
     public HideThisForNow: boolean = false;
 
     files: any[] = [];
@@ -1060,16 +1058,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onMinimumClusterSizeChanged(silent: boolean = false) {
 
-        //consol nodes from commonService
-
         console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
         this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
 
-
         let val = parseInt(this.SelectedClusterMinimumSizeVariable);
-
         this.commonService.session.style.widgets["cluster-minimum-size"] = val;
-
 
         if(this.commonService.session.data.nodes.length === 0) {
             return;
@@ -1082,17 +1075,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         if(!silent) {
-            this.store.setTwoD_saveNodePos(true); // test if needed when this function is working properly
-            this.commonService.setLinkVisibility(true);
-            this.commonService.updateNetworkVisuals();
+            let previousNumberOfVisibleClusters = this.commonService.session.data.clusters.filter(cluster => cluster.visible).length;
+            this.commonService.setClusterVisibility(true);
+            // if number of visible clusters changed, then update network
+            if (previousNumberOfVisibleClusters != this.commonService.session.data.clusters.filter(cluster => cluster.visible).length) {
+                this.commonService.setNodeVisibility(true);
+                this.commonService.setLinkVisibility(true);
+                this.commonService.updateStatistics();
+                $(document).trigger("node-visibility"); // this.store.setNetworkUpdated(true); leads to incorrect link being removed
+            }
         }
 
-        // console.log('onMinimumClusterSizeChanged called');
-
-        console.log('tagClusterslink vis min cluster size');
-
-
-
+        this._lastClusterMinimum = val;
     }
 
     private _lastLinkSortValue: string = this.commonService.session.style.widgets["link-sort-variable"];
@@ -1433,95 +1427,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onLinkColorTableChanged(silent);
       }
 
-    // onColorLinksByChanged(silent: boolean = false) {
-
-    //     // console.log('oncolorLinksByChanged - selected color links by variable: ', this.SelectedColorLinksByVariable);
-    //     console.log('oncolorLinksByChanged 2 - is visible: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
-    //     // console.log('3 onColorLinksByChanged - show link: ', this.ShowGlobalSettingsLinkColorTable);
-
-    //     this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
-
-    //     if (!this.GlobalSettingsLinkColorDialogSettings.isVisible) {
-
-    //         // TODO::David you added  "&& this.checkActiveView('link')" below which makes it not dispaly in twoD network
-    //         // checkActiveView is reliant on commonService.visuals, under current implementation (12/17/24) always returns false and function may not be needed
-    //         // if (this.SelectedColorLinksByVariable != "None") {
-    //         //     console.log('onColorLinksByChanged - selected color links by variable2: ', this.SelectedColorLinksByVariable);
-    //         //     this.SelectedLinkColorTableTypesVariable = "Show";
-    //         //     this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
-    //         //     this.cachedGlobalSettingsLinkColorVisibility = this.GlobalSettingsLinkColorDialogSettings.isVisible;
-    //         //     this.ShowGlobalSettingsLinkColorTable = false;
-    //         //     this.cdref.detectChanges();
-    //         // }
-    //     }
-
-
-    //     this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
-    //     this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
-
-
-    //     if (this.SelectedColorLinksByVariable != "None") {
-
-    //         // console.log('1 onColorLinksByChanged - selected color links by variable3: ', this.SelectedColorLinksByVariable);
-
-    //         console.log('color links by changed: ', $('#link-color-table'));
-    //         // this.ShowGlobalSettingsLinkColorTable = true;
-    //         this.generateNodeLinkTable("#link-color-table");
-
-
-
-    //         // console.log('onColorLinksByChanged - selected color links by variable4: ', this.SelectedColorLinksByVariable);
-
-    //         $('#link-color-value-row').slideUp();
-
-    //         console.log('xy global show: ', $('#link-color-table'));
-    //         //If hidden by default, unhide to perform slide up and down
-    //         if(!this.ShowGlobalSettingsLinkColorTable){
-    //             console.log('xy global in');
-
-    //             this.ShowGlobalSettingsLinkColorTable = true;
-    //             this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
-    //             // const element = this.el.nativeElement.querySelector('#link-color-table');
-    //             // this.commonService.setLinkTableElement(element);
-    //             // this.generateNodeLinkTable("#link-color-table");
-
-    //             this.cdref.detectChanges();
-    //         } else {
-    //             console.log('xy global else');
-    //             this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
-    //             // this.generateNodeLinkTable("#link-color-table");
-    //             $('#link-color-table-row').slideDown();
-    //         }
-
-    //         console.log('xy global show 2: ', $('#link-color-table'));
-
-
-    //         if(!silent) this.publishUpdateLinkColor();
-    //     }
-    //     else {
-    //         console.log('---- gnerenate Link Color Table empty -------', $('#link-color-table'));
-            
-    //         $('#link-color-table').empty();
-    //         $('#link-color-value-row').slideDown();
-    //         $('#link-color-table-row').slideUp();
-    //         this.SelectedLinkColorTableTypesVariable='Hide';
-    //         console.log('onLinkColorTableChanged - onColorLinksByChanged');
-    //         console.log('4 color links by changed: ', $('#link-color-table'));
-
-    //         this.onLinkColorTableChanged(silent);
-    //         console.log('5color links by changed: ', $('#link-color-table'));
-
-
-    //         if(!silent) this.publishUpdateLinkColor();
-    //         this.exportTables['link-color'] = false;
-
-    //     }
-
-    //     console.log('oncolorLinksByChanged 7 - is visible: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
-
-    //     console.log('3this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
-
-    // }
 
     // The actual function that builds your color table
   generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
@@ -2409,32 +2314,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.publishUpdateVisualization();
 
-        // console.log('active tab ind: ', this.homepageTabs,this.homepageTabs[this.activeTabIndex]);
-
-        if (!this.homepageTabs[this.activeTabIndex]) return;
-
-        switch (this.homepageTabs[this.activeTabIndex].label) {
-            case "2D Network":
-
-                // this.goldenLayout.componentInstances[this.activeTabIndex].render(false);
-                break;
-
-
-            case "PhylogeneticTree":
-
-
-                break;
-
-            case "Table":
-
-
-                break;
-
-            case "Map":
-
-
-                break;
-        }
 
     }
 
@@ -2550,7 +2429,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 return;
             }
             
-            if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart") {
+            if (v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart" || v === "Waterfall") {
                 this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
             } else {
@@ -2578,73 +2457,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
-            this.updatecurrentThresholdStepSize();
         });
         
-
+        this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
-    }
-
-
-    getLedgerData() {
-
-        // this.ledgerOptions = [];
-        // this.ledgerOptionSelected = [];
-        // this.ledgerOptionSelectedFlag = true;
-
-        // this.showSpinner();
-
-        // this.posts = new Array<BlockchainProofHashDto>();
-        // this.Blockchaindata = new BlockchainProofHashDto();
-
-
-        // this.keenService.getAllBlockchainsByTenantID().subscribe((resA: BlockchainProofHashDto[]) => {
-        //     this.posts = resA.filter(x => x.ledgerName.toLowerCase() === 'ContactTrace'.toLowerCase());
-
-        //     let ok2Exit = false;
-
-        //     let getBlockByLedgerIdObservable: Observable<GetAllBlockByBlockchainLedgerIDDto[]>[] = [];
-
-        //     for (let i = 0; i < this.posts.length; i++) {
-        //         this.posts[i].blockdata = [];
-        //         this.date = new Date(parseInt(this.posts[i].lastUpdated.substring(6, 26)));
-        //         this.posts[i].lastUpdated = this.date.toString();
-        //         this.Blockchaindata = this.posts[i];
-
-        //         getBlockByLedgerIdObservable.push(this.keenService.getAllBlockByBlockchainLedgerID(
-        //             this.Blockchaindata.ledgerName,
-        //             this.Blockchaindata.blockChainProofHashCode,
-        //             this.Blockchaindata.tenantID,
-        //             this.Blockchaindata.userID));
-
-        //     }
-
-        //     forkJoin(getBlockByLedgerIdObservable).subscribe(results => {
-        //         results.forEach((data: GetAllBlockByBlockchainLedgerIDDto[], index: number) => {
-        //             this.posts[index].blockdata = data;
-
-        //             for (let j = 0; j < this.posts[index].blockdata.length; j++) {
-
-        //                 this.date = new Date(parseInt(this.posts[index].blockdata[j].blockUpdatedDate.substring(6, 26)));
-        //                 this.posts[index].blockdata[j].blockUpdatedDate = this.date.toString();
-        //             }
-
-        //             if (index == this.posts.length - 1) {
-        //                 ok2Exit = true;
-
-        //                 this.loadLedgerOptions();
-        //             }
-        //         })
-        //     },
-        //         error => {
-        //             console.log("error retrieving posts.");
-        //         },
-        //         () => {
-
-        //         });
-
-        // })
-
     }
 
 
@@ -2693,24 +2509,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return str;
     }
 
-    // downloadLedgerBlock(item: DownloadFilteredBlockDto, ledgerId, isNodeList: boolean): void {
-    //     const filteredWrappers = this.bpaaSPayloadWrappers.filter(x => x.BlockName &&  x.BlockName.toLowerCase() === item.blockName.toLowerCase());
-
-    //     const detailRows = _.flatten(filteredWrappers.map(x => x.BpaaSPayload.Data))
-
-    //     let blob: any = new Blob([JSON.stringify(detailRows)], { type: 'text/plain' });
-    //     blob.lastModifiedDate = new Date();
-    //     blob.name = (item.blockName + ".json");
-
-
-    //     var file: File = <File>blob;
-
-    //     this.getSinglefileContent(file);
-
-    //     abp.notify.success("Ledger block successfully downloaded.");
-    //     this.hideSpinner();
-
-    // }
 
     officialInstance () {
         const prodVal = RegExp(/https:\/\/microbetrace.cdc.gov\/MicrobeTrace/);
@@ -2833,22 +2631,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 }
             }
         });
-    }
-
-    public onPanelHide($event) {
-        console.log($event);
-    }
-
-    public onClickChildOptionContainer($event) {
-
-    }
-
-    public onClickChildOptionChecbox($event) {
-
-    }
-
-    public onChangeChildOptionCheckbox($event) {
-
     }
 
     DisplayHelp() {
@@ -3193,104 +2975,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onReloadScreen();
     }
 
-    // OpenStashFiles(stashFile: FileList) {
-    //     // console.log(stashFile);
-
-    //     const files: File[] = Array.from(stashFile);
-        
-    //     if (files.length > 0) {
-
-    //         const extension = files[0].name.split('.').pop().toLowerCase();
-
-    //         let reader = new FileReader();
-    //         reader.onloadend = out => {
-    //             if (out && out.target) {
-    //                 this.OpenStash((<any>out.target).result);
-    //             }
-    //         }
-    //         reader.readAsText(files[0], 'UTF-8');
-    //     }
-    // }
-
-    // OpenStash(sessionData: string) {
-    //     if (sessionData) {
-    //         const sessionObject: StashObjects = JSON.parse(sessionData);
-    //         if (sessionObject) {
-
-    //             //ResetFiles
-    //             this.visuals.filesPlugin.removeAllFiles();
-
-    //             this.commonService.session = sessionObject.session;
-
-    //             //Reset Tabs
-    //             this.ResetTabs();
-
-    //             //Load Tabs
-    //             for (let index = 1; index < sessionObject.tabs.length; ++index) {
-    //                 if (this.homepageTabs.find(x => x.label === sessionObject.tabs[index].label) === undefined) {
-    //                     this.addTab(sessionObject.tabs[index].label, sessionObject.tabs[index].label + index, index, false);
-    //                 }
-    //             }
-
-    //             if (sessionObject.session.files) {
-    //                 sessionObject.session.files.forEach(file => {
-    //                     this.visuals.filesPlugin.addToTable(file);
-    //                 })
-    //             }
-
-    //             this.homepageTabs[0].isActive = true;
-    
-    //             this.loadSettings();
-    //         }
-    //     }
-    // }
-
-    DisplayRecallStashDialog(recallStash: string) {
-        switch (recallStash) {
-            case "Recall": {
-                // this._userService.getUserForEdit(this.appSession.userId).subscribe(userResult => {
-                //     const email: string = userResult.user.emailAddress;
-                //     this.commonService.localStorageService.getItem("stash-" + email, (err, sessionData) => {
-                //         if (sessionData) {
-                //             const sessionObject: StashObjects = JSON.parse(sessionData);
-                //             if (sessionObject) {
-                //                 this.commonService.session = sessionObject.session;
-
-                //                 //Load Tabs
-                //                 sessionObject.tabs.forEach(loadedTab => {
-                //                     if (this.homepageTabs.find(x => x.label === loadedTab.label) === undefined) {
-                //                         this.Viewclick(loadedTab.label);
-                //                     }
-                //                 })
-
-                //                 this.loadSettings();
-
-                //                 this.homepageTabs.forEach(tab => {
-                //                     if (tab.componentRef &&
-                //                         tab.componentRef.instance.onRecallSession) {
-                //                         tab.componentRef.instance.onRecallSession();
-                //                     }
-                //                 })
-
-                //             }
-                //         }
-                //     });
-
-                // });
-
-                break;
-            }
-            case "Cancel": {
-
-                break;
-            }
-            case "Delete": {
-
-                break;
-            }
-        }
-        this.displayRecallStashDialog = !this.displayRecallStashDialog;
-    }
 
     FileClick(actionName: any) {
         switch (actionName) {
@@ -3325,25 +3009,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     this.addComponent('Files');
                 }
 
-                // this.commonService.launchView("files");
-                // this.activeTabIndex = 0;
-
-                // this.homepageTabs.map(x => {
-
-                //     x.isActive = (x.tabTitle == "Files") ? true :false;
-                // });
-        
-                // this.tabView.tabs.map(x => {
-        
-                //     x.selected = false;
-                // });
-
-                // this.tabView.tabs[0].selected = true;
-
-                // this.setActiveTabProperties();
-
-                // this.setActiveTabProperties();
-                // this.DisplayLedgerLoaderDialog();
                 break;
             }
 
@@ -3806,8 +3471,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.NewSession();
     }
 
-    updatecurrentThresholdStepSize() {
-        this.currentThresholdStepSize = this.SelectedDistanceMetricVariable === 'snps' ? 1 : 0.001
+    getCurrentThresholdStepSize() {
+        return this.store.currentThresholdStepSizeValue;
     }
 
     /**
@@ -3816,9 +3481,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
   onDistanceMetricChanged = () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
-    this.updatecurrentThresholdStepSize();
+    this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 1)
         .val(7)
         .trigger('change');
@@ -3826,7 +3491,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.SelectedLinkThresholdVariable = '7';
       this.onLinkThresholdChanged();
     } else {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 0.001)
         .val(0.015)
         .trigger('change');

@@ -255,7 +255,7 @@
                                             <div class="col-4"><label for="link-threshold">Filtering Threshold</label></div>
                                             <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
                                             <div class="col-8  offset-4">
-                                                <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" step="currentThresholdStepSize" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="onLinkThresholdChanged()">
+                                                <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getCurrentThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="onLinkThresholdChanged()">
                                             </div>
                                         </div>
                                         <div class="form-group row" title="Click to reveal all hidden elements of the network.">
@@ -372,19 +372,7 @@
             </div>
         </p-dialog><!-- /.modal -->
 
-        <p-dialog id="session-recall-modal" [(visible)]="displayRecallStashDialog" header="Recall Stash">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div #stashes id="recall-stashes-available" class="table-sm"></div>
-
-                    <div class="modal-footer">
-                        <button *ngIf="!HideThisForNow" type="button" class="btn btn-danger" id="recall-delete-stash" (click)="DisplayRecallStashDialog('Delete')">Delete</button>
-                        <button type="button" class="btn" (click)="DisplayRecallStashDialog('Cancel')">Cancel</button>
-                        <button type="button" class="btn btn-success" id="recall-load-stash" (click)="DisplayRecallStashDialog('Recall')">Recall</button>
-                    </div>
-                </div><!-- /.modal-content -->
-            </div><!-- /.modal-dialog -->
-        </p-dialog><!-- /.modal -->
+       
 
         <p-dialog id="open-auspice-url" [(visible)]="displayUrlDialog" header="Open Auspice JSON via URL">
             <div class="modal-dialog" role="document">

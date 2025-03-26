@@ -39,6 +39,8 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   
   // Data
   nodesWithSeq: any[];
+  nodesWithoutSeq: any[];
+  showPopupMessage: boolean = false;
   seqArray: string[];
   seqArrayShortened: any[];
   longestSeqLength: number = 0;
@@ -167,14 +169,17 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
     // sets nodesWithSeq, seqArr, and longestSeqLength
     this.nodesWithSeq = [];
+    this.nodesWithoutSeq = [];
     this.seqArray = [];
     this.commonService.session.data.nodes.forEach((node, index) => {
-      if (node.seq != null && node.seq != "" && node.seq != "null"){
+      if (this.isSeq(node.seq)){
         this.nodesWithSeq.push(index);
         this.seqArray.push(node.seq.toUpperCase());
         if (node.seq.length > this.longestSeqLength) {
           this.longestSeqLength = node.seq.length;
         }
+      } else {
+        this.nodesWithoutSeq.push({index: node.index, ID: node.id});
       }
     })
 
@@ -214,9 +219,23 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   ngAfterViewInit(): void {
     this.highlightRows();
+
+    if (this.nodesWithoutSeq.length > 0) {
+      this.showPopupMessage = true;
+    }
   }
 
   // General
+
+  isSeq(seq: string) {
+    if (seq === null || seq === "" || seq === "null") {
+      return false;
+    } else if (/[^-\s]/.test(seq)) { // test if seq contains chars other than dash (-) or space
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   /**
    * Defines new widgets and set default values
