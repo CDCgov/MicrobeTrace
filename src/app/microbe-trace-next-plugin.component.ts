@@ -286,10 +286,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable);
         });
 
-        this.store.networkUpdated$.subscribe((loaded) => {
-            console.log('--- nework updated: ', loaded);
-            if(loaded && !this.store.settingsLoadedValue) {
-                this.loadUISettings();
+        
+
+        this.store.networkUpdated$
+        .pipe(takeUntil(this.destroy$)) // Add takeUntil for proper cleanup
+        .subscribe((isUpdated) => {
+            console.log('--- networkUpdated$ subscription triggered:', isUpdated);
+            if (isUpdated) {
+                // Case 1: Initial UI settings load after first network update
+                if (!this.store.settingsLoadedValue) {
+                    console.log('--- Loading UI settings as settingsLoadedValue is false ---');
+                    this.loadUISettings();
+                    // After loading UI settings, check if table needs immediate regeneration
+                    if (this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedColorLinksByVariable !== 'None') {
+                        console.log('--- Regenerating Link Color Table after initial UI load ---');
+                        this.generateNodeLinkTable('#link-color-table');
+                    }
+                }
+                // Case 2: Subsequent network updates (e.g., from threshold change)
+                // Regenerate table only if UI settings are already loaded AND table should be visible/relevant
+                else if (this.store.settingsLoadedValue && this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedColorLinksByVariable !== 'None') {
+                    console.log('--- Regenerating Link Color Table due to network update (settings already loaded) ---');
+                    this.generateNodeLinkTable('#link-color-table');
+                }
             }
         });
 
@@ -514,10 +533,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.network.isFullyLoaded = true;
             this.setActiveTabProperties();
 
+            // logpolygon color sh
             if(!this.store.settingsLoadedValue) {
                 console.log('--- GOLDEN LAYOUT COMPONENT filter settings');
 
                 this.loadFilterSettings();
+
+                console.log('--- polygon color show33: ', this.commonService.session.style.widgets['polygons-color-show']);
+
             }
         });
 
@@ -1888,18 +1911,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             console.log('on color nodes by changed - visible: ', this.SelectedColorNodesByVariable);
             // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
-            // if (this.SelectedColorNodesByVariable != "None") {
+            if (this.SelectedColorNodesByVariable != "None") {
 
-            //     this.SelectedNodeColorTableTypesVariable = 'Show';
-            //     this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
-            //     this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
-            //     const prevColorNodesByVariable = this.SelectedColorNodesByVariable;
-            //     // this reset to false to trigger showing the node color table
-            //     this.ShowGlobalSettingsNodeColorTable = false;
-            //     // this detect changes leads to SelectedColorNodesByVariable being set to default value when loading MT files that have both 2D and map view
-            //     this.cdref.detectChanges();
-            //     if (prevColorNodesByVariable != this.SelectedColorNodesByVariable) this.SelectedColorNodesByVariable = prevColorNodesByVariable;
-            // }
+                this.SelectedNodeColorTableTypesVariable = 'Show';
+                this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+                this.cachedGlobalSettingsNodeColorVisibility = this.GlobalSettingsNodeColorDialogSettings.isVisible;
+                const prevColorNodesByVariable = this.SelectedColorNodesByVariable;
+                // this reset to false to trigger showing the node color table
+                this.ShowGlobalSettingsNodeColorTable = false;
+                // this detect changes leads to SelectedColorNodesByVariable being set to default value when loading MT files that have both 2D and map view
+                this.cdref.detectChanges();
+                if (prevColorNodesByVariable != this.SelectedColorNodesByVariable) this.SelectedColorNodesByVariable = prevColorNodesByVariable;
+            }
         }
 
         this.commonService.session.style.widgets["node-color-variable"] = this.SelectedColorNodesByVariable;
@@ -3074,6 +3097,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('--- viewClick: ', viewName);
             console.log(this.commonService.session.style.widgets['link-threshold']);
             console.log('homepage tabs: ' , this.homepageTabs);
+            console.log('--- polygon color show11: ', this.commonService.session.style.widgets['polygons-color-show']);
+
         }
        
 

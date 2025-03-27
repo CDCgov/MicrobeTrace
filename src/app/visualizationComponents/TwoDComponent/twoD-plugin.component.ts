@@ -2505,7 +2505,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
         this.store.setNetworkRendered(false);
 
-        
 
 
         let networkData;
@@ -2541,25 +2540,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         }
 
-        console.log('--- TwoD networkDataL: ', _.cloneDeep(networkData.links));
-        console.log('--- TwoD networkDataN: ', _.cloneDeep(networkData.nodes));
-
-        networkData.nodes.forEach(node => {
-            node.id = node._id.toString();
-        });
-        networkData.links.forEach((link, i) => {
-            // Set a unique link id if desired
-            link.id = i.toString();  // or link.index.toString()
-        
-            // console.log('--- TwoD link: ', link.source);
+       
+        // Need to convert source and target to string ids for cytoscape
+        networkData.links.forEach((link) => {
             // If link.source is an object, grab its _id and convert to string
             if (typeof link.source === 'object') {
             link.source = link.source._id.toString();
             }
 
-            // console.log('--- TwoD link: ', link.source);
-
-        
             // Same for link.target
             if (typeof link.target === 'object') {
             link.target = link.target._id.toString();
@@ -2571,51 +2559,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const nodeIds = new Set(networkData.nodes.map(n => n.id));
 
-        const nodeIds2 = new Set(this.commonService.session.data.nodes.map(n => n.id));
 
-        // if nodeids 2 includes 30576_KF773440_B96cl58
-        if (nodeIds2.has('30576_KF773440_B96cl58')) {
-            console.log('--- TwoD nodeIds2 includes 30576_KF773440_B96cl58');
-        } else {
-            console.log('--- TwoD nodeIds2 does not include 30576_KF773440_B96cl58');
-        }
-
-        networkData.links.forEach(link => {
-        if (!nodeIds.has(link.source)) {
-            console.warn('Link source not found in nodes:', link.source, link);
-        }
-        if (!nodeIds.has(link.target)) {
-            console.warn('Link target not found in nodes:', link.target, link);
-        }
-        });
-
-        console.log('--- TwoD networkData: ', _.cloneDeep(networkData.links));
-        // 2. Precompute positions with D3 (only if nodes/links have changed)
-        //    This assumes your precomputePositionsWithD3 function returns an object with
-        //    { nodes: laidOutNodes, links: laidOutLinks } where each node has x and y computed.
        // Instead of calling synchronously, await the precomputation:
         const { nodes: laidOutNodes, links: laidOutLinks } =
         await this.precomputePositionsWithD3(networkData.nodes, networkData.links);
 
         console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
-
         
         // Update networkData with the precomputed positions
         networkData.nodes = laidOutNodes;
         networkData.links = laidOutLinks;
 
+
         networkData.links.forEach((link, i) => {
-            // Set a unique link id if desired
-            link.id = i.toString();  // or link.index.toString()
-        
-            // console.log('--- TwoD link: ', link.source);
             // If link.source is an object, grab its _id and convert to string
             if (typeof link.source === 'object') {
             link.source = link.source._id.toString();
             }
-
-            // console.log('--- TwoD link: ', link.source);
-
         
             // Same for link.target
             if (typeof link.target === 'object') {
@@ -2623,34 +2583,38 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
+
+        networkData.links.forEach(link => {
+            if (!nodeIds.has(link.source)) {
+                console.warn('Link source not found in nodes:', link.source, link);
+            }
+            if (!nodeIds.has(link.target)) {
+                console.warn('Link target not found in nodes:', link.target, link);
+            }
+        });
+
         console.log('--- TwoD networkData after precompute1: ', _.cloneDeep(networkData.links));
 
+    
+        console.log('link threhold network links: ', networkData.links.length);
+
+        // Determine autoFit based on node-timeline-variable
+        if (networkData.nodes.length !== 0) {
+            this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
+        } else {
+            this.autoFit = true;
+        }
+
+
+        if (this.debugMode) {
+            console.log('link vis rerender: ', this.commonService.getVisibleLinks());
+        }
+
+
+        // Update Cytoscape visualization if it exists
+        if (this.cy && !timelineTick) {
         
-        console.log('--- TwoD laidOutLinks: ', laidOutLinks);
-        console.log('--- TwoD laidOutNodes: ', laidOutNodes);
-        console.log('link threshold network links: ', networkData.links.length);
-
-        
-
-            console.log('link threhold network links: ', networkData.links.length);
-
-            // Determine autoFit based on node-timeline-variable
-            if (networkData.nodes.length !== 0) {
-                this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
-            } else {
-                this.autoFit = true;
-            }
-
-
-            if (this.debugMode) {
-                console.log('link vis rerender: ', this.commonService.getVisibleLinks());
-            }
-
-
-            // Update Cytoscape visualization if it exists
-            if (this.cy && !timelineTick) {
-            
-                this._partialUpdate();
+            this._partialUpdate();
 
         } else if (this.cy && timelineTick) {
             this.data = this.commonService.convertToGraphDataArray(networkData);
@@ -2740,10 +2704,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               const endTime = performance.now();
               console.log(`✅ Cytoscape layout done in ${(endTime - startTime).toFixed(2)}ms`);
             
+              console.log('twod 1 polygons show: ', this.widgets['polygons-show']);
               // Update polygons to show if they should be
-              if (this.widgets['polygons-show']) {
+              if (this.commonService.session.style.widgets['polygons-show']) {
+                console.log('twod 2323 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
+
                 this.polygonsToggle(true)
-                this.centerPolygons(this.widgets['polygons-foci']);
+                this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
+                console.log('twod 11 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
+
+                if (this.commonService.session.style.widgets['polygons-color-show']) {
+                    this.commonService.session.style.widgets['polygon-color-table-visible'] = true;
+                    this.onPolygonColorTableChange(true);
+                    // this.polygonColorsToggle(this.widgets['polygon-color-table-visible'])
+                    // this.updateGroupNodeColors();
+                    console.log('twod 2polygons show: ', this.commonService.session.style.widgets['polygon-color-table-visible']);
+                }
                }
 
               // Mark as rendered
@@ -3613,9 +3589,9 @@ private _partialUpdate() {
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
         this.polygonsToggle(this.widgets['polygons-show']);
-        if (this.widgets['polygons-show']) {
+        if (this.commonService.session.style.widgets['polygons-show']) {
             this.updatePolygonColors();
-            this.polygonColorsToggle(this.widgets['polygon-color-table-visible'])
+            this.polygonColorsToggle(this.commonService.session.style.widgets['polygon-color-table-visible'])
             this.updateGroupNodeColors();
         }
 

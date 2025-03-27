@@ -730,17 +730,12 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         if(newLink.source === "MZ745515" && newLink.target === "MZ712879"){
             console.log('new link 1: ', JSON.stringify(newLink));
-            // console.log('new link 2: ', JSON.stringify(newLink));
-        }
-
-        if(newLink.source === "MZ712879" && newLink.target === "MZ745515"){
-            console.log('new link 2: ', JSON.stringify(newLink));
-            // console.log('new link 2: ', JSON.stringify(newLink));
         }
     
         const serv = this;
         const matrix = serv.temp.matrix;
     
+        // Trim ids to remove whitespace
         if (typeof newLink.source == 'number') {
             newLink.source = newLink.source.toString().trim();
         } else {
@@ -758,12 +753,24 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (!matrix[newLink.target]) {
             matrix[newLink.target] = {};
         }
+
+        // If source and target are the same, don't add the link
         if (newLink.source == newLink.target) return 0;
+
+        const ids = [newLink.source, newLink.target].sort();
+        const id = `${ids[0]}-${ids[1]}`;
+
         let linkIsNew = 1;
+
         const sdlinks = serv.session.data.links;
 
         if (matrix[newLink.source][newLink.target]) {
+
             const oldLink = matrix[newLink.source][newLink.target];
+
+             // Ensure id is consistent during merge ---
+             newLink.id = oldLink.id || id; // Prefer existing ID
+
             let myorigin = this.uniq(newLink.origin.concat(oldLink.origin));
             // console.log(JSON.stringify(myorigin));
 
@@ -814,23 +821,27 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             }
 
-            // TODO remove when confident this function never causes issues - used to debug easier
-            // Object.assign(oldLink, newLink);
-            // Object.assign(newLink, oldLink);
-
 
             if(newLink["bidirectional"]){
                 oldLink["bidirectional"] = true;
             }
 
             linkIsNew = 0;
+
         } else if (serv.temp.matrix[newLink.target][newLink.source]) {
             console.warn("This scope should be unreachable. If you're using this code, something's wrong.");
             const oldLink = matrix[newLink.target][newLink.source];
+             // Ensure id is consistent during merge ---
+             newLink.id = oldLink.id || id; // Prefer existing ID
+
             const origin = this.uniq(newLink.origin.concat(oldLink.origin));
             Object.assign(oldLink, newLink, { origin: origin });
             linkIsNew = 0;
+
         } else {
+
+             // Assign stableId to the new link object ---
+             newLink.id =  id; 
 
              if (newLink.hasDistance) {
                 newLink = Object.assign({
@@ -1091,7 +1102,6 @@ export class CommonService extends AppComponentBase implements OnInit {
         // launching new network, so set network rendered to false to start loading modal
         this.store.setNetworkRendered(false);
         this.store.setSettingsLoaded(false);
-    
 
         console.log('applySession - temp:', this.temp);
 
@@ -2581,7 +2591,7 @@ align(params): Promise<any> {
             return [];
         }
 
-        const links = this.session.data.links;
+        const links = this.getVisibleLinks();
       
         let linkColors;
         if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {
@@ -2641,18 +2651,39 @@ align(params): Promise<any> {
 	 * @returns {Object} where keys are the values to group (ie. subtype B,C,D...) and values are counts of the number of node for each key
 	 */
     public createPolygonColorMap() {
+
+        
         // If you store your “polygonGroups” in this.temp, do:
         if (!this.temp.polygonGroups || !this.session.style.widgets['polygons-color-show']) {
             this.temp.style.polygonColorMap = () => this.session.style.widgets['polygon-color'];
-            return [];
+            // return [];
         }
-        const polygonGroups = this.temp.polygonGroups || [];
+
+        // If this.session.style.widgets['polygons-color-show', we need 
+        let polygonGroups = this.temp.polygonGroups || [];
         const polygonColors = this.session.style.polygonColors;
         const polygonAlphas = this.session.style.polygonAlphas;
-        console.log('--- polygonGroups: ', polygonGroups);
-        console.log('--- polygonColors: ', polygonGroups);
 
-        
+        // If polygonGroups length is 0 but polygons-color-show is true, we need to create the groups via going through the visible nodes, and grouping them by cluster id in the format { key: clusterId, values: [nodeId1, nodeId2, ...] }
+        if (polygonGroups.length === 0 && this.session.style.widgets['polygons-color-show']) {
+            // Create the groups by going through visible nodes, and creating the keys of the group by the unique values of node['polygon-foci']
+            const groupMap = new Map();
+            this.getVisibleNodes().forEach(node => {
+                const polygonFoci = node['polygon-foci'];
+                if (!groupMap.has(polygonFoci)) {
+                    groupMap.set(polygonFoci, []);
+                }
+                groupMap.get(polygonFoci).push(node);
+            });
+            polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
+                key,
+                values: values.map(node => node.id)
+            }));
+
+            this.temp.polygonGroups = polygonGroups;
+            this.session.style.widgets['polygon-color-table-visible'] = true;
+        }
+
         const result = this.colorMappingService.createPolygonColorMap(
           polygonGroups,
           polygonColors,
@@ -2665,7 +2696,7 @@ align(params): Promise<any> {
       
         this.session.style.polygonColors = result.updatedPolygonColors;
         this.session.style.polygonAlphas = result.updatedPolygonAlphas;
-      
+          
         return result.aggregates;
       }
 
