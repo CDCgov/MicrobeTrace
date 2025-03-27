@@ -1916,9 +1916,6 @@ align(params): Promise<any> {
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
-                console.log(this.temp.matrix);
-                console.log(this.session.data.nodes.filter(this.hasSeq).map(d => d._id).length);
-                console.log(this.session.data.nodes.map(d => d._id).length);
                 let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
                 labels = labels.sort();
                 let metric = this.session.style.widgets['link-sort-variable'];
@@ -1934,7 +1931,6 @@ align(params): Promise<any> {
                         for (let j = 0; j < i; j++) {
                             const link = row[labels[j]];
                             if (link && link["distanceOrigin"] === "Genetic Distance") {
-                                console.log(source + " " + labels[j]);
                                 dm[i][j] = dm[j][i] = link[metric];
                             } else {
                                 dm[i][j] = dm[j][i] = null;
