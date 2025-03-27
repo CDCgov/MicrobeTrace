@@ -728,14 +728,12 @@ export class CommonService extends AppComponentBase implements OnInit {
      */
     addLink(newLink: any, check: any = true): number {
 
-        if(newLink.source === "MZ745515" && newLink.target === "MZ712879"){
-            console.log('new link 1: ', JSON.stringify(newLink));
-        }
+
     
         const serv = this;
         const matrix = serv.temp.matrix;
 
-        if((newLink.source === "MZ712879" && newLink.target === "MZ745515") || (newLink.source === "MZ745515" && newLink.target === "MZ712879")){
+        if((newLink.source === "MZ798055" && newLink.target === "MZ375596") || (newLink.source === "MZ7375596" && newLink.target === "MZ798055")){
             console.log('new link 111: ', JSON.stringify(newLink));
         }
     
@@ -781,6 +779,32 @@ export class CommonService extends AppComponentBase implements OnInit {
             // Ensure no empty origins
             myorigin = myorigin.filter(origin => origin != '');
 
+             // --- Start: Logic to manage global origin order ---
+            if (myorigin.length > 1) {
+                let globalOrder = this.session.style.widgets['link-origin-array-order'];
+
+                // If the global order hasn't been established yet OR if the current combination has more origins
+                // than the currently stored global order (indicating a new origin was added to this combo),
+                // establish/update the global order based on this link's final merged origins.
+                // This assumes the first time a multi-origin link is fully formed defines the order.
+                if (globalOrder.length === 0 || myorigin.length > globalOrder.length) {
+                    // Simple update: just use the current merged order.
+                    // If more complex order logic is needed (e.g., specific file types first), implement here.
+                    this.session.style.widgets['link-origin-array-order'] = [...myorigin]; // Use spread to create a new array reference
+                    console.log('UPDATED Global link-origin-array-order:', this.session.style.widgets['link-origin-array-order']);
+                }
+                // Ensure this link's origin uses the established global order if it matches the length
+                // (setLinkVisibility will handle applying it finally)
+                else if (myorigin.length === globalOrder.length) {
+                    // If lengths match, we assume it's the same combination.
+                    // No action needed here, setLinkVisibility will apply the global order.
+                } else {
+                    // This case (myorigin.length < globalOrder.length) might indicate an issue
+                    // or a different combination. Log it for debugging if needed.
+                    console.warn("Mismatched origin lengths during merge, global order might be incorrect.", myorigin, globalOrder);
+                }
+            }
+
             // Ensure new link keeps distance if already defined previously
             if (oldLink.hasDistance) {
                 newLink.hasDistance = true;
@@ -802,32 +826,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
             _.merge(oldLink, newLink);
 
-            if (oldLink.origin.length > 0) {
-
-                if(this.debugMode) {
-                    console.log('old link origin: ', oldLink.origin);
-                }
-
-                // Array order hasn't been set yet, so we need to set it
-                if (this.session.style.widgets['link-origin-array-order'].length == 0) {
-                    this.session.style.widgets['link-origin-array-order'] = oldLink.origin;
-                }
-                
-                if(oldLink.origin.length > 1) {
-                    newLink.hasDistance = true;
-                }
-
-                if(this.debugMode) {
-                    console.log('old link array order: ', this.session.style.widgets['link-origin-array-order']);
-                }
-
-                oldLink.origin = this.session.style.widgets['link-origin-array-order'];
-                
-                if(this.debugMode) {
-                    console.log('old link origin: ', oldLink.origin);
-                }
-
-            }
+            oldLink.origin = myorigin;
 
 
             if(newLink["bidirectional"]){
@@ -886,11 +885,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
 
-        if (newLink.origin.length > 1 && (!this.session.style.widgets['link-origin-array-order'] || this.session.style.widgets['link-origin-array-order'].length == 0)) {
+        if(!this.session.style.widgets['link-origin-array-order']){
+            this.session.style.widgets['link-origin-array-order'] = [];
+        }
+        if (newLink.origin.length > 1 && this.session.style.widgets['link-origin-array-order'].length === 0) {
             this.session.style.widgets['link-origin-array-order'] = newLink.origin;
         }
         
-        if((newLink.source === "MZ712879" && newLink.target === "MZ745515") || (newLink.source === "MZ745515" && newLink.target === "MZ712879")){
+        if((newLink.source === "MZ798055" && newLink.target === "MZ375596") || (newLink.source === "MZ375596" && newLink.target === "MZ798055")){
             console.log('new link 222: ', JSON.stringify(newLink));
         }
     
@@ -3172,164 +3174,152 @@ align(params): Promise<any> {
         let links = this.session.data.links;
         let clusters = this.session.data.clusters;
         let n = links.length;
-
+        const globalOriginOrder = this.session.style.widgets['link-origin-array-order']; // Get the global order once
+    
+    
         if(this.debugMode) {
             console.log(`Setting Link Visibility with ${metric} ${threshold} ${showNN}`);
+            console.log('Global Origin Order:', globalOriginOrder); // Log global order
         }
-
+    
           //log all links that are visible and their origin
-          console.log('--- visible links1: ', _.cloneDeep(links.filter(l => l.visible)));
-
-          
+          console.log('--- visible links1 (Start): ', _.cloneDeep(links.filter(l => l.visible)));
+    
+    
         for (let i = 0; i < n; i++) {
-            
-            // console.log('---setting link vis: ', links[i]);
-
-            const link = links[i];
-
-  
-            if((link.source === "MZ712879" && link.target === "MZ745515") || (link.source === "MZ745515" && link.target === "MZ712879")){
-                console.log('new link 111: ', JSON.stringify(link));
+    
+            const link = links[i]; // Reference to the object in session.data.links
+    
+            // *** Step 1: Use a copy for checks ***
+            let finalOrigins = [...link.origin]; // Copy origins for visibility logic
+    
+            if((link.source === "MZ798055" && link.target === "MZ375596") || (link.source === "MZ375596" && link.target === "MZ798055")){
+                console.log('vis link 111 (Start of loop): ', JSON.stringify(link));
+                console.log('vis link 111 finalOrigins (Start):', finalOrigins);
             }
-        
-
-
+    
             let visible = true;
             let overrideNN = false;
-
-            // Add back the distance origin if it was removed and the link has distance to it
+            let originWasFiltered = false; // *** Step 2: Add flag ***
+    
+            // Add back the distance origin to the *copy* if it was removed (Safeguard)
+            // Check against original link.origin, add to finalOrigins if needed
             if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
-
-                link.origin.push(link.distanceOrigin);
+                 if (!finalOrigins.includes(link.distanceOrigin)) { // Avoid duplicates in copy
+                    finalOrigins.push(link.distanceOrigin);
+                 }
             }
-
-            if(link.nn) {
-                console.log('-----link is nn: ', _.cloneDeep(link));
-            }
-
-            // No distance value
-            if (link[metric] == null) {
-
-                if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
-                    console.log('setting link vis 1.2: ', _.cloneDeep(link));
-                }
-
-                // If origin file exists for link outside of distance, keep visible
-                if (link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
-                    // Set visible and origin to only show the from the file outside of Distance
-                    link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
+            // Also ensure distanceOrigin exists in original if it should
+             if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
+                 link.origin.push(link.distanceOrigin); // Ensure original has it too if missing
+             }
+    
+    
+            // Visibility Logic based on metric/threshold/hasDistance
+            if (link[metric] == null) { // No distance value for the current metric
+                 // Check for non-distance origins using the *copy*
+                if (finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin)).length > 0) {
+                    // Filter the *copy* for visibility check
+                    finalOrigins = finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin));
+                    originWasFiltered = true; // *** Mark as filtered ***
                     overrideNN = true;
                     visible = true;
                 } else {
-                    link.visible = false;
-                    continue;
+                    visible = false;
                 }
-
-            } else {
-
+            } else { // Has a distance value for the current metric
                 if (link.hasDistance) {
-
-
                     visible = link[metric] <= threshold;
-
-                    if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
-                        console.log('setting link vis 1.5: ', _.cloneDeep(link));
-                    }
-
                     if (!visible) {
-
-
-                        // Only need to get distance origin and override if there are other files using a distance metric, otherwise the else code block below would be executed since the link would not have distance
-                        if (
-                            link.origin.length > 1 &&
-                            link.origin.filter(fileName => {
-                            const hasAuspice = /[Aa]uspice/.test(fileName);
-                            const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
-                            return fileName && !includesDistanceOrigin && !hasAuspice;
-                            }).length > 0
+                         // Distance is above threshold. Check for other origins using the *copy*.
+                        if (finalOrigins.filter(fileName => {
+                                 const hasAuspice = /[Aa]uspice/.test(fileName); // Preserved Auspice check
+                                 const includesDistanceOrigin = link.distanceOrigin && fileName.includes(link.distanceOrigin);
+                                 return fileName && !includesDistanceOrigin && !hasAuspice;
+                             }).length > 0
                         ) {
-
-                            link.origin = link.origin.filter(fileName => {
-                            const hasAuspice = /[Aa]uspice/.test(fileName);
-                            const includesDistanceOrigin = fileName.includes(link.distanceOrigin);
-                            return fileName && !includesDistanceOrigin && !hasAuspice;
-                            });
-
-                            overrideNN = true;
-                            visible = true;
-                        } 
-                        if (link.origin.length > 1) {
-                            link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
-                            visible = true;
-                        }
-
-
-                        // If the origin array has an origin left after filtering out and its not the distance origin, then we need to show it
-                        if (link.origin[0] !== link.distanceOrigin) {
-                            visible = true;
-                        }
-
-
+                            // Filter the *copy* for visibility check
+                             finalOrigins = finalOrigins.filter(fileName => {
+                                 const hasAuspice = /[Aa]uspice/.test(fileName);
+                                 const includesDistanceOrigin = link.distanceOrigin && fileName.includes(link.distanceOrigin);
+                                 return fileName && !includesDistanceOrigin && !hasAuspice;
+                             });
+                             originWasFiltered = true; // *** Mark as filtered ***
+                             overrideNN = true;
+                             visible = true;
+                         }
+                         // If only distance origin existed and it's above threshold, 'visible' remains false.
                     }
-
                 } else {
-
-                    // If has no distance, then link should be visible and unnaffected by NN
+                    // Has a distance value but hasDistance is false? Treat as always visible.
                     overrideNN = true;
                     visible = true;
-
                 }
-
             }
-
-            // if((link.source === "MZ637292" && link.target === "MZ637292") || (link.source === "MZ637292" && link.target === "MZ797748")) {
-            //     console.log('setting link vis 2: ', _.cloneDeep(link));
-            // }
-
-
+    
+            // NN Pruning Logic
             if (visible && showNN && !overrideNN) {
-                visible = visible && link.nn;
-                // Keep link visible of not nearest neighbor, but still connected via an edge list
-                if (!visible && link.origin.filter(fileName => !fileName.includes(link.distanceOrigin)).length > 0) {
-                    link.origin = link.origin.filter(fileName => !fileName.includes(link.distanceOrigin));
-                    visible = true;
-                }
+                 const wasVisible = visible;
+                 visible = visible && link.nn;
+                 if (!visible && wasVisible) { // Check if NN made it invisible
+                      // Check *copy* for other origins
+                     if (finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin)).length > 0) {
+                         // Filter the *copy*
+                         finalOrigins = finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin));
+                         originWasFiltered = true; // *** Mark as filtered ***
+                         visible = true; // Keep visible due to non-distance origin
+                     }
+                 }
             }
-
+    
+            // Cluster Visibility Check
             const cluster = clusters[link.cluster];
             if (cluster && checkCluster) {
-
                 visible = visible && cluster.visible;
             }
-
-            
-
-            if(visible && link.origin.length > 1){
-                link.origin = this.session.style.widgets['link-origin-array-order'];
+    
+            // --- Step 3: Apply Final Origin Array Conditionally ---
+            if (visible) {
+                 if (originWasFiltered) {
+                     // If filtering occurred *during visibility checks*, assign the filtered result
+                     link.origin = finalOrigins;
+                 } else if (link.origin.length > 1 && globalOriginOrder.length > 1) {
+                      // If NO filtering occurred, it's visible, has multiple origins,
+                      // and global order exists, apply the global order.
+                     // Check if the link's current origins fundamentally match the global order content
+                     // (ignoring order initially) to prevent applying the wrong order set.
+                     const linkOriginSet = new Set(link.origin);
+                     const globalOrderSet = new Set(globalOriginOrder);
+                     if (linkOriginSet.size === globalOrderSet.size && [...linkOriginSet].every(item => globalOrderSet.has(item))) {
+                        link.origin = globalOriginOrder;
+                     } else {
+                        // Log a warning if sets don't match - indicates potential issue in global order management
+                         console.warn("Link origin set doesn't match global order set. Not applying global order.", link.id, link.origin, globalOriginOrder);
+                         // Keep link.origin as it was after addLink
+                     }
+                 }
+                 // If visible and single origin, or global order not set/relevant,
+                 // link.origin correctly retains its value from addLink.
             }
-            
-
-
-
-            link.visible = visible;
-
-
-
-        if((link.source === "MZ712879" && link.target === "MZ745515") || (link.source === "MZ745515" && link.target === "MZ712879")){
-            console.log('new link 222: ', JSON.stringify(link));
-        }
-        }
-
+            // If not visible, link.origin is left as is.
+    
+            link.visible = visible; // Set final visibility
+    
+            if((link.source === "MZ798055" && link.target === "MZ375596") || (link.source === "MZ375596" && link.target === "MZ798055")){
+                console.log('vis link 222 (End of loop): ', JSON.stringify(link));
+                 console.log('vis link 222 finalOrigins (End):', finalOrigins);
+                 console.log('vis link 222 originWasFiltered:', originWasFiltered);
+            }
+        } // End of loop
+    
         //log all links that are visible and their origin
-        console.log('--- visible links: ', _.cloneDeep(links.filter(l => l.visible)));
-        
+        console.log('--- visible links (End of setLinkVisibility): ', _.cloneDeep(links.filter(l => l.visible)));
+    
         if (!silent) {
-            // console.log('---triggering link-visibility');
-
             // $(document).trigger("link-visibility");
-        } 
-
-
+        }
+    
+    
         if(this.debugMode) {
             console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
         }
