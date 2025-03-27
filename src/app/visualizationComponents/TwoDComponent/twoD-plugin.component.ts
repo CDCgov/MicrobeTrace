@@ -2982,11 +2982,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkWidthReciprocalNonReciprocalChange(e) {
         if (e == "Reciprocal") {
             this.widgets['link-width-reciprocal'] = true;
-            // this.scaleLinkWidth();
+            this.scaleLinkWidth();
         }
         else {
             this.widgets['link-width-reciprocal'] = false;
-            // this.scaleLinkWidth();
+            this.scaleLinkWidth();
         }
     }
 
