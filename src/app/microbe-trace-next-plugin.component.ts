@@ -1226,6 +1226,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.style.widgets["link-show-nn"] = true;
             $('#filtering-epsilon-row').slideDown();
             
+            
 
             this.commonService.computeMST().then(() => {
                 console.log('computeMST for nearest neighbor');

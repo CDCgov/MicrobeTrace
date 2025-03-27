@@ -734,6 +734,10 @@ export class CommonService extends AppComponentBase implements OnInit {
     
         const serv = this;
         const matrix = serv.temp.matrix;
+
+        if((newLink.source === "MZ712879" && newLink.target === "MZ745515") || (newLink.source === "MZ745515" && newLink.target === "MZ712879")){
+            console.log('new link 111: ', JSON.stringify(newLink));
+        }
     
         // Trim ids to remove whitespace
         if (typeof newLink.source == 'number') {
@@ -808,6 +812,10 @@ export class CommonService extends AppComponentBase implements OnInit {
                 if (this.session.style.widgets['link-origin-array-order'].length == 0) {
                     this.session.style.widgets['link-origin-array-order'] = oldLink.origin;
                 }
+                
+                if(oldLink.origin.length > 1) {
+                    newLink.hasDistance = true;
+                }
 
                 if(this.debugMode) {
                     console.log('old link array order: ', this.session.style.widgets['link-origin-array-order']);
@@ -835,6 +843,9 @@ export class CommonService extends AppComponentBase implements OnInit {
              newLink.id = oldLink.id || id; // Prefer existing ID
 
             const origin = this.uniq(newLink.origin.concat(oldLink.origin));
+            if(origin.length > 1) {
+                newLink.hasDistance = true;
+            }
             Object.assign(oldLink, newLink, { origin: origin });
             linkIsNew = 0;
 
@@ -843,7 +854,7 @@ export class CommonService extends AppComponentBase implements OnInit {
              // Assign stableId to the new link object ---
              newLink.id =  id; 
 
-             if (newLink.hasDistance) {
+             if (newLink.hasDistance || newLink.origin.length > 1) {
                 newLink = Object.assign({
                 index: sdlinks.length,
                 source: "",
@@ -874,10 +885,15 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         }
 
+
         if (newLink.origin.length > 1 && (!this.session.style.widgets['link-origin-array-order'] || this.session.style.widgets['link-origin-array-order'].length == 0)) {
             this.session.style.widgets['link-origin-array-order'] = newLink.origin;
         }
         
+        if((newLink.source === "MZ712879" && newLink.target === "MZ745515") || (newLink.source === "MZ745515" && newLink.target === "MZ712879")){
+            console.log('new link 222: ', JSON.stringify(newLink));
+        }
+    
        
         return linkIsNew;
 
@@ -2657,7 +2673,11 @@ align(params): Promise<any> {
 
         // If this.session.style.widgets['polygons-color-show', we need 
         let polygonGroups = this.temp.polygonGroups || [];
-        const polygonColors = this.session.style.polygonColors;
+        let polygonColors = this.session.style.polygonColors;
+
+        if (!polygonColors || polygonColors.length === 0) {
+            polygonColors = ['#bbccee','#cceeff','#ccddaa','#eeeebb','#ffcccc','#dddddd'];
+        }
         const polygonAlphas = this.session.style.polygonAlphas;
 
         // If polygonGroups length is 0 but polygons-color-show is true, we need to create the groups via going through the visible nodes, and grouping them by cluster id in the format { key: clusterId, values: [nodeId1, nodeId2, ...] }
@@ -2679,6 +2699,8 @@ align(params): Promise<any> {
             this.temp.polygonGroups = polygonGroups;
             this.session.style.widgets['polygon-color-table-visible'] = true;
         }
+
+ 
 
         const result = this.colorMappingService.createPolygonColorMap(
           polygonGroups,
@@ -3156,7 +3178,7 @@ align(params): Promise<any> {
         }
 
           //log all links that are visible and their origin
-          console.log('--- visible links1: ', links.filter(l => l.visible));
+          console.log('--- visible links1: ', _.cloneDeep(links.filter(l => l.visible)));
 
           
         for (let i = 0; i < n; i++) {
@@ -3165,21 +3187,24 @@ align(params): Promise<any> {
 
             const link = links[i];
 
-            
-
-            if(link.source === "MZ745515" && link.target === "MZ712879" || link.source === "MZ712879" && link.target === "MZ745515") {
-                console.log('-----link is : ', _.cloneDeep(link));
+  
+            if((link.source === "MZ712879" && link.target === "MZ745515") || (link.source === "MZ745515" && link.target === "MZ712879")){
+                console.log('new link 111: ', JSON.stringify(link));
             }
-    
+        
 
 
             let visible = true;
             let overrideNN = false;
 
             // Add back the distance origin if it was removed and the link has distance to it
-            if ( link.hasDistance && !link.origin.includes(link.distanceOrigin)) {
+            if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
 
                 link.origin.push(link.distanceOrigin);
+            }
+
+            if(link.nn) {
+                console.log('-----link is nn: ', _.cloneDeep(link));
             }
 
             // No distance value
@@ -3289,16 +3314,21 @@ align(params): Promise<any> {
             link.visible = visible;
 
 
+
+        if((link.source === "MZ712879" && link.target === "MZ745515") || (link.source === "MZ745515" && link.target === "MZ712879")){
+            console.log('new link 222: ', JSON.stringify(link));
+        }
         }
 
         //log all links that are visible and their origin
-        console.log('--- visible links: ', links.filter(l => l.visible));
+        console.log('--- visible links: ', _.cloneDeep(links.filter(l => l.visible)));
         
         if (!silent) {
             // console.log('---triggering link-visibility');
 
             // $(document).trigger("link-visibility");
         } 
+
 
         if(this.debugMode) {
             console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
