@@ -394,7 +394,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   /**
    * Exports visualization as csv file or calls saveAsExcelFile to save as Excel
    */
-  exportVisualization() {
+  async exportVisualization() {
     if (this.SelectedCrossTabExportFileType == 'xlsx') {
       this.saveAsExcelFile();
   } else if (this.SelectedCrossTabExportFileType == 'csv') {
@@ -435,48 +435,54 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       return columns.map(header => dataRow[header])
     }
 
-    // pdfMake.vfs = pdfFonts.pdfMake.vfs;
-    //   pdfMake.createPdf({
-    //     content: [ 
-    //       { image: this.commonService.watermark },
-    //       { 
-    //         text: "Cluster Crosstab Snapshot:",
-    //         style: "header",
-    //         alignment: "center"
-    //       },
-    //       {
-    //         text: `${this.commonService.capitalize(this.xVariable)} vs ${this.commonService.capitalize(this.yVariable)}`,
-    //         style: "fontSize: 18",
-    //         alignment: "center"
-    //       },
-    //       {
-    //         style: "paddedTable",
-    //         table: {
-    //           headerRows: 1,
-    //           widths: this.SelectedTableData.tableColumns.map(col => "*"),
-    //           body: dataBody,
-    //         }
-    //       }
-    //     ],
-    //     footer: function(currentPage, pageCount) {
-    //       return [
-    //         {
-    //           text: `Page ${currentPage.toString()} of ${pageCount}`,
-    //           alignment: "center"
-    //         }
-    //       ];
-    //     },
-    //     styles: {
-    //       header: {
-    //         fontSize: 22,
-    //         bold: true
-    //       },
-    //       paddedTable: {
-    //         margin: [10, 10, 10, 10]
-    //       }
-    //     }
-    //   }).download(this.SelectedCrossTabExportFilename + '.pdf');
+    try {
+      const { default: pdfMake } = await import('pdfmake/build/pdfmake.js');
+      const { default: pdfFonts } = await import('pdfmake/build/vfs_fonts.js');
+      pdfMake.vfs = pdfFonts;
+      pdfMake.createPdf({
+        content: [ 
+          { image: this.commonService.watermark },
+          { 
+            text: "Cluster Crosstab Snapshot:",
+            style: "header",
+            alignment: "center"
+          },
+          {
+            text: `${this.commonService.capitalize(this.xVariable)} vs ${this.commonService.capitalize(this.yVariable)}`,
+            style: "fontSize: 18",
+            alignment: "center"
+          },
+          {
+            style: "paddedTable",
+            table: {
+              headerRows: 1,
+              widths: this.SelectedTableData.tableColumns.map(col => "*"),
+              body: dataBody,
+            }
+          }
+        ],
+        footer: function(currentPage, pageCount) {
+          return [
+            {
+              text: `Page ${currentPage.toString()} of ${pageCount}`,
+              alignment: "center"
+            }
+          ];
+        },
+        styles: {
+          header: {
+            fontSize: 22,
+            bold: true
+          },
+          paddedTable: {
+            margin: [10, 10, 10, 10]
+          }
+        }
+      }).download(this.SelectedCrossTabExportFilename + '.pdf');
+    } catch (error) {
+      console.error('Unable to export pdf: ', error); 
     }
+  }
 
   this.exportOpen = !this.exportOpen;
   }
