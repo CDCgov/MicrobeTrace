@@ -8,7 +8,7 @@ import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
 import * as saveAs from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
-import { Subject, takeUntil } from 'rxjs';
+import { debounceTime, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 import moment from 'moment';
 import { Tabulator } from 'tabulator-tables';
 import { Subscription } from 'rxjs';
@@ -63,6 +63,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ExportDashboardFilename: string = '';
     ExportDashboardScale: number = 1;
     ExportDashboardResolution: { width: number, height:number, summary:string} = {width: 0, height: 0, summary: ''};
+
+    private thresholdDebouncer: Subject<number> = new Subject<number>();
 
     showExportTablesMenu: boolean = false;
     ExportTablesFilename: string = '';
@@ -286,7 +288,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable);
         });
 
-        
+         // Add debounce subscription
+        this.thresholdDebouncer.pipe(
+            debounceTime(1000), // Wait 300ms after last change
+            distinctUntilChanged()
+        ).subscribe(threshold => {
+            this.executeThresholdChange(threshold);
+        });
 
         this.store.networkUpdated$
         .pipe(takeUntil(this.destroy$)) // Add takeUntil for proper cleanup
@@ -510,6 +518,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.cdref.detectChanges();
           }, 0);
       }
+
+    
+    // New method to handle the actual threshold change logic
+    private executeThresholdChange(newThreshold: number): void {
+        if(this.commonService.debugMode) {
+            console.log('loading settingss1: ', this.commonService.session.style.widgets["link-threshold"]);
+        }
+        
+        // Execute the actual threshold change
+        this.onLinkThresholdChanged(newThreshold);
+    }
 
     addComponent( component: string ) {
 
@@ -1028,18 +1047,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Updates threshold based on selection and stores in style widget
      */
-     public updateThreshold(ev : any) : void {
-        this.threshold = ev.target.value;
+     public updateThreshold(ev: any): void {
+        const newThreshold = ev.target?.value ?? ev;
+        this.threshold = newThreshold;
+        
         if(this.commonService.debugMode) {
             console.log('threshold: ', this.threshold);
         }
-        this.SelectedLinkThresholdVariable = this.threshold;
+        
+        // Update UI immediately
+        this.SelectedLinkThresholdVariable = newThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
-        if(this.commonService.debugMode) {
-            console.log('loading settingss1: ', this.commonService.session.style.widgets["link-threshold"]);
-        }
-        this.commonService.session.style.widgets["link-threshold"] = Number(this.threshold);
+        
+        // Emit the new threshold value to the debouncer for actual threshold change
+        this.thresholdDebouncer.next(Number(newThreshold));
     }
+
 
     /**
      * Handler for recall btn
@@ -2176,6 +2199,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if(this.commonService.session.data.nodes.length === 0) {
             return;
+        }
+
+        if(newThreshold !== undefined) {
+            // Update the style widget
+            this.commonService.session.style.widgets["link-threshold"] = newThreshold;
         }
 
         // Determine the new threshold
