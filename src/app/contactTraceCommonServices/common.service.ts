@@ -1,4 +1,4 @@
-import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -3345,19 +3345,19 @@ align(params): Promise<any> {
     };
 
 
-    updatePinNodes(copy: boolean) {
-        let nodes =  this.session.network.nodes;
-        let n = nodes.length;
-        for (let i = 0; i < n; i++) {
-            const node = nodes[i]; 
-            if (copy && node.fixed) node.preFixed = true;
-            if (!copy &&  this.session.network.timelineNodes[i].preFixed) {
-                node.fixed = true;
-                node.fx = node.x;
-                node.fy = node.y;
-            }
-        }
-    }
+    // updatePinNodes(copy: boolean) {
+    //     let nodes =  this.session.network.nodes;
+    //     let n = nodes.length;
+    //     for (let i = 0; i < n; i++) {
+    //         const node = nodes[i]; 
+    //         if (copy && node.fixed) node.preFixed = true;
+    //         if (!copy &&  this.session.network.timelineNodes[i].preFixed) {
+    //             node.fixed = true;
+    //             node.fx = node.x;
+    //             node.fy = node.y;
+    //         }
+    //     }
+    // }
 
     /**
      * @returns {any[]} Returns an array with a copy of each node object // TODO:: Do we need this?

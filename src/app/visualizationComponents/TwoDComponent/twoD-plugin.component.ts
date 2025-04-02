@@ -610,31 +610,32 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
-    async precomputePositionsWithD3(
-        nodes: any[],
-        links: any[]
-      ): Promise<{ nodes: any[]; links: any[] }> {
-        console.log(
-          '--- TwoD precomputePositionsWithD3 called links: ',
-          _.cloneDeep(links),
-          'nodes: ',
-          nodes
-        );
-        
-        const simulation = d3.forceSimulation(nodes)
-          .force('charge', d3.forceManyBody().strength(-30))
-          .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
-          .force('center', d3.forceCenter(0, 0))
-          .stop(); // Stop auto-stepping so we can control the ticks manually
-      
-        const maxTicks = 300;
+    async precomputePositionsWithD3(nodes: any[], links: any[], ticks:number = 300, initial: boolean = true): Promise<{ nodes: any[]; links: any[] }> {
+
+        let simulation;
+        if (initial) {
+            simulation = d3.forceSimulation(nodes)
+                .force('charge', d3.forceManyBody().strength(-30))
+                .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+                .force('center', d3.forceCenter(0, 0))
+                .stop(); // Stop auto-stepping so we can control the ticks manually
+        } else {
+            simulation = d3.forceSimulation(nodes)
+                .force('charge', d3.forceManyBody().strength(-3))
+                .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+                .force('center', d3.forceCenter(0, 0))
+                .force('collide', d3.forceCollide().radius(20))
+                .force('x', d3.forceX().strength(.001))
+                .force('y', d3.forceY().strength(.001))
+                .stop(); 
+        } 
         let tickCount = 0;
       
         return new Promise((resolve) => {
           function tick() {
             simulation.tick();
             tickCount++;
-            if (tickCount < maxTicks) {
+            if (tickCount < ticks) {
               // Use setTimeout to yield control to the browser between ticks
               setTimeout(tick, 0);
             } else {
@@ -787,8 +788,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             $(document).on("node-visibility", function () {
                 console.log('node-visibility called');
-                //that._rerender(true);
-                that._partialUpdate();
+                that._rerender(true);
+                //that._partialUpdate();
             });
 
             // $(document).on("link-visibility", async function () {
@@ -2496,16 +2497,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('--- TwoD DATA network rerender');
 
-        // If the network is in the middle of rendering, don't rerender
-        if(this.commonService.session.network.rendering) return;
+        if (!timelineTick) {
+            // If the network is in the middle of rendering, don't rerender
+            if(this.commonService.session.network.rendering) return;
 
-        // Set rendering to true to prevent actions during rerendering
-        this.commonService.session.network.rendering = true;
+            // Set rendering to true to prevent actions during rerendering
+            this.commonService.session.network.rendering = true;
 
-        // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
-        this.store.setNetworkRendered(false);
-
-
+            // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
+            this.store.setNetworkRendered(false);
+        }
 
         let networkData;
         if (timelineTick) {
@@ -2554,15 +2555,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
-        console.log('--- TwoD networkDataL 2: ', _.cloneDeep(networkData.links));
-        console.log('--- TwoD networkDataN 2: ', _.cloneDeep(networkData.nodes));
-
         const nodeIds = new Set(networkData.nodes.map(n => n.id));
 
 
        // Instead of calling synchronously, await the precomputation:
+       if (!this.cy) {
         const { nodes: laidOutNodes, links: laidOutLinks } =
-        await this.precomputePositionsWithD3(networkData.nodes, networkData.links);
+        await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300).then(({nodes: n, links: l}) => {
+            return this.precomputePositionsWithD3(n, l, 5, false);
+        });
 
         console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
         
@@ -2592,23 +2593,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 console.warn('Link target not found in nodes:', link.target, link);
             }
         });
-
-        console.log('--- TwoD networkData after precompute1: ', _.cloneDeep(networkData.links));
-
-    
-        console.log('link threhold network links: ', networkData.links.length);
-
-        // Determine autoFit based on node-timeline-variable
-        if (networkData.nodes.length !== 0) {
-            this.autoFit = this.commonService.session.style.widgets['node-timeline-variable'] === 'None';
-        } else {
-            this.autoFit = true;
-        }
-
-
-        if (this.debugMode) {
-            console.log('link vis rerender: ', this.commonService.getVisibleLinks());
-        }
+       }
 
 
         // Update Cytoscape visualization if it exists
@@ -2625,14 +2610,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cy.add(newElements);
 
             // Apply the Cose layout to arrange the nodes
-            const layout = this.cy.layout({
-                name: 'preset',
-                fit: true, // Fit the graph within the viewport
-                padding: 30, // Padding around the graph
+            // const layout = this.cy.layout({
+            //     name: 'preset',
+            //     fit: true, // Fit the graph within the viewport
+            //     padding: 30, // Padding around the graph
                 
-            });
+            // });
 
-            layout.run();
+            // layout.run();
 
 
         } else{
@@ -3380,7 +3365,7 @@ scaleLinkWidth() {
  * Synchronizes current Cytoscape instance with new data (adds/removes/updates
  * nodes and links) instead of completely rerendering.
  */
-private _partialUpdate() {
+private async _partialUpdate() {
     console.log('--- TwoD _partialUpdate called');
     if (!this.cy) {
       console.error('Cytoscape instance not initialized; cannot update partially.');
@@ -3398,13 +3383,18 @@ private _partialUpdate() {
         }
     });
 
+    // Retrieve fresh node/link data
+    const networkData = {
+        nodes: this.commonService.getVisibleNodes(),
+        links: this.commonService.getVisibleLinks()
+    };
+
+    const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 10, false);
+    networkData.nodes = laidOutNodes;
+    networkData.links = laidOutLinks;
+
     // Use batch mode to disable auto-panning during updates
     this.cy.batch(() => {
-        // Retrieve fresh node/link data
-        const networkData = {
-            nodes: this.commonService.getVisibleNodes(),
-            links: this.commonService.getVisibleLinks()
-        };
 
         networkData.nodes.forEach(node => {
             node.id = node._id.toString();
@@ -3412,13 +3402,10 @@ private _partialUpdate() {
         networkData.links.forEach((link, i) => {
             // Set a unique link id if desired
             //link.id =  i.toString();  // or link.index.toString()
-        
-            // console.log('--- TwoD link: ', link.source);
             // If link.source is an object, grab its _id and convert to string
             if (typeof link.source === 'object') {
                 link.source = link.source._id.toString();
             }
-            // console.log('--- TwoD link: ', link.source);
 
             // Same for link.target
             if (typeof link.target === 'object') {
@@ -3447,9 +3434,6 @@ private _partialUpdate() {
         // @ts-ignore
         const newLinkIds = new Set(newElements.edges.map(l => l.data.id));
 
-        console.log('newNodeIds:', newNodeIds);
-        console.log('----newLinkIds:', newLinkIds);
-
         // Update node visibility and restore positions
         this.cy.nodes().forEach(node => {
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
@@ -3460,17 +3444,12 @@ private _partialUpdate() {
                 node.removeClass('hidden');
 
                 // Restore position from cache
-                const position = this.nodePositions.get(node.id());
-                if (position) {
-                    node.position(position);
+                const newNode = newElements.nodes.find(n => n.data.id === node.id());
+                if (newNode) {
+                    node.position({x: newNode.data.x, y: newNode.data.y}); // Restore position
                 }
             }
         });
-
-        // console.log('----oldedges: ', _.cloneDeep(newElements.edges));
-
-        //console log edges that have source or target to be MZ745515 and MZ712879
-        console.log('----DUo Edge: ', newElements.edges.filter(edge => (edge.data.source === 'MZ745515' && edge.data.target === 'MZ712879') || (edge.data.source === 'MZ712879' && edge.data.target === 'MZ745515')));
 
         // Remove old edges
         this.cy.edges().forEach(edge => {
@@ -3483,21 +3462,10 @@ private _partialUpdate() {
         // Add/Update new edges
         newElements.edges.forEach(e => {
             const cyEdge = this.cy.getElementById(e.data.id);
-
-            if (e.data.source === 'MZ745515' && e.data.target === 'MZ712879') {
-                console.log('----updating edge: ', e);
-            }
             if (!cyEdge || !cyEdge.length) {
                 this.cy.add(e); // Add edge
             } else {
-                // console.log('----updating edge: ', cyEdge);
-                if (e.data.source === 'MZ745515' && e.data.target === 'MZ712879') {
-                    console.log('----udpating edge: ',  cyEdge.data());
-                }
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
-                if (e.data.source === 'MZ745515' && e.data.target === 'MZ712879') {
-                    console.log('----udpated edge: ',  cyEdge.data());
-                }
             }
         });
 
@@ -3509,12 +3477,12 @@ private _partialUpdate() {
 
 
         // Restore positions for all visible nodes explicitly
-        this.cy.nodes(':visible').forEach(node => {
-            const position = this.nodePositions.get(node.id());
-            if (position) {
-                node.position({x: position.x, y: position.y });
-            }
-        });
+        // this.cy.nodes(':visible').forEach(node => {
+        //     const position = this.nodePositions.get(node.id());
+        //     if (position) {
+        //         node.position({x: position.x, y: position.y });
+        //     }
+        // });
 
         this.fit();
 

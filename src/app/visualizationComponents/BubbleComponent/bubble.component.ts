@@ -715,6 +715,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * Calculates the position (x, y) for the array of nodes; nodes are positioned in a layers spiral/hexagonal pattern 
    */
   calculateHexagonalGridPositions(nodes: DataRecord[]) {
+    // alternative method could use d3 forces and/or phyllotaxis arrangement
+    // https://2019.wattenberger.com/blog/spirals
     const layerDistance = this.nodeSpacing + .02;
     let layer = 0;
     let nodesInLayer = 1;

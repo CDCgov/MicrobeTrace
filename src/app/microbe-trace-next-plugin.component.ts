@@ -1105,7 +1105,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.commonService.setNodeVisibility(true);
                 this.commonService.setLinkVisibility(true);
                 this.commonService.updateStatistics();
-                $(document).trigger("node-visibility"); // this.store.setNetworkUpdated(true); leads to incorrect link being removed
+                this.store.setNetworkUpdated(true);
             }
         }
 
@@ -1326,31 +1326,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         else {
 
             this.onColorNodesByChanged(silent);         
-        }
-    }
-
-    /**
-     * @param table 'node' | 'link'
-     * @returns boolean of whether the table should be visible based on the table and which view is active
-     * This is just one factor to determine whether to show or hide table, also color by variable and show/hide state
-     */
-    checkActiveView(table: string) {
-        if (table == 'node') {
-            for (const view in this.commonService.visuals) {
-                if (['twoD', 'gisMap', 'phylogenetic'].includes(view) && this.commonService.visuals[view].viewActive) {
-                    return true;
-                }
-            }
-            return false;
-        } else if (table == 'link') {
-            for (const view in this.commonService.visuals) {
-                if (['twoD', 'gisMap'].includes(view) && this.commonService.visuals[view].viewActive) {
-                    return true;
-                }
-            }
-            return false;
-        } else {
-            return false;
         }
     }
 
@@ -1640,11 +1615,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $("#global-timeline-field").empty();
             this.commonService.session.style.widgets["timeline-date-field"] = 'None'  
             $("#global-timeline-wrapper").fadeOut();
-            $('#pinbutton').prop("disabled", false);
-            if(!this.commonService.session.network.timelinePinned) {
-            $('#pinbutton').trigger('click');
-            this.commonService.updatePinNodes(false);
-            }
+            // $('#pinbutton').prop("disabled", false);
+            // if(!this.commonService.session.network.timelinePinned) {
+            // $('#pinbutton').trigger('click');
+            // this.commonService.updatePinNodes(false);
+            // }
             this.commonService.session.network.timelineNodes = [];
             this.commonService.setNodeVisibility(false);
             this.commonService.setLinkVisibility(false);
@@ -1676,9 +1651,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (!loadingJsonFile) {
             this.commonService.session.network.timelinePinned = this.commonService.session.network.allPinned;
-        if(!this.commonService.session.network.allPinned) {
-            this.commonService.updatePinNodes(true);
-        }
+        // if(!this.commonService.session.network.allPinned) {
+        //     this.commonService.updatePinNodes(true);
+        // }
 
         }
         let globalTimelineField =  (this.commonService.session.style.overwrite && variable == this.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.commonService.session.style.overwrite['globalTimelineField'] : this.commonService.titleize(variable));
