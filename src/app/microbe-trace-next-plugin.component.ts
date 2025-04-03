@@ -2212,10 +2212,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         : parseFloat(this.SelectedLinkThresholdVariable);
 
         // Only update if the threshold is different
-        if (parsedThreshold === this._lastLinkThreshold && this.commonService.session.network.isFullyLoaded) {
-        console.log("Threshold unchanged; skipping full network update.");
-        return;
-        }
+        // if (parsedThreshold === this._lastLinkThreshold && this.commonService.session.network.isFullyLoaded) {
+        // console.log("Threshold unchanged; skipping full network update.");
+        // return;
+        // }
         //debugger;
 
         // If a new threshold is provided, update the SelectedLinkThresholdVariable
