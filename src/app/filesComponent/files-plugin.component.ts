@@ -1,4 +1,4 @@
-﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
@@ -625,7 +625,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
      
     // launching new network, so set network rendered to false to start loading modal
     this.store.setNetworkRendered(false);
-   
+    this.store.setNetworkUpdated(false);
     this.store.setSettingsLoaded(false);
 
     this.commonService.cleanupData();
@@ -1658,13 +1658,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   };
 
   isFileContentsEmpty(file): boolean {
-    if (file.contents === null || file.contents === undefined) {
-      return true;
-    } else if (file.contents instanceof ArrayBuffer && file.contents.byteLength > 0) {
-      return false;
-    } else if (Object.keys(file.contents).length === 0 || file.contents == '') {
-      return true;
-    } else {
+    try { // large link list csv (230K rows) throws error, with try-catch, able to load file
+      if (file.contents === null || file.contents === undefined) {
+        return true;
+      } else if (file.contents instanceof ArrayBuffer && file.contents.byteLength > 0) {
+        return false;
+      } else if (Object.keys(file.contents).length === 0 || file.contents == '') {
+        return true;
+      } else {
+        return false;
+      }
+    } catch {
       return false;
     }
   }

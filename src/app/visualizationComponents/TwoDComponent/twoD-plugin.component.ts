@@ -603,9 +603,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         this.cy.on('dragfree', 'node', (evt) => {
             const node = evt.target;
-            if (this.widgets['node-timeline-variable'] != 'None' && this.widgets['node-timeline-variable'] != undefined) {
-                this.updateNodePos(node);
-            }
+            this.updateNodePos(node);
             // Handle node drag logic
         });
     }
@@ -647,23 +645,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
       }
 
-    // delete if not needed, currently used in onMinimumClusterSizeChanged in microbe-trace-next-plugin.component.ts
-    saveNodePos() {
-        if (this.cy) {
-            this.cy.nodes().forEach(node => {
-                let globalNode = this.commonService.session.data.nodeFilteredValues.find(x => x._id == node.data('id'))
-                globalNode['_fx'] = node.position().x;
-                globalNode['_fy'] = node.position().y;
-            })
-        }
-    }
-
     /**
      * Updates the saved postion of a node when it is dragged by the user
      * @param node
      */
     updateNodePos(node) {
-      let globalNode = this.commonService.session.data.nodeFilteredValues.find(x => x._id == node.data('id'))
+      let globalNode = this.commonService.getVisibleNodes().find(x => x._id == node.data('id')) // need to update so it works with grouped nodes/polygons
       globalNode['x'] = node.position().x;
       globalNode['y'] = node.position().y;
 

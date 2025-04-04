@@ -1,4 +1,4 @@
-﻿import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
+import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
@@ -2103,7 +2103,7 @@ align(params): Promise<any> {
         if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
         console.log('run ham computeTree');
-        this.computeTree();
+        await this.computeTree();
         console.log('compute tree end');
         if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
         this.finishUp();
