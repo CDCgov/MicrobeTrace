@@ -102,13 +102,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       'xaxis.autorange': true,
       'yaxis.autorange': true
     }
-    console.log(reCenter);
     PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
   }
   
   ngOnInit(): void {
 
-    console.log(this.heatmapContainerRef);
 
     this.viewActive = true;
     this.gtmService.pushTag({
@@ -200,7 +198,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   }
 
   goldenLayoutComponentResize(): void {
-    console.log(this.heatmapContainerRef);
     const height = $('heatmapcomponent').height();
     const width = $('heatmapcomponent').width();
     if (height)
@@ -288,21 +285,18 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   }
 
   updateLoColor(color: string): void {
-    console.log(color);
     this.commonService.session.style.widgets["heatmap-color-low"] = color;
     this.loColor = color;
     this.redrawHeatmap();
   }
 
   updateMedColor(color: string): void {
-    console.log(color);
     this.commonService.session.style.widgets["heatmap-color-medium"] = color;
     this.medColor = color;
     this.redrawHeatmap();
   }
 
   updateHiColor(color: string): void {
-    console.log(color);
     this.commonService.session.style.widgets["heatmap-color-high"] = color;
     this.hiColor = color;
     this.redrawHeatmap();
@@ -324,7 +318,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
     const exportImageType = this.SelectedNetworkExportFileTypeVariable;
-    console.log(exportImageType);
     const content = document.getElementById(domId);
     if (content) {
       const fixedContent = this.fixGradient(content);

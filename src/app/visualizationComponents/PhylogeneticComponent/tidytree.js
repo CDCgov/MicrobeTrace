@@ -583,6 +583,8 @@ TidyTree.prototype.redraw = function () {
       let newLinks = enter.append("g").attr("class", "tidytree-link");
 
       let linkTransformer = linkTransformers[this.type][this.mode][this.layout];
+      console.log(linkTransformer);
+      console.log(newLinks);
       newLinks
         .append("path")
         .attr("fill", "none")

@@ -1920,7 +1920,8 @@ align(params): Promise<any> {
 
 
     hasSeq = x => {
-        if (x.seq.includes("a") || x.seq.includes("c") || x.seq.includes("g") || x.seq.includes("t")){
+        console.log(x);
+        if (x.seq && (x.seq.includes("a") || x.seq.includes("c") || x.seq.includes("g") || x.seq.includes("t") || x.seq.includes("A") || x.seq.includes("C") || x.seq.includes("G") || x.seq.includes("T"))){
             return true;
         }
         return false;
@@ -1934,7 +1935,9 @@ align(params): Promise<any> {
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
-                let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
+                let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
+                if (labels.length === 0)
+                    labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
                 labels = labels.sort();
                 let metric = this.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
@@ -1948,7 +1951,7 @@ align(params): Promise<any> {
                     if (row) {
                         for (let j = 0; j < i; j++) {
                             const link = row[labels[j]];
-                            if (link && link["distanceOrigin"] === "Genetic Distance") {
+                            if (link) {
                                 dm[i][j] = dm[j][i] = link[metric];
                             } else {
                                 dm[i][j] = dm[j][i] = null;
@@ -1992,10 +1995,10 @@ align(params): Promise<any> {
                 if (this.debugMode) {
                   console.log('Tree Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
                 }
-                resolve(treeString);
                 // Clean up: terminate the worker and unsubscribe.
                 treeWorker.terminate();
                 sub.unsubscribe();
+                return resolve(treeString);
               });
             });
           }

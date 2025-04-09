@@ -19,6 +19,7 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { runInThisContext } from 'vm';
 import { MatHint } from '@angular/material/form-field';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { throws } from 'assert';
 
 
 /**
@@ -162,7 +163,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.visuals.phylogenetic = this;
   }
 
-  openTree = () => {
+  openTree = async () => {
     /*
     if (this.visuals.phylogenetic.commonService.session.data.newickString) {
       this.tree = new TidyTree(this.visuals.phylogenetic.commonService.session.data.tree,
@@ -185,15 +186,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.hideTooltip();
       this.styleTree();
     } else {
-      const newickString = this.commonService.computeTree();
-      newickString.then((x) => {
-        const tree = this.buildTree(x);
+      const newickString = await this.commonService.computeTree();
+      console.log(newickString);
+      //newickString.then((x) => {
+        const tree = this.buildTree(newickString);
         this.tree = tree;
         this.commonService.visuals.phylogenetic.tree = tree;
         this.mergeNodeData();
         this.hideTooltip();
         this.styleTree();
-      });
+      //});
     }
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
@@ -512,17 +514,21 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   onTreeLayoutChange(event) {
-    this.SelectedTreeLayoutVariable = event;
-    this.tree.setLayout(event);
-    this.openCenter();
-    this.styleTree();
+    if (this.tree) {
+      this.SelectedTreeLayoutVariable = event;
+      this.tree.setLayout(event);
+      this.openCenter();
+      this.styleTree();
+    }
   }
 
   onTreeModeChange(event) {
-    this.SelectedTreeModeVariable = event;
-    this.tree.setMode(event);
-    this.openCenter();
-    this.styleTree();
+    if (this.tree){
+      this.SelectedTreeModeVariable = event;
+      this.tree.setMode(event);
+      this.openCenter();
+      this.styleTree();
+    }
   }
 
   onTreeTypeChange(event) {
@@ -538,7 +544,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.tree.eachLeafLabel(label => {
       d3.select(label).text(data => {
         let id = data.data.id;
-        let node = this.commonService.session.data.nodes.find(node => node._id == id);
+        let node = this.commonService.session.data.nodes.find(node => node.id == id);
+        if (node === undefined)
+          node = this.commonService.session.data.nodes.find(d => d._id === data.data.id);
         return node[labelVar];
       }).attr('dx', 8)
     });
