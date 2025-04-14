@@ -116,7 +116,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     //Polygon Tab
     SelectedPolygonLabelVariable: string = "None";
     SelectedPolygonColorVariable: string = "None";
-    SelectedPolygonLabelOrientationVariable: string = "top";
+    SelectedPolygonLabelOrientationVariable: 'top' | 'bottom' | 'center' = "top";
     SelectedPolygonLabelSizeVariable: number = 0.0;
     SelectedPolygonGatherValue: number = 0.0;
     CenterPolygonVariable: string = "None";
@@ -297,7 +297,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if(this.data && this.store.settingsLoadedValue && newPruned && this.commonService.activeTab === '2D Network'){
                 console.log('--- TwoD DATA network updated pruned', newPruned);
                 this._rerender();
-                this.loadSettings();
+                //this.loadSettings();
             }
         });
 
@@ -486,7 +486,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 css: {
                     'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
                     // We also need to ensure that it uses data(...) for color & alpha:
-                    'background-color': 'data(nodeColor)',    
+                    'background-color': 'data(nodeColor)', 
+                    'border-width': 'data(borderWidth)'   
                     // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
                     // 'z-compound-depth': 'back',  // ensures parent is behind children
                 }
@@ -603,7 +604,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         this.cy.on('dragfree', 'node', (evt) => {
             const node = evt.target;
-            this.updateNodePos(node);
+            if (node.children().length > 0) {
+                node.children().forEach((child) => {
+                    this.updateNodePos(child);
+                });
+            } else {
+                this.updateNodePos(node);
+            }
+
             // Handle node drag logic
         });
     }
@@ -1179,23 +1187,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateNodeGrouping(flag);
 
         if (flag) {
-            if (this.widgets['polygons-color-show'] == true) {
-                $('#polygons-color-show').click();
-            } else {
-                $('#polygons-color-hide').click();
-            }
-            if (this.widgets['polygons-label-show'] == true) {
-                $('#polygons-label-show').click();
-            } else {
-                $('#polygons-label-hide').click();
-            }
-            
-
             // Ensure the label orientation is updated when polygons are turned on
             this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
         } else {
             $(".polygons-settings-row").slideUp();
-            $('.polygons-label-row').slideUp();
+            //$('.polygons-label-row').slideUp();
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-value-row").slideUp();
             $("#polygon-color-table").empty();
@@ -1234,9 +1230,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     private addParentNodesAndGroupChildren(cy: cytoscape.Core): void {
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
+        let foci = this.commonService.session.style.widgets['polygons-foci'];
         cy.nodes().forEach(node => {
-            const group = node.data('group');
-            if (group) {
+            const group = node.data(foci);
+            if (group || group==0) {
                 if (!groupMap.has(group)) {
                     groupMap.set(group, []);
                 }
@@ -1254,15 +1251,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         groupMap.forEach((nodesInGroup, group) => {
             const parentId = `${group}`;
             if (cy.getElementById(parentId).length === 0) {
+                let color = this.commonService.session.style.widgets['polygons-color-show'] ? this.commonService.temp.style.polygonColorMap(group) : this.commonService.session.style.widgets['polygon-color'];
+                const alphaVal = this.commonService.temp.style.polygonAlphaMap(group) ?? 1;
                 cy.add({
                     group: 'nodes',
                     data: { 
                         id: parentId, 
-                        label: group, 
+                        label: parentId,
                         isParent: true, 
-                        nodeColor: this.commonService.temp.style.polygonColorMap(group) || '#000',
+                        nodeColor: color,
                         borderWidth: 1,
                         shape: 'rectangle', 
+                        bgOpacity: alphaVal,
                     },
                     classes: 'parent' // Assigning the 'parent' class
                 });
@@ -1270,8 +1270,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         cy.nodes().forEach(node => {
-            const group = node.data('group');
-            if (group) {
+            const group = node.data(foci);
+            if (group || group==0) {
                 const parentId = `${group}`;
                 node.move({ parent: parentId });
             }
@@ -1315,9 +1315,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         cy.nodes('.parent').forEach(parentNode => {
             const groupName = parentNode.data('label'); // Assuming 'label' holds the group name
-
+            let color = this.commonService.session.style.widgets['polygons-color-show'] ? this.commonService.temp.style.polygonColorMap(groupName) : this.commonService.session.style.widgets['polygon-color'];
             // Determine the new color based on the groupColorMap
-            const newColor = this.commonService.temp.style.polygonColorMap(groupName) || '#000'; // Default to black
+            const newColor = color || '#000'; // Default to black
             const alphaVal = this.commonService.temp.style.polygonAlphaMap(groupName) ?? 1;  // fallback = 1
 
             // Update the nodeColor data attribute
@@ -1336,9 +1336,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * This function is called when polygon-color-show widget is updated from the template.
      * This widget controls whether polygon should be colored the same or different.
-     * 
-     * XXXXX I think this function wasn't updated with the move to Angular; most of the code 
-     * seems redundant/unnecessary. Evaluate whether function can be reduce/eliminated. XXXXX
      */
     polygonColorsToggle(e) {
 
@@ -1363,7 +1360,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $("#polygon-color-table").empty();
             this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
             setTimeout(() => {
+                // first removes polygons, if needed second call add them back
                 this.updateNodeGrouping(false);
+                if (this.commonService.session.style.widgets['polygons-show']) this.updateNodeGrouping(true);
             }, 200);
         }
     }
@@ -1724,14 +1723,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else {
             this.updateGroupAssignments(e);
         }
-
-        if (e == 'None') {
-            $('#color-polygons').slideDown();
-            $('#polygon-color-value-row').slideDown();
-        } else {
-            $('#color-polygons').css('display', 'flex');
-            $('#polygon-color-value-row').slideUp();
-        }
     }
 
     updateGroupAssignments(foci: string): void {
@@ -1778,17 +1769,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Create new parent nodes and assign child nodes
             groupMap.forEach((nodesInGroup, groupName) => {
                 const parentId = `group-${groupName}`;
-    
+                let color = this.commonService.session.style.widgets['polygons-color-show'] ? this.commonService.temp.style.polygonColorMap(groupName) : this.commonService.session.style.widgets['polygon-color'];
+                const alphaVal = this.commonService.temp.style.polygonAlphaMap(groupName) ?? 1;  // fallback = 1
                 // Add a new parent node
                 const parentNode = cy.add({
                     group: 'nodes',
                     data: {
                         id: parentId,
-                        label: groupName,
+                        label: `${groupName}`, // Use group name as label
                         isParent: true,
-                        nodeColor: this.commonService.temp.style.polygonColorMap(groupName) || '#000', // Default to black if not found
-                        borderWidth: 0,
+                        nodeColor: color|| '#000', // Default to black if not found
+                        borderWidth: 1,
                         shape: 'rectangle',
+                        bgOpacity: alphaVal, // Use the alpha value for background opacity
                     },
                     classes: 'parent' // Assigning the 'parent' class
                 });
@@ -1805,9 +1798,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     node.move({ parent: null });
                 }
             });
-    
-            // Refresh Cytoscape styles to apply changes
-            cy.style().update();
+
+            if (  this.commonService.session.style.widgets['polygons-label-show'] == false) {
+                cy.style()
+                .selector('node.parent')
+                .style({
+                    'label': '',
+                })
+                .update();
+            } else {
+                // Refresh Cytoscape styles to apply changes
+                cy.style().update();
+            }
 
              // **Step 6:** Create and Assign the `groups` Object for polygonGroups
             const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
@@ -1884,11 +1886,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onPolygonLabelShowChange(e) {
         if (e) {
             this.widgets['polygons-label-show'] = true;
-            $('.polygons-label-row').slideDown();
         }
         else {
             this.widgets['polygons-label-show'] = false;
-            $('.polygons-label-row').slideUp();
         }
 
          // Update the parent/group nodes' labels in Cytoscape
@@ -1899,12 +1899,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .selector('node.parent')
                 .style({
                     'label': 'data(label)', // Assumes parent nodes have a 'label' data field
-                    'text-valign': 'center',
+                    'text-valign': this.SelectedPolygonLabelOrientationVariable,
                     'text-halign': 'center',
-                    'font-size': '12px', // Adjust as needed
-                    'text-background-color': '#ffffff',
-                    'text-background-opacity': 1,
-                    'text-background-padding': '2px',
+                    'font-size': `${this.commonService.session.style.widgets['polygons-label-size']}px`, // Adjust as needed
+                    //'text-background-color': '#ffffff',
+                    //'text-background-opacity': 1,
+                    //'text-background-padding': '2px',
                     // We also need to ensure that it uses data(...) for color & alpha:
                     'background-color': 'data(nodeColor)',    
                     // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
@@ -2586,7 +2586,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Update Cytoscape visualization if it exists
         if (this.cy && !timelineTick) {
         
-            this._partialUpdate();
+            this._partialUpdate().then(() => this.ensurePolygon());
 
         } else if (this.cy && timelineTick) {
             this.data = this.commonService.convertToGraphDataArray(networkData);
@@ -2605,6 +2605,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // });
 
             // layout.run();
+            this.ensurePolygon();
 
 
         } else{
@@ -2710,6 +2711,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log('--- TwoD DATA network rerender complete');
     }
 
+    ensurePolygon() {          
+            
+        if (this.commonService.session.style.widgets['polygons-show']) {
+
+            this.polygonsToggle(true)
+            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
+            // for some reason color of polygons change, table matches this change but why change colors
+            this.openCenter();
+        }
+    }
+
     public getNodeShape(node: any) {
 
         //* Shapes:
@@ -2722,8 +2734,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else {
 
             let type = this.commonService.temp.style.nodeSymbolMap(node[symbolVariable]);
-
-            console.log('type: ', type);
 
             return type;
 
@@ -3433,6 +3443,7 @@ private async _partialUpdate() {
                 // Restore position from cache
                 const newNode = newElements.nodes.find(n => n.data.id === node.id());
                 if (newNode) {
+                    node.data({ ...node.data(), ...newNode.data, });
                     node.position({x: newNode.data.x, y: newNode.data.y}); // Restore position
                 }
             }
@@ -3707,8 +3718,9 @@ private async _partialUpdate() {
         console.log('----TWOD updateNodeLabels called');
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
-            const newLabel = this.getNodeLabel(node.data());
-            node.data('label', newLabel);
+            if (node.children().length > 0) return; // Skip parent nodes
+                const newLabel = this.getNodeLabel(node.data());
+                node.data('label', newLabel);
         });
 
         console.log('--- TwoDComponent updateNodeLabels ended ');
@@ -3745,7 +3757,6 @@ private async _partialUpdate() {
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
             const newShape = this.getNodeShape(node.data());
-            console.log('newShape: ', newShape);
             node.data('shape', newShape);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes

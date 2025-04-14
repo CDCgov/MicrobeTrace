@@ -315,13 +315,13 @@
                                     <p-selectButton id="polygons-label-visibility" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-label-show']" (ngModelChange)="onPolygonLabelShowChange($event)"></p-selectButton>
                                 </div>
                               </div>
-                              <div class="form-group row polygons-label-row" title="How big should polygon labels be?">
+                              <div *ngIf="commonService.session.style.widgets['polygons-label-show']" class="form-group row polygons-label-row" title="How big should polygon labels be?">
                                 <div class="col-4"><label for="polygons-label-size">Label Size</label></div>
                                 <div class="col-8">
                                     <input type="range" class="custom-range" id="polygons-label-size" min="6" value="16" step="1" max="72" [(ngModel)]="commonService.session.style.widgets['polygons-label-size']" (ngModelChange)="onPolygonLabelSizeChange($event)">
                                 </div>
                               </div>
-                              <div class="form-group row polygons-label-row" title="How should the labels be oriented relative to center of polygon?">
+                              <div *ngIf="commonService.session.style.widgets['polygons-label-show']" class="form-group row polygons-label-row" title="How should the labels be oriented relative to center of polygon?">
                                 <div class="col-4"><label for="polygon-label-orientation">Orientation</label></div>
                                 <div class="col-8">
                                     <select id="polygon-label-orientation" [(ngModel)]="SelectedPolygonLabelOrientationVariable" (ngModelChange)="onPolygonLabelOrientationChange($event)">
