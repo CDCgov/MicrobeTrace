@@ -2222,7 +2222,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 console.log('cluster link: ', link);
             }
             const labelValue = link[labelVariable];
-            console.log('labelValue: ', labelValue);
+            // check if link has a distance origin and if the distance origin is included in the link.origin array, if not then the label should be 0
+            if (link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
+                return { text: 0 };
+            }
+
             if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
                 // console.log('is number');
                 if (this.widgets['default-distance-metric'] == 'snps') {
@@ -2946,11 +2950,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.linkMax = -Infinity;
         this.linkMin = Infinity;
         for (let i = 0; i < n; i++) {
-            let l = this.visLinks[i][variable];
-            if (!this.isNumber(l)) return;
-            if (l > this.linkMax) this.linkMax = l;
-            if (l < this.linkMin) this.linkMin = l;
-        }
+            const link = this.visLinks[i];
+          
+            // Check if the link has a distanceOrigin and if it's not included in origin array
+            let value = 0;
+            if (link.distanceOrigin && link.origin.includes(link.distanceOrigin)) {
+              value = link[variable];
+            }
+          
+            // Skip if value is not a number
+            if (!this.isNumber(value)) continue;
+          
+            // Update min and max
+            if (value > this.linkMax) this.linkMax = value;
+            if (value < this.linkMin) this.linkMin = value;
+          }
         this.linkScale = d3.scaleLinear()
             .domain([this.linkMin, this.linkMax])
             .range([minWidth, maxWidth]);
@@ -3089,6 +3103,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log("variable", variable);
             console.log("value", link[variable]);
             const value = link[variable];
+            if (variable == 'distance' && link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
+                return false;
+            }
             return this.isNumber(value) || (!this.isNumber(value) && !isNaN(Number(value)));
         });        
         
@@ -3263,7 +3280,10 @@ scaleLinkWidth() {
 
     // Iterate over each edge and set the scaled width
     this.cy.edges().forEach(edge => {
-        const dataValue = edge.data(variable) as unknown as number;
+        let dataValue = edge.data(variable) as unknown as number;
+        if (variable == 'distance' && edge.data('distanceOrigin') && !edge.data('origin').includes(edge.data('distanceOrigin'))) {
+            dataValue = 0;
+        }
         if (this.isNumber(dataValue)) {
             const scaledWidth = this.linearScale(dataValue, min, max, minWidth, maxWidth, reciprocal);
             edge.data('scaledWidth', scaledWidth);
@@ -3495,6 +3515,7 @@ private async _partialUpdate() {
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
         this.loadSettings();
+        this._partialUpdate(); 
     }
 
     ngOnDestroy(): void {

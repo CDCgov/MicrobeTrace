@@ -599,7 +599,8 @@ export class CommonService extends AppComponentBase implements OnInit {
     }
 
     onStyleFileApplied() {
-        this.store.setStyleFileApplied(true);
+        this.store.setStyleFileApplied();
+        
     }
 
     onTableCleared(tableId: string) {
@@ -1259,22 +1260,23 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.createPolygonColorMap();
 
         // finds id s in template/html where id=widget name, updated the value to the new value in the style file
-        let $id = null;
-        for (let id in this.session.style.widgets) {
-            $id = $("#" + id);
-            if ($id.length > 0) {
-                if (this.includes(["radio", "checkbox"], ($id[0].type))) {
-                    if (this.session.style.widgets[id]) $id.trigger("click");
-                } else {
-                    if (id == 'default-distance-metric') {
-                        $id.val(this.session.style.widgets[id].toLowerCase());
-                        $("#" + id+'2').val(this.session.style.widgets[id].toLowerCase());
-                    } else {
-                        $id.val(this.session.style.widgets[id]);
-                    }                    
-                }
-            }
-        }
+        // let $id = null;
+        // for (let id in this.session.style.widgets) {
+        //     $id = $("#" + id);
+        //     if ($id.length > 0) {
+        //         if (this.includes(["radio", "checkbox"], ($id[0].type))) {
+        //             if (this.session.style.widgets[id]) $id.trigger("click");
+        //         } else {
+        //             if (id == 'default-distance-metric') {
+        //                 $id.val(this.session.style.widgets[id].toLowerCase());
+        //                 $("#" + id+'2').val(this.session.style.widgets[id].toLowerCase());
+        //             } else {
+        //                 $id.val(this.session.style.widgets[id]);
+        //             }                    
+        //         }
+        //     }
+        // }
+        console.log('--- applyStyle called');
 
         this.onStyleFileApplied();
 

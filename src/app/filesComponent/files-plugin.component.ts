@@ -491,7 +491,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // });   
     this.eventEmitterService.invokeFirstComponentFunction.unsubscribe();
     this.store.setNewSession(false);
-    this.store.setStyleFileApplied(false);  
+    this.store.setStyleFileApplied();  
     this.store.setFP_removeFiles(false);
     this.commonService.LoadViewEvent.unsubscribe();
 

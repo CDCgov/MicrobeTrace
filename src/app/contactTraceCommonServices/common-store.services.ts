@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -34,7 +34,7 @@ export class CommonStoreService {
   private _newSession$ = new BehaviorSubject<boolean>(false);
   newSession$ = this._newSession$.asObservable();
 
-  private _styleFileApplied$ = new BehaviorSubject<boolean>(false);
+  private _styleFileApplied$ = new Subject<void>();
   styleFileApplied$ = this._styleFileApplied$.asObservable();
 
   private _tableCleared$ = new BehaviorSubject<string>(null);
@@ -120,11 +120,8 @@ export class CommonStoreService {
     this.updateValue(this._newSession$, value);
   }
 
-  get styleFileAppliedValue(): boolean {
-    return this._styleFileApplied$.value;
-  }
-  setStyleFileApplied(value: boolean): void {
-    this.updateValue(this._styleFileApplied$, value);
+  setStyleFileApplied(): void {
+    this._styleFileApplied$.next();
   }
 
   get tableClearedValue(): string {
