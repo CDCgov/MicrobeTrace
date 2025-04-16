@@ -290,6 +290,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('--- TwoD ngOnInit called');
 
+        console.log(this.cyContainer);
         this.networkUpdatedSubscription = this.store.networkUpdated$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
@@ -2653,6 +2654,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
             // 4) Actually create Cytoscape
             let startTime: number;
+            console.log(this.cyContainer);
             this.cy = cytoscape({
               container: this.cyContainer.nativeElement,
               elements: el,
@@ -3520,6 +3522,7 @@ private async _partialUpdate() {
 
     ngOnDestroy(): void {
 
+        console.log("calling destroy");
         this.destroy$.next();
         this.destroy$.complete();
 
@@ -3527,8 +3530,10 @@ private async _partialUpdate() {
 
         this.settingsLoadedSubscription.unsubscribe();
 
-        this.cy.removeAllListeners();
-        this.cy.destroy();
+        if (this.cy){
+            this.cy.removeAllListeners();
+            this.cy.destroy();
+        }
         this.cyContainer = null;
 
 
