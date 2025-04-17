@@ -286,18 +286,18 @@
                     </p-accordionTab>                 
                 </p-accordion>
             </tab>
-            <tab heading="{{'Polygons' | localize}}" customClass="m-tabs__item">
+            <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
                 <p-accordion>
-                    <p-accordionTab style="color:#495057" header="Polygon Controls" id="polygons-controls-accordion">
+                    <p-accordionTab style="color:#495057" header="Controls" id="polygons-controls-accordion">
                           <div id="polygons-controls" class="show" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
-                              <div class="form-group row" title="Show polygons?">
-                                <div class="col-4">Polygons</div>
+                              <div class="form-group row" title="Show groups?">
+                                <div class="col-4">Groups</div>
                                 <div class="col-8">
                                     <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-show']" (ngModelChange)="polygonsToggle($event)"></p-selectButton>
                                 </div>
                               </div>
-                              <div *ngIf="commonService.session.style.widgets['polygons-show']" class="form-group row polygons-settings-row" title="What Foci should be used when creating convex hulls?">
+                              <div *ngIf="commonService.session.style.widgets['polygons-show']" class="form-group row polygons-settings-row" title="What node variable to group by?">
                                 <div class="col-4"><label for="polygons-foci">Group By</label></div>
                                 <div class="col-8">
                                     <p-dropdown id="polygons-foci" [options]="FieldList" appendTo="body" [(ngModel)]="commonService.session.style.widgets['polygons-foci']" (ngModelChange)="centerPolygons($event)"></p-dropdown>
@@ -309,19 +309,19 @@
                     <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" header="Labels" id="polygons-controls-accordion">
                           <div id="polygons-controls-labels" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
-                              <div class="form-group row" title="Show polygons label?">
-                                <div class="col-4">Label Polygons</div>
+                              <div class="form-group row" title="Show group labels?">
+                                <div class="col-4">Groups Label</div>
                                 <div class="col-8">
                                     <p-selectButton id="polygons-label-visibility" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-label-show']" (ngModelChange)="onPolygonLabelShowChange($event)"></p-selectButton>
                                 </div>
                               </div>
-                              <div *ngIf="commonService.session.style.widgets['polygons-label-show']" class="form-group row polygons-label-row" title="How big should polygon labels be?">
+                              <div *ngIf="commonService.session.style.widgets['polygons-label-show']" class="form-group row polygons-label-row" title="How big should group labels be?">
                                 <div class="col-4"><label for="polygons-label-size">Label Size</label></div>
                                 <div class="col-8">
                                     <input type="range" class="custom-range" id="polygons-label-size" min="6" value="16" step="1" max="72" [(ngModel)]="commonService.session.style.widgets['polygons-label-size']" (ngModelChange)="onPolygonLabelSizeChange($event)">
                                 </div>
                               </div>
-                              <div *ngIf="commonService.session.style.widgets['polygons-label-show']" class="form-group row polygons-label-row" title="How should the labels be oriented relative to center of polygon?">
+                              <div *ngIf="commonService.session.style.widgets['polygons-label-show']" class="form-group row polygons-label-row" title="How should the labels be oriented relative to center of group?">
                                 <div class="col-4"><label for="polygon-label-orientation">Orientation</label></div>
                                 <div class="col-8">
                                     <select id="polygon-label-orientation" [(ngModel)]="SelectedPolygonLabelOrientationVariable" (ngModelChange)="onPolygonLabelOrientationChange($event)">
@@ -338,20 +338,20 @@
                         <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" header="Colors" id="polygons-controls-accordion">  
                           <div id="polygons-controls-colors" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
-                              <div id="color-polygons" class="form-group row" title="Show polygons colored?">
-                                <div class="col-4">Color Polygons</div>
+                              <div id="color-polygons" class="form-group row" title="Distinguish groups by color?">
+                                <div class="col-4">Color Groups</div>
                                 <div class="col-8">
                                     <p-selectButton id="colorPolygons" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-color-show']" (ngModelChange)="polygonColorsToggle($event)"></p-selectButton>
                                 </div>
                               </div>
                               <div *ngIf="commonService.session.style.widgets['polygons-color-show']" id="polygon-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                                <div class="col-4">Polygon Color Table</div>
+                                <div class="col-4">Group Color Table</div>
                                 <div class="col-8">
-                                    <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']" (ngModelChange)="onPolygonColorTableChange($event)"></p-selectButton>
+                                    <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']" (ngModelChange)="polygonColorsTableToggle($event)"></p-selectButton>
                                 </div>
                               </div>
-                              <div *ngIf="!commonService.session.style.widgets['polygons-color-show']" id="polygon-color-value-row" class="form-group row" title="What color should the polygons be?">
-                                <div class="col-4"><label for="polygon-color">Polygons</label></div>
+                              <div *ngIf="!commonService.session.style.widgets['polygons-color-show']" id="polygon-color-value-row" class="form-group row" title="What color should the groups be?">
+                                <div class="col-4"><label for="polygon-color">Group Color</label></div>
                                 <div class="col-8">
                                   <input type="color" id="polygon-color" class="form-control form-control-sm" value="#1f77b4" [(ngModel)]="commonService.session.style.widgets['polygon-color']" (ngModelChange)="onPolygonColorChanged($event)">
                                 </div>
@@ -442,7 +442,7 @@
     >
           <ng-template pTemplate="header">
             <div style="display: flex; justify-content: space-between; width: 100%;">
-                <span>Polygon Color Table</span>
+                <span>Group Color Table</span>
                 <span style="overflow: visible; position: relative;">
                   <button title="Settings" class="btn btn-sm btn-clean btn-icon-md" style="float:left" (click)="toggleColorTableSettings('polygon-color')"><i class="pi pi-cog"></i></button>
                     <div id="polygonColorTableSettings" class="dropdown-menu" style="display: none;" (mouseleave)="closeSettingsPane('polygonColorTableSettings')">

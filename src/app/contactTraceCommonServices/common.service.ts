@@ -3147,7 +3147,7 @@ align(params): Promise<any> {
                 node.visible = node.visible && cluster.visible;
             }
             if (dateField != "None") {
-                node.visible = node.visible && moment(this.session.state.timeEnd).toDate() >= moment(node[dateField]).toDate();
+                node.visible = node.visible && (moment(this.session.state.timeEnd).toDate() >= moment(node[dateField]).toDate() || node[dateField] == null);
             }
 
             // if (node._id === "NIMR_NG894803") {

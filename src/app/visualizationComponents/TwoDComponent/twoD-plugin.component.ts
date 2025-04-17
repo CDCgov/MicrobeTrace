@@ -605,11 +605,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         this.cy.on('dragfree', 'node', (evt) => {
             const node = evt.target;
-            if (node.children().length > 0) {
-                node.children().forEach((child) => {
-                    this.updateNodePos(child);
-                });
-            } else {
+            let skip = (node.children().length > 0 || node.classes().includes('hidden')) // no need to update position of parent or hidden nodes
+
+            if (!skip) {
                 this.updateNodePos(node);
             }
 
@@ -1023,34 +1021,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updatePolygonColors() {
 
-        let polygonSort = $("<a class='sort-button' style='cursor: pointer;'>&#8645;</a>").on("click", e => {
-            this.widgets["polygon-color-table-counts-sort"] = "";
-            if (this.widgets["polygon-color-table-name-sort"] === "ASC")
-                this.widgets["polygon-color-table-name-sort"] = "DESC"
-            else
-                this.widgets["polygon-color-table-name-sort"] = "ASC"
-            this.updatePolygonColors();
-        });
-        let polygonColorHeaderTitle = (this.commonService.session.style['overwrite'] && this.commonService.session.style['overwrite']['polygonColorHeaderVariable'] && this.commonService.session.style['overwrite']['polygonColorHeaderVariable'] == this.widgets['polygons-foci'] ? this.commonService.session.style['overwrite']['polygonColorHeaderTitle'] : "Polygon " + this.commonService.titleize(this.widgets['polygons-foci']));
-        let polygonHeader = $("<th class='p-1' contenteditable>" + polygonColorHeaderTitle + "</th>").append(polygonSort);
-        let countSort = $("<a class='sort-button' style='cursor: pointer;'>&#8645;</a>").on("click", e => {
-
-            this.widgets["polygon-color-table-name-sort"] = "";
-            if (this.widgets["polygon-color-table-counts-sort"] === "ASC")
-                this.widgets["polygon-color-table-counts-sort"] = "DESC"
-            else
-                this.widgets["polygon-color-table-counts-sort"] = "ASC"
-            this.updatePolygonColors();
-        });
-        let countHeader = $((this.widgets["polygon-color-table-counts"] ? "<th>Count</th>" : "")).append(countSort);
-        console.log('polygonColorTable0: ', $("#polygon-color-table"));
         let polygonColorTable = $("#polygon-color-table")
             .empty()
             .append(            
                 "<tr>" +
-                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Polygon " + this.commonService.titleize(this.widgets['polygons-foci']) + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Group " + this.commonService.titleize(this.widgets['polygons-foci']) + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
+                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
                 "<th>Color</th>" +
                 "</tr>");
             //.append(polygonHeader)
@@ -1062,14 +1039,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let aggregates = this.commonService.createPolygonColorMap();
         let values = Object.keys(aggregates);
 
-        if (this.widgets["polygon-color-table-counts-sort"] == "ASC")
+        // By default both are set to "DESC", if one changed the other is set to ""; Default sort is by counts DESC
+        if (this.widgets["polygon-color-table-counts-sort"] == "ASC") {
             values.sort(function (a, b) { return aggregates[a] - aggregates[b] });
-        else if (this.widgets["polygon-color-table-counts-sort"] == "DESC")
-            values.sort(function (a, b) { return aggregates[b] - aggregates[a] });
-        if (this.widgets["polygon-color-table-name-sort"] == "ASC")
+        } else if (this.widgets["polygon-color-table-name-sort"] == "ASC") {
             values.sort(function (a, b) { return a as any - (b as any) });
-        else if (this.widgets["polygon-color-table-name-sort"] == "DESC")
+        } else if (this.widgets["polygon-color-table-counts-sort"] == "DESC") {
+            values.sort(function (a, b) { return aggregates[b] - aggregates[a] });
+        } else { // if (this.widgets["polygon-color-table-name-sort"] == "DESC")
             values.sort(function (a, b) { return b as any - (a as any) });
+        }
 
         let total = 0;
         values.forEach(d => total += aggregates[d]);
@@ -1077,17 +1056,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let that = this;
 
         values.forEach((value, i) => {
-            that.commonService.session.style['polygonColors'].splice(i, 1, that.commonService.temp.style.polygonColorMap(value));
-            that.commonService.session.style['polygonAlphas'].splice(i, 1, that.commonService.temp.style.polygonAlphaMap(value));
             let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '">')
                 .on("change", function (e) {
+                    let locInPolygonColors = that.commonService.session.style['polygonColors'].indexOf(that.commonService.temp.style.polygonColorMap(value));
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
 
-                    that.commonService.session.style['polygonColors'].splice(i, 1, $(this).val() as string);
-                    that.commonService.temp.style.polygonColorMap = d3
-                        .scaleOrdinal(that.commonService.session.style['polygonColors'])
-                        .domain(values);
+                    that.commonService.session.style['polygonColors'].splice(locInPolygonColors, 1, $(this).val() as string);
+                    that.commonService.createPolygonColorMap()
                     that.updateGroupNodeColors();
                 });
             let alphainput = $("<a class='transparency-symbol'>⇳</a>").on("click", e => {
@@ -1099,6 +1075,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 $("#color-transparency")
                     .val(that.commonService.session.style['polygonAlphas'][i])
                     .on("change", function () {
+                        // changing transparency of 1 works, changing transparency of a 2nd group causes both to change, the 3rd causes all 3 to change...    
                         that.commonService.session.style['polygonAlphas'].splice(i, 1, parseFloat($(this).val() as string));
                         that.commonService.temp.style.polygonAlphaMap = d3
                             .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
@@ -1150,14 +1127,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 that.commonService.session.style['overwrite']['polygonColorHeaderTitle'] = $($(this).contents()[0]).text();
             });
 
-        let isAscending = true;  // add this line before the click event handler
-
 
         // The sorting functionality is added here
-        $('#polygon-color-table').on('click', 'th', function () {
+        $('#polygon-color-table').off('click', 'th .sort-button').on('click', 'th .sort-button', function (e) {
+            let isAscending: boolean;
+            let index: number;
+            if (e.currentTarget.classList.value.includes('sortName')) {
+                index = 0;
+                isAscending = that.widgets["polygon-color-table-name-sort"] == "DESC" ? true : false;
+                that.widgets["polygon-color-table-name-sort"] = isAscending ? "ASC" : "DESC";
+                that.widgets["polygon-color-table-counts-sort"] = "";
+            } else {
+                index = 1;
+                isAscending = that.widgets["polygon-color-table-counts-sort"] == "DESC" ? true : false;
+                that.widgets["polygon-color-table-counts-sort"] = isAscending ? "ASC" : "DESC";
+                that.widgets["polygon-color-table-name-sort"] = "";
+            }
             let table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).index()));
-            isAscending = !isAscending;  // replace 'this.asc' with 'isAscending'
+            let rows = table.find('tr:gt(0)').toArray().sort(comparer(index));
             if (!isAscending) { rows = rows.reverse(); }
             for (let i = 0; i < rows.length; i++) { table.append(rows[i]); }
         });
@@ -1247,7 +1234,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             values: values.map(node => node.data('id'))
         }));
 
-        this.commonService.temp.style.polygonGroups = polygonGroups;
+        this.commonService.temp.polygonGroups = polygonGroups;
 
         groupMap.forEach((nodesInGroup, group) => {
             const parentId = `${group}`;
@@ -1348,10 +1335,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $("#polygon-color-table-row").slideDown();
             this.PolygonColorTableWrapperDialogSettings.setVisibility(true);
 
-            setTimeout(() => {
-                this.updatePolygonColors();
-                this.updateGroupNodeColors();
-            }, 200);
+            //setTimeout(() => {
+                //this.updatePolygonColors();
+                //this.updateGroupNodeColors();
+            //}, 200);
 
         }
         else {
@@ -1386,24 +1373,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * It is only available when polygon-color-show is true/show
      * This widget controls whether the polygon color table is visible.
      * 
-     * XXXXX I think this function wasn't updated with the move to Angular. 
-     * Evaluate whether function can be reduce/eliminated. XXXXX
      */
     polygonColorsTableToggle(e) {
 
         console.log('polygonColorsTableToggle: ', e);
 
-        if (e) {
-            this.onPolygonColorTableChange(e)
-        }
-        else {
-            this.onPolygonColorTableChange(e)
-        }
-
-        
+        this.SelectedNetworkTableTypeVariable = e == true ? 'Show' : 'Hide';
+        this.PolygonColorTableWrapperDialogSettings.setVisibility(e);        
     }
-
-    private polygonNodeSelected = null;
 
 
     /**
@@ -1821,7 +1798,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Assign the groups to polygonGroups in commonService.temp
             // TODO: Decide on one
             this.commonService.temp.polygonGroups = groups;
-            this.commonService.temp.style.polygonGroups = groups;
         });
     
     }
@@ -1939,16 +1915,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (e) {
             this.SelectedNetworkTableTypeVariable = 'Show';
-
-            this.PolygonColorTableWrapperDialogSettings.setVisibility(true);
             setTimeout(() => {
                 this.updatePolygonColors();
                 this.updateGroupNodeColors()
             }, 0);
          } else {
             this.SelectedNetworkTableTypeVariable = 'Hide';
-            this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
-
         }
     }
 
@@ -2723,7 +2695,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             this.polygonsToggle(true)
             this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
-            // for some reason color of polygons change, table matches this change but why change colors
+
+            this.cy.nodes().forEach(node => {
+                if (node.classes().includes('parent')) {
+                    let numVisibleChildren = node.children().filter(child => child.visible()).length;
+                    if (numVisibleChildren === 0) {
+                        node.addClass('hidden'); // Hide parent nodes if needed
+                    } 
+                }
+            });
+
             this.openCenter();
         }
     }
