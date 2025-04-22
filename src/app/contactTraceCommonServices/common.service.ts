@@ -1391,6 +1391,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.runHamsters();
     };
 
+    getURL(): string {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('url');
+    }
+
     applyAuspice(auspice) {
       return new Promise(resolve => {
         const auspiceHandler = new AuspiceHandler(this);
@@ -1922,7 +1927,6 @@ align(params): Promise<any> {
 
 
     hasSeq = x => {
-        console.log(x);
         if (x.seq && (x.seq.includes("a") || x.seq.includes("c") || x.seq.includes("g") || x.seq.includes("t") || x.seq.includes("A") || x.seq.includes("C") || x.seq.includes("G") || x.seq.includes("T"))){
             return true;
         }

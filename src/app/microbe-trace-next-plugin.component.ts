@@ -272,8 +272,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     ngOnInit() {
 
-        const params = new URLSearchParams(window.location.search);
-        this.auspiceUrlVal = params.get('url');
+        this.auspiceUrlVal = this.commonService.getURL();
         if(this.commonService.debugMode) {
             console.log(this.auspiceUrlVal);
         }
