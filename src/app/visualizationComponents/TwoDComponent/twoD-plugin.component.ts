@@ -2695,7 +2695,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             this.polygonsToggle(true)
             this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
-
             this.cy.nodes().forEach(node => {
                 if (node.classes().includes('parent')) {
                     let numVisibleChildren = node.children().filter(child => child.visible()).length;
@@ -3460,6 +3459,9 @@ private async _partialUpdate() {
             }
         });
 
+        const linkMap = new Map(networkData.links.map(l => [l.id, l]));
+
+
         // Add/Update new edges
         newElements.edges.forEach(e => {
             const cyEdge = this.cy.getElementById(e.data.id);
@@ -3468,6 +3470,12 @@ private async _partialUpdate() {
             } else {
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
             }
+
+            // Ensure label is updated based on filtered link data
+            const data = linkMap.get(cyEdge.id());
+            const labelVal = this.getLinkLabel(data).text;
+            cyEdge.data('label', labelVal ?? "");
+
         });
 
         console.log('----DUo Edge2: ', newElements.edges.filter(edge => (edge.data.source === 'MZ745515' && edge.data.target === 'MZ712879') || (edge.data.source === 'MZ712879' && edge.data.target === 'MZ745515')));
