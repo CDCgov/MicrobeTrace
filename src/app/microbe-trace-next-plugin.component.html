@@ -297,7 +297,7 @@
                                     </div>
 
 
-                                    <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
+                                    <div *ngIf="SelectedColorNodesByVariable === 'None'" id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
                                         <div class="col-4"><label for="node-color">Nodes</label></div>
                                         <div class="col-8">
                                             <input type="color" id="node-color" class="form-control form-control-sm" value="#1f77b4" [(ngModel)]="SelectedNodeColorVariable" (ngModelChange)="onNodeColorChanged()">

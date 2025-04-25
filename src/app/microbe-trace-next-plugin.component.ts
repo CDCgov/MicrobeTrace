@@ -1190,12 +1190,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const reader = new FileReader();
         reader.onload = e => {
             this.commonService.applyStyle(JSON.parse((e as any).target.result)); 
+            this.applyStyleFileSettings();
         }
         reader.readAsText(file.target.files[0]);
+
     }
 
     applyStyleFileSettings() {
-        this.widgets = (window as any).context.commonService.session.style.widgets;
+        this.widgets = this.commonService.session.style.widgets;
 
         if (this.SelectedClusterMinimumSizeVariable != this.widgets['cluster-minimum-size']){
             this.SelectedClusterMinimumSizeVariable = this.widgets['cluster-minimum-size'];
@@ -1216,7 +1218,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.onColorLinksByChanged();
         }
 
+        console.log('background color: ', this.SelectedBackgroundColorVariable, this.widgets['background-color']);
         if (this.SelectedBackgroundColorVariable != this.widgets['background-color']){
+            console.log('background color2: ', this.SelectedBackgroundColorVariable);
+
             this.SelectedBackgroundColorVariable = this.widgets['background-color'];
             this.onBackgroundChanged();
         }
