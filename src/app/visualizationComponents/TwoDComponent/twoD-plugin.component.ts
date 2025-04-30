@@ -367,11 +367,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // otherwise data: label gets overridden to be undefined
             node.label = this.getNodeLabel(node);
             node.nodeSize = Number(this.getNodeSize(node));
+            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node);
             return {
                 data: {
                     id: node.id,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                    nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
+                    //nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
                     selectedBorderColor: this.widgets['selected-color'],
                     fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
                     shape: this.getNodeShape(node),
@@ -385,13 +386,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         } else {
             node.label = this.getNodeLabel(node);
+            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node); // <-- Added for dynamic node color
             return {
                 data: {
                     id: node.id,
                     //label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
                     nodeSize: Number(this.getNodeSize(node)), // Existing node size
-                    nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
+                    //nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
                     borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                     selectedBorderColor: this.widgets['selected-color'],
                     fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
@@ -453,6 +455,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 css: {
                     'width': 'mapData(nodeSize, 0, 100, 10, 50)',
                     'height': 'mapData(nodeSize, 0, 100, 10, 50)'
+                }
+            },
+            {
+                selector: 'node[bgOpacity]',
+                css: {
+                    // @ts-ignore
+                    'background-opacity': 'data(bgOpacity)',
                 }
             },
                 {
@@ -615,6 +624,220 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    /**
+     * Used to gather nodes within a group and separate them from other groups
+     * @param initial - if true runs iterations of gather force first, then run second simulation that both gathers nodes within a group and separates them from other groups
+     * @returns 
+     */
+    async gatherGroups(initial: boolean = true): Promise<{ nodes: any[]; links: any[] }> { 
+        let visNodes = this.commonService.getVisibleNodes();
+        if (initial) {
+            const { nodes: laidOutNodes, links: laidOutLinks} = await this.applyGatherForce(10);
+            
+            this.cy.nodes().forEach(node => {
+                if (laidOutNodes.map(n => n.id).includes(node.id())) {
+                    let cNode = laidOutNodes.find(n => n.id === node.id());
+                    node.position({ x: cNode.x, y: cNode.y });
+                }
+            });
+
+            // second iteration leads to better layout, skip if number of nodes > 500
+            if (this.commonService.session.data.nodeFilteredValues.length < 500) {
+                const { nodes: laidOutNodes3, links: laidOutLinks3} = await this.applyGatherForce(10);
+                
+                this.cy.nodes().forEach(node => {
+                    if (laidOutNodes3.map(n => n.id).includes(node.id())) {
+                        let cNode = laidOutNodes3.find(n => n.id === node.id());
+                        node.position({ x: cNode.x, y: cNode.y });
+                    }
+                });
+            }
+        }
+        
+        const { nodes: laidOutNodes2, links: laidOutLinks2, parentNodes: pNodes2 } = await this.applySeparationForce();
+
+        // moves individual (child and independent) nodes
+        laidOutNodes2.forEach(node => {
+            let cyNode = this.cy.nodes().toArray().find(n => n.id() === node.id);
+            if (cyNode) {
+                cyNode.position({ x: node.x, y: node.y });
+            }
+        })
+
+        // moves parent (parent and indepent) nodes
+        if (this.widgets['polygons-foci'] != 'None') {
+            pNodes2.forEach(node => {
+                let cyNode = this.cy.nodes().toArray().find(n => n.id() === node.id);
+                if (cyNode) {
+                    cyNode.position({ x: node.x, y: node.y });
+                }
+            })
+        }
+
+        // updates node position values (x, y) stored in commonService 
+        visNodes.forEach(node => {
+            let currentNode = this.cy.nodes().toArray().find(n => n.id() == node.id)
+            if (currentNode) {
+                node.x = currentNode.position('x');
+                node.y = currentNode.position('y');
+            }
+        })
+
+        this.fit();
+
+        return { nodes: [], links: [] };
+
+    }
+
+    /**
+     * Applies force to gather nodes within a group
+     * @param ticks - number of ticks to run the simulation for
+     */
+    async applyGatherForce(ticks: number = 10): Promise<{ nodes: any[]; links: any[] }> {
+                //let nodes = this.commonService.getVisibleNodes()
+        let links = this.commonService.getVisibleLinks().map(link =>{ return {'source': link.source, 'target': link.target} });
+        
+        let tickCount = 0;
+        
+        let childNodes: {id: string, parentX: any, parentY: any,  x: number, y: number, vx?:number, vy?:number}[] = [];
+
+        this.cy.nodes().forEach(node => {
+            if (node.children().length > 0) {
+                return;
+            } else if (node.parent().length > 0) {
+                childNodes.push({ 
+                    id: node.id(),
+                    parentX: node.parent()[0].position('x'),
+                    parentY: node.parent()[0].position('y'),
+                    x: node.position('x'),
+                    y: node.position('y'),
+
+                })
+            } else {
+                childNodes.push({
+                    id: node.id(),
+                    parentX: 0,
+                    parentY: 0,
+                    x: node.position('x'),
+                    y: node.position('y'),
+                })
+
+            }
+        })
+
+        let gatherSimulation = d3.forceSimulation(childNodes)
+            .force('charge', d3.forceManyBody().strength(-10))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(30))
+            .force('center', d3.forceCenter(0, 0))
+            .force('collide', d3.forceCollide().radius(20))
+            .force('x', d3.forceX(d => d.parentX).strength(d => d.parentX == 0 ? .005 : .35))
+            .force('y', d3.forceY(d => d.parentY).strength(d => d.parentY == 0 ? .005 : .35))
+            .stop();
+      
+        return new Promise((resolve) => {
+          function tick() {
+            
+            gatherSimulation.tick();
+  
+            tickCount++;
+
+            if (tickCount < ticks) {
+              // Use setTimeout to yield control to the browser between ticks
+              setTimeout(tick, 0);
+            } else {
+              // After all ticks, resolve the promise with the updated nodes and links.
+              resolve({ nodes: childNodes, links});
+            }
+          }
+          tick();
+        });
+    }
+
+
+    /**
+     * Applies force to gather nodes within a group and separate them from other groups
+     */
+    async applySeparationForce(): Promise<{ nodes: any[]; links: any[], parentNodes: any[] }> {
+        let links = this.commonService.getVisibleLinks().map(link =>{ return {'source': link.source, 'target': link.target} });
+        let ticks = 20;
+        let tickCount = 0;
+
+        let parentNodes: {id: string, max_dim: number, x: number, y: number, vx?:number, vy?:number, group: boolean}[] = [];
+        let childNodes: {id: string, parent: any, x: number, y: number, vx?:number, vy?:number}[] = [];
+
+        this.cy.nodes().forEach(node => {
+            if (node.children().length > 0) {
+                //console.log(node);
+                parentNodes.push({
+                    id: node.id(),
+                    max_dim: Math.max(node.boundingBox().w, node.boundingBox().h),
+                    x: node.position('x'),
+                    y: node.position('y'),
+                    group: true,
+                })
+            } else if (node.parent().length > 0) {
+                childNodes.push({ 
+                    id: node.id(),
+                    parent: node.parent()[0].data('id'),
+                    x: node.position('x'),
+                    y: node.position('y'),
+                })
+            } else {
+                parentNodes.push({
+                    id: node.id(),
+                    max_dim: 35,
+                    x: node.position('x'),
+                    y: node.position('y'),
+                    group: false,
+                })
+                childNodes.push({
+                    id: node.id(),
+                    parent: null,
+                    x: node.position('x'),
+                    y: node.position('y'),
+                })
+
+            }
+
+        })
+        let separationSimulation = await d3.forceSimulation(parentNodes)
+            .force('charge', d3.forceManyBody().strength(-30))
+            .force('collide', d3.forceCollide().radius(d => d.max_dim/1.5))
+            .force('x', d3.forceX().strength(.005))
+            .force('y', d3.forceY().strength(.005))
+            .stop();
+                
+        let gatherSimulation = d3.forceSimulation(childNodes)
+            .force('charge', d3.forceManyBody().strength(-30))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+            .force('center', d3.forceCenter(0, 0))
+            .force('collide', d3.forceCollide().radius(20))
+            .force('x', d3.forceX(d => d.parent == null ? 0 : parentNodes.find(p => p.id == d.parent).x).strength(d => d.parent == null ? .005 : .1))
+            .force('y', d3.forceY(d => d.parent == null ? 0 : parentNodes.find(p => p.id == d.parent).y).strength(d => d.parent == null ? .005 : .1))
+            .stop(); 
+      
+        return new Promise((resolve) => {
+          function tick() {
+            gatherSimulation.tick();
+            separationSimulation.tick();
+                        
+            tickCount++;
+            if (tickCount == ticks) {
+                separationSimulation.tick();
+            }
+
+            if (tickCount < ticks) {
+              // Use setTimeout to yield control to the browser between ticks
+              setTimeout(tick, 0);
+            } else {
+              // After all ticks, resolve the promise with the updated nodes and links.
+              resolve({ nodes: childNodes, links, parentNodes});
+            }
+          }
+          tick();
+        });
+    }
+
     async precomputePositionsWithD3(nodes: any[], links: any[], ticks:number = 300, initial: boolean = true): Promise<{ nodes: any[]; links: any[] }> {
 
         let simulation;
@@ -626,12 +849,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .stop(); // Stop auto-stepping so we can control the ticks manually
         } else {
             simulation = d3.forceSimulation(nodes)
-                .force('charge', d3.forceManyBody().strength(-3))
+                .force('charge', d3.forceManyBody().strength(-30))
                 .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
                 .force('center', d3.forceCenter(0, 0))
                 .force('collide', d3.forceCollide().radius(20))
-                .force('x', d3.forceX().strength(.001))
-                .force('y', d3.forceY().strength(.001))
+                .force('x', d3.forceX().strength(.005))
+                .force('y', d3.forceY().strength(.005))
                 .stop(); 
         } 
         let tickCount = 0;
@@ -783,7 +1006,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $(document).on("node-visibility", function () {
                 console.log('node-visibility called');
                 that._rerender(true);
-                //that._partialUpdate();
             });
 
             // $(document).on("link-visibility", async function () {
@@ -1074,7 +1296,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 });
                 $("#color-transparency")
                     .val(that.commonService.session.style['polygonAlphas'][i])
-                    .on("change", function () {
+                    .one("change", function () {
                         // changing transparency of 1 works, changing transparency of a 2nd group causes both to change, the 3rd causes all 3 to change...    
                         that.commonService.session.style['polygonAlphas'].splice(i, 1, parseFloat($(this).val() as string));
                         that.commonService.temp.style.polygonAlphaMap = d3
@@ -1686,9 +1908,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * This is called when the variable used to grouped by/created polygons is changed
      * 
-     * XXXXX May be worth revisiting when other polygon functions are updated. Some lines are probably not necessary XXXXX 
      */
-    centerPolygons(e) {
+    async centerPolygons(e, updateLayout: boolean = true) {
 
         this.widgets['polygons-foci'] = e;
         if (this.widgets['polygons-color-show'] == true) {
@@ -1700,6 +1921,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Just update group assignments since not showing different colors
         } else {
             this.updateGroupAssignments(e);
+        }
+        if (updateLayout) await this.updateLayout();
+    }
+
+    updateLayout() {
+        if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
+            this._partialUpdate();
+        } else {
+            this.gatherGroups();
         }
     }
 
@@ -2067,7 +2297,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
-    getNodeColor(node: any): string {
+    getNodeColor(node: any): [string, number] {
         // If this node is a parent (polygon group), keep using polygonColorMap
         if (node.isParent) {
           return this.commonService.temp.style.polygonColorMap(node.label);
@@ -2076,9 +2306,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Otherwise, use nodeColorMap or a single color from the widget
         const variable = this.widgets['node-color-variable'];
         if (variable === 'None') {
-          return this.widgets['node-color'];
+          return [this.widgets['node-color'], 1-this.widgets['node-opacity']];
         }
-        return this.commonService.temp.style.nodeColorMap(node[variable]);
+        return [this.commonService.temp.style.nodeColorMap(node[variable]), this.commonService.temp.style.nodeAlphaMap(node[variable])];
       }
 
     getLinkWidth(link: any) {
@@ -2109,38 +2339,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     getLinkColor(link: any) {
-
-        if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-            console.log('-----link COLOR by origin: ', _.cloneDeep(link), link.origin);
-        }
-
         let variable = this.widgets['link-color-variable'];
         let color = this.widgets['link-color'];
-
-        if ((link.source.id === "KF773429" && link.target.id === "KF773430") || (link.source.id === "KF773430" && link.target.id === "KF773429")) {
-            console.log('link variable: ', link[variable]);
-        }
-
         let finalColor;
         let alphaValue;
-
-        if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-                console.log('-----link COLOR by origin2: ', _.cloneDeep(link), link.origin);
-        }
 
         if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
             finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
             alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
-            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-                console.log('-----link COLOR DUO ', link.source);
-            }
-            // this.commonService.temp.style.linkColorMap("Multi-Link"), alphaValue;
         } else {
-
             finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-            if(link.source === "MZ798055" && link.target === "MZ375596" || link.source === "MZ375596" && link.target === "MZ798055") {
-                console.log('-----link COLOR NOT DUO ', link.source);
-            }
             alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
         }
 
@@ -2582,7 +2790,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // });
 
             // layout.run();
-            this.ensurePolygon();
+            this.ensurePolygon(false);
 
 
         } else{
@@ -2689,12 +2897,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log('--- TwoD DATA network rerender complete');
     }
 
-    ensurePolygon() {          
+    ensurePolygon(updateLayout: boolean = true) {          
             
         if (this.commonService.session.style.widgets['polygons-show']) {
 
             this.polygonsToggle(true)
-            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
+            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], updateLayout);
             this.cy.nodes().forEach(node => {
                 if (node.classes().includes('parent')) {
                     let numVisibleChildren = node.children().filter(child => child.visible()).length;
@@ -3215,8 +3423,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         this.cy.nodes().forEach(node => {
-            const newColor = this.getNodeColor(node.data());
+            const [newColor, opacity] = this.getNodeColor(node.data());
             node.data('nodeColor', newColor);
+            node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
@@ -3388,7 +3597,7 @@ private async _partialUpdate() {
         links: this.commonService.getVisibleLinks()
     };
 
-    const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 10, false);
+    const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
 
@@ -3454,7 +3663,6 @@ private async _partialUpdate() {
         // Remove old edges
         this.cy.edges().forEach(edge => {
             if (!newLinkIds.has(edge.id())) {
-                console.log('----edge id remove: ', edge.id());
                 this.cy.remove(edge);
             }
         });

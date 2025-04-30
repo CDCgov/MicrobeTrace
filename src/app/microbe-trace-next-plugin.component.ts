@@ -1530,7 +1530,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                     $("#color-transparency")
                         .val(this.commonService.session.style.linkAlphas[i])
-                        .on("change", (f) => {
+                        .one("change", (f) => {
 
                             // Update table with new alpha value
                             // Need to get value from id since "this" keyword is used by angular
