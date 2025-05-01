@@ -3192,7 +3192,7 @@ align(params): Promise<any> {
         }
     
           //log all links that are visible and their origin
-          console.log('--- visible links1 (Start): ', _.cloneDeep(links.filter(l => l.visible)));
+          //console.log('--- visible links1 (Start): ', _.cloneDeep(links.filter(l => l.visible)));
     
     
         for (let i = 0; i < n; i++) {
@@ -3201,11 +3201,6 @@ align(params): Promise<any> {
     
             // *** Step 1: Use a copy for checks ***
             let finalOrigins = [...link.origin]; // Copy origins for visibility logic
-    
-            if((link.source === "MZ798055" && link.target === "MZ375596") || (link.source === "MZ375596" && link.target === "MZ798055")){
-                console.log('vis link 111 (Start of loop): ', JSON.stringify(link));
-                console.log('vis link 111 finalOrigins (Start):', finalOrigins);
-            }
     
             let visible = true;
             let overrideNN = false;
@@ -3314,15 +3309,10 @@ align(params): Promise<any> {
     
             link.visible = visible; // Set final visibility
     
-            if((link.source === "MZ798055" && link.target === "MZ375596") || (link.source === "MZ375596" && link.target === "MZ798055")){
-                console.log('vis link 222 (End of loop): ', JSON.stringify(link));
-                 console.log('vis link 222 finalOrigins (End):', finalOrigins);
-                 console.log('vis link 222 originWasFiltered:', originWasFiltered);
-            }
         } // End of loop
     
         //log all links that are visible and their origin
-        console.log('--- visible links (End of setLinkVisibility): ', _.cloneDeep(links.filter(l => l.visible)));
+        //console.log('--- visible links (End of setLinkVisibility): ', _.cloneDeep(links.filter(l => l.visible)));
     
         if (!silent) {
             // $(document).trigger("link-visibility");

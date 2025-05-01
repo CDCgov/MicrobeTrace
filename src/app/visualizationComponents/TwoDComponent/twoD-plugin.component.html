@@ -303,6 +303,9 @@
                                     <p-dropdown id="polygons-foci" [options]="FieldList" appendTo="body" [(ngModel)]="commonService.session.style.widgets['polygons-foci']" (ngModelChange)="centerPolygons($event)"></p-dropdown>
                                 </div>
                               </div>
+                              <div class="form-group row" title="Reapply forces to shrink groups and separate them from others. May lead to a better layout">
+                                <button pButton type="button" label="Recalculate Layout" class="ui-button-raised" (click)="updateLayout()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+                              </div>
                             </div>
                           </div>
                     </p-accordionTab>
