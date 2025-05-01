@@ -15,6 +15,7 @@ import { ComponentContainer } from 'golden-layout';
 import { cloneDeep } from 'lodash';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { relativeTimeThreshold } from 'moment';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -1170,13 +1171,104 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.showMessage(` - Parsed ${nl} New, ${((data.length - 1) ** 2 - (data.length - 1)) / 2} Total Links from Excel Distance Matrix.`);
           if (fileNum === nFiles) this.processData();
 
-        } else {
-
-          this.commonService.parseCSVMatrix(file).then((o: any) => {
-            this.showMessage(` - Parsed ${o.nn} New, ${o.tn} Total Nodes from Distance Matrix.`);
-            this.showMessage(` - Parsed ${o.nl} New, ${o.tl} Total Links from Distance Matrix.`);
-            if (fileNum === nFiles) this.processData();
+        } else { // file.format === "matrix" && file.extension === "csv"
+ 
+          let start = Date.now();
+          let nodeIDs, n;
+          let links = [];
+          let output;
+          Papa.parse(file.contents, {
+            skipEmptyLines: "greedy",
+            chunk: result => {
+              const rowsInChunk = result.data.length;
+              for (let rowInChunk = 0; rowInChunk < rowsInChunk; rowInChunk++) {
+                const row = result.data[rowInChunk];
+                if (nodeIDs) {
+                  const source = "" + row[0];
+                  for (let j = 1; j < rowsInChunk+1; j++) {
+                    const target = "" + nodeIDs[j];
+                    if (source == target) continue;
+                    links.push({
+                      source: source,
+                      target: target,
+                      distance: parseFloat(row[j])
+                    });
+                  }
+                } else {
+                  nodeIDs = row;
+                  n = nodeIDs.length;
+                }
+              }
+            },
+            complete: function() {
+              console.log("CSV Matrix Parse time: ", (Date.now() - start).toLocaleString(), "ms");
+              start = Date.now();
+              output = {
+                  links: links,
+                  nodes: nodeIDs.slice(1)
+                }
+              console.log(output);
+              close();
+            }
           });
+          let nn = 0, nl = 0;
+          const results = { data: output, start: start }
+          const f_nodes = output.nodes;
+          const tn = f_nodes.length;
+          for (let i = 0; i < tn; i++) {
+            console.log(f_nodes[i])
+            if (f_nodes[i]){
+              nn += this.commonService.addNode(
+                {
+                  _id: this.commonService.filterXSS(f_nodes[i]),
+                  origin: origin,
+                },
+                check
+              );
+            }
+          }
+          const f_links = output.links;
+          const tl = f_links.length;
+          let skip = 0;
+          console.log(tl +" links");
+          for (let j = 0; j < tl; j++) {
+              console.log(this.commonService.session.data.links.length)
+              console.log(f_links[j]);
+              const reversed = this.commonService.session.data.links.filter(x => x["source"] === f_links[j]["target"] && x["target"] === f_links[j]["source"]);
+              const existing = this.commonService.session.data.links.filter(x => x["source"] === f_links[j]["source"] && x["target"] === f_links[j]["target"]);
+            if (existing.length > 0 || reversed.length > 0){
+                skip++;
+                console.log(`${skip}th skip - ${f_links[j]["source"]} and ${f_links[j]["target"]}`);
+                continue;
+              } 
+            if (f_links[j]["source"] == "undefined" || f_links[j]["target"] == "undefined"){
+              console.log("skipping undefined source or target");
+              continue;
+            }
+              nl += this.commonService.addLink(
+                  {
+                    source: f_links[j]["source"],
+                    target: f_links[j]["target"],
+                    distance: f_links[j]["distance"],
+                    origin: origin,
+                     hasDistance: true,
+                    distanceOrigin: origin,
+                  },
+                  check
+              );
+          }
+
+          console.log(
+              'CSV Matrix Merge time:',
+              (Date.now() - start).toLocaleString(),
+              'ms'
+          );             
+
+          this.showMessage(` - Parsed ${nn} New, ${tn} Total Nodes from Distance Matrix.`);
+          this.showMessage(` - Parsed ${nl} New, ${tl} Total Links from Distance Matrix.`);
+          if (fileNum === nFiles) this.processData();
+          //this.commonService.parseCSVMatrix(file).then((o: any) => {
+          //});
         }
 
       } else { // if(file.format === 'newick'){

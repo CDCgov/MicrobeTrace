@@ -1476,7 +1476,6 @@ parseFASTA(text): Promise<any> {
      * Asynchronously parses csv matrix file content and adds nodes and links to session.data
      * @param {string} file content from csv matrix file
      * @returns {Promise} A Promise that resolves to an object with {numberOfNodesAdded, numberOfLinksAdded, totalNumberofNodes, totalNumberofLinks}
-     */
     parseCSVMatrix(file) {
         return new Promise((resolve, reject) => {
             let check = this.session.files.length > 1;
@@ -1484,9 +1483,9 @@ parseFASTA(text): Promise<any> {
             let nn = 0, nl = 0;        
     
             // ✅ Create a New Worker Before Use
-            this.computer.compute_parse_csv_matrixWorker = new Worker(new URL('../workers/parse-csv-matrix.worker.ts', import.meta.url));
+            let compute_parse_csv_matrixWorker = this.computer.getParseCsvMatrixWorker(); //new Worker(new URL('../workers/parse-csv-matrix.worker.js', import.meta.url));
     
-            this.computer.compute_parse_csv_matrixWorker.postMessage(file.contents);
+            compute_parse_csv_matrixWorker.postMessage(file.contents);
     
             // Convert worker messages to Observable
             const workerObservable = this.fromWorker(this.computer.compute_parse_csv_matrixWorker);
@@ -1540,7 +1539,7 @@ parseFASTA(text): Promise<any> {
     
                     // ✅ Reinitialize Worker for Next Dataset
                     setTimeout(() => {
-                        this.computer.compute_parse_csv_matrixWorker = new Worker(new URL('../workers/parse-csv-matrix.worker.ts', import.meta.url));
+                        compute_parse_csv_matrixWorker = this.computer.getParseCsvMatrixWorker();
                         console.log("Worker reinitialized for next dataset.");
                     }, 100);
     
@@ -1556,14 +1555,14 @@ parseFASTA(text): Promise<any> {
     
                     // ✅ Reinitialize Worker on Error
                     setTimeout(() => {
-                        this.computer.compute_parse_csv_matrixWorker = new Worker(new URL('../workers/parse-csv-matrix.worker.ts', import.meta.url));
+                        compute_parse_csv_matrixWorker = this.computer.getParseCsvMatrixWorker();
                         console.log("Worker reinitialized after error.");
                     }, 100);
                 }
             });
         });
     };
-    
+     */
 
     /**
      * XXXXX function not currently called XXXXX
@@ -2470,6 +2469,7 @@ align(params): Promise<any> {
         if (copy) {
             for (let i = 0; i < n; i++) {
                 link = links[i];
+                console.log(link);
                 if (link.visible) out.push(JSON.parse(JSON.stringify(link)));
             }
         } else {
