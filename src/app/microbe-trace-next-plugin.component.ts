@@ -1218,12 +1218,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.onColorLinksByChanged();
         }
 
-        console.log('background color: ', this.SelectedBackgroundColorVariable, this.widgets['background-color']);
         if (this.SelectedBackgroundColorVariable != this.widgets['background-color']){
-            console.log('background color2: ', this.SelectedBackgroundColorVariable);
-
             this.SelectedBackgroundColorVariable = this.widgets['background-color'];
             this.onBackgroundChanged();
+        }
+
+        if (this.widgets['node-color-variable'] && this.widgets['node-color-variable'] !== 'None') {
+            // Show table dialog
+            this.SelectedNodeColorTableTypesVariable = 'Show';
+            this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+        }
+        // Show Link Color Table if link-color-variable != 'None'
+        if (this.widgets['link-color-variable'] && this.widgets['link-color-variable'] !== 'None') {
+            this.SelectedLinkColorTableTypesVariable = 'Show';
+            this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
         }
     }
 
