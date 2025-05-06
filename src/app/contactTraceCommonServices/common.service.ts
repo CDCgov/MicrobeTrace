@@ -1943,7 +1943,9 @@ align(params): Promise<any> {
                 let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
                 if (labels.length === 0)
                     labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
-                labels = labels.sort();
+                //console.log("Before sorting: " + labels);
+                //labels = labels.sort();
+                //console.log("After sorting: " + labels);
                 let metric = this.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
                 dm = new Array(n);
@@ -2469,7 +2471,6 @@ align(params): Promise<any> {
         if (copy) {
             for (let i = 0; i < n; i++) {
                 link = links[i];
-                console.log(link);
                 if (link.visible) out.push(JSON.parse(JSON.stringify(link)));
             }
         } else {

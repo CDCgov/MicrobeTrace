@@ -362,7 +362,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     let leafSize: number;
     const variable = this.visuals.phylogenetic.commonService.session.style.widgets['node-color-variable'];
     leafSize = this.getLeafSize(data.data.id, this.SelectedLeafNodeSizeVariable);
-    console.log(leafSize + " " + variable);
     d3.select(node).attr('r', leafSize);
     if (variable === 'None') {
       d3.select(node).style('fill', this.SelectedLeafNodeColorVariable);
@@ -498,6 +497,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const thisTree = this.commonService.visuals.phylogenetic.tree;
     thisTree.recenter()
       .redraw();
+    this.styleTree();
   }
 
   //openPinAllNodes() {
