@@ -171,6 +171,7 @@ export class TestedComponent {
           providePrimeNG({
             theme: {
                 preset: Lara,
+                options: {darkModeSelector: false || 'none'}
             },
         }),
         AppSessionService,
