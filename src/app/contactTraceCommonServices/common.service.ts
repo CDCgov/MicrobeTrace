@@ -227,7 +227,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-bidirectional': false,
             'link-label-variable': 'None',
             'link-label-decimal-length' : 3,
-            'link-length': 0.125,
+            'link-length': 50,
             'link-opacity': 0,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
@@ -2553,6 +2553,7 @@ align(params): Promise<any> {
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
+        $("#currentLinkThreshold").text(this.session.style.widgets['link-threshold'].toLocaleString());
     };
 
    /**

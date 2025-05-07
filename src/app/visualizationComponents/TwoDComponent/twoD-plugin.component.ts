@@ -155,7 +155,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedLinkReciprocalTypeVariable: string = "Reciprocal";
 
     SelectedLinkWidthVariable: any = 0;
-    SelectedLinkLengthVariable: any = 0;
+    SelectedLinkLengthVariable: any = 50;
     ArrowTypes: any = [
         { label: 'Hide', value: 'Hide' },
         { label: 'Show', value: 'Show' }
@@ -699,7 +699,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         
         let tickCount = 0;
         
-        let childNodes: {id: string, parentX: any, parentY: any,  x: number, y: number, vx?:number, vy?:number}[] = [];
+        let childNodes: {id: string, parentX: any, parentY: any,  x: number, y: number, vx?:number, vy?:number, size: number}[] = [];
 
         this.cy.nodes().forEach(node => {
             if (node.children().length > 0) {
@@ -711,7 +711,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     parentY: node.parent()[0].position('y'),
                     x: node.position('x'),
                     y: node.position('y'),
-
+                    size: node.width(),
                 })
             } else {
                 childNodes.push({
@@ -720,6 +720,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     parentY: 0,
                     x: node.position('x'),
                     y: node.position('y'),
+                    size: node.width(),
                 })
 
             }
@@ -729,7 +730,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             .force('charge', d3.forceManyBody().strength(-10))
             .force('link', d3.forceLink(links).id((d: any) => d.id).distance(30))
             .force('center', d3.forceCenter(0, 0))
-            .force('collide', d3.forceCollide().radius(20))
+            .force('collide', d3.forceCollide().radius(d => d.size)) // don't need to use mapNodeSize here since we are using the size of the node from cytoscape instead of from nodeSize
             .force('x', d3.forceX(d => d.parentX).strength(d => d.parentX == 0 ? .005 : .35))
             .force('y', d3.forceY(d => d.parentY).strength(d => d.parentY == 0 ? .005 : .35))
             .stop();
@@ -763,7 +764,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let tickCount = 0;
 
         let parentNodes: {id: string, max_dim: number, x: number, y: number, vx?:number, vy?:number, group: boolean}[] = [];
-        let childNodes: {id: string, parent: any, x: number, y: number, vx?:number, vy?:number}[] = [];
+        let childNodes: {id: string, parent: any, x: number, y: number, vx?:number, vy?:number, size: number}[] = [];
 
         this.cy.nodes().forEach(node => {
             if (node.children().length > 0) {
@@ -781,6 +782,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     parent: node.parent()[0].data('id'),
                     x: node.position('x'),
                     y: node.position('y'),
+                    size: node.width(),
                 })
             } else {
                 parentNodes.push({
@@ -795,6 +797,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     parent: null,
                     x: node.position('x'),
                     y: node.position('y'),
+                    size: node.width(),
                 })
 
             }
@@ -809,9 +812,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 
         let gatherSimulation = d3.forceSimulation(childNodes)
             .force('charge', d3.forceManyBody().strength(-30))
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(this.SelectedLinkLengthVariable))
             .force('center', d3.forceCenter(0, 0))
-            .force('collide', d3.forceCollide().radius(20))
+            .force('collide', d3.forceCollide().radius(d => d.size)) // don't need to use mapNodeSize here since we are using the size of the node from cytoscape instead of from nodeSize
             .force('x', d3.forceX(d => d.parent == null ? 0 : parentNodes.find(p => p.id == d.parent).x).strength(d => d.parent == null ? .005 : .1))
             .force('y', d3.forceY(d => d.parent == null ? 0 : parentNodes.find(p => p.id == d.parent).y).strength(d => d.parent == null ? .005 : .1))
             .stop(); 
@@ -844,15 +847,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (initial) {
             simulation = d3.forceSimulation(nodes)
                 .force('charge', d3.forceManyBody().strength(-30))
-                .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+                .force('link', d3.forceLink(links).id((d: any) => d.id).distance(this.SelectedLinkLengthVariable))
                 .force('center', d3.forceCenter(0, 0))
                 .stop(); // Stop auto-stepping so we can control the ticks manually
         } else {
             simulation = d3.forceSimulation(nodes)
                 .force('charge', d3.forceManyBody().strength(-30))
-                .force('link', d3.forceLink(links).id((d: any) => d.id).distance(50))
+                .force('link', d3.forceLink(links).id((d: any) => d.id).distance(this.SelectedLinkLengthVariable))
                 .force('center', d3.forceCenter(0, 0))
-                .force('collide', d3.forceCollide().radius(20))
+                .force('collide', d3.forceCollide().radius(d => this.mapNodeSize(d.nodeSize ? d.nodeSize : 20)))
                 .force('x', d3.forceX().strength(.005))
                 .force('y', d3.forceY().strength(.005))
                 .stop(); 
@@ -874,6 +877,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           tick();
         });
       }
+
+      /**
+       * Replicates the mapData function from cytoscape so that I can use it outside of cytoscape to know the size of the node
+       */
+      mapNodeSize(size: number): number {
+        // mapData(nodeSize, 0, 100, 10, 50)
+        let out = size / 100 * 40 + 10;
+        return out;
+    }
 
     /**
      * Updates the saved postion of a node when it is dragged by the user
@@ -2626,8 +2638,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates node-radius-max widget and redraws nodes
      */
     public onNodeRadiusMaxChange(e) {
-        console.log('onNodeRadiusMaxChange: ', e);
-        this.widgets['node-radius-max'] = e;
+        //this.widgets['node-radius-max'] = e;
         this.updateMinMaxNode();
         this.updateNodeSizes();
         
@@ -2637,7 +2648,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates node-radius-min widget and redraws nodes
      */
     public onNodeRadiusMinChange(e) {
-        this.widgets['node-radius-min'] = e;
+        //this.widgets['node-radius-min'] = e;
         this.updateMinMaxNode();
         this.updateNodeSizes();
         
@@ -2657,7 +2668,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     public onNodeRadiusChange(e) {
 
-        this.widgets['node-radius'] = e;
+        this.widgets['node-radius'] = this.SelectedNodeRadiusSizeVariable;
         this.updateNodeSizes(); // Update node sizes without rerendering the entire network
 
     }
@@ -3097,6 +3108,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         
     }
 
+    /**
+     * Updates the values for this.nodeMin, this.nodeMax, this.nodeMid and uses that info to update this.nodeScale() to set the size of the nodes
+     */
     updateMinMaxNode() {
 
         this.visNodes = this.commonService.getVisibleNodes();
@@ -3211,7 +3225,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkLengthChange(e) {
         // this.force.force('link').distance(e);
         // this.force.alpha(0.3).alphaTarget(0).restart();
-        this.widgets['link-length'] = e;
+        this.widgets['link-length'] = this.SelectedLinkLengthVariable;
+        this.updateLayout();
     }
 
     /**
@@ -3597,6 +3612,16 @@ private async _partialUpdate() {
         links: this.commonService.getVisibleLinks()
     };
 
+    // Add nodeSize to each node so that infomration can be used with calcuating node position
+    if (this.SelectedNodeRadiusVariable == 'None') {
+        networkData.nodes.forEach(node => {
+            node.nodeSize = this.widgets['node-radius'];
+        })
+    } else {
+        networkData.nodes.forEach(node => {
+            node.nodeSize = this.cy.nodes().getElementById(node._id).data('nodeSize');
+        })
+    }
     const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
@@ -3866,6 +3891,9 @@ private async _partialUpdate() {
         this.onLinkWidthMinChange(this.SelectedLinkWidthMin);
 
         //Links|Length
+        if (this.widgets['link-length'] < 1) {
+            this.widgets['link-length'] = 50;
+        }
         this.SelectedLinkLengthVariable = this.widgets['link-length'];
         this.onLinkLengthChange(this.SelectedLinkLengthVariable);
 
