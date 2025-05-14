@@ -131,7 +131,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeSymbolVariable: string = "None";
     SelectedNodeShapeVariable: string = "symbolCircle";
     SelectedNodeRadiusVariable: string = "None";
-    SelectedNodeRadiusSizeVariable: string = "None";
+    SelectedNodeRadiusSizeVariable: number = 50;
 
     TableTypes: any = [
         { label: 'Show', value: 'Show' },
@@ -386,13 +386,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         } else {
             node.label = this.getNodeLabel(node);
+            node.nodeSize = Number(this.getNodeSize(node));
             [node.nodeColor, node.bgOpacity] = this.getNodeColor(node); // <-- Added for dynamic node color
             return {
                 data: {
                     id: node.id,
                     //label: (this.widgets['node-label-variable'] === 'None' || !node.label) ? '' : node.label,
                     parent: (node.group && this.widgets['polygons-show']) || undefined, // Assign parent if exists
-                    nodeSize: Number(this.getNodeSize(node)), // Existing node size
+                    //nodeSize: Number(this.getNodeSize(node)), // Existing node size
                     //nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
                     borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                     selectedBorderColor: this.widgets['selected-color'],
@@ -855,7 +856,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .force('charge', d3.forceManyBody().strength(-30))
                 .force('link', d3.forceLink(links).id((d: any) => d.id).distance(this.SelectedLinkLengthVariable))
                 .force('center', d3.forceCenter(0, 0))
-                .force('collide', d3.forceCollide().radius(d => this.mapNodeSize(d.nodeSize ? d.nodeSize : 20)))
+                .force('collide', d3.forceCollide().radius(d => this.mapNodeSize(d.nodeSize ? d.nodeSize : this.widgets['node-radius'])))
                 .force('x', d3.forceX().strength(.005))
                 .force('y', d3.forceY().strength(.005))
                 .stop(); 
@@ -2278,12 +2279,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     getNodeSize(node: any) {
 
-        let defaultSize = this.widgets['node-radius'];
-        let size = defaultSize, med = defaultSize, oldrng, min, max;
         let sizeVariable = this.widgets['node-radius-variable'];
 
-        if (this.widgets['node-radius-variable'] == 'None') {
-            return this.widgets['node-radius'];
+        if (sizeVariable == 'None') {
+            return Number(this.widgets['node-radius']);
         } else {
 
             let v = node[sizeVariable];
@@ -3615,11 +3614,11 @@ private async _partialUpdate() {
     // Add nodeSize to each node so that infomration can be used with calcuating node position
     if (this.SelectedNodeRadiusVariable == 'None') {
         networkData.nodes.forEach(node => {
-            node.nodeSize = this.widgets['node-radius'];
+            node.nodeSize = Number(this.widgets['node-radius']);
         })
     } else {
         networkData.nodes.forEach(node => {
-            node.nodeSize = this.cy.nodes().getElementById(node._id).data('nodeSize');
+            node.nodeSize = Number(this.cy.nodes().getElementById(node._id).data('nodeSize'));
         })
     }
     const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
@@ -3849,7 +3848,7 @@ private async _partialUpdate() {
         if (Number(this.widgets['node-radius']) > 100 || Number(this.widgets['node-radius']) < 0) {
             this.widgets['node-radius'] = 20;
         }
-        this.SelectedNodeRadiusSizeVariable = this.widgets['node-radius'].toString();
+        this.SelectedNodeRadiusSizeVariable = Number(this.widgets['node-radius']);
         this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
 
         this.nodeBorderWidth = this.widgets['node-border-width']
