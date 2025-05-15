@@ -337,10 +337,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#ambiguities-row').slideUp();
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
-          .val(7);
-        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
+          .val(16);
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.store.setLinkThreshold(7);
+        this.store.setLinkThreshold(16);
       } else {
         $('#ambiguities-row').slideDown();
         $('#default-distance-threshold') //, #link-threshold')
@@ -2006,13 +2006,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       }
       $('#default-distance-threshold')
         .attr('step', 1)
-        .val(7)
+        .val(16)
         .trigger('change');
 
         $("#ambiguities-row").slideUp();
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
       this.store.setMetricChanged('snps');
-      this.onLinkThresholdChange('7');
+      this.onLinkThresholdChange('16');
     } else {
       $('#default-distance-threshold')
         .attr('step', 0.001)
