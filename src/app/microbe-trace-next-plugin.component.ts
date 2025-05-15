@@ -59,6 +59,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     showButtonGroup: boolean = false;
     showSorting: boolean = false;
 
+    display_eula_modal: boolean = false;
+
+
     showExportDashboardMenu: boolean = false;
     ExportDashboardFilename: string = '';
     ExportDashboardScale: number = 1;
@@ -271,6 +274,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     ngOnInit() {
+
+        // Check if user has accepted the license:
+        this.check_eula_acceptance();
 
         this.auspiceUrlVal = this.commonService.getURL();
         if(this.commonService.debugMode) {
@@ -507,6 +513,35 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, 5000);
            
     }
+
+     /**
+   * Check local storage for EULA acceptance.
+   * If no acceptance found, display the license modal.
+   */
+  private check_eula_acceptance(): void {
+    // Example of using the localStorageService if needed:
+    this.commonService.localStorageService.getItem('microbetrace_eula_accepted', (err, result) => {
+      if (!result) {
+        this.display_eula_modal = true;
+      }
+    });
+  }
+
+  /**
+   * User accepted the EULA, store acceptance and close the modal.
+   */
+  public on_eula_accept(): void {
+    this.commonService.localStorageService.setItem('microbetrace_eula_accepted', 'true');
+
+    this.display_eula_modal = false;
+  }
+
+  /**
+   * User rejected the EULA, immediately route to https://www.cdc.gov/
+   */
+  public on_eula_reject(): void {
+    window.location.href = 'https://www.cdc.gov/';
+  }
 
     showMessage(msg: string) {
 
