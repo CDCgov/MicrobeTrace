@@ -5,32 +5,14 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 ## Development Environment
 
-Angular CLI: 7.3.10<br />
-Node: 12.22.12<br />
-Npm: 6.14.16<br />
+Angular CLI: 18<br />
+Node: 20.18.1<br />
+Npm: 10.8.2<br />
 OS: darwin x64<br />
-Angular: 7.2.16<br />
+Angular: 18.2.13<br />
 ... animations, common, compiler, compiler-cli, core, forms<br />
 ... language-service, platform-browser, platform-browser-dynamic<br />
 ... router<br />
-
-Package                           Version
------------------------------------------------------------ 
-@angular-devkit/architect         0.13.10<br />
-@angular-devkit/build-angular     0.13.10<br />
-@angular-devkit/build-optimizer   0.13.10<br />
-@angular-devkit/build-webpack     0.13.10<br />
-@angular-devkit/core              7.3.10<br />
-@angular-devkit/schematics        7.3.10<br />
-@angular/cdk                      7.3.2<br />
-@angular/cli                      7.3.10<br />
-@angular/material                 7.3.2<br />
-@ngtools/webpack                  7.3.10<br />
-@schematics/angular               7.3.10<br />
-@schematics/update                0.13.10<br />
-rxjs                              6.3.3<br />
-typescript                        3.2.4<br />
-webpack                           4.29.0
 
 
 ## Development server
