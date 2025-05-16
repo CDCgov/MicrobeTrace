@@ -1241,11 +1241,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             if (!d._jlat || !d._jlon || d.visible === false) continue;
 
             let circleMarker: CircleWithData = L.circleMarker(L.latLng(d._jlat, d._jlon), {
-                color: d.selected ? selectedColor : '#ffffff',
+                weight: 1,
+                color: d.selected ? selectedColor : '#000000',
                 opacity: opacity,
                 fillColor: colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(d[colorVariable]),
                 fillOpacity: opacity,
-                radius: 5
+                radius: 10
             });
 
             circleMarker.data = d;

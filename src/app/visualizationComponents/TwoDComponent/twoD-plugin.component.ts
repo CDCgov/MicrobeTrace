@@ -3666,8 +3666,10 @@ private async _partialUpdate() {
         // @ts-ignore
         const newLinkIds = new Set(newElements.edges.map(l => l.data.id));
 
+        let cyNodeCount = 0;
         // Update node visibility and restore positions
         this.cy.nodes().forEach(node => {
+            if (!node.hasClass('parent')) { cyNodeCount += 1;}
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
                 // Hide node but keep its cached position
                 node.addClass('hidden');
@@ -3683,6 +3685,22 @@ private async _partialUpdate() {
                 }
             }
         });
+
+        // some series of operations (ie. min-cluster size set to 2, then playing timeline, then setting min-cluster size back to) led to nodes being removed from
+        // this.cy.nodes, this checks and adds them back
+        if (cyNodeCount < newElements.nodes.length) {
+            let countd = 0;
+            newElements.nodes.forEach(n => {
+                const cyNode = this.cy.getElementById(n.data.id);
+                if (!cyNode || !cyNode.length) {
+                    countd += 1;
+                    this.cy.add(n); // Add node
+                } else {
+                    return
+                }
+
+            });
+        }
 
         // Remove old edges
         this.cy.edges().forEach(edge => {

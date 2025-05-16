@@ -3065,8 +3065,7 @@ align(params): Promise<any> {
                 }
             }; // DFS function close
 
-            for (let k = 0; k < numNodes; k++) {
-                const d = nodes[k];
+           nodes.forEach(d => {
                 d.degree = 0;
                 const id = d._id;
 
@@ -3086,10 +3085,10 @@ align(params): Promise<any> {
 
                     clusters.push(cluster);
                     DFS(id, cluster);
-                    if (tempnodes.length == numNodes) break;
+                    if (tempnodes.length == numNodes) return;
                 }
-            }
-            
+            })
+
             if(this.debugMode) {
                 console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
             }
