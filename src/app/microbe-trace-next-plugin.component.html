@@ -46,6 +46,7 @@
                     <mat-menu #helpMenu="matMenu" overlapTrigger="false">
                       <a href="https://github.com/CDCgov/MicrobeTrace/wiki" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener" mat-menu-item>Help</a>
                       <a href="https://github.com/CDCgov/MicrobeTrace/issues/new" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener" mat-menu-item>Report Bug</a>
+                      <button (click)="openMT_Classic()" mat-menu-item>MicrobeTrace Classic</button>
                       <button (click)="HelpClick('About')" mat-menu-item>About</button>
                     </mat-menu>
                     <!-- <button class="navbar-item" mat-button [matMenuTriggerFor]="langMenu"><i class="far nav-icon flaticon-earth-globe"></i>Language<span class="dropdown-symbol">&#9660;</span></button>
@@ -159,6 +160,7 @@
                 <div id="welcome-description" class="bottom primary">The Visualization Multitool for Molecular Epidemiology and Bioinformatics</div>
             </div>
             <div id="add-data-container" class="add-data-container">
+                <a class="here-link primary" style="position: relative; z-index: 5; font-size: 20px;" appendTo="body" href="https://microbetrace.cdc.gov/MicrobeTraceClassic/" target="_blank" >Visit MicrobeTrace Classic</a>
                 <div class="files-msg">
                     <span class="primary">Click </span>
                     <a class="here-link primary" for="fileDropRef">here</a>
