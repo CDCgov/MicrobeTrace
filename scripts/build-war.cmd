@@ -16,3 +16,5 @@ SET PATH=C:\MyPrograms\Java\jdk-21.0.5\bin;%PATH%
 npm run ng build -- --configuration production --optimization=false --base-href=./ && ^
 java -version && ^
 jar -cvf dist/MicrobeTrace.war -C dist/MicrobeTrace/ .
+$commit = git rev-parse --short HEAD
+mv dist/MicrobeTrace.war dist/MicrobeTrace_$commit.war
