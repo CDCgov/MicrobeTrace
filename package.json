@@ -4,6 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve -c development",
+    "prebuild": "node scripts/update-version.js",
     "build": "ng build",
     "test": "ng test",
     "lint": "ng lint",

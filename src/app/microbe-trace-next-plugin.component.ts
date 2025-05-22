@@ -19,7 +19,7 @@ import html2canvas from 'html2canvas';
 import { CommonStoreService } from './contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import * as XLSX from 'xlsx';
-
+import { buildDate, commitHash } from "src/environments/version";
 
 
 @Component({
@@ -49,6 +49,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public launchView: string = "2D Network";
     public threshold: string = "0.015";
 
+    commitHash: string = commitHash;
     widgets: object; 
     elem: any;
     showSettings: boolean = false;
