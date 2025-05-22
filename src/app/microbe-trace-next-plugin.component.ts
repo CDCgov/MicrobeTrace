@@ -3248,6 +3248,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
     }
 
+    /**
+     * Opens MicroTrace Classic in a new tab and retains the Auspice URL if it exists
+     */
+    openMT_Classic() {
+        if (this.auspiceUrlVal) {
+            let mt_url = "https://microbetrace.cdc.gov/MicrobeTraceClassic/?url=" + this.auspiceUrlVal.replace(/\//g, "%2F");
+            window.open(mt_url, "_blank")
+        } else {
+            window.open("https://microbetrace.cdc.gov/MicrobeTraceClassic/", "_blank")
+        }
+    }
+
     HelpClick(actionName: any) {
         switch (actionName) {
             case "Help": {
