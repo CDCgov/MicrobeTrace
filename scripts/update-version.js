@@ -1,7 +1,7 @@
 const fs = require("fs");
 const execSync = require("child_process").execSync;
 
-const version = require("./package.json").version;
+const version = require("../package.json").version;
 const commitHash = execSync("git rev-parse --short HEAD").toString().trim();
 const buildDate = new Date().toISOString();
 
