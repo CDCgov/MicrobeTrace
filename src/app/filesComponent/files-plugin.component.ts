@@ -650,6 +650,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       $('#launch').text('Update');
       // this.visuals.twoD.isLoading = true;
+      this.commonService.session.style.nodeColorsTable = {};
+      this.commonService.session.style.nodeColorsTableKeys = {};
+      this.commonService.session.style.nodeSymbolsTable = {};
+      this.commonService.session.style.nodeSymbolsTableKeys = {};
     }
     else if (!this.commonService.session.network.launched) {
       console.log('launch click not launched ', this.commonService.session.network.launched);

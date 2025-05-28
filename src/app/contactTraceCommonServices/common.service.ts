@@ -1197,6 +1197,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
         }
 
+        // previous versions of MT had bug where nodeColorsTableHistory stored jQuery events instead of color string in session file, this section resolves that bug
+        Object.keys(this.session.style.nodeColorsTableHistory).forEach(key => {
+            // if the value is an object, convert it to string "#000000"
+            if (typeof this.session.style.nodeColorsTableHistory[key] == 'object') {
+                this.session.style.nodeColorsTableHistory[key] = "#000000";
+            }
+        })
+
         this.applyStyle(this.session.style);
 
         console.log('applySession end');

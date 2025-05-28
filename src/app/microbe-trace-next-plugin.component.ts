@@ -2065,7 +2065,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, e);
 
                     // Update history with new color
-                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = e;
+                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = e.target['value'];
 
                   
 
