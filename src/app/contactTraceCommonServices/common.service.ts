@@ -36,6 +36,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     activeTab: string = 'Files';
 
     thirtyColorPalette: string[] = ["#201923", "#fcff5d", "#7dfc00", "#0ec434", "#228c68", "#8ad8e8", "#235b54", "#29bdab", "#3998f5", "#37294f", "#277da7", "#3750db", "#f22020", "#991919", "#ffcba5", "#e68f66", "#c56133", "#96341c", "#632819", "#ffc413", "#f47a22", "#2f2aa0", "#b732cc", "#772b9d", "#f07cab", "#d30b94", "#edeff3", "#c3a5b4", "#946aa2", "#5d4c86"]
+    polygonPalette: string[] = ['#bd959d', '#94214b',  '#9e0f1e',  '#ad382b',  '#63141c',  '#463a49',  '#096377',  '#5b7436',  '#d4af37', '#edffad'];
 
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
@@ -423,7 +424,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 nodeSymbolsTableKeys: {},
                 nodeValueNames: {},
                 polygonAlphas: [0.5],
-                polygonColors: ['#bbccee','#cceeff','#ccddaa','#eeeebb','#ffcccc','#dddddd'],
+                polygonColors: this.polygonPalette,
                 polygonValueNames: {},
                 overwrite: {},
                 widgets: this.defaultWidgets()
@@ -2698,7 +2699,7 @@ align(params): Promise<any> {
 
         // If this.session.style.widgets['polygons-color-show', we need 
         let polygonGroups = this.temp.polygonGroups || [];
-        let polygonColors = this.session.style.polygonColors;
+        let polygonColors = this.polygonPalette; //this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
             polygonColors = ['#bbccee','#cceeff','#ccddaa','#eeeebb','#ffcccc','#dddddd'];
