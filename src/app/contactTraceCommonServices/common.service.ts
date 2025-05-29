@@ -35,7 +35,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     activeTab: string = 'Files';
 
-    thirtyColorPalette: string[] = ["#201923", "#ffffff", "#fcff5d", "#7dfc00", "#0ec434", "#228c68", "#8ad8e8", "#235b54", "#29bdab", "#3998f5", "#37294f", "#277da7", "#3750db", "#f22020", "#991919", "#ffcba5", "#e68f66", "#c56133", "#96341c", "#632819", "#ffc413", "#f47a22", "#2f2aa0", "#b732cc", "#772b9d", "#f07cab", "#d30b94", "#edeff3", "#c3a5b4", "#946aa2", "#5d4c86]
+    thirtyColorPalette: string[] = ["#201923", "#fcff5d", "#7dfc00", "#0ec434", "#228c68", "#8ad8e8", "#235b54", "#29bdab", "#3998f5", "#37294f", "#277da7", "#3750db", "#f22020", "#991919", "#ffcba5", "#e68f66", "#c56133", "#96341c", "#632819", "#ffc413", "#f47a22", "#2f2aa0", "#b732cc", "#772b9d", "#f07cab", "#d30b94", "#edeff3", "#c3a5b4", "#946aa2", "#5d4c86"]
 
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
@@ -2576,7 +2576,9 @@ align(params): Promise<any> {
         const nodes = this.session.data.nodes;
         
         // The arrays and tables you use to store color config
-        const nodeColors = this.session.style.nodeColors;                 // e.g. [ "#1f77b4", ... ]
+        //const nodeColors = this.session.style.nodeColors;                 // e.g. [ "#1f77b4", ... ]
+        const nodeColors = this.thirtyColorPalette;
+        //console.log(nodeColors);
         const nodeAlphas = this.session.style.nodeAlphas;                 // e.g. [ 1, 1, ... ]
         const nodeColorsTable = this.session.style.nodeColorsTable;       // e.g. { varName: [ ... ] }
         const nodeColorsTableKeys = this.session.style.nodeColorsTableKeys;
