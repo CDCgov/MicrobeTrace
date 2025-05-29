@@ -35,6 +35,8 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     activeTab: string = 'Files';
 
+    thirtyColorPalette: string[] = ["#201923", "#ffffff", "#fcff5d", "#7dfc00", "#0ec434", "#228c68", "#8ad8e8", "#235b54", "#29bdab", "#3998f5", "#37294f", "#277da7", "#3750db", "#f22020", "#991919", "#ffcba5", "#e68f66", "#c56133", "#96341c", "#632819", "#ffc413", "#f47a22", "#2f2aa0", "#b732cc", "#772b9d", "#f07cab", "#d30b94", "#edeff3", "#c3a5b4", "#946aa2", "#5d4c86]
+
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
 
@@ -394,7 +396,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 linkColors: d3.schemePaired,
                 linkValueNames: {},
                 nodeAlphas: [1],
-                nodeColors: [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2)),
+                nodeColors: this.thirtyColorPalette,
                 nodeColorsTable: {},
                 nodeColorsTableHistory: {
                     'null' : '#EAE553'
