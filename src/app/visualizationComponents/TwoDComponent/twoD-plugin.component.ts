@@ -129,7 +129,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeLabelVariable: string = "None";
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeSymbolVariable: string = "None";
-    SelectedNodeShapeVariable: string = "symbolCircle";
+    SelectedNodeShapeVariable: string = "ellipse";
     SelectedNodeRadiusVariable: string = "None";
     SelectedNodeRadiusSizeVariable: number = 50;
 
@@ -1293,7 +1293,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         values.forEach((value, i) => {
             let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '">')
                 .on("change", function (e) {
-                    let locInPolygonColors = that.commonService.session.style['polygonColors'].indexOf(that.commonService.temp.style.polygonColorMap(value));
+                    let locInPolygonColors = that.commonService.temp.polygonGroups.find(x => x.key == value).index
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
 
@@ -1308,13 +1308,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     display: "block"
                 });
                 $("#color-transparency")
-                    .val(that.commonService.session.style['polygonAlphas'][i])
+                    .val(that.commonService.temp.style.polygonAlphaMap(value))
                     .one("change", function () {
-                        // changing transparency of 1 works, changing transparency of a 2nd group causes both to change, the 3rd causes all 3 to change...    
-                        that.commonService.session.style['polygonAlphas'].splice(i, 1, parseFloat($(this).val() as string));
+                        let locInPolygonAlphas = that.commonService.temp.polygonGroups.find(x => x.key == value).index
+                        that.commonService.session.style['polygonAlphas'].splice(locInPolygonAlphas, 1, parseFloat($(this).val() as string));
                         that.commonService.temp.style.polygonAlphaMap = d3
                             .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
-                            .domain(values);
+                            .domain(that.commonService.temp.polygonGroups.map(d => d.key));
                         $("#color-transparency-wrapper").fadeOut();
                         that.updateGroupNodeColors();
                     });
@@ -1464,8 +1464,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
-        const polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
+        const polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
             key,
+            index,
             values: values.map(node => node.data('id'))
         }));
 
@@ -1501,8 +1502,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
           // **Step 6:** Create and Assign the `groups` Object for polygonGroups
-          const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+          const groups = Array.from(groupMap.entries()).map(([key, values], index) => ({
             key,
+            index,
             values: values.map(node => node.data('id'))
         }));
 
@@ -2033,8 +2035,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
              // **Step 6:** Create and Assign the `groups` Object for polygonGroups
-            const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            const groups = Array.from(groupMap.entries()).map(([key, values], index) => ({
                 key,
+                index,
                 values: values.map(node => node.data('id'))
             }));
 
@@ -2200,6 +2203,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             case "symbolTriangleDown":
                 return 'triangle';
             case "symbolSquare":
+            case "square":
                 return 'rectangle';
             case "symbolDiamond":
             case "symbolDiamondAlt":
@@ -2264,16 +2268,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onNodeShapeTableChange(newShape: string, group: string) {
         let i = this.shapeAggregates.findIndex(x => x.key === group);
-        
-        this.commonService.session.style.nodeSymbols.splice(i, 1, newShape);
-        let values = this.shapeAggregates.map(x => x.key);
-        this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
+        this.commonService.session.style.nodeSymbolsTable[this.widgets['node-symbol-variable']][i] = newShape;
+        let values = this.commonService.session.style.nodeSymbolsTableKeys[this.widgets['node-symbol-variable']];
+        this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbolsTable[this.widgets['node-symbol-variable']]).domain(values);
         this.updateNodeShapes();
     }
 
     // Method to handle shape change from the dropdown
     onNodeShapeChange(newShape: string) {
         this.selectedNodeShape = newShape;
+        this.widgets["node-symbol"] = newShape;
         this.updateNodeShapes();
     }
 
@@ -2311,7 +2315,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getNodeColor(node: any): [string, number] {
         // If this node is a parent (polygon group), keep using polygonColorMap
         if (node.isParent) {
-          return this.commonService.temp.style.polygonColorMap(node.label);
+          return [this.commonService.temp.style.polygonColorMap(node.label), this.commonService.temp.style.polygonAlphaMap(node.label)];
         }
       
         // Otherwise, use nodeColorMap or a single color from the widget
@@ -2510,7 +2514,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     this.ShowNodeSymbolWrapper = false;
                 }
                 this.onNodeSymbolTableChange('Hide');
-
+                this.onNodeShapeChange(this.selectedNodeShape);
             }
 
         }
@@ -2528,84 +2532,61 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public generateNodeSymbolSelectionTable(tableId: string, variable: string, isEditable: boolean = true) {
         this.commonService.onTableCleared(tableId);
 
-        this.commonService.session.style.nodeSymbols =  [
-            'ellipse',
-            'triangle',
-            'rectangle',
-            'pentagon',
-            'rhomboid',
-            'diamond',
-            'hexagon',
-            'tag',
-            'star',
-            'vee',
-            'heptagon',
-            'barrel',
-            'octagon',
-        ];
+        this.widgets['node-symbol-variable'] = variable;
 
+        if (variable === 'None' && !isEditable) return;
+        if (variable == 'None') return;
 
+        let values = this.commonService.session.style.nodeSymbolsTableKeys[variable] ?? [];
+        let aggregates = {};
+        let nodes = this.commonService.session.data.nodes;
+        let n = nodes.length;
+        let vnodes = 0;
 
-            this.widgets['node-symbol-variable'] = variable;
-
-            if (variable === 'None' && !isEditable) return;
-            if (variable == 'None') return;
-
-            let values = [];
-            let aggregates = {};
-            let nodes = this.commonService.session.data.nodes;
-            let n = nodes.length;
-            let vnodes = 0;
-
-            // So aggrate to get since just one symbol
-            if(variable !== 'None'){
-                for (let i = 0; i < n; i++) {
-                    let d = nodes[i];
-                    if (!d || typeof d !== 'object') continue; // guard against null/undefined
-                    if (!d.visible) continue;
-                    vnodes++;
-                    let dv = d[variable];
-                    // Optionally, if you expect the value to be defined:
-                    if (dv === undefined) {
-                      console.warn(`Node at index ${i} does not have property "${variable}"`);
-                      continue;
-                    }
-                    if (values.indexOf(dv) === -1) values.push(dv);
-                    if (dv in aggregates) {
-                      aggregates[dv]++;
-                    } else {
-                      aggregates[dv] = 1;
-                    }
-                  }
-            }
-
-
-            this.shapeAggregates = [];
-            this.shapeAggregates = Object.keys(aggregates).map((key) => ({ 'key': key, 'count': aggregates[key], 'frequency': parseFloat((aggregates[key] / vnodes).toFixed(3)) }));
-            this.shapeAggregates.sort((a, b) => Number(b.count) - Number(a.count));
-
-            if (values.length > this.commonService.session.style.nodeSymbols.length) {
-                let symbols = [];
-                let m = Math.ceil(values.length / this.commonService.session.style.nodeSymbols.length);
-                while (m-- > 0) {
-                    symbols = symbols.concat(this.commonService.session.style.nodeSymbols);
+        // So aggrate to get since just one symbol
+        if(variable !== 'None'){
+            for (let i = 0; i < n; i++) {
+                let d = nodes[i];
+                if (!d || typeof d !== 'object') continue; // guard against null/undefined
+                if (!d.visible) continue;
+                vnodes++;
+                let dv = d[variable];
+                // Optionally, if you expect the value to be defined:
+                if (dv === undefined) {
+                    console.warn(`Node at index ${i} does not have property "${variable}"`);
+                    continue;
                 }
-                this.commonService.session.style.nodeSymbols = symbols;
-                console.log('node symbols: ', symbols);
-
+                if (values.indexOf(dv) === -1) values.push(dv);
+                if (dv in aggregates) {
+                    aggregates[dv]++;
+                } else {
+                    aggregates[dv] = 1;
+                }
             }
+        }
 
+        this.shapeAggregates = [];
+        this.shapeAggregates = Object.keys(aggregates).map((key) => ({ 'key': key, 'count': aggregates[key], 'frequency': parseFloat((aggregates[key] / vnodes).toFixed(3)) }));
+        this.shapeAggregates.sort((a, b) => Number(b.count) - Number(a.count));
 
-            values.sort((a, b) => {
-                return aggregates[b] - aggregates[a];
-            });
+        let symbols = this.commonService.session.style.nodeSymbolsTable[variable] ?? [];
+        if (values.length > symbols.length) {
+            let m = Math.ceil((values.length - symbols.length)/ this.commonService.session.style.nodeSymbols.length);;
+            while (m-- > 0) {
+                symbols = symbols.concat(this.commonService.session.style.nodeSymbols);
+            }
+            //console.log('node symbols: ', symbols);
+        }
 
+        values.sort((a, b) => {
+            return aggregates[b] - aggregates[a];
+        });
 
-            this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbols).domain(values);
+        this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(symbols).domain(values);
 
-            this.updateNodeShapes();
-        //}, 100);
-
+        this.commonService.session.style.nodeSymbolsTable[variable] = symbols
+        this.commonService.session.style.nodeSymbolsTableKeys[variable] = values
+        this.updateNodeShapes();
     }
 
     public onNodeRadiusVariableChange(e) {
@@ -3855,6 +3836,22 @@ private async _partialUpdate() {
 
         //Nodes|Shape
         this.widgets['node-symbol'] = this.mapPreviousShapeNameToCurrent(this.widgets['node-symbol']);
+        this.commonService.session.style.nodeSymbols = this.commonService.session.style.nodeSymbols.map(name => this.mapPreviousShapeNameToCurrent(name));
+        Object.keys(this.commonService.session.style.nodeSymbolsTable).forEach(key => {
+            if (Array.isArray(this.commonService.session.style.nodeSymbolsTable[key])) {
+                let newArr = [];
+                this.commonService.session.style.nodeSymbolsTable[key].forEach(symbol => {
+                    newArr.push(this.mapPreviousShapeNameToCurrent(symbol));
+                })
+                this.commonService.session.style.nodeSymbolsTable[key] = newArr;
+            } else {
+                this.commonService.session.style.nodeSymbolsTable[key] = this.mapPreviousShapeNameToCurrent(this.commonService.session.style.nodeSymbolsTable[key]);
+            }
+        });
+        if (this.widgets['node-symbol-variable'] != 'None') {
+            let values = this.commonService.session.style.nodeSymbolsTableKeys[this.widgets['node-symbol-variable']];
+            this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbolsTable[this.widgets['node-symbol-variable']]).domain(values);
+        }
         this.SelectedNodeShapeVariable = this.widgets['node-symbol'];
         this.onNodeSymbolChange(this.SelectedNodeShapeVariable);
 
