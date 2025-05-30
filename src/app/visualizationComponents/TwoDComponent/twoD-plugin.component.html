@@ -28,35 +28,35 @@
     
     <!-- Static Watermark (Optional) -->
     <div id="watermark" class="watermark"></div>
-    <div id="network-statistics-wrapper">
-      <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
-      <table #networkStats id="network-statistics-table">
-          <tr>
-              <td class="text-right">
-                  <span id="numberOfNodes"></span>
-                  (<span id="numberOfSelectedNodes"></span>)
-              </td>
-              <td>Nodes (Selected)</td>
-          </tr>
-          <tr>
-              <td id="numberOfVisibleLinks" class="text-right"></td>
-              <td>Links</td>
-          </tr>
-          <tr>
-              <td id="numberOfDisjointComponents" class="text-right"></td>
-              <td>Clusters</td>
-          </tr>
-          <tr>
-              <td id="numberOfSingletonNodes" class="text-right"></td>
-              <td>Singletons</td>
-          </tr>
-          <tr>
-            <td id="currentLinkThreshold" class="text-right"></td>
-            <td>Link Threshold</td>
-        </tr>
-      </table>
-  </div>
 </div>
+  <div id="network-statistics-wrapper">
+    <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
+    <table #networkStats id="network-statistics-table">
+      <tr>
+        <td class="text-right">
+          <span id="numberOfNodes"></span>
+          (<span id="numberOfSelectedNodes"></span>)
+        </td>
+        <td>Nodes (Selected)</td>
+      </tr>
+      <tr>
+        <td id="numberOfVisibleLinks" class="text-right"></td>
+        <td>Links</td>
+      </tr>
+      <tr>
+        <td id="numberOfDisjointComponents" class="text-right"></td>
+        <td>Clusters</td>
+      </tr>
+      <tr>
+        <td id="numberOfSingletonNodes" class="text-right"></td>
+        <td>Singletons</td>
+      </tr>
+      <tr>
+        <td id="currentLinkThreshold" class="text-right"></td>
+        <td>Link Threshold</td>
+      </tr>
+    </table>
+  </div>
 
 
 <div class="m-content" *ngIf="IsDataAvailable == false">

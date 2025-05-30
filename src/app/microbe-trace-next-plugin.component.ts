@@ -645,6 +645,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             // if pos == 0, exporting just tables and not a view
             let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
+            let statTablePos = -1;
+            if (elementsForExport[1] && elementsForExport[1] instanceof HTMLTableElement && elementsForExport[1].id == 'network-statistics-table'){
+                statTablePos = pos;
+                pos += 1;
+            } 
             if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None') {  
                 elementsForExport.splice(pos, 0, this.linkColorTable.nativeElement);
             }
@@ -665,8 +670,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 let height = canvasArray[0].height;
                 let offsets = pos == 0 ? [[5,5]] : [[0,0]];
                 let previousColWidth, currentColWidth = 0;
-                for (let i = 1; i < canvasArray.length; i++) {
-                    if (i == 1) {
+                let i = 1, first = true;;
+                // add stat table first
+                if (statTablePos == 1) {
+                    i += 1;
+                    height = height + canvasArray[1].height + 5;
+                    offsets.push([canvasArray[0].width-canvasArray[1].width, canvasArray[0].height+offsets[0][1]]);
+                }
+                for (; i < canvasArray.length; i++) {
+                    if (first) {
+                        first = false;
                         width += canvasArray[i].width+5;
                         height = Math.max(height, canvasArray[i].height+5);
                         offsets.push([canvasArray[0].width+offsets[0][0], 5]);

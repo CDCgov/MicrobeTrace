@@ -1157,20 +1157,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
 
-            let options = { scale: 1, full: true, bg: '#ffffff'};
+            let options = { scale: 1, full: false, bg: this.commonService.session.style.widgets['background-color'] || '#ffffff'};
             let content = (this.cy as any).svg(options);
+
+            let statTable = this.exportService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
 
             // gets width and height which is needed to position the network statistics table
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
             const svg1 = doc.documentElement;          
             let width = parseFloat(svg1.getAttribute('width'));
-            let height = parseFloat(svg1.getAttribute('height')); 
+            let height = parseFloat(svg1.getAttribute('height')) + statTable.height; 
+            svg1.setAttribute('height', height.toString());
+            // Convert svg1 (an SVGElement) to a string
+            let svgString = new XMLSerializer().serializeToString(svg1);
 
             // Add the network statistics table to the svg
-            let statTable = this.exportService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
-            statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height-2})" fill="#f8f9fa">`);
-            content = content.replace('</svg>', statTable.svg + '</svg>');
+            statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height})" fill="#f8f9fa">`);
+            content = svgString.replace('</svg>', statTable.svg + '</svg>');
 
             let elementsToExport: HTMLTableElement[] = [];
             if (this.widgets['node-symbol-table-visible'] != 'Hide') {
@@ -1183,7 +1187,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         } else {
             // Request export
-            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement];
+            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement, this.networkStatisticsTable.nativeElement];
             if (this.widgets['node-symbol-table-visible'] != 'Hide') {
                 elementsToExport.push(this.nodeSymbolTable.nativeElement)
             }
@@ -3772,7 +3776,7 @@ private async _partialUpdate() {
     }
 
     /**
-     * renders the network; sets this.showStatistics to false
+     * renders the network;
      */
     onFilterDataChange() {
         if (this.debugMode) {
