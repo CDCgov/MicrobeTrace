@@ -1256,7 +1256,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                     distance: f_links[j]["distance"],
                     origin: origin,
                      hasDistance: true,
-                    distanceOrigin: origin,
+                    distanceOrigin: file.name,
                   },
                   check
               );

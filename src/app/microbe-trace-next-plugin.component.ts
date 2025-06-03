@@ -645,11 +645,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             // if pos == 0, exporting just tables and not a view
             let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
-            let statTablePos = -1;
-            if (elementsForExport[1] && elementsForExport[1] instanceof HTMLTableElement && elementsForExport[1].id == 'network-statistics-table'){
-                statTablePos = pos;
-                pos += 1;
-            } 
             if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None') {  
                 elementsForExport.splice(pos, 0, this.linkColorTable.nativeElement);
             }
@@ -670,16 +665,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 let height = canvasArray[0].height;
                 let offsets = pos == 0 ? [[5,5]] : [[0,0]];
                 let previousColWidth, currentColWidth = 0;
-                let i = 1, first = true;;
-                // add stat table first
-                if (statTablePos == 1) {
-                    i += 1;
-                    height = height + canvasArray[1].height + 5;
-                    offsets.push([canvasArray[0].width-canvasArray[1].width, canvasArray[0].height+offsets[0][1]]);
-                }
-                for (; i < canvasArray.length; i++) {
-                    if (first) {
-                        first = false;
+                for (let i = 1; i < canvasArray.length; i++) {
+                    if (i == 1) {
                         width += canvasArray[i].width+5;
                         height = Math.max(height, canvasArray[i].height+5);
                         offsets.push([canvasArray[0].width+offsets[0][0], 5]);
@@ -1518,11 +1505,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     const linkColorTable = $(tableId).empty().append(
       '<tr>' +
-      "<th class='p-1 table-header-row'><div class='header-content'><span>Link " + 
+      "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Link " + 
         this.commonService.titleize(this.SelectedColorLinksByVariable) + 
       "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
       '<th>Color</th>' +
       '</tr>'
     );
@@ -2152,7 +2139,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (isEditable) {
             nodeColorTable
-                .find("td.rowName")
+                .find("td")
                 .on("dblclick", function () {
                     $(this).attr("contenteditable", "true").focus();
                 })

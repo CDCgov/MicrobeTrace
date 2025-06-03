@@ -1167,14 +1167,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const doc = parser.parseFromString(content, 'image/svg+xml');
             const svg1 = doc.documentElement;          
             let width = parseFloat(svg1.getAttribute('width'));
-            let height = parseFloat(svg1.getAttribute('height')) + statTable.height; 
+            let height = parseFloat(svg1.getAttribute('height'));
             svg1.setAttribute('height', height.toString());
             // Convert svg1 (an SVGElement) to a string
             let svgString = new XMLSerializer().serializeToString(svg1);
 
             // Add the network statistics table to the svg
-            statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height})" fill="#f8f9fa">`);
-            content = svgString.replace('</svg>', statTable.svg + '</svg>');
+            //let statTable = this.exportService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
+            //statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height})" fill="#f8f9fa">`);
+            //content = svgString.replace('</svg>', statTable.svg + '</svg>');
 
             let elementsToExport: HTMLTableElement[] = [];
             if (this.widgets['node-symbol-table-visible'] != 'Hide') {
@@ -1183,17 +1184,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
+            elementsToExport.push(this.networkStatisticsTable.nativeElement)
             this.exportService.requestSVGExport(elementsToExport, content, true, true); 
 
         } else {
             // Request export
-            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement, this.networkStatisticsTable.nativeElement];
+            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement];
             if (this.widgets['node-symbol-table-visible'] != 'Hide') {
                 elementsToExport.push(this.nodeSymbolTable.nativeElement)
             }
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
+            elementsToExport.push(this.networkStatisticsTable.nativeElement);
             this.exportService.requestExport(elementsToExport, true, true);
         }
     
@@ -1351,11 +1354,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         polygonColorTable
             .find("td")
             .on("dblclick", function () {
-                // $(this).attr("contenteditable", true).focus();
+                $(this).attr("contenteditable", "true").focus(); // test3
             })
             .on("focusout", function () {
                 let $this = $(this);
-                // $this.attr("contenteditable", false);
+                $this.attr("contenteditable", "false");
                 that.commonService.session.style['polygonValueNames'][$this.data("value")] = $this.text();
             });
 

@@ -1946,14 +1946,16 @@ align(params): Promise<any> {
     getDM(): Promise<any> {
         const start = Date.now();
         return new Promise(resolve => {
+            let labels = [];
             let dm : any = '';
             if (this.session.data['newick']){
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
-                let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
-                if (labels.length === 0)
-                    labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
+                labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
+                if (labels.length === 0) labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
+                if (labels.length === 0) labels = this.session.data.nodes.map(d => d.id);
+                if (labels.length === 0) labels = this.session.data.nodes.map(d => d._id);
                 //console.log("Before sorting: " + labels);
                 //labels = labels.sort();
                 //console.log("After sorting: " + labels);
@@ -1983,7 +1985,7 @@ align(params): Promise<any> {
             if(this.debugMode) {
                 console.log("DM Compute time: ", (Date.now() - start).toLocaleString(), "ms");
             }
-            resolve(dm);
+            resolve({dm, labels});
         });
     };
 
@@ -1998,11 +2000,11 @@ align(params): Promise<any> {
           } else if (this.session.data['newick']) {
             return resolve(this.session.data['newick']);
           } else {
-            this.getDM().then(dm => {
+            this.getDM().then(({dm, labels}) => {
               // Get a fresh tree worker from the factory.
               const treeWorker = this.computer.getTreeWorker();
               treeWorker.postMessage({
-                labels: this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
+                labels: labels.length > 0 ? labels : this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
                 matrix: dm,
                 round: this.session.style.widgets["tree-round"]
               });

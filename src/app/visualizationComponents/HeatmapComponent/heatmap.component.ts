@@ -32,8 +32,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   
   labels: string[];
-  xLabels: string[];
-  yLabels: string[];
+  //xLabels: string[];
+  //yLabels: string[];
   matrix: object;
   plot: PlotlyComponent;
   visuals: MicrobeTraceNextVisuals;
@@ -115,7 +115,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
             page_title: "Heatmap View"
         });
 
-    this.nodeIds = this.getNodeIds();
+    //this.nodeIds = this.getNodeIds();
     this.visuals.heatmap.FieldList.push(
       {
         label: "None",
@@ -152,8 +152,12 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     this.redrawHeatmap();
   }
 
-  drawHeatmap(xLabels: string[], yLabels: string[], config: object): void {
-    this.commonService.getDM().then(dm => {
+  drawHeatmap(config: object): void {
+    this.commonService.getDM().then(({dm, labels}) => {
+      this.nodeIds = labels;
+      const xLabels = labels.map(d => 'N' + d);
+      const yLabels = xLabels.slice();
+
       if (this.invertX) {
         dm.forEach(l => l.reverse());
         xLabels.reverse();
@@ -218,18 +222,19 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 */
   }
 
-  getNodeIds(): string[] {
-    const idSet: string[] = this.visuals.heatmap.commonService.session.data.nodes.map(x=>x._id);
-    return idSet;
-  }
+  // getNodeIds(): string[] {
+  //   const idSet: string[] = this.visuals.heatmap.commonService.session.data.nodes.map(x=>x._id);
+  //   return idSet;
+  // }
   
   redrawHeatmap(): void {
     //if (!this.heatmapContainerRef.nativeElement.length) return;
     if (!$('#heatmap').length) return;
     if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
-    const labels = this.nodeIds;
-    const xLabels = labels.map(d => 'N' + d);
-    const yLabels = xLabels.slice();
+    // const labels = this.nodeIds;
+    // const xLabels = labels.map(d => 'N' + d);
+    // const yLabels = xLabels.slice();
+    // console.log(this.heatmapShowLabels, xLabels.length, xLabels);
     this.heatmapMetric = this.commonService.session.style.widgets['default-distance-metric'].toUpperCase();
 
 
@@ -242,7 +247,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       config["ticks"] = '';
     }
 
-    this.drawHeatmap(xLabels, yLabels, config);
+    this.drawHeatmap(config);
     this.setBackground();
   }
 
@@ -350,7 +355,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   saveDistanceMatrix(): void {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
     const labelArray = cloneDeep(this.heatmapLabels);
-    this.commonService.getDM().then(dm => {
+    this.commonService.getDM().then(({dm, _}) => {
       let csvContent = "data:text/csv;charset=utf-8,";
       if (this.heatmapShowLabels) {
         labelArray.unshift("");
