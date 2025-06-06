@@ -11052,12 +11052,16 @@
             0.5
         ],
         "polygonColors": [
-            "#bbccee",
-            "#cceeff",
-            "#ccddaa",
-            "#eeeebb",
-            "#ffcccc",
-            "#dddddd"
+            "#bd959d", 
+            "#94214b",  
+            "#9e0f1e",  
+            "#ad382b",  
+            "#63141c",  
+            "#463a49",  
+            "#096377",  
+            "#5b7436",  
+            "#d4af37", 
+            "#edffad"
         ],
         "polygonValueNames": {},
         "overwrite": {},
