@@ -2701,10 +2701,10 @@ align(params): Promise<any> {
 
         // If this.session.style.widgets['polygons-color-show', we need 
         let polygonGroups = this.temp.polygonGroups || [];
-        let polygonColors = this.polygonPalette; //this.session.style.polygonColors;
+        let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
-            polygonColors = ['#bbccee','#cceeff','#ccddaa','#eeeebb','#ffcccc','#dddddd'];
+            polygonColors = this.polygonPalette;
         }
         const polygonAlphas = this.session.style.polygonAlphas;
 
