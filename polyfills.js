@@ -8799,7 +8799,7 @@ class BoundDeferredTrigger extends DeferredTrigger {
   constructor(value, sourceSpan, prefetchSpan, whenSourceSpan) {
     // BoundDeferredTrigger is for 'when' triggers. These aren't really "triggers" and don't have a
     // nameSpan. Trigger names are the built in event triggers like hover, interaction, etc.
-    super(/** nameSpan */null, sourceSpan, prefetchSpan, whenSourceSpan);
+    super( /** nameSpan */null, sourceSpan, prefetchSpan, whenSourceSpan);
     this.value = value;
   }
 }
@@ -10895,13 +10895,13 @@ function generateSetNgModuleScopeCall(meta) {
     return null;
   }
   // setNgModuleScope(...)
-  const fnCall = new InvokeFunctionExpr(/* fn */importExpr(Identifiers.setNgModuleScope), /* args */[meta.type.value, scopeMap.toLiteralMap()]);
+  const fnCall = new InvokeFunctionExpr( /* fn */importExpr(Identifiers.setNgModuleScope), /* args */[meta.type.value, scopeMap.toLiteralMap()]);
   // (ngJitMode guard) && setNgModuleScope(...)
   const guardedCall = jitOnlyGuardedExpression(fnCall);
   // function() { (ngJitMode guard) && setNgModuleScope(...); }
-  const iife = new FunctionExpr(/* params */[], /* statements */[guardedCall.toStmt()]);
+  const iife = new FunctionExpr( /* params */[], /* statements */[guardedCall.toStmt()]);
   // (function() { (ngJitMode guard) && setNgModuleScope(...); })()
-  const iifeCall = new InvokeFunctionExpr(/* fn */iife, /* args */[]);
+  const iifeCall = new InvokeFunctionExpr( /* fn */iife, /* args */[]);
   return iifeCall.toStmt();
 }
 function tupleTypeOf(exp) {
@@ -29450,7 +29450,7 @@ function parseLetParameter(sourceSpan, expression, span, loopItemName, context, 
       errors.push(new ParseError(sourceSpan, `Duplicate "let" parameter variable "${variableName}"`));
     } else {
       const [, keyLeadingWhitespace, keyName] = expressionParts[0].match(CHARACTERS_IN_SURROUNDING_WHITESPACE_PATTERN) ?? [];
-      const keySpan = keyLeadingWhitespace !== undefined && expressionParts.length === 2 ? new ParseSourceSpan(/* strip leading spaces */
+      const keySpan = keyLeadingWhitespace !== undefined && expressionParts.length === 2 ? new ParseSourceSpan( /* strip leading spaces */
       startSpan.moveBy(keyLeadingWhitespace.length), /* advance to end of the variable name */
       startSpan.moveBy(keyLeadingWhitespace.length + keyName.length)) : span;
       let valueSpan = undefined;
@@ -30671,7 +30671,7 @@ function parseTemplate(template, templateUrl, options = {}) {
     // in `WhitespaceVisitor`. Using `visitAllWithSiblings` here would fix that bug and retain the
     // whitespace, however it would also change the runtime representation which we don't want to do
     // right now.
-    rootNodes = visitAll(new WhitespaceVisitor(/* preserveSignificantWhitespace */true, /* originalNodeMap */undefined, /* requireContext */false), rootNodes);
+    rootNodes = visitAll(new WhitespaceVisitor( /* preserveSignificantWhitespace */true, /* originalNodeMap */undefined, /* requireContext */false), rootNodes);
     // run i18n meta visitor again in case whitespaces are removed (because that might affect
     // generated i18n message content) and first pass indicated that i18n content is present in a
     // template. During this pass i18n IDs generated at the first pass will be preserved, so we can
@@ -34247,7 +34247,7 @@ function createSerializer(format) {
   format = (format || 'xlf').toLowerCase();
   switch (format) {
     case 'xmb':
-      return new Xmb(/* preservePlaceholders */true);
+      return new Xmb( /* preservePlaceholders */true);
     case 'xtb':
       return new Xtb();
     case 'xliff2':
@@ -34283,7 +34283,7 @@ class MessageBundle {
     // Trim unnecessary whitespace from extracted messages if requested. This
     // makes the messages more durable to trivial whitespace changes without
     // affected message IDs.
-    const rootNodes = this._preserveWhitespace ? htmlParserResult.rootNodes : visitAllWithSiblings(new WhitespaceVisitor(/* preserveSignificantWhitespace */false), htmlParserResult.rootNodes);
+    const rootNodes = this._preserveWhitespace ? htmlParserResult.rootNodes : visitAllWithSiblings(new WhitespaceVisitor( /* preserveSignificantWhitespace */false), htmlParserResult.rootNodes);
     const i18nParserResult = extractMessages(rootNodes, interpolationConfig, this._implicitTags, this._implicitAttrs, /* preserveSignificantWhitespace */this._preserveWhitespace);
     if (i18nParserResult.errors.length) {
       return i18nParserResult.errors;
