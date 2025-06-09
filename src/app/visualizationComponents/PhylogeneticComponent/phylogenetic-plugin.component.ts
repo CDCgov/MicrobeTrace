@@ -790,7 +790,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       }
       console.log(node);
       // Pre D3
-      const leftVal = (d3 as any).event.pageX + 8;
+      const leftVal = (d3 as any).event.pageX - 18;
       const topVal = (d3 as any).event.pageY - 8;
       console.log(topVal + " " +  leftVal);
       d3.select('#phyloTooltip')

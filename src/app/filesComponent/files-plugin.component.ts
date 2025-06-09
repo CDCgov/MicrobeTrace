@@ -737,11 +737,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.onDistanceMetricChange('snps');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
             $('#default-distance-metric').val('SNPs').trigger('change');
-            $('#default-distance-threshold').attr('step', 1).val(7).trigger('change');
-            this.commonService.session.style.widgets['link-threshold'] = 7;
-            this.SelectedDefaultDistanceThresholdVariable = '7';
-            this.onLinkThresholdChange('7');
-            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
+            $('#default-distance-threshold').attr('step', 1).val(16).trigger('change');
+            this.commonService.session.style.widgets['link-threshold'] = 16;
+            this.SelectedDefaultDistanceThresholdVariable = '16';
+            this.onLinkThresholdChange('16');
+            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
           }
           this.commonService.session.meta.startTime = Date.now();
           this.commonService.session.data.tree = auspiceData['tree'];
@@ -1284,6 +1284,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.commonService.session.data.newickString = file.contents;
         const tree = patristic.parseNewick(file.contents);
         let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.commonService.filterXSS), n = labels.length;
+        const maxRow = matrix.map(function(row){ return Math.max.apply(Math, row); });
+        const maxMax = Math.max.apply(null, maxRow);
+        if (maxMax > 1) {
+            this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
+            this.store.setMetricChanged('snps');
+            this.SelectedDefaultDistanceMetricVariable = 'snps';
+            this.onDistanceMetricChange('snps');
+            this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
+            $('#default-distance-metric').val('SNPs').trigger('change');
+            $('#default-distance-threshold').attr('step', 1).val(16).trigger('change');
+            this.commonService.session.style.widgets['link-threshold'] = 16;
+            this.SelectedDefaultDistanceThresholdVariable = '16';
+            this.onLinkThresholdChange('16');
+            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
+          // set distance to snps
+        } 
         for (let i = 0; i < n; i++) {
           const source = labels[i];
           newNodes += this.commonService.addNode({
