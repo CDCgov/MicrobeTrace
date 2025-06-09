@@ -631,6 +631,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @returns 
      */
     async gatherGroups(initial: boolean = true): Promise<{ nodes: any[]; links: any[] }> { 
+        if (this.commonService.session.network.allPinned) {
+            // If nodes are pinned, skip running the force simulation
+            return { nodes: [], links: []};
+        }
         let visNodes = this.commonService.getVisibleNodes();
         if (initial) {
             const { nodes: laidOutNodes, links: laidOutLinks} = await this.applyGatherForce(10);
@@ -804,6 +808,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
         })
+        if (this.commonService.session.network.allPinned) {
+            // If nodes are pinned, skip running the force simulation
+            return { nodes: childNodes, links, parentNodes };
+        }
         let separationSimulation = await d3.forceSimulation(parentNodes)
             .force('charge', d3.forceManyBody().strength(-30))
             .force('collide', d3.forceCollide().radius(d => d.max_dim/1.5))
@@ -843,7 +851,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     async precomputePositionsWithD3(nodes: any[], links: any[], ticks:number = 300, initial: boolean = true): Promise<{ nodes: any[]; links: any[] }> {
-
+        if (this.commonService.session.network.allPinned) {
+            // If nodes are pinned, skip running the force simulation
+            return { nodes, links };
+        }
         let simulation;
         if (initial) {
             simulation = d3.forceSimulation(nodes)
@@ -1354,7 +1365,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         polygonColorTable
             .find("td")
             .on("dblclick", function () {
-                $(this).attr("contenteditable", "true").focus(); // test3
+                $(this).attr("contenteditable", "true").focus();
             })
             .on("focusout", function () {
                 let $this = $(this);
@@ -1947,6 +1958,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (updateLayout) await this.updateLayout();
     }
 
+    pinNodes() {
+        this.commonService.session.network.allPinned = !this.commonService.session.network.allPinned;
+    }
+
     updateLayout() {
         if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
             this._partialUpdate();
@@ -2274,7 +2289,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param group a string of the group to change
      */
     onNodeShapeTableChange(newShape: string, group: string) {
-        let i = this.shapeAggregates.findIndex(x => x.key === group);
+        let i = this.commonService.session.style.nodeSymbolsTableKeys[this.widgets['node-symbol-variable']].findIndex(x => x+'' == group) // sometimes x is null or a number
         this.commonService.session.style.nodeSymbolsTable[this.widgets['node-symbol-variable']][i] = newShape;
         let values = this.commonService.session.style.nodeSymbolsTableKeys[this.widgets['node-symbol-variable']];
         this.commonService.temp.style.nodeSymbolMap = d3.scaleOrdinal(this.commonService.session.style.nodeSymbolsTable[this.widgets['node-symbol-variable']]).domain(values);
@@ -2320,9 +2335,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     getNodeColor(node: any): [string, number] {
-        // If this node is a parent (polygon group), keep using polygonColorMap
+        // If this node is a parent (polygon/group), keep using polygonColorMap
         if (node.isParent) {
-          return [this.commonService.temp.style.polygonColorMap(node.label), this.commonService.temp.style.polygonAlphaMap(node.label)];
+            if (!this.commonService.session.style.widgets['polygons-color-show']) {
+                return [this.commonService.session.style.widgets['polygon-color'], 0.5]
+            } else {
+                return [this.commonService.temp.style.polygonColorMap(node.label), this.commonService.temp.style.polygonAlphaMap(node.label)];
+            }
         }
       
         // Otherwise, use nodeColorMap or a single color from the widget
@@ -3210,8 +3229,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates link-length widget and link force distance
      */
     onLinkLengthChange(e) {
-        // this.force.force('link').distance(e);
-        // this.force.alpha(0.3).alphaTarget(0).restart();
+        if (this.commonService.session.network.allPinned) {
+            // updating link length results in recaculcating node positions, if nodes are pinned prevent this
+            this.SelectedLinkLengthVariable = this.widgets['link-length'];
+            return;
+        }
         this.widgets['link-length'] = this.SelectedLinkLengthVariable;
         this.updateLayout();
     }
