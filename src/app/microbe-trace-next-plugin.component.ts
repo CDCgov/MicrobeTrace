@@ -1529,7 +1529,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const disabled: string = isEditable ? '' : 'disabled';
 
         aggregateValues.forEach((value, i) => {
-
+            let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
             if (aggregates[value] == 0) {
                 return;
             }
@@ -1543,7 +1543,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const color = this.commonService.temp.style.linkColorMap(value);
 
             // Create color input element with color value and assign id to retrieve new value on change
-            const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
+            const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" ${disabled}>`)
                 .on("change", e => {
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
@@ -1558,12 +1558,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         .domain(aggregateValues);
 
 
-                    // Call the updateLinkColor method in the active tab
-                    this.homepageTabs[this.activeTabIndex].componentRef.instance.updateLinkColor();
+                    // Call the updateLinkColor method in all tabs
+                    this.publishUpdateLinkColor()
 
                 });
 
-            const alphainput = $(`<a class="transparency-symbol">⇳</a>`)
+            const alphainput = duoLinkRow ? $(``) : $(`<a class="transparency-symbol">⇳</a>`)
                 .on("click", e => {
 
                     $("#color-transparency-wrapper").css({
@@ -1584,7 +1584,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                                 .domain(aggregateValues);
                             $("#color-transparency-wrapper").fadeOut();
 
-                            this.homepageTabs[this.activeTabIndex].componentRef.instance.updateLinkColor();
+                            this.publishUpdateLinkColor()
                             // this.goldenLayout.componentInstances[1].updateLinkColor();
 
                         });

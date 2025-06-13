@@ -197,6 +197,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         { label: 'svg', value: 'svg' }
     ];
 
+    rerenderOnActive: Boolean = false;
+
     SelectedNetworkExportFileTypeListVariable: string = "png";
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -265,6 +267,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.viewActive = true; 
             this.cdref.detectChanges();
             setTimeout(() => {
+                if (this.rerenderOnActive) {
+                    this._rerender()
+                    this.rerenderOnActive = false;
+                }
                 this.fit()
                 this.commonService.onStatisticsChanged("Show");
             }, 50)
@@ -295,9 +301,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
-            if(this.data && this.store.settingsLoadedValue && newPruned && this.commonService.activeTab === '2D Network'){
-                console.log('--- TwoD DATA network updated pruned', newPruned);
-                this._rerender();
+            if (this.data && this.store.settingsLoadedValue && newPruned) {
+                console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
+                if (this.viewActive){
+                    this._rerender(false);
+                } else {
+                    this.rerenderOnActive = true;
+                }
                 //this.loadSettings();
             }
         });
@@ -339,8 +349,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Create a set to track unique parent nodes
     const parentNodes = new Set();
 
-    const edges = data.links.map((link: any) => ({
-        data: {
+    const edges = data.links.flatMap((link: any) => {
+        if ((this.widgets['link-color-variable'] == 'Origin' || this.widgets['link-color-variable'] == 'origin') && link.origin.length > 1) {
+            return link.origin.map((originItem: any, index) => ({
+                data: {
+                    // Include any additional edge-specific data properties
+                    ...link,
+                    id: index > 0 ? `${link.id}-2`: link.id,
+                    source: link.source,
+                    target: link.target,
+                    lineSelectedColor: this.widgets['selected-color'],
+                    label: this.getLinkLabel(link).text, // Existing link label
+                    lineColor: this.getLinkColor({origin: originItem}).color, // Default to black if not specified
+                    lineOpacity: this.getLinkColor({origin: originItem}).opacity, // Default to fully opaque if not specified
+                    width: this.getLinkWidth(link),
+                    origin: [originItem],
+                    secondLink: index > 0 ? true: false
+                }
+            }));
+        }
+        return [{ data: {
+            // Include any additional edge-specific data properties
+            ...link,
             id: link.id,
             source: link.source,
             target: link.target,
@@ -349,10 +379,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             lineColor: this.getLinkColor(link).color, // Default to black if not specified
             lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
             width: this.getLinkWidth(link),
-            // Include any additional edge-specific data properties
-            ...link
-        }
-    }));
+            secondLink: false,
+        }}]
+    });
 
     console.log('--- TwoD mapDataToCytoscapeElements Links Done');
 
@@ -521,8 +550,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'label' : 'data(label)',                   
                     // 'target-arrow-color': '#ccc',
                     // 'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier'
+                    'curve-style': 'straight'
                     // 'opacity': 'data(opacity)' // Existing opacity
+                }
+            },
+            {
+                selector: 'edge[secondLink]',
+                css: {
+                    'line-style': 'dashed',
+                    'line-dash-pattern': [10, 10],
+                    'line-dash-offset': 5,
+                }
+            },
+            {
+                selector: 'edge[!secondLink]',
+                css: {
+                    'line-style': 'solid',
                 }
             },
             {
@@ -976,10 +1019,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             label: 'Source ID',
                             value: 'source_id'
                         },
-                        {
-                            label: 'Source Index',
-                            value: 'source_index'
-                        }
+                        // {
+                        //     label: 'Source Index',
+                        //     value: 'source_index'
+                        // }
                     ]
                     this.ToolTipFieldList = this.ToolTipFieldList.concat(data);
                     this.LinkToolTipList = this.LinkToolTipList.concat(data)
@@ -989,10 +1032,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             label: 'Target ID',
                             value: 'target_id'
                         },
-                        {
-                            label: 'Target Index',
-                            value: 'target_index'
-                        }
+                        // {
+                        //     label: 'Target Index',
+                        //     value: 'target_index'
+                        // }
                     ]
                     this.ToolTipFieldList = this.ToolTipFieldList.concat(data);
                     this.LinkToolTipList = this.LinkToolTipList.concat(data)
@@ -1027,6 +1070,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // this._rerender();
 
+            // Used for timeline mode, TODO: update to use an RxJS Observable
             $(document).on("node-visibility", function () {
                 console.log('node-visibility called');
                 that._rerender(true);
@@ -1884,13 +1928,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
          */
         let getData = (data, varName) => {
             if (varName == 'source_id') {
-                return data['source']._id
-            } else if (varName == 'source_index') {
-                return data['source'].index
+                return data['source']//._id
+            // } else if (varName == 'source_index') {
+            //     return data['source'].index
             } else if (varName == 'target_id') {
-                return data['target']._id
-            } else if (varName == 'target_index') {
-                return data['target'].index
+                return data['target']//._id
+            // } else if (varName == 'target_index') {
+            //     return data['target'].index
+            } else if (varName == 'distance') {
+                if (data.hasDistance && data.distanceOrigin.includes(data.origin)) return data['distance']
+                else return 'N/A'
             } else {
                 return data[varName];
             }
@@ -2385,13 +2432,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let finalColor;
         let alphaValue;
 
-        if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
-            finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
-            alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
-        } else {
-            finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-            alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
-        }
+        //if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
+            //finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
+            //alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
+        //} else {
+        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
+        alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
+        //}
 
         if (this.overideTransparency) {
             alphaValue = this.widgets['link-opacity'];
@@ -2430,15 +2477,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // console.log('link variable2: ',this.commonService.session.data.links[index]);
 
             if (labelVariable == 'source_id') {
-                return link['source']['id']
+                return { text: link['source'] }
             } else if (labelVariable == 'source_index') {
-                return link['source']['index']
+                return { text: link['source'] } // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
+                //return link['source']['index']
             } else if (labelVariable == 'target_id') {
-                return link['target']['id']
-            } else if (labelVariable == 'target_index') {
-                return link['target']['index']
+                return { text: link['target'] }
+            } else if (labelVariable == 'target_index') { // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
+                return { text: link['target'] }
+                //return link['target']['index']
             } else if (labelVariable != 'distance') {
-                return { text: link[labelVariable] };
+                return { text: `${link[labelVariable]}`  || '' };
             }
             if (this.debugMode) {
                 console.log('cluster link: ', link);
@@ -2446,7 +2495,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const labelValue = link[labelVariable];
             // check if link has a distance origin and if the distance origin is included in the link.origin array, if not then the label should be 0
             if (link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
-                return { text: 0 };
+                return { text: '' };
+            } else if (!link.hasDistance) {
+                return { text: '' }
             }
 
             if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
@@ -2707,7 +2758,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (nodes.length == this.data.nodes.length) { 
                 return;
             }
-            let links = this.commonService.getVisibleLinks();
+            let links = this.commonService.getVisibleLinks(true);
             let visLinks = [];
             links.forEach((d) => {
                 if (!d.visible) return;
@@ -2725,7 +2776,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else {
             networkData = {
                 nodes: this.commonService.getVisibleNodes(),
-                links: this.commonService.getVisibleLinks()
+                links: this.commonService.getVisibleLinks(true)
             };
 
         }
@@ -3618,7 +3669,7 @@ private async _partialUpdate() {
     // Retrieve fresh node/link data
     const networkData = {
         nodes: this.commonService.getVisibleNodes(),
-        links: this.commonService.getVisibleLinks()
+        links: this.commonService.getVisibleLinks(true)
     };
 
     // Add nodeSize to each node so that infomration can be used with calcuating node position
@@ -3733,6 +3784,7 @@ private async _partialUpdate() {
 
             // Ensure label is updated based on filtered link data
             const data = linkMap.get(cyEdge.id());
+            if (data == undefined) return;
             const labelVal = this.getLinkLabel(data).text;
             cyEdge.data('label', labelVal ?? "");
 
