@@ -35,6 +35,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     activeTab: string = 'Files';
 
+    thirtyColorPalette: string[] = ["#201923", "#fcff5d", "#7dfc00", "#0ec434", "#228c68", "#8ad8e8", "#235b54", "#29bdab", "#3998f5", "#37294f", "#277da7", "#3750db", "#f22020", "#991919", "#ffcba5", "#e68f66", "#c56133", "#96341c", "#632819", "#ffc413", "#f47a22", "#2f2aa0", "#b732cc", "#772b9d", "#f07cab", "#d30b94", "#edeff3", "#c3a5b4", "#946aa2", "#5d4c86"]
+    polygonPalette: string[] = ['#bd959d', '#94214b',  '#9e0f1e',  '#ad382b',  '#63141c',  '#463a49',  '#096377',  '#5b7436',  '#d4af37', '#edffad'];
+
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
 
@@ -227,7 +230,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-bidirectional': false,
             'link-label-variable': 'None',
             'link-label-decimal-length' : 3,
-            'link-length': 0.125,
+            'link-length': 50,
             'link-opacity': 0,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
@@ -276,8 +279,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-opacity' : 0,
             'node-radius': 20,
             'node-radius-variable': 'None',
-            "node-radius-min": 0,
-            "node-radius-max": 100,
+            "node-radius-min": 15,
+            "node-radius-max": 85,
             'node-symbol': 'ellipse',
             'node-symbol-table-counts': true,
             'node-symbol-table-frequencies': false,
@@ -394,7 +397,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 linkColors: d3.schemePaired,
                 linkValueNames: {},
                 nodeAlphas: [1],
-                nodeColors: [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2)),
+                nodeColors: this.thirtyColorPalette,
                 nodeColorsTable: {},
                 nodeColorsTableHistory: {
                     'null' : '#EAE553'
@@ -421,7 +424,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 nodeSymbolsTableKeys: {},
                 nodeValueNames: {},
                 polygonAlphas: [0.5],
-                polygonColors: ['#bbccee','#cceeff','#ccddaa','#eeeebb','#ffcccc','#dddddd'],
+                polygonColors: this.polygonPalette,
                 polygonValueNames: {},
                 overwrite: {},
                 widgets: this.defaultWidgets()
@@ -1197,6 +1200,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
         }
 
+        // previous versions of MT had bug where nodeColorsTableHistory stored jQuery events instead of color string in session file, this section resolves that bug
+        Object.keys(this.session.style.nodeColorsTableHistory).forEach(key => {
+            // if the value is an object, convert it to string "#000000"
+            if (typeof this.session.style.nodeColorsTableHistory[key] == 'object') {
+                this.session.style.nodeColorsTableHistory[key] = "#000000";
+            }
+        })
+
         this.applyStyle(this.session.style);
 
         console.log('applySession end');
@@ -1935,14 +1946,16 @@ align(params): Promise<any> {
     getDM(): Promise<any> {
         const start = Date.now();
         return new Promise(resolve => {
+            let labels = [];
             let dm : any = '';
             if (this.session.data['newick']){
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
-                let labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
-                if (labels.length === 0)
-                    labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
+                labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
+                if (labels.length === 0) labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
+                if (labels.length === 0) labels = this.session.data.nodes.map(d => d.id);
+                if (labels.length === 0) labels = this.session.data.nodes.map(d => d._id);
                 //console.log("Before sorting: " + labels);
                 //labels = labels.sort();
                 //console.log("After sorting: " + labels);
@@ -1972,7 +1985,7 @@ align(params): Promise<any> {
             if(this.debugMode) {
                 console.log("DM Compute time: ", (Date.now() - start).toLocaleString(), "ms");
             }
-            resolve(dm);
+            resolve({dm, labels});
         });
     };
 
@@ -1987,11 +2000,11 @@ align(params): Promise<any> {
           } else if (this.session.data['newick']) {
             return resolve(this.session.data['newick']);
           } else {
-            this.getDM().then(dm => {
+            this.getDM().then(({dm, labels}) => {
               // Get a fresh tree worker from the factory.
               const treeWorker = this.computer.getTreeWorker();
               treeWorker.postMessage({
-                labels: this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
+                labels: labels.length > 0 ? labels : this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
                 matrix: dm,
                 round: this.session.style.widgets["tree-round"]
               });
@@ -2553,6 +2566,7 @@ align(params): Promise<any> {
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
+        $("#currentLinkThreshold").text(this.session.style.widgets['link-threshold'].toLocaleString());
     };
 
    /**
@@ -2565,7 +2579,9 @@ align(params): Promise<any> {
         const nodes = this.session.data.nodes;
         
         // The arrays and tables you use to store color config
-        const nodeColors = this.session.style.nodeColors;                 // e.g. [ "#1f77b4", ... ]
+        //const nodeColors = this.session.style.nodeColors;                 // e.g. [ "#1f77b4", ... ]
+        const nodeColors = this.thirtyColorPalette;
+        //console.log(nodeColors);
         const nodeAlphas = this.session.style.nodeAlphas;                 // e.g. [ 1, 1, ... ]
         const nodeColorsTable = this.session.style.nodeColorsTable;       // e.g. { varName: [ ... ] }
         const nodeColorsTableKeys = this.session.style.nodeColorsTableKeys;
@@ -2688,7 +2704,7 @@ align(params): Promise<any> {
         let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
-            polygonColors = ['#bbccee','#cceeff','#ccddaa','#eeeebb','#ffcccc','#dddddd'];
+            polygonColors = this.polygonPalette;
         }
         const polygonAlphas = this.session.style.polygonAlphas;
 
@@ -3064,8 +3080,7 @@ align(params): Promise<any> {
                 }
             }; // DFS function close
 
-            for (let k = 0; k < numNodes; k++) {
-                const d = nodes[k];
+           nodes.forEach(d => {
                 d.degree = 0;
                 const id = d._id;
 
@@ -3085,10 +3100,10 @@ align(params): Promise<any> {
 
                     clusters.push(cluster);
                     DFS(id, cluster);
-                    if (tempnodes.length == numNodes) break;
+                    if (tempnodes.length == numNodes) return;
                 }
-            }
-            
+            })
+
             if(this.debugMode) {
                 console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
             }

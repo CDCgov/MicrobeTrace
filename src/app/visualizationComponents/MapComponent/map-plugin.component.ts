@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, NgZone, InjectionToken, ElementRef, ViewChild, ViewContainerRef, ViewChildren, QueryList, ChangeDetectorRef, Renderer2, Inject } from '@angular/core';
+﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, NgZone, InjectionToken, ElementRef, ViewChild, ViewContainerRef, ViewChildren, QueryList, ChangeDetectorRef, Renderer2, Inject, OnDestroy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -12,7 +12,7 @@ import 'leaflet.markercluster';
 
 import * as MarkerCluster from 'leaflet.markercluster';
 import { SelectItem } from 'primeng/api';
-import { Observable } from 'rxjs';
+import { Observable, takeUntil, Subject } from 'rxjs';
 import { tileLayer, latLng, marker, icon, polyline, circle, polygon, Map, MapOptions, Layer, Marker, markerClusterGroup, MarkerClusterGroupOptions, MarkerClusterGroup, circleMarker, PathOptions, featureGroup, FeatureGroup, TileLayer, geoJSON } from 'leaflet';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
@@ -22,6 +22,7 @@ import * as _ from 'lodash';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 declare var google: any;
 
@@ -60,7 +61,7 @@ class LongLatClass implements LongLatInterface {
 
 
 
-export class MapComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
+export class MapComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
@@ -108,7 +109,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     ];
     SelectedNetworkExportFileTypeListVariable: string = "png";
 
-
+    networkUpdatedSubscription: any;
+    private destroy$ = new Subject<void>()
 
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -237,6 +239,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         private elem: ElementRef,
         private eventManager: EventManager,
         public commonService: CommonService,
+        private store: CommonStoreService,
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
@@ -299,9 +302,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             that.drawNodes(false);
         });
 
+         // Used for timeline mode, TODO: update to use an RxJS Observable
         $( document ).on( "node-visibility", function( ) {
-            // XXYY seems to re-jitter the nodes at times, so may want to look into that. thanks
-            //console.log('is node vis called here? probs not right')
             let visNodes = that.commonService.getVisibleNodes();
             if (visNodes.length == that.nodes.length) { return; }
             that.nodes = visNodes;
@@ -313,12 +315,20 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             })
 
             that.drawNodes(false);
+            that.drawLinks();
             //that.centerMap();
         });
         
-        $( document ).on( "link-visibility", function( ) {
-            that.drawLinks();
-        })
+        this.networkUpdatedSubscription = this.store.networkUpdated$
+            .pipe(takeUntil(this.destroy$))
+            .subscribe(newPruned => {
+                console.log('--- Map updated', newPruned, this.viewActive);
+                if (this.viewActive && newPruned) {
+                    this.drawNodes(false)
+                    this.drawLinks();
+                    this.store.setNetworkUpdated(false); 
+                }
+        });
 
         this.container.on('resize', () => { this.lmap.invalidateSize() })
         this.container.on('hide', () => { 
@@ -1241,11 +1251,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             if (!d._jlat || !d._jlon || d.visible === false) continue;
 
             let circleMarker: CircleWithData = L.circleMarker(L.latLng(d._jlat, d._jlon), {
-                color: d.selected ? selectedColor : '#ffffff',
+                weight: 1,
+                color: d.selected ? selectedColor : '#000000',
                 opacity: opacity,
                 fillColor: colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(d[colorVariable]),
                 fillOpacity: opacity,
-                radius: 5
+                radius: 10
             });
 
             circleMarker.data = d;
@@ -1691,6 +1702,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Links|Tooltip
         this.SelectedLinkTooltipVariable = this.commonService.session.style.widgets['map-link-tooltip-variable'];
         this.onLinkToolTipChange(this.SelectedLinkTooltipVariable);
+    }
+
+    ngOnDestroy(): void {
+        this.destroy$.next();
+        this.destroy$.complete();
     }
 }
 

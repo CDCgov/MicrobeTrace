@@ -12,12 +12,16 @@
     <span style="overflow: visible; position: relative; width: 110px;">
         <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
     </span>
-    <!-- Add this back in if we decide to use forces again to allow pinning nodes
-     <span style="overflow: visible; position: relative; width: 110px;">
-        <a #pinbutton title="Pin All Nodes" id="pinbutton" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openPinAllNodes()"
-            [style.background]="commonService.session.network.allPinned ? 'lightblue': 'transparent'"
-        ><i class="flaticon-pin primary"></i></a>
-    </span> -->
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Pin All Nodes" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+          [style.background]="commonService.session.network.allPinned ? 'lightblue': 'transparent'"
+      ><i class="flaticon-pin primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a  title="Recalculate Layout. Disabled when nodes are pinned."  class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+        [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
+        <i class="flaticon-refresh primary"></i></a>
+    </span>
 </div>
 
 <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
@@ -28,31 +32,35 @@
     
     <!-- Static Watermark (Optional) -->
     <div id="watermark" class="watermark"></div>
-    <div id="network-statistics-wrapper">
-      <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
-      <table #networkStats id="network-statistics-table">
-          <tr>
-              <td class="text-right">
-                  <span id="numberOfNodes"></span>
-                  (<span id="numberOfSelectedNodes"></span>)
-              </td>
-              <td>Nodes (Selected)</td>
-          </tr>
-          <tr>
-              <td id="numberOfVisibleLinks" class="text-right"></td>
-              <td>Links</td>
-          </tr>
-          <tr>
-              <td id="numberOfDisjointComponents" class="text-right"></td>
-              <td>Clusters</td>
-          </tr>
-          <tr>
-              <td id="numberOfSingletonNodes" class="text-right"></td>
-              <td>Singletons</td>
-          </tr>
-      </table>
-  </div>
 </div>
+  <div id="network-statistics-wrapper">
+    <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
+    <table #networkStats id="network-statistics-table">
+      <tr>
+        <td class="text-right">
+          <span id="numberOfNodes"></span>
+          (<span id="numberOfSelectedNodes"></span>)
+        </td>
+        <td>Nodes (Selected)</td>
+      </tr>
+      <tr>
+        <td id="numberOfVisibleLinks" class="text-right"></td>
+        <td>Links</td>
+      </tr>
+      <tr>
+        <td id="numberOfDisjointComponents" class="text-right"></td>
+        <td>Clusters</td>
+      </tr>
+      <tr>
+        <td id="numberOfSingletonNodes" class="text-right"></td>
+        <td>Singletons</td>
+      </tr>
+      <tr>
+        <td colspan="2">Link Threshold =
+          <span id="currentLinkThreshold"></span></td>
+      </tr>
+    </table>
+  </div>
 
 
 <div class="m-content" *ngIf="IsDataAvailable == false">
@@ -144,19 +152,19 @@
                             <div id="node-max-radius-row" class="form-group row" title="Should node max radius to this variable?">
                                 <div class="col-4"><label for="node-radius-max">Max Size</label></div>
                                 <div class="col-8">
-                                    <input type="range" class="custom-range" id="node-radius-max" min="20" value="100" step="1" max="100" [(ngModel)]="widgets['node-radius-max']" (ngModelChange)="onNodeRadiusMaxChange($event)">
+                                    <input type="range" class="custom-range" id="node-radius-max" min="20" value="85" step="1" max="100" [(ngModel)]="widgets['node-radius-max']" (ngModelChange)="onNodeRadiusMaxChange($event)">
                                 </div>
                               </div>
                               <div id="node-min-radius-row" class="form-group row" title="Should node min radius to this variable?">
                                 <div class="col-4"><label for="node-radius-min">Min Size</label></div>
                                 <div class="col-8">
-                                    <input type="range" class="custom-range" id="node-radius-min" min="1" value="1" step="1" max="55" [(ngModel)]="widgets['node-radius-min']" (ngModelChange)="onNodeRadiusMinChange($event)">
+                                    <input type="range" class="custom-range" id="node-radius-min" min="5" value="15" step="1" max="55" [(ngModel)]="widgets['node-radius-min']" (ngModelChange)="onNodeRadiusMinChange($event)">
                                 </div>
                             </div>
                             <div id="node-radius-row" class="form-group row" title="How big should the nodes be?">
                                 <div class="col-4"><label for="node-radius">Size</label></div>
                                 <div class="col-8">
-                                    <input type="range" class="custom-range" id="node-radius" min="0" value="50" step="1" max="100" [(ngModel)]="SelectedNodeRadiusSizeVariable" (ngModelChange)="onNodeRadiusChange($event)">
+                                    <input type="range" class="custom-range" id="node-radius" min="5" value="50" step="1" max="100" [(ngModel)]="SelectedNodeRadiusSizeVariable" (ngModelChange)="onNodeRadiusChange($event)">
                                 </div>
                             </div>
 
@@ -238,11 +246,10 @@
                                 <div class="col-4"><label for="link-width">Width</label></div>
                                 <div class="col-8"><input type="range" class="custom-range" id="link-width" min="0.3" max="30" step=".3" value="3" [(ngModel)]="SelectedLinkWidthVariable" (ngModelChange)="onLinkWidthChange($event)"></div>
                             </div>
-                            <!-- TODO Add back in if we figure out link length 
-                            <div class="form-group row" title="How long should links be?">
+                            <div class="form-group row" title="How long should links be? Disabled when nodes are pinned.">
                                 <div class="col-4"><label for="link-length">Length</label></div>
-                                <div class="col-8"><input type="range" class="custom-range" id="link-length" min="0" max="200" value="50" [(ngModel)]="SelectedLinkLengthVariable" (ngModelChange)="onLinkLengthChange($event)"></div>
-                            </div> -->
+                                <div class="col-8"><input type="range" class="custom-range" id="link-length" min="20" max="170" value="50" [disabled]="commonService.session.network.allPinned" [(ngModel)]="SelectedLinkLengthVariable" (change)="onLinkLengthChange($event)"></div>
+                            </div>
                             <div class="form-group row hideForHIVTrace" title="Shoul arrowheads pointing to the">
                                 <div class="col-4">Arrows</div>
                                 <div class="col-8">
@@ -303,8 +310,8 @@
                                     <p-dropdown id="polygons-foci" [options]="FieldList" appendTo="body" [(ngModel)]="commonService.session.style.widgets['polygons-foci']" (ngModelChange)="centerPolygons($event)"></p-dropdown>
                                 </div>
                               </div>
-                              <div class="form-group row" title="Reapply forces to shrink groups and separate them from others. May lead to a better layout">
-                                <button pButton type="button" label="Recalculate Layout" class="ui-button-raised" (click)="updateLayout()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+                              <div class="form-group row" title="Reapply forces to shrink groups and separate them from others. May lead to a better layout. Disabled when nodes are pinned.">
+                                <button pButton type="button" label="Recalculate Layout" class="ui-button-raised" [disabled]="commonService.session.network.allPinned" (click)="updateLayout()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                               </div>
                             </div>
                           </div>
@@ -439,7 +446,7 @@
     <p-dialog id="polygon-color-table-wrapper" 
       [position]="PolygonColorTableWrapperDialogSettings.polygonRight" 
       [(visible)]="PolygonColorTableWrapperDialogSettings.isVisible"  
-      [style]="{width: '45vw', maxWidth: '450px'}" 
+      [style]="{width: '45vw', maxWidth: '500px'}" 
       (onHide)="onPolygonColorTableChange(false)"
       (onShow)="onPolygonColorTableChange(true)"
     >

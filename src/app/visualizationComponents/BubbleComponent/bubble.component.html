@@ -7,21 +7,32 @@
         <span style="overflow: visible; position: relative; width: 110px;">
           <a title="Export Bubble Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
         </span>
+        <span style="overflow: visible; position: relative; width: 110px;">
+            <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+        </span>
     </div>
 
     <div #cyBubble id="cyBubble" [style.width.px]="viewWidth" [style.height.px]="viewHeight"></div>
 
     <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '400px'}" appendTo="body">
         <div class="form-group row" title="">
-            <div class="col-4"><a>X</a></div>
-            <div class="col-8">
+            <div class="col-3"><a>X</a></div>
+            <div class="col-7">
               <p-dropdown [options]="selectedFieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body"></p-dropdown>
+            </div>
+            <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
+                <p-checkbox [(ngModel)]="xVarDate" (ngModelChange)="onDataChange('X')" binary="true" inputId="xVarDate"></p-checkbox>
+                <label for="xVarDate">Date?</label>
             </div>
         </div>
         <div class="form-group row" title="">
-          <div class="col-4"><a>Y</a></div>
-          <div class="col-8">
+          <div class="col-3"><a>Y</a></div>
+          <div class="col-7">
             <p-dropdown [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body"></p-dropdown>
+          </div>
+          <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
+            <p-checkbox [(ngModel)]="yVarDate" (ngModelChange)="onDataChange('Y')" binary="true" inputId="yVarDate"></p-checkbox>
+            <label for="yVarDate">Date?</label>
           </div>
         </div>
         <div class="form-group row node-label-row" title="How big should the nodes be?">
@@ -31,6 +42,10 @@
         <div class="form-group row node-label-row" title="How much space between nodes? This has no effect when nodes are collapsed.">
           <div class="col-4"><label>Spacing</label></div>
           <div class="col-8"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()"></div>
+        </div>
+        <div class="form-group row node-label-row" title="Select a font Size for axis labels.">
+            <div class="col-4"><label>Label Size</label></div>
+            <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="40" [(ngModel)]="labelSize" (change)="onLabelSizeChange()"></div>
         </div>
         <div class="form-group row">
           <div class="col-4">Collapse</div>

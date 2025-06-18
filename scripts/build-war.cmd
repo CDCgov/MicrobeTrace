@@ -13,6 +13,8 @@ SET PATH=C:\MyPrograms\Java\jdk-21.0.5\bin;%PATH%
 
 @REM Build Angular application and create WAR file
 @REM NPM and Java must be installed and added to PATH
-npm run ng build -- --configuration production --optimization=false --base-href=./ && ^
+npm run build -- --configuration production --optimization=false --base-href=./ && ^
 java -version && ^
 jar -cvf dist/MicrobeTrace.war -C dist/MicrobeTrace/ .
+$commit = git rev-parse --short HEAD
+mv dist/MicrobeTrace.war dist/MicrobeTrace_$commit.war

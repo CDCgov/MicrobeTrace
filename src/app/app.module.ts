@@ -40,6 +40,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { TreeModule } from 'primeng/tree';
 import { DialogModule } from 'primeng/dialog';
 import { OrderListModule } from 'primeng/orderlist';
+import { CheckboxModule } from 'primeng/checkbox';
 import { MicrobeTraceNextHomeComponent } from './microbe-trace-next-plugin.component';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { AppUiCustomizationService } from '@shared/common/ui/app-ui-customization.service';
@@ -163,6 +164,7 @@ export class TestedComponent {
         SidebarModule,
         MultiSelectModule,
         SliderModule,
+        CheckboxModule,
         LeafletModule,
         LeafletMarkerClusterModule,
         OrderListModule,

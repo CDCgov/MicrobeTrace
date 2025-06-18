@@ -12,10 +12,14 @@ node -v || { echo "Node.js not found"; exit 1; }
 npm -v || { echo "npm not found"; exit 1; }
 
 echo "===> Building Angular app..."
-npm run ng build -- --configuration production --optimization=false --base-href=./ || { echo "Angular build failed"; exit 1; }
+npm run build -- --configuration production --optimization=false --base-href=./ || { echo "Angular build failed"; exit 1; }
 
 echo "===> Creating WAR file..."
 cd dist/MicrobeTrace || { echo "dist/MicrobeTrace not found"; exit 1; }
 jar -cvf ../MicrobeTrace.war . || { echo "Failed to create WAR file"; exit 1; }
 
-echo "===> WAR file created at dist/MicrobeTrace.war"
+COMMIT=$(git rev-parse --short HEAD)
+
+mv ../MicrobeTrace.war ../MicrobeTrace_${COMMIT}.war
+
+echo "===> WAR file created at dist/MicrobeTrace_${COMMIT}.war"

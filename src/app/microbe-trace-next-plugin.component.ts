@@ -19,7 +19,7 @@ import html2canvas from 'html2canvas';
 import { CommonStoreService } from './contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import * as XLSX from 'xlsx';
-
+import { buildDate, commitHash } from "src/environments/version";
 
 
 @Component({
@@ -49,6 +49,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public launchView: string = "2D Network";
     public threshold: string = "0.015";
 
+    commitHash: string = commitHash;
     widgets: object; 
     elem: any;
     showSettings: boolean = false;
@@ -1504,11 +1505,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     const linkColorTable = $(tableId).empty().append(
       '<tr>' +
-      "<th class='p-1 table-header-row'><div class='header-content'><span>Link " + 
+      "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Link " + 
         this.commonService.titleize(this.SelectedColorLinksByVariable) + 
       "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable>Count</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
+      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
       '<th>Color</th>' +
       '</tr>'
     );
@@ -1528,7 +1529,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const disabled: string = isEditable ? '' : 'disabled';
 
         aggregateValues.forEach((value, i) => {
-
+            let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
             if (aggregates[value] == 0) {
                 return;
             }
@@ -1542,7 +1543,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const color = this.commonService.temp.style.linkColorMap(value);
 
             // Create color input element with color value and assign id to retrieve new value on change
-            const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
+            const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" ${disabled}>`)
                 .on("change", e => {
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
@@ -1557,12 +1558,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         .domain(aggregateValues);
 
 
-                    // Call the updateLinkColor method in the active tab
-                    this.homepageTabs[this.activeTabIndex].componentRef.instance.updateLinkColor();
+                    // Call the updateLinkColor method in all tabs
+                    this.publishUpdateLinkColor()
 
                 });
 
-            const alphainput = $(`<a class="transparency-symbol">⇳</a>`)
+            const alphainput = duoLinkRow ? $(``) : $(`<a class="transparency-symbol">⇳</a>`)
                 .on("click", e => {
 
                     $("#color-transparency-wrapper").css({
@@ -1583,7 +1584,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                                 .domain(aggregateValues);
                             $("#color-transparency-wrapper").fadeOut();
 
-                            this.homepageTabs[this.activeTabIndex].componentRef.instance.updateLinkColor();
+                            this.publishUpdateLinkColor()
                             // this.goldenLayout.componentInstances[1].updateLinkColor();
 
                         });
@@ -2064,7 +2065,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, e);
 
                     // Update history with new color
-                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = e;
+                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = e.target['value'];
 
                   
 
@@ -2138,7 +2139,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (isEditable) {
             nodeColorTable
-                .find("td.rowName")
+                .find("td")
                 .on("dblclick", function () {
                     $(this).attr("contenteditable", "true").focus();
                 })
@@ -3245,6 +3246,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           case "Settings": {
             this.DisplayGlobalSettingsDialog("Filtering");
           }
+        }
+    }
+
+    /**
+     * Opens MicroTrace Classic in a new tab and retains the Auspice URL if it exists
+     */
+    openMT_Classic() {
+        if (this.auspiceUrlVal) {
+            let mt_url = "https://microbetrace.cdc.gov/MicrobeTraceClassic/?url=" + this.auspiceUrlVal.replace(/\//g, "%2F");
+            window.open(mt_url, "_blank")
+        } else {
+            window.open("https://microbetrace.cdc.gov/MicrobeTraceClassic/", "_blank")
         }
     }
 

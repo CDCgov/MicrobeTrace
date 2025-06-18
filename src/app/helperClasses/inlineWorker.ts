@@ -26,7 +26,7 @@ export class InlineWorker {
                 request.send(null);
                 let returnValue = request.responseText;
                 if (i === 0){
-                    let start = returnValue.indexOf("const version = \"0.5.7\";");
+                    let start = returnValue.indexOf("const version = \"0.6.0\";");
                     let finish = returnValue.indexOf("exports.Branch = Branch;");
                     functionBody += returnValue.substring(start, finish);
 
@@ -48,6 +48,7 @@ export class InlineWorker {
                 // functionBody += returnValue;
                 functionBody += "\n";
             }
+
             functionBody += func.toString().replace(/^[^{]*{\s*/, '').replace(/\s*}[^}]*$/, '');
 
             this.worker = new Worker(URL.createObjectURL(
