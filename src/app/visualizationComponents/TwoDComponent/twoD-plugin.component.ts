@@ -126,6 +126,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     // Node Tab    
+    SelectedNodeLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Right';
     SelectedNodeLabelVariable: string = "None";
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeSymbolVariable: string = "None";
@@ -459,7 +460,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // 'height': 'mapData(nodeSize, 0, 100, 10, 50)',
                     'border-width': 'data(borderWidth)', // Use dynamic border width
                     // 'border-color': '#000',
-                    'text-valign': 'center',
+                    'text-valign': (() => {
+                        const o = (this.widgets && this.widgets['node-label-orientation']) ? this.widgets['node-label-orientation'].toLowerCase() : 'right';
+                        if (o === 'top') return 'top';
+                        if (o === 'bottom') return 'bottom';
+                        return 'center';
+                    })(),
+                    'text-halign': (() => {
+                        const o = (this.widgets && this.widgets['node-label-orientation']) ? this.widgets['node-label-orientation'].toLowerCase() : 'right';
+                        if (o === 'left') return 'left';
+                        if (o === 'right') return 'right';
+                        return 'center';
+                    })(),
                     'color': 'black',
                     // @ts-ignore
                     'shape': 'data(shape)',
@@ -2539,6 +2551,42 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onNodeLabelOrientationChange(e) {
         this.widgets['node-label-orientation'] = e;
+        if (this.cy) {
+            type TextAlignment = 'left' | 'center' | 'right';
+            type VerticalAlignment = 'top' | 'bottom' | 'center';
+
+            let textValign: VerticalAlignment = 'center';
+            let textHalign: TextAlignment = 'center';
+
+            switch (e.toLowerCase()) {
+                case 'top':
+                    textValign = 'top';
+                    break;
+                case 'bottom':
+                    textValign = 'bottom';
+                    break;
+                case 'left':
+                    textHalign = 'left';
+                    break;
+                case 'right':
+                    textHalign = 'right';
+                    break;
+                case 'middle':
+                case 'center':
+                default:
+                    textValign = 'center';
+                    textHalign = 'center';
+                    break;
+            }
+
+            this.cy.style()
+                .selector('node')
+                .style({
+                    'text-valign': textValign,
+                    'text-halign': textHalign
+                })
+                .update();
+        }
     }
 
     /**
@@ -3912,6 +3960,10 @@ private async _partialUpdate() {
         this.SelectedNodeLabelVariable = this.widgets['node-label-variable'];
         console.log('----TWOD SelectedNodeLabelVariable: ', this.SelectedNodeLabelVariable);
         this.onNodeLabelVaribleChange(this.SelectedNodeLabelVariable);
+
+        //Node|Orientation
+        this.SelectedNodeLabelOrientationVariable = this.widgets['node-label-orientation'];
+        this.onNodeLabelOrientationChange(this.SelectedNodeLabelOrientationVariable);
 
         //Node|Label Size
         this.SelectedNodeLabelSizeVariable = this.widgets['node-label-size'];

@@ -93,6 +93,18 @@
                                 <div class="col-4"><label for="node-label-size">Label Size</label></div>
                                 <div class="col-8"><input type="range" class="custom-range" id="node-label-size" min="6" value="16" max="72" [(ngModel)]="SelectedNodeLabelSizeVariable" (change)="onNodeLabelSizeChange($event)"></div>
                             </div>
+                            <div class="form-group row node-label-row" title="Where should the label appear relative to the node?">
+                              <div class="col-4"><label for="node-label-orientation">Orientation</label></div>
+                              <div class="col-8">
+                                  <select id="node-label-orientation" [(ngModel)]="SelectedNodeLabelOrientationVariable" (ngModelChange)="onNodeLabelOrientationChange($event)">
+                                      <option>Right</option>
+                                      <option>Left</option>
+                                      <option>Top</option>
+                                      <option>Bottom</option>
+                                      <option>Middle</option>
+                                  </select>
+                              </div>
+                          </div>
                             <div class="form-group row" title="What node data should be displayed as a tooltip for the node?">
                                 <div class="col-4">
                                     <label for="node-tooltip-variable">Tooltip</label>
