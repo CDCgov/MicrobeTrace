@@ -3098,14 +3098,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     updateMinMaxNode() {
-
         this.visNodes = this.commonService.getVisibleNodes();
         let n = this.visNodes.length;
-        let maxWidth = this.widgets['node-radius-max'];
-        let minWidth = this.widgets['node-radius-min'];
         let sizeVariable = this.widgets['node-radius-variable'];
-
-
+    
         this.nodeMin = Number.MAX_VALUE;
         this.nodeMax = Number.MIN_VALUE;
         for (let i = 0; i < n; i++) {
@@ -3114,9 +3110,33 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (size < this.nodeMin) this.nodeMin = size;
             if (size > this.nodeMax) this.nodeMax = size;
         }
+    
+        // Normalize legacy values to fit within 0-100 range
+        if (this.widgets['node-radius-max'] > 100 || this.widgets['node-radius-min'] > 100) {
+            // Calculate the ratio between the current range and desired range
+            const currentRange = this.widgets['node-radius-max'] - this.widgets['node-radius-min'];
+            const targetRange = 100;
+            const scaleFactor = targetRange / currentRange;
 
+            // Scale the values proportionally
+            this.widgets['node-radius-max'] = Math.round(this.widgets['node-radius-max'] * scaleFactor);
+            this.widgets['node-radius-min'] = Math.round(this.widgets['node-radius-min'] * scaleFactor);
+
+            // Ensure values stay within bounds
+            this.widgets['node-radius-max'] = Math.min(100, this.widgets['node-radius-max']);
+            this.widgets['node-radius-min'] = Math.max(0, this.widgets['node-radius-min']);
+        }
+
+        // console.log('nodeMin: ', this.nodeMin);
+        // console.log('nodeMax: ', this.nodeMax);
+        // console.log('noderad Max: ', this.widgets['node-radius-max']);
+        // console.log('noderad Min ', this.widgets['node-radius-min']);
+
+        let maxWidth = this.widgets['node-radius-max'];
+        let minWidth = this.widgets['node-radius-min'];
+    
         this.nodeMid = (this.nodeMax - this.nodeMin) / 2;
-
+    
         this.nodeScale = d3.scaleLinear()
             .domain([this.nodeMin, this.nodeMax])
             .range([minWidth, maxWidth]);
