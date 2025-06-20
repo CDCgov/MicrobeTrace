@@ -35,8 +35,13 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     activeTab: string = 'Files';
 
-    thirtyColorPalette: string[] = ["#201923", "#fcff5d", "#7dfc00", "#0ec434", "#228c68", "#8ad8e8", "#235b54", "#29bdab", "#3998f5", "#37294f", "#277da7", "#3750db", "#f22020", "#991919", "#ffcba5", "#e68f66", "#c56133", "#96341c", "#632819", "#ffc413", "#f47a22", "#2f2aa0", "#b732cc", "#772b9d", "#f07cab", "#d30b94", "#edeff3", "#c3a5b4", "#946aa2", "#5d4c86"]
-    polygonPalette: string[] = ['#bd959d', '#94214b',  '#9e0f1e',  '#ad382b',  '#63141c',  '#463a49',  '#096377',  '#5b7436',  '#d4af37', '#edffad'];
+    thirtyColorPalette: string[] = [
+        "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
+        "#8ad8e8", "#f07cab", "#235b54", "#ffcba5", "#772b9d", "#29bdab", 
+        "#ffc413", "#d30b94", "#201923", "#7dfc00", "#3750db", "#946aa2",
+        "#edeff3", "#fcff5d", "#632819", "#228c68",  "#277da7", "#37294f",
+        "#991919", "#e68f66", "#c3a5b4", "#2f2aa0", "#c56133", "#5d4c86"]
+    polygonPalette: string[] = ['#353cac', '#fdbe3d', '#41ba97', '#9e0f1e', '#303030', '#62a5e4', '#a13eda', '#f4e41c', '#75d054', '#f22020'] ;
 
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
@@ -1127,8 +1132,8 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         console.log('applySession - temp:', this.temp);
 
-        $(document).trigger("stop-force-simulation"); // stop previous network ticks so previous polygon won't show up
-        $(document).off('.2d');
+        // $(document).trigger("stop-force-simulation"); // stop previous network ticks so previous polygon won't show up
+        // $(document).off('.2d');
 
         if(this.debugMode) {
             console.log('applying session:', stashObject);
@@ -2322,128 +2327,6 @@ align(params): Promise<any> {
         });
       }
 
-    foldMultiSelect() {
-        this.foldRaces();
-        this.foldExposures();
-    }
-
-    foldRaces() {
-        if(this.session.data.nodeFields.find(x => x === "Race")){
-            return;
-        }
-
-        this.session.data.nodeFields.push("Race");
-        this.session.data.nodeFields.push("RaceDetails");
-
-        const races: { id: string, displayValue: string }[] = [
-            { id: "RaceAsian", displayValue: "Asian" },
-            { id: "RaceAmericanIndian", displayValue: "American Indian" },
-            { id: "RaceBlack", displayValue: "Black" },
-            { id: "RaceWhite", displayValue: "White" },
-            { id: "RaceNativeHawaiian", displayValue: "Native Hawaiian" }
-        ];
-
-        if (this.session.data.nodes) {
-
-            this.session.data.nodes.forEach(node => {
-                if (!node.Race) {
-
-                    let selectedRace: string = "";
-                    const raceDetails: string[] = [];
-
-                    races.forEach(race => {
-                        if (node[race.id] && node[race.id].toLowerCase() === "true") {
-                            
-                            raceDetails.push(race.displayValue);
-
-                            if (!selectedRace) {
-                                selectedRace = race.displayValue;
-                            } else {
-                                selectedRace = "Mixed";
-                            }
-                        }
-
-                        //Remove race properties
-                        delete node[race.id];
-                    });
-
-                    node.Race = selectedRace;
-                    node.RaceDetails = raceDetails.join(" | ");
-                }
-            })
-        }
-
-        //Remove race fields from nodeFields
-        races.forEach(race=>{
-            this.session.data.nodeFields = this.session.data.nodeFields.filter(x=>x != race.id);
-        })
-
-    }
-
-    foldExposures(){
-        if(this.session.data.nodeFields.find(x => x === "Exposure")){
-            return;
-        }
-
-        this.session.data.nodeFields.push("Exposure");
-        this.session.data.nodeFields.push("ExposureDetails");
-
-        const exposures: { id: string, displayValue: string }[] = [
-            { id: "ExposureInfoDomesticTraveled", displayValue: "Domestic Traveled"},
-            { id: "ExposureInfoInternationalTraveled", displayValue: "International Traveled"},
-            { id: "ExposureInfoCorrectionalFacility", displayValue: "Correctional Facility"},
-            { id: "ExposureInfoCovidAnimal", displayValue: "Covid Animal"},
-            { id: "ExposureInfoCruiseShipTraveled", displayValue: "Cruise Ship Traveled"},
-            { id: "ExposureInfoWorkplace", displayValue: "Workplace"},
-            { id: "ExposureInfoWorkplaceIsCriticalInfra", displayValue: "Workplace Is Critical Infra"},
-            { id: "ExposureInfoWorkplaceSetting", displayValue: "Workplace Setting"},
-            { id: "ExposureInfoAdultLivingFacility", displayValue: "Adult Living Facility"},
-            { id: "ExposureInfoSchool", displayValue: "School"},
-            { id: "ExposureInfoKnownCovid19ContactnCoVID", displayValue: "Known Covid19 Contact nCoVID"}            
-        ];
-
-        if (this.session.data.nodes) {
-
-            this.session.data.nodes.forEach((node, index) => {
-                if (!node.Exposure) {
-
-                    let selectedRace: string = "";
-                    const exposureDetails: string[] = [];
-
-                    exposures.forEach(exposure => {
-                        if (exposure.id != "ExposureInfoWorkplaceIsCriticalInfra" && 
-                            exposure.id != "ExposureInfoWorkplaceSetting" && 
-                            node[exposure.id] && node[exposure.id].toLowerCase() === "true") {
-                            
-                            if(exposure.id === "ExposureInfoWorkplace"){
-                                exposureDetails.push(`${exposure.displayValue} {"Is the workplace critical infrastructure" : "${this.session.data.nodes[index].ExposureInfoWorkplaceIsCriticalInfra}", "Workplace Setting" : "${this.session.data.nodes[index].ExposureInfoWorkplaceSetting}"}`);
-                            }
-                            else{
-                                exposureDetails.push(exposure.displayValue);
-                            }
-
-                            if (!selectedRace) {
-                                selectedRace = exposure.displayValue;
-                            } else {
-                                selectedRace = "Multiple";
-                            }
-                        }
-
-                        //Remove exposure properties
-                        delete node[exposure.id];
-                    });
-
-                    node.Exposure = selectedRace;
-                    node.ExposureDetails = exposureDetails.join(" | ");
-                }
-            })
-        }
-
-        //Remove exposure fields from nodeFields
-        exposures.forEach(exposure=>{
-            this.session.data.nodeFields = this.session.data.nodeFields.filter(x=>x != exposure.id);
-        })
-    }
 
     /**
      * Gets a list of all visible node objects
@@ -2557,7 +2440,7 @@ align(params): Promise<any> {
                 if (clusters[id]) clusters[id]++;
                 else clusters[id] = 1;
             }
-            clusterCount = this.session.data.clusters.filter(cluster => clusters[cluster.id] && clusters[cluster.id]>2 && cluster.visible && cluster.nodes > 1).length;
+            clusterCount = this.session.data.clusters.filter(cluster => clusters[cluster.id] && clusters[cluster.id]>0 && cluster.visible && cluster.nodes > 1).length;
 
         }
         const singletons = vnodes.filter(d => d.degree == 0).length;
@@ -2700,7 +2583,7 @@ align(params): Promise<any> {
         }
 
         // If this.session.style.widgets['polygons-color-show', we need 
-        let polygonGroups = this.temp.polygonGroups || [];
+        let polygonGroups: {key: string, index:number, values: []}[] = this.temp.polygonGroups || [];
         let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
@@ -2719,8 +2602,9 @@ align(params): Promise<any> {
                 }
                 groupMap.get(polygonFoci).push(node);
             });
-            polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
                 key,
+                index,
                 values: values.map(node => node.id)
             }));
 
@@ -2743,7 +2627,7 @@ align(params): Promise<any> {
         this.session.style.polygonColors = result.updatedPolygonColors;
         this.session.style.polygonAlphas = result.updatedPolygonAlphas;
           
-        return result.aggregates;
+        return polygonGroups;
       }
 
     /**
@@ -2794,7 +2678,7 @@ align(params): Promise<any> {
         this.temp.matrix = newTempSkeleton.matrix;
         this.temp.trees = newTempSkeleton.trees;
 
-        const files = this.session.files.filter( obj => obj.name !== 'Demo_outbreak_NodeList.csv');
+        const files = this.session.files.slice();
         const meta = this.session.meta;
 
         if(this.debugMode) {
@@ -2930,22 +2814,6 @@ align(params): Promise<any> {
                     }
                     break;
 
-                case "stars":
-                    if (format == "json") {
-                        let path = /*this.appRootUrl() +*/ 'assets/common/data/stars.json';
-
-                        return this.http.get(path).toPromise()
-                            .then(response => {
-                                this.temp.mapData[name] = response;
-                                return this.temp.mapData[name];
-                            });
-
-                        // $.get(path, response => {
-                        //     this.temp.mapData[name] = response;
-                        //     resolve(this.temp.mapData[name]);
-                        // });
-                    }
-                    break;
             }
 
             //$.get("data/" + type, response => {

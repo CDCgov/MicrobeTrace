@@ -198,7 +198,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         { label: 'svg', value: 'svg' }
     ];
 
-    rerenderOnActive: Boolean = false;
+    rerenderOnActive: boolean = false;
 
     SelectedNetworkExportFileTypeListVariable: string = "png";
     SelectedNetworkExportScaleVariable: any = 1;
@@ -1224,25 +1224,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
 
-            let options = { scale: 1, full: false, bg: this.commonService.session.style.widgets['background-color'] || '#ffffff'};
+            let options = { scale: 1, full: true, bg: this.commonService.session.style.widgets['background-color'] || '#ffffff'};
             let content = (this.cy as any).svg(options);
 
-            let statTable = this.exportService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
-
-            // gets width and height which is needed to position the network statistics table
+            // Add 10px of padding around network
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
             const svg1 = doc.documentElement;          
-            let width = parseFloat(svg1.getAttribute('width'));
-            let height = parseFloat(svg1.getAttribute('height'));
-            svg1.setAttribute('height', height.toString());
-            // Convert svg1 (an SVGElement) to a string
+            svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
+            svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
             let svgString = new XMLSerializer().serializeToString(svg1);
-
-            // Add the network statistics table to the svg
-            //let statTable = this.exportService.exportTableAsSVG(this.networkStatisticsTable.nativeElement)
-            //statTable.svg = statTable.svg.replace('<g>', `<g transform="translate(${width-statTable.width-2}, ${height-statTable.height})" fill="#f8f9fa">`);
-            //content = svgString.replace('</svg>', statTable.svg + '</svg>');
+            content = svgString.replace('<g>', `<g transform="translate(10, 10)">`)
 
             let elementsToExport: HTMLTableElement[] = [];
             if (this.widgets['node-symbol-table-visible'] != 'Hide') {
@@ -1345,7 +1337,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // .append("<th>Color</th>");
         
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
-        let aggregates = this.commonService.createPolygonColorMap();
+        let aggregates = this.commonService.createPolygonColorMap().reduce((acc, item) => {
+            acc[item.key] = item.values.length;
+            return acc;
+        }, {} as Record<string, number>)
         let values = Object.keys(aggregates);
 
         // By default both are set to "DESC", if one changed the other is set to ""; Default sort is by counts DESC
@@ -1365,11 +1360,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let that = this;
 
         values.forEach((value, i) => {
-            let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '">')
+            let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '" style="opacity:' + that.commonService.temp.style.polygonAlphaMap(value) +'; border:none">')
                 .on("change", function (e) {
                     let locInPolygonColors = that.commonService.temp.polygonGroups.find(x => x.key == value).index
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
+                    e.currentTarget.style['opacity'] = that.commonService.temp.style.polygonAlphaMap(value);
 
                     that.commonService.session.style['polygonColors'].splice(locInPolygonColors, 1, $(this).val() as string);
                     that.commonService.createPolygonColorMap()
@@ -1382,6 +1378,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     display: "block"
                 });
                 $("#color-transparency")
+                    .off("change")
                     .val(that.commonService.temp.style.polygonAlphaMap(value))
                     .one("change", function () {
                         let locInPolygonAlphas = that.commonService.temp.polygonGroups.find(x => x.key == value).index
@@ -1390,7 +1387,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
                             .domain(that.commonService.temp.polygonGroups.map(d => d.key));
                         $("#color-transparency-wrapper").fadeOut();
-                        that.updateGroupNodeColors();
+                        colorinput.trigger('change', that.commonService.temp.style.polygonColorMap(value))
                     });
             });
             let cell = $("<td></td>")
@@ -2029,7 +2026,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-    updateGroupAssignments(foci: string): void {
+    /**
+     * 
+     * @param foci 
+     * @param change boolean, representing if foci has change (timeline mode foci doesn't change). If true, updates commonService.temp.polyggonGroups
+     * @returns 
+     */
+    updateGroupAssignments(foci: string, change: boolean=true): void {
         const cy = this.cy; // Reference to Cytoscape instance
         if (!cy) {
             console.error('Cytoscape instance is not initialized.');
@@ -2116,15 +2119,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
              // **Step 6:** Create and Assign the `groups` Object for polygonGroups
-            const groups = Array.from(groupMap.entries()).map(([key, values], index) => ({
-                key,
-                index,
-                values: values.map(node => node.data('id'))
-            }));
+             if (change) {
+                const groups = Array.from(groupMap.entries()).map(([key, values], index) => ({
+                    key,
+                    index,
+                    values: values.map(node => node.data('id'))
+                }));
 
-            // Assign the groups to polygonGroups in commonService.temp
-            // TODO: Decide on one
-            this.commonService.temp.polygonGroups = groups;
+                // Assign the groups to polygonGroups in commonService.temp
+                this.commonService.temp.polygonGroups = groups;
+            }
         });
     
     }
@@ -2906,7 +2910,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // });
 
             // layout.run();
-            this.ensurePolygon(false);
+            this.updateGroupAssignments(this.widgets['polygons-foci'], false);
 
 
         } else{

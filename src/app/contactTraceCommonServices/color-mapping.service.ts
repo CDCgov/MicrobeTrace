@@ -312,12 +312,11 @@ export class ColorMappingService {
    * Example: A polygon color map for grouping clusters or polygons, if relevant.
    */
   public createPolygonColorMap(
-    polygonGroups: { key: string, values: any[] }[],
+    polygonGroups: { key: string, index: number, values: any[] }[],
     polygonColors: string[],
     polygonAlphas: number[],
     debugMode: boolean
   ): {
-    aggregates: Record<string, number>;
     colorMap: d3.ScaleOrdinal<string, string>;
     alphaMap: d3.ScaleOrdinal<string, number>;
     updatedPolygonColors: string[];
@@ -327,7 +326,6 @@ export class ColorMappingService {
     // If no polygon groups, treat as uniform color
     if (!polygonGroups || polygonGroups.length === 0) {
       return {
-        aggregates: {},
         colorMap: d3.scaleOrdinal([ polygonColors[0] || '#bbccee' ]).domain([]),
         alphaMap: d3.scaleOrdinal([ 0.5 ]).domain([]),
         updatedPolygonColors: polygonColors,
@@ -335,11 +333,7 @@ export class ColorMappingService {
       };
     }
 
-    const aggregates: Record<string, number> = {};
-    polygonGroups.forEach(g => {
-      aggregates[g.key] = g.values.length;
-    });
-    const distinctValues = Object.keys(aggregates);
+    const distinctValues = polygonGroups.sort((a, b) => a.index - b.index).map(g => `${g.key}`);
 
     let updatedPolygonColors = [...polygonColors];
     let updatedPolygonAlphas = [...polygonAlphas];
@@ -371,7 +365,6 @@ export class ColorMappingService {
     }
 
     return {
-      aggregates,
       colorMap,
       alphaMap,
       updatedPolygonColors,

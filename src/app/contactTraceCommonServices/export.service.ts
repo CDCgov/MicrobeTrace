@@ -119,8 +119,10 @@ export class ExportService {
             rowData.push(cells[j].querySelector('p-dropdown div').innerHTML.replace(/&nbsp;/g, ' '));
           }
         } else if (cells[j].querySelector('input[type="color"]')) {
-          let color = (cells[j].querySelector('input[type="color"]') as HTMLInputElement).value;
-          rowData.push(color);
+          const input = (cells[j].querySelector('input[type="color"]') as HTMLInputElement)
+          let color = input.value;
+          let opacity = input.style['opacity'] || '1';
+          rowData.push(`${color}:${opacity}`);
         } else {
           rowData.push(cells[j].innerText.replace('⇅', ''));
         }
@@ -132,8 +134,9 @@ export class ExportService {
     
     tableData.forEach((row, rowIndex) => {
       row.forEach((cell, colIndex) => {
-        if (cell.length === 7 && cell[0] === '#') {
-          out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex] - 12}" width="20" height="20" fill="${cell}"></rect>`;
+        if (cell.split(':')[0].length === 7 && cell[0] === '#') {
+          let data = cell.split(':');
+          out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex] - 12}" width="20" height="20" fill="${data[0]}" fill-opacity="${data[1]}"></rect>`;
         } else if (cell === 'shapeRhombus') { 
           out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
             <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="80">▰</text>

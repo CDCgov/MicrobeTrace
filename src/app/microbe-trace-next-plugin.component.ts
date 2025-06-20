@@ -618,16 +618,23 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 useCORS: true, // Enable CORS if images are loaded from external sources,
                 allowTaint: true,
                 onclone: (clonedDoc) => {
+                    // Remove all transparency symbols
+                    const clonedTransparencySymbols = clonedDoc.querySelectorAll('a.transparency-symbol');
+                    clonedTransparencySymbols.forEach(symbol => {
+                        symbol.parentNode?.removeChild(symbol);
+                    })
                     // Replace color input elements with colored spans
                     const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
                     clonedInputs.forEach(input => {
                         const color = input.getAttribute('value') || '#ffffff';
+                        const opacity = input.style.opacity || '1'
                         const span = clonedDoc.createElement('span');
                         span.style.display = 'inline-block';
                         span.style.width = '20px';
                         span.style.height = '20px';
+                        span.style.opacity = opacity;
                         span.style.backgroundColor = color;
-                        span.style.border = '1px solid #000'; // Optional: Add border for visibility
+                        //span.style.border = '1px solid #000'; // Optional: Add border for visibility
                         input.parentNode?.replaceChild(span, input);
                     });
     
@@ -749,7 +756,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private async performExportSVG(elementsForExport: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
         console.log('Exporting SVG');
         if (mainSVGString == '') {
-            mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="fill: transparent;"></svg>'
+            mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>'
         }
 
         if (exportLinkTable) {
@@ -809,6 +816,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         svg1.style.width = `${width + 5}px`
         svg1.style.height = `${height + 5 }px`
+        svg1.setAttribute('width', `${width+5}`);
+        svg1.setAttribute('height', `${height+5}`);
+
+        const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        rect.setAttribute('x', '0')
+        rect.setAttribute('y', '0')
+        rect.setAttribute('width', `${width+5}`);
+        rect.setAttribute('height', `${height+5}`);
+        rect.setAttribute('fill', 'white');
+        svg1.insertBefore(rect, svg1.firstChild);
+
         let mainSVG = String(svg1.outerHTML);
         let combinedSvgString: string;
         if (mainSVG.endsWith('/>')) {
@@ -1543,10 +1561,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const color = this.commonService.temp.style.linkColorMap(value);
 
             // Create color input element with color value and assign id to retrieve new value on change
-            const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" ${disabled}>`)
+            const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.linkAlphaMap(value)}; border:none" ${disabled}>`)
                 .on("change", e => {
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
+                    e.currentTarget.style['opacity'] = this.commonService.temp.style.linkAlphaMap(value);
 
                     // Need to get value from id since "this" keyword is used by angular
                     // Update that value at the index in the color table
@@ -1573,6 +1592,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     });
 
                     $("#color-transparency")
+                        .off("change")
                         .val(this.commonService.session.style.linkAlphas[i])
                         .one("change", (f) => {
 
@@ -1584,7 +1604,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                                 .domain(aggregateValues);
                             $("#color-transparency-wrapper").fadeOut();
 
-                            this.publishUpdateLinkColor()
+                            colorinput.trigger('change', this.commonService.temp.style.linkColorMap(value))
                             // this.goldenLayout.componentInstances[1].updateLinkColor();
 
                         });
@@ -2051,10 +2071,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             const color = this.commonService.temp.style.nodeColorMap(value);
 
-            const colorinput = $(`<input type="color" value="${color}" ${disabled}>`)
+            const colorinput = $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.nodeAlphaMap(value)}; border:none" ${disabled}>`)
                 .on("change", e => {
                     // need to update the value in the dom which is used when exportings
                     e.currentTarget.attributes[1].value = e.target['value'];
+                    e.currentTarget.style['opacity'] = this.commonService.temp.style.nodeAlphaMap(value);
 
                     if(this.commonService.debugMode) {
                         console.log('color: ', this.SelectedColorNodesByVariable);
@@ -2100,6 +2121,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 });
 
                 $("#color-transparency")
+                    .off("change")
                     .val(this.commonService.session.style.nodeAlphas[i])
                     .one("change", f => {
 
@@ -2111,8 +2133,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                             .scaleOrdinal(this.commonService.session.style.nodeAlphas)
                             .domain(aggregateValues);
 
-                        this.publishUpdateNodeColors();
-
+                        colorinput.trigger('change', this.commonService.temp.style.nodeColorMap(value))
                         $("#color-transparency-wrapper").fadeOut();
 
                     });
