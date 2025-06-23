@@ -184,7 +184,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     activeTabNdx = null;
-    ShowGlobalSettingsLinkColorTable: boolean = false;
+    //ShowGlobalSettingsLinkColorTable: boolean = false;
     ShowGlobalSettingsNodeColorTable: boolean = false;
     roles: Array<string> = new Array<string>();
 
@@ -652,10 +652,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             // if pos == 0, exporting just tables and not a view
             let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
-            if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None') {  
+            if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None' && this.SelectedLinkColorTableTypesVariable == 'Show') {  
                 elementsForExport.splice(pos, 0, this.linkColorTable.nativeElement);
             }
-            if (exportNodeTable && this.commonService.session.style.widgets['node-color-variable'] !== 'None') {
+            if (exportNodeTable && this.commonService.session.style.widgets['node-color-variable'] !== 'None' && this.SelectedNodeColorTableTypesVariable == 'Show') {
                 elementsForExport.splice(pos, 0,this.nodeColorTable.nativeElement);
             }
 
@@ -759,10 +759,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>'
         }
 
-        if (exportLinkTable) {
+        if (exportLinkTable && this.SelectedLinkColorTableTypesVariable == 'Show') {
             elementsForExport.unshift(this.linkColorTable.nativeElement);
         }
-        if (exportNodeTable) {
+        if (exportNodeTable && this.SelectedNodeColorTableTypesVariable == 'Show') {
             elementsForExport.unshift(this.nodeColorTable.nativeElement);
         }
 
@@ -1485,7 +1485,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     public onLinkColorChanged(silent: boolean = false) : void {
-
+        // if (this.SelectedLinkColorVariable != 'None') {
+        //     this.ShowGlobalSettingsLinkColorTable = true;
+        // } else {
+        //     this.ShowGlobalSettingsLinkColorTable = false;
+        // }
 
         this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
 
@@ -1953,10 +1957,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     hideLinkColorTable() {
 
-        if (this.ShowGlobalSettingsLinkColorTable) {
-            // This was just the initial load (or a code-based hide).
-            return;
-          }
+        // if (this.ShowGlobalSettingsLinkColorTable) {
+        //     // This was just the initial load (or a code-based hide).
+        //     return;
+        //   }
 
         if (this.SelectedLinkColorTableTypesVariable != 'Hide') {
            this.SelectedLinkColorTableTypesVariable='Hide';
@@ -2391,8 +2395,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.GlobalSettingsModel.SelectedApplyStyleVariable = this.SelectedApplyStyleVariable;
 
 
-        this.ShowGlobalSettingsLinkColorTable = this.GlobalSettingsLinkColorDialogSettings.isVisible;
-        console.log('3 this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
+        //this.ShowGlobalSettingsLinkColorTable = this.GlobalSettingsLinkColorDialogSettings.isVisible;
+        //console.log('3 this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
         console.log('4 this.ShowGlobalSettingsLinkColorTable: ', this.GlobalSettingsLinkColorDialogSettings.isVisible); 
         // print out #global-settings-link-color-table element
         console.log('xy link color table 3: ', $('#link-color-table'));
@@ -3494,7 +3498,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     loadUISettings() {
 
-        this.ShowGlobalSettingsLinkColorTable = false;
+        //this.ShowGlobalSettingsLinkColorTable = false;
         this.ShowGlobalSettingsNodeColorTable = false;
 
         // console.log('xy link color table: ', linkColorTable);

@@ -130,7 +130,7 @@ export class ExportService {
       tableData.push(rowData);
     }
 
-    let out = `<g><rect x="0" y="0" width="${widthOffsets[widthOffsets.length - 1] - 20}" height="${heightOffsets[heightOffsets.length - 1] - 10}" stroke="black" stroke-width="1"></rect>`;
+    let out = `<g><rect x="0" y="0" width="${widthOffsets[widthOffsets.length - 1] - 20}" height="${heightOffsets[heightOffsets.length - 1] - 10}" fill="#ffffff" stroke="black" stroke-width="1"></rect>`;
     
     tableData.forEach((row, rowIndex) => {
       row.forEach((cell, colIndex) => {

@@ -1243,7 +1243,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
-            elementsToExport.push(this.networkStatisticsTable.nativeElement)
+            if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
+                elementsToExport.push(this.networkStatisticsTable.nativeElement)
+            }
             this.exportService.requestSVGExport(elementsToExport, content, true, true); 
 
         } else {
@@ -1255,7 +1257,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
-            elementsToExport.push(this.networkStatisticsTable.nativeElement);
+            if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
+                elementsToExport.push(this.networkStatisticsTable.nativeElement);
+            }
             this.exportService.requestExport(elementsToExport, true, true);
         }
     
@@ -2910,7 +2914,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // });
 
             // layout.run();
-            this.updateGroupAssignments(this.widgets['polygons-foci'], false);
+            if (this.commonService.session.style.widgets['polygons-show']) {
+                this.updateGroupAssignments(this.widgets['polygons-foci'], false);
+            }
 
 
         } else{

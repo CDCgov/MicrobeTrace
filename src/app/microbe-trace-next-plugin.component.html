@@ -311,7 +311,7 @@
                                             <p-dropdown id="link-tooltip-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-dropdown>
                                         </div>
                                     </div>
-                                    <div id="link-color-table-row" [hidden]="!ShowGlobalSettingsLinkColorTable"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
+                                    <div id="link-color-table-row" *ngIf="SelectedColorLinksByVariable !== 'None'"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
                                         <div class="col-4"><label>Link Color Table</label></div>
                                         <div class="col-8">
                                             <p-selectButton [options]="LinkColorTableTypes" [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
@@ -479,7 +479,7 @@
                         </div>
                         <div class="col-5">
                             <input type="checkbox" id="checkbox4" [(ngModel)]="exportTables['polygon-color']" [disabled]="commonService.session.style.widgets['polygons-color-show']==false" style="margin-left: 10px;"/>
-                            <label for="checkbox4" [class.disabled]="commonService.session.style.widgets['polygons-color-show']==false">Polygon Table</label>
+                            <label for="checkbox4" [class.disabled]="commonService.session.style.widgets['polygons-color-show']==false">Group Table</label>
                         </div>
                         <br />
                         
