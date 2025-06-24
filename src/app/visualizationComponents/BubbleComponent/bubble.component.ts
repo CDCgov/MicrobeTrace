@@ -9,6 +9,8 @@ import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { ComponentContainer } from 'golden-layout';
 import cytoscape, { Core } from 'cytoscape';
+import svg from 'cytoscape-svg';
+import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -44,16 +46,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   selectedFieldList: SelectItem[] = [];
   xVariable: string;
   yVariable: string;
+  xVarDate: boolean = false;
+  yVarDate: boolean = false;
   nodeSize: number;
   nodeSpacing = 0.05;
+  labelSize: number = 12;
 
   allData: DataRecord[] = [];
   visibleData: DataRecord[] = [];
 
-  X_categories = []
+  X_categories: string[] = []
   X_tickValues = []
 
-  Y_categories = []
+  Y_categories: string[] = []
   Y_tickValues = []
 
   scaleFactor: number = 200;
@@ -70,13 +75,16 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService
   ) {
     super(elRef.nativeElement);
 
     this.visuals = commonService.visuals;
     this.visuals.bubble = this;
     this.widgets = this.commonService.session.style.widgets;
+
+    cytoscape.use(svg);
   }
 
   ngOnInit(): void {
@@ -206,7 +214,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     let Axes = [];
     if ( this.xVariable != 'None') {
       this.X_categories.forEach((value, i) => {
-        let label = value== null || value == undefined ? 'Unknown': value;
+        let label;
+        if (this.xVarDate) {
+          label = new Date(Date.parse(value)).toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit' 
+          });
+          if (label == 'Invalid Date') {
+            label = 'Unknown'
+          }
+        } else {
+          label = value== null || value == undefined ? 'Unknown': value;
+        }
         Axes.push(
           {group: 'nodes', data: {id: `x_axis${i}`, label: label}, position: {x: i*this.scaleFactor, y: this.Y_categories.length*this.scaleFactor-50}, classes: ['X_axis'],
         })
@@ -217,11 +237,23 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     if ( this.yVariable != 'None') {
       this.Y_categories.forEach((value, i) => {
-        let label = value== null || value == undefined ? 'Unknown': value;
+        let label;
+        if (this.yVarDate) {
+          label = new Date(Date.parse(value)).toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit' 
+          });
+          if (label == 'Invalid Date') {
+            label = 'Unknown'
+          }
+        } else {
+          label = value== null || value == undefined ? 'Unknown': value;
+        }
         Axes.push(
           {group: 'nodes', data: {id: `y_axis${i}`, label: label}, position: {x: -100, y: i*this.scaleFactor}, classes: ['Y_axis'],
         })
-      })
+      });
 
       Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -150, y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
 
@@ -257,6 +289,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         css: {
           'label': 'data(label)',
           'shape': 'rectangle',
+          'font-size' : this.labelSize,
           'border-width': 0,
           'background-color': 'white',
           'width': 1,
@@ -269,6 +302,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           'label': 'data(label)',
           'shape': 'rectangle',
           //'border-color': 'none',
+          'font-size' : this.labelSize,
           'border-width': 0,
           'background-color': 'white',
           'width': 1,
@@ -285,7 +319,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       {
         selector: '.axisLabel',
         css: {
-          'font-size': 24
+          'font-size': this.labelSize + 4
         }
       },
       {
@@ -309,9 +343,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       },
 
       zoomingEnabled: true,
-      userZoomingEnabled: false,
+      userZoomingEnabled: true,
       panningEnabled: true,
-      userPanningEnabled: false,
+      userPanningEnabled: true,
   
     })
 
@@ -482,36 +516,43 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       if ( this.xVariable == 'None' || this.xVariable == undefined) {
         this.X_categories = [ undefined ];
         this.X_tickValues = [ 0 ];
-      }
+      } else {
+        this.X_categories = [];
+        this.X_tickValues = [];
+  
+        nodes.forEach(node => {
+          let nodeX = node[this.xVariable];
+          if (this.X_categories.indexOf(nodeX) == -1) {
+            this.X_tickValues.push(this.X_categories.length);
+            this.X_categories.push(nodeX);
+          }
+        })
 
-      this.X_categories = [];
-      this.X_tickValues = [];
-
-      nodes.forEach(node => {
-        let nodeX = node[this.xVariable];
-        if (this.X_categories.indexOf(nodeX) == -1) {
-          this.X_tickValues.push(this.X_categories.length);
-          this.X_categories.push(nodeX);
+        if (this.xVarDate) {
+          this.X_categories.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
         }
-    })
-
-    } else {
+      }
+    } else { // axis == 'Y'
       this.widgets['bubble-y'] = this.yVariable;
       if ( this.yVariable == 'None' || this.yVariable == undefined) {
         this.Y_categories = [ undefined ];
         this.Y_tickValues = [ 0 ];
-      }
+      } else {
+        this.Y_categories = [];
+        this.Y_tickValues = [];
 
-      this.Y_categories = [];
-      this.Y_tickValues = [];
+        nodes.forEach(node => {
+          let nodeY = node[this.yVariable];
+          if (this.Y_categories.indexOf(nodeY) == -1) {
+            this.Y_tickValues.push(this.Y_categories.length);
+            this.Y_categories.push(nodeY);
+          }
+        })
 
-      nodes.forEach(node => {
-        let nodeY = node[this.yVariable];
-        if (this.Y_categories.indexOf(nodeY) == -1) {
-          this.Y_tickValues.push(this.Y_categories.length);
-          this.Y_categories.push(nodeY);
+        if (this.yVarDate) {
+          this.Y_categories.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())                   
         }
-      })
+      }
     }
   }
 
@@ -600,6 +641,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cy.style().update();
 
     this.updateAxes();
+  }
+
+  onLabelSizeChange() {
+    this.cy.style().resetToDefault();
+    this.cy.style(this.getCytoscapeStyle())
   }
 
   /**
@@ -710,6 +756,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * Calculates the position (x, y) for the array of nodes; nodes are positioned in a layers spiral/hexagonal pattern 
    */
   calculateHexagonalGridPositions(nodes: DataRecord[]) {
+    // alternative method could use d3 forces and/or phyllotaxis arrangement
+    // https://2019.wattenberger.com/blog/spirals
     const layerDistance = this.nodeSpacing + .02;
     let layer = 0;
     let nodesInLayer = 1;
@@ -960,6 +1008,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   onRecallSession() {}
   onLoadNewData() {}
   onFilterDataChange() {}
+
+  /**
+ * On click of center button, show centers the view
+ */
+  openCenter() {
+    if (this.cy) {
+        this.cy.fit(this.cy.nodes(), 30);
+    } else {
+        console.error('Cytoscape instance is not initialized.');
+    }
+  }
     
   openExport() { 
     this.setCalculatedResolution();
@@ -983,30 +1042,23 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   exportVisualization() {
-    //let svg = $('#bubbleViewContainer svg')[0]
+    const exportOptions: ExportOptions = {
+      filename: this.BubbleExportFileName,
+      filetype: this.BubbleExportFileType,
+      scale: this.SelectedBubbleExportScaleVariable,
+      quality: 1,
+    };
+
+    // Set export options in the service
+    this.exportService.setExportOptions(exportOptions);
+
     if (this.BubbleExportFileType == 'svg') {
-      //this.cy.svg();
-      console.log('need to implement svg export')
-      // consider using something like alignment view or cytoscape-svg package // xxzx
+      let options = { scale: 1, full: true, bg: '#ffffff'};
+      let content = (this.cy as any).svg(options);
 
-      // let textElements = svg.querySelectorAll('text');
-      // textElements.forEach(text => { text.setAttribute('fill', 'black');});
-
-      // let svgString = this.commonService.unparseSVG(svg);
-      // let content;
-      // if (this.SelectedNodeCollapsingTypeVariable) {
-      //   let svgDef = this.commonService.unparseSVG($('#bubbleDefs')[0])
-      //   content = svgString.slice(0, -6) + svgDef + svgString.slice(-6);
-      // } else {
-      //   content = svgString;
-      // }
-      // let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-      // saveAs(blob, this.BubbleExportFileName + '.' + this.BubbleExportFileType);
+      this.exportService.requestSVGExport([], content, true, false); 
     } else {
-      let x = Math.round((this.viewWidth - 42 ) * this.SelectedBubbleExportScaleVariable)
-      let y = Math.round((this.viewHeight - 73 ) * this.SelectedBubbleExportScaleVariable)
-      let pngString = this.cy.png({bg:'white', maxHeight: y, maxWidth: x});
-      saveAs(pngString, this.BubbleExportFileName + '.png' )
+      this.exportService.requestExport([this.cyContainer.nativeElement], true, false);
     }
     this.exportOpen = false;
   }

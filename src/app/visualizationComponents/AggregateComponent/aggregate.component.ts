@@ -11,8 +11,8 @@ import * as Papa from 'papaparse';
 import JSZip from 'jszip';
 import * as saveAs from 'file-saver';
 import * as XLSX from 'xlsx';
-// import pdfMake from 'pdfmake/build/pdfmake.js';
-// import pdfFonts from 'pdfmake/build/vfs_fonts.js';
+//import pdfMake from 'pdfmake/build/pdfmake.js';
+//import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 @Component({
@@ -293,7 +293,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
       try {
         const { default: pdfMake } = await import('pdfmake/build/pdfmake.js');
         const { default: pdfFonts } = await import('pdfmake/build/vfs_fonts.js');
-        pdfMake.vfs = pdfFonts.pdfMake.vfs;
+        pdfMake.vfs = pdfFonts;
 
         const documentDefinition = {
           content: [

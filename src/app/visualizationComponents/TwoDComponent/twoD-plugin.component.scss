@@ -166,3 +166,36 @@
   --vis-graph-link-label-background: black;
   --vis-dark-graph-link-label-background: black;
 }
+
+#nodeShapeCounts, #nodeShapeFrequencies, #polygonColorCounts, #polygonColorFrequencies {
+  width: 100%; 
+  border-radius: 0; 
+  display: flex; 
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.rhombus {
+  color: black;
+  transform: rotate(80deg);
+  display: inline-block;
+}
+
+.tag {
+  transform: rotate(90deg);
+  display: inline-block;
+}
+
+.barrel {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  background-color: black;
+  border: 1px black solid;
+  border-radius: 4px;
+}
+
+.shapeDropdown { 
+  --p-select-padding-y: 4px;
+  --p-select-padding-x: 10px;
+}

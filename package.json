@@ -1,16 +1,18 @@
 {
   "name": "MicrobeTrace",
-  "version": "0.0.0",
+  "version": "2.0.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve -c development",
+    "prebuild": "node scripts/update-version.js",
     "build": "ng build",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
     "analyze": "ng build --configuration production --source-map=true --stats-json && webpack-bundle-analyzer dist/MicrobeTrace/stats.json",
-    "deploy": "ng build --configuration production --optimization=false --base-href https://mossy426.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace",
-    "deploy_prod": "ng build --configuration production --optimization=false --base-href https://cdcgov.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace --repo https://github.com/CDCGov/MicrobeTrace",
+    "predeploy": "node scripts/update-version.js",
+    "deploy": "ng build --configuration production --optimization=false --base-href https://cdcgov.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace",
+    "predeploy_dev": "node scripts/update-version.js",
     "deploy_dev": "ng build --configuration production --optimization=false --base-href https://mossy426.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace --repo https://github.com/mossy426/MicrobeTrace"
   },
   "browser": {
@@ -45,6 +47,8 @@
     "chart.js": "^2.9.4",
     "core-js": "^3.30.2",
     "cytoscape": "^3.30.3",
+    "cytoscape-fcose": "^2.2.0",
+    "cytoscape-svg": "^0.4.0",
     "d3": "^5.16.0",
     "d3-shape": "^3.1.0",
     "dom-to-image-more": "^2.16.0",
@@ -103,6 +107,7 @@
     "bioseq": "^0.1.4",
     "clipboard": "^2.0.4",
     "d3-force-attract": "^0.1.1",
+    "d3-sankey": "^0.12.3",
     "d3-symbol-extra": "^0.1.0",
     "eslint": "^8.51.0",
     "file-saver": "^2.0.2",

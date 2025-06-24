@@ -51,9 +51,9 @@
               "src/assets",
               "src/assets/common/data",
               "src/assets/images/Logo.png",
-              "src/Logo.png",
               "src/outbreaknorm.microbetrace",
               "src/outbreakover.microbetrace",
+              "src/COVID_DummySession.microbetrace",
               "src/assets/parse-csv-matrix.js",
               "src/assets/papaparse.min.js"
             ],
@@ -122,6 +122,10 @@
                 {
                   "replace": "src/environments/environment.ts",
                   "with": "src/environments/environment.prod.ts"
+                },
+                {
+                  "replace": "src/environments/version.ts",
+                  "with": "src/environments/version.prod.ts"
                 }
               ],
               "optimization": false,

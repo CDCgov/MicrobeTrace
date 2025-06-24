@@ -1,4 +1,4 @@
-﻿import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
@@ -13,6 +13,9 @@ import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { cloneDeep } from 'lodash';
+import { Subject, Subscription, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { relativeTimeThreshold } from 'moment';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -105,17 +108,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   uniqueNodes: string[] = [];
   uniqueEdgeNodes: string[] = [];
 
-  private visuals: MicrobeTraceNextVisuals;
-
   public title: string;
   public id: string;
+
+  private destroy$ = new Subject<void>();
+
   
 
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, elRef: ElementRef,
     private eventEmitterService: EventEmitterService,
     public commonService: CommonService,
-    private cdr: ChangeDetectorRef) {
+    private cdr: ChangeDetectorRef,
+    private store: CommonStoreService
+    ) {
 
     super(elRef.nativeElement);
 
@@ -146,16 +152,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }  
 
      // Subscribe to new session event
-     this.commonService.newSession.subscribe(() => {
+     this.store.newSession$.subscribe(() => {
       this.removeAllFiles();
     });
 
     // Subscribe to style file applied event
-    this.commonService.styleFileApplied.subscribe(() => {
+    this.store.styleFileApplied$.subscribe(() => {
       this.applyStyleFileSettings();
     });
 
-    this.commonService.FP_removeFiles.subscribe(() => {
+    this.store.FP_removeFiles$.subscribe(() => {
       this.commonService.session.files.forEach(file => {
         this.removeFile(file.name, false);
       })
@@ -329,20 +335,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log(lsv);
       if (lsv.toLowerCase() === 'snps') {
         $('#ambiguities-row').slideUp();
-        $('#default-distance-threshold, #link-threshold')
+        $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
-          .val(7);
-        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
+          .val(16);
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
         console.log('default-distance-metric change file-plugin.component.ts snps');
-        this.commonService.setLinkThreshold(7);
+        this.store.setLinkThreshold(16);
       } else {
         $('#ambiguities-row').slideDown();
-        $('#default-distance-threshold, #link-threshold')
+        $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
-        this.commonService.setLinkThreshold(0.015);
+        this.store.setLinkThreshold(0.015);
       }
       this.commonService.session.style.widgets['default-distance-metric'] = lsv;
       this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
@@ -459,23 +465,41 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
-    if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
-      console.log('launching outbreak');
-      $.getJSON("outbreaknorm.microbetrace", this.commonService.applySession.bind(this.commonService));   
-      this.commonService.session.network.launched = true; 
-      this.commonService.session.network.initialLoad = true; 
-      // if(this.commonService.session.files && this.commonService.session.files.length > 0) {
-      //   for(let i = 0; i < this.commonService.session.files.length; i++) {
-      //     this.addToTable(this.commonService.session.files[i]);
-      //   }
-      // }   
+    if (!this.auspiceUrlVal) {
+      this.auspiceUrlVal = this.commonService.getURL();
     }
 
-    setTimeout(() => {
-      this.populateTable();
-  }, 2000);
+    if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
+      console.log('launching outbreak');
+      $.getJSON("COVID_DummySession.microbetrace", this.commonService.applySession.bind(this.commonService)).then(() => { this.populateTable()});   
+      this.commonService.session.network.launched = true; 
+      this.commonService.session.network.initialLoad = true; 
+
+    }
+
+  //   setTimeout(() => {
+  //     this.populateTable();
+  // }, 2000);
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
+  }
+
+  ngOnDestroy() {
+    console.log('---files-plugin.component.ts ngOnDestroy');
+
+    this.destroy$.next();
+    this.destroy$.complete();
+    //unsubscribe on destroy of files tab
+    // this.eventEmitterService.subsVar = this.eventEmitterService.    
+    // invokeFirstComponentFunction.subscribe((name:string) => {    
+    //   this.processFile();    
+    // });   
+    this.eventEmitterService.invokeFirstComponentFunction.unsubscribe();
+    this.store.setNewSession(false);
+    this.store.setStyleFileApplied();  
+    this.store.setFP_removeFiles(false);
+    this.commonService.LoadViewEvent.unsubscribe();
+
   }
 
   /**
@@ -485,14 +509,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
-    // Give some time before adding to table
-    setTimeout(() => {
-      let files = cloneDeep(this.commonService.session.files);
-      if(files && files.length > 0) {
-        for(let i = 0; i < files.length; i++) {
-          this.addToTable(files[i]);
-        }
-      }  }, 500);
+    let files = cloneDeep(this.commonService.session.files);
+    console.log('---  Populate TABLE Row Files 2: ', files);
+
+    console.log('--- files table 2 : ', $(".file-table-row"));
+
+    if(files && files.length > 0) {
+      console.log('--- Populate for: ', files);
+      for(let i = 0; i < files.length; i++) {
+        this.addToTable(files[i]);
+      }
+
+      console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
+
+    } 
 
   }
   
@@ -551,26 +581,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.displayFileSettings = !this.displayFileSettings;
   }
 
-  openExport() {
-
-  }
-
-  openCenter() {
-
-  }
-
-  //openPinAllNodes() {
-
-
-  //}
-
-  openRefreshScreen() {
-
-  }
-
-  openSelectDataSetScreen() {
-
-  }
 
   /**
    * Opens/Closes Sequence Controls modal/dialog box
@@ -586,16 +596,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   loadDefaultVisualization(e: string) {
 
-    setTimeout(() => {
+    console.log('---loadDefaultVisualization Called - stop loading modal');
 
-      this.commonService.session.messages = [];
-      this.messages = [];
-      $('#loading-information').html('');
       $('#launch').prop('disabled', false).focus();
 
       this.displayloadingInformationModal = false;
 
-    }, 1000);
+    console.log('---loadDefaultVisualization End - Lodi');
 
     this.LoadDefaultVisualizationEvent.emit(e);
   }
@@ -607,10 +614,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   showMessage(msg: string) {
 
-    this.messages.push(msg);
-    this.commonService.session.messages.push(msg);
-    $('#loading-information').html(this.commonService.session.messages.join('<br>'));
+    this.store.setLoadingMessageUpdated(msg);
   }
+  
 
   /**
    * Resets the value of session.data, temp.trees if previously launched (or more if not previously launched). Retains the values of following 
@@ -619,7 +625,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   launchClick() {
 
-    console.log(this.displayloadingInformationModal);
+     // Set to false to indicate that the network is not fully loaded  as new network is launching
+     this.commonService.session.network.isFullyLoaded = false;
+     
+    // launching new network, so set network rendered to false to start loading modal
+    this.store.setNetworkRendered(false);
+    this.store.setNetworkUpdated(false);
+    this.store.setSettingsLoaded(false);
+
+    this.commonService.cleanupData();
+
     this.commonService.updateLegacyNodeSymbols();
     const thresholdOnLaunch = this.commonService.session.style.widgets["link-threshold"];
     const metricOnLaunch = this.commonService.session.style.widgets["default-distance-metric"];
@@ -635,6 +650,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       $('#launch').text('Update');
       // this.visuals.twoD.isLoading = true;
+      this.commonService.session.style.nodeColorsTable = {};
+      this.commonService.session.style.nodeColorsTableKeys = {};
+      this.commonService.session.style.nodeSymbolsTable = {};
+      this.commonService.session.style.nodeSymbolsTableKeys = {};
     }
     else if (!this.commonService.session.network.launched) {
       console.log('launch click not launched ', this.commonService.session.network.launched);
@@ -653,7 +672,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('session files', this.commonService.session.files);
 
-    this.displayloadingInformationModal = true;
+    // this.displayloadingInformationModal = true;
 
     this.showMessage("Starting...");
 
@@ -671,8 +690,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.meta.startTime = Date.now();
     $('#launch').prop('disabled', true);
 
-    $('#loading-information').html('');
-    console.log(this.displayloadingInformationModal);
+    // $('#loading-information').html('');
     this.commonService.temp.messageTimeout = setTimeout(() => {
       $('#loadCancelButton').slideDown();
       // abp.notify.warn('If you stare long enough, you can reverse the DNA Molecule\'s spin direction');
@@ -704,27 +722,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
             this.SelectedDefaultDistanceMetricVariable = 'tn93';
             this.onDistanceMetricChange('tn93');
-            this.commonService.onMetricChanged('tn93');
+            this.store.setMetricChanged('tn93');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
             $('#default-distance-metric').val('tn93').trigger('change');
-            console.log(this.displayloadingInformationModal);
-            $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(0.015).trigger('change');
+            $('#default-distance-threshold').attr('step', 1).val(0.015).trigger('change');
             this.commonService.session.style.widgets['link-threshold'] = 0.015;
             this.SelectedDefaultDistanceThresholdVariable = '0.015';
             this.onLinkThresholdChange('0.015');
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
           } else {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-            this.commonService.onMetricChanged('snps');
+            this.store.setMetricChanged('snps');
             this.SelectedDefaultDistanceMetricVariable = 'snps';
             this.onDistanceMetricChange('snps');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
             $('#default-distance-metric').val('SNPs').trigger('change');
-            $('#default-distance-threshold', '#link-threshold').attr('step', 1).val(7).trigger('change');
-            this.commonService.session.style.widgets['link-threshold'] = 7;
-            this.SelectedDefaultDistanceThresholdVariable = '7';
-            this.onLinkThresholdChange('7');
-            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 7;
+            $('#default-distance-threshold').attr('step', 1).val(16).trigger('change');
+            this.commonService.session.style.widgets['link-threshold'] = 16;
+            this.SelectedDefaultDistanceThresholdVariable = '16';
+            this.onLinkThresholdChange('16');
+            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
           }
           this.commonService.session.meta.startTime = Date.now();
           this.commonService.session.data.tree = auspiceData['tree'];
@@ -755,7 +772,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           if (fileNum === nFiles) this.processData();
           return nodeCount;
         });
-        this.commonService.updateNetwork();
+        this.commonService._debouncedUpdateNetworkVisuals();
         this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
@@ -1158,13 +1175,104 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.showMessage(` - Parsed ${nl} New, ${((data.length - 1) ** 2 - (data.length - 1)) / 2} Total Links from Excel Distance Matrix.`);
           if (fileNum === nFiles) this.processData();
 
-        } else {
-
-          this.commonService.parseCSVMatrix(file).then((o: any) => {
-            this.showMessage(` - Parsed ${o.nn} New, ${o.tn} Total Nodes from Distance Matrix.`);
-            this.showMessage(` - Parsed ${o.nl} New, ${o.tl} Total Links from Distance Matrix.`);
-            if (fileNum === nFiles) this.processData();
+        } else { // file.format === "matrix" && file.extension === "csv"
+ 
+          let start = Date.now();
+          let nodeIDs, n;
+          let links = [];
+          let output;
+          Papa.parse(file.contents, {
+            skipEmptyLines: "greedy",
+            chunk: result => {
+              const rowsInChunk = result.data.length;
+              for (let rowInChunk = 0; rowInChunk < rowsInChunk; rowInChunk++) {
+                const row = result.data[rowInChunk];
+                if (nodeIDs) {
+                  const source = "" + row[0];
+                  for (let j = 1; j < rowsInChunk+1; j++) {
+                    const target = "" + nodeIDs[j];
+                    if (source == target) continue;
+                    links.push({
+                      source: source,
+                      target: target,
+                      distance: parseFloat(row[j])
+                    });
+                  }
+                } else {
+                  nodeIDs = row;
+                  n = nodeIDs.length;
+                }
+              }
+            },
+            complete: function() {
+              console.log("CSV Matrix Parse time: ", (Date.now() - start).toLocaleString(), "ms");
+              start = Date.now();
+              output = {
+                  links: links,
+                  nodes: nodeIDs.slice(1)
+                }
+              console.log(output);
+              close();
+            }
           });
+          let nn = 0, nl = 0;
+          const results = { data: output, start: start }
+          const f_nodes = output.nodes;
+          const tn = f_nodes.length;
+          for (let i = 0; i < tn; i++) {
+            console.log(f_nodes[i])
+            if (f_nodes[i]){
+              nn += this.commonService.addNode(
+                {
+                  _id: this.commonService.filterXSS(f_nodes[i]),
+                  origin: origin,
+                },
+                check
+              );
+            }
+          }
+          const f_links = output.links;
+          const tl = f_links.length;
+          let skip = 0;
+          console.log(tl +" links");
+          for (let j = 0; j < tl; j++) {
+              console.log(this.commonService.session.data.links.length)
+              console.log(f_links[j]);
+              const reversed = this.commonService.session.data.links.filter(x => x["source"] === f_links[j]["target"] && x["target"] === f_links[j]["source"]);
+              const existing = this.commonService.session.data.links.filter(x => x["source"] === f_links[j]["source"] && x["target"] === f_links[j]["target"]);
+            if (existing.length > 0 || reversed.length > 0){
+                skip++;
+                console.log(`${skip}th skip - ${f_links[j]["source"]} and ${f_links[j]["target"]}`);
+                continue;
+              } 
+            if (f_links[j]["source"] == "undefined" || f_links[j]["target"] == "undefined"){
+              console.log("skipping undefined source or target");
+              continue;
+            }
+              nl += this.commonService.addLink(
+                  {
+                    source: f_links[j]["source"],
+                    target: f_links[j]["target"],
+                    distance: f_links[j]["distance"],
+                    origin: origin,
+                     hasDistance: true,
+                    distanceOrigin: file.name,
+                  },
+                  check
+              );
+          }
+
+          console.log(
+              'CSV Matrix Merge time:',
+              (Date.now() - start).toLocaleString(),
+              'ms'
+          );             
+
+          this.showMessage(` - Parsed ${nn} New, ${tn} Total Nodes from Distance Matrix.`);
+          this.showMessage(` - Parsed ${nl} New, ${tl} Total Links from Distance Matrix.`);
+          if (fileNum === nFiles) this.processData();
+          //this.commonService.parseCSVMatrix(file).then((o: any) => {
+          //});
         }
 
       } else { // if(file.format === 'newick'){
@@ -1176,6 +1284,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.commonService.session.data.newickString = file.contents;
         const tree = patristic.parseNewick(file.contents);
         let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.commonService.filterXSS), n = labels.length;
+        const maxRow = matrix.map(function(row){ return Math.max.apply(Math, row); });
+        const maxMax = Math.max.apply(null, maxRow);
+        if (maxMax > 1) {
+            this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
+            this.store.setMetricChanged('snps');
+            this.SelectedDefaultDistanceMetricVariable = 'snps';
+            this.onDistanceMetricChange('snps');
+            this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
+            $('#default-distance-metric').val('SNPs').trigger('change');
+            $('#default-distance-threshold').attr('step', 1).val(16).trigger('change');
+            this.commonService.session.style.widgets['link-threshold'] = 16;
+            this.SelectedDefaultDistanceThresholdVariable = '16';
+            this.onLinkThresholdChange('16');
+            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
+          // set distance to snps
+        } 
         for (let i = 0; i < n; i++) {
           const source = labels[i];
           newNodes += this.commonService.addNode({
@@ -1288,7 +1412,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
 
     this.showMessage("Finishing...");
-    this.displayloadingInformationModal = false;
+    // this.displayloadingInformationModal = false;
     setTimeout(() => {
       this.cdr.detectChanges(); 
     }, 1000);
@@ -1319,19 +1443,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (Array.from(files).length > 0) {
 
       Array.from(files).map(file => {
-        if(this.commonService.debugMode) {
-          console.log('files: ', file);
-        }
         this.processFile(file);
       });
+
     }
 
     this.isLoadingFiles = false;
 
-    setTimeout(() => {
-      this.isLoadingFiles = false;
-
-    }, 2000);
   };
 
   /**
@@ -1352,9 +1470,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
 
-    $('#loading-information').html('');
+    // Loading informaiton null
+    // $('#loading-information').html('');
 
     const extension = rawfile.name.split('.').pop().toLowerCase();
+
+    console.log('process file end');
     if (extension === 'zip') {
       //debugger;
       // let new_zip = new JSZip();
@@ -1373,7 +1494,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (extension === 'microbetrace' || extension === 'hivtrace') {
       //debugger;
       let reader = new FileReader();
-      reader.onloadend = out => this.commonService.processJSON(out.target, extension);
+      reader.onloadend = out => {this.commonService.processJSON(out.target, extension).then(() => this.populateTable())};
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
@@ -1432,7 +1553,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   addToTable(file) {
     if(this.commonService.debugMode) {
-      console.log(file);
+      console.log('addToTable: ', file);
     }
 
     //debugger;
@@ -1444,16 +1565,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
     const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
     if (isXL) {
-      const workbook = XLSX.read(file.contents, { type: 'array' });
-      const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-      const headers = [];
-      data.forEach(row => {
-        Object.keys(row).forEach(key => {
-          const safeKey = this.commonService.filterXSS(key);
-          if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
+      try {
+        const workbook = XLSX.read(file.contents, { type: 'array' });
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const headers = [];
+        data.forEach(row => {
+          Object.keys(row).forEach(key => {
+            const safeKey = this.commonService.filterXSS(key);
+            if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
+          });
         });
-      });
-      addTableTile(headers, this);
+        addTableTile(headers, this);
+      } catch {
+        console.log('Unable to read excel file: ', file.name);
+        addTableTile([file.field1, file.field2, file.field3], this);
+        return;
+      }
     } else if (isJSON) {
         let data = [];
         console.log('This is a JSON file');
@@ -1497,8 +1624,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }
 
           this.nodeEdgeCheck();
+
+          if(this.commonService.debugMode) {
+            console.log('addToTable parse end: ', file);
+          }
         }
+
+        
       });
+
+      if(this.commonService.debugMode) {
+        console.log('addToTabl End: ', file);
+      }
     }
 
     //For the love of all that's good...
@@ -1509,6 +1646,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     function addTableTile(headers, context) {
 
 
+      console.log('addTableTile: ', headers);
       const parentContext = context;
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
       const fnamerow = $('<div class="row w-100"></div>');
@@ -1520,8 +1658,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           $('#launch').text('Update');
           root.slideUp(() => root.remove());
         }))
-        .append($('<a href="javascript:void(0);" class="far flaticon2-download-1 align-middle p-1" title="Resave this file"></a>').on('click', () => {
-          saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+        .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
+          if (parentContext.isFileContentsEmpty(file)) {
+            alert('Unable to resave this file.');
+          } else {
+            saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+          }
         }))
         .append('<span class="p-1">' + file.name + '</span>')
         .append(`
@@ -1623,10 +1765,29 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         });
       }
 
+      console.log('addTableTile end: ', headers);
+
+
       $(`[name="options-${file.name}"]`).on("change", refit);
       refit();
     }
   };
+
+  isFileContentsEmpty(file): boolean {
+    try { // large link list csv (230K rows) throws error, with try-catch, able to load file
+      if (file.contents === null || file.contents === undefined) {
+        return true;
+      } else if (file.contents instanceof ArrayBuffer && file.contents.byteLength > 0) {
+        return false;
+      } else if (Object.keys(file.contents).length === 0 || file.contents == '') {
+        return true;
+      } else {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * Updates commonService.session.files info, such as field1, field2 ...etc, based on value user selects
@@ -1845,7 +2006,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.commonService.setLinkThreshold(parseFloat(e));
+    this.store.setLinkThreshold(parseFloat(e));
   }
 
   /**
@@ -1858,27 +2019,28 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('distance ch:', e);
     }
     this.SelectedDefaultDistanceMetricVariable = e;
+    this.store.updatecurrentThresholdStepSize(e.toLowerCase())
     if (e.toLowerCase() === 'snps') {
       if(this.commonService.debugMode) {
         console.log("saw snps");
       }
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 1)
-        .val(7)
+        .val(16)
         .trigger('change');
 
         $("#ambiguities-row").slideUp();
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.commonService.onMetricChanged('snps');
-      this.onLinkThresholdChange('7');
+      this.store.setMetricChanged('snps');
+      this.onLinkThresholdChange('16');
     } else {
-      $('#default-distance-threshold, #link-threshold')
+      $('#default-distance-threshold')
         .attr('step', 0.001)
         .val(0.015)
         .trigger('change');
         $("#ambiguities-row").slideDown();
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-      this.commonService.onMetricChanged('tn93');
+      this.store.setMetricChanged('tn93');
       this.onLinkThresholdChange('0.015');
     }
   }

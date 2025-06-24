@@ -10,10 +10,12 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
-// import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
+import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
+//import * as plotlyjs from 'plotly.js-dist-min';
 
 
 @Component({
@@ -23,17 +25,17 @@ import { cloneDeep } from 'lodash';
 })
 export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
-  @ViewChild('heatmapContainer', { read: ElementRef }) heatmapContainerRef: ElementRef;  @
-  Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @ViewChild('heatmapContainer', { read: ElementRef }) heatmapContainerRef: ElementRef;  
+  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
   private Plotly: any;
 
   
   labels: string[];
-  xLabels: string[];
-  yLabels: string[];
+  //xLabels: string[];
+  //yLabels: string[];
   matrix: object;
-  // plot: PlotlyComponent;
+  plot: PlotlyComponent;
   visuals: MicrobeTraceNextVisuals;
   nodeIds: string[];
   viewActive: boolean;
@@ -72,7 +74,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         private cdref: ChangeDetectorRef,
         private gtmService: GoogleTagManagerService,
         private renderer: Renderer2,
-        // private plotlyModule: PlotlyModule
+        private exportService: ExportService,
+        private plotlyModule: PlotlyModule,
       ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
@@ -99,14 +102,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       'xaxis.autorange': true,
       'yaxis.autorange': true
     }
-    console.log(reCenter);
-    // PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
+    PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
   }
   
-  async ngOnInit(): Promise<void> {
+  ngOnInit(): void {
 
-     // Lazy load Plotly.js when the component initializes
-     this.Plotly = await import('plotly.js-dist-min');
 
     this.viewActive = true;
     this.gtmService.pushTag({
@@ -115,7 +115,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
             page_title: "Heatmap View"
         });
 
-    this.nodeIds = this.getNodeIds();
+    //this.nodeIds = this.getNodeIds();
     this.visuals.heatmap.FieldList.push(
       {
         label: "None",
@@ -133,8 +133,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         });
     });
 
-    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
+    //this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
+    //this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
     
 
     this.goldenLayoutComponentResize();
@@ -152,8 +152,12 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     this.redrawHeatmap();
   }
 
-  drawHeatmap(xLabels: string[], yLabels: string[], config: object): void {
-    this.commonService.getDM().then(dm => {
+  drawHeatmap(config: object): void {
+    this.commonService.getDM().then(({dm, labels}) => {
+      this.nodeIds = labels;
+      const xLabels = labels.map(d => 'N' + d);
+      const yLabels = xLabels.slice();
+
       if (this.invertX) {
         dm.forEach(l => l.reverse());
         xLabels.reverse();
@@ -176,53 +180,61 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         ]
       }]
 
-      const parentElement = this.heatmapContainerRef.nativeElement.parentElement;
+/*      const parentElement = this.heatmapContainerRef.nativeElement.parentElement;
     const width = parentElement.clientWidth;
     const height = parentElement.clientHeight;
-
+*/
       this.heatmapLayout = {
           xaxis: config,
           yaxis: config,
-          width: width,
-          height: height
+          width: $('#heatmap').parent().width(),
+          height: $('#heatmap').parent().height(),
         }
       this.heatmapConfig = {
           displaylogo: false,
           displayModeBar: false
         }
 
-        this.Plotly.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+      //  this.Plotly.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
 
-      // this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+      this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
     });
   }
 
   goldenLayoutComponentResize(): void {
-    const heatmapElement = this.heatmapContainerRef.nativeElement;
+    const height = $('heatmapcomponent').height();
+    const width = $('heatmapcomponent').width();
+    if (height)
+      $('#heatmap').height(height-19);
+    if (width)
+      $('#heatmap').width(width-1)
+/*    const heatmapElement = this.heatmapContainerRef.nativeElement;
     const parentElement = heatmapElement.parentElement;
   
     const height = parentElement.clientHeight;
     const width = parentElement.clientWidth;
-
     if (height) {
       this.renderer.setStyle(heatmapElement, 'height', `${height - 19}px`);
     }
     if (width) {
       this.renderer.setStyle(heatmapElement, 'width', `${width - 1}px`);
     }
+*/
   }
 
-  getNodeIds(): string[] {
-    const idSet: string[] = this.visuals.heatmap.commonService.session.data.nodes.map(x=>x._id);
-    return idSet;
-  }
+  // getNodeIds(): string[] {
+  //   const idSet: string[] = this.visuals.heatmap.commonService.session.data.nodes.map(x=>x._id);
+  //   return idSet;
+  // }
   
   redrawHeatmap(): void {
-    if (!this.heatmapContainerRef.nativeElement.length) return;
-    // if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
-    const labels = this.nodeIds;
-    const xLabels = labels.map(d => 'N' + d);
-    const yLabels = xLabels.slice();
+    //if (!this.heatmapContainerRef.nativeElement.length) return;
+    if (!$('#heatmap').length) return;
+    if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
+    // const labels = this.nodeIds;
+    // const xLabels = labels.map(d => 'N' + d);
+    // const yLabels = xLabels.slice();
+    // console.log(this.heatmapShowLabels, xLabels.length, xLabels);
     this.heatmapMetric = this.commonService.session.style.widgets['default-distance-metric'].toUpperCase();
 
 
@@ -235,12 +247,20 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       config["ticks"] = '';
     }
 
-    this.drawHeatmap(xLabels, yLabels, config);
+    this.drawHeatmap(config);
     this.setBackground();
   }
 
   setBackground(): void {
-    const heatmapElement: HTMLElement = this.heatmapContainerRef.nativeElement;
+    const col = this.commonService.session.style.widgets['background-color'];
+    $('#heatmap svg.main-svg').first().css('background', col);
+    $('#heatmap rect.bg').css('fill', col);
+
+    const contrast = this.commonService.session.style.widgets['background-color-contrast'];
+    $('#heatmap .xtitle, .ytitle').css('fill', contrast);
+    $('#heatmap .xaxislayer-above text').css('fill', contrast);
+    $('#heatmap .yaxislayer-above text').css('fill', contrast);
+    /*const heatmapElement: HTMLElement = this.heatmapContainerRef.nativeElement;
     const col = this.commonService.session.style.widgets['background-color'];
     const contrast = this.commonService.session.style.widgets['background-color-contrast'];
       
@@ -266,25 +286,22 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     const axisTexts = heatmapElement.querySelectorAll('.xaxislayer-above text, .yaxislayer-above text');
     axisTexts.forEach(text => {
       this.renderer.setStyle(text, 'fill', contrast);
-    });
+    });*/
   }
 
   updateLoColor(color: string): void {
-    console.log(color);
     this.commonService.session.style.widgets["heatmap-color-low"] = color;
     this.loColor = color;
     this.redrawHeatmap();
   }
 
   updateMedColor(color: string): void {
-    console.log(color);
     this.commonService.session.style.widgets["heatmap-color-medium"] = color;
     this.medColor = color;
     this.redrawHeatmap();
   }
 
   updateHiColor(color: string): void {
-    console.log(color);
     this.commonService.session.style.widgets["heatmap-color-high"] = color;
     this.hiColor = color;
     this.redrawHeatmap();
@@ -306,7 +323,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
     const exportImageType = this.SelectedNetworkExportFileTypeVariable;
-    console.log(exportImageType);
     const content = document.getElementById(domId);
     if (content) {
       const fixedContent = this.fixGradient(content);
@@ -321,7 +337,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
               saveAs(dataUrl, fileName+"."+exportImageType);
             });
       } else if (exportImageType === 'svg') {
-          const svgContent = this.commonService.unparseSVG(fixedContent);
+          const svgContent = this.exportService.unparseSVG(fixedContent);
           const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
           saveAs(blob, fileName+"."+exportImageType);
       }
@@ -339,7 +355,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   saveDistanceMatrix(): void {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
     const labelArray = cloneDeep(this.heatmapLabels);
-    this.commonService.getDM().then(dm => {
+    this.commonService.getDM().then(({dm, _}) => {
       let csvContent = "data:text/csv;charset=utf-8,";
       if (this.heatmapShowLabels) {
         labelArray.unshift("");

@@ -119,12 +119,12 @@
                           </div>
                           <div class="form-group row leaf-size-row" title="How big should leaves be?">
                               <div class="col-4"><label for="leaf-size">Leaf Size</label></div>
-                              <div class="col-8"><input type="range" class="custom-range" id="leaf-size" min="0.5" value="{{ SelectedLeafNodeSizeVariable }}" step="0.5" max="20" [(ngModel)]="SelectedLeafNodeSizeVariable" (ngModelChange)="onLeafNodeSizeVariableChange($event)"></div>
+                              <div class="col-8"><input type="range" class="custom-range" id="leaf-size" min="1" value="{{ SelectedLeafNodeSize }}" step="0.5" max="50" [(ngModel)]="SelectedLeafNodeSize" (ngModelChange)="onLeafNodeSizeChange($event)"></div>
                           </div>
                       </div>
                   </p-accordionTab>
                   <p-accordionTab style="color:#495057" header="Colors">
-                      <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()"></button>
+                      <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                   </p-accordionTab>
               </p-accordion>
               </tab>
@@ -162,9 +162,6 @@
                               <input type="range" class="custom-range" id="link-size" min="1" value="{{ SelectedBranchSizeVariable }}" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)">
                           </div>
                       </div>
-                  </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Colors">
-                      <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()"></button>
                   </p-accordionTab>
               </p-accordion>
               </tab>

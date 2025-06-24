@@ -18,6 +18,8 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { runInThisContext } from 'vm';
 import { MatHint } from '@angular/material/form-field';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { throws } from 'assert';
 
 
 /**
@@ -92,7 +94,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedLeafTooltipVariable = 'id';
   LeafTooltipFieldList: object[] = [];
   SelectedLeafNodeShowVariable = true;
-  SelectedLeafNodeSizeVariable: number | string = 5;
+  SelectedLeafNodeSizeVariable: string = 'None';
+  SelectedLeafNodeSize: number = 5;
   SelectedLeafNodeColorVariable = this.settings['node-color'];
   SelectedSelectedLeafNodeColorVariable = this.settings['selected-color'];
 
@@ -151,7 +154,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService) {
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService) {
 
     super(elRef.nativeElement);
 
@@ -159,7 +163,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.visuals.phylogenetic = this;
   }
 
-  openTree = () => {
+  openTree = async () => {
     /*
     if (this.visuals.phylogenetic.commonService.session.data.newickString) {
       this.tree = new TidyTree(this.visuals.phylogenetic.commonService.session.data.tree,
@@ -182,15 +186,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.hideTooltip();
       this.styleTree();
     } else {
-      const newickString = this.commonService.computeTree();
-      newickString.then((x) => {
-        const tree = this.buildTree(x);
+      const newickString = await this.commonService.computeTree();
+      console.log(newickString);
+      //newickString.then((x) => {
+        const tree = this.buildTree(newickString);
         this.tree = tree;
         this.commonService.visuals.phylogenetic.tree = tree;
         this.mergeNodeData();
         this.hideTooltip();
         this.styleTree();
-      });
+      //});
     }
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
@@ -292,8 +297,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     const visNodes = this.commonService.getVisibleNodes();
     let n = visNodes.length;
-    let maxWidth = this.settings['node-radius-max'];
-    let minWidth = this.settings['node-radius-min'];
+    let maxWidth = 20;
+    let minWidth = this.SelectedLeafNodeSize;
 
 
     this.nodeMin = Number.MAX_VALUE;
@@ -313,7 +318,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   getLeafSize = (node_id, variable): number => {
-    let defaultSize = 5;
+    let defaultSize = this.SelectedLeafNodeSize;
     let size = defaultSize, med = defaultSize, oldrng, min, max;
     let nodes = this.visuals.phylogenetic.commonService.session.data.nodes;
     const node = nodes.filter(x => {
@@ -322,9 +327,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       }
     });
 
-    if (typeof variable === "number") {
-      return variable
-    } else if (variable === 'None') {
+    if (variable === 'None') {
       return defaultSize;
     } else {
 
@@ -359,7 +362,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     let leafSize: number;
     const variable = this.visuals.phylogenetic.commonService.session.style.widgets['node-color-variable'];
     leafSize = this.getLeafSize(data.data.id, this.SelectedLeafNodeSizeVariable);
-    console.log(leafSize + " " + variable);
     d3.select(node).attr('r', leafSize);
     if (variable === 'None') {
       d3.select(node).style('fill', this.SelectedLeafNodeColorVariable);
@@ -495,6 +497,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const thisTree = this.commonService.visuals.phylogenetic.tree;
     thisTree.recenter()
       .redraw();
+    this.styleTree();
   }
 
   //openPinAllNodes() {
@@ -511,17 +514,21 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   onTreeLayoutChange(event) {
-    this.SelectedTreeLayoutVariable = event;
-    this.tree.setLayout(event);
-    this.openCenter();
-    this.styleTree();
+    if (this.tree) {
+      this.SelectedTreeLayoutVariable = event;
+      this.tree.setLayout(event);
+      this.openCenter();
+      this.styleTree();
+    }
   }
 
   onTreeModeChange(event) {
-    this.SelectedTreeModeVariable = event;
-    this.tree.setMode(event);
-    this.openCenter();
-    this.styleTree();
+    if (this.tree){
+      this.SelectedTreeModeVariable = event;
+      this.tree.setMode(event);
+      this.openCenter();
+      this.styleTree();
+    }
   }
 
   onTreeTypeChange(event) {
@@ -537,7 +544,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.tree.eachLeafLabel(label => {
       d3.select(label).text(data => {
         let id = data.data.id;
-        let node = this.commonService.session.data.nodes.find(node => node._id == id);
+        let node = this.commonService.session.data.nodes.find(node => node.id == id);
+        if (node === undefined)
+          node = this.commonService.session.data.nodes.find(d => d._id === data.data.id);
         return node[labelVar];
       }).attr('dx', 8)
     });
@@ -553,6 +562,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       d3.select(circle)
         .attr('title', node[labelVar]);
     });
+    this.styleTree();
   }
 
   onHorizontalStretchChange(event) {
@@ -560,6 +570,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.tree.setAnimation(0);
     this.tree.setHStretch(this.SelectedHorizontalStretchVariable);
     this.tree.setAnimation(cached);
+    this.styleTree();
   }
 
   onVerticalStretchChange(event) {
@@ -567,11 +578,13 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.tree.setAnimation(0);
     this.tree.setVStretch(this.SelectedVerticalStretchVariable);
     this.tree.setAnimation(cached);
+    this.styleTree();
   }
 
   onBranchLabelShowChange(event) {
     this.SelectedBranchLabelShowVariable = event;
     this.tree.setBranchLabels(event);
+    this.styleTree();
   }
 
   onBranchLabelSizeChange(event) {
@@ -582,6 +595,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onBranchDistanceShowChange(event) {
     this.SelectedBranchDistanceShowVariable = event;
     this.tree.setBranchDistances(event);
+    this.styleTree();
   }
 
   onBranchDistanceSizeChange(event) {
@@ -592,6 +606,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onBranchNodeShowChange(event) {
     this.SelectedBranchNodeShowVariable = event;
     this.tree.setBranchNodes(event);
+    this.styleTree();
   }
 
   onBranchNodeSizeChange(event) {
@@ -601,19 +616,27 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   onBranchTooltipShowChange(event) {
     this.SelectedBranchTooltipShowVariable = event;
+    this.styleTree();
   }
 
   onLeafLabelTooltipShowChange(event) {
     this.SelectedLeafTooltipShowVariable = event;
+    this.styleTree();
   }
 
   onLeafLabelShowChange(event) {
     this.SelectedLeafLabelShowVariable = event;
     this.tree.setLeafLabels(event);
+    this.styleTree();
   }
 
   showGlobalSettings() {
     this.DisplayGlobalSettingsDialogEvent.emit('Styling');
+  }
+
+  onLeafNodeSizeChange(event) {
+    this.SelectedLeafNodeSize = event;
+    this.styleTree();
   }
 
   onLeafNodeSizeVariableChange(event) {
@@ -666,7 +689,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
           saveAs(dataUrl, fileName);
         });
     } else if (exportImageType === 'svg') {
-      const svgContent = this.visuals.phylogenetic.commonService.unparseSVG(content);
+      const svgContent = this.exportService.unparseSVG(content);
       const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
       saveAs(blob, fileName);
     }
@@ -767,7 +790,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       }
       console.log(node);
       // Pre D3
-      const leftVal = (d3 as any).event.pageX + 8;
+      const leftVal = (d3 as any).event.pageX - 18;
       const topVal = (d3 as any).event.pageY - 8;
       console.log(topVal + " " +  leftVal);
       d3.select('#phyloTooltip')

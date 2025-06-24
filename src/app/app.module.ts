@@ -21,7 +21,7 @@ import { UtilsModule } from '@shared/utils/utils.module';
 
 import { GoldenLayoutComponentService } from './golden-layout-component.service';
 import { GoldenLayoutHostComponent } from './golden-layout-host.component';
-
+import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { FileUploadModule } from 'primeng/fileupload';
 import { ListboxModule } from 'primeng/listbox';
@@ -40,6 +40,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { TreeModule } from 'primeng/tree';
 import { DialogModule } from 'primeng/dialog';
 import { OrderListModule } from 'primeng/orderlist';
+import { CheckboxModule } from 'primeng/checkbox';
 import { MicrobeTraceNextHomeComponent } from './microbe-trace-next-plugin.component';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { AppUiCustomizationService } from '@shared/common/ui/app-ui-customization.service';
@@ -81,9 +82,10 @@ import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/hea
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
-// import * as PlotlyJS from 'plotly.js-dist-min';
-// import { PlotlyModule } from 'angular-plotly.js';
+import * as PlotlyJS from 'plotly.js-dist-min'; // TODO::DAVID do we need plotly?
+import { PlotlyModule } from 'angular-plotly.js';
 
+PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
 
@@ -131,6 +133,7 @@ export class TestedComponent {
         BrowserAnimationsModule,
         FormsModule,
         MatButtonModule,
+        ButtonModule,
         MatInputModule,
         MatMenuModule,
         MatSliderModule,
@@ -163,6 +166,7 @@ export class TestedComponent {
         SidebarModule,
         MultiSelectModule,
         SliderModule,
+        CheckboxModule,
         LeafletModule,
         LeafletMarkerClusterModule,
         OrderListModule,
@@ -171,6 +175,7 @@ export class TestedComponent {
           providePrimeNG({
             theme: {
                 preset: Lara,
+                options: {darkModeSelector: false || 'none'}
             },
         }),
         AppSessionService,
@@ -178,6 +183,7 @@ export class TestedComponent {
         AppUrlService,
         GanttChartService,
         GoldenLayoutComponentService,
+        PlotlyModule,
         provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
     ] })
 export class AppModule { }

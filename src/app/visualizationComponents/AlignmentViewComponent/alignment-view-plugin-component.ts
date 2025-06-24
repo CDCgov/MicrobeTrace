@@ -11,6 +11,7 @@ import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
 import { svgAsPngUri } from 'save-svg-as-png';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 @Component({
   selector: 'AlignmentViewComponent',
@@ -38,6 +39,8 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   
   // Data
   nodesWithSeq: any[];
+  nodesWithoutSeq: any[];
+  showPopupMessage: boolean = false;
   seqArray: string[];
   seqArrayShortened: any[];
   longestSeqLength: number = 0;
@@ -128,12 +131,12 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   AlignmentExportFileTypeData: string = "fasta";
 
   constructor(injector: Injector,
-    private eventManager: EventManager,
     public commonService: CommonService,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService) {
+    private gtmService: GoogleTagManagerService,
+    private exportService: ExportService) {
 
     super(elRef.nativeElement);
 
@@ -166,14 +169,17 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
     // sets nodesWithSeq, seqArr, and longestSeqLength
     this.nodesWithSeq = [];
+    this.nodesWithoutSeq = [];
     this.seqArray = [];
     this.commonService.session.data.nodes.forEach((node, index) => {
-      if (node.seq != null && node.seq != "" && node.seq != "null"){
+      if (this.isSeq(node.seq)){
         this.nodesWithSeq.push(index);
         this.seqArray.push(node.seq.toUpperCase());
         if (node.seq.length > this.longestSeqLength) {
           this.longestSeqLength = node.seq.length;
         }
+      } else {
+        this.nodesWithoutSeq.push({index: node.index, ID: node.id});
       }
     })
 
@@ -213,9 +219,23 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   ngAfterViewInit(): void {
     this.highlightRows();
+
+    if (this.nodesWithoutSeq.length > 0) {
+      this.showPopupMessage = true;
+    }
   }
 
   // General
+
+  isSeq(seq: string) {
+    if (seq === null || seq === "" || seq === "null") {
+      return false;
+    } else if (/[^-\s]/.test(seq)) { // test if seq contains chars other than dash (-) or space
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   /**
    * Defines new widgets and set default values
@@ -223,7 +243,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   setDefaultWidgets() {
     //size
     if (this.widgets['alignView-selectedSize'] == undefined) {
-      this.widgets['alignView-selectedSize'] = 'l';
+      this.widgets['alignView-selectedSize'] = 's';
     }
     // height and width are declare/checked in this.onSelectedSizeChanged()
 
@@ -261,7 +281,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     }
 
     if (this.widgets['alignView-rulerMinorInterval'] == undefined) {
-      this.widgets['alignView-rulerMinorInterval'] = 20;
+      this.widgets['alignView-rulerMinorInterval'] = 50;
     }
 
     // main canvas
@@ -1672,7 +1692,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     top.style.height = 150+canvas.height+'px'
     top.appendChild(foreignObj);
 
-    let content = this.commonService.unparseSVG(top);
+    let content = this.exportService.unparseSVG(top);
     let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
     saveAs(blob, this.AlignmentExportFileName + '.svg');
 

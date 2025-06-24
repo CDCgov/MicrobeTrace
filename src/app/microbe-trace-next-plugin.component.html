@@ -14,6 +14,8 @@
                       <!-- <button mat-menu-item (click)="FileClick('Stash Session')">Stash</button> -->
                       <!-- <button mat-menu-item (click)="FileClick('Recall Session')">Recall</button> -->
                       <button mat-menu-item (click)="FileClick('Save Session')">Save</button>
+                      <button mat-menu-item (click)="OpenExportDashboard()">Export Dashboard</button>
+                      <button mat-menu-item (click)="OpenExportTables()">Export Tables</button>
                       <!-- <button mat-menu-item (click)="FileClick('Open Session')">Open</button> -->
                       <button mat-menu-item (click)="FileClick('Open URL')">Open URL</button>
                       <button mat-menu-item (click)="FileClick('Add Data')">Add Data</button>
@@ -45,6 +47,7 @@
                     <mat-menu #helpMenu="matMenu" overlapTrigger="false">
                       <a href="https://github.com/CDCgov/MicrobeTrace/wiki" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener" mat-menu-item>Help</a>
                       <a href="https://github.com/CDCgov/MicrobeTrace/issues/new" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener" mat-menu-item>Report Bug</a>
+                      <button (click)="openMT_Classic()" mat-menu-item>MicrobeTrace Classic</button>
                       <button (click)="HelpClick('About')" mat-menu-item>About</button>
                     </mat-menu>
                     <!-- <button class="navbar-item" mat-button [matMenuTriggerFor]="langMenu"><i class="far nav-icon flaticon-earth-globe"></i>Language<span class="dropdown-symbol">&#9660;</span></button>
@@ -109,7 +112,7 @@
                 </div>
             </ng-template>
             <div style="max-height: 50vh">
-                <table id="link-color-table" style="width:100%;height:100%;"></table>
+                <table #linkColorTable id="link-color-table" style="width:100%;height:100%;"></table>
             </div>
         </p-dialog>
 
@@ -139,7 +142,7 @@
                 </div>
             </ng-template>
             <div style="max-height: 50vh">
-                <table id="node-color-table" style="width:100%;height:100%;"></table>
+                <table #nodeColorTable id="node-color-table" style="width:100%;height:100%;"></table>
             </div>
         </p-dialog>
         </div>
@@ -158,6 +161,7 @@
                 <div id="welcome-description" class="bottom primary">The Visualization Multitool for Molecular Epidemiology and Bioinformatics</div>
             </div>
             <div id="add-data-container" class="add-data-container">
+                <a class="here-link primary" style="position: relative; z-index: 5; font-size: 20px;" appendTo="body" href="https://microbetrace.cdc.gov/MicrobeTraceClassic/" target="_blank" >Visit MicrobeTrace Classic</a>
                 <div class="files-msg">
                     <span class="primary">Click </span>
                     <a class="here-link primary" for="fileDropRef">here</a>
@@ -254,7 +258,7 @@
                                             <div class="col-4"><label for="link-threshold">Filtering Threshold</label></div>
                                             <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
                                             <div class="col-8  offset-4">
-                                                <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" step="0.001" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="onLinkThresholdChanged()">
+                                                <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getCurrentThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="updateThreshold($event)">
                                             </div>
                                         </div>
                                         <div class="form-group row" title="Click to reveal all hidden elements of the network.">
@@ -296,7 +300,7 @@
                                     </div>
 
 
-                                    <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
+                                    <div *ngIf="SelectedColorNodesByVariable === 'None'" id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
                                         <div class="col-4"><label for="node-color">Nodes</label></div>
                                         <div class="col-8">
                                             <input type="color" id="node-color" class="form-control form-control-sm" value="#1f77b4" [(ngModel)]="SelectedNodeColorVariable" (ngModelChange)="onNodeColorChanged()">
@@ -308,14 +312,14 @@
                                             <p-dropdown id="link-tooltip-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-dropdown>
                                         </div>
                                     </div>
-                                    <div id="link-color-table-row" [hidden]="!ShowGlobalSettingsLinkColorTable"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
+                                    <div id="link-color-table-row" *ngIf="SelectedColorLinksByVariable !== 'None'"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
                                         <div class="col-4"><label>Link Color Table</label></div>
                                         <div class="col-8">
                                             <p-selectButton [options]="LinkColorTableTypes" [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
                                         </div>
                                     </div>
 
-                                    <div id="link-color-value-row" class="form-group row" title="What color should the links be?">
+                                    <div *ngIf="SelectedColorLinksByVariable === 'None'" id="link-color-value-row" class="form-group row" title="What color should the links be?">
                                         <div class="col-4"><label for="link-color">Links</label></div>
                                         <div class="col-8">
                                             <input type="color" id="link-color" class="form-control form-control-sm" [(ngModel)]="SelectedLinkColorVariable" (ngModelChange)="onLinkColorChanged()">
@@ -371,19 +375,7 @@
             </div>
         </p-dialog><!-- /.modal -->
 
-        <p-dialog id="session-recall-modal" [(visible)]="displayRecallStashDialog" header="Recall Stash">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div #stashes id="recall-stashes-available" class="table-sm"></div>
-
-                    <div class="modal-footer">
-                        <button *ngIf="!HideThisForNow" type="button" class="btn btn-danger" id="recall-delete-stash" (click)="DisplayRecallStashDialog('Delete')">Delete</button>
-                        <button type="button" class="btn" (click)="DisplayRecallStashDialog('Cancel')">Cancel</button>
-                        <button type="button" class="btn btn-success" id="recall-load-stash" (click)="DisplayRecallStashDialog('Recall')">Recall</button>
-                    </div>
-                </div><!-- /.modal-content -->
-            </div><!-- /.modal-dialog -->
-        </p-dialog><!-- /.modal -->
+       
 
         <p-dialog id="open-auspice-url" [(visible)]="displayUrlDialog" header="Open Auspice JSON via URL">
             <div class="modal-dialog" role="document">
@@ -412,6 +404,113 @@
                 </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
         </p-dialog><!-- /.modal -->
+
+        <p-dialog [(visible)]="showExportDashboardMenu"  header="Export Dashboard"  class="dialogSize"  (onHide)="showExportDashboardMenu=false"  appendTo="body">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+            <div class="modal-body" style="min-width: 400px; height: 100%;">
+                <div class="form-group row">
+                    <div class="col-9">
+                        <input type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="ExportDashboardFilename" />
+                    </div>
+                    <div class="col-3">
+                        <select class="form-control form-control-sm">
+                            <option selected>png</option>
+                        </select>
+                    </div>
+            </div>
+            <div>  <!-- Toggle Advanced Export Options -->
+                <p-accordion>
+                    <p-accordionTab style="color:#495057" header="Advanced">
+                        <div>
+                            <div class="form-group row">
+                                <div class="col-3">
+                                    <label for="network-export-scale">Scale</label>
+                                </div>
+                                <div class="col-9">
+                                    <input type="number" class="form-control form-control-sm" min="1" max="5" step="0.1" [(ngModel)]="ExportDashboardScale" (ngModelChange)="updateExportResolution()">
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-3">Resolution</div>
+                                <div id="network-export-dimensions" class="col-9 text-right">{{ ExportDashboardResolution.summary }}</div>
+                            </div>
+                        </div>
+                    </p-accordionTab>
+                </p-accordion>
+              </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-error" (click)="showExportDashboardMenu = false">Cancel</button>
+                <button type="button" id="network-export"  class="btn btn-primary" (click)="ExportDashboard()">Export</button>
+            </div>
+            </div>
+            <!-- /.modal-content -->
+        </div>
+        <!-- /.modal-dialog -->
+        </p-dialog>
+
+        <p-dialog [(visible)]="showExportTablesMenu"  header="Export Tables"  class="dialogSize"  (onHide)="showExportTablesMenu=false"  appendTo="body">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                <div class="modal-body" style="min-width: 400px; height: 100%;">
+                    <div class="form-group row">
+                        <div class="col-9">
+                            <input type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="ExportTablesFilename" />
+                        </div>
+                        <div class="col-3">
+                            <select class="form-control form-control-sm" [(ngModel)]="ExportTablesFileType">
+                                <option >png</option>
+                                <option >svg</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex align-items-center row">
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox1" [(ngModel)]="exportTables['node-color']" [disabled]="SelectedColorNodesByVariable=='None'" style="margin-left: 10px;"/>
+                            <label for="checkbox1" [class.disabled]="SelectedColorNodesByVariable=='None'">Node Color Table</label>
+                        </div>
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox2" [(ngModel)]="exportTables['link-color']" [disabled]="SelectedColorLinksByVariable=='None'" style="margin-left: 10px;"/>
+                            <label for="checkbox2" [class.disabled]="SelectedColorLinksByVariable=='None'">Link Color Table</label>
+                        </div>
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox3" [(ngModel)]="exportTables['node-symbol']" [disabled]="commonService.session.style.widgets['node-symbol-variable']=='None'" style="margin-left: 10px;"/>
+                            <label for="checkbox3" [class.disabled]="commonService.session.style.widgets['node-symbol-variable']=='None'">Node Shape Table</label>
+                        </div>
+                        <div class="col-5">
+                            <input type="checkbox" id="checkbox4" [(ngModel)]="exportTables['polygon-color']" [disabled]="commonService.session.style.widgets['polygons-color-show']==false" style="margin-left: 10px;"/>
+                            <label for="checkbox4" [class.disabled]="commonService.session.style.widgets['polygons-color-show']==false">Group Table</label>
+                        </div>
+                        <br />
+                        
+                    </div>
+                    <div>  <!-- Toggle Advanced Export Options -->
+                        <p-accordion *ngIf="ExportTablesFileType === 'png'">
+                            <p-accordionTab style="color:#495057" header="Advanced">
+                                <div>
+                                    <div class="form-group row">
+                                        <div class="col-3">
+                                            <label for="network-export-scale">Scale</label>
+                                        </div>
+                                        <div class="col-9">
+                                            <input type="number" class="form-control form-control-sm" min="1" max="5" step="0.1" [(ngModel)]="ExportTablesScale">
+                                        </div>
+                                    </div>
+                                </div>
+                            </p-accordionTab>
+                        </p-accordion>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-error" (click)="showExportTablesMenu = false">Cancel</button>
+                    <button type="button" id="network-export"  class="btn btn-primary" (click)="ExportTables()">Export</button>
+                </div>
+                </div>
+                <!-- /.modal-content -->
+            </div>
+            <!-- /.modal-dialog -->
+            </p-dialog>
 
         <p-dialog id="session-stash-modal" [(visible)]="displayStashDialog" header="Save Session">
             <div class="modal-dialog" role="document">
@@ -447,6 +546,33 @@
             </div><!-- /.modal-dialog -->
         </p-dialog><!-- /.modal -->
 
+        <div class="view-controls">
+            <p-dialog id="loading-information-modal" [(visible)]="displayloadingInformationModal" header="Processing Files...">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                       
+    
+                            <img class="img-responsive" [src]="commonService.appRootUrl() + 'assets/common/images/giphy.gif'" alt="logo" height="300" />
+    
+                            <div id="loading-information-collapse" class="collapse show">
+                                <div id="loading-information" class="card card-body">
+    
+                                    <div *ngFor="let message of messages">
+                                        {{ message }}
+                                      </div> 
+                                    <br>
+    
+                                </div>
+                            </div>
+                        
+                        <p-footer>
+                            <button type="button" class="btn btn-success" data-dismiss="modal" (click)="displayloadingInformationModal=false">Close</button>
+                        </p-footer>
+                    </div><!-- /.modal-content -->
+                </div><!-- /.modal-dialog -->
+            </p-dialog>
+        </div><!-- Loading Files/.modal -->
+
 
         <p-dialog id="about-dialog" [(visible)]="displayAbout" header="About Microbetrace">
             <div class="modal-dialog modal-lg" role="document">
@@ -454,7 +580,7 @@
                     <div class="modal-body">
                         <h3>
                             <span>{{"MicrobeTrace" | localize}} </span>
-                            <small>v<span id="version">{{version}}</span></small>
+                            <small>v<span id="version">{{version}}</span><br /><span id="commit">commit: {{commitHash}}</span></small>
                         </h3>
                         <p>
                             MicrobeTrace is an interactive web application that renders existing data from high-risk contact networks
@@ -500,6 +626,30 @@
               </div>  
             </div>
           </div>
+
+          <p-dialog 
+            header="License Agreement"
+            [(visible)]="display_eula_modal"
+            [modal]="true"
+            [dismissableMask]="false"
+            [style]="{ width: '850px' }"            
+            appendTo="body"
+            >
+            <div style="margin: 16px;">
+                <p>
+                    The material embodied in this software is provided to you “As-is” and without warranty of any kind, express, implied or otherwise, including without limitation, any warranty of fitness for a particular purpose. In no event shall the Centers for Disease Control and Prevention (CDC) or the United States (U.S.) government be liable to you or anyone else for any direct, special, incidental, indirect or consequential damages of any kind, or any damages whatsoever, including without limitation, loss of profit, loss of use, savings or revenue, or the claims of third parties, whether or not CDC or the U.S. Government has been advised of the possibility of such loss, however caused and on any theory of liability, arising out of or in connection with the possession, use or performance of this software.
+                </p>
+                <p>Please Click "Accept" to accept this agreement, or "Reject" to close this application.</p>
+            </div>
+
+            <ng-template pTemplate="footer">
+                <div class="p-dialog-footer" style="padding-top: 35px;">
+                  <button class="btn btn-danger" (click)="on_eula_reject()">Reject</button>
+                  <button class="btn btn-primary" (click)="on_eula_accept()">Accept</button>
+                </div>
+              </ng-template>
+            </p-dialog>
+
 
        
         <!-- <p-dialog class="table-z-index" id="global-settings-link-color-table" 
