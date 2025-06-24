@@ -184,7 +184,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     activeTabNdx = null;
-    //ShowGlobalSettingsLinkColorTable: boolean = false;
+    ShowGlobalSettingsLinkColorTable: boolean = false;
     ShowGlobalSettingsNodeColorTable: boolean = false;
     roles: Array<string> = new Array<string>();
 
@@ -1485,11 +1485,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     public onLinkColorChanged(silent: boolean = false) : void {
-        // if (this.SelectedLinkColorVariable != 'None') {
-        //     this.ShowGlobalSettingsLinkColorTable = true;
-        // } else {
-        //     this.ShowGlobalSettingsLinkColorTable = false;
-        // }
+        if (this.SelectedLinkColorVariable != 'None') {
+            this.ShowGlobalSettingsLinkColorTable = true;
+        } else {
+            this.ShowGlobalSettingsLinkColorTable = false;
+        }
 
         this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
 
@@ -1511,12 +1511,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           this.SelectedLinkColorTableTypesVariable = 'Hide';
         }
     
+        this.onLinkColorTableChanged(silent);
         if (!silent) {
           console.log('DEBUG: onColorLinksByChanged => publishing link-color updates to views');
           this.publishUpdateLinkColor();
         }
     
-        this.onLinkColorTableChanged(silent);
       }
 
 
@@ -1957,10 +1957,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     hideLinkColorTable() {
 
-        // if (this.ShowGlobalSettingsLinkColorTable) {
-        //     // This was just the initial load (or a code-based hide).
-        //     return;
-        //   }
+        if (this.ShowGlobalSettingsLinkColorTable) {
+            // This was just the initial load (or a code-based hide).
+            return;
+          }
 
         if (this.SelectedLinkColorTableTypesVariable != 'Hide') {
            this.SelectedLinkColorTableTypesVariable='Hide';
@@ -3498,7 +3498,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     loadUISettings() {
 
-        //this.ShowGlobalSettingsLinkColorTable = false;
+        this.ShowGlobalSettingsLinkColorTable = false;
         this.ShowGlobalSettingsNodeColorTable = false;
 
         // console.log('xy link color table: ', linkColorTable);
