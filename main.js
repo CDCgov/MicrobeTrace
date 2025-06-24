@@ -7480,7 +7480,7 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
     this.SelectedBackgroundColorVariable = '#ffffff';
     this.SelectedApplyStyleVariable = '';
     this.activeTabNdx = null;
-    //ShowGlobalSettingsLinkColorTable: boolean = false;
+    this.ShowGlobalSettingsLinkColorTable = false;
     this.ShowGlobalSettingsNodeColorTable = false;
     this.roles = new Array();
     this.ShowGlobalSettingsSettingsPane = false;
@@ -8514,11 +8514,11 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
     });
   }
   onLinkColorChanged(silent = false) {
-    // if (this.SelectedLinkColorVariable != 'None') {
-    //     this.ShowGlobalSettingsLinkColorTable = true;
-    // } else {
-    //     this.ShowGlobalSettingsLinkColorTable = false;
-    // }
+    if (this.SelectedLinkColorVariable != 'None') {
+      this.ShowGlobalSettingsLinkColorTable = true;
+    } else {
+      this.ShowGlobalSettingsLinkColorTable = false;
+    }
     this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
     if (!silent) this.publishUpdateLinkColor();
   }
@@ -8533,11 +8533,11 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
       console.log('DEBUG: onColorLinksByChanged => user picked None, setting table to Hide');
       this.SelectedLinkColorTableTypesVariable = 'Hide';
     }
+    this.onLinkColorTableChanged(silent);
     if (!silent) {
       console.log('DEBUG: onColorLinksByChanged => publishing link-color updates to views');
       this.publishUpdateLinkColor();
     }
-    this.onLinkColorTableChanged(silent);
   }
   // The actual function that builds your color table
   generateNodeLinkTable(tableId, isEditable = true) {
@@ -8847,10 +8847,10 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
     }
   }
   hideLinkColorTable() {
-    // if (this.ShowGlobalSettingsLinkColorTable) {
-    //     // This was just the initial load (or a code-based hide).
-    //     return;
-    //   }
+    if (this.ShowGlobalSettingsLinkColorTable) {
+      // This was just the initial load (or a code-based hide).
+      return;
+    }
     if (this.SelectedLinkColorTableTypesVariable != 'Hide') {
       this.SelectedLinkColorTableTypesVariable = 'Hide';
       this.onLinkColorTableChanged();
@@ -10069,7 +10069,7 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
     this.onLinkThresholdChanged();
   }
   loadUISettings() {
-    //this.ShowGlobalSettingsLinkColorTable = false;
+    this.ShowGlobalSettingsLinkColorTable = false;
     this.ShowGlobalSettingsNodeColorTable = false;
     // console.log('xy link color table: ', linkColorTable);
     console.log('xy link color table 1.5: ', $('#link-color-table'));
@@ -24213,8 +24213,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   version: () => (/* binding */ version)
 /* harmony export */ });
 const version = '2.0.0';
-const buildDate = '2025-06-23T18:56:56.177Z';
-const commitHash = '72121d98';
+const buildDate = '2025-06-24T18:12:25.429Z';
+const commitHash = 'a6cdd2e3';
 
 /***/ }),
 
