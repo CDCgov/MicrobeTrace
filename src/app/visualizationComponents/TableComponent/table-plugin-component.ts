@@ -429,6 +429,18 @@ export class TableComponent extends BaseComponentDirective implements OnInit, On
             if (foundTableData) {
                 const selectedNodes = this.visuals.tableComp.commonService.session.data.nodes.filter(x => x.selected);
                 foundTableData.dataSelection = this.SelectedTableData.data.filter(x => selectedNodes.find(y => y.index == x.index));
+                // move the first selected row to the top of the table for
+                // easier visibility when searching
+                if (foundTableData.dataSelection.length && this.dataTable) {
+                    const firstIndex = this.SelectedTableData.data.findIndex(row => row.index === foundTableData.dataSelection[0].index);
+                    if (firstIndex >= 0) {
+                        try {
+                            this.dataTable.scrollToVirtualIndex(firstIndex);
+                        } catch {
+                            this.dataTable.scrollTo({ top: firstIndex * 25 });
+                        }
+                    }
+                }
             }
         }
     }

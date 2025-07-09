@@ -362,18 +362,19 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     let leafSize: number;
     const variable = this.visuals.phylogenetic.commonService.session.style.widgets['node-color-variable'];
     leafSize = this.getLeafSize(data.data.id, this.SelectedLeafNodeSizeVariable);
-    d3.select(node).attr('r', leafSize);
+    const selectedColor = this.SelectedSelectedLeafNodeColorVariable;
+    const nodeData = nodes.find(n => n._id === data.data.id);
+    const isSelected = !!(nodeData && nodeData.selected);
+    d3.select(node)
+      .attr('r', leafSize)
+      .style('stroke', isSelected ? selectedColor : '#000000')
+      .style('stroke-width', isSelected ? '2px' : '1px');
+
     if (variable === 'None') {
       d3.select(node).style('fill', this.SelectedLeafNodeColorVariable);
     } else {
       d3.select(node).style('fill', d => {
-        const node_values = nodes.filter(m => {
-          if (m._id === (d as any).data.id) {
-            return true;
-          } else {
-            return false;
-          }
-        });
+        const node_values = nodes.filter(m => m._id === (d as any).data.id);
         const node_color = this.visuals.phylogenetic.commonService.temp.style.nodeColorMap(node_values[0][variable]);
         return node_color;
       });
