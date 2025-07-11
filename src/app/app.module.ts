@@ -81,7 +81,8 @@ import { GanttChartService } from './visualizationComponents/GanttComponent/gant
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
-import * as PlotlyJS from 'plotly.js-dist-min';
+import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
+import * as PlotlyJS from 'plotly.js-dist-min'; // TODO::DAVID do we need plotly?
 import { PlotlyModule } from 'angular-plotly.js';
 
 PlotlyModule.plotlyjs = PlotlyJS;
@@ -123,6 +124,7 @@ export class TestedComponent {
         HeatmapComponent,
         BubbleComponent,
         WaterfallComponent,
+        SankeyComponent,
     ],
     exports: [
         SelectButtonModule

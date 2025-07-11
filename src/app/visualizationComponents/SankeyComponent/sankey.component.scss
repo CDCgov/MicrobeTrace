@@ -1,16 +1,15 @@
-#phylocanavas {
-    height: 100%;
-}
-
 :host {
   position: absolute;
   overflow: hidden;
   z-index: 1 !important;
 }
 
-#phyloTooltip {
+#sankey-tooltip-container {
+    position: absolute;
+    background: lightgray;
     border-radius: 0.25rem;
     padding: 0.25rem;
+    z-index: 1000 !important;
 }
 
 :host ::ng-deep {
@@ -48,5 +47,16 @@
 
 .flaticon-download:before {
   font-weight: 800 !important;
+}
+
+.custom-tooltip {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #aaa;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+  padding: 8px;
+  font-size: 12px;
+  z-index: 1000;
+  pointer-events: none;
 }
   

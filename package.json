@@ -103,6 +103,7 @@
     "@typescript-eslint/eslint-plugin": "5.62.0",
     "@typescript-eslint/parser": "5.62.0",
     "alignment-viewer": "^0.3.2",
+    "apexsankey": "^1.1.2",
     "bioseq": "^0.1.4",
     "clipboard": "^2.0.4",
     "d3-force-attract": "^0.1.1",

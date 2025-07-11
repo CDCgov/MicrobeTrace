@@ -13,6 +13,7 @@ import { AggregateComponent } from "./visualizationComponents/AggregateComponent
 import { GanttComponent } from "./visualizationComponents/GanttComponent/gantt-plugin.component";
 import { HeatmapComponent } from "./visualizationComponents/HeatmapComponent/heatmap.component";
 import { BubbleComponent } from "./visualizationComponents/BubbleComponent/bubble.component";
+import { SankeyComponent } from "./visualizationComponents/SankeyComponent/sankey.component";
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 
 @Injectable({
@@ -32,5 +33,6 @@ export class MicrobeTraceNextVisuals {
     public gantt: GanttComponent;
     public heatmap: HeatmapComponent;
     public bubble: BubbleComponent;
+    public sankey: SankeyComponent;
     public waterfall: WaterfallComponent;
 }
