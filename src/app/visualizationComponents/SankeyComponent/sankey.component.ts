@@ -294,7 +294,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
    * Updates the tooltipData and shows the tooltip. Also updates the opacity of the appropriate links
    */
   showTooltip(event, element, elementType: 'Link' | 'Node') {
-    console.log(event);
+    //console.log(event);
     this.tooltipX = event.offsetX + 30;
     this.tooltipY = event.offsetY + 40;
     this.tooltipVisible = true;

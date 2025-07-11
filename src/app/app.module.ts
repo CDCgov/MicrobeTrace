@@ -82,7 +82,7 @@ import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/hea
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
-import * as PlotlyJS from 'plotly.js-dist-min'; // TODO::DAVID do we need plotly?
+import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 
 PlotlyModule.plotlyjs = PlotlyJS;
