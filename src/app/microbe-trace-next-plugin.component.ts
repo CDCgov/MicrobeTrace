@@ -439,31 +439,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         
 
          // Update distance metric in cashe
-         let cachedLSV = "";
          let cachedView = "";
-
-        this.commonService.localStorageService.getItem('default-distance-metric', (err, result) => {
-            // Run this code once the value has been
-            // loaded from the offline store.
-            cachedLSV = result;
-        });
-
-         // Subscribe to threshold changes
 
 
         this.commonService.localStorageService.getItem('default-view', (err, result) => {
             cachedView = result;
         });
-
-        const that = this;
-
-        // $( document ).on( "link-visibility", function( ) {
-        //     that.generateNodeLinkTable("#link-color-table");
-        // });
-
-        // $( document ).on('node-visibility', function () {
-        //     that.generateNodeColorTable('#node-color-table'); 
-        // })
 
         setTimeout(() => {
             $('#top-toolbar').fadeTo("slow", 1);
@@ -471,28 +452,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // this.homepageTabs[0].componentRef = this.goldenLayout.componentInstances[0];
         }, 1000);
         setTimeout(() => {
-            if (cachedLSV) {
-                if (cachedLSV === 'snps') {
-                   this.metric = 'snps';
-                   this.threshold = '7';
-                   $('#ambiguities-menu').hide();
-                } else {
-                   this.metric = 'tn93';
-                   this.threshold = '0.015';
-                }
-
-               this.SelectedLinkThresholdVariable = parseFloat(this.threshold);
-               this.SelectedDistanceMetricVariable = this.metric;
-               this.commonService.session.style.widgets['default-distance-metric'] = this.metric;
-               this.commonService.session.style.widgets['link-threshold'] = parseFloat(this.threshold);
-               console.log('--- distance metric: ', this.SelectedDistanceMetricVariable);
-               this.onLinkThresholdChanged();
-            }
-
-            if (cachedView) {
-                // this.updateLaunchView(cachedView);
-            }
-
             $("#welcome-title").animate({
                 marginTop: '-30px',
                 opacity: '1'
