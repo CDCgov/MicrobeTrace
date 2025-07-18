@@ -22,7 +22,8 @@
       "es6",
       "es2019",
       "es7",
-      "dom"
+      "dom",
+      "dom.iterable"
     ],
     "paths": {
       "@shared/*": [
