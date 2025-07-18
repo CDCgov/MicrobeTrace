@@ -73,7 +73,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedColorLinksByVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
-        SelectedPruneWityTypesVariable: 'None',
+        SelectedPruneWithTypesVariable: 'None',
         SelectedStatisticsTypesVariable: 'Hide',
         SelectedClusterMinimumSizeVariable: 0,
         SelectedLinkSortVariable: 'Distance',

@@ -96,8 +96,7 @@
     </p-dialog>
 </div>
 
-<p-dialog *ngIf="viewActive" [(visible)]="ShowSankeyExportPane" header="Export Sankey Chart"
-    class="dialogSize" (onHide)="onCloseExport()" appendTo="body">
+<p-dialog *ngIf="viewActive" [(visible)]="ShowSankeyExportPane" header="Export Sankey Chart" appendTo="body">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-body" style='min-width: 500px; height: 100%;'>

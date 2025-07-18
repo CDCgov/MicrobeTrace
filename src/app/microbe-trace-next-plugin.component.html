@@ -226,9 +226,11 @@
                                         </div>
                                     </div>
                                     <div class="form-group row" title="By what algorithm would you like to prune links from the network?">
-                                        <div class="col-4">Prune With</div>
+                                        <div class="col-4">Prune With
+                                            <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>
+                                        </div>
                                         <div class="col-8">
-                                            <p-selectButton [options]="PruneWityTypes" [(ngModel)]="SelectedPruneWityTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWityTypesVariable)"></p-selectButton>
+                                            <p-selectButton [options]="PruneWityTypes" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectButton>
                                         </div>
                                     </div>
                                     <div id="filtering-epsilon-row" class="form-group row" style="display: none;" title="Select a value for epislon to add links back to minimum spanning network. See 'A Novel Network Representation of SARS-CoV-2 Sequencing Data' for algorithm details.">
@@ -609,6 +611,7 @@
                 </div>
             </div>
         </p-dialog>
+        <p-confirmDialog></p-confirmDialog> <!--This is for nearest neighbor confirmations, openNNConfirmation()-->
 
         <div id="main-panel" class="pane-container pane-horizontal">
             <noscript class="container-fluid">

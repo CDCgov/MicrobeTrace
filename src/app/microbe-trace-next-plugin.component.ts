@@ -2,7 +2,7 @@
 import { CommonService } from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 import { AppComponentBase } from '@shared/common/app-component-base';
-import { SelectItem, TreeNode } from 'primeng/api';
+import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
@@ -27,7 +27,8 @@ import { buildDate, commitHash } from "src/environments/version";
     selector: 'contact-trace',
     encapsulation: ViewEncapsulation.None,
     templateUrl: './microbe-trace-next-plugin.component.html',
-    styleUrls: ['./microbe-trace-next-plugin.component.less']
+    styleUrls: ['./microbe-trace-next-plugin.component.less'],
+    providers: [ConfirmationService]
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
@@ -61,7 +62,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     showSorting: boolean = false;
 
     display_eula_modal: boolean = false;
-
+    userConfirmedNN: boolean = false;
 
     showExportDashboardMenu: boolean = false;
     ExportDashboardFilename: string = '';
@@ -135,7 +136,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         { label: 'None', value: 'None' },
         { label: 'Nearest Neighbor', value: 'Nearest Neighbor' }
     ];
-    SelectedPruneWityTypesVariable: string = 'None';
+    SelectedPruneWithTypesVariable: string = 'None';
     SelectedEpsilonValue: string;
 
 
@@ -242,6 +243,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     constructor(
         injector: Injector,
         public commonService: CommonService,
+        private confirmationService: ConfirmationService,
         public domSanitizer: DomSanitizer,
         private cdref: ChangeDetectorRef,
         private el: ElementRef, 
@@ -409,7 +411,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.onShowStatisticsChanged();
         });
 
-        this.SelectedPruneWityTypesVariable = this.commonService.GlobalSettingsModel.SelectedPruneWityTypesVariable;
+        this.SelectedPruneWithTypesVariable = this.commonService.GlobalSettingsModel.SelectedPruneWithTypesVariable;
 
         //debugger;
         this.SelectedClusterMinimumSizeVariable = this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable;
@@ -630,11 +632,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         const opacity = input.style.opacity || '1'
                         const span = clonedDoc.createElement('span');
                         span.style.display = 'inline-block';
-                        span.style.width = '20px';
-                        span.style.height = '20px';
+                        span.style.width = '42px';
+                        span.style.height = '17px';
                         span.style.opacity = opacity;
                         span.style.backgroundColor = color;
-                        //span.style.border = '1px solid #000'; // Optional: Add border for visibility
+                        span.style.margin = '4px';
+                        span.style.border = '1px solid #777777'; // Optional: Add border for visibility
                         input.parentNode?.replaceChild(span, input);
                     });
     
@@ -661,6 +664,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             Promise.all(
                 elementsForExport.map((input) => { 
+                    // As of July 2025, a change in Chrome (and other browsers) slowed down this export dramatically (2+ mins for single image), a temp change is to
+                    // update html2canvas.js (line 5626) file in node_modules as described here: https://github.com/niklasvh/html2canvas/pull/3252/commits/37b75f50d2550acf7d90630acdc29d346282d0a4;
+                    // this is a temp fix, if unresolved (by html2canvas) consider switching to snapdom
                     return html2canvas(input, settings);
                 })
             ).then((canvasArray) => {
@@ -1291,17 +1297,48 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     onEpsilonValueChange() {
         this.commonService.session.style.widgets["mst-computed"] =false;
-        this.onPruneWithTypesChanged(this.SelectedPruneWityTypesVariable); 
+        this.onPruneWithTypesChanged(this.SelectedPruneWithTypesVariable); 
+    }
+
+    openNNConfirmation() {
+        this.confirmationService.confirm({
+            message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm isn't recommended when working with links from 2 different sources (ie. Epi and Genetic Distance Links).
+             Are you sure that you want to proceed?`,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectButtonProps: {
+                label: 'Cancel',
+                severity: 'secondary',
+                outlined: true,
+            },
+            acceptButtonProps: {
+                label: 'Confirm',
+            },
+            accept: () => {
+                this.userConfirmedNN = true;
+                this.onPruneWithTypesChanged(this.SelectedPruneWithTypesVariable);
+            },
+            reject: () => {
+                this.SelectedPruneWithTypesVariable = 'None';
+            },
+        }, );
     }
 
     onPruneWithTypesChanged(newValue: string) {
+        if (this.userConfirmedNN == false && this.SelectedPruneWithTypesVariable == "Nearest Neighbor") {
+            if (this.commonService.session.data.links.filter(l => l.origin.length > 1 && Array.isArray(l.origin)).length>0) {
+                this.openNNConfirmation();
+                return;
+            }
+        }
 
         console.log('onPruneWithTypesChanged: ', newValue);
 
-        this.SelectedPruneWityTypesVariable = newValue;
-        this.commonService.GlobalSettingsModel.SelectedPruneWityTypesVariable = this.SelectedPruneWityTypesVariable;
+        this.SelectedPruneWithTypesVariable = newValue;
+        this.commonService.GlobalSettingsModel.SelectedPruneWithTypesVariable = this.SelectedPruneWithTypesVariable;
 
-        if (this.SelectedPruneWityTypesVariable == "None") {
+        if (this.SelectedPruneWithTypesVariable == "None") {
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
             this.commonService.setLinkVisibility(true);
@@ -1550,6 +1587,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     console.log('DEBUG: aggregateValues =>', aggregateValues);
         const disabled: string = isEditable ? '' : 'disabled';
 
+        let duoColors = [];
         aggregateValues.forEach((value, i) => {
             let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
             if (aggregates[value] == 0) {
@@ -1563,6 +1601,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             // Grab color of link from session
             const color = this.commonService.temp.style.linkColorMap(value);
+            if (this.SelectedColorLinksByVariable == 'origin') duoColors.push(color);
 
             // Create color input element with color value and assign id to retrieve new value on change
             const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.linkAlphaMap(value)}; border:none" ${disabled}>`)
@@ -1583,6 +1622,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                     // Call the updateLinkColor method in all tabs
                     this.publishUpdateLinkColor()
+
+                    if (this.SelectedColorLinksByVariable == 'origin') {
+                        this.updateDuoLinkCell(i, e.target['value'], e.currentTarget.style['opacity'])
+                    }
 
                 });
 
@@ -1611,6 +1654,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                             colorinput.trigger('change', this.commonService.temp.style.linkColorMap(value))
                             // this.goldenLayout.componentInstances[1].updateLinkColor();
 
+                            if (this.SelectedColorLinksByVariable == 'origin') {
+                                this.updateDuoLinkCell(i, this.commonService.temp.style.linkColorMap(value), f.target['value'] as string)
+                            }
                         });
                 });
 
@@ -1625,9 +1671,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             );
 
 
+            let duoCell;
+            if (duoLinkRow) {
+                duoCell = $("<td></td>").append(
+                $("<div></div>")
+                    .css({  height: "25px", width: "50px", display: "flex", background: "#F0F0F0", padding: "4px"})
+                    .append($("<div></div>").css({ border: "1px solid #777777", height: "17px", width: "42px", display: "inline-block" })
+                        .append($("<span id='duoColor0'></span>").css({ height: "15px", width: "20px", background: duoColors[0], 'vertical-align': "top", display: "inline-block" }))
+                        .append($("<span id='duoColor1'></span>").css({ height: "15px", width: "20px", background: duoColors[1], 'vertical-align': "top", display: "inline-block" })))
+                );
+            }
             const nonEditCell = `<td style="background-color:${color}"></td>`;
 
-            if (isEditable) {
+            if (duoLinkRow) {
+                row.append(duoCell)
+            } else if (isEditable) {
                 row.append($("<td></td>").append(colorinput).append(alphainput));
             } else {
                 row.append(nonEditCell);
@@ -1686,6 +1744,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return value;
         }        
      }
+
+    updateDuoLinkCell(index:number, color:string, opacity: string) {
+        if (index != 0 && index != 1) return;
+        $(`#duoColor${index}`).css({background: color, opacity: opacity})
+    }
 
     public onTimelineChanged(e) : void {
         this.SelectedTimelineVariable = e;
@@ -3477,7 +3540,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.getGlobalSettingsData();
 
         //Filtering|Prune With
-        this.SelectedPruneWityTypesVariable = this.commonService.session.style.widgets["link-show-nn"] ? "Nearest Neighbor" : "None";
+        this.SelectedPruneWithTypesVariable = this.commonService.session.style.widgets["link-show-nn"] ? "Nearest Neighbor" : "None";
         // this.onPruneWithTypesChanged();
 
         //Filtering|Minimum Cluster Size

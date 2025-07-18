@@ -458,12 +458,6 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     //this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
   }
 
-  /**
-   * Sets this.isExportClosed to true
-   */
-  onCloseExport() {
-      this.ShowSankeyExportPane = true;
-  }
 
   openSettings(): void {
     this.SankeyExportDialogSettings.setVisibility(true);
@@ -496,6 +490,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
         saveAs(blob, this.SelectedSankeyImageFilename);
     }
 
+    this.ShowSankeyExportPane = false;
   }
 
 }
