@@ -1261,7 +1261,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     openNNConfirmation() {
         this.confirmationService.confirm({
-            message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm isn't recommended when working with links from 2 different sources (ie. Epi and Genetic Distance Links).
+            message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm is only recommended when working with genetic links.
              Are you sure that you want to proceed?`,
             closable: false,
             closeOnEscape: false,
