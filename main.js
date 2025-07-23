@@ -5619,7 +5619,7 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
       const gapString = '-'.repeat(_this.commonService.session.data.reference.length);
       for (let i = 0; i < n; i++) {
         const d = nodes[i];
-        if (!d.seq) {
+        if (!d.seq || d.seq.toLowerCase() == 'null' || d.seq.toLowerCase() == 'none' || d.seq.toLowerCase().replace('/', '') == 'na') {
           d.seq = gapString;
         } else {
           subset.push(d);
@@ -8348,7 +8348,7 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
   }
   openNNConfirmation() {
     this.confirmationService.confirm({
-      message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm isn't recommended when working with links from 2 different sources (ie. Epi and Genetic Distance Links).
+      message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm is only recommended when working with genetic links.
              Are you sure that you want to proceed?`,
       closable: false,
       closeOnEscape: false,
@@ -8627,14 +8627,14 @@ let MicrobeTraceNextHomeComponent = class MicrobeTraceNextHomeComponent extends 
           width: "42px",
           display: "inline-block"
         }).append($("<span id='duoColor0'></span>").css({
-          height: "15px",
-          width: "20px",
+          height: "100%",
+          width: "50%",
           background: duoColors[0],
           'vertical-align': "top",
           display: "inline-block"
         })).append($("<span id='duoColor1'></span>").css({
-          height: "15px",
-          width: "20px",
+          height: "100%",
+          width: "50%",
           background: duoColors[1],
           'vertical-align': "top",
           display: "inline-block"
@@ -24838,8 +24838,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   version: () => (/* binding */ version)
 /* harmony export */ });
 const version = '2.0.0';
-const buildDate = '2025-07-18T15:18:52.186Z';
-const commitHash = 'ef84f763';
+const buildDate = '2025-07-23T17:22:18.739Z';
+const commitHash = '8a60795d';
 
 /***/ }),
 
