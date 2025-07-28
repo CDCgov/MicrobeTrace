@@ -42,6 +42,10 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
   tooltipX: number;
   tooltipY: number;
   tooltipVisible: boolean = false;
+  tooltipLeft: boolean = false; // whether to use left or right when positioning tooltip
+
+  labelFontSize: number = 16;
+  axisFontSize: number = 24;
 
   NetworkExportFileTypeList: object = [
     { label: 'png', value: 'png' },
@@ -55,6 +59,8 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
 
   svgWidth: number = 1000;
   svgHeight: number = 800;
+  widthOffset: number = 100;
+  labelHeight: number = 18.75;
   CalculatedResolution: string = ((this.svgWidth * this.SankeyExportScaleVariable) + ' x ' + (
     this.svgHeight * this.SankeyExportScaleVariable) + 'px');
 
@@ -99,7 +105,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     this.sankey
       .nodeWidth(25)
       .nodePadding(10)
-      .size([this.svgWidth-100, this.svgHeight-100])
+      .size([this.svgWidth-this.widthOffset, this.svgHeight-100])
 
     this.container.on('resize', () => { this.goldenLayoutComponentResize() })
     this.container.on('hide', () => { 
@@ -112,7 +118,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     })
 
     // remove this after initial
-    this.SankeyFieldNames = ['WHO_class', 'cluster', 'Lineage']
+    //this.SankeyFieldNames = ['WHO_class', 'cluster', 'Lineage'] // can be pre-set when testing
     this.updateGraph();
   }
 
@@ -121,13 +127,73 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
    */
   goldenLayoutComponentResize() {
     $('#sankey-container').height($('sankeycomponent').height() - 70);
-    $('#sankey-container').width($('sankeycomponent').width() - 30);
+    $('#sankey-container').width($('sankeycomponent').width() - 20);
 
-    this.svgWidth = $('#sankey-container').width() - 40;
-    this.svgHeight = $('#sankey-container').height() - 40;
-    this.sankey.size([this.svgWidth-100, this.svgHeight-100])
+    this.svgWidth = $('#sankey-container').width();
+    this.svgHeight = $('#sankey-container').height();
+    
+    this.sankey.size([this.svgWidth-this.widthOffset, this.svgHeight-100])
 
     if (this.data.nodes.length > 0) this.sankeyGO();
+  }
+
+  /** Updates the value of widthOffset which calculated based on length of longest label in the last column. The widithOffset value
+   * is used to determine the width to give to the sankey package (width = this.svgWidth - this.widthOffset)
+   */
+  updateWidthOffset() {
+    let longestLastLabel = '';
+    this.data.nodes.forEach(node => {
+      if (node.layer+1 == this.SankeyFieldNames.length && node.name.length > longestLastLabel.length) longestLastLabel = node.name
+    })
+    
+    let { width, height }= this.getTextSize(longestLastLabel, this.labelFontSize)
+    this.widthOffset = width + 10;
+    this.labelHeight = height;
+
+    this.sankey.size([this.svgWidth-this.widthOffset, this.svgHeight-100])
+  }
+
+  getTextSize(text: string, fontSize: number): {width: number, height: number} {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('style', 'position:absolute; top:-9999px; left:-9999px; visibility:hidden;');
+    document.body.appendChild(svg);
+
+    const textElem = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    textElem.setAttribute("font-size", `${fontSize}px`);
+    textElem.setAttribute("font-family", 'roboto');
+    textElem.textContent = text;
+
+    svg.appendChild(textElem);
+    const bbox = textElem.getBBox();
+
+    document.body.removeChild(svg); // cleanup
+    return {width: bbox.width, height: bbox.height};
+  }
+
+  onlabelFontSizeChange() {
+    if (this.SankeyFieldNames.length > 1) {
+      this.updateWidthOffset();
+      this.sankeyGO();
+      //console.log(this.widthOffset, this.sankey.size());
+    }
+    console.log(this.labelFontSize);
+  }
+
+  onaxisFontSizeChange() {
+    console.log(this.axisFontSize);
+  }
+
+  getAxisTextAnchor(i: number): 'start'|'middle'|'end' {
+    if (i==0) {
+      return 'start';
+    } else if (i < this.SankeyFieldNames.length-1) {
+      return 'middle';
+    } else {
+      let { width: lastAxisLabelWidth } = this.getTextSize(this.SankeyFieldNames[i], this.axisFontSize)
+      if (lastAxisLabelWidth/2 > this.widthOffset) return 'end'
+      else return 'middle';
+    }
   }
 
   /**
@@ -295,7 +361,13 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
    */
   showTooltip(event, element, elementType: 'Link' | 'Node') {
     //console.log(event);
-    this.tooltipX = event.offsetX + 30;
+    if (event.offsetX > this.svgWidth -200) {
+      this.tooltipLeft = false;
+      this.tooltipX = this.svgWidth - event.offsetX + 15;
+    } else {
+      this.tooltipLeft = true;
+      this.tooltipX = event.offsetX + 30;
+    }
     this.tooltipY = event.offsetY + 40;
     this.tooltipVisible = true;
 
@@ -335,6 +407,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
       this.data = {nodes: [], links: []}
     } else {
       this.createSankeyData(this.SankeyFieldNames);
+      this.updateWidthOffset();
       this.sankeyGO();
     }
   }
@@ -348,7 +421,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
 
     this.layerPositions = []
     for (let i = 0; i < this.SankeyFieldNames.length; i++) {
-      this.layerPositions.push(this.data.nodes.find(node => node.layer == i).x0)
+      this.layerPositions.push(i == 0 ? 0 : this.data.nodes.find(node => node.layer == i).x0+12.5)
     }
   }
 
