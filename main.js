@@ -600,7 +600,8 @@ let ColorMappingService = class ColorMappingService {
         updatedPolygonAlphas: polygonAlphas
       };
     }
-    const distinctValues = polygonGroups.sort((a, b) => a.index - b.index).map(g => `${g.key}`);
+    const distinctValues = polygonGroups.sort((a, b) => b.values.length - a.values.length).map(g => `${g.key}`);
+    polygonGroups.forEach((group, index) => group.index = index);
     let updatedPolygonColors = [...polygonColors];
     let updatedPolygonAlphas = [...polygonAlphas];
     // Expand if necessary
@@ -3005,9 +3006,8 @@ let CommonService = class CommonService extends _shared_common_app_component_bas
         }
         groupMap.get(polygonFoci).push(node);
       });
-      polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
+      polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
         key,
-        index,
         values: values.map(node => node.id)
       }));
       this.temp.polygonGroups = polygonGroups;
@@ -12832,6 +12832,13 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
       edges: null
     };
   }
+  estimateSize(text) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${this.labelSize}px Helvetica Neue`;
+    const metrics = ctx.measureText(text);
+    return metrics.width;
+  }
   AddAxes() {
     let Axes = [];
     if (this.xVariable != 'None') {
@@ -12875,6 +12882,7 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
         classes: ['X_axis', 'axisLabel']
       });
     }
+    let longestYLabel = '';
     if (this.yVariable != 'None') {
       this.Y_categories.forEach((value, i) => {
         let label;
@@ -12890,6 +12898,7 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
         } else {
           label = value == null || value == undefined ? 'Unknown' : value;
         }
+        if (label.length > longestYLabel.length) longestYLabel = label;
         Axes.push({
           group: 'nodes',
           data: {
@@ -12897,12 +12906,13 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
             label: label
           },
           position: {
-            x: -100,
+            x: -80,
             y: i * this.scaleFactor
           },
           classes: ['Y_axis']
         });
       });
+      let yAxisLabelOffset = this.estimateSize(longestYLabel) + 20;
       Axes.push({
         group: 'nodes',
         data: {
@@ -12910,7 +12920,7 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
           label: this.commonService.capitalize(this.yVariable)
         },
         position: {
-          x: -150,
+          x: -(80 + yAxisLabelOffset),
           y: (this.Y_categories.length - 1) * this.scaleFactor / 2
         },
         classes: ['Y_axis', 'axisLabel']
@@ -12961,12 +12971,15 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
         'background-color': 'white',
         'width': 1,
         'height': 1,
-        'text-valign': 'center'
+        'text-valign': 'center',
+        'text-halign': 'left'
       }
     }, {
       selector: '#y_axis_Label',
       css: {
-        'text-rotation': 4.71239
+        'text-rotation': 4.71239,
+        'text-halign': 'center',
+        'text-valign': 'top'
       }
     }, {
       selector: '.axisLabel',
@@ -13275,6 +13288,22 @@ let BubbleComponent = class BubbleComponent extends _app_base_component_directiv
     this.updateAxes();
   }
   onLabelSizeChange() {
+    let longestYLabel = '';
+    this.cy.$('.Y_axis').forEach(ele => {
+      if (ele.data().id == 'y_axis_Label') return;
+      let label = ele.data().label;
+      if (label.length > longestYLabel.length) longestYLabel = label;
+    });
+    let yAxisLabelOffset = this.estimateSize(longestYLabel) + 20;
+    let node = this.cy.getElementById('y_axis_Label');
+    node.unlock();
+    let y = node.position('y');
+    let newXPos = -80 - yAxisLabelOffset;
+    node.position({
+      'x': newXPos,
+      'y': y
+    });
+    node.lock();
     this.cy.style().resetToDefault();
     this.cy.style(this.getCytoscapeStyle());
   }
@@ -17694,6 +17723,9 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
     this.layerPositions = [];
     this.layerColors = [];
     this.tooltipVisible = false;
+    this.tooltipLeft = false; // whether to use left or right when positioning tooltip
+    this.labelFontSize = 16;
+    this.axisFontSize = 24;
     this.NetworkExportFileTypeList = [{
       label: 'png',
       value: 'png'
@@ -17708,6 +17740,8 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
     this.SankeyExportScaleVariable = 1;
     this.svgWidth = 1000;
     this.svgHeight = 800;
+    this.widthOffset = 100;
+    this.labelHeight = 18.75;
     this.CalculatedResolution = this.svgWidth * this.SankeyExportScaleVariable + ' x ' + this.svgHeight * this.SankeyExportScaleVariable + 'px';
     this.ShowAdvancedExport = true;
     this.SankeyFieldNames = [];
@@ -17732,7 +17766,7 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
     // @ts-ignore
     this.goldenLayoutComponentResize();
     // Set the sankey diagram properties
-    this.sankey.nodeWidth(25).nodePadding(10).size([this.svgWidth - 100, this.svgHeight - 100]);
+    this.sankey.nodeWidth(25).nodePadding(10).size([this.svgWidth - this.widthOffset, this.svgHeight - 100]);
     this.container.on('resize', () => {
       this.goldenLayoutComponentResize();
     });
@@ -17745,7 +17779,7 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
       this.cdref.detectChanges();
     });
     // remove this after initial
-    this.SankeyFieldNames = ['WHO_class', 'cluster', 'Lineage'];
+    //this.SankeyFieldNames = ['WHO_class', 'cluster', 'Lineage'] // can be pre-set when testing
     this.updateGraph();
   }
   /**
@@ -17753,11 +17787,67 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
    */
   goldenLayoutComponentResize() {
     $('#sankey-container').height($('sankeycomponent').height() - 70);
-    $('#sankey-container').width($('sankeycomponent').width() - 30);
-    this.svgWidth = $('#sankey-container').width() - 40;
-    this.svgHeight = $('#sankey-container').height() - 40;
-    this.sankey.size([this.svgWidth - 100, this.svgHeight - 100]);
+    $('#sankey-container').width($('sankeycomponent').width() - 20);
+    this.svgWidth = $('#sankey-container').width();
+    this.svgHeight = $('#sankey-container').height();
+    this.sankey.size([this.svgWidth - this.widthOffset, this.svgHeight - 100]);
     if (this.data.nodes.length > 0) this.sankeyGO();
+  }
+  /** Updates the value of widthOffset which calculated based on length of longest label in the last column. The widithOffset value
+   * is used to determine the width to give to the sankey package (width = this.svgWidth - this.widthOffset)
+   */
+  updateWidthOffset() {
+    let longestLastLabel = '';
+    this.data.nodes.forEach(node => {
+      if (node.layer + 1 == this.SankeyFieldNames.length && node.name.length > longestLastLabel.length) longestLastLabel = node.name;
+    });
+    let {
+      width,
+      height
+    } = this.getTextSize(longestLastLabel, this.labelFontSize);
+    this.widthOffset = width + 10;
+    this.labelHeight = height;
+    this.sankey.size([this.svgWidth - this.widthOffset, this.svgHeight - 100]);
+  }
+  getTextSize(text, fontSize) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('style', 'position:absolute; top:-9999px; left:-9999px; visibility:hidden;');
+    document.body.appendChild(svg);
+    const textElem = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    textElem.setAttribute("font-size", `${fontSize}px`);
+    textElem.setAttribute("font-family", 'roboto');
+    textElem.textContent = text;
+    svg.appendChild(textElem);
+    const bbox = textElem.getBBox();
+    document.body.removeChild(svg); // cleanup
+    return {
+      width: bbox.width,
+      height: bbox.height
+    };
+  }
+  onlabelFontSizeChange() {
+    if (this.SankeyFieldNames.length > 1) {
+      this.updateWidthOffset();
+      this.sankeyGO();
+      //console.log(this.widthOffset, this.sankey.size());
+    }
+    console.log(this.labelFontSize);
+  }
+  onaxisFontSizeChange() {
+    console.log(this.axisFontSize);
+  }
+  getAxisTextAnchor(i) {
+    if (i == 0) {
+      return 'start';
+    } else if (i < this.SankeyFieldNames.length - 1) {
+      return 'middle';
+    } else {
+      let {
+        width: lastAxisLabelWidth
+      } = this.getTextSize(this.SankeyFieldNames[i], this.axisFontSize);
+      if (lastAxisLabelWidth / 2 > this.widthOffset) return 'end';else return 'middle';
+    }
   }
   /**
    *
@@ -17904,7 +17994,13 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
    */
   showTooltip(event, element, elementType) {
     //console.log(event);
-    this.tooltipX = event.offsetX + 30;
+    if (event.offsetX > this.svgWidth - 200) {
+      this.tooltipLeft = false;
+      this.tooltipX = this.svgWidth - event.offsetX + 15;
+    } else {
+      this.tooltipLeft = true;
+      this.tooltipX = event.offsetX + 30;
+    }
     this.tooltipY = event.offsetY + 40;
     this.tooltipVisible = true;
     if (elementType == 'Link') {
@@ -17951,6 +18047,7 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
       };
     } else {
       this.createSankeyData(this.SankeyFieldNames);
+      this.updateWidthOffset();
       this.sankeyGO();
     }
   }
@@ -17962,7 +18059,7 @@ let SankeyComponent = class SankeyComponent extends _app_base_component_directiv
     this.data.links.forEach(link => link.opacity = 0.5);
     this.layerPositions = [];
     for (let i = 0; i < this.SankeyFieldNames.length; i++) {
-      this.layerPositions.push(this.data.nodes.find(node => node.layer == i).x0);
+      this.layerPositions.push(i == 0 ? 0 : this.data.nodes.find(node => node.layer == i).x0 + 12.5);
     }
   }
   /**
@@ -24838,8 +24935,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   version: () => (/* binding */ version)
 /* harmony export */ });
 const version = '2.0.0';
-const buildDate = '2025-07-23T17:22:18.739Z';
-const commitHash = '8a60795d';
+const buildDate = '2025-07-28T19:56:50.359Z';
+const commitHash = 'a93a5860';
 
 /***/ }),
 
@@ -28797,7 +28894,7 @@ module.exports = "﻿﻿<div class=\"m-content\">\r\n    <div id=\"tool-btn-cont
 /***/ ((module) => {
 
 "use strict";
-module.exports = "<div class=\"m-content\">\r\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\"\r\n                (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n        </span>\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\"\r\n                (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n        </span>\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Center Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\"\r\n                (click)=\"openCenter()\"><i class=\"flaticon-eye primary\"></i></a>\r\n        </span>\r\n    </div>\r\n    <div class=\"m-portlet__body\" style=\"height: 100%\">\r\n        <div id=\"sankey-container\" style=\"padding: 60px 10px 10px 20px\" (mouseup)=\"endDrag()\" (mouseleave)=\"endDrag()\" (mousemove)=\"move($event)\">\r\n            <svg #sankeySVG [attr.width]=\"svgWidth\" [attr.height]=\"svgHeight\">\r\n                <rect [attr.width]=\"svgWidth\" [attr.height]=\"svgHeight\" fill=\"#ffffff\"></rect>\r\n                <g *ngFor=\"let field of SankeyFieldNames; index as i\">\r\n                    <text [attr.x]=\"layerPositions[i]\" [attr.y]=\"svgHeight-50\">{{ commonService.capitalize(field) }}</text>\r\n                </g>\r\n                <g>\r\n                    <g *ngFor=\"let linkA of data['links']\">\r\n                        <path [attr.d]=\"getLinkPathDefinition(linkA)\" [attr.stroke]=\"getLinkColor(linkA)\" [attr.stroke-width]=linkA.width [attr.opacity]=\"linkA.opacity\" fill=\"none\" (mouseenter)=\"showTooltip($event, linkA, 'Link')\" (mouseleave)=\"hideTooltip()\"></path>\r\n                    </g>\r\n                </g>\r\n                <g>\r\n                    <g *ngFor=\"let node of data['nodes']\">\r\n                        <rect [attr.transform]=\"getNodeTransform(node)\" [attr.width]=\"node.x1-node.x0\" [attr.height]=\"node.y1-node.y0\" [attr.fill]=\"node.color\" (mouseenter)=\"showTooltip($event, node, 'Node')\" (mouseleave)=\"hideTooltip()\" (mousedown)=\"startDrag(node)\"></rect>\r\n                        <text [attr.x]=\"node.x1+4\" [attr.y]=\"(node.y0+node.y1)/2+2\">{{ node.name }}</text>\r\n                    </g>\r\n                </g>\r\n            </svg>\r\n        </div>\r\n        <div id=\"sankey-tooltip-container\"></div>\r\n    </div>\r\n</div>\r\n<div #tooltip class=\"custom-tooltip\" [style.top.px]=\"tooltipY\" [style.left.px]=\"tooltipX\" [style.display]=\"tooltipVisible ? 'block' : 'none'\">\r\n  <table>\r\n    <tr *ngFor=\"let row of tooltipData\">\r\n        <td>{{ row['key']}}: </td>\r\n        <td>{{ row['value'] }}</td></tr>\r\n  </table>\r\n</div>\r\n<div class=\"view-controls\">\r\n    <p-dialog *ngIf=\"viewActive\" id=\"sankey-settings-pane\" [(visible)]=\"SankeyExportDialogSettings.isVisible\"\r\n        [contentStyle]=\"{'overflow': 'visible'}\" header=\"Sankey Chart Settings\" appendTo=\"body\">\r\n        <tabset class=\"tab-container tabbable-line\">\r\n            <tab heading=\"{{'Tree' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\" style=\"width: 400px; padding: 10px 10px 0px 10px;\">\r\n                <div>\r\n                    <div class=\"form-group row gantt-start-row\" title=\"What field would you like to add to the Sankey Chart?\" style=\"overflow:visible\">\r\n                        <div class=\"col-4\"><label>Field Name</label></div>\r\n                        <div class=\"col-8\">\r\n                            <p-dropdown appendTo=\"body\" [options]=\"FieldList\" [(ngModel)]=\"SelectedFieldName\"> </p-dropdown>\r\n                        </div>\r\n                    </div>\r\n                    <div class=\"form-group row gantt-add-row\" style=\"overflow:visible\">\r\n                        <div class=\"col-4\"></div>\r\n                        <div class=\"col-8\">\r\n                            <button type=\"button\" class=\"btn btn-primary\" (click)=\"addSelectedField()\" [disabled]=\"fieldListFull() || this.SelectedFieldName == ''\">Add Field</button>\r\n                        </div>\r\n                    </div>\r\n                    <p-table [value]=\"SankeyFieldNames\" styleClass=\"p-datatable-striped\" *ngIf=\"SankeyFieldNames.length > 0\" (onRowReorder)=\"reorderRows($event)\">\r\n                        <ng-template pTemplate=\"header\">\r\n                            <tr>\r\n                                <th style=\"width: 3rem;\"></th>\r\n                                <th class='p-1 table-header-row'>Name</th>\r\n                                <th style=\"width: 3rem;\"></th>\r\n                                <th>Remove</th>\r\n                            </tr>\r\n                        </ng-template>\r\n                        <ng-template pTemplate=\"body\" let-rowData let-index=\"rowIndex\">\r\n                            <tr [pReorderableRow]=\"index\">\r\n                                <td><span class=\"pi pi-bars\" pReorderableRowHandle></span></td>\r\n                                <td>{{ rowData }}</td>\r\n                                <td><input type=\"color\" style=\"border:none\" [(ngModel)]=\"layerColors[index]\" (ngModelChange)=\"updateColors(index)\"></td>\r\n                                <td><p-button icon=\"pi pi-times\" (onClick)=\"removeField(rowData)\"/></td>\r\n                            </tr>\r\n                        </ng-template>\r\n                    </p-table>\r\n                </div>\r\n            </tab>\r\n            <tab heading=\"{{'Link Color' | localize}}\" customClass=\"m-tabs__item\" style=\"width: 400px; padding: 10px 10px 0px 10px;\">\r\n                <div class=\"form-group row gantt-start-row\" title=\"\" style=\"overflow:visible\">\r\n                    <div class=\"col-3\"><label>Link Color</label></div>\r\n                    <div class=\"col-6\">\r\n                        <p-dropdown appendTo=\"body\" [options]=\"LinkColorOptions\" [(ngModel)]=\"SelectedColorOption\"> </p-dropdown>\r\n                    </div>\r\n                    <div div class=\"col-3\" *ngIf=\"SelectedColorOption=='Uniform'\">\r\n                        <input type=\"color\" style=\"border:none\" [(ngModel)]=\"SelectedColorForUniform\">\r\n                    </div>\r\n                </div>\r\n            </tab>\r\n        </tabset>\r\n    </p-dialog>\r\n</div>\r\n\r\n<p-dialog *ngIf=\"viewActive\" [(visible)]=\"ShowSankeyExportPane\" header=\"Export Sankey Chart\" appendTo=\"body\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n            <div class=\"modal-body\" style='min-width: 500px; height: 100%;'>\r\n                <div class=\"form-group row\">\r\n                    <div class=\"col-8\">\r\n                        <input type=\"text\" class=\"form-control form-control-sm\" style=\"height: 42px;\"\r\n                            placeholder=\"Image Filename\" [(ngModel)]=\"SelectedSankeyImageFilename\">\r\n                    </div>\r\n                    <div class=\"col-4\">\r\n                        <p-dropdown [options]=\"NetworkExportFileTypeList\"\r\n                            [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div [hidden]=\"SelectedNetworkExportFileTypeListVariable=='svg'\">\r\n                    <p-accordion>\r\n                        <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\r\n                            <div>\r\n                                <div class=\"form-group row\">\r\n                                    <div class=\"col-3\">\r\n                                        <span>Scale</span>\r\n                                    </div>\r\n                                    <div class=\"col-9\">\r\n                                        <input type=\"number\" class=\"form-control form-control-sm\" min=\"0\" max=\"2\" step=\"0.1\" [(ngModel)]=\"SankeyExportScaleVariable\" (ngModelChange)=\"updateCalculatedResolution()\">\r\n                                    </div>\r\n                                </div>\r\n                                <div class=\"form-group row\">\r\n                                    <div class=\"col-3\">Resolution</div>\r\n                                    <div class=\"col-9 text-right\">{{CalculatedResolution}}</div>\r\n                                </div>\r\n                            </div>\r\n                        </p-accordionTab>\r\n                    </p-accordion>\r\n                </div>\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"ShowSankeyExportPane=false\">Cancel</button>\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"exportVisualization()\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->";
+module.exports = "<div class=\"m-content\">\r\n    <div id=\"tool-btn-container\" class=\"m-portlet\">\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Settings\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\"\r\n                (click)=\"openSettings()\"><i class=\"flaticon-settings primary\"></i></a>\r\n        </span>\r\n        <span style=\"overflow: visible; position: relative; width: 110px;\">\r\n            <a title=\"Export Screen\" class=\"btn btn-sm btn-clean btn-icon btn-icon-md\" style=\"float:left\"\r\n                (click)=\"openExport()\"><i class=\"flaticon-download primary\"></i></a>\r\n        </span>\r\n    </div>\r\n    <div class=\"m-portlet__body\" style=\"height: 100%\">\r\n        <div id=\"sankey-container\" style=\"padding: 60px 0px 10px 20px\" (mouseup)=\"endDrag()\" (mouseleave)=\"endDrag()\" (mousemove)=\"move($event)\">\r\n            <svg #sankeySVG [attr.width]=\"svgWidth\" [attr.height]=\"svgHeight\" *ngIf=\"SankeyFieldNames.length > 1\">\r\n                <rect [attr.width]=\"svgWidth\" [attr.height]=\"svgHeight\" fill=\"#ffffff\"></rect>\r\n                <g *ngFor=\"let field of SankeyFieldNames; index as i\">\r\n                    <text [attr.x]=\"layerPositions[i]\" [attr.y]=\"svgHeight-50\" [attr.text-anchor]=\"getAxisTextAnchor(i)\" [style.font-size.px]=\"axisFontSize\">{{ commonService.capitalize(field) }}</text>\r\n                </g>\r\n                <g>\r\n                    <g *ngFor=\"let linkA of data['links']\">\r\n                        <path [attr.d]=\"getLinkPathDefinition(linkA)\" [attr.stroke]=\"getLinkColor(linkA)\" [attr.stroke-width]=linkA.width [attr.opacity]=\"linkA.opacity\" fill=\"none\" (mouseenter)=\"showTooltip($event, linkA, 'Link')\" (mouseleave)=\"hideTooltip()\"></path>\r\n                    </g>\r\n                </g>\r\n                <g>\r\n                    <g *ngFor=\"let node of data['nodes']\">\r\n                        <rect [attr.transform]=\"getNodeTransform(node)\" [attr.width]=\"node.x1-node.x0\" [attr.height]=\"node.y1-node.y0\" [attr.fill]=\"node.color\" (mouseenter)=\"showTooltip($event, node, 'Node')\" (mouseleave)=\"hideTooltip()\" (mousedown)=\"startDrag(node)\"></rect>\r\n                        <text [attr.x]=\"node.x1+4\" [attr.y]=\"(node.y0+node.y1)/2+labelHeight/4\" [style.font-size.px]=\"labelFontSize\">{{ node.name }}</text>\r\n                    </g>\r\n                </g>\r\n            </svg>\r\n        </div>\r\n    </div>\r\n</div>\r\n<div #tooltip class=\"custom-tooltip\" [ngStyle]=\"{top: tooltipY + 'px', left: tooltipLeft ? (tooltipX + 'px') : null,  right: !tooltipLeft ? (tooltipX + 'px') : null, display: tooltipVisible ? 'block' : 'none'}\">\r\n  <table>\r\n    <tr *ngFor=\"let row of tooltipData\">\r\n        <td>{{ row['key']}}: </td>\r\n        <td>{{ row['value'] }}</td></tr>\r\n  </table>\r\n</div>\r\n<div class=\"view-controls\">\r\n    <p-dialog *ngIf=\"viewActive\" id=\"sankey-settings-pane\" [(visible)]=\"SankeyExportDialogSettings.isVisible\"\r\n        [contentStyle]=\"{'overflow': 'visible'}\" header=\"Sankey Chart Settings\" appendTo=\"body\">\r\n        <tabset class=\"tab-container tabbable-line\">\r\n            <tab heading=\"{{'Variables' | localize}}\" [active]=\"true\" customClass=\"m-tabs__item\" style=\"width: 400px; padding: 10px 10px 0px 10px;\">\r\n                <div>\r\n                    <div class=\"form-group row gantt-start-row\" title=\"What variable would you like to add to the Sankey Chart?\" style=\"overflow:visible\">\r\n                        <div class=\"col-4\"><label>Variable Name</label></div>\r\n                        <div class=\"col-8\">\r\n                            <p-dropdown appendTo=\"body\" [options]=\"FieldList\" [(ngModel)]=\"SelectedFieldName\"> </p-dropdown>\r\n                        </div>\r\n                    </div>\r\n                    <div *ngIf=\"SankeyFieldNames.length < 2\" style=\"color: red\">2 Variables are required to generate a Sankey graph</div>\r\n                    <div class=\"form-group row gantt-add-row\" style=\"overflow:visible\">\r\n                        <div class=\"col-4\"></div>\r\n                        <div class=\"col-8\">\r\n                            <button type=\"button\" class=\"btn btn-primary\" (click)=\"addSelectedField()\" [disabled]=\"fieldListFull() || this.SelectedFieldName == ''\">Add Variable</button>\r\n                        </div>\r\n                    </div>\r\n                    <p-table [value]=\"SankeyFieldNames\" styleClass=\"p-datatable-striped\" *ngIf=\"SankeyFieldNames.length > 0\" (onRowReorder)=\"reorderRows($event)\">\r\n                        <ng-template pTemplate=\"header\">\r\n                            <tr>\r\n                                <th style=\"width: 3rem;\"></th>\r\n                                <th class='p-1 table-header-row'>Name</th>\r\n                                <th style=\"width: 3rem;\"></th>\r\n                                <th>Remove</th>\r\n                            </tr>\r\n                        </ng-template>\r\n                        <ng-template pTemplate=\"body\" let-rowData let-index=\"rowIndex\">\r\n                            <tr [pReorderableRow]=\"index\">\r\n                                <td><span class=\"pi pi-bars\" pReorderableRowHandle></span></td>\r\n                                <td>{{ rowData }}</td>\r\n                                <td><input type=\"color\" style=\"border:none\" [(ngModel)]=\"layerColors[index]\" (ngModelChange)=\"updateColors(index)\"></td>\r\n                                <td><p-button icon=\"pi pi-times\" (onClick)=\"removeField(rowData)\"/></td>\r\n                            </tr>\r\n                        </ng-template>\r\n                    </p-table>\r\n                </div>\r\n            </tab>\r\n            <tab heading=\"{{'Visual Settings' | localize}}\" customClass=\"m-tabs__item\" style=\"width: 400px; padding: 10px 10px 0px 10px;\">\r\n                <div class=\"form-group row gantt-start-row\" title=\"\" style=\"overflow:visible\">\r\n                    <div class=\"col-5\"><label>Link Color</label></div>\r\n                    <div class=\"col-5\">\r\n                        <p-dropdown appendTo=\"body\" [options]=\"LinkColorOptions\" [(ngModel)]=\"SelectedColorOption\"> </p-dropdown>\r\n                    </div>\r\n                    <div div class=\"col-2\" *ngIf=\"SelectedColorOption=='Uniform'\">\r\n                        <input type=\"color\" style=\"border:none\" [(ngModel)]=\"SelectedColorForUniform\">\r\n                    </div>\r\n                </div>\r\n                <div class=\"form-group row node-label-row\" title=\"How big should node labels be?\">\r\n                    <div class=\"col-5\"><label>Label Font Size</label></div>\r\n                    <div class=\"col-7\"><input type=\"range\" class=\"custom-range\" min=\"12\" max=\"48\" [(ngModel)]=\"labelFontSize\" (change)=\"onlabelFontSizeChange()\"></div>\r\n                </div>                            \r\n                <div class=\"form-group row node-label-row\" title=\"How big should node labels be?\">\r\n                    <div class=\"col-5\"><label>Axis Font Size</label></div>\r\n                    <div class=\"col-7\"><input type=\"range\" class=\"custom-range\" min=\"16\" max=\"52\" [(ngModel)]=\"axisFontSize\" (change)=\"onaxisFontSizeChange()\"></div>\r\n                </div>\r\n            </tab>\r\n        </tabset>\r\n    </p-dialog>\r\n</div>\r\n\r\n<p-dialog *ngIf=\"viewActive\" [(visible)]=\"ShowSankeyExportPane\" header=\"Export Sankey Chart\" appendTo=\"body\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n            <div class=\"modal-body\" style='min-width: 500px; height: 100%;'>\r\n                <div class=\"form-group row\">\r\n                    <div class=\"col-8\">\r\n                        <input type=\"text\" class=\"form-control form-control-sm\" style=\"height: 42px;\"\r\n                            placeholder=\"Image Filename\" [(ngModel)]=\"SelectedSankeyImageFilename\">\r\n                    </div>\r\n                    <div class=\"col-4\">\r\n                        <p-dropdown [options]=\"NetworkExportFileTypeList\"\r\n                            [(ngModel)]=\"SelectedNetworkExportFileTypeListVariable\"></p-dropdown>\r\n                    </div>\r\n                </div>\r\n                <div [hidden]=\"SelectedNetworkExportFileTypeListVariable=='svg'\">\r\n                    <p-accordion>\r\n                        <p-accordionTab style=\"color:#495057\" header=\"Advanced\">\r\n                            <div>\r\n                                <div class=\"form-group row\">\r\n                                    <div class=\"col-3\">\r\n                                        <span>Scale</span>\r\n                                    </div>\r\n                                    <div class=\"col-9\">\r\n                                        <input type=\"number\" class=\"form-control form-control-sm\" min=\"0\" max=\"2\" step=\"0.1\" [(ngModel)]=\"SankeyExportScaleVariable\" (ngModelChange)=\"updateCalculatedResolution()\">\r\n                                    </div>\r\n                                </div>\r\n                                <div class=\"form-group row\">\r\n                                    <div class=\"col-3\">Resolution</div>\r\n                                    <div class=\"col-9 text-right\">{{CalculatedResolution}}</div>\r\n                                </div>\r\n                            </div>\r\n                        </p-accordionTab>\r\n                    </p-accordion>\r\n                </div>\r\n            </div>\r\n            <div class=\"modal-footer\">\r\n                <button type=\"button\" class=\"btn btn-error\" (click)=\"ShowSankeyExportPane=false\">Cancel</button>\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"exportVisualization()\">Export</button>\r\n            </div>\r\n        </div><!-- /.modal-content -->\r\n    </div><!-- /.modal-dialog -->\r\n</p-dialog><!-- /.modal -->";
 
 /***/ }),
 
