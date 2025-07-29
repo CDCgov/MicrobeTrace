@@ -256,6 +256,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.appSession = injector.get(AppSessionService);
 
+        // Add this line to expose the service for Cypress tests
+        (window as any).commonService = this.commonService;
+
         this.activeTabIndex = 0;
 
         this.dataSetView = [];
@@ -285,6 +288,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         this.getGlobalSettingsData();
 
+        console.log('common serivceeeee: ', (window as any).commonService );
          // Subscribe to export requests
         this.exportService.exportRequested$.subscribe((info) => {
             this.performExport(info.element, info.exportNodeTable, info.exportLinkTable);
@@ -503,6 +507,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 marginTop: '0px',
                 opacity: '1'
             }, 1000);
+
+            console.log('thresholldddddd', this.commonService.session.style.widgets['link-threshold']);
 
         }, 3000);
         setTimeout(() => {

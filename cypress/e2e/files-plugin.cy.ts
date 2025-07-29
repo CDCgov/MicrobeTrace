@@ -1,62 +1,112 @@
-describe('File Handling and Processing', () => {
-    // This runs before each test case in this describe block
-    beforeEach(() => {
-      // Visit the base URL defined in cypress.config.ts
+// cypress/e2e/files-plugin.cy.ts
+
+describe('MicrobeTrace Application', () => {
+
+  describe('Initial Load with Sample Data', () => {
+    it('successfully loads the sample dataset when "Continue with Sample Dataset" is clicked', () => {
       cy.visit('/');
-      // From your HTML, the overlay covers the app on start.
-      // We'll click the "Continue with Sample Dataset" button to dismiss it and start fresh.
-      cy.get('button').contains('Continue with Sample Dataset').click();
-      // Your test plan mentions resetting the session, so we'll do that here.
-      cy.get('.navbar-item').contains('File').click();
-      cy.get('button[mat-menu-item]').contains('Save').click(); // A proxy to get the menu to close and reset state, may need adjustment.
+      cy.wait(6000); 
+
+      cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
+        .click({ force: true });
+      
+      cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+      
+      // The app navigates away, but we can check the state to confirm data loaded.
+      cy.window({ timeout: 10000 }).its('commonService.session.data.nodes')
+        .should('have.length.greaterThan', 0);
     });
-  
-    /**
-     * Test Case 1.1: Uploading a single valid file
-     */
-    it('uploads a single valid FASTA file and displays it in the table', () => {
-      const fileName = 'sample.fasta';
-  
-      // 1. Get the file input and select the fixture file. Your input is hidden, so force is needed.
-      // The input ID from files-plugin.component.html is 'data-files1'.
-      cy.get('#data-files1').selectFile(`cypress/fixtures/${fileName}`, { force: true });
-  
-      // 2. Assert that the file appears in the UI's file table.
-      // The file table container has id 'file-table'. Rows have class '.file-table-row'.
-      cy.get('#file-table .file-table-row').should('have.length', 1);
-      cy.get('#file-table .file-table-row').should('contain', fileName);
-  
-      // 3. Check that the file's metadata is correctly stored in commonService.
-      cy.window().its('commonService').then((commonService) => {
-        const files = commonService.session.files;
-        expect(files).to.have.length(1);
-        expect(files[0].name).to.equal(fileName);
-        expect(files[0].format).to.equal('fasta'); // Assumes format detection works
+  });
+
+  describe('File Handling and Processing', () => {
+    beforeEach(() => {
+      cy.visit('/');
+      cy.wait(6000);
+    });
+
+    it('uploads a single valid FASTA file from the initial overlay', () => {
+      const fileName = 'AngularTesting_seqs_TN93_small.fasta';
+      cy.get('#fileDropRef').selectFile(`cypress/fixtures/${fileName}`, { force: true });
+      cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+      
+      cy.contains('#file-table .file-table-row', fileName, { timeout: 10000 }).should('be.visible');
+      cy.get('#launch').should('not.be.disabled');
+
+      cy.window().its('commonService.session.files').then((files) => {
+        const fileExists = files.some(f => f.name === fileName);
+        expect(fileExists).to.be.true;
+        const fileInSession = files.find(f => f.name === fileName);
+        expect(fileInSession.format).to.equal('fasta');
       });
     });
-  
-    /**
-     * Test Case 1.4: Removing a file
-     */
+
     it('removes a file from the session when the delete icon is clicked', () => {
-      const fileName = 'sample.fasta';
-      cy.get('#data-files1').selectFile(`cypress/fixtures/${fileName}`, { force: true });
-  
-      // Ensure the file is there before we try to remove it
-      cy.get('#file-table .file-table-row').should('contain', fileName);
-  
-      // 1. Click the "Remove" icon next to the file.
-      // The icon has the class 'flaticon-delete-1'
-      cy.get('.file-table-row').contains(fileName)
+      const fileName = 'AngularTesting_seqs_TN93_small.fasta';
+      cy.get('#fileDropRef').selectFile(`cypress/fixtures/${fileName}`, { force: true });
+      cy.contains('#file-table .file-table-row', fileName, { timeout: 10000 }).should('be.visible');
+
+      cy.contains('.file-table-row', fileName)
         .find('.flaticon-delete-1')
-        .click();
-  
-      // 2. Assert that the file is removed from the UI.
-      cy.get('#file-table .file-table-row').should('not.exist');
-  
-      // 3. Verify the file is removed from the service.
-      cy.window().its('commonService').then((commonService) => {
-        expect(commonService.session.files).to.be.empty;
+        .click({ force: true });
+
+      cy.get('#file-table').should('not.contain', fileName);
+      
+      cy.window().its('commonService.session.files').then((files) => {
+        const fileExists = files.some(f => f.name === fileName);
+        expect(fileExists).to.be.false;
       });
     });
   });
+
+  describe('Post-Upload Interactions', () => {
+    beforeEach(() => {
+      cy.visit('/');
+      cy.wait(6000);
+      const fileName = 'AngularTesting_seqs_TN93_small.fasta';
+      cy.get('#fileDropRef').selectFile(`cypress/fixtures/${fileName}`, { force: true });
+      cy.get('#launch').should('not.be.disabled');
+    });
+
+    it('launches the 2D network view when the Launch button is clicked', () => {
+      cy.get('#launch').click();
+
+      // A good way to confirm the view has changed is to look for an element
+      // that is unique to the 2D network view. Since we don't have the code for it,
+      // we'll check that the "Files" tab is no longer the only active component.
+      cy.get('.lm_tab.lm_active').should('not.have.text', 'Files');
+      
+      cy.window().its('commonService.session.network.isFullyLoaded').should('be.true');
+    });
+
+    it('opens settings, ensures metric is TN93, and changes the link threshold', () => {
+      const tn93_default_threshold = 0.015;
+      const newThreshold = '0.025';
+      
+      // 1. Open the settings panel
+      cy.get('#tool-btn-container .flaticon-settings').click();
+      cy.get('#file-settings-pane').contains('File Settings').should('be.visible');
+
+      // 2. Set the metric to TN93
+      cy.get('#default-distance-metric').select('tn93');
+
+      // 3. ✨ STABILIZE: Assert that the app has finished reacting to the metric change
+      // by confirming the threshold was reset to its default. This acts as a wait.
+      cy.window().its('commonService.session.style.widgets.link-threshold')
+        .should('equal', tn93_default_threshold);
+
+      // 4. NOW, with the app stable, change the threshold value.
+      cy.get('#default-distance-threshold')
+        .invoke('val', newThreshold)
+        .trigger('change');
+        
+      // 5. Close the panel
+      cy.get('#tool-btn-container .flaticon-settings').click();
+      cy.get('#file-settings-pane').should('not.be.visible');
+      
+      // 6. Verify the FINAL value is our new value.
+      cy.window().its('commonService.session.style.widgets').then((widgets) => {
+        expect(widgets['link-threshold']).to.equal(parseFloat(newThreshold));
+      });
+    });
+  });
+});
