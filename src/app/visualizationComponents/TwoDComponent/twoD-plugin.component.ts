@@ -609,6 +609,39 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     attachCytoscapeEvents() {
         console.log('--- TwoD attachCytoscapeEvents called');
+
+        // Debounced function to sync Cytoscape selections with the common service.
+        const syncCySelectionToService = _.debounce(() => {
+            const selectedNodes = this.cy.nodes(':selected');
+            const selectedIds = new Set(selectedNodes.map(node => node.id()));
+
+            let selectionChanged = false;
+            // Sync with the main nodes array
+            this.commonService.session.data.nodes.forEach(n => {
+                const shouldBeSelected = selectedIds.has(n._id || n.id);
+                if (n.selected !== shouldBeSelected) {
+                    n.selected = shouldBeSelected;
+                    selectionChanged = true;
+                }
+            });
+
+            // Sync with the filtered nodes array
+            this.commonService.session.data.nodeFilteredValues.forEach(n => {
+                const shouldBeSelected = selectedIds.has(n._id || n.id);
+                if (n.selected !== shouldBeSelected) {
+                    n.selected = shouldBeSelected;
+                }
+            });
+
+            // If the selection state was changed, notify other components.
+            if (selectionChanged) {
+                $(document).trigger('node-selected');
+            }
+        }, 100); // Debounce for 100ms to handle rapid events efficiently.
+
+        // Listen for all selection events to trigger the sync.
+        this.cy.on('select unselect', 'node', syncCySelectionToService);
+        
         this.cy.on('tap', 'node', (evt) => {
             const node = evt.target;
             console.log('Selected node:', node.data());
@@ -660,12 +693,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         this.cy.on('mouseout', 'edge', () => {
             this.hideTooltip();
-        });
-    
-        // Selection and Dragging
-        this.cy.on('select', 'node', (evt) => {
-            const node = evt.target;
-            // Handle selection logic
         });
     
         this.cy.on('dragfree', 'node', (evt) => {
@@ -1098,30 +1125,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // TODO move this to a subscribed event than use document jquery
             $(document).on("node-selected", function () {
-
-                let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
-                if (mtSelectedNode && mtSelectedNode.id) {
-                    that.selectedNodeId = mtSelectedNode.id;
-                } else if (mtSelectedNode && !mtSelectedNode.id) {
-                    that.selectedNodeId = mtSelectedNode._id;
+                 const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
+                 const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
+                
+                 // Deselect all nodes first in cytoscape
+                 that.cy.elements().unselect();
+                
+                 // Select the nodes that are marked as selected in the common service
+                 if (mtSelectedNodeIds.length > 0) {
+                     const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
+                 that.cy.nodes(selector).select();
+                 }
+                
+                if (mtSelectedNodeIds.length > 0) {
+                 that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1];
+                 } else {
+                 that.selectedNodeId = undefined;
+                 }
+                
+                 if (that.debugMode) {
+                    console.log('node-selected in 2d: ', that.selectedNodeId);
+                    console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
                 }
-
-                    // Deselect all nodes first
-                    that.cy.elements().unselect();
-
-                    // Select the newly selected node
-                    if (that.selectedNodeId) {
-                        const node = that.cy.getElementById(that.selectedNodeId);
-                        if (node) {
-                            node.select();
-                        }
-                    }
-
-                    // that.debouncedRerender();
-                    if (that.debugMode) {
-                        console.log('node-selected in 2d: ', that.selectedNodeId);
-                        console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
-                    }
             });
 
 
