@@ -312,7 +312,7 @@ export class ColorMappingService {
    * Example: A polygon color map for grouping clusters or polygons, if relevant.
    */
   public createPolygonColorMap(
-    polygonGroups: { key: string, index: number, values: any[] }[],
+    polygonGroups: { key: string, index?: number, values: any[] }[],
     polygonColors: string[],
     polygonAlphas: number[],
     debugMode: boolean
@@ -333,7 +333,8 @@ export class ColorMappingService {
       };
     }
 
-    const distinctValues = polygonGroups.sort((a, b) => a.index - b.index).map(g => `${g.key}`);
+    const distinctValues = polygonGroups.sort((a, b) => b.values.length - a.values.length).map(g => `${g.key}`);
+    polygonGroups.forEach((group, index) => group.index = index);
 
     let updatedPolygonColors = [...polygonColors];
     let updatedPolygonAlphas = [...polygonAlphas];

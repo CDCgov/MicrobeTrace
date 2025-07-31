@@ -1261,7 +1261,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     openNNConfirmation() {
         this.confirmationService.confirm({
-            message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm isn't recommended when working with links from 2 different sources (ie. Epi and Genetic Distance Links).
+            message: `It appears that you have links from two different sources. The Nearest Neighbor algorithm is only recommended when working with genetic links.
              Are you sure that you want to proceed?`,
             closable: false,
             closeOnEscape: false,
@@ -1636,8 +1636,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 $("<div></div>")
                     .css({  height: "25px", width: "50px", display: "flex", background: "#F0F0F0", padding: "4px"})
                     .append($("<div></div>").css({ border: "1px solid #777777", height: "17px", width: "42px", display: "inline-block" })
-                        .append($("<span id='duoColor0'></span>").css({ height: "15px", width: "20px", background: duoColors[0], 'vertical-align': "top", display: "inline-block" }))
-                        .append($("<span id='duoColor1'></span>").css({ height: "15px", width: "20px", background: duoColors[1], 'vertical-align': "top", display: "inline-block" })))
+                        .append($("<span id='duoColor0'></span>").css({ height: "100%", width: "50%", background: duoColors[0], 'vertical-align': "top", display: "inline-block" }))
+                        .append($("<span id='duoColor1'></span>").css({ height: "100%", width: "50%", background: duoColors[1], 'vertical-align': "top", display: "inline-block" })))
                 );
             }
             const nonEditCell = `<td style="background-color:${color}"></td>`;

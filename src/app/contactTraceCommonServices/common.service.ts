@@ -2583,7 +2583,7 @@ align(params): Promise<any> {
         }
 
         // If this.session.style.widgets['polygons-color-show', we need 
-        let polygonGroups: {key: string, index:number, values: []}[] = this.temp.polygonGroups || [];
+        let polygonGroups: {key: string, values: []}[] = this.temp.polygonGroups || [];
         let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
@@ -2602,17 +2602,14 @@ align(params): Promise<any> {
                 }
                 groupMap.get(polygonFoci).push(node);
             });
-            polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
+            polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
                 key,
-                index,
                 values: values.map(node => node.id)
             }));
 
             this.temp.polygonGroups = polygonGroups;
             this.session.style.widgets['polygon-color-table-visible'] = true;
         }
-
- 
 
         const result = this.colorMappingService.createPolygonColorMap(
           polygonGroups,

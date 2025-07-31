@@ -210,6 +210,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return { nodes: nodes, edges: null }
   }
 
+  estimateSize(text: string) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${this.labelSize}px Helvetica Neue`;
+    const metrics = ctx.measureText(text);
+
+    return metrics.width;
+  }
+
   AddAxes() {
     let Axes = [];
     if ( this.xVariable != 'None') {
@@ -235,6 +244,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.commonService.capitalize(this.xVariable)}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis', 'axisLabel']})
     }
 
+    let longestYLabel: string = '';
     if ( this.yVariable != 'None') {
       this.Y_categories.forEach((value, i) => {
         let label;
@@ -250,12 +260,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         } else {
           label = value== null || value == undefined ? 'Unknown': value;
         }
+        if (label.length > longestYLabel.length) longestYLabel = label
         Axes.push(
-          {group: 'nodes', data: {id: `y_axis${i}`, label: label}, position: {x: -100, y: i*this.scaleFactor}, classes: ['Y_axis'],
+          {group: 'nodes', data: {id: `y_axis${i}`, label: label}, position: {x: -80, y: i*this.scaleFactor}, classes: ['Y_axis'],
         })
       });
+      let yAxisLabelOffset = this.estimateSize(longestYLabel) + 20
 
-      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -150, y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
+      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -(80+yAxisLabelOffset), y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
 
     }
 
@@ -307,13 +319,16 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           'background-color': 'white',
           'width': 1,
           'height': 1,
-          'text-valign': 'center'
+          'text-valign': 'center',
+          'text-halign': 'left'
         }
       },
       {
         selector: '#y_axis_Label',
         css: {
-          'text-rotation': 4.71239
+          'text-rotation': 4.71239,
+          'text-halign': 'center',
+          'text-valign': 'top'
         }
       },
       {
@@ -644,6 +659,21 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   onLabelSizeChange() {
+    let longestYLabel: string = '';
+    this.cy.$('.Y_axis').forEach((ele) => {
+      if (ele.data().id == 'y_axis_Label') return;
+      let label = ele.data().label
+
+      if (label.length > longestYLabel.length) longestYLabel = label
+    })
+    let yAxisLabelOffset = this.estimateSize(longestYLabel) +20;
+
+    let node = this.cy.getElementById('y_axis_Label')
+    node.unlock();
+    let y = node.position('y')
+    let newXPos = -80 - yAxisLabelOffset;
+    node.position({'x': newXPos, 'y': y});
+    node.lock();
     this.cy.style().resetToDefault();
     this.cy.style(this.getCytoscapeStyle())
   }
