@@ -3393,6 +3393,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
+     * Applies arrow styling to edges based on current widget settings and edge data.
+     * Arrows are shown only for links that have distance and its within the threshold
+     */
+    private updateArrowStyles() {
+        if (!this.cy) return;
+
+        this.cy.style()
+            .selector('edge')
+            .style({
+                'target-arrow-shape': (ele) => {
+                    const data = ele.data();
+                    console.log('data: ', data, 'has distance', data.hasDistance, 'origin', data.origin)
+                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
+                        return 'triangle';
+                    }
+                    return 'none';
+                },
+                'source-arrow-shape': (ele) => {
+                    const data = ele.data();
+                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
+                        return 'triangle';
+                    }
+                    return 'none';
+                },
+                'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
+            })
+            .update();
+    }
+
+
+    /**
      * Updates link-directed widget. When directed, links have an arrow added; when undirected, links have no arrow
      */
     onLinkDirectedUndirectedChange(e) {
@@ -3403,45 +3434,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['link-directed'] = false;
             $("#link-bidirectional-row").slideUp();
         }
-    
-        // Update Cytoscape edge styles
-        if (this.cy) {
-            const isDirected = this.widgets['link-directed'];
-            this.cy.style()
-                .selector('edge')
-                .style({
-                    'target-arrow-shape': this.widgets['link-directed'] ? 'triangle' : 'none',
-                    'source-arrow-shape': 'none', // Ensure source arrow is hidden when undirected
-                    'curve-style': isDirected ? 'unbundled-bezier' : 'straight',
-                    // Add more style properties here if needed
-                })
-                .update();
-        }
+
+        this.updateArrowStyles();
     }
 
 
+
     onLinkBidirectionalChange(e) {
-        // Determine the arrow shapes based on the selected option
-        const sourceArrowShape = e === "Show" ? 'triangle' : 'none';
-        const targetArrowShape = 'triangle'; // Assuming target arrows are always shown
-    
         // Update the widget state
         this.widgets['link-bidirectional'] = (e === "Show");
-    
-        // Update Cytoscape edge styles
-        if (this.cy) {
-            const isDirected = this.widgets['link-directed'];
 
-            this.cy.style()
-                .selector('edge')
-                .style({
-                    'source-arrow-shape': sourceArrowShape,
-                    'target-arrow-shape': targetArrowShape,
-                    'curve-style': isDirected ? 'unbundled-bezier' : 'straight',
-                    // Add more style properties here if needed
-                })
-                .update();
-        }
+        this.updateArrowStyles();
     }
 
     /**
