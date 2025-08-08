@@ -23,6 +23,8 @@
   import { ComponentContainer } from 'golden-layout';
   import * as saveAs from 'file-saver';
   import { GoogleTagManagerService } from 'angular-google-tag-manager';
+  import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
   
   /**
    * @title Complex Example
@@ -36,6 +38,7 @@
     extends BaseComponentDirective
     implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    private destroy$ = new Subject<void>();
   
     viewActive = true;
     SelectedTableExportFilenameVariable = '';
@@ -111,6 +114,7 @@
       private cdref: ChangeDetectorRef,
       private eventManager: EventManager,
       private commonService: CommonService,
+      private store: CommonStoreService,
       private gtmService: GoogleTagManagerService
     ) {
       super(elRef.nativeElement);
@@ -180,6 +184,10 @@
         this.setSelectedNodes();
         this.cdref.detectChanges();
       });
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+        this.createTable(this.dataSetViewSelected);
+    })
     }
   
     /**
@@ -658,6 +666,9 @@
         this.visuals.tableComp.commonService.session.data.clusterTableColumns =
           foundTableData.tableColumns;
       }
+
+    this.destroy$.next();
+    this.destroy$.complete();
     }
   }
   

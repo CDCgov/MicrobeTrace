@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, Inject, AfterViewInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, Inject, AfterViewInit, OnDestroy } from '@angular/core';
 import { Table } from 'primeng/table';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
@@ -6,14 +6,15 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { BaseComponentDirective } from '@app/base-component.directive';
-
+import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
   selector: 'app-waterfall-component',
   templateUrl: './waterfall.component.html',
   styleUrls: ['./waterfall.component.scss']
 })
-export class WaterfallComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents {
+export class WaterfallComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   @ViewChild('clusterTable') clusterTable: Table;
   @ViewChild('nodeTable') nodeTable: Table;
@@ -30,8 +31,9 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
   scrollHeight= '800px';
   IsDataAvailable =  true;
 
-  metaDataToSkip = ['index', 'id', 'visible', 'degree', 'seq', 'cluster', 'directed', 'source', 'target']
+  metaDataToSkip = ['index', 'id', 'visible', 'degree', 'seq', 'cluster', 'directed', 'source', 'target', 'x', 'y', 'vx', 'vy', 'nodeSize']
 
+  selectedClusterRow: any;
   selectedNodeRow: any;
   selectedLinkRow: any;
 
@@ -39,10 +41,14 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
   expandedNodeRowData: any = [];
   expandedLinkRowData: any = [];
 
+  private destroy$ = new Subject<void>();
+
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private commonService: CommonService,
+    private cdref: ChangeDetectorRef,
+    private store: CommonStoreService,
     private gtmService: GoogleTagManagerService
     ) {
 
@@ -65,21 +71,40 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
       this.clusterTableData.push({'id': cl.id, 'nodeCount': cl.nodes})
     })
 
-    // TODO: XXX revisit; doesn't always do as expected when view is resized; also make sure height is correct (currently set to 800px static)
     this.container.on('resize', () => { 
-      this.updateTableWidths()
+      this.goldenLayoutComponentResize()
+    })
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.clusterTableData = [];
+      this.nodeTableData = [];
+      this.linkTableData = [];
+
+      this.commonService.session.data.clusters.forEach((cl) => {
+        this.clusterTableData.push({'id': cl.id, 'nodeCount': cl.nodes})
+      })
+
+      this.clearClusterTableSelection();      
     })
 
   }
 
   ngAfterViewInit() {
-    this.updateTableWidths();
+    this.goldenLayoutComponentResize();
   }
 
-  updateTableWidths() {
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  goldenLayoutComponentResize() {
     this.clusterTableWidth = (this.clusterTable as any)._totalTableWidth().reduce((total, current ) => total += current, 0) - 28;
     this.nodeTableWidth = (this.nodeTable as any)._totalTableWidth().reduce((total, current ) => total += current, 0) - 28;
     this.linkTableWidth = (this.linkTable as any)._totalTableWidth().reduce((total, current ) => total += current, 0) - 28;
+
+    let height = this.container.height - 50;
+    this.scrollHeight = `${height}px`
   }
 
   onClusterRowSelect(e) {
@@ -119,6 +144,13 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     this.expandedClusterRowData = [];
     this.expandedNodeRowData = [];
     this.expandedLinkRowData = [];
+  }
+
+  clearClusterTableSelection() {
+    this.clusterTable.selection = null;
+    this.clusterTable.selectionChange.emit(null);
+    this.clusterTable.expandedRowKeys = {};
+    this.clusterTable.onRowCollapse.emit(null);
   }
 
   onNodeRowSelect(e) {

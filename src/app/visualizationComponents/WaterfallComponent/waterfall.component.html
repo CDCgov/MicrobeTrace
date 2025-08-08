@@ -9,6 +9,7 @@
                 (onRowSelect)="onClusterRowSelect($event)"
                 (onRowUnselect)="onClusterRowUnselect()"
                 selectionMode="single"
+                [(selection)]="selectedClusterRow"
                 [scrollable]="true"
                 [scrollHeight]="scrollHeight"
                 [tableStyle]="{'border': '3px #e9ecef solid'}">

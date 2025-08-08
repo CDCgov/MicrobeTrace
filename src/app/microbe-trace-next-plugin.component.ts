@@ -328,6 +328,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         });
 
+        this.store.clusterUpdate$.subscribe(() => {
+            if (this.SelectedColorNodesByVariable == "cluster") {
+                this.generateNodeColorTable("#node-color-table")
+            }
+        })
+
          // Subscribe to network rendered
          this.networkRenderedSubscription = this.store.networkRendered$
       .pipe(takeUntil(this.destroy$))

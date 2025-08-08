@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy } from '@angular/core';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
@@ -12,17 +12,18 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
-
+import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
   selector: 'app-timeline-component',
   templateUrl: './timeline-component.component.html',
   styleUrls: ['./timeline-component.component.scss']
 })
-export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
+export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
-
+  private destroy$ = new Subject<void>();
   @ViewChild('epiCurve') epiCurveElement: ElementRef;
   @ViewChild('epiCurveSVG') epiCurveSVGElement: ElementRef;
   viewActive: boolean = true;
@@ -77,6 +78,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private gtmService: GoogleTagManagerService,
+    private store: CommonStoreService,
     private exportService: ExportService) {
 
       super(elRef.nativeElement);
@@ -117,7 +119,18 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
     this.tickInterval = 1;
     this.updateSettingsRows();    
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.selectedGraphType == "Single Date Field" && (this.widgets['epiCurve-stackColorBy'] == 'cluster' || (this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.widgets['node-color-variable'] == 'cluster'))) {
+        this.refresh();
+      }
+    })
  }
+  
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 
   setDefaultsWidgets() {
     // graphType

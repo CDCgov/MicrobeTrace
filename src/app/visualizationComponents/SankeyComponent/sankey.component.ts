@@ -1,4 +1,4 @@
-import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild } from '@angular/core';
+import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild, OnDestroy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import * as saveAs from 'file-saver';
@@ -15,16 +15,20 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { MultiSelectModule } from 'primeng/multiselect';
 import type { SankeyNode, SankeyLink } from './sankey-types';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+
 
 @Component({
   selector: 'SankeyComponent',
   templateUrl: './sankey.component.html',
   styleUrls: ['./sankey.component.scss']
 })
-export class SankeyComponent extends BaseComponentDirective implements OnInit {
+export class SankeyComponent extends BaseComponentDirective implements OnInit, OnDestroy {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   @ViewChild('sankeySVG') sankeySVG: ElementRef;
+  private destroy$ = new Subject<void>();
   
   viewActive: boolean = true;
 
@@ -82,6 +86,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
+    private store: CommonStoreService,
     private gtmService: GoogleTagManagerService) {
 
     super(elRef.nativeElement);
@@ -120,6 +125,18 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit {
     // remove this after initial
     //this.SankeyFieldNames = ['WHO_class', 'cluster', 'Lineage'] // can be pre-set when testing
     this.updateGraph();
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.SankeyFieldNames.includes('cluster') && this.SankeyFieldNames.length > 1) {
+        this.updateGraph();
+        this.cdref.detectChanges();
+      }
+    })
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   /**

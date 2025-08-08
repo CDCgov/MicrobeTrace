@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -14,13 +14,15 @@ import * as XLSX from 'xlsx';
 //import pdfMake from 'pdfmake/build/pdfmake.js';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { Subject, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'AggregateComponent',
   templateUrl: './aggregate.component.html',
   styleUrls: ['./aggregate.component.scss'],
 })
-export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents {
+export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   @ViewChild('orderList') orderList: OrderList;
   
@@ -63,6 +65,8 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
   viewHeight: number;
   tableStyle;
 
+  private destroy$ = new Subject<void>();
+
   constructor(injector: Injector,
     private renderer: Renderer2,
     private elem: ElementRef,
@@ -71,6 +75,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
+    private store: CommonStoreService,
     private gtmService: GoogleTagManagerService) {
 
       super(elRef.nativeElement);
@@ -110,10 +115,29 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
       this.viewActive = true; 
       this.cdref.detectChanges();
     })
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      let tableUpdated = false;
+      this.SelectedDataFields.forEach((field, i) => {
+        if (field.split('-')[1] == 'cluster' || field.split('-')[0] == 'Cluster') {
+          this.updateTable(i);
+          tableUpdated = true;
+        }
+      })
+      if (tableUpdated) { 
+        this.cdref.detectChanges(); 
+        this.updateTableColWidth(); 
+      }
+    })
   }
 
   ngAfterViewInit() {
     this.updateTableColWidth()
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   updateTable(i) {
@@ -179,12 +203,11 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
 
   addTable() {
-    this.SelectedDataFields.push('Node-selected')
+    this.SelectedDataFields = [...this.SelectedDataFields, 'Node-selected']
     this.SelectedDataTables.push({label: 'Node-selected', data: [], tableColumns: []})
 
     this.updateTable(this.SelectedDataTables.length-1)
     setTimeout(() => this.updateTableColWidth(), 0);
-    this.orderList.cd.detectChanges();
   }
   deleteTable(i) {
     console.log(`deleting table ${i}`);

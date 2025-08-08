@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
@@ -12,15 +12,18 @@ import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
   selector: 'CrosstabComponent',
   templateUrl: './crosstab-plugin.component.html',
   styleUrls: ['./crosstab-plugin.component.scss']
 })
-export class CrosstabComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
+export class CrosstabComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   private visuals: MicrobeTraceNextVisuals;
+  private destroy$ = new Subject<void>();
 
   @ViewChild('dt') dataTable: Table;
 
@@ -67,6 +70,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
+    private store: CommonStoreService,
     private gtmService: GoogleTagManagerService) {
 
       super(elRef.nativeElement);
@@ -107,6 +111,18 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
         this.viewActive = true; 
         this.cdref.detectChanges();
     })
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.xVariable == "cluster" || this.yVariable == "cluster") {
+        this.onDataChange();
+        this.cdref.detectChanges();
+      }
+    })
+  }
+
+    ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   /**

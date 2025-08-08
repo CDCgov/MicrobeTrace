@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import * as saveAs from 'file-saver';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
@@ -11,6 +11,8 @@ import { ComponentContainer } from 'golden-layout';
 import cytoscape, { Core } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { Subject, Subscription, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -19,7 +21,7 @@ type DataRecord = { index: number, id: string, x: number; y: number, color: stri
   templateUrl: './bubble.component.html',
   styleUrls: ['./bubble.component.scss']
 })
-export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
+export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
@@ -70,12 +72,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   ];
   SelectedNodeCollapsingTypeVariable: boolean;
 
+  private destroy$ = new Subject<void>();
+
   constructor(
     public commonService: CommonService,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private gtmService: GoogleTagManagerService,
+    private store: CommonStoreService,
     private exportService: ExportService
   ) {
     super(elRef.nativeElement);
@@ -141,6 +146,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       }
     });
 
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.widgets['node-color-variable'] == 'cluster') {
+        this.updateColors();
+      }
+      if (this.xVariable == "cluster") {
+        this.onDataChange('X');
+      }
+      if (this.yVariable == "cluster") {
+        this.onDataChange('Y');
+      }
+    })
+
     $( document ).on( "node-visibility", function( ) {
       //console.log('node visi event')
       that.updateVisibleNodes()
@@ -150,6 +167,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   ngAfterViewInit(): void {
     this.generateCytoscape();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    if (this.cy){
+        this.cy.removeAllListeners();
+        this.cy.destroy();
+    }
+    this.cyContainer = null;
   }
 
   setWidgets() {

@@ -313,6 +313,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
+        this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+            if (this.widgets['node-symbol-variable'] == 'cluster') {
+                this.generateNodeSymbolSelectionTable("#node-symbol-table", this.widgets['node-symbol-variable']);
+                this.cdref.detectChanges();
+            }
+        })
+
         this.settingsLoadedSubscription = this.store.settingsLoaded$
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {

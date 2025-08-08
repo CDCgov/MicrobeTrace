@@ -1,6 +1,6 @@
 ﻿import {
   Injector, Component, Output, EventEmitter, OnInit,
-  ElementRef, ChangeDetectorRef, Inject
+  ElementRef, ChangeDetectorRef, Inject, OnDestroy
 } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -20,6 +20,8 @@ import { runInThisContext } from 'vm';
 import { MatHint } from '@angular/material/form-field';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { throws } from 'assert';
+import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 
 /**
@@ -30,7 +32,7 @@ import { throws } from 'assert';
   templateUrl: './phylogenetic-plugin.component.html',
   styleUrls: ['./phylogenetic-plugin.component.scss']
 })
-export class PhylogeneticComponent extends BaseComponentDirective implements OnInit {
+export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   viewActive: boolean = true;
@@ -146,7 +148,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   tree: any = null;
 
   private visuals: MicrobeTraceNextVisuals;
-
+  private destroy$ = new Subject<void>();
 
   constructor(injector: Injector,
     private eventManager: EventManager,
@@ -155,6 +157,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private gtmService: GoogleTagManagerService,
+    private store: CommonStoreService,
     private exportService: ExportService) {
 
     super(elRef.nativeElement);
@@ -448,6 +451,17 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.viewActive = true;
       this.cdref.detectChanges();
     })
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.commonService.session.style.widgets['node-color-variable'] == 'cluster' || this.SelectedLeafLabelVariable == 'cluster' ) {
+        this.styleTree();
+      }
+    })
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   goldenLayoutComponentResize() {

@@ -2306,12 +2306,21 @@ align(params): Promise<any> {
 
 
     updateNetworkVisuals(silent: boolean = false) {
+        let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
+        let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
           this.setLinkVisibility(true);
           this.updateStatistics();
           if (!silent) this.store.setNetworkUpdated(true);
+          let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
+          let updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+          if (!silent && (prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters || prevVisNodeCount != updatedVisNodeCount)) {
+            console.log('Triggering cluster count update')
+            this.store.triggerClusterUpdate();
+          }
+
           console.log('---- Update network visuals end');
 
           console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
