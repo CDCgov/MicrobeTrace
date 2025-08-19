@@ -1,37 +1,48 @@
+// cypress/support/commands.ts
 /// <reference types="cypress" />
-// ***********************************************
-// This example commands.ts shows you how to
-// create various custom commands and overwrite
-// existing commands.
-//
-// For more comprehensive examples of custom
-// commands please read more here:
-// https://on.cypress.io/custom-commands
-// ***********************************************
-//
-//
-// -- This is a parent command --
-// Cypress.Commands.add('login', (email, password) => { ... })
-//
-//
-// -- This is a child command --
-// Cypress.Commands.add('drag', { prevSubject: 'element'}, (subject, options) => { ... })
-//
-//
-// -- This is a dual command --
-// Cypress.Commands.add('dismiss', { prevSubject: 'optional'}, (subject, options) => { ... })
-//
-//
-// -- This will overwrite an existing command --
-// Cypress.Commands.overwrite('visit', (originalFn, url, options) => { ... })
-//
-// declare global {
-//   namespace Cypress {
-//     interface Chainable {
-//       login(email: string, password: string): Chainable<void>
-//       drag(subject: string, options?: Partial<TypeOptions>): Chainable<Element>
-//       dismiss(subject: string, options?: Partial<TypeOptions>): Chainable<Element>
-//       visit(originalFn: CommandOriginalFn, url: string, options: Partial<VisitOptions>): Chainable<Element>
-//     }
-//   }
-// }
+
+declare global {
+    namespace Cypress {
+      interface Chainable {
+        /**
+         * Attaches a file from the fixtures folder to a file input element.
+         * @param target_selector The selector for the <input type="file"> element.
+         * @param fixture_path The path to the file within the fixtures folder.
+         * @param mime_type The MIME type of the file.
+         */
+        attach_file(
+          target_selector: string,
+          fixture_path: string,
+          mime_type?: string
+        ): Chainable<Element>;
+      }
+    }
+  }
+  
+  Cypress.Commands.add('attach_file', (target_selector, fixture_path, mime_type = 'text/csv') => {
+      return cy.fixture(fixture_path, 'base64').then((base64) => {
+        const binary = Cypress.Blob.base64StringToBlob(base64, mime_type);
+        const file = new File([binary], fixture_path, { type: mime_type });
+        const data = new DataTransfer();
+        data.items.add(file);
+        cy.get(target_selector).then(($input) => {
+          const el = $input.get(0) as HTMLInputElement;
+          el.files = data.files;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
+    }
+  );
+  
+  Cypress.Commands.add('waitForNetworkToRender', (timeout = 20000) => {
+    cy.log('Waiting for network to render...');
+    // Wait for the stats panel to be visible, as it indicates data processing is complete
+    cy.get('#numberOfNodes', { timeout }).should('be.visible').and('not.contain', '0');
+    cy.get('#numberOfVisibleLinks', { timeout }).should('be.visible');
+  });
+  
+  Cypress.Commands.add('get_common_service', () => {
+      return cy.window().its('commonService');
+  });
+
+  export {};

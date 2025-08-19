@@ -3,7 +3,7 @@
     <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
         <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
         </div>
-        <div id="file-prompt" *ngIf="this.commonService?.session?.files === (undefined || [])" class="d-flex justify-content-center">
+        <div id="file-prompt" *ngIf="!commonService.session?.files?.length" class="d-flex justify-content-center">
             <h1><b>Please add data files to load...</b></h1>
         </div>
         <div class="spinner-wrapper" *ngIf="isLoadingFiles">
@@ -18,7 +18,7 @@
         </span>
     </div>
     
-   
+    
 
     <div class="view-controls">
         <p-dialog id="file-settings-pane" [(visible)]="displayFileSettings" header="File Settings">
@@ -129,7 +129,7 @@
                                             <label style="padding-left: 10px;" class="mr-2">{{"Triangulation" | localize}}</label>
                                         </div>
                                         <div class="col-8">
-                                            <p-selectButton [options]="TriangulationTypes" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>                                            
+                                            <p-selectButton [options]="TriangulationTypes" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>                                           
                                         </div>
                                     </div>
                                     <div class="form-group row"
@@ -206,31 +206,31 @@
                                                     <div class="col-5">
                                                         <p-dropdown id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-dropdown>
 
-                                                       
+                                                        
                                                     </div>
                                                 </div>
                                             </p-accordionTab>
 
-                                                    <div class="row alignConfigRow">
-                                                        <div class="form-group col offset-2" title="How much should MicrobeTrace reward matching bases?">
-                                                            <label for="alignerMatch">Match Reward</label>
-                                                            <input type="number" id="alignerMatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMatchVariable">
-                                                        </div>
-                                                        <div class="form-group col" title="How much should MicrobeTrace penalize non-matching bases?">
-                                                            <label for="alignerMismatch">Mismatch Cost</label>
-                                                            <input type="number" id="alignerMismatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMismatchVariable">
-                                                        </div>
+                                                <div class="row alignConfigRow">
+                                                    <div class="form-group col offset-2" title="How much should MicrobeTrace reward matching bases?">
+                                                        <label for="alignerMatch">Match Reward</label>
+                                                        <input type="number" id="alignerMatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMatchVariable">
                                                     </div>
-                                                    <div class="row alignConfigRow">
-                                                        <div class="form-group col offset-2" title="How much should MicrobeTrace Penalize opening a gap?">
-                                                            <label for="alignerGapO">Gap Opening Cost</label>
-                                                            <input type="number" id="alignerGapO" class="form-control" value="5" min="0" [(ngModel)]="SelectedAlignerGapOVariable">
-                                                        </div>
-                                                        <div class="form-group col" title="How much should MicrobeTrace Penalize extending a gap?">
-                                                            <label for="alignerGapE">Gap Extension Cost</label>
-                                                            <input type="number" id="alignerGapE" class="form-control" value="2" min="0" [(ngModel)]="SelectedAlignerGapEVariable">
-                                                        </div>
+                                                    <div class="form-group col" title="How much should MicrobeTrace penalize non-matching bases?">
+                                                        <label for="alignerMismatch">Mismatch Cost</label>
+                                                        <input type="number" id="alignerMismatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMismatchVariable">
                                                     </div>
+                                                </div>
+                                                <div class="row alignConfigRow">
+                                                    <div class="form-group col offset-2" title="How much should MicrobeTrace Penalize opening a gap?">
+                                                        <label for="alignerGapO">Gap Opening Cost</label>
+                                                        <input type="number" id="alignerGapO" class="form-control" value="5" min="0" [(ngModel)]="SelectedAlignerGapOVariable">
+                                                    </div>
+                                                    <div class="form-group col" title="How much should MicrobeTrace Penalize extending a gap?">
+                                                        <label for="alignerGapE">Gap Extension Cost</label>
+                                                        <input type="number" id="alignerGapE" class="form-control" value="2" min="0" [(ngModel)]="SelectedAlignerGapEVariable">
+                                                    </div>
+                                                </div>
                                         </p-accordionTab>
                                     </p-accordion>
 
@@ -303,38 +303,7 @@
             </div>
         </p-dialog>
 
-    </div><!-- Files Settings & Sequence Settings/.modal -->
-
-
-    <div id="file-footer">
-        <!-- <p-accordion (onOpen)="accordianToggle(1)" (onClose)="accordianToggle(0)" >
-            <p-accordionTab *ngIf="uniqueNodes.length > 0" header="{{uniqueNodes.length}} node(s) missing in edge list">
-                <table>
-                    <tr>
-                        <th>Node</th>
-                    </tr>
-                    <tr *ngFor="let node of uniqueNodes">
-                        <td>
-                            {{node}}
-                        </td>
-                    </tr>
-                </table>
-            </p-accordionTab>
-            <p-accordionTab *ngIf="uniqueEdgeNodes.length > 0" header="{{uniqueEdgeNodes.length}} edge node(s) missing in node list">
-                <table>
-                    <tr>
-                        <th>Node</th>
-                    </tr>
-                    <tr *ngFor="let node of uniqueEdgeNodes">
-                        <td>
-                            {{node}}
-                        </td>
-                    </tr>
-                </table>
-            </p-accordionTab>
-
-        </p-accordion> -->
-
+    </div><div id="file-footer">
         <br/>
 
         <div class="m-portlet" style="padding: 1px">
