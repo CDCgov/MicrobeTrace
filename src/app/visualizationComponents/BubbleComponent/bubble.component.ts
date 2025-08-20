@@ -66,7 +66,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   scaleFactor: number = 200;
   svgDefs: {} = {};
 
-  NodeCollapsingTypes: any = [
+  OnOffTypes: any = [
     { label: 'On', value: true },
     { label: 'Off', value: false }
   ];
@@ -148,7 +148,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
       if (this.widgets['node-color-variable'] == 'cluster') {
-        this.updateColors();
+        this.updateNodeColors();
       }
       if (this.xVariable == "cluster") {
         this.onDataChange('X');
@@ -436,7 +436,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       </style>
       <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable'])}</th><th> Count </th><th> % </th></thead><tbody>`;
       d.counts.forEach((x) => tooltipHTML += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
-      tooltipHTML += '</tbody></table>';
+      tooltipHTML += `<tr><td>Total</td><td> ${d.totalCount}</td><td></td></tr></tbody></table>`;
     } else {
       tooltipHTML = `${d.id}`
     }
@@ -688,11 +688,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   onLabelSizeChange() {
     let longestYLabel: string = '';
+    this.cy.$('.X_axis').forEach((ele) => {
+      ele.style({ 'font-size' : this.labelSize})
+    })
+    this.cy.$('.axisLabel').forEach((ele) => {
+      ele.style({ 'font-size' : this.labelSize+4})
+    })
     this.cy.$('.Y_axis').forEach((ele) => {
       if (ele.data().id == 'y_axis_Label') return;
       let label = ele.data().label
 
       if (label.length > longestYLabel.length) longestYLabel = label
+      ele.style({ 'font-size' : this.labelSize})
     })
     let yAxisLabelOffset = this.estimateSize(longestYLabel) +20;
 
@@ -702,8 +709,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     let newXPos = -80 - yAxisLabelOffset;
     node.position({'x': newXPos, 'y': y});
     node.lock();
-    this.cy.style().resetToDefault();
-    this.cy.style(this.getCytoscapeStyle())
   }
 
   /**
