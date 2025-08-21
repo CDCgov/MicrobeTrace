@@ -36,6 +36,16 @@ describe('Phylogenetic Tree View', () => {
     cy.get(selectors.treeContainer, { timeout: 15000 }).should('be.visible');
   });
 
+  // probably should move these test at some point
+  context('Global Settings', () => {
+    it('should open global settings', () => cy.openGlobalSettings())
+
+    it('should open and close global settings', () => {
+      cy.openGlobalSettings();
+      cy.closeGlobalSettings();
+    })
+  })
+
   /**
    * Test suite for toolbar and settings pane interactions.
    */
@@ -52,13 +62,7 @@ describe('Phylogenetic Tree View', () => {
       
       // ✅ FINAL FIX: Find the title, traverse up to the '.p-dialog' container,
       // then find and click the close button inside it.
-      cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
-        .parents('.p-dialog')
-        .find('button.p-dialog-close-button')
-        .click();
-
-      // The placeholder element should now become not-visible.
-      cy.get(selectors.settingsPane).should('not.be.visible');
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
     });
 
     it('should change the tree layout to vertical', () => {
@@ -72,8 +76,19 @@ describe('Phylogenetic Tree View', () => {
       cy.get('@dialogContainer').contains('p-accordionTab', 'Layout').click();
       cy.get('@dialogContainer').find(selectors.layoutDropdown).click();
       cy.contains('li[role="option"]', 'Vertical').click();
-
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeLayoutVariable').should('equal', 'vertical');
+    });
+
+    it('should change the tree layout to circular', () => {
+      cy.window().its('commonService.visuals.phylogenetic.SelectedTreeLayoutVariable').should('equal', 'horizontal');
+      cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
+        .parents('.p-dialog').as('dialogContainer');
+      cy.get('@dialogContainer').contains('p-accordionTab', 'Layout').click();
+      cy.get('@dialogContainer').find(selectors.layoutDropdown).click();
+      cy.contains('li[role="option"]', 'Circular').click();
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+      cy.window().its('commonService.visuals.phylogenetic.SelectedTreeLayoutVariable').should('equal', 'circular');
     });
   
     it('should toggle leaf labels on and off', () => {

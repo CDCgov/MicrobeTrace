@@ -15,6 +15,16 @@ declare global {
           fixture_path: string,
           mime_type?: string
         ): Chainable<Element>;
+
+      /**
+       * Closes a PrimeNG settings pane by its dialog title.
+       * @param dialogTitle The title of the dialog to close.
+       */
+      closeSettingsPane(dialogTitle: string): Chainable<void>;
+
+      // opens Global settings Menu
+      openGlobalSettings(): Chainable<void>;
+      closeGlobalSettings(): Chainable<void>;
       }
     }
   }
@@ -33,6 +43,29 @@ declare global {
       });
     }
   );
+
+  Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
+    cy.contains('.p-dialog-title', dialogTitle)
+      .parents('.p-dialog')
+      .find('button.p-dialog-close-button')
+      .click();
+    // Optionally, assert the dialog is closed
+    cy.contains('.p-dialog-title', dialogTitle).should('not.exist');
+  });
+
+    Cypress.Commands.add('openGlobalSettings', () => {
+    cy.contains('button', 'Settings').click();
+    // Optionally, assert the dialog is closed
+    cy.contains('.p-dialog-title', 'Global Settings').should('exist');
+  });
+
+  Cypress.Commands.add('closeGlobalSettings', () => {
+    cy.contains('button', 'Settings').click();
+    // Optionally, assert the dialog is closed
+    cy.contains('.p-dialog-title', 'Global Settings').parents('.p-dialog').find('button.p-dialog-close-button').click();
+
+    cy.contains('.p-dialog-title', 'Global Settings').should('not.exist');
+  });
   
   Cypress.Commands.add('waitForNetworkToRender', (timeout = 20000) => {
     cy.log('Waiting for network to render...');
