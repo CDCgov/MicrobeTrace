@@ -1,5 +1,5 @@
 ﻿﻿<div class="m-content">
-    <div id="tool-btn-container-phylo" class="tool-btn-container" class="m-portlet">
+    <div id="tool-btn-container-phylo" class="m-portlet tool-btn-container">
         <span style="overflow: visible; position: relative; width: 110px;">
             <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
         </span>
@@ -81,7 +81,7 @@
                                   <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
                               </div>
                           </div>
-                          <div class="form-group row leaf-label-variable-row" title="What vasriable should be used as the leaf label?" style="overflow:visible">
+                          <div class="form-group row leaf-label-variable-row" title="What variable should be used as the leaf label?" style="overflow:visible">
                               <div class="col-4"><label for="leaf-label-variable">Label Variable</label></div>
                               <div class="col-8">
                                   <p-dropdown id="leaf-label-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafLabelVariable" (ngModelChange)="onLeafLabelVariableChange($event)"> </p-dropdown>
@@ -131,7 +131,7 @@
 
               <tab heading="{{'Branches' | localize}}" customClass="m-tabs__item">
               <p-accordion>
-                  <p-accordionTab style="color:#495057" header="Labels">
+                  <p-accordionTab style="color:#495057" header="Branch Labels">
                       <div #branchcontrolslabels>
                           <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
                               <div class="col-4"><label for="branch-distance-visibility">Distance Labels</label></div>
@@ -154,12 +154,12 @@
                               </div>
                           </div>
                           <div class="form-group row branch-node-size-row" title="How big should branch nodes be?">
-                              <div class="col-4"><label for="link-size">Branch Node Size</label></div>
+                              <div class="col-4"><label for="branch-node-size">Branch Node Size</label></div>
                               <input type="range" class="custom-range" id="branch-node-size" min="1" value="{{ SelectedBranchNodeSizeVariable }}" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)">
                           </div>
                           <div class="form-group row link-size-row" title="How big should branches be?">
-                              <div class="col-4"><label for="link-size">Branch Size</label></div>
-                              <input type="range" class="custom-range" id="link-size" min="1" value="{{ SelectedBranchSizeVariable }}" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)">
+                              <div class="col-4"><label for="branch-size">Branch Size</label></div>
+                              <input type="range" class="custom-range" id="branch-size" min="1" value="{{ SelectedBranchSizeVariable }}" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)">
                           </div>
                       </div>
                   </p-accordionTab>

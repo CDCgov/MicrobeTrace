@@ -16,10 +16,10 @@ import * as d3 from 'd3';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
-import { runInThisContext } from 'vm';
-import { MatHint } from '@angular/material/form-field';
+//import { runInThisContext } from 'vm';
+//import { MatHint } from '@angular/material/form-field';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
-import { throws } from 'assert';
+//import { throws } from 'assert';
 
 
 /**
@@ -87,12 +87,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   // Leaves Tab
   SelectedLeafLabelShowVariable = true;
-  SelectedLeafLabelVariable = '_id';
-  LeafLabelFieldList: object[] = [];
+  SelectedLeafLabelVariable: string = '_id';
+  LeafLabelFieldList: SelectItem[] = [];
   SelectedLeafLabelSizeVariable = 12;
   SelectedLeafTooltipShowVariable = true;
-  SelectedLeafTooltipVariable = 'id';
-  LeafTooltipFieldList: object[] = [];
+  SelectedLeafTooltipVariable = '_id';
+  //LeafTooltipFieldList: object[] = [];
   SelectedLeafNodeShowVariable = true;
   SelectedLeafNodeSizeVariable: string = 'None';
   SelectedLeafNodeSize: number = 5;
@@ -143,7 +143,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   PhylogeneticTreeExportDialogSettings: DialogSettings = new DialogSettings('#phylotree-settings-pane', false);
 
   ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
-  tree: any = null;
+  tree: TidyTree = null;
 
   private visuals: MicrobeTraceNextVisuals;
 
@@ -187,6 +187,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.styleTree();
     } else {
       const newickString = await this.commonService.computeTree();
+      this.commonService.session.data.newickString = newickString;
       console.log(newickString);
       //newickString.then((x) => {
         const tree = this.buildTree(newickString);
@@ -200,18 +201,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 
-    this.LeafLabelFieldList.push({ label: 'None', value: 'None' });
-    console.log("getting node fields")
-    this.commonService.session.data['nodeFields'].map((d, i) => {
-
-      this.visuals.phylogenetic.LeafLabelFieldList.push(
-        {
-          label: this.visuals.phylogenetic.commonService.capitalize(d.replace('_', '')),
-          value: d
-        });
-    });
-    console.log(this.visuals.phylogenetic.LeafLabelFieldList);
-
     // }
   }
 
@@ -222,8 +211,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   styleTree = () => {
+    if (!this.tree) return;
     this.svg = d3.select('#tidytree');
-    let nodes = this.visuals.phylogenetic.commonService.session.data;
+    let nodes = this.commonService.session.data;
     nodes = this.svg.select('g.nodes').selectAll('g').data(nodes, d => d.id)
       .join(
         enter => {
@@ -386,8 +376,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   }
 
-  buildTree = (newick) => {
-    const tree = new TidyTree(
+  buildTree(newick): TidyTree {
+    const tree: TidyTree = new TidyTree(
       newick ? newick : this.tree.data.clone(),
       this.getTreeOptions(),
       this.getTreeHandlers(),
@@ -431,6 +421,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       page_title: "Phylogenetic Tree View"
     });
 
+    this.LeafLabelFieldList.push({ label: 'None', value: 'None' });
+    this.commonService.session.data['nodeFields'].map((d, i) => {
+      if (['seq', 'origin', '_diff', '_ambiguity', 'index'].includes(d)) return;
+      this.visuals.phylogenetic.LeafLabelFieldList.push({
+        label: this.visuals.phylogenetic.commonService.capitalize(d.replace('_', '')),
+        value: d
+        });
+    });
+
     $(document).on("node-selected", function () {
       that.updateNodeColors();
     });
@@ -455,27 +454,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     $('#phylocanvas').width($('phylogeneticcomponent').width() - 1)
   }
 
-  InitView() {
+  InitView() { // this function isn't called
     this.visuals.phylogenetic.IsDataAvailable = (
       this.visuals.phylogenetic.commonService.session.data.nodes.length === 0 ? false : true
     );
 
-    if (this.visuals.phylogenetic.IsDataAvailable === true && this.visuals.phylogenetic.zoom == null) {
+    //if (this.visuals.phylogenetic.IsDataAvailable === true && this.visuals.phylogenetic.zoom == null) {
       // d3.select('svg#network').exit().remove();
       // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
-
-      this.LeafLabelFieldList.push({ label: 'None', value: 'None' });
-      console.log("getting node fields")
-      this.commonService.session.data['nodeFields'].map((d, i) => {
-
-        this.visuals.phylogenetic.LeafLabelFieldList.push(
-          {
-            label: this.visuals.phylogenetic.commonService.capitalize(d.replace('_', '')),
-            value: d
-          });
-      });
-      console.log(this.visuals.phylogenetic.LeafLabelFieldList);
-    }
+    //}
   }
 
   openSettings() {
@@ -534,14 +521,17 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   onTreeTypeChange(event) {
     this.SelectedTreeTypeVariable = event;
-    this.tree.setType(event);
-    this.openCenter();
-    this.styleTree();
+    if (this.tree) {
+      this.tree.setType(event);
+      this.openCenter();
+      this.styleTree();
+    }
   }
 
   onLeafLabelVariableChange(event) {
     this.SelectedLeafLabelVariable = event;
     let labelVar = event;
+    if (!this.tree || !labelVar) return;
     this.tree.eachLeafLabel(label => {
       d3.select(label).text(data => {
         let id = data.data.id;
@@ -556,6 +546,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onLeafTooltipVariableChange(event) {
     this.SelectedLeafTooltipVariable = event;
     let labelVar = event;
+    if (!this.tree || !labelVar || labelVar == 'None') return;
     this.tree.eachLeafNode((circle, data) => {
       let node = this.commonService.session.data.nodes.find(d => d.id === data.data.id);
       if (node === undefined)
@@ -676,11 +667,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   saveImage(event) {
     const thisTree = this.commonService.visuals.phylogenetic.tree;
     const fileName = this.SelectedTreeImageFilenameVariable;
-    const treeId = 'tidytree';
+    const treeId = 'phylocanvas';
     const exportImageType = this.SelectedNetworkExportFileTypeListVariable;
     const content = document.getElementById(treeId);
     if (exportImageType === 'png') {
-      domToImage.toPng(content).then(
+      domToImage.toPng(content, {backgroundColor: '#ffffff'}).then(
         dataUrl => {
           saveAs(dataUrl, fileName);
         });
@@ -694,6 +685,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
       saveAs(blob, fileName);
     }
+    console.log('Export Success!')
 
   }
 
