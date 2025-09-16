@@ -100,6 +100,7 @@ describe('Phylogenetic Tree View', () => {
     })
 
     it('should change name and export newick string', () => {
+      cy.contains('.p-dialog-title', 'Export Phylogenetic Tree').parents('.p-dialog').contains('Newick').click()
       cy.get('#newick-string-filename').invoke('val', 'cypress_tree_test_nwk').trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedNewickStringFilenameVariable').should('equal', 'cypress_tree_test_nwk');
 
@@ -311,7 +312,32 @@ describe('Phylogenetic Tree View', () => {
       cy.closeSettingsPane('Phylogenetic Tree Settings');
     });
 
-    //it('should change leaf size variable', () => { }) // need to resolve bug before implementing test
+    it('should change leaf size variable and update min and max size', () => {
+      // Use the robust method to find the dialog container
+      cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
+        .parents('.p-dialog').as('dialogContainer');
+
+      // Navigate to the correct settings tab
+      cy.get('@dialogContainer').contains('Leaves').click();
+      cy.get('@dialogContainer').contains('Leaf Size').click();
+
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().should('have.attr', 'r', 5);
+      cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeSizeVariable').should('equal', 'None');
+      cy.get('@dialogContainer').find('#leaf-size-var').click();
+      cy.contains('li[role="option"]', 'Degree').click();
+
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().invoke('attr', 'r').then(r => {expect(Number(r)).to.be.closeTo(8.33334, 0.001)});
+
+      cy.window().its('commonService.visuals.phylogenetic.minNodeWidth').should('equal', 5);
+      cy.get('@dialogContainer').find('#leaf-size-min').invoke('val', 10).trigger('input').trigger('change');
+      cy.window().its('commonService.visuals.phylogenetic.minNodeWidth').should('equal', 10);
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().invoke('attr', 'r').then(r => {expect(Number(r)).to.be.closeTo(11.66666, 0.001)});
+
+      cy.window().its('commonService.visuals.phylogenetic.maxNodeWidth').should('equal', 15);
+      cy.get('@dialogContainer').find('#leaf-size-max').invoke('val', 30).trigger('input').trigger('change');
+      cy.window().its('commonService.visuals.phylogenetic.maxNodeWidth').should('equal', 30);
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().invoke('attr', 'r').then(r => {expect(Number(r)).to.be.closeTo(16.66666, 0.001)});
+    })
 
     it('should change leaf size', () => {
       // Use the robust method to find the dialog container

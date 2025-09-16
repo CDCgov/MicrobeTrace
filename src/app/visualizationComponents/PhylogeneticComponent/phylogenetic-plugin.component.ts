@@ -57,6 +57,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   nodeMin: number = 3;
   nodeMax: number = 27;
   nodeScale: d3.ScaleLinear<number, number> = d3.scaleLinear().domain([0, 1]).range([0, 1]);
+  minNodeWidth: number = 5;
+  maxNodeWidth: number = 15;
   nodeMid: number = 1;
   debugMode = false;
 
@@ -182,7 +184,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       const tree = this.buildTree(newickString);
       this.tree = tree;
       this.commonService.visuals.phylogenetic.tree = tree;
-      this.mergeNodeData();
+      //this.mergeNodeData();
       this.hideTooltip();
       this.styleTree();
     } else {
@@ -193,7 +195,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         const tree = this.buildTree(newickString);
         this.tree = tree;
         this.commonService.visuals.phylogenetic.tree = tree;
-        this.mergeNodeData();
+        //this.mergeNodeData();
         this.hideTooltip();
         this.styleTree();
       //});
@@ -204,15 +206,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     // }
   }
 
-  mergeNodeData(): void {
-    let data = this.commonService.session.data.nodes;
-    console.log(this.tree.data);
-    let leafNodes = this.tree.data.getLeaves();
-  }
+  // mergeNodeData(): void {
+  //   let data = this.commonService.session.data.nodes;
+  //   console.log(this.tree.data);
+  //   let leafNodes = this.tree.data.getLeaves();
+  // }
 
   styleTree = () => {
     if (!this.tree) return;
-    this.svg = d3.select('#tidytree');
+    this.svg = d3.select('#phylocanvas svg');
+    this.svg.style('overflow', 'visible');
     let nodes = this.commonService.session.data;
     nodes = this.svg.select('g.nodes').selectAll('g').data(nodes, d => d.id)
       .join(
@@ -284,11 +287,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   };
 
   updateMinMaxNode() {
-
     const visNodes = this.commonService.getVisibleNodes();
     let n = visNodes.length;
-    let maxWidth = 20;
-    let minWidth = this.SelectedLeafNodeSize;
 
 
     this.nodeMin = Number.MAX_VALUE;
@@ -304,7 +304,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     this.nodeScale = d3.scaleLinear()
         .domain([this.nodeMin, this.nodeMax])
-        .range([minWidth, maxWidth]);
+        .range([this.minNodeWidth, this.maxNodeWidth]);
   }
 
   getLeafSize = (node_id, variable): number => {
@@ -398,7 +398,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       branchDistances: this.SelectedBranchDistanceSizeVariable,
       ruler: true,
       animation: parseFloat('0'),  // range 0-2000 in steps of 10
-      margin: [10, 10, 70, 30]
+      margin: [10, 80, 50, 30] //CSS order: top, right, bottom, left
     };
     return treeOpts;
   }
@@ -740,7 +740,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.styleTree();
       this.hideContextMenu();
     });
-    d3.select('#tidytree').on('click', c => {
+    d3.select('#phylocanvas svg').on('click', c => {
       this.hideContextMenu();
     });
   }
