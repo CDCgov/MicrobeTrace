@@ -340,9 +340,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     ngAfterViewInit(): void {
-
         console.log('--- TwoD ngAfterViewInit called');
-    }
+      
+      }
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
 
@@ -1116,6 +1116,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             node.select();
                         }
                     }
+
+                    console.log('node-selected in 2d: ', that.selectedNodeId);
 
                     // that.debouncedRerender();
                     if (that.debugMode) {
@@ -2975,6 +2977,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               panningEnabled: true,
               userPanningEnabled: true
             });
+            
+            if ((window as any).Cypress) {
+                (window as any).cytoscapeInstance = this.cy;
+            }
             
             // Attach events
             this.attachCytoscapeEvents();
