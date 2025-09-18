@@ -60,7 +60,7 @@ declare global {
   });
 
   Cypress.Commands.add('closeGlobalSettings', () => {
-    cy.contains('button', 'Settings').click();
+    //cy.contains('button', 'Settings').click();
     // Optionally, assert the dialog is closed
     cy.contains('.p-dialog-title', 'Global Settings').parents('.p-dialog').find('button.p-dialog-close-button').click();
 

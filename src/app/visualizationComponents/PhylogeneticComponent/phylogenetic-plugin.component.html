@@ -1,5 +1,5 @@
 ﻿﻿<div class="m-content">
-    <div id="tool-btn-container-phylo" class="tool-btn-container" class="m-portlet">
+    <div id="tool-btn-container-phylo" class="m-portlet tool-btn-container">
         <span style="overflow: visible; position: relative; width: 110px;">
             <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
         </span>
@@ -81,7 +81,7 @@
                                   <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
                               </div>
                           </div>
-                          <div class="form-group row leaf-label-variable-row" title="What vasriable should be used as the leaf label?" style="overflow:visible">
+                          <div class="form-group row leaf-label-variable-row" title="What variable should be used as the leaf label?" style="overflow:visible">
                               <div class="col-4"><label for="leaf-label-variable">Label Variable</label></div>
                               <div class="col-8">
                                   <p-dropdown id="leaf-label-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafLabelVariable" (ngModelChange)="onLeafLabelVariableChange($event)"> </p-dropdown>
@@ -117,9 +117,17 @@
                                 <p-dropdown id="leaf-size-var" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafNodeSizeVariable" (ngModelChange)="onLeafNodeSizeVariableChange($event)"> </p-dropdown>
                               </div>
                           </div>
-                          <div class="form-group row leaf-size-row" title="How big should leaves be?">
+                          <div *ngIf="SelectedLeafNodeSizeVariable=='None'" class="form-group row leaf-size-row" title="How big should leaves be?">
                               <div class="col-4"><label for="leaf-size">Leaf Size</label></div>
                               <div class="col-8"><input type="range" class="custom-range" id="leaf-size" min="1" value="{{ SelectedLeafNodeSize }}" step="0.5" max="50" [(ngModel)]="SelectedLeafNodeSize" (ngModelChange)="onLeafNodeSizeChange($event)"></div>
+                          </div>
+                          <div *ngIf="SelectedLeafNodeSizeVariable!='None'" class="form-group row " title="How big should leaves be?">
+                              <div class="col-4"><label>Min Leaf Size</label></div>
+                              <div class="col-8"><input type="range" class="custom-range" id="leaf-size-min" min="1" step="0.5" max="25" [(ngModel)]="minNodeWidth" (ngModelChange)="styleTree()"></div>
+                          </div>
+                          <div *ngIf="SelectedLeafNodeSizeVariable!='None'" class="form-group row" title="How big should leaves be?">
+                              <div class="col-4"><label>Max Leaf Size</label></div>
+                              <div class="col-8"><input type="range" class="custom-range" id="leaf-size-max" min="5" step="0.5" max="40" [(ngModel)]="maxNodeWidth" (ngModelChange)="styleTree()"></div>
                           </div>
                       </div>
                   </p-accordionTab>
@@ -131,7 +139,7 @@
 
               <tab heading="{{'Branches' | localize}}" customClass="m-tabs__item">
               <p-accordion>
-                  <p-accordionTab style="color:#495057" header="Labels">
+                  <p-accordionTab style="color:#495057" header="Branch Labels">
                       <div #branchcontrolslabels>
                           <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
                               <div class="col-4"><label for="branch-distance-visibility">Distance Labels</label></div>
@@ -154,12 +162,12 @@
                               </div>
                           </div>
                           <div class="form-group row branch-node-size-row" title="How big should branch nodes be?">
-                              <div class="col-4"><label for="link-size">Branch Node Size</label></div>
+                              <div class="col-4"><label for="branch-node-size">Branch Node Size</label></div>
                               <input type="range" class="custom-range" id="branch-node-size" min="1" value="{{ SelectedBranchNodeSizeVariable }}" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)">
                           </div>
                           <div class="form-group row link-size-row" title="How big should branches be?">
-                              <div class="col-4"><label for="link-size">Branch Size</label></div>
-                              <input type="range" class="custom-range" id="link-size" min="1" value="{{ SelectedBranchSizeVariable }}" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)">
+                              <div class="col-4"><label for="branch-size">Branch Size</label></div>
+                              <input type="range" class="custom-range" id="branch-size" min="1" value="{{ SelectedBranchSizeVariable }}" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)">
                           </div>
                       </div>
                   </p-accordionTab>
@@ -174,38 +182,41 @@
     <div id="flip" class="dropdown-item">Flip</div>
 </div>
 <p-dialog *ngIf="viewActive" id="network-export-modal" [(visible)]="ShowPhylogeneticExportPane" header="Export Phylogenetic Tree" class="dialogSize" (onHide)="onCloseExport()" appendTo="body">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-body" style='min-width: 500px; height: 100%;'>
-                <p-accordion [multiple]="true">
-                    <p-accordionTab header="Export Image of Tree" style="color:#495057" [selected]="true">
+    <tabset class="tab-container tabbable-line">
+        <tab heading="{{'Image' | localize}}" [active]="true" customClass="m-tabs__item">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-body" style='min-width: 500px; height: 100%;'>
                         <div class="form-group row">
                             <div class="col-8">
                                 <input type="text" id="tree-image-filename" class="form-control form-control-sm" placeholder="Image Filename" [(ngModel)]="SelectedTreeImageFilenameVariable" >
                             </div>
-                            <div class="col-3">
-                                <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList" [(ngModel)]="SelectedNetworkExportFileTypeListVariable" ></p-dropdown>
-                            </div>
-                            <div class="col-8">
-                                <button type="button" id="export-tree" class="btn btn-primary" (click)="saveImage($event)">Save Image</button>
+                            <div class="col-4">
+                                <p-dropdown id="network-export-filetype" appendTo="body" [options]="NetworkExportFileTypeList" [(ngModel)]="SelectedNetworkExportFileTypeListVariable" ></p-dropdown>
                             </div>
                         </div>
-                    </p-accordionTab>
-                    <p-accordionTab header="Export Newick String" style="color:#495057" [selected]="true">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" id="export-tree" class="btn btn-primary" (click)="saveImage($event)">Save Image</button>
+                    </div>
+                </div>
+            </div>
+        </tab>
+        <tab heading="{{'Newick' | localize}}" customClass="m-tabs__item">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-body" style='min-width: 500px; height: 100%;'>
                         <div class="form-group row">
                             <div class="col-8">
                                 <input type="text" id="newick-string-filename" class="form-control form-control-sm" placeholder="Newick Filename" [(ngModel)]="SelectedNewickStringFilenameVariable" >
                             </div>
-                            <div class="col-3"></div>
-                            <div class="col-8">
-                                <button type="button" id="export-newick" class="btn btn-primary" (click)="saveNewickString($event)">Save Newick String</button>
-                            </div>
                         </div>
-                    </p-accordionTab>
-                </p-accordion>
-            </div>
-                <div class="modal-footer">
+                    </div>
+                    <div class="modal-footer">
+                         <button type="button" id="export-newick" class="btn btn-primary" (click)="saveNewickString($event)">Save Newick String</button>
+                    </div>
                 </div>
-        </div><!-- /.modal-content -->
-    </div><!-- /.modal-dialog -->
+            </div>
+        </tab>
+    </tabset>
 </p-dialog><!-- /.modal -->
