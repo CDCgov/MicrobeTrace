@@ -21,6 +21,7 @@ import { Subject, Subscription, takeUntil } from 'rxjs';
 import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { NgZone } from '@angular/core'; 
 
 
 @Component({
@@ -249,7 +250,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         private clipboard: Clipboard,
         private gtmService: GoogleTagManagerService,
         private store: CommonStoreService,
-        private exportService: ExportService
+        private exportService: ExportService,
+        private zone: NgZone 
     ) {
 
         super(elRef.nativeElement);
@@ -609,57 +611,44 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     attachCytoscapeEvents() {
         console.log('--- TwoD attachCytoscapeEvents called');
-        this.cy.on('tap', 'node', (evt) => {
-            const node = evt.target;
-            console.log('Selected node:', node.data());
-    
-            // Update selectedNodeId and trigger change detection or re-render if necessary
-            this.selectedNodeId = node.id();
-
-            // Update with selected color set in global settings
-            node.data('selectedBorderColor', this.widgets['selected-color']);
-
-            this.cy.style().update();
-    
-        });
-    
         this.cy.on('mouseover', 'node', (evt) => {
-            const node = evt.target;
-            this.showNodeTooltip(node.data(), evt.originalEvent);
-
-            // Set cursor to grab
-            $('html,body').css('cursor', 'grab');
-
-            if (this.widgets['node-highlight']) {
-                // Highlight connected edges
-                node.connectedEdges().addClass('highlighted');
-            }
-
+            // Run UI updates inside Angular's zone
+            this.zone.run(() => {
+                const node = evt.target;
+                this.showNodeTooltip(node.data(), evt.originalEvent);
+                $('html,body').css('cursor', 'grab');
+    
+                if (this.widgets['node-highlight']) {
+                    node.connectedEdges().addClass('highlighted');
+                }
+            });
         });
     
         this.cy.on('mouseout', 'node', (evt) => {
-
-            const node = evt.target;
-
-            this.hideTooltip();
-
-            $('html,body').css('cursor', 'default');
-
-            if (this.widgets['node-highlight']) {
-                // Remove highlight from connected edges
-                node.connectedEdges().removeClass('highlighted');
-            }
-
+            // Run UI updates inside Angular's zone
+            this.zone.run(() => {
+                const node = evt.target;
+                this.hideTooltip();
+                $('html,body').css('cursor', 'default');
+    
+                if (this.widgets['node-highlight']) {
+                    node.connectedEdges().removeClass('highlighted');
+                }
+            });
         });
     
         // Edge events
         this.cy.on('mouseover', 'edge', (evt) => {
-            const edge = evt.target;
-            this.showLinkTooltip(edge.data(), evt.originalEvent);
+            this.zone.run(() => {
+                const edge = evt.target;
+                this.showLinkTooltip(edge.data(), evt.originalEvent);
+            });
         });
     
         this.cy.on('mouseout', 'edge', () => {
-            this.hideTooltip();
+            this.zone.run(() => {
+                this.hideTooltip();
+            });  
         });
     
         // Selection and Dragging
@@ -958,13 +947,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates the saved postion of a node when it is dragged by the user
      * @param node
      */
-    updateNodePos(node) {
-      let globalNode = this.commonService.getVisibleNodes().find(x => x._id == node.data('id')) // need to update so it works with grouped nodes/polygons
-      globalNode['x'] = node.position().x;
-      globalNode['y'] = node.position().y;
+    // updateNodePos(node) {
+    //   let globalNode = this.commonService.getVisibleNodes().find(x => x._id == node.data('id')) // need to update so it works with grouped nodes/polygons
+    //   globalNode['x'] = node.position().x;
+    //   globalNode['y'] = node.position().y;
 
+    // }
+
+    updateNodePos(node: cytoscape.NodeSingular): void {
+        const nodeId = node.id();
+        // This is for REAL user events. It reads the now-updated position from Cytoscape.
+        const newPosition = node.position(); 
+        this.commonService.updateNodePosition(nodeId, newPosition);
     }
-
     /** Initializes the view.
      * 
      * Defines the structure of the svg of twoD network and adds functionalities such as click, zoom, forces, etc...
@@ -2980,8 +2975,56 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
             if ((window as any).Cypress) {
                 (window as any).cytoscapeInstance = this.cy;
-            }
+
+                (window as any).Cypress.selectNodes = (nodeIds: string[]) => {
+                    this.cy.elements().unselect(); // Deselect all first
+                    nodeIds.forEach(id => {
+                        this.cy.getElementById(id).select();
+                    });
+                };
+
+                (window as any).Cypress.testDragNode = (nodeId: string, newPosition: { x: number, y: number }) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (node) {
+                            // Set the visual position
+                            node.position(newPosition);
+                            // Directly call the SERVICE method with the KNOWN new position
+                            this.commonService.updateNodePosition(nodeId, newPosition);
+                        }
+                    });
+                };
+
+                (window as any).Cypress.testTooltip = (action: 'show' | 'hide', nodeId: string) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (node) {
+                            if (action === 'show') {
+                                // We create a mock event object to prevent errors
+                                const mockEvent = { clientX: 100, clientY: 100 };
+                                this.showNodeTooltip(node.data(), mockEvent);
+                            } else {
+                                this.hideTooltip();
+                            }
+                        }
+                    });
+                };
+
+                (window as any).Cypress.linkTooltip = (action: 'show' | 'hide', edgeId: string) => {
+                    this.zone.run(() => {
+                        const edge = this.cy.getElementById(edgeId);
+                        if (edge) {
+                            if (action === 'show') {
+                                const mockEvent = { clientX: 300, clientY: 300 };
+                                this.showLinkTooltip(edge.data(), mockEvent);
+                            } else {
+                                this.hideTooltip();
+                            }
+                        }
+                    });
+                };
             
+            }
             // Attach events
             this.attachCytoscapeEvents();
             

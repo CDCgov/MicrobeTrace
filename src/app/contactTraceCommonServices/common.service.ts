@@ -674,6 +674,22 @@ export class CommonService extends AppComponentBase implements OnInit {
         return typeof a == 'number';
     };
 
+    public updateNodePosition(nodeId: string, newPosition: { x: number; y: number }): void {
+        const nodeToUpdate = this.session.data.nodes.find(n => n._id === nodeId);
+    
+        if (nodeToUpdate) {
+            console.log(`[Cypress Debug] Found node ${nodeId}. Current X: ${nodeToUpdate.x}`);
+            
+            // Use the passed-in position directly
+            nodeToUpdate.x = newPosition.x;
+            nodeToUpdate.y = newPosition.y;
+    
+            console.log(`[Cypress Debug] Updated node ${nodeId}. New X: ${nodeToUpdate.x}`);
+        } else {
+            console.warn(`[Cypress Debug] Could not find node ${nodeId} to update position.`);
+        }
+    }
+
     /**
      * Adds a new node to an array of nodes.
      * @param {Node} newNode - The new node to be added to the array.
