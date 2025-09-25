@@ -318,7 +318,7 @@
             <div class="form-group row" title="What link data would you like displayed as a tooltip for the link?">
                 <div class="col-4"><label for="map-link-tooltip-variable">Tooltip</label></div>
                 <div class="col-8">
-                    <p-dropdown id="map-link-tooltip-variable" [options]="FieldList" appendTo="body"
+                    <p-dropdown id="map-link-tooltip-variable" [options]="LinkToolTipList" appendTo="body"
                         [(ngModel)]="SelectedLinkTooltipVariable" (ngModelChange)="onLinkToolTipChange($event)">
                     </p-dropdown>
                 </div>

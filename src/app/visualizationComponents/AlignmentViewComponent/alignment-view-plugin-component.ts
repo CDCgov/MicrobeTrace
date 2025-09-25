@@ -1,4 +1,4 @@
-import { Component, OnInit, Injector, Inject, ElementRef, ChangeDetectorRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, Injector, Inject, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
@@ -12,13 +12,15 @@ import { saveAs } from 'file-saver';
 import { svgAsPngUri } from 'save-svg-as-png';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { Subject, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
   selector: 'AlignmentViewComponent',
   templateUrl: './alignment-view-plugin-component.html',
   styleUrls: ['./alignment-view-plugin-component.scss']
 })
-export class AlignmentViewComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents {
+export class AlignmentViewComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   // General Settings
   alignmentDialogSettings: DialogSettings = new DialogSettings('#alignment-settings-pane', false)
@@ -130,12 +132,15 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   AlignmentExportFileTypeVis: string = "svg";
   AlignmentExportFileTypeData: string = "fasta";
 
+  private destroy$ = new Subject<void>();
+
   constructor(injector: Injector,
     public commonService: CommonService,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private gtmService: GoogleTagManagerService,
+    private store: CommonStoreService,
     private exportService: ExportService) {
 
     super(elRef.nativeElement);
@@ -215,6 +220,16 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
       this.viewActive = true; 
       this.cdref.detectChanges();
     })
+
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.widgets['alignView-labelField'] == 'cluster') {
+        this.onLabelFieldChange();
+      }
+      if (this.widgets['alignView-sortField'] == 'cluster') {
+        this.onSortFieldChange()
+      }
+      this.cdref.detectChanges();
+    })
   }
 
   ngAfterViewInit(): void {
@@ -223,6 +238,11 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     if (this.nodesWithoutSeq.length > 0) {
       this.showPopupMessage = true;
     }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   // General

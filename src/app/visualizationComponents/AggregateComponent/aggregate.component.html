@@ -36,9 +36,9 @@
     </div>
 
     <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Aggregate Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
-      <p-orderList id="aggregate-orderList" #orderList [value]="SelectedDataFields" [dragdrop]="true" (onReorder)="reordered($event)">
+      <p-orderList #orderList [value]="SelectedDataFields" [dragdrop]="true" (onReorder)="reordered($event)">
         <ng-template let-i="index" let-field pTemplate="item">
-        <div style="display: flex;">
+        <div style="display: flex; width: 100%;">
           <span class="col-3">Table {{i+1}}</span>
           <span class="col-7">
             <p-dropdown [options]="fieldOptions"  [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">

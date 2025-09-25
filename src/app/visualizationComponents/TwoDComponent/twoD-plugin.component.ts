@@ -315,6 +315,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
+        this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+            if (this.widgets['node-symbol-variable'] == 'cluster') {
+                this.generateNodeSymbolSelectionTable("#node-symbol-table", this.widgets['node-symbol-variable']);
+                this.cdref.detectChanges();
+            }
+        })
+
         this.settingsLoadedSubscription = this.store.settingsLoaded$
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {
@@ -611,6 +618,53 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     attachCytoscapeEvents() {
         console.log('--- TwoD attachCytoscapeEvents called');
+
+        // Debounced function to sync Cytoscape selections with the common service.
+        const syncCySelectionToService = _.debounce(() => {
+            const selectedNodes = this.cy.nodes(':selected');
+            const selectedIds = new Set(selectedNodes.map(node => node.id()));
+
+            let selectionChanged = false;
+            // Sync with the main nodes array
+            this.commonService.session.data.nodes.forEach(n => {
+                const shouldBeSelected = selectedIds.has(n._id || n.id);
+                if (n.selected !== shouldBeSelected) {
+                    n.selected = shouldBeSelected;
+                    selectionChanged = true;
+                }
+            });
+
+            // Sync with the filtered nodes array
+            this.commonService.session.data.nodeFilteredValues.forEach(n => {
+                const shouldBeSelected = selectedIds.has(n._id || n.id);
+                if (n.selected !== shouldBeSelected) {
+                    n.selected = shouldBeSelected;
+                }
+            });
+
+            // If the selection state was changed, notify other components.
+            if (selectionChanged) {
+                $(document).trigger('node-selected');
+            }
+        }, 100); // Debounce for 100ms to handle rapid events efficiently.
+
+        // Listen for all selection events to trigger the sync.
+        this.cy.on('select unselect', 'node', syncCySelectionToService);
+        
+        this.cy.on('tap', 'node', (evt) => {
+            const node = evt.target;
+            console.log('Selected node:', node.data());
+    
+            // Update selectedNodeId and trigger change detection or re-render if necessary
+            this.selectedNodeId = node.id();
+
+            // Update with selected color set in global settings
+            node.data('selectedBorderColor', this.widgets['selected-color']);
+
+            this.cy.style().update();
+    
+        });
+    
         this.cy.on('mouseover', 'node', (evt) => {
             // Run UI updates inside Angular's zone
             this.zone.run(() => {
@@ -649,12 +703,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.zone.run(() => {
                 this.hideTooltip();
             });  
-        });
-    
-        // Selection and Dragging
-        this.cy.on('select', 'node', (evt) => {
-            const node = evt.target;
-            // Handle selection logic
         });
     
         this.cy.on('dragfree', 'node', (evt) => {
@@ -1093,12 +1141,27 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // TODO move this to a subscribed event than use document jquery
             $(document).on("node-selected", function () {
-
-                let mtSelectedNode = that.commonService.getSelectedNode(that.commonService.getVisibleNodes());
-                if (mtSelectedNode && mtSelectedNode.id) {
-                    that.selectedNodeId = mtSelectedNode.id;
-                } else if (mtSelectedNode && !mtSelectedNode.id) {
-                    that.selectedNodeId = mtSelectedNode._id;
+                 const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
+                 const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
+                
+                 // Deselect all nodes first in cytoscape
+                 that.cy.elements().unselect();
+                
+                 // Select the nodes that are marked as selected in the common service
+                 if (mtSelectedNodeIds.length > 0) {
+                     const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
+                 that.cy.nodes(selector).select();
+                 }
+                
+                if (mtSelectedNodeIds.length > 0) {
+                 that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1];
+                 } else {
+                 that.selectedNodeId = undefined;
+                 }
+                
+                 if (that.debugMode) {
+                    console.log('node-selected in 2d: ', that.selectedNodeId);
+                    console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
                 }
 
                     // Deselect all nodes first
@@ -3417,6 +3480,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
+     * Applies arrow styling to edges based on current widget settings and edge data.
+     * Arrows are shown only for links that have distance and its within the threshold
+     */
+    private updateArrowStyles() {
+        if (!this.cy) return;
+
+        this.cy.style()
+            .selector('edge')
+            .style({
+                'target-arrow-shape': (ele) => {
+                    const data = ele.data();
+                    console.log('data: ', data, 'has distance', data.hasDistance, 'origin', data.origin)
+                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
+                        return 'triangle';
+                    }
+                    return 'none';
+                },
+                'source-arrow-shape': (ele) => {
+                    const data = ele.data();
+                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
+                        return 'triangle';
+                    }
+                    return 'none';
+                },
+                'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
+            })
+            .update();
+    }
+
+
+    /**
      * Updates link-directed widget. When directed, links have an arrow added; when undirected, links have no arrow
      */
     onLinkDirectedUndirectedChange(e) {
@@ -3427,45 +3521,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['link-directed'] = false;
             $("#link-bidirectional-row").slideUp();
         }
-    
-        // Update Cytoscape edge styles
-        if (this.cy) {
-            const isDirected = this.widgets['link-directed'];
-            this.cy.style()
-                .selector('edge')
-                .style({
-                    'target-arrow-shape': this.widgets['link-directed'] ? 'triangle' : 'none',
-                    'source-arrow-shape': 'none', // Ensure source arrow is hidden when undirected
-                    'curve-style': isDirected ? 'unbundled-bezier' : 'straight',
-                    // Add more style properties here if needed
-                })
-                .update();
-        }
+
+        this.updateArrowStyles();
     }
 
 
+
     onLinkBidirectionalChange(e) {
-        // Determine the arrow shapes based on the selected option
-        const sourceArrowShape = e === "Show" ? 'triangle' : 'none';
-        const targetArrowShape = 'triangle'; // Assuming target arrows are always shown
-    
         // Update the widget state
         this.widgets['link-bidirectional'] = (e === "Show");
-    
-        // Update Cytoscape edge styles
-        if (this.cy) {
-            const isDirected = this.widgets['link-directed'];
 
-            this.cy.style()
-                .selector('edge')
-                .style({
-                    'source-arrow-shape': sourceArrowShape,
-                    'target-arrow-shape': targetArrowShape,
-                    'curve-style': isDirected ? 'unbundled-bezier' : 'straight',
-                    // Add more style properties here if needed
-                })
-                .update();
-        }
+        this.updateArrowStyles();
     }
 
     /**

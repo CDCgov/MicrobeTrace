@@ -48,6 +48,8 @@ export class CommonStoreService {
 
   private currentThresholdStepSize: Number = 0.001;
 
+  private _clusterUpdate$ = new Subject<void>();
+  clusterUpdate$ = this._clusterUpdate$.asObservable();
 
   constructor() {}
 
@@ -59,6 +61,10 @@ export class CommonStoreService {
     if (subject.value !== newValue) {
       subject.next(newValue);
     }
+  }
+
+  triggerClusterUpdate() {
+    this._clusterUpdate$.next();
   }
 
   // ----------------------------

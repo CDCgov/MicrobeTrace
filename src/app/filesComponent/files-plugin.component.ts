@@ -1367,7 +1367,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const gapString = '-'.repeat(this.commonService.session.data.reference.length);
     for (let i = 0; i < n; i++) {
       const d = nodes[i];
-      if (!d.seq) {
+      if (!d.seq || d.seq.toLowerCase() == 'null' || d.seq.toLowerCase() == 'none' || d.seq.toLowerCase().replace('/', '') == 'na') {
         d.seq = gapString;
       } else {
         subset.push(d);

@@ -79,6 +79,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     ShowGEOMapExportPane: boolean = false;
     ShowGEOMapSettingsPane: boolean = false;
     FieldList: SelectItem[] = [];
+    LinkToolTipList: SelectItem[] = [];
     SelectedLatitude: string = "None";
     SelectedLongitude: string = "None";
     SelectedCensusTract: string = "None";
@@ -277,6 +278,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     value: d
                 });
 
+        });
+
+        this.LinkToolTipList = [{ label: "None", value: "None" }];
+        this.commonService.session.data['linkFields'].map((d, i) => {
+            if (d == 'source' || d == 'target' || d == 'nn') return;
+
+            this.LinkToolTipList.push({
+                    label: this.commonService.capitalize(d.replace("_", "")),
+                    value: d
+                });
         });
 
         //this.geocoder = new google.maps.Geocoder();
@@ -1299,7 +1310,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     
             if (source && target && source._jlat && source._jlon && target._jlat && target._jlon) {
                 // Handle multiple origins
-                if (d.origin && d.origin.length > 1) {
+                if (lcv == 'origin' && d.origin && d.origin.length > 1) {
                     let color1 = this.commonService.temp.style.linkColorMap(d.origin[0]);
                     let color2 = this.commonService.temp.style.linkColorMap(d.origin[1]);
     
@@ -1312,11 +1323,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                         opacity: opacity
                     });
     
-                    let polyline2 = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+                    let polyline2: PolyLineWithData = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
                         color: color2,
                         dashArray: dashPattern2,
                         opacity: opacity
                     });
+
+                    polyline2.data = d;
+                    polyline2
+                        .on('mouseover', (e) => this.showLinkTooltip(e))
+                        .on('mouseout', (e) => this.hideTooltip())
     
                     features.push(polyline1);
                     features.push(polyline2);
@@ -1333,6 +1349,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     });
     
                     connectorLine.data = d;
+
+                    connectorLine
+                        .on('mouseover', (e) =>this.showLinkTooltip(e))
+                        .on('mouseout', (e) => this.hideTooltip())
     
                     features.push(connectorLine);
                 }
@@ -1357,7 +1377,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var data = e.target.data;
         var locationData = e.target.locationDetail;
         var variable = this.commonService.session.style.widgets['map-node-tooltip-variable'];
-        if (variable !== 'None' && data[variable]) {
+        if (variable !== 'None' && (data[variable] || data[variable] == 0)) {
 
             let htmlText = data[variable];
             if (locationData) {
@@ -1379,13 +1399,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     showLinkTooltip(e) {
-        var d = e.layer.data;
+        var d = e.target.data;
         var v = this.commonService.session.style.widgets['map-link-tooltip-variable'];
-        if (v !== 'None' && d[v]) {
+        if (v !== 'None' && (d[v] || d[v] == 0)) {
             d3.select(this.mapTooltip)
                 .html(d[v])
-                .style('left', (e.originalEvent.pageX + 8) + 'px')
-                .style('top', (e.originalEvent.pageY + 18) + 'px')
+                .style('position', 'absolute')
+                .style('left', (e.containerPoint.x - 50) + 'px')
+                .style('top', (e.containerPoint.y - 50) + 'px')
                 .style('z-index', 1001)
                 .transition().duration(100)
                 .style('opacity', 1);

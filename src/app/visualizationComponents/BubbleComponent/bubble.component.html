@@ -41,7 +41,7 @@
         </div>
         <div class="form-group row node-label-row" title="How much space between nodes? This has no effect when nodes are collapsed.">
           <div class="col-4"><label>Spacing</label></div>
-          <div class="col-8"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()"></div>
+          <div class="col-8"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()" [disabled]="SelectedNodeCollapsingTypeVariable"></div>
         </div>
         <div class="form-group row node-label-row" title="Select a font Size for axis labels.">
             <div class="col-4"><label>Label Size</label></div>
@@ -50,7 +50,7 @@
         <div class="form-group row">
           <div class="col-4">Collapse</div>
           <div class="col-8">
-              <p-selectButton [options]="NodeCollapsingTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
+              <p-selectButton [options]="OnOffTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
                   (ngModelChange)="onNodeCollapsingChange()"></p-selectButton>
           </div>
         </div>

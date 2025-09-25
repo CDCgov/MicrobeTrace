@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import * as saveAs from 'file-saver';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
@@ -11,6 +11,8 @@ import { ComponentContainer } from 'golden-layout';
 import cytoscape, { Core } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { Subject, Subscription, takeUntil } from 'rxjs';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -19,7 +21,7 @@ type DataRecord = { index: number, id: string, x: number; y: number, color: stri
   templateUrl: './bubble.component.html',
   styleUrls: ['./bubble.component.scss']
 })
-export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents {
+export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
@@ -64,11 +66,13 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   scaleFactor: number = 200;
   svgDefs: {} = {};
 
-  NodeCollapsingTypes: any = [
+  OnOffTypes: any = [
     { label: 'On', value: true },
     { label: 'Off', value: false }
   ];
   SelectedNodeCollapsingTypeVariable: boolean;
+
+  private destroy$ = new Subject<void>();
 
   constructor(
     public commonService: CommonService,
@@ -76,6 +80,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private gtmService: GoogleTagManagerService,
+    private store: CommonStoreService,
     private exportService: ExportService
   ) {
     super(elRef.nativeElement);
@@ -141,6 +146,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       }
     });
 
+    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (this.widgets['node-color-variable'] == 'cluster') {
+        this.updateNodeColors();
+      }
+      if (this.xVariable == "cluster") {
+        this.onDataChange('X');
+      }
+      if (this.yVariable == "cluster") {
+        this.onDataChange('Y');
+      }
+    })
+
     $( document ).on( "node-visibility", function( ) {
       //console.log('node visi event')
       that.updateVisibleNodes()
@@ -150,6 +167,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   ngAfterViewInit(): void {
     this.generateCytoscape();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    if (this.cy){
+        this.cy.removeAllListeners();
+        this.cy.destroy();
+    }
+    this.cyContainer = null;
   }
 
   setWidgets() {
@@ -210,6 +238,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return { nodes: nodes, edges: null }
   }
 
+  estimateSize(text: string) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${this.labelSize}px Helvetica Neue`;
+    const metrics = ctx.measureText(text);
+
+    return metrics.width;
+  }
+
   AddAxes() {
     let Axes = [];
     if ( this.xVariable != 'None') {
@@ -235,6 +272,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.commonService.capitalize(this.xVariable)}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis', 'axisLabel']})
     }
 
+    let longestYLabel: string = '';
     if ( this.yVariable != 'None') {
       this.Y_categories.forEach((value, i) => {
         let label;
@@ -250,12 +288,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         } else {
           label = value== null || value == undefined ? 'Unknown': value;
         }
+        if (label.length > longestYLabel.length) longestYLabel = label
         Axes.push(
-          {group: 'nodes', data: {id: `y_axis${i}`, label: label}, position: {x: -100, y: i*this.scaleFactor}, classes: ['Y_axis'],
+          {group: 'nodes', data: {id: `y_axis${i}`, label: label}, position: {x: -80, y: i*this.scaleFactor}, classes: ['Y_axis'],
         })
       });
+      let yAxisLabelOffset = this.estimateSize(longestYLabel) + 20
 
-      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -150, y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
+      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -(80+yAxisLabelOffset), y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
 
     }
 
@@ -307,13 +347,16 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           'background-color': 'white',
           'width': 1,
           'height': 1,
-          'text-valign': 'center'
+          'text-valign': 'center',
+          'text-halign': 'left'
         }
       },
       {
         selector: '#y_axis_Label',
         css: {
-          'text-rotation': 4.71239
+          'text-rotation': 4.71239,
+          'text-halign': 'center',
+          'text-valign': 'top'
         }
       },
       {
@@ -393,7 +436,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       </style>
       <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable'])}</th><th> Count </th><th> % </th></thead><tbody>`;
       d.counts.forEach((x) => tooltipHTML += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
-      tooltipHTML += '</tbody></table>';
+      tooltipHTML += `<tr><td>Total</td><td> ${d.totalCount}</td><td></td></tr></tbody></table>`;
     } else {
       tooltipHTML = `${d.id}`
     }
@@ -644,8 +687,28 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   onLabelSizeChange() {
-    this.cy.style().resetToDefault();
-    this.cy.style(this.getCytoscapeStyle())
+    let longestYLabel: string = '';
+    this.cy.$('.X_axis').forEach((ele) => {
+      ele.style({ 'font-size' : this.labelSize})
+    })
+    this.cy.$('.axisLabel').forEach((ele) => {
+      ele.style({ 'font-size' : this.labelSize+4})
+    })
+    this.cy.$('.Y_axis').forEach((ele) => {
+      if (ele.data().id == 'y_axis_Label') return;
+      let label = ele.data().label
+
+      if (label.length > longestYLabel.length) longestYLabel = label
+      ele.style({ 'font-size' : this.labelSize})
+    })
+    let yAxisLabelOffset = this.estimateSize(longestYLabel) +20;
+
+    let node = this.cy.getElementById('y_axis_Label')
+    node.unlock();
+    let y = node.position('y')
+    let newXPos = -80 - yAxisLabelOffset;
+    node.position({'x': newXPos, 'y': y});
+    node.lock();
   }
 
   /**

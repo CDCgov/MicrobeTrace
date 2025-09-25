@@ -8,17 +8,13 @@
             <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
                 (click)="openExport()"><i class="flaticon-download primary"></i></a>
         </span>
-        <span style="overflow: visible; position: relative; width: 110px;">
-            <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
-                (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
-        </span>
     </div>
     <div class="m-portlet__body" style="height: 100%">
-        <div id="sankey-container" style="padding: 60px 10px 10px 20px" (mouseup)="endDrag()" (mouseleave)="endDrag()" (mousemove)="move($event)">
-            <svg #sankeySVG [attr.width]="svgWidth" [attr.height]="svgHeight">
+        <div id="sankey-container" style="padding: 60px 0px 10px 20px" (mouseup)="endDrag()" (mouseleave)="endDrag()" (mousemove)="move($event)">
+            <svg #sankeySVG [attr.width]="svgWidth" [attr.height]="svgHeight" *ngIf="SankeyFieldNames.length > 1">
                 <rect [attr.width]="svgWidth" [attr.height]="svgHeight" fill="#ffffff"></rect>
                 <g *ngFor="let field of SankeyFieldNames; index as i">
-                    <text [attr.x]="layerPositions[i]" [attr.y]="svgHeight-50">{{ commonService.capitalize(field) }}</text>
+                    <text [attr.x]="layerPositions[i]" [attr.y]="svgHeight-50" [attr.text-anchor]="getAxisTextAnchor(i)" [style.font-size.px]="axisFontSize">{{ commonService.capitalize(field) }}</text>
                 </g>
                 <g>
                     <g *ngFor="let linkA of data['links']">
@@ -28,15 +24,14 @@
                 <g>
                     <g *ngFor="let node of data['nodes']">
                         <rect [attr.transform]="getNodeTransform(node)" [attr.width]="node.x1-node.x0" [attr.height]="node.y1-node.y0" [attr.fill]="node.color" (mouseenter)="showTooltip($event, node, 'Node')" (mouseleave)="hideTooltip()" (mousedown)="startDrag(node)"></rect>
-                        <text [attr.x]="node.x1+4" [attr.y]="(node.y0+node.y1)/2+2">{{ node.name }}</text>
+                        <text [attr.x]="node.x1+4" [attr.y]="(node.y0+node.y1)/2+labelHeight/4" [style.font-size.px]="labelFontSize">{{ node.name }}</text>
                     </g>
                 </g>
             </svg>
         </div>
-        <div id="sankey-tooltip-container"></div>
     </div>
 </div>
-<div #tooltip class="custom-tooltip" [style.top.px]="tooltipY" [style.left.px]="tooltipX" [style.display]="tooltipVisible ? 'block' : 'none'">
+<div #tooltip class="custom-tooltip" [ngStyle]="{top: tooltipY + 'px', left: tooltipLeft ? (tooltipX + 'px') : null,  right: !tooltipLeft ? (tooltipX + 'px') : null, display: tooltipVisible ? 'block' : 'none'}">
   <table>
     <tr *ngFor="let row of tooltipData">
         <td>{{ row['key']}}: </td>
@@ -47,18 +42,19 @@
     <p-dialog *ngIf="viewActive" id="sankey-settings-pane" [(visible)]="SankeyExportDialogSettings.isVisible"
         [contentStyle]="{'overflow': 'visible'}" header="Sankey Chart Settings" appendTo="body">
         <tabset class="tab-container tabbable-line">
-            <tab heading="{{'Tree' | localize}}" [active]="true" customClass="m-tabs__item" style="width: 400px; padding: 10px 10px 0px 10px;">
+            <tab heading="{{'Variables' | localize}}" [active]="true" customClass="m-tabs__item" style="width: 400px; padding: 10px 10px 0px 10px;">
                 <div>
-                    <div class="form-group row gantt-start-row" title="What field would you like to add to the Sankey Chart?" style="overflow:visible">
-                        <div class="col-4"><label>Field Name</label></div>
+                    <div class="form-group row gantt-start-row" title="What variable would you like to add to the Sankey Chart?" style="overflow:visible">
+                        <div class="col-4"><label>Variable Name</label></div>
                         <div class="col-8">
                             <p-dropdown appendTo="body" [options]="FieldList" [(ngModel)]="SelectedFieldName"> </p-dropdown>
                         </div>
                     </div>
+                    <div *ngIf="SankeyFieldNames.length < 2" style="color: red">2 Variables are required to generate a Sankey graph</div>
                     <div class="form-group row gantt-add-row" style="overflow:visible">
                         <div class="col-4"></div>
                         <div class="col-8">
-                            <button type="button" class="btn btn-primary" (click)="addSelectedField()" [disabled]="fieldListFull() || this.SelectedFieldName == ''">Add Field</button>
+                            <button type="button" class="btn btn-primary" (click)="addSelectedField()" [disabled]="fieldListFull() || this.SelectedFieldName == ''">Add Variable</button>
                         </div>
                     </div>
                     <p-table [value]="SankeyFieldNames" styleClass="p-datatable-striped" *ngIf="SankeyFieldNames.length > 0" (onRowReorder)="reorderRows($event)">
@@ -81,23 +77,30 @@
                     </p-table>
                 </div>
             </tab>
-            <tab heading="{{'Link Color' | localize}}" customClass="m-tabs__item" style="width: 400px; padding: 10px 10px 0px 10px;">
+            <tab heading="{{'Visual Settings' | localize}}" customClass="m-tabs__item" style="width: 400px; padding: 10px 10px 0px 10px;">
                 <div class="form-group row gantt-start-row" title="" style="overflow:visible">
-                    <div class="col-3"><label>Link Color</label></div>
-                    <div class="col-6">
+                    <div class="col-5"><label>Link Color</label></div>
+                    <div class="col-5">
                         <p-dropdown appendTo="body" [options]="LinkColorOptions" [(ngModel)]="SelectedColorOption"> </p-dropdown>
                     </div>
-                    <div div class="col-3" *ngIf="SelectedColorOption=='Uniform'">
+                    <div div class="col-2" *ngIf="SelectedColorOption=='Uniform'">
                         <input type="color" style="border:none" [(ngModel)]="SelectedColorForUniform">
                     </div>
+                </div>
+                <div class="form-group row node-label-row" title="How big should node labels be?">
+                    <div class="col-5"><label>Label Font Size</label></div>
+                    <div class="col-7"><input type="range" class="custom-range" min="12" max="48" [(ngModel)]="labelFontSize" (change)="onlabelFontSizeChange()"></div>
+                </div>                            
+                <div class="form-group row node-label-row" title="How big should node labels be?">
+                    <div class="col-5"><label>Axis Font Size</label></div>
+                    <div class="col-7"><input type="range" class="custom-range" min="16" max="52" [(ngModel)]="axisFontSize" (change)="onaxisFontSizeChange()"></div>
                 </div>
             </tab>
         </tabset>
     </p-dialog>
 </div>
 
-<p-dialog *ngIf="viewActive" [(visible)]="ShowSankeyExportPane" header="Export Sankey Chart"
-    class="dialogSize" (onHide)="onCloseExport()" appendTo="body">
+<p-dialog *ngIf="viewActive" [(visible)]="ShowSankeyExportPane" header="Export Sankey Chart" appendTo="body">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-body" style='min-width: 500px; height: 100%;'>

@@ -73,7 +73,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedColorLinksByVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
-        SelectedPruneWityTypesVariable: 'None',
+        SelectedPruneWithTypesVariable: 'None',
         SelectedStatisticsTypesVariable: 'Hide',
         SelectedClusterMinimumSizeVariable: 0,
         SelectedLinkSortVariable: 'Distance',
@@ -2322,12 +2322,21 @@ align(params): Promise<any> {
 
 
     updateNetworkVisuals(silent: boolean = false) {
+        let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
+        let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
           this.setLinkVisibility(true);
           this.updateStatistics();
           if (!silent) this.store.setNetworkUpdated(true);
+          let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
+          let updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+          if (!silent && (prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters || prevVisNodeCount != updatedVisNodeCount)) {
+            console.log('Triggering cluster count update')
+            this.store.triggerClusterUpdate();
+          }
+
           console.log('---- Update network visuals end');
 
           console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
@@ -2599,7 +2608,7 @@ align(params): Promise<any> {
         }
 
         // If this.session.style.widgets['polygons-color-show', we need 
-        let polygonGroups: {key: string, index:number, values: []}[] = this.temp.polygonGroups || [];
+        let polygonGroups: {key: string, values: []}[] = this.temp.polygonGroups || [];
         let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
@@ -2618,17 +2627,14 @@ align(params): Promise<any> {
                 }
                 groupMap.get(polygonFoci).push(node);
             });
-            polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
+            polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
                 key,
-                index,
                 values: values.map(node => node.id)
             }));
 
             this.temp.polygonGroups = polygonGroups;
             this.session.style.widgets['polygon-color-table-visible'] = true;
         }
-
- 
 
         const result = this.colorMappingService.createPolygonColorMap(
           polygonGroups,
