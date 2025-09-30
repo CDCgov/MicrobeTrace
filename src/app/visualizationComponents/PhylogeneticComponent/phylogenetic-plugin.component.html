@@ -178,8 +178,8 @@
 </div>
 <div id="phylo-context-menu" class="dropdown-menu">
     <div id="reroot" class="dropdown-item">Set As Root</div>
-    <div id="rotate" class="dropdown-item">Rotate</div>
-    <div id="flip" class="dropdown-item">Flip</div>
+    <div id="rotate" class="dropdown-item" title="Rotate by reversing the order of children of the current branch">Rotate</div>
+    <div id="flip" class="dropdown-item" title="Flip by reversing the order of all of the decendants of the branch">Flip</div>
 </div>
 <p-dialog *ngIf="viewActive" id="network-export-modal" [(visible)]="ShowPhylogeneticExportPane" header="Export Phylogenetic Tree" class="dialogSize" (onHide)="onCloseExport()" appendTo="body">
     <tabset class="tab-container tabbable-line">

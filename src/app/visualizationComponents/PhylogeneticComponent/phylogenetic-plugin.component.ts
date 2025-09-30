@@ -719,7 +719,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   getContextTopVal = (yPos) => {
-    if (yPos > (this.svg.clientHeight - 125)) {
+    if (yPos > (this.svg.node().clientHeight - 125)) {
       return yPos - 125;
     } else {
       return yPos + 25;
@@ -727,11 +727,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   showContextMenu = (d) => {
-    // d3.event.preventDefault();
+    d3.event.preventDefault();
     this.hideTooltip();
     const tree = this.tree;
-    const leftVal = this.getContextLeftVal((d3 as any).event.pageX);
-    const topVal = this.getContextTopVal((d3 as any).event.pageY);
+    let [x, y] = this.getRelativeMousePosition();
+    const leftVal = this.getContextLeftVal(x);
+    const topVal = this.getContextTopVal(y);
 
     d3.select('#phylo-context-menu')
       .style('z-index', 1000)
@@ -782,7 +783,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   showTooltip = (d) => {
     if (this.SelectedLeafTooltipShowVariable) {
       let htmlValue: any = this.SelectedLeafTooltipVariable;
-
+      if (d[0].children && d[0].children.length > 0) {return}
       let [X, Y] = this.getRelativeMousePosition();
 
       // $('#tooltip').css({ top: d3.event.pageY - 28, left: d3.event.pageX + 8, position: 'absolute' });
@@ -795,17 +796,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         if (htmlValue === "id")
           htmlValue = "_id";
       }
-      console.log(node);
       // Pre D3
-      const leftVal = (d3 as any).event.pageX - 18;
-      const topVal = (d3 as any).event.pageY - 8;
-      console.log(topVal + " " +  leftVal);
+      //const leftVal = (d3 as any).event.pageX - 18;
+      //const topVal = (d3 as any).event.pageY - 8;
       d3.select('#phyloTooltip')
         .html(node[htmlValue])
         .style('position', 'absolute')
         .style('display', 'block')
-        .style('left', `${leftVal}px`)
-        .style('top', `${topVal}px`)
+        .style('left', `${X+10}px`)
+        .style('top', `${Y+10}px`)
         .style('z-index', 1000)
         .transition().duration(100)
         .style('opacity', 1)
@@ -830,10 +829,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
    * @returns an array [X, Y] of the position of mouse relative to twodcomponent. Global position (i.e. d3.event.pageX) doesn't work for a dashboard
    */
   getRelativeMousePosition() {
-    // let rect = d3.select('phylogeneticcomponent').node().getBoundingClientRect();
-    // let X = d3.event.pageX - rect.left;
-    // let Y = d3.event.pageY - rect.top; 
-    return [0, 0];
+    let rect = d3.select('phylogeneticcomponent').node().getBoundingClientRect();
+    let X = d3.event.pageX - rect.left;
+    let Y = d3.event.pageY - rect.top; 
+    return [X, Y];
   }
 
 }

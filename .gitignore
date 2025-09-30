@@ -63,3 +63,6 @@ slr_linux.tgz
 .agignore
 
 .scignore
+
+cypress/screenshots/*
+cypress/downloads/*
