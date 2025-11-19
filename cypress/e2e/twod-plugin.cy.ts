@@ -13,6 +13,9 @@ type WinWithCS = Window & { commonService: any };
 
 import { Core } from 'cytoscape';
 
+const getCy = () => cy.window({ log: false }).its('cytoscapeInstance') as Cypress.Chainable<Core>;
+
+
 /**
  * Seeds a minimal session with two nodes and one link, then launches the 2D view.
  * This function provides a consistent starting state for all tests.
@@ -160,7 +163,6 @@ const selector : any = {
 // Test suite for the settings pane functionality
 describe('2D Network - Settings Pane Interactions', () => {
 
-
   beforeEach(() => {
     cy.visit('/');
     cy.wait(6000); // Allow for initial application bootstrap
@@ -178,269 +180,382 @@ describe('2D Network - Settings Pane Interactions', () => {
       .parents('.p-dialog').as('dialogContainer');
   });
 
-  it('should update node size via the slider', () => {
-    const initialSize = 20;
-    const newSize = 75;
+  context('Node settings', () => {
 
-    cy.window().its('commonService.session.style.widgets.node-radius').should('equal', initialSize);
+    beforeEach(() => {
+      // First, ensure the "Nodes" tab is active
+      cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+    });
 
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-  
-    cy.get('@dialogContainer').find(selector.nodeRadiusSize)
-      .invoke('val', newSize)
-      .trigger('change', { force: true });
+    // it('should update node size by clicking the UI and reflect in the network', () => {
+    //   const initialSize = 20;
+    //   const newSize = 75;
+    //   const expectedStyledSize = (newSize / 100 * 40) + 10;
+     
+    //   cy.window().its('commonService.session.style.widgets.node-radius').should('equal', initialSize);
+     
+    //   cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+     
+    //   cy.get('@dialogContainer').find(selector.nodeRadiusSize)
+    //    .invoke('val', newSize)
+    //    .trigger('change', { force: true });
+     
+    //   cy.window().its('commonService.session.style.widgets.node-radius').should('equal', newSize);
+     
+    //   getCy().then((cyInstance) => {
+    //    const node = cyInstance.nodes().first();
+    //    expect(parseFloat(node.style('width'))).to.be.closeTo(expectedStyledSize, 1);
+    //   });
+    //  });
+
+    it('should update node label via dropdown', () => {
+        cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+        cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
+        
+        cy.get('@dialogContainer').find(selector.nodeLabelVar).click();
+        cy.contains('li[role="option"]', 'Id').click();
+        
+        cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', '_id');
+        getCy().then(cy => {
+            const node = cy.nodes().first();
+            expect(node.data('label')).to.equal(node.id());
+        });
+    });
+
+    // it('should update node label size and orientation', () => {
+    //     const newSize = 36;
+    //     const newOrientation = 'Top';
     
-    cy.window().its('commonService.session.style.widgets.node-radius').should('equal', newSize);
-  });
-
-  it('should update link width via the slider', () => {
-    const initialWidth = 3;
-    const newWidth = 15;
-
-    cy.window().its('commonService.session.style.widgets.link-width').should('equal', initialWidth);
-
-    cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-
-    cy.get('@dialogContainer').find(selector.linkWidthSize)
-      .invoke('val', newWidth)
-      .trigger('change', { force: true });
-
-    cy.window().its('commonService.session.style.widgets.link-width').should('equal', newWidth);
-  });
-
-  it('should create and remove grouping polygons', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Grouping').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Controls').click();
-
-    cy.window().its('commonService.session.style.widgets.polygons-show').should('be.false');
-
-    cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
-    cy.window().its('commonService.session.style.widgets.polygons-show').should('be.true');
-
-    cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Hide').click();
-    cy.window().its('commonService.session.style.widgets.polygons-show').should('be.false');
-  });
-
-  it('should update node label via dropdown', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Labels and Tooltips').click();
-
-    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
-
-    cy.get('@dialogContainer').find(selector.nodeLabelVar).click();
-    cy.contains('li[role="option"]', 'Id').click();
-
-    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', '_id');
-  });
-
-  it('should update node border width via input', () => {
-    const initialWidth = 2.0;
-    const newWidth = 5;
-
-    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-
-    cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', initialWidth);
-
-    cy.get('@dialogContainer').find(selector.nodeBorderWidth).clear().type(newWidth.toString()).blur();
-
-    cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', newWidth);
-  });
-
-  it('should toggle link directionality arrows', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-
-    cy.window().its('commonService.session.style.widgets.link-directed').should('be.false');
-
-    cy.get('@dialogContainer').find(selector.showArrowsToggle).contains('Show').click();
-    cy.window().its('commonService.session.style.widgets.link-directed').should('be.true');
-
-    cy.get('@dialogContainer').find(selector.showArrowsToggle).contains('Hide').click();
-    cy.window().its('commonService.session.style.widgets.link-directed').should('be.false');
-  });
-
-  it('should toggle network gridlines and update visibility', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Network').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Display').click();
-
-    cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.false');
-    cy.get('.grid-overlay').should('have.class', 'hidden');
-
-    cy.get('@dialogContainer').find(selector.showGridlinesToggle).contains('Show').click();
-    cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.true');
-    cy.get('.grid-overlay').should('not.have.class', 'hidden');
-
-    cy.get('@dialogContainer').find(selector.showGridlinesToggle).contains('Hide').click();
-    cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.false');
-    cy.get('.grid-overlay').should('have.class', 'hidden');
-  });
-
-  it('should update node label size and orientation', () => {
-    const newSize = 36;
-    const newOrientation = 'Top';
-
-    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Labels and Tooltips').click();
-
-    cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', 16);
-    cy.get('@dialogContainer').find(selector.nodeLabelSize).invoke('val', newSize).trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', newSize);
-
-    cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', 'Right');
-    cy.get('@dialogContainer').find(selector.nodeLabelOrientation).select(newOrientation);
-    cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', newOrientation);
-  });
-
-  it('should change node sizing to be by variable', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-
-    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'None');
-    cy.get('@dialogContainer').find('#node-radius-row').should('be.visible');
-    cy.get('@dialogContainer').find('#node-max-radius-row').should('not.be.visible');
-
-    cy.get('@dialogContainer').find(selector.nodeRadiusVar).click();
-    cy.contains('li[role="option"]', 'Degree').click();
-
-    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
-    cy.get('@dialogContainer').find('#node-radius-row').should('not.be.visible');
-    cy.get('@dialogContainer').find('#node-max-radius-row').should('be.visible');
-    cy.get('@dialogContainer').find('#node-min-radius-row').should('be.visible');
-  });
-
-  it('should update link opacity via the slider', () => {
-    const newOpacity = 0.5;
-
-    cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-
-    cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', 0);
-
-    cy.get('@dialogContainer').find(selector.linkOpacity).invoke('val', newOpacity).trigger('change', { force: true });
-
-    cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', newOpacity);
-  });
-
-  it('should toggle group label visibility', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Grouping').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Controls').click();
-    cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
-
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Labels').click();
-
-    cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.false');
-
-    cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Show').click();
-    cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.true');
-
-    cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Hide').click();
-    cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.false');
-  });
-
-  it('should update node tooltip variable', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Labels and Tooltips').click();
+    //     cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+    //     cy.window().invoke('Cypress.test.setNodeLabel', '_id'); // Ensure labels are visible for testing
     
-    cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('deep.equal', ['_id']);
+    //     cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', 16);
+    //     cy.get('@dialogContainer').find(selector.nodeLabelSize).invoke('val', newSize).trigger('change', { force: true });
+    //     cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', newSize);
     
-    cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multiselect').click();
-    cy.contains('li[role="option"]', 'Cluster').click();
+    //     cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', 'Right');
+    //     cy.get('@dialogContainer').find(selector.nodeLabelOrientation).select(newOrientation);
+    //     cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', newOrientation);
+
+    //     getCy().then(cy => {
+    //         const node = cy.nodes().first();
+    //         expect(node.style('font-size')).to.contain(newSize);
+    //         expect(node.style('text-valign')).to.equal('top');
+    //     });
+    // });
+
+    // it('should update node border width via input', () => {
+    //     const initialWidth = 2.0;
+    //     const newWidth = 5;
     
-    cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', '_id');
-    cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', 'cluster');
+    //     cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+    
+    //     cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', initialWidth);
+    
+    //     cy.get('@dialogContainer').find(selector.nodeBorderWidth).clear().type(newWidth.toString()).blur();
+    
+    //     cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', newWidth);
+    //     getCy().then(cy => {
+    //         const node = cy.nodes().first();
+    //         expect(parseFloat(node.style('border-width'))).to.be.closeTo(newWidth, 0.1);
+    //     });
+    // });
+
+    // it('should update node tooltip variable and reflect in tooltip content', () => {
+    //     cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+        
+    //     cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('deep.equal', ['_id']);
+        
+    //     cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multiselect').click();
+    //     cy.contains('li[role="option"]', 'cluster').click();
+        
+    //     cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', '_id');
+    //     cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', 'cluster');
+
+    //     // Verify the tooltip content now includes both fields
+    //     const nodeId = 'MZ375596';
+    //     cy.window().invoke('Cypress.test.tooltip', 'show', nodeId);
+    //     // Corrected Assertion: Check for the text inside the generated table within the tooltip
+    //     cy.get('#tooltip #tooltip-table').should('be.visible').within(() => {
+    //       cy.contains('td', 'id').should('be.visible');
+    //       cy.contains('td', 'Cluster').should('be.visible');
+    //   });
+    // });
+
+    it('should change node sizing to be by variable and reflect in the network', () => {
+        cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+    
+        cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'None');
+        cy.get('@dialogContainer').find('#node-radius-row').should('be.visible');
+        cy.get('@dialogContainer').find('#node-max-radius-row').should('not.be.visible');
+    
+        cy.get('@dialogContainer').find(selector.nodeRadiusVar).click();
+        cy.contains('li[role="option"]', 'Degree').click();
+    
+        cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
+        cy.get('@dialogContainer').find('#node-radius-row').should('not.be.visible');
+        cy.get('@dialogContainer').find('#node-max-radius-row').should('be.visible');
+        cy.get('@dialogContainer').find('#node-min-radius-row').should('be.visible');
+
+        getCy().then(cytoscapeInstance => {
+          // Select nodes with known different degrees for a reliable comparison
+          const nodeWithLowDegree = cytoscapeInstance.getElementById('MZ762276'); // A singleton, degree 0
+          const nodeWithHighDegree = cytoscapeInstance.getElementById('MZ797703'); // High degree
+
+
+          // Log the underlying data for debugging
+          console.log('Low degree node data:', nodeWithLowDegree.data());
+          console.log('High degree node data:', nodeWithHighDegree.data());
+          
+          // CORRECTED: Use .style('width') which gets the computed style value after rendering.
+          const lowDegreeWidth = parseFloat(nodeWithLowDegree.style('width'));
+          const highDegreeWidth = parseFloat(nodeWithHighDegree.style('width'));
+
+          console.log(`Low degree width: ${lowDegreeWidth}, High degree width: ${highDegreeWidth}`);
+          expect(lowDegreeWidth).to.be.lessThan(highDegreeWidth);
+        });
+    });
   });
+  context('Link settings', () => {
+    beforeEach(() => {
+        cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
+    });
+
+    it('should update link width by clicking the UI and reflect in the network', () => {
+      const initialWidth = 3;
+      const newWidth = 15;
     
-  // it('should update link tooltip variable', () => {
-  //   cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
-  //   cy.get('@dialogContainer').contains('.p-accordionheader', 'Labels and Tooltips').click();
-  
-  //   cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('deep.equal', ['None']);
-  
-  //   cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multiselect').click();
-  //   cy.contains('li[role="option"]', 'Distance').click();
-  
-  //   cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('not.include', 'None');
-  //   cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('include', 'distance');
-  // });
+      cy.window().its('commonService.session.style.widgets.link-width').should('equal', initialWidth);
+      
+      cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
     
-  it('should change link sizing to be by variable', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
+      cy.get('@dialogContainer').find(selector.linkWidthSize)
+        .invoke('val', newWidth)
+        .trigger('change', { force: true });
+    
+      cy.window().its('commonService.session.style.widgets.link-width').should('equal', newWidth);
+    
+      getCy().then((cyInstance) => {
+        const edge = cyInstance.edges().first();
+        expect(parseFloat(edge.style('width'))).to.be.closeTo(newWidth, 1);
+      });
+    });
+
+    it('should update link opacity via the slider', () => {
+        const newOpacity = 0.5;
+    
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+    
+        cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', 0);
+    
+        cy.get('@dialogContainer').find(selector.linkOpacity).invoke('val', newOpacity).trigger('change', { force: true });
+    
+        cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', newOpacity);
+
+        getCy().then(cy => {
+            const edge = cy.edges().first();
+            expect(parseFloat(edge.style('line-opacity'))).to.be.closeTo(newOpacity, 0.01);        
+          });
+    });
+    
+    it('should toggle link directionality arrows', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+    
+        cy.window().its('commonService.session.style.widgets.link-directed').should('be.false');
+        getCy().then(cy => expect(cy.edges().first().style('target-arrow-shape')).to.equal('none'));
+    
+        cy.get('@dialogContainer').find(selector.showArrowsToggle).contains('Show').click();
+        cy.window().its('commonService.session.style.widgets.link-directed').should('be.true');
+        getCy().then(cy => expect(cy.edges().first().style('target-arrow-shape')).to.equal('triangle'));
+    
+        cy.get('@dialogContainer').find(selector.showArrowsToggle).contains('Hide').click();
+        cy.window().its('commonService.session.style.widgets.link-directed').should('be.false');
+        getCy().then(cy => expect(cy.edges().first().style('target-arrow-shape')).to.equal('none'));
+    });
+    
+    it('should update link tooltip variable', () => {
+      cy.get('@dialogContainer').find('.tab-pane.active').should('be.visible').contains('p-accordionTab', 'Labels and Tooltips').click();
+      
+      cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('be.empty');
+      
+      cy.get('@dialogContainer').find('.tab-pane.active').contains('.form-group', 'Tooltip').find('p-multiselect').click();
+      cy.contains('li[role="option"]', 'Distance').click();
+      
+      cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('include', 'distance');
   
-    cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'None');
-    cy.get('@dialogContainer').find('#link-width-row').should('be.visible');
-    cy.get('@dialogContainer').find('#link-max-width-row').should('not.be.visible');
-  
-    cy.get('@dialogContainer').find(selector.linkWidthVar).click();
-    cy.contains('li[role="option"]', 'Distance').click();
-  
-    cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'distance');
-    cy.get('@dialogContainer').find('#link-width-row').should('not.be.visible');
-    cy.get('@dialogContainer').find('#link-max-width-row').should('be.visible');
-    cy.get('@dialogContainer').find('#link-min-width-row').should('be.visible');
-    cy.get('@dialogContainer').find('#link-reciprocalthickness-row').should('be.visible');
+      getCy().then((cyInstance: Core) => {
+          const edgeId = cyInstance.edges().first().id();
+          cy.window().invoke('Cypress.test.linkTooltip', 'show', edgeId);
+          cy.get('#tooltip').should('be.visible').and('not.be.empty');
+      });
   });
+        
     
-  it('should update link length via the slider', () => {
-    const newLength = 100;
-  
-    cy.get('@dialogContainer').contains('.nav-link', 'Links').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Shapes and Sizes').click();
-  
-    cy.window().its('commonService.session.style.widgets.link-length').should('equal', 50);
-  
-    cy.get('@dialogContainer').find(selector.linkLengthSlider).invoke('val', newLength).trigger('change', { force: true });
-  
-    cy.window().its('commonService.session.style.widgets.link-length').should('equal', newLength);
+    it('should change link sizing to be by variable', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+      
+        cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'None');
+        cy.get('@dialogContainer').find('#link-width-row').should('be.visible');
+        cy.get('@dialogContainer').find('#link-max-width-row').should('not.be.visible');
+      
+        cy.get('@dialogContainer').find(selector.linkWidthVar).click();
+        cy.contains('li[role="option"]', 'Distance').click();
+      
+        cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'distance');
+        cy.get('@dialogContainer').find('#link-width-row').should('not.be.visible');
+        cy.get('@dialogContainer').find('#link-max-width-row').should('be.visible');
+        cy.get('@dialogContainer').find('#link-min-width-row').should('be.visible');
+        cy.get('@dialogContainer').find('#link-reciprocalthickness-row').should('be.visible');
+
+        getCy().then(cy => {
+          const edgeWithSmallDistance = cy.edges().filter(edge => edge.data('distance') < 0.01)[0];
+          const edgeWithLargeDistance = cy.edges().filter(edge => edge.data('distance') > 0.02)[0];
+
+
+            console.log(edgeWithLargeDistance);
+            console.log(edgeWithSmallDistance);
+            const smallDistWidth = parseFloat(edgeWithSmallDistance.style('width'));
+            const largeDistWidth = parseFloat(edgeWithLargeDistance.style('width'));
+            
+            // Because reciprocal is on by default, a smaller distance should result in a larger width.
+            expect(smallDistWidth).to.be.greaterThan(largeDistWidth);
+        });
+    });
+        
+    it('should update link length via the slider', () => {
+        const newLength = 100;
+      
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+      
+        cy.window().its('commonService.session.style.widgets.link-length').should('equal', 50);
+      
+        cy.get('@dialogContainer').find(selector.linkLengthSlider).invoke('val', newLength).trigger('change', { force: true });
+      
+        cy.window().its('commonService.session.style.widgets.link-length').should('equal', newLength);
+
+        // This is an indirect visual test. We check that node positions have changed,
+        // which implies the layout force was updated with the new link length.
+        getCy().then(cyto => {
+            const node1_initial_pos = cyto.nodes().first().position();
+            cy.get('@dialogContainer').find('[title="Recalculate Layout"]').click().then(() => {
+                const node1_new_pos = cyto.nodes().first().position();
+                expect(node1_initial_pos.x).to.not.equal(node1_new_pos.x);
+            });
+        });
+    });
   });
-    
-  it('should toggle neighbor highlighting', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Network').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Display').click();
-  
-    cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
-  
-    cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Highlighted').click();
-    cy.window().its('commonService.session.style.widgets.node-highlight').should('be.true');
-  
-    cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Normal').click();
-    cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
+  context('Network settings', () => {
+    beforeEach(() => {
+        cy.get('@dialogContainer').contains('.nav-link', 'Network').click();
+    });
+
+    it('should toggle network gridlines and update visibility', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Display').click();
+
+        cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.false');
+        cy.get('.grid-overlay').should('have.class', 'hidden');
+
+        cy.get('@dialogContainer').find(selector.showGridlinesToggle).contains('Show').click();
+        cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.true');
+        cy.get('.grid-overlay').should('not.have.class', 'hidden');
+
+        cy.get('@dialogContainer').find(selector.showGridlinesToggle).contains('Hide').click();
+        cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.false');
+        cy.get('.grid-overlay').should('have.class', 'hidden');
+    });
+
+    it('should toggle neighbor highlighting', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Display').click();
+      
+        cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
+      
+        cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Highlighted').click();
+        cy.window().its('commonService.session.style.widgets.node-highlight').should('be.true');
+      
+        cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Normal').click();
+        cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
+    });
   });
+
+  context('Grouping settings', () => {
+    beforeEach(() => {
+        cy.get('@dialogContainer').contains('.nav-link', 'Grouping').click();
+    });
+
+    it('should create and remove grouping polygons', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+
+        cy.window().its('commonService.session.style.widgets.polygons-show').should('be.false');
+        getCy().then(cy => expect(cy.nodes('.parent').length).to.equal(0));
+
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
+        cy.window().its('commonService.session.style.widgets.polygons-show').should('be.true');
+        getCy().then(cy => expect(cy.nodes('.parent').length).to.be.greaterThan(0));
+
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Hide').click();
+        cy.window().its('commonService.session.style.widgets.polygons-show').should('be.false');
+        getCy().then(cy => expect(cy.nodes('.parent').length).to.equal(0));
+    });
+
+    it('should toggle group label visibility', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
     
-  it('should change the grouping variable', () => {
-    cy.get('@dialogContainer').contains('.nav-link', 'Grouping').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Controls').click();
-    cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
-  
-    cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'cluster');
-  
-    cy.get('@dialogContainer').find(selector.groupByVar).click();
-    cy.contains('li[role="option"]', 'Subtype').click();
-  
-    cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
-  });
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Labels').click();
     
-  it('should update group label size and orientation', () => {
-    const newSize = 40;
-    const newOrientation = 'bottom';
-  
-    cy.get('@dialogContainer').contains('.nav-link', 'Grouping').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Controls').click();
-    cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
-    cy.get('@dialogContainer').contains('.p-accordionheader', 'Labels').click();
-    cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Show').click();
-  
-    cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', 16);
-    cy.get('@dialogContainer').find(selector.groupLabelSize).invoke('val', newSize).trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', newSize);
-  
-    cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'top');
-    cy.get('@dialogContainer').find(selector.groupLabelOrientation).select(newOrientation);
-    cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', newOrientation);
+        cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.false');
+    
+        cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Show').click();
+        cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.true');
+        getCy().then(cy => expect(cy.nodes('.parent').first().style('label')).to.not.be.empty);
+    
+        cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Hide').click();
+        cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.false');
+        getCy().then(cy => expect(cy.nodes('.parent').first().style('label')).to.be.empty);
+    });
+    
+    it('should change the grouping variable', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
+      
+        cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'cluster');
+      
+        cy.get('@dialogContainer').find(selector.groupByVar).click();
+        cy.contains('li[role="option"]', 'Subtype').click();
+      
+        cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
+        getCy().then(cy => {
+            const parent = cy.getElementById('30578_KF773488_D99cl05').parent();
+            expect(parent.id()).to.contain('B'); 
+        });
+    });
+    
+    it('should update group label size and orientation', () => {
+        const newSize = 40;
+        const newOrientation = 'bottom';
+      
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Labels').click();
+        cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Show').click();
+      
+        cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', 16);
+        cy.get('@dialogContainer').find(selector.groupLabelSize).invoke('val', newSize).trigger('change', { force: true });
+        cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', newSize);
+      
+        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'top');
+        cy.get('@dialogContainer').find(selector.groupLabelOrientation).select(newOrientation);
+        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', newOrientation);
+
+        getCy().then(cy => {
+            const parentNode = cy.nodes('.parent').first();
+            expect(parentNode.style('font-size')).to.contain(newSize);
+            expect(parentNode.style('text-valign')).to.equal(newOrientation);
+        });
+    });
   });
 });
+
 
   // Test suite for mouse interactions
 

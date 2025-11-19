@@ -3037,56 +3037,148 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
             
             if ((window as any).Cypress) {
-                (window as any).cytoscapeInstance = this.cy;
-
-                (window as any).Cypress.selectNodes = (nodeIds: string[]) => {
-                    this.cy.elements().unselect(); // Deselect all first
-                    nodeIds.forEach(id => {
-                        this.cy.getElementById(id).select();
-                    });
-                };
-
-                (window as any).Cypress.testDragNode = (nodeId: string, newPosition: { x: number, y: number }) => {
-                    this.zone.run(() => {
-                        const node = this.cy.getElementById(nodeId);
-                        if (node) {
-                            // Set the visual position
-                            node.position(newPosition);
-                            // Directly call the SERVICE method with the KNOWN new position
-                            this.commonService.updateNodePosition(nodeId, newPosition);
-                        }
-                    });
-                };
-
-                (window as any).Cypress.testTooltip = (action: 'show' | 'hide', nodeId: string) => {
-                    this.zone.run(() => {
-                        const node = this.cy.getElementById(nodeId);
-                        if (node) {
-                            if (action === 'show') {
-                                // We create a mock event object to prevent errors
-                                const mockEvent = { clientX: 100, clientY: 100 };
-                                this.showNodeTooltip(node.data(), mockEvent);
-                            } else {
-                                this.hideTooltip();
-                            }
-                        }
-                    });
-                };
-
-                (window as any).Cypress.linkTooltip = (action: 'show' | 'hide', edgeId: string) => {
-                    this.zone.run(() => {
-                        const edge = this.cy.getElementById(edgeId);
-                        if (edge) {
-                            if (action === 'show') {
-                                const mockEvent = { clientX: 300, clientY: 300 };
-                                this.showLinkTooltip(edge.data(), mockEvent);
-                            } else {
-                                this.hideTooltip();
-                            }
-                        }
-                    });
-                };
-            
+              (window as any).cytoscapeInstance = this.cy;
+              
+              // Create a dedicated namespace for all test functions
+              (window as any).Cypress.test = {
+                // Interaction helpers
+                dragNode: (nodeId: string, newPosition: { x: number; y: number }) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (node) {
+                            node.position(newPosition);
+                            this.updateNodePos(node); 
+                        }
+                    });
+                },
+                tooltip: (action: 'show' | 'hide', nodeId: string) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (node) {
+                            if (action === 'show') {
+                                const mockEvent = { clientX: 100, clientY: 100 };
+                                this.showNodeTooltip(node.data(), mockEvent);
+                            } else {
+                                this.hideTooltip();
+                            }
+                        }
+                    });
+                },
+                linkTooltip: (action: 'show' | 'hide', edgeId: string) => {
+                     this.zone.run(() => {
+                        const edge = this.cy.getElementById(edgeId);
+                        if (edge) {
+                            if (action === 'show') {
+                                const mockEvent = { clientX: 300, clientY: 300 };
+                                this.showLinkTooltip(edge.data(), mockEvent);
+                            } else {
+                                this.hideTooltip();
+                            }
+                        }
+                    });
+                },
+    
+                // New settings helpers
+                setNodeSize: (size: number) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeRadiusSizeVariable = size;
+                        this.onNodeRadiusChange(size);
+                    });
+                },
+                setLinkWidth: (width: number) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkWidthVariable = width;
+                        this.onLinkWidthChange(width);
+                    });
+                },
+                togglePolygons: (show: boolean) => {
+                    this.zone.run(() => this.polygonsToggle(show));
+                },
+                setNodeLabel: (variable: string) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeLabelVariable = variable;
+                        this.onNodeLabelVaribleChange(variable);
+                    });
+                },
+                setNodeBorderWidth: (width: number) => {
+                    this.zone.run(() => {
+                        this.nodeBorderWidth = width;
+                        this.onNodeBorderWidthChange(width);
+                    });
+                },
+                toggleLinkArrows: (show: boolean) => {
+                    this.zone.run(() => {
+                        const value = show ? 'Show' : 'Hide';
+                        this.SelectedLinkArrowTypeVariable = value;
+                        this.onLinkDirectedUndirectedChange(value);
+                    });
+                },
+                toggleGridlines: (show: boolean) => {
+                     this.zone.run(() => {
+                        const value = show ? 'Show' : 'Hide';
+                        this.SelectedNetworkGridLineTypeVariable = value;
+                        this.onNetworkGridlinesShowHideChange(value);
+                    });
+                },
+                setNodeLabelSizeAndOrientation: (size: number, orientation: string) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeLabelSizeVariable = size;
+                        this.setNodeLabelSize(size);
+                        this.SelectedNodeLabelOrientationVariable = orientation as any;
+                        this.onNodeLabelOrientationChange(orientation);
+                    });
+                },
+                setNodeSizeByVariable: (variable: string) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeRadiusVariable = variable;
+                        this.onNodeRadiusVariableChange(variable);
+                    });
+                },
+                setLinkOpacity: (opacity: number) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkTransparencyVariable = opacity;
+                        this.onLinkOpacityChange(opacity);
+                    });
+                },
+                toggleGroupLabels: (show: boolean) => {
+                    this.zone.run(() => {
+                        this.widgets['polygons-label-show'] = show;
+                        this.onPolygonLabelShowChange(show);
+                    });
+                },
+                setLinkWidthByVariable: (variable: string) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkWidthByVariable = variable;
+                        this.onLinkWidthVariableChange(variable);
+                    });
+                },
+                setLinkLength: (length: number) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkLengthVariable = length;
+                        this.onLinkLengthChange(length);
+                    });
+                },
+                toggleNeighborHighlighting: (highlight: boolean) => {
+                    this.zone.run(() => {
+                        const value = highlight ? 'Highlighted' : 'Normal';
+                        this.SelectedNetworkNeighborTypeVariable = value;
+                        this.onDontHighlightNeighborsHighlightNeighborsChange(value);
+                    });
+                },
+                setGroupByVariable: (variable: string) => {
+                    this.zone.run(() => {
+                         this.centerPolygons(variable);
+                    });
+                },
+                setGroupLabelSizeAndOrientation: (size: number, orientation: string) => {
+                     this.zone.run(() => {
+                        this.SelectedPolygonLabelSizeVariable = size;
+                        this.onPolygonLabelSizeChange(size);
+                        this.SelectedPolygonLabelOrientationVariable = orientation as any;
+                        this.onPolygonLabelOrientationChange(orientation);
+                    });
+                }
+              };
             }
             // Attach events
             this.attachCytoscapeEvents();
