@@ -1,0 +1,921 @@
+<div id="tree"></div>
+
+<div class="view-controls">
+  <button id="toggle-tree-settings" type="button" data-toggle="button" class="btn btn-light btn-sm" title="Toggle Tree Settings">
+    <span class="oi oi-cog"></span>
+  </button>
+  <button type="button" class="btn btn-light btn-sm" data-toggle="modal" data-target="#tree-export-modal" title="Export Tree">
+    <span class="oi oi-data-transfer-download"></span>
+  </button>
+  <button id="tree-fitbutton" type="button" class="btn btn-light btn-sm" title="Center and Scale Phylogenetic Tree">
+    <span class="oi oi-target"></span>
+  </button>
+</div>
+
+<div id="tree-settings-pane" class="left-pane">
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item">
+      <a href="#tree-configurations" id="tree-tab" class="nav-link active" aria-controls="tree" role="tab" data-toggle="tab">Tree</a>
+    </li>
+    <li class="nav-item">
+      <a href="#tree-branch-configurations" id="tree-branch-tab" class="nav-link" aria-controls="tree" role="tab" data-toggle="tab">Branches</a>
+    </li>
+    <li class="nav-item">
+      <a href="#tree-leaf-configurations" id="tree-leaf-tab" class="nav-link" aria-controls="tree" role="tab" data-toggle="tab">Leaves</a>
+    </li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tree-configurations" role="tabpanel" aria-labelledby="tree-tab">
+      <div class="accordion" id="tree-layout-controls-accordion">
+        <div class="card">
+          <div class="card-header p-0">
+            <button class="bg-transparent border-0 w-100" type="button" data-toggle="collapse" data-target="#tree-layout-controls-labels" aria-expanded="true" aria-controls="tree-layout-controls-labels" style="color:#495057">
+              Layout
+            </button>
+          </div>
+          <div id="tree-layout-controls-labels" class="collapse show" data-parent="#tree-layout-controls-accordion">
+            <div class="card-body">
+              <div class="form-group row" title="What kind of layout would you like to use for this tree?">
+                <div class="col-3">
+                  <label for="tree-type">Type</label>
+                </div>
+                <div class="col-9">
+                  <select id="tree-type" class="form-control form-control-sm">
+                    <option value="tree">Tree</option>
+                    <option value="weighted" selected="selected">Weighted Dendrogram</option>
+                    <option value="dendrogram">Unweighted Dendrogram</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group row" title="What kind of layout would you like to use for this tree?">
+                <div class="col-3">Layout</div>
+                <div class="col-9">
+                  <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                    <label class="btn btn-light btn-sm active col">
+                      <input type="radio" name="tree-layout" id="tree-layout-vertical" autocomplete="off" checked="checked">
+                      Vertical
+                    </label>
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-layout" id="tree-layout-horizontal" autocomplete="off">
+                      Horizontal
+                    </label>
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-layout" id="tree-layout-circular" autocomplete="off">
+                      Circular
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" title="Would you like to vertically stretch (or squish) the Tree?">
+                <div class="col-3">
+                  <label for="tree-vertical-stretch">Vertical Stretch</label>
+                </div>
+                <div class="col-9">
+                  <input id="tree-vertical-stretch" type="range" class="custom-range" min="0.1" max="10" value="1" step="0.1">
+                </div>
+              </div>
+              <div class="form-group row" title="Would you like to horizontally stretch (or squish) the Tree?">
+                <div class="col-3">
+                  <label for="tree-horizontal-stretch">Horizontal Stretch</label>
+                </div>
+                <div class="col-9">
+                  <input id="tree-horizontal-stretch" type="range" class="custom-range" min="0.1" max="10" value="1" step="0.1">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header p-0">
+            <button class="bg-transparent border-0 w-100 collapsed" type="button" data-toggle="collapse" data-target="#tree-actions-controls-labels" aria-expanded="false" aria-controls="tree-actions-controls-labels" style="color:#495057">
+              Actions
+            </button>
+          </div>
+          <div id="tree-actions-controls-labels" class="collapse" data-parent="#tree-layout-controls-accordion">
+            <div class="card-body">
+              <div class="form-group row">
+                <div class="col-6">
+                  <button type="button" class="btn btn-light w-100" id="tree-simplify" title="Collapse branches with single descendants into a longer, continuous branch.">Simplify</button>
+                </div>
+                <div class="col-6">
+                  <button type="button" class="btn btn-light w-100" id="tree-consolidate" title="Collapse branches with zero distance into combined branches.">Consolidate</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header p-0">
+            <button class="bg-transparent border-0 w-100 collapsed" type="button" data-toggle="collapse" data-target="#tree-meta-controls-labels" aria-expanded="false" aria-controls="tree-meta-controls-labels" style="color:#495057">
+              Meta
+            </button>
+          </div>
+          <div id="tree-meta-controls-labels" class="collapse" data-parent="#tree-layout-controls-accordion">
+            <div class="card-body">
+              <div class="form-group row hideForCircular" title="Would you like to see a ruler indicating patristic distances next to your tree?">
+                <div class="col-3">Ruler</div>
+                <div class="col-9">
+                  <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                    <label class="btn btn-light btn-sm col active">
+                      <input type="radio" name="tree-ruler" id="tree-ruler-show" autocomplete="off" checked="checked">
+                      Show
+                    </label>
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-ruler" id="tree-ruler-hide" autocomplete="off">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" title="Would you like to see animations as your tree updates?">
+                <div class="col-3">Animate</div>
+                <div class="col-9">
+                  <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                    <label class="btn btn-light btn-sm col active">
+                      <input type="radio" name="tree-animation" id="tree-animation-on" autocomplete="off" checked="checked">
+                      Yes
+                    </label>
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-animation" id="tree-animation-off" autocomplete="off">
+                      No
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="tree-branch-configurations" role="tabpanel" aria-labelledby="tree-branch-tab">
+      <div class="form-group row" title="What would you like the branches to be shaped like?">
+        <div class="col-3">Type</div>
+        <div class="col-9">
+          <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+            <label class="btn btn-light btn-sm col active">
+              <input type="radio" name="tree-mode" id="tree-mode-square" autocomplete="off" checked="checked">
+              Square
+            </label>
+            <label class="btn btn-light btn-sm col">
+              <input type="radio" name="tree-mode" id="tree-mode-smooth" autocomplete="off">
+              Smooth
+            </label>
+            <label class="btn btn-light btn-sm col">
+              <input type="radio" name="tree-mode" id="tree-mode-straight" autocomplete="off">
+              Straight
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group row" title="Would you like to render nodes at the tree's branchpoints?">
+        <div class="col-3">Nodes</div>
+        <div class="col-9">
+          <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+            <label class="btn btn-light btn-sm col">
+              <input type="radio" name="tree-branch-nodes" id="tree-branch-nodes-show" autocomplete="off">
+              Show
+            </label>
+            <label class="btn btn-light btn-sm col active">
+              <input type="radio" name="tree-branch-nodes" id="tree-branch-nodes-hide" autocomplete="off" checked="checked">
+              Hide
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group row" title="Would you like to see branch distances written on the Branches?">
+        <div class="col-3">Length Labels</div>
+        <div class="col-9">
+          <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+            <label class="btn btn-light btn-sm col">
+              <input type="radio" name="tree-branch-distances" id="tree-branch-distances-show" autocomplete="off">
+              Show
+            </label>
+            <label class="btn btn-light btn-sm col active">
+              <input type="radio" name="tree-branch-distances" id="tree-branch-distances-hide" autocomplete="off" checked="checked">
+              Hide
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group row tree-branch-distance-row" title="Would you like to round distances in the tree to integers?">
+        <div class="col-3">Round Labels</div>
+        <div class="col-9">
+          <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+            <label class="btn btn-light btn-sm active col">
+              <input type="radio" name="tree-round" id="tree-round-false" autocomplete="off" checked="checked">
+              Unrounded
+            </label>
+            <label class="btn btn-light btn-sm col">
+              <input type="radio" name="tree-round" id="tree-round-true" autocomplete="off">
+              Rounded
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group row tree-branch-distance-row" title="How big should the branch distance labels be?">
+        <div class="col-3">
+          <label for="tree-branch-distance-size">Label Size</label>
+        </div>
+        <div class="col-9">
+          <input id="tree-branch-distance-size" type="range" class="custom-range" min="1" max="32" value="6" step="1">
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="tree-leaf-configurations" role="tabpanel" aria-labelledby="tree-leaf-tab">
+      <div class="accordion" id="tree-leaf-controls-accordion">
+        <div class="card">
+          <div class="card-header p-0">
+            <button class="bg-transparent border-0 w-100" type="button" data-toggle="collapse" data-target="#tree-leaf-controls-labels" aria-expanded="true" aria-controls="tree-leaf-controls-labels" style="color:#495057">Labels and Tooltips</button>
+          </div>
+          <div id="tree-leaf-controls-labels" class="collapse show" data-parent="#tree-leaf-controls-accordion">
+            <div class="card-body">
+              <div class="form-group row tree-leaf-node-row">
+                <div class="col-3">
+                  <label class="form-switch">Tooltip</label>
+                </div>
+                <div class="col-9">
+                  <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                    <label class="btn btn-light btn-sm col active">
+                      <input type="radio" name="tree-tooltips" id="tree-tooltip-show" autocomplete="off" checked="checked">
+                      Show
+                    </label>
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-tooltips" id="tree-tooltip-hide" autocomplete="off">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row">
+                <div class="col-3">Labels</div>
+                <div class="col-9">
+                  <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-leaf-labels" id="tree-leaf-label-show" autocomplete="off">
+                      Show
+                    </label>
+                    <label class="btn btn-light btn-sm col active">
+                      <input type="radio" name="tree-leaf-labels" id="tree-leaf-label-hide" autocomplete="off" checked="checked">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div id="tree-leaf-label-size-row" class="form-group row">
+                <div class="col-3">
+                  <label for="tree-leaf-label-size">Label Size</label>
+                </div>
+                <div class="col-9">
+                  <input id="tree-leaf-label-size" type="range" class="custom-range" min="1" max="32" value="6" step="1">
+                </div>
+              </div>
+              <div class="form-group row" title="What field should be displayed as a label for the node?">
+                <div class="col-4"><label for="phylogenetic-node-label-variable">Label</label></div>
+                <div class="col-8">
+                  <select id="phylogenetic-node-label-variable" class="form-control form-control-sm nodeVariables">
+                    <option>None</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group row" title="What node data should be displayed as a tooltip for the node?">
+                <div class="col-4"><label for="phylogenetic-node-tooltip-variable">Tooltip</label></div>
+                <div class="col-8">
+                  <select id="phylogenetic-node-tooltip-variable" class="form-control form-control-sm nodeVariables">
+                    <option>None</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header p-0">
+            <button class="bg-transparent border-0 w-100" type="button" data-toggle="collapse" data-target="#tree-leaf-controls-geometry" aria-expanded="false" aria-controls="tree-leaf-controls-geometry" style="color:#495057">Shapes and Sizes</button>
+          </div>
+          <div id="tree-leaf-controls-geometry" class="collapse" data-parent="#tree-leaf-controls-accordion">
+            <div class="card-body">
+              <div class="form-group row">
+                <div class="col-3">Nodes</div>
+                <div class="col-9">
+                  <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                    <label class="btn btn-light btn-sm col active">
+                      <input type="radio" name="tree-leaf-nodes" id="tree-leaf-node-show" autocomplete="off" checked="checked">
+                      Show
+                    </label>
+                    <label class="btn btn-light btn-sm col">
+                      <input type="radio" name="tree-leaf-nodes" id="tree-leaf-node-hide" autocomplete="off">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row tree-leaf-node-row" title="Which variable should determine the size of the node?">
+                <div class="col-3"><label for="tree-leaf-node-radius-variable">Size By</label></div>
+                <div class="col-9">
+                  <select id="tree-leaf-node-radius-variable" class="form-control form-control-sm nodeVariables">
+                    <option>None</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group row tree-leaf-node-row">
+                <div class="col-3">
+                  <label for="tree-leaf-node-size">Node Size</label>
+                </div>
+                <div class="col-9">
+                  <input id="tree-leaf-node-size" type="range" class="custom-range" min="1" max="32" value="9" step="1">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header p-0">
+            <button class="bg-transparent border-0 w-100 launch-color-options collapsed" type="button" data-toggle="collapse" aria-expanded="false" style="color:#495057">Colors</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tree-context-menu" class="dropdown-menu">
+  <a href="#" id="tree-rotate" class="dropdown-item">Rotate</a>
+  <a href="#" id="tree-flip" class="dropdown-item">Flip</a>
+  <a href="#" id="tree-reroot" class="dropdown-item">Set As Root</a>
+</div>
+
+<div id="tree-export-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Export Phylogenetic Tree</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group row">
+          <div class="col-9">
+            <input type="text" id="tree-export-file-name" class="form-control form-control-sm" placeholder="Filename">
+          </div>
+          <div class="col-3">
+            <select id="tree-export-file-type" class="form-control form-control-sm">
+              <option selected="selected">png</option>
+              <option>jpeg</option>
+              <option>webp</option>
+              <option>svg</option>
+              <option>nwk</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group row mb-0">
+          <div class="col-3 offset-9">
+            <button id="tree-export-advanced-button" class="btn btn-primary btn-sm w-100" type="button" data-toggle="collapse" data-target="#tree-export-advanced" aria-expanded="false" aria-controls="tree-export-advanced">Advanced</button>
+          </div>
+        </div>
+        <div class="collapse" id="tree-export-advanced" style="margin-top: 10px;">
+          <div class="card card-body">
+            <div class="form-group row">
+              <div class="col-3">
+                <label for="tree-export-scale">Scale</label>
+              </div>
+              <div class="col-9">
+                <input type="number" id="tree-export-scale" class="form-control form-control-sm" min="0" step="0.1" value="1">
+              </div>
+            </div>
+            <div class="form-group row">
+              <div class="col-3">Resolution</div>
+              <div id="tree-export-dimensions" class="col-9 text-right"></div>
+            </div>
+            <div class="row">
+              <div class="col-3">
+                <label for="tree-export-quality">Quality</label>
+              </div>
+              <div class="col-9">
+                <input type="range" class="custom-range" id="tree-export-quality" min="0" max="1.0" value="0.92" step="0.01">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 10px;">
+          <div class="col-3">
+            <label for="tree-export-opacity">Watermark Opacity</label>
+          </div>
+          <div class="col-9">
+            <input type="range" id="tree-export-opacity" min="0.0" max="1.0" value="0.4" step="0.01"></input>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-error" data-dismiss="modal">Cancel</button>
+        <button type="button" id="tree-export" class="btn btn-primary" data-dismiss="modal">Export</button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<script>
+  (() => {
+      /*
+    ga('set', 'page', '/phylogenetic_tree');
+    ga('set', 'title', 'Phylogenetic Tree View');
+    ga('send', 'pageview');
+*/
+    gtag({'event': 'page_view', 'page_location': '/phylogenetic_tree', 'page_title': 'Phylogenetic Tree View'});
+    let tree;
+
+    let redrawTree = () => {
+      let size = session.style.widgets['tree-leaf-node-size'],
+        color = session.style.widgets['node-color'],
+        ncv = session.style.widgets['node-color-variable'];
+
+      if (ncv == 'None') {
+        tree.eachLeafNode(d => d3.select(d).attr('r', size).style('fill', color));
+      } else {
+        let ncm = temp.style.nodeColorMap;
+        tree.eachLeafNode(circle => d3.select(circle).attr('r', size).style('fill', data => {
+          let id = data.data.id;
+          let match = session.data.nodes.find(node => node._id == id);
+          if (match) {
+            return ncm(match[ncv]);
+          } else {
+            return color;
+          }
+        }));
+      }
+
+      tagSelected();
+      if (session.style.widgets['tree-round-true']) roundBranchDistances();
+    };
+
+    let drawTree = () => {
+      let panel = $('#tree').parent();
+      if (!panel.length) return;
+
+      // if there's an input newick file, use original tree
+      if( session.files.find(x => x.format == 'newick')) {
+      //if (session.files.length == 1 && session.files[0].format == 'newick') {
+        if (!temp.tree) {
+          // no temp.tree when recall stash or loading microbetrace file
+          temp.tree = patristic.parseNewick(session.files[0].contents);
+        } 
+      } else {
+        if (!temp.tree) return MT.computeTree().then(drawTree);
+        if (temp.tree.leaves().length != temp.nodes.length) return MT.computeTree().then(drawTree);
+      }
+
+      tree = new TidyTree(temp.tree.clone(), {
+        parent: '#tree',
+        layout: 'horizontal',
+        type: 'weighted',
+        mode: 'square',
+        animation: 0,
+        branchNodes: false,
+        branchDistances: false,
+        leafNodes: true,
+        leafLabels: false,
+        margin: [60, 100, 60, 60]
+      }, {
+        select: select,
+        contextmenu: contextMenu,
+        showtooltip: tooltip,
+        hidetooltip: hideTooltip
+      });
+
+      $('#tree').on('click', hideContext);
+
+      redrawTree();
+    };
+
+    function select(d) {
+      let e = d3.event;
+      let n = d[0].data;
+      e.preventDefault();
+      if (e.ctrlKey) {
+        session.data.nodes.find(node => node._id == n.id).selected = !n.selected;
+      } else {
+        session.data.nodes.forEach(node => {
+          if (node._id == n.id) {
+            node.selected = !n.selected;
+          } else {
+            node.selected = false;
+          }
+        });
+      }
+      $window.trigger('node-selected');
+    }
+
+    function contextMenu(d) {
+      let e = d3.event;
+      e.preventDefault();
+      hideTooltip();
+      let menu = d3.select('#tree-context-menu');
+      d3.select('#tree-reroot').on('click', () => {
+        tree.setData(d[0].data.reroot());
+        $('#tree-branch-distance-size').trigger('input');
+        menu.style('z-index', -1).style('display', 'none');
+      });
+      d3.select('#tree-rotate').on('click', () => {
+        tree.setData(d[0].data.rotate().getRoot());
+        menu.style('z-index', -1).style('display', 'none');
+      });
+      d3.select('#tree-flip').on('click', () => {
+        tree.setData(d[0].data.flip().getRoot());
+        menu.style('z-index', -1).style('display', 'none');
+      });
+      menu
+        .style('display', 'block')
+        .style('opacity', 1)
+        .style('top', e.offsetY + 'px')
+        .style('left', e.offsetX + 'px')
+        .style('z-index', 1000);
+    }
+
+    function hideContext() {
+      let menu = d3.select('#tree-context-menu');
+      menu
+        .transition().duration(100)
+        .style('opacity', 0)
+        .on('end', () => menu.style('z-index', -1));
+    }
+
+    function tooltip(d) {
+      if (session.style.widgets['tree-tooltip-show']) {
+        let e = d3.event;
+        e.preventDefault();
+        d3.select('#tooltip')
+          .text(e.target.getAttribute('title'))
+          .style('top', e.pageY + 'px')
+          .style('left', (e.pageX + 5) + 'px')
+          .style('z-index', 1000)
+          .style('opacity', 1);
+      }
+    }
+
+    function hideTooltip() {
+      let tooltip = d3.select('#tooltip');
+      tooltip
+        .transition().duration(100)
+        .style('opacity', 0)
+        .on('end', () => tooltip.style('z-index', -1));
+    }
+
+    $('#phylogenetic-node-label-variable').on('change', function () {
+      let labelVar = this.value;
+      tree.eachLeafLabel(label => {
+        d3.select(label).text(data => {
+          let id = data.data.id;
+          let node = session.network.nodes.find(node => node._id == id);
+          return node[labelVar];
+        }).attr('dx', 8)
+      });
+    });
+
+    $('#phylogenetic-node-tooltip-variable').on('change', function () {
+      let labelVar = this.value;
+      tree.eachLeafNode((circle, data) => {
+        let node = session.data.nodes.find(d => d.id == data.data.id);
+        if (node === undefined) 
+          node = session.data.nodes.find(d => d._id == data.data.id);
+        d3.select(circle)
+          .attr('title', node[labelVar]);
+      });
+    });
+
+    $('#toggle-tree-settings').on('click', function () {
+      let pane = $('#tree-settings-pane');
+      if ($(this).hasClass('active')) {
+        pane.animate({ left: '-400px' }, () => pane.hide());
+      } else {
+        pane.show(0, () => pane.animate({ left: '0px' }));
+      }
+    });
+
+    $('#tree-type').on('change', function () {
+      session.style.widgets['tree-type'] = this.value;
+      tree.setType(session.style.widgets['tree-type']);
+    });
+
+    $('#tree-layout-vertical').parent().on('click', () => {
+      session.style.widgets['tree-layout-vertical'] = true;
+      session.style.widgets['tree-layout-horizontal'] = false;
+      session.style.widgets['tree-layout-circular'] = false;
+      tree.setLayout('vertical').recenter();
+      $('.hideForCircular').slideDown();
+    });
+
+    $('#tree-layout-horizontal').parent().on('click', () => {
+      session.style.widgets['tree-layout-vertical'] = false;
+      session.style.widgets['tree-layout-horizontal'] = true;
+      session.style.widgets['tree-layout-circular'] = false;
+      tree.setLayout('horizontal').recenter();
+      $('.hideForCircular').slideDown();
+    });
+
+    $('#tree-layout-circular').parent().on('click', () => {
+      session.style.widgets['tree-layout-vertical'] = false;
+      session.style.widgets['tree-layout-horizontal'] = false;
+      session.style.widgets['tree-layout-circular'] = true;
+      tree.setLayout('circular').recenter();
+      $('.hideForCircular').slideUp();
+    });
+
+    $('#tree-vertical-stretch').on('input', function () {
+      let val = parseFloat(this.value);
+      session.style.widgets['tree-vertical-stretch'] = val;
+      let cached = tree.animation;
+      tree.setAnimation(0);
+      tree.setVStretch(val);
+      tree.setAnimation(cached);
+    });
+
+    $('#tree-horizontal-stretch').on('input', function () {
+      let val = parseFloat(this.value);
+      session.style.widgets['tree-horizontal-stretch'] = val;
+      let cached = tree.animation;
+      tree.setAnimation(0);
+      tree.setHStretch(val);
+      tree.setAnimation(cached);
+    });
+
+    $('#tree-simplify').on('click', () => {
+      tree.setData(tree.data.simplify());
+    });
+
+    $('#tree-consolidate').on('click', () => {
+      tree.setData(tree.data.consolidate());
+    });
+
+    $('#tree-ruler-show').parent().on('click', () => {
+      session.style.widgets['tree-ruler-hide'] = false;
+      tree.setRuler(true);
+    });
+
+    $('#tree-ruler-hide').parent().on('click', () => {
+      session.style.widgets['tree-ruler-hide'] = true;
+      tree.setRuler(false);
+    });
+
+    $('#tree-animation-on').parent().on('click', () => {
+      session.style.widgets['tree-animation-on'] = true;
+      tree.setAnimation(1200);
+    });
+
+    $('#tree-animation-off').parent().on('click', () => {
+      session.style.widgets['tree-animation-on'] = false;
+      tree.setAnimation(0);
+    });
+
+    $('#tree-mode-square').parent().on('click', () => {
+      session.style.widgets['tree-mode-square'] = true;
+      session.style.widgets['tree-mode-smooth'] = false;
+      session.style.widgets['tree-mode-straight'] = false;
+      tree.setMode('square');
+    });
+
+    $('#tree-mode-smooth').parent().on('click', () => {
+      session.style.widgets['tree-mode-square'] = false;
+      session.style.widgets['tree-mode-smooth'] = true;
+      session.style.widgets['tree-mode-straight'] = false;
+      tree.setMode('smooth');
+    });
+
+    $('#tree-mode-straight').parent().on('click', () => {
+      session.style.widgets['tree-mode-square'] = false;
+      session.style.widgets['tree-mode-smooth'] = false;
+      session.style.widgets['tree-mode-straight'] = true;
+      tree.setMode('straight');
+    });
+
+    $('#tree-branch-nodes-show').parent().on('click', () => {
+      session.style.widgets['tree-branch-nodes-hide'] = false;
+      tree.setBranchNodes(true);
+    });
+
+    $('#tree-branch-nodes-hide').parent().on('click', () => {
+      session.style.widgets['tree-branch-nodes-hide'] = true;
+      tree.setBranchNodes(false);
+    });
+
+    $('#tree-branch-distances-show').parent().on('click', () => {
+      session.style.widgets['tree-branch-distances-hide'] = false;
+      $('.tree-branch-distance-row').slideDown();
+      tree.setBranchDistances(true);
+    });
+
+    $('#tree-branch-distances-hide').parent().on('click', () => {
+      session.style.widgets['tree-branch-distances-hide'] = true;
+      $('.tree-branch-distance-row').slideUp();
+      tree.setBranchDistances(false);
+    });
+
+    function roundBranchDistances(unround) {
+      tree.eachBranchDistance((label, data) => d3.select(label).text(Math.round(data.target.data.length)));
+    }
+
+    $('#tree-round-true').parent().on('click', () => {
+      session.style.widgets['tree-round-true'] = true;
+      roundBranchDistances();
+    });
+
+    $('#tree-round-false').parent().on('click', () => {
+      session.style.widgets['tree-round-true'] = false;
+      tree.eachBranchDistance((label, data) => d3.select(label).text(data.target.data.length.toFixed(3)));
+    });
+
+    $('#tree-branch-distance-size').on('input', function () {
+      let speed = tree.animation;
+      tree.animation = 0;
+      let size = parseFloat(this.value);
+      session.style.widgets['tree-branch-distance-size'] = size;
+      tree.eachBranchDistance((label, data) => d3.select(label).style('font-size', size + 'px'));
+      tree.animation = speed;
+    });
+
+    $('#tree-tooltip-show').parent().on('click', () => {
+      session.style.widgets['tree-tooltip-show'] = true;
+    });
+
+    $('#tree-tooltip-hide').parent().on('click', () => {
+      session.style.widgets['tree-tooltip-show'] = false;
+    });
+
+    $('#tree-leaf-label-show').parent().on('click', () => {
+      session.style.widgets['tree-leaf-label-show'] = true;
+      $('#tree-leaf-label-size-row').slideDown();
+      tree.setLeafLabels(true);
+    });
+
+    $('#tree-leaf-label-hide').parent().on('click', () => {
+      session.style.widgets['tree-leaf-label-show'] = false;
+      $('#tree-leaf-label-size-row').slideUp();
+      tree.setLeafLabels(false);
+    });
+
+    $('#tree-leaf-label-size').on('input', function() {
+      let speed = tree.animation;
+      tree.animation = 0;
+      let size = parseFloat(this.value);
+      session.style.widgets['tree-leaf-label-size'] = size;
+      tree.eachLeafLabel(label => d3.select(label).style('font-size', size + 'px'));
+      tree.animation = speed;
+    });
+
+    $('#tree-leaf-node-show').parent().on('click', () => {
+      session.style.widgets['tree-leaf-node-show'] = true;
+      $('.tree-leaf-node-row').slideDown();
+      tree.setLeafNodes(true);
+    });
+
+    $('#tree-leaf-node-hide').parent().on('click', () => {
+      session.style.widgets['tree-leaf-node-show'] = false;
+      $('.tree-leaf-node-row').slideUp();
+      tree.setLeafNodes(false);
+    });
+
+    //TODO: s/respresenting/representing/g
+    // Must fix in patristic before correcting here!
+    let treeVars = ['height', 'depth', 'length', 'respresenting', 'value'];
+    $('#tree-leaf-node-radius-variable').on('change', function(){
+      let v = this.value;
+      let nodes = session.data.nodes;
+      session.style.widgets['tree-leaf-node-radius-variable'] = v;
+      let cap = session.style.widgets['tree-leaf-node-size'];
+      if(treeVars.includes(v)){
+        let minVal = Number.MAX_VALUE, maxVal = Number.MIN_VALUE;
+        tree.data.each(branch => {
+          let value = branch[v];
+          if(value < minVal) minVal = value;
+          if(value > maxVal) maxVal = value;
+        });
+        let scale = d3.scaleLinear()
+          .domain([minVal, maxVal])
+          .range([4, cap]);
+        tree.eachLeafNode((node, branch) => {
+          d3.select(node).attr('r', scale(branch.data[v]));
+        });
+      } else {
+        let minVal = Number.MAX_VALUE, maxVal = Number.MIN_VALUE;
+        nodes.forEach(branch => {
+          let value = branch[v];
+          if(value < minVal) minVal = value;
+          if(value > maxVal) maxVal = value;
+        });
+        let scale = d3.scaleLinear()
+          .domain([minVal, maxVal])
+          .range([4, cap]);
+        tree.eachLeafNode((node, data) => {
+          let id = data.data.id;
+          let package = nodes.find(d => d.id == id);
+          d3.select(node).attr('r', scale(package[v]));
+        });
+      }
+    });
+
+    setTimeout(() => {
+      $('#tree-leaf-node-radius-variable').append(
+        treeVars.map(v => `<option value="${v}">${MT.titleize(v)}</option>`).join('\n')
+      );
+    }, 1200);
+
+    $('#tree-leaf-node-size').on('input', function () {
+      let speed = tree.animation;
+      tree.animation = 0;
+      let size = parseFloat(this.value);
+      session.style.widgets['tree-leaf-node-size'] = size;
+      if(session.style.widgets['tree-leaf-node-radius-variable'] == 'None'){
+        tree.eachLeafNode(node => d3.select(node).attr('r', size));
+      } else {
+        $('#tree-leaf-node-radius-variable').trigger('change');
+      }
+      tree.animation = speed;
+    });
+
+    $('#tree-export-filetype').on('change', function () {
+      if (this.value == 'svg' || this.value == 'nwk') {
+        $('#tree-export-advanced-button').slideUp();
+        if ($('#tree-export-advanced').hasClass("show")) $('#tree-export-advanced-button').click();
+      } else {
+        $('#tree-export-advanced-button').slideDown();
+      }
+    });
+
+    $('#tree-export-scale').on('input', function () {
+      let scale = parseFloat(this.value);
+      let wrapper = $('#tree').parent();
+      $('#tree-export-dimensions').text(
+        Math.round(wrapper.width() * scale) + 'x' +
+        Math.round(wrapper.height() * scale) + 'px'
+      );
+    }).trigger('input');
+
+    $('#tree-export').on('click', () => {
+      let $root = $('#tree svg');
+      let root = $root[0];
+      let watermark = d3.select(root).append('image')
+        .attr('xlink:href', MT.watermark)
+        .attr('height', 128)
+        .attr('width', 128)
+        .attr('x', 10)
+        .style('opacity', $('#tree-export-opacity').val());
+      let filetype = $('#tree-export-file-type').val();
+      let filename = $('#tree-export-file-name').val();
+      if (filetype == 'nwk') {
+        let blob = new Blob([temp.tree.toNewick()], { type: 'application/newick;charset=utf-8' });
+        saveAs(blob, $('#tree-export-file-name').val() + '.nwk');
+      } else if (filetype == 'svg') {
+        let blob = new Blob([MT.unparseSVG($('#tree svg')[0])], { type: 'image/svg+xml;charset=utf-8' });
+        saveAs(blob, $('#tree-export-file-name').val() + '.svg');
+        watermark.remove();
+      } else {
+        saveSvgAsPng(root, filename + '.' + filetype, {
+          scale: parseFloat($('#tree-export-scale').val()),
+          backgroundColor: session.style.widgets['background-color'],
+          encoderType: 'image/' + filetype,
+          encoderOptions: parseFloat($('#tree-export-quality').val())
+        }).then(() => watermark.remove());
+      }
+    });
+
+    $('#tree-fitbutton').on('click', () => tree.recenter());
+
+    function tagSelected() {
+      tree.eachLeafNode((circle, data) => {
+        let node = session.data.nodes.find(d => d.id == data.data.id);
+        if (node === undefined) 
+          node = session.data.nodes.find(d => d._id == data.data.id);
+        if (node.selected) {
+          d3.select(circle)
+            .style('stroke', session.style.widgets['selected-color'])
+            .style('stroke-width', 2);
+        } else {
+          d3.select(circle)
+            .style('stroke', '#ffffff')
+            .style('stroke-width', 1);
+        }
+      });
+    }
+
+    $window
+      .on('node-selected', tagSelected)
+      .on('node-color-change', redrawTree)
+      .on('background-color-change', () => {
+        $('#tree svg').parent().css('background-color', session.style.widgets['background-color']);
+      });
+
+    $('#tree svg').parent().css('background-color', session.style.widgets['background-color']);
+
+    layout.on('stateChanged', () => {
+      if ($('#tree').length) {
+        setTimeout(() => {
+          redrawTree();
+          let wrapper = $('#tree').parent();
+          $('#tree-export-width').val(wrapper.width());
+          $('#tree-export-height').val(wrapper.height());
+        }, 200);
+      }
+    });
+
+    drawTree();
+  })();
+</script>

@@ -1,0 +1,3 @@
+A Node CSV is a list that represents attribute data related to an individual. The file format must be ".csv". When you select a Node CSV file, MicrobeTrace will show a dropdown asking which column in the CSV file represents the node's unique identifier. The contents of that column must match the identifiers of the [FASTA file](https://github.com/CDCgov/MicrobeTrace/wiki/FASTA-Files) or the contents of the `source` and `target` columns from the [Edge CSV](https://github.com/CDCgov/MicrobeTrace/wiki/Edge-CSVs).
+
+**Note**: Any rows with non-unique identifiers will cause later data to overwrite data from earlier rows.

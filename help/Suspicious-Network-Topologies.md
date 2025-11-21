@@ -1,0 +1,5 @@
+There are a number of network patterns that strongly suggest that something has gone wrong. Unfortunately, these are difficult to test for directly, so MicrobeTrace cannot do this for you. However, there are only a small number of predictably erroneous network topologies.
+
+1. **The Starburst** - Many nodes connected to a single, central node. If they were all close enough to the central node, why aren't they close enough to _each other_ to merit a link? Likely culprit: an incorrectly parsed dataset. Check the [Table view](https://github.com/CDCgov/MicrobeTrace/wiki/Table) to see if the central node is actually a node, or something silly like a blank line.
+
+2. **The Two-step** - Many nodes connected in an A -> X -> Y -> B pattern, where A and B are single nodes, but X and Y are unique to each path. Likely a sort of distance computation failure, spurred on by a poor alignment. Play with your [alignment](https://github.com/CDCgov/MicrobeTrace/wiki/Alignment) (or better yet, use [an external tool](https://en.wikipedia.org/wiki/List_of_sequence_alignment_software) to generate an optimal alignment).

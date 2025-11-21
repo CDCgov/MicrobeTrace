@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="application-name" content="MicrobeTrace">
+  <meta name="Description" content="MicrobeTrace is an interactive web application that renders existing data from high-risk contact networks in an easy-to-use Graphical User Interface (GUI). The network visualization can be customized according to supplemental data sources and mathematical inferences like the most probable transmission pathways. MicrobeTrace is a highly responsive, visual sequence analytics tool which can reduce the gap between data production and analytics and help you to discover, understand, and display relationships (links) between patients (nodes). MicrobeTrace can be deployed on laptops to locations without any Internet access, thereby reducing both the startup cost and analysis time and effort.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f9fa">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="msapplication-TileColor" content="#ffc40d">
+  <meta name="apple-mobile-web-app-title" content="MicrobeTrace">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 127.0.0.1:51523 *.googletagmanager.com googletagmanager.com *.google-analytics.com nextstrain.org *.nextstrain.org github.com *.github.com raw.githubusercontent.com *.ucsc.edu hgwdev.gi.ucsc.edu; connect-src 'self' *.googletagmanager.com googletagmanager.com 127.0.0.1:51523 *.google-analytics.com stats.g.doubleclick.net  stamen-tiles-a.a.ssl.fastly.net stamen-tiles-b.a.ssl.fastly.net stamen-tiles-c.a.ssl.fastly.net *.cdc.gov unpkg.com nextstrain.org *.nextstrain.org github.com *.github.com raw.githubusercontent.com *.ucsc.edu hgwdev.gi.ucsc.edu; img-src 'self' 127.0.0.1:51523 *.googletagmanager.com googletagmanager.com *.google-analytics.com *.doubleclick.net www.google.com api.mapbox.com stamen-tiles-a.a.ssl.fastly.net stamen-tiles-b.a.ssl.fastly.net stamen-tiles-c.a.ssl.fastly.net a.tile.openstreetmap.org b.tile.openstreetmap.org c.tile.openstreetmap.org osmap.a.tile.mapcdn.net osmap.b.tile.mapcdn.net osmap.c.tile.mapcdn.net tiles.stadiamaps.com data:; style-src 'self' 'unsafe-inline'; manifest-src 'self'; font-src 'self';">
+  
+    <script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+    </script>
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0MWHB1NG2M"></script>
+  <title>MicrobeTrace</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="canonical" href="https://microbetrace.cdc.gov/MicrobeTrace/">
+  <link rel="author" type="text/plain" href="humans.txt">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="img/favicon-48x48.png">
+  <link rel="mask-icon" href="img/safari-pinned-tab.svg" color="#5bbad5">
+  <link rel="stylesheet" type="text/css" href="dist/bundle.primary.css">
+  <link rel="stylesheet" type="text/css" href="dist/main.css">
+  <link rel="preload" as="script" href="dist/bundle.primary.js">
+  <link rel="preload" as="font" href="fonts/open-iconic.woff" crossorigin="anonymous">
+  <script src="libraries/lodash.js"></script>
+  <script src="libraries/underscore-observe.js"></script>
+
+  <!-- <script>
+    (function (i, s, o, g, r, a, m) {
+        i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
+            (i[r].q = i[r].q || []).push(arguments)
+        }, i[r].l = 1 * new Date(); a = s.createElement(o),
+        m = s.getElementsByTagName(o)[0]; a.async = 1; a.src = g; m.parentNode.insertBefore(a, m)
+    })(window, document, 'script', '//www.google-analytics.com/analytics.js', 'ga');
+  </script>-->
+</head>
+
+<body>
+  <div class="d-none">
+    <h1>Sorry!</h1>
+    <h4>MicrobeTrace requires CSS to run, but it looks like the appropriate CSS files weren't loaded for some reason.
+      Please try <a href="#" onclick="location.reload();">Refreshing the Page</a></h4>
+  </div>
+
+  <nav class="navbar fixed-top navbar-expand-xl navbar-light bg-light">
+    <ul class="nav mr-auto">
+      <li class="nav-item dropdown">
+        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">File</a>
+        <div class="dropdown-menu">
+          <a href="#" id="StashDataTab" class="dropdown-item" data-toggle="modal" data-target="#session-stash-modal">Stash</a>
+          <a href="#" id="RecallDataTab" class="dropdown-item">Recall</a>
+          <div class="dropdown-divider"></div>
+          <a href="#" id="SaveDataTab" class="dropdown-item" data-toggle="modal" data-target="#session-save-modal">Save</a>
+          <label class="dropdown-item" for="OpenTab">Open</label><input type="file" class="d-none" id="OpenTab">
+          <a href="#" id="OpenUrlTab" class="dropdown-item">Open URL</a>
+          <div class="dropdown-divider"></div>
+          <a href="#" id="AddDataTab" class="dropdown-item">Add Data</a>
+          <a href="#" id="NewTab" class="dropdown-item">New</a>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a href="#" id="SettingsTab" class="nav-link py-0" data-toggle="modal" data-target="#global-settings-modal">Settings</a>
+      </li>
+      <li class="nav-item dropdown">
+        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">View</a>
+        <div class="dropdown-menu">
+          <!-- <a href="#" class="dropdown-item viewbutton" data-href="pixi">Pixi</a> -->
+          <a href="#" class="dropdown-item viewbutton" data-href="2d_network">2D Network</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="3d_network">3D Network</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="histogram">Histogram</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="table">Table</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="aggregation">Aggregation</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="crosstab">CrossTab</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="bubbles">Bubbles</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="flow_diagram">Flow Diagram</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="scatterplot">Scatterplot</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="waterfall">Waterfall</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="geo_map">Map</a>
+          <!-- <a href="#" class="dropdown-item viewbutton" data-href="choropleth">Choropleth</a> -->
+          <a href="#" class="dropdown-item viewbutton" data-href="globe">Globe</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="gantt">Gantt</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="timeline">Epi Curve</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="heatmap">Heatmap</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="phylogenetic_tree">Phylogenetic Tree</a>
+          <a href="#" class="dropdown-item viewbutton" data-href="sequences">Sequences</a>
+        </div>
+      </li>
+      <li class="nav-item dropdown">
+        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Window</a>
+        <div class="dropdown-menu">
+          <a href="#" id="ReloadTab" class="dropdown-item">Reload</a>
+          <a href="#" id="FullScreenTab" class="dropdown-item">Toggle Full Screen</a>
+        </div>
+      </li>
+      <li class="nav-item dropdown">
+        <a href="#" class="nav-link dropdown-toggle py-0" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Help</a>
+        <div class="dropdown-menu">
+          <a href="https://github.com/CDCgov/MicrobeTrace/wiki" target="_blank" id="HelpTab" class="dropdown-item">Help</a>
+          <a href="https://github.com/CDCgov/MicrobeTrace/issues/new" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener">Report Bug</a>
+          <div class="dropdown-divider ifOnline"></div>
+          <a href="#" id="AboutTab" class="dropdown-item" data-toggle="modal" data-target="#about-modal">About</a>
+        </div>
+      </li>
+      <li class="nav-item">
+        <a href="#" id="tipsTab" class="nav-link py-0" data-toggle="modal" data-target="#tips-modal">Tips for Use</a>
+      </li>
+
+    </ul>
+    <div id="search-form" class="form-inline navbar-form">
+        <label for="search">Search</label>
+        <div class="autocomplete-wrapper">
+          <input type="search" id="search" class="form-control form-control-sm" placeholder="Nodes">
+          <ul id="search-results"></ul>
+        </div>
+      <!-- #298 -->
+      <button id="casesensitivebutton" type="button" class="btn btn-light btn-sm" data-toggle="button" aria-pressed="false" autocomplete="off" title="Match Case">
+        <span>C</span>
+      </button>     
+      <button id="wholewordbutton" type="button" class="btn btn-light btn-sm" data-toggle="button" aria-pressed="false" autocomplete="off" title="Match Whole Word">
+        <span>W</span>
+      </button>      
+
+      <select id="search-field" class="form-control form-control-sm nodeValues">
+        <option val="id">ID</option>
+      </select>
+    </div>
+  </nav>
+
+  <div id="ie-warning">
+    This application does not support Internet Explorer. To use MicrobeTrace, please switch to one of the following browsers:<br>
+    <a href='https://support.google.com/chrome/answer/95346'>Chrome</a>/
+    <a href='https://www.opera.com/'>Opera</a>/
+    <a href='https://www.mozilla.org/en-US/firefox/new/'>Firefox</a>
+  </div>
+
+  <div id="licenseAgreement" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="licenseAgreement">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 id="licenseAgreement" class="modal-title">License Agreement</h5>
+        </div>
+        <div class="modal-body">
+          <pre>The material embodied in this software is provided to you "As-is" and without
+warranty of any kind, express, implied or otherwise, including without
+limitation, any warranty of fitness for a particular purpose. In no event shall
+the Centers for Disease Control and Prevention (CDC) or the United States (U.S.)
+government be liable to you or anyone else for any direct, special, incidental,
+indirect or consequential damages of any kind, or any damages whatsoever,
+including without limitation, loss of profit, loss of use, savings or revenue,
+or the claims of third parties, whether or not CDC or the U.S. Government has
+been advised of the possibility of such loss, however caused and on any theory
+of liability, arising out of or in connection with the possession, use or
+performance of this software.</pre>
+          <p>Please Click "Accept" to accept this agreement, or "Reject" to close this application.</p>
+        </div>
+        <div class="modal-footer">
+          <a href="https://www.cdc.gov/" id="rejectAgreement" class="btn btn-danger" role="button">Reject</a>
+          <button id="acceptAgreement" type="button" class="btn btn-primary" data-dismiss="modal">Accept</button>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div id="loading-information-modal" class="modal fade" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Loading File</h5>
+        </div>
+        <div class="modal-body">
+          <div class="dna">
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+            <div class="ele"></div>
+          </div>
+          <a class="btn btn-primary" data-toggle="collapse" href="#loading-information-collapse" role="button"
+            aria-expanded="true" aria-controls="loading-information-collapse">Details</a>
+          <div id="loading-information-collapse" class="show">
+            <div id="loading-information" class="card card-body"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div id="main-panel" class="pane-container pane-horizontal">
+    <noscript class="container-fluid">
+      <div class="jumbotron">
+        <h1>Sorry!</h1>
+        <p class="lead">MicrobeTrace requires Javascript to run. Please <a href="https://www.enable-javascript.com/">enable Javascript</a> and refresh MicrobeTrace.</p>
+      </div>
+    </noscript>
+    <div id="global-timeline-wrapper" style="display: none;">
+      <div id="global-timeline" align="center">
+        <div><button type="button" id="timeline-play-button" class="btn btn-light btn-sm">Play</button>
+        <span id="global-timeline-field" contenteditable></span></div>
+      </div>  
+    </div>
+  </div>
+
+  <div id="link-color-table-wrapper" class="floater">
+    <div id="link-color-table-draghandle"><span class="oi oi-move"></span></div>
+    <table id="link-color-table"></table>
+  </div>
+
+  <div id="link-color-table-context" class="dropdown-menu">
+    <a href="#" id="link-color-table-drag" class="dropdown-item">Drag/Arrow Keys</a>
+    <a href="#" id="link-color-table-context-hide" class="dropdown-item">Hide</a>
+    <a href="#" id="link-color-table-expand" class="dropdown-item">Expand</a>
+    <a href="#" id="link-color-table-counts" class="dropdown-item">Toggle Counts</a>
+    <a href="#" id="link-color-table-frequencies" class="dropdown-item">Toggle Frequencies</a>
+  </div>
+
+  <div id="node-color-table-wrapper" class="floater">
+    <div id="node-color-table-draghandle"><span class="oi oi-move"></span></div>
+    <table id="node-color-table"></table>
+  </div>
+
+  <div id="node-color-table-context" class="dropdown-menu">
+    <a href="#" id="node-color-table-drag" class="dropdown-item">Drag/Arrow Keys</a>
+    <a href="#" id="node-color-table-context-hide" class="dropdown-item">Hide</a>
+    <a href="#" id="node-color-table-expand" class="dropdown-item">Expand</a>
+    <a href="#" id="node-color-table-counts" class="dropdown-item">Toggle Counts</a>
+    <a href="#" id="node-color-table-frequencies" class="dropdown-item">Toggle Frequencies</a>
+  </div>
+
+  <div id="color-transparency-wrapper" class="floater">
+    <input type="range" class="custom-range" id="color-transparency" min="0" max="1" step="0.05" value="1">
+  </div>
+
+  <div id="network-statistics-wrapper" class="floater">
+    <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
+    <table id="network-statistics-table">
+      <tr>
+        <td class="text-right">
+          <span id="numberOfNodes"></span>
+          (<span id="numberOfSelectedNodes"></span>)
+        </td>
+        <td>Nodes (Selected)</td>
+      </tr>
+      <tr>
+        <td id="numberOfVisibleLinks" class="text-right"></td>
+        <td>Links</td>
+      </tr>
+      <tr>
+        <td id="numberOfDisjointComponents" class="text-right"></td>
+        <td>Clusters</td>
+      </tr>
+      <tr>
+        <td id="numberOfSingletonNodes" class="text-right"></td>
+        <td>Singletons</td>
+      </tr>
+    </table>
+  </div>
+
+  <div id="network-statistics-context" class="dropdown-menu">
+    <a href="#" id="moveStats" class="dropdown-item">Drag/Arrow Keys</a>
+    <a href="#" id="hideStats" class="dropdown-item">Hide</a>
+  </div>
+
+  <span id="tooltip"></span>
+
+  <div id="global-settings-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Global Settings</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item active">
+              <a class="nav-link active" id="filtering-tab" data-toggle="tab" href="#filtering-config" role="tab" aria-controls="home" aria-selected="true">Filtering</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" id="style-tab" data-toggle="tab" href="#style-config" role="tab" aria-controls="home" aria-selected="true">Styling</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" id="timeline-tab" data-toggle="tab" href="#timeline-config" role="tab" aria-controls="home" aria-selected="true">Timeline</a>
+            </li>
+          </ul>
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="filtering-config" role="tabpanel" aria-labelledby="filtering-tab">
+              <div class="form-group row" title="By what algorithm would you like to prune links from the network?">
+                <div class="col-4">Prune With</div>
+                <div class="col-8">
+                  <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
+                    <label class="btn btn-light active col" title="Show all links within threshold">
+                      <input type="radio" name="NNOptions" id="link-show-all" autocomplete="off" checked> None
+                    </label>
+                    <label class="btn btn-light col" title="Prune links by Nearest Neighbor">
+                      <input type="radio" name="NNOptions" id="link-show-nn" autocomplete="off"> Nearest Neighbor
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div id="filtering-epsilon-row" class="form-group row" title="How much genetic distance represents non-equality for your ">
+                <div class="col-4"><label for="filtering-epsilon">Filtering Epsilon</label></div>
+                <div class="col-8">
+                  <input type="range" class="custom-range" id="filtering-epsilon" min="-3" max="2" step=".01" value="-3">
+                </div>
+                <div class="col-8 offset-4">
+                  <input type="number" id="filtering-epsilon-copy" class="form-control form-control-sm" disabled>
+                </div>
+              </div>
+              <div class="form-group row" title="What's the minimum number of nodes a cluster must have in order to be visible?">
+                <div class="col-4">
+                  <label for="cluster-minimum-size">Minimum Cluster Size</label>
+                </div>
+                <div class="col-8">
+                  <input type="number" class="form-control form-control-sm" id="cluster-minimum-size" min="1" value="1" step="1">
+                </div>
+              </div>
+              <div id="filtering-wrapper">
+                <div class="form-group row" title="By what variable would you like to prune links from the network?">
+                  <div class="col-4"><label for="link-sort-variable">Filter Links on</label></div>
+                  <div class="col-8">
+                    <select id="link-sort-variable" class="form-control form-control-sm linkVariables">
+                      <option value="distance" selected>Distance</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group row" id="filtering-threshold" title="What's the maximum genetic distance you're willing to call a link?">
+                  <div class="col-4"><label for="link-threshold">Filtering Threshold</label></div>
+                  <div class="col-8"><svg id="link-threshold-sparkline"></svg></div>
+                  <div class="col-8 offset-4">
+                    <input type="number" class="form-control form-control-sm" id="link-threshold" step="0.001">
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" title="Click to reveal all hidden elements of the network.">
+                <div class="col-4"><label for="RevealAllTab">Reveal</label></div>
+                <div class="col-8">
+                  <button id="RevealAllTab" type="button" class="btn btn-light btn-sm w-100">Everything</button>
+                </div>
+              </div>
+              <hr>
+              <div class="form-group row" title="Display a table of overview statistics for the network">
+                <div class="col-4">Statistics</div>
+                <div class="col-8">
+                  <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
+                    <label class="btn btn-light active col" title="Show a table of overview statistics for the network">
+                      <input type="radio" name="network-statistics-visibility" id="network-statistics-show" autocomplete="off" checked>
+                      Show
+                    </label>
+                    <label class="btn btn-light col" title="Do not show a table of overview statistics for the network">
+                      <input type="radio" name="network-statistics-visibility" id="network-statistics-hide" autocomplete="off">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="style-config" role="tabpanel" aria-labelledby="style-tab">
+              <div class="form-group row" title="By what variable nodes be colored?">
+                <div class="col-4"><label for="node-color-variable">Color Nodes By</label></div>
+                <div class="col-8">
+                  <select id="node-color-variable" class="form-control form-control-sm nodeVariables">
+                    <option>None</option>
+                  </select>
+                </div>
+              </div>
+              <div id="node-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
+                <div class="col-4">Node Color Table</div>
+                <div class="col-8">
+                  <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
+                    <label class="btn btn-light active col">
+                      <input type="radio" name="nodeColorTableShowHide" id="node-color-table-show" autocomplete="off" checked>
+                      Show
+                    </label>
+                    <label class="btn btn-light col">
+                      <input type="radio" name="nodeColorTableShowHide" id="node-color-table-hide" autocomplete="off">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
+                <div class="col-4"><label for="node-color">Nodes</label></div>
+                <div class="col-8">
+                  <input type="color" id="node-color" class="form-control form-control-sm" value="#1f77b4">
+                </div>
+              </div>
+              <div class="form-group row" title="What color should the node border be?">
+                <div class="col-4"><label for="node-color-border">Node Border</label></div>
+                <div class="col-8">
+                  <input type="color" id="node-color-border" class="form-control form-control-sm" value="#000000">
+                </div>
+              </div>
+              <div class="form-group row" title="By what variable should links be colored?">
+                <div class="col-4"><label for="link-color-variable">Color Links By</label></div>
+                <div class="col-8">
+                  <select id="link-color-variable" class="form-control form-control-sm linkVariables">
+                    <option>None</option>
+                  </select>
+                </div>
+              </div>
+              <div id="link-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
+                <div class="col-4">Link Color Table</div>
+                <div class="col-8">
+                  <div class="btn-group btn-group-toggle btn-group-sm w-100" data-toggle="buttons">
+                    <label class="btn btn-light active col">
+                      <input type="radio" name="linkColorTableShowHide" id="link-color-table-show" autocomplete="off" checked>
+                      Show
+                    </label>
+                    <label class="btn btn-light col">
+                      <input type="radio" name="linkColorTableShowHide" id="link-color-table-hide" autocomplete="off">
+                      Hide
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div id="link-color-value-row" class="form-group row" title="What color should the links be?">
+                <div class="col-4"><label for="link-color">Links</label></div>
+                <div class="col-8">
+                  <input type="color" id="link-color" class="form-control form-control-sm" value="#a6cee3">
+                </div>
+              </div>
+              <div class="form-group row" title="What color should denote selection?">
+                <div class="col-4"><label for="selected-color">Selected</label></div>
+                <div class="col-8">
+                  <input type="color" id="selected-color" class="form-control form-control-sm" value="#ff8300">
+                </div>
+              </div>
+              <div class="form-group row" title="What color should the background be?">
+                <div class="col-4"><label for="background-color">Background</label></div>
+                <div class="col-8">
+                  <input type="color" id="background-color" class="form-control form-control-sm" value="#ffffff">
+                </div>
+              </div>
+              <div class="form-group row" title="Load an existing MicrobeTrace style file">
+                <div class="col-4">Apply Style</div>
+                <div class="col-8">
+                  <input type="file" id="apply-style" class="d-none">
+                  <label class="custom-file-label" for="apply-style">Choose MicrobeTrace Style File</label>
+                </div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="timeline-config" role="tabpanel" aria-labelledby="timeline-tab">
+              <div class="form-group row" title="By what variable timeline applied?">
+                <div class="col-4"><label for="node-timeline-variable">Timeline By</label></div>
+                <div class="col-8">
+                  <select id="node-timeline-variable" class="form-control form-control-sm nodeVariables">
+                    <option>None</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="btn-group" data-toggle="buttons">
+            <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+          </div>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div id="tips-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+    <div class="modal-dialog tips" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Tips For Use</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="filtering-config" role="tabpanel" aria-labelledby="filtering-tab">
+              <ol>
+                <li>Click and hold the header of this tip window to drag it.</li>
+                <li>Click and hold in white space of the network to drag entire image.</li>
+                <li>Right click key/boxes to hide or drag.</li>
+                <li>Zoom in with touchpad.</li>
+                <li>Drag by clicking, holding, moving.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="btn-group" data-toggle="buttons">
+            <button type="button" class="btn btn-primary" data-dismiss="modal">Done</button>
+          </div>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div id="session-save-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Save</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group row">
+            <div class="col-8">
+              <input type="text" id="save-file-name" class="form-control form-control-sm" title="What would you like to call your MicrobeTrace Save File?" placeholder="Filename">
+            </div>
+            <div class="col-4">
+              <select id="save-file-format" class="form-control form-control-sm" title="What format file would you like to save?">
+                <option selected>session</option>
+                <!-- <option>hivtrace</option> -->
+                <option>style</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group row" title="Should MicrobeTrace compress this save file?">
+            <div class="col">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="save-file-compress" checked>
+                <label class="form-check-label" for="save-file-compress">Compress?</label>
+              </div>
+              <div id="cluster-checkbox-container" class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="save-file-cluster">
+                <label class="form-check-label" for="save-file-cluster">By Cluster</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-error" data-dismiss="modal">Cancel</button>
+          <button type="button" id="save-data" class="btn btn-primary" data-dismiss="modal">Save</button>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div id="session-stash-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Stash</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group row" title="What would you like to call this Stash?">
+            <div class="col">
+              <input type="text" id="stash-name" class="form-control form-control-sm" placeholder="Name your stash!">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-error" data-dismiss="modal">Cancel</button>
+          <button type="button" id="stash-data" class="btn btn-primary" data-dismiss="modal">Stash!</button>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div id="session-recall-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Recall Stash</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="recall-stashes-available" class="table-sm"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" id="recall-delete-stash">Delete</button>
+          <button type="button" class="btn" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-success" id="recall-load-stash">Recall</button>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <div class="modal fade" id="about-modal" tabindex="-1" role="dialog" aria-labelledby="aboutModalLabel">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="aboutModalLabel">About MicrobeTrace</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <h3>MicrobeTrace <small>v<span id="version"></span></small></h3>
+          <p>
+            MicrobeTrace is an interactive web application that renders existing data from high-risk contact networks
+            in an easy-to-use Graphical User Interface (GUI). The network visualization can be customized according to
+            supplemental data sources and mathematical inferences like the most probable transmission pathways.
+            MicrobeTrace is a highly responsive, visual sequence analytics tool which can reduce the gap between data
+            production and analytics and help you to discover, understand, and display relationships (links) between
+            patients (nodes). MicrobeTrace can be deployed on laptops to locations without any Internet access, thereby
+            reducing both the startup cost and analysis time and effort.
+          </p>
+          <p class="ifOnline">
+            <a href="https://github.com/CDCgov/MicrobeTrace/wiki" target="_blank" rel="noreferrer noopener">
+              Click Here to Learn More
+            </a>
+          </p>
+          <p>
+            MicrobeTrace was built by the Molecular Epidemiology and Bionformatics Team at the CDC in Atlanta.
+            <a href="https://cdcgov.github.io/MEBT" target="_blank" rel="noreferrer noopener" class="ifOnline">
+              Click Here to See MEBT's Other Tools
+            </a>
+          </p>
+          <p class="text-right">
+            <a href="humans.txt">
+              <img src="img/humanstxt-isolated-blank.gif" title="Click to see our humans.txt file" alt="humans.txt">
+            </a>
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="exit-modal" tabindex="-1" role="dialog" aria-labelledby="exitModalLabel">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exitModalLabel">Leave MicrobeTrace Session?</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          Are you certain you want to leave this MicrobeTrace session? Any unsaved configurations will be lost!
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-dismiss="modal">Cancel</button>
+          <button type="button" id="exit-button" class="btn btn-danger" data-dismiss="modal">Leave Session</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="url-modal" tabindex="-1" role="dialog" aria-labelledby="urlModalLabel">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="urlModalLabel">Auspice JSON URL</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+            Please enter the URL of an Auspice JSON file to open:<br />
+            <input type="text" id='url-modal-value' size="90" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+          <button type="button" id="url-button" class="btn btn-primary" data-dismiss="modal">Open URL</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <script src="dist/bundle.primary.js" charset="utf-8"></script>
+  <script src="dist/common.js" async charset="utf-8"></script>
+  <script src="dist/index.js" async charset="utf-8"></script>
+  <script src="dist/bundle.secondary.js" defer charset="utf-8"></script>
+  <link rel="stylesheet" type="text/css" href="dist/bundle.secondary.css">
+</body>
+
+</html>

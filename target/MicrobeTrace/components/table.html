@@ -1,0 +1,223 @@
+<div id="table" class="table-sm" style="overflow: auto"></div>
+
+<div class="view-controls">
+  <button type="button" id="table-settings-toggle" class="btn btn-light btn-sm" data-toggle="button" title="Toggle Table Settings">
+    <span class="oi oi-cog"></span>
+  </button>
+  <button type="button" class="btn btn-light btn-sm" data-toggle="modal" data-target="#table-export-modal" title="Export table data">
+    <span class="oi oi-data-transfer-download"></span>
+  </button>
+  <div class="btn-group btn-group-toggle btn-group-sm" data-toggle="buttons" title="What dataset would you like to view?">
+    <label class="btn btn-light active">
+      <input type="radio" name="table-dataset" data-value="nodes" autocomplete="off" checked> Nodes
+    </label>
+    <label class="btn btn-light">
+      <input type="radio" name="table-dataset" data-value="links" autocomplete="off"> Links
+    </label>
+    <label class="btn btn-light">
+      <input type="radio" name="table-dataset" data-value="clusters" autocomplete="off"> Clusters
+    </label>
+  </div>
+  <select id="table-columns" class="chosen-select" multiple title="What columns would you like to see?"></select>
+</div>
+
+<div id="table-settings-pane" class="left-pane">
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item active">
+      <a href="#table-settings" id="table-tab" class="nav-link active" aria-controls="table" role="tab" data-toggle="tab">Table</a>
+    </li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" role="tabpanel" aria-labelledby="table-tab">
+      <div class="form-group row" title="What size would you like the Table's font to be?">
+        <div class="col-4"><label for="table-font-size">Text Size</label></div>
+        <div class="col-8"><input type="range" class="custom-range" id="table-font-size" min="6" value="14" max="72" step="1"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="table-export-modal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="false">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Export Table</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group row">
+          <div class="col-9">
+            <input type="text" id="export-table-file-name" class="form-control form-control-sm" placeholder="Filename">
+          </div>
+          <div class="col-3">
+            <select id="export-table-file-type" class="form-control form-control-sm">
+              <option selected>csv</option>
+              <option>xlsx</option>
+              <option>json</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-error" data-dismiss="modal">Cancel</button>
+        <button type="button" id="table-export" class="btn btn-primary" data-dismiss="modal">Export</button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<script>
+  (function(){
+    /**ga('set', 'page', '/table');
+      *ga('set', 'title', 'Table View');
+      *ga('send', 'pageview');
+    **/
+    gtag({'event': 'page_view', 'page_location': '/table', 'page_title': 'Table View'});
+
+    let table, meta = ['selected', 'visible', 'nn'];
+
+    function updateColumns(){
+      if(!$('#table').length) return;
+      let type = $('input[name=table-dataset]:checked').data('value').slice(0,-1);
+      $('#table-columns')
+        .chosen('destroy')
+        .html(
+          session.data[type+'Fields'].map((d, i) => {
+            if(meta.includes(d)) return;
+            return `<option value="${d}"${(i < 7) ? " selected" : ""}>${MT.titleize(d)}</option>`
+          }).join('\n')
+        )
+        .chosen({'width': 'auto'})
+        .on('change', updateTable);
+    }
+
+    function updateTable(){
+      if(!$('#table').length) return;
+      let data_type = $('input[name=table-dataset]:checked').data('value');
+      let columns = $('#table-columns').val();
+      table = new Tabulator("#table", {
+        //height: "calc(100% - 60px) !important",
+        maxHeight: "100%",
+        layout: "fitColumns",
+        columns: columns.map(c => ({title: MT.titleize(c), field: c})),
+        rowClick: function(e, row){
+          let entity = row.getData();
+          entity.selected = !entity.selected;
+          if(entity.selected){
+            $(row.getElement()).css("background", session.style.widgets['selected-color']);
+            row.freeze();
+          } else {
+            $(row.getElement()).css("background", "");
+            row.unfreeze();
+          }
+          $window.trigger('node-selected', 'table');
+        },
+        rowFormatter: function(row){
+          if(row.getData().selected){
+            $(row.getElement()).css("background", session.style.widgets['selected-color']);
+          }
+        },
+        dataLoaded: function(data) {
+          var rows = this.getRows();
+          rows.forEach(function(row){
+            let entity = row.getData();
+            if (entity.selected) {
+              row.freeze();
+            }
+          });
+        }
+      });
+      table.setData(session.data[data_type]);
+      addColDelTarget();
+      resetTextsize();
+    }
+
+    function updateData(){
+      let type = $('input[name=table-dataset]:checked').data('value');
+      table.replaceData(session.data[type]);
+    }
+
+    $('#table-settings-toggle').click(function(){
+      let pane = $('#table-settings-pane');
+      if($(this).hasClass('active')){
+        pane.animate({left: '-400px'}, function(){ pane.hide(); });
+      } else {
+        pane.show(0, function(){ pane.animate({left: '0px'}); });
+      }
+    });
+
+    function resetTextsize(){
+      let s = $('#table-font-size').val();
+      $('#table').css({
+        'font-size': s + 'px',
+        'line-height': s/10
+      });
+    }
+
+    function addColDelTarget () {
+      $('.search-choice-close').each(function(i, obj) {
+        obj.innerHTML = '&#x232B';
+        obj.style.fontSize = 'x-small';
+        obj.title = 'Remove column';
+      });
+    }
+
+    $('input[name=table-dataset]').on('change', e => {
+      updateColumns();
+      updateTable();
+    });
+
+    $('#table-columns').on('change', updateTable);
+
+    $('#table-font-size').on('input', resetTextsize);
+
+    $('#table-export').click(function(){
+
+      let format = $('#export-table-file-type').val();
+      let data = JSON.parse(JSON.stringify(session.data[$('input[name=table-dataset]:checked').data('value')]));
+      let name = $('#export-table-file-name').val();
+
+      if(format == 'csv'){
+
+        let blob = new Blob([Papa.unparse(data)], {type: 'text/csv;charset=utf-8'});
+        saveAs(blob, name + '.' + format);
+
+      } else if(format == 'xlsx'){
+        let headers = session.data[$('input[name=table-dataset]:checked').data('value').slice(0,-1) + 'Fields'];
+        data.forEach(thing => {
+          Object.keys(thing).forEach(field => {
+            if(!headers.includes(field)){
+              delete thing[field];
+            } else if(Array.isArray(thing[field])){
+              thing[field] = thing[field].join('; ');
+            }
+          });
+        });
+        let wb = XLSX.utils.book_new();
+        let ws = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+        XLSX.writeFile(wb, name + '.' + format);
+      } else {
+        let blob = new Blob([JSON.stringify(data)], {type: 'application/json;charset=utf-8'});
+        saveAs(blob, name + '.' + format);
+      }
+    });
+
+    $('#table').parent().css('z-index', 1000);
+
+    $window
+      .on('link-visibility', updateTable)
+      // .on('node-selected', updateData)
+      .on('node-selected', function(event, view) {
+        if (view != 'table') {
+          updateTable();
+        } 
+      })
+      .on('selected-color-change', updateTable);
+
+    updateColumns();
+    updateTable();
+  })();
+</script>

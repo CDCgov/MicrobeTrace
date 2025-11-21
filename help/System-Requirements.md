@@ -1,0 +1,3 @@
+MicrobeTrace is capable of running on any computer running Google Chrome, Firefox, or Microsoft Edge. Please note that **MicrobeTrace is not compatible with any version of Microsoft [Internet Explorer](https://github.com/CDCgov/MicrobeTrace/wiki/Internet-Explorer)** (and probably never will be). Other browsers may work, but have not been comprehensively tested.
+
+Please [let us know](http://github.com/CDCgov/MicrobeTrace/issues) if you encounter any issues running MicrobeTrace.

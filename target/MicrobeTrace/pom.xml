@@ -1,0 +1,49 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>gov.cdc.microbetrace</groupId>
+  <artifactId>MicrobeTrace</artifactId>
+  <version>1.0.0</version>
+  <packaging>war</packaging>
+
+  <name>MicrobeTrace</name>
+
+  <build>
+    <finalName>MicrobeTrace</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <version>3.3.2</version>
+        <configuration>
+        <warSourceDirectory>${basedir}</warSourceDirectory>
+        <failOnMissingWebXml>false</failOnMissingWebXml>
+
+        <packagingExcludes>
+          node_modules/**,
+          scripts/**,
+          patches/**,
+          data/**,
+          test/**,
+          **/*.map,
+          **/*.md,
+          **/*.sh,
+          package*.json,
+          .git/**,
+          .gitmodules,
+          .dockerignore,
+          Dockerfile,
+          sonar-project.properties,
+          **/*.gz,
+          **/*.br
+        </packagingExcludes>
+      </configuration>
+
+
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

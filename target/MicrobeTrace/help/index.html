@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MicrobeTrace - Help</title>
+  <link rel="icon" href="img/image32.ico" />
+  <link rel="stylesheet" type="text/css" href="../../../node_modules/bootstrap/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" type="text/css" href="../../../node_modules/alertifyjs/build/css/alertify.min.css" />
+  <link rel="stylesheet" type="text/css" href="../../stylesheets/main.css" />
+  <style>
+    html {
+      min-width: 666px;
+      overflow-y: auto;
+    }
+    body {
+      height: auto;
+      line-height: 1.618;
+      max-width: 38em;
+      margin: auto;
+      padding: 13px;
+      padding-top: 60px;
+    }
+
+    #back_arrow{
+      position: fixed;
+      top: 65px;
+      left: 10px;
+    }
+
+    #back_arrow img{
+      height: 60px;
+      width: 60px;
+    }
+
+    #main_panel a{
+      color: darkblue;
+    }
+
+    #main_panel a:hover{
+      text-decoration: underline;
+    }
+
+    #footer{
+      background: lightgray;
+      border: 1px solid black;
+      font-size: .8em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="modal fade" id="settingsModal" tabindex="-1" role="dialog" data-backdrop="false">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <h4 class="modal-title">Help Settings</h4>
+        </div>
+        <div class="modal-body">
+          <ul class="nav nav-tabs" role="tablist">
+            <li role="presentation" class="active"><a href="#helpConfigurations" aria-controls="helpConfigurations" role="tab" data-toggle="tab">Help</a></li>
+          </ul>
+          <div class="tab-content">
+            <div role="tabpanel" class="tab-pane fade in active" id="nodeConfigurations">
+              <div class="panel-body">
+                <div class="row">
+                  <div class="col-xs-3"><strong>Property</strong></div>
+                  <div class="col-xs-9"><strong>Value</strong></div>
+                </div>
+                <div class="row">
+                  <div class="col-xs-3">Text Size</div>
+                  <div class="col-xs-9"><input type="range" id="font-size-slider" min="6" value="14" max="72" step="1" /></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-default" data-dismiss="modal">OK</button>
+        </div>
+      </div><!-- /.modal-content -->
+    </div><!-- /.modal-dialog -->
+  </div><!-- /.modal -->
+
+  <a href="#" id="back_arrow"><img src="../../img/Back_Arrow.png" /></a>
+
+  <div id="main_panel">
+    <h1 id="main_title"></h1>
+    <div id="content"></div>
+    <div id="footer"></div>
+  </div>
+
+  <script>
+  const electron = require('electron');
+  window.jQuery = window.$ = require('jquery');
+  require('bootstrap');
+  const alertify = require('alertifyjs');
+  const jetpack = require('fs-jetpack');
+  var showdown = require('showdown');
+
+  window.hist = [];
+
+  $(function(){
+
+    $('body').prepend(electron.ipcRenderer.sendSync('get-component', 'nav.html'));
+
+    function clickedLink(e){
+      e.preventDefault();
+      $('#main_panel').fadeOut(() => {
+        var components = e.target.href.split('/');
+        if(components[components.length-2] == 'wiki'){
+          window.hist.push($('#main_title').text().replace(' ', '-') + '.md');
+          renderPage(components[components.length-1] + '.md');
+        } else {
+          if(window.navigator.onLine){
+            electron.shell.openExternal(e.target.href);
+          } else {
+            alertify.error('This is an external link.<br />Please connect to the internet and click it again.');
+          }
+        }
+        $('#main_panel').fadeIn();
+      });
+    }
+
+    function renderPage(filename){
+      $('#main_title').text(filename.replace('-', ' ').slice(0,-3));
+      let converter = new showdown.Converter();
+      let md = electron.ipcRenderer.sendSync('get-component', 'help/' + filename);
+      let html = converter.makeHtml(md);
+      $('#content').html(html);
+      $('#content p, #content ul').css('font-size', $('#font-size-slider').val() + 'px');
+      $('#content a').click(clickedLink);
+    }
+    renderPage('Home.md');
+
+    $('#font-size-slider').on('input', e => $('#content p, #content ul, #content ol').css('font-size', e.target.value + 'px'));
+
+    $('#back_arrow').click(e => {
+      e.preventDefault();
+      if(hist.length > 0){
+        renderPage(hist.pop());
+      }
+    });
+
+    electron.ipcRenderer.on('deliver-component', (e, md) => {
+      let converter = new showdown.Converter();
+      let html = converter.makeHtml(md);
+      $('#footer').html(html).find('a').click(clickedLink);
+    });
+    electron.ipcRenderer.send('get-component', 'help/_Footer.md')
+  });
+  </script>
+</body>
+</html>

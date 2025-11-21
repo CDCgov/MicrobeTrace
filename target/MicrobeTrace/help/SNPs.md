@@ -1,0 +1,1 @@
+SNPs stands for [Single Nucleotide Polymorphisms](https://ghr.nlm.nih.gov/primer/genomicresearch/snp). SNPs are the simplest genetic distance metric: they are computed by [counting the number](https://en.wikipedia.org/wiki/Hamming_distance) of nucleotides in two aligned sequences that don't match each other.

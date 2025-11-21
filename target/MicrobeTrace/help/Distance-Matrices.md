@@ -1,0 +1,16 @@
+MicrobeTrace is capable of taking, as input, a form of Distance Matrix. In order to parse properly, this distance matrix must be of the following format:
+
+```
+,Node1,Node2,Node3...
+Node1,0,#,#,...
+Node2,#,0,#,...
+Node3,#,#,0,...
+...
+```
+
+Where `Node1-3...` represent the node identifiers, and `#` represents the distance metric between the nodes of that row and column.
+
+Some things to note:
+* The top-left cell is empty. It doesn't strictly need to be, but whatever it's contents are will be ignored.
+* The distance matrix must be sorted such that the `i`th row of the `i`th column is reflexive.
+* MicrobeTrace will export this type of Distance Matrix, if you'd like an example. It's also quick to load, so if you've parsed a large FASTA file and want to get to analysis more quickly next time, exporting a Distance Matrix is one way to accomplish that.
