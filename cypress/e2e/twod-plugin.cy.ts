@@ -85,79 +85,79 @@ const selector : any = {
 
 
 // Test suite for core rendering and functionality
-// describe('2D Network - Core Rendering and Stats', () => {
-//   beforeEach(() => {
-//     cy.visit('/');
-//     seedAndLaunch2DNetwork();
-//   });
+describe('2D Network - Core Rendering and Stats', () => {
+  beforeEach(() => {
+    cy.visit('/');
+    seedAndLaunch2DNetwork();
+  });
 
-//   it('should render the Cytoscape canvas with nodes and links', () => {
-//     // The canvas should exist and be visible
-//     cy.get(selector.canvas).should('be.visible');
+  it('should render the Cytoscape canvas with nodes and links', () => {
+    // The canvas should exist and be visible
+    cy.get(selector.canvas).should('be.visible');
 
-//     // Check for the presence of a canvas element, indicating Cytoscape has rendered
-//     cy.get(selector.canvas).find('canvas').should('exist');
-//   });
+    // Check for the presence of a canvas element, indicating Cytoscape has rendered
+    cy.get(selector.canvas).find('canvas').should('exist');
+  });
 
-//   it('should display correct initial statistics', () => {
-//     // Assert that the stats panel shows the correct counts from the seeded data
-//     cy.get(selector.statsNodes).should('contain.text', '2');
-//     cy.get(selector.statsLinks).should('contain.text', '1');
-//   });
-// });
+  it('should display correct initial statistics', () => {
+    // Assert that the stats panel shows the correct counts from the seeded data
+    cy.get(selector.statsNodes).should('contain.text', '2');
+    cy.get(selector.statsLinks).should('contain.text', '1');
+  });
+});
 
-// // Test suite for toolbar actions
-// describe('2D Network - Toolbar Actions', () => {
+// Test suite for toolbar actions
+describe('2D Network - Toolbar Actions', () => {
   
-//   beforeEach(() => {
-//     cy.visit('/');
-//     cy.wait(6000); // Allow for initial application bootstrap
+  beforeEach(() => {
+    cy.visit('/');
+    cy.wait(6000); // Allow for initial application bootstrap
 
-//     cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
-//      .click({ force: true });
+    cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
+     .click({ force: true });
     
-//     cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
     
-//     // Wait for the tree container to be visible, indicating the view has loaded
-//     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
-//   });
+    // Wait for the tree container to be visible, indicating the view has loaded
+    cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
+  });
 
-//   it('should toggle the pin all nodes state and disable the refresh button', () => {
-//     // The refresh button should initially be enabled
-//     cy.get(selector.refreshBtn).should('not.have.class', 'disabled');
+  it('should toggle the pin all nodes state and disable the refresh button', () => {
+    // The refresh button should initially be enabled
+    cy.get(selector.refreshBtn).should('not.have.class', 'disabled');
 
-//     // Click to pin all nodes
-//     cy.get(selector.pinAllBtn).click();
+    // Click to pin all nodes
+    cy.get(selector.pinAllBtn).click();
 
-//     // Assert the state change in the commonService
-//     cy.window().its('commonService.session.network.allPinned').should('be.true');
+    // Assert the state change in the commonService
+    cy.window().its('commonService.session.network.allPinned').should('be.true');
 
-//     // The refresh button should now be disabled
-//     cy.get(selector.refreshBtn).should('have.class', 'disabled');
+    // The refresh button should now be disabled
+    cy.get(selector.refreshBtn).should('have.class', 'disabled');
 
-//     // Click to unpin all nodes
-//     cy.get(selector.pinAllBtn).click();
+    // Click to unpin all nodes
+    cy.get(selector.pinAllBtn).click();
 
-//     // Assert the state is reverted in the commonService
-//     cy.window().its('commonService.session.network.allPinned').should('be.false');
+    // Assert the state is reverted in the commonService
+    cy.window().its('commonService.session.network.allPinned').should('be.false');
 
-//     // The refresh button should be enabled again
-//     cy.get(selector.refreshBtn).should('not.have.class', 'disabled');
-//   });
+    // The refresh button should be enabled again
+    cy.get(selector.refreshBtn).should('not.have.class', 'disabled');
+  });
 
-//   it('should open and close the settings pane', () => {
-//     // The settings pane should not be visible initially
-//     cy.get(selector.settingsPane).should('not.be.visible');
+  it('should open and close the settings pane', () => {
+    // The settings pane should not be visible initially
+    cy.get(selector.settingsPane).should('not.be.visible');
 
-//     // Click the settings button to open the pane
-//     cy.get(selector.settingsBtn).click();
-//     cy.get(selector.settingsPane).should('be.visible');
+    // Click the settings button to open the pane
+    cy.get(selector.settingsBtn).click();
+    cy.get(selector.settingsPane).should('be.visible');
 
-//     // Click the close button (part of the PrimeNG dialog component)
-//     cy.get(selector.settingsPane).find('.p-dialog-header-close-icon').click();
-//     cy.get(selector.settingsPane).should('not.be.visible');
-//   });
-// });
+    // Click the close button (part of the PrimeNG dialog component)
+    cy.get(selector.settingsPane).find('.p-dialog-header-close-icon').click();
+    cy.get(selector.settingsPane).should('not.be.visible');
+  });
+});
 
 
 // Test suite for the settings pane functionality
@@ -187,26 +187,26 @@ describe('2D Network - Settings Pane Interactions', () => {
       cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     });
 
-    // it('should update node size by clicking the UI and reflect in the network', () => {
-    //   const initialSize = 20;
-    //   const newSize = 75;
-    //   const expectedStyledSize = (newSize / 100 * 40) + 10;
+    it('should update node size by clicking the UI and reflect in the network', () => {
+      const initialSize = 20;
+      const newSize = 75;
+      const expectedStyledSize = (newSize / 100 * 40) + 10;
      
-    //   cy.window().its('commonService.session.style.widgets.node-radius').should('equal', initialSize);
+      cy.window().its('commonService.session.style.widgets.node-radius').should('equal', initialSize);
      
-    //   cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+      cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
      
-    //   cy.get('@dialogContainer').find(selector.nodeRadiusSize)
-    //    .invoke('val', newSize)
-    //    .trigger('change', { force: true });
+      cy.get('@dialogContainer').find(selector.nodeRadiusSize)
+       .invoke('val', newSize)
+       .trigger('change', { force: true });
      
-    //   cy.window().its('commonService.session.style.widgets.node-radius').should('equal', newSize);
+      cy.window().its('commonService.session.style.widgets.node-radius').should('equal', newSize);
      
-    //   getCy().then((cyInstance) => {
-    //    const node = cyInstance.nodes().first();
-    //    expect(parseFloat(node.style('width'))).to.be.closeTo(expectedStyledSize, 1);
-    //   });
-    //  });
+      getCy().then((cyInstance) => {
+       const node = cyInstance.nodes().first();
+       expect(parseFloat(node.style('width'))).to.be.closeTo(expectedStyledSize, 1);
+      });
+     });
 
     it('should update node label via dropdown', () => {
         cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
@@ -222,65 +222,65 @@ describe('2D Network - Settings Pane Interactions', () => {
         });
     });
 
-    // it('should update node label size and orientation', () => {
-    //     const newSize = 36;
-    //     const newOrientation = 'Top';
+    it('should update node label size and orientation', () => {
+        const newSize = 36;
+        const newOrientation = 'Top';
     
-    //     cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
-    //     cy.window().invoke('Cypress.test.setNodeLabel', '_id'); // Ensure labels are visible for testing
+        cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+        cy.window().invoke('Cypress.test.setNodeLabel', '_id'); // Ensure labels are visible for testing
     
-    //     cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', 16);
-    //     cy.get('@dialogContainer').find(selector.nodeLabelSize).invoke('val', newSize).trigger('change', { force: true });
-    //     cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', newSize);
+        cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', 16);
+        cy.get('@dialogContainer').find(selector.nodeLabelSize).invoke('val', newSize).trigger('change', { force: true });
+        cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', newSize);
     
-    //     cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', 'Right');
-    //     cy.get('@dialogContainer').find(selector.nodeLabelOrientation).select(newOrientation);
-    //     cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', newOrientation);
+        cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', 'Right');
+        cy.get('@dialogContainer').find(selector.nodeLabelOrientation).select(newOrientation);
+        cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', newOrientation);
 
-    //     getCy().then(cy => {
-    //         const node = cy.nodes().first();
-    //         expect(node.style('font-size')).to.contain(newSize);
-    //         expect(node.style('text-valign')).to.equal('top');
-    //     });
-    // });
+        getCy().then(cy => {
+            const node = cy.nodes().first();
+            expect(node.style('font-size')).to.contain(newSize);
+            expect(node.style('text-valign')).to.equal('top');
+        });
+    });
 
-    // it('should update node border width via input', () => {
-    //     const initialWidth = 2.0;
-    //     const newWidth = 5;
+    it('should update node border width via input', () => {
+        const initialWidth = 2.0;
+        const newWidth = 5;
     
-    //     cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+        cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
     
-    //     cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', initialWidth);
+        cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', initialWidth);
     
-    //     cy.get('@dialogContainer').find(selector.nodeBorderWidth).clear().type(newWidth.toString()).blur();
+        cy.get('@dialogContainer').find(selector.nodeBorderWidth).clear().type(newWidth.toString()).blur();
     
-    //     cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', newWidth);
-    //     getCy().then(cy => {
-    //         const node = cy.nodes().first();
-    //         expect(parseFloat(node.style('border-width'))).to.be.closeTo(newWidth, 0.1);
-    //     });
-    // });
+        cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', newWidth);
+        getCy().then(cy => {
+            const node = cy.nodes().first();
+            expect(parseFloat(node.style('border-width'))).to.be.closeTo(newWidth, 0.1);
+        });
+    });
 
-    // it('should update node tooltip variable and reflect in tooltip content', () => {
-    //     cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+    it('should update node tooltip variable and reflect in tooltip content', () => {
+        cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
         
-    //     cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('deep.equal', ['_id']);
+        cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('deep.equal', ['_id']);
         
-    //     cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multiselect').click();
-    //     cy.contains('li[role="option"]', 'cluster').click();
+        cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multiselect').click();
+        cy.contains('li[role="option"]', 'cluster').click();
         
-    //     cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', '_id');
-    //     cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', 'cluster');
+        cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', '_id');
+        cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', 'cluster');
 
-    //     // Verify the tooltip content now includes both fields
-    //     const nodeId = 'MZ375596';
-    //     cy.window().invoke('Cypress.test.tooltip', 'show', nodeId);
-    //     // Corrected Assertion: Check for the text inside the generated table within the tooltip
-    //     cy.get('#tooltip #tooltip-table').should('be.visible').within(() => {
-    //       cy.contains('td', 'id').should('be.visible');
-    //       cy.contains('td', 'Cluster').should('be.visible');
-    //   });
-    // });
+        // Verify the tooltip content now includes both fields
+        const nodeId = 'MZ375596';
+        cy.window().invoke('Cypress.test.tooltip', 'show', nodeId);
+        // Corrected Assertion: Check for the text inside the generated table within the tooltip
+        cy.get('#tooltip #tooltip-table').should('be.visible').within(() => {
+          cy.contains('td', 'id').should('be.visible');
+          cy.contains('td', 'Cluster').should('be.visible');
+      });
+    });
 
     it('should change node sizing to be by variable and reflect in the network', () => {
         cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
@@ -701,7 +701,7 @@ describe('2D Network - Settings Pane Interactions', () => {
                 expect(nodeInData.y, 'Node Y position').to.be.closeTo(newPosition.y, 1);
             });
         });
-    });
+    });a
   
 });
 
