@@ -701,7 +701,7 @@ describe('2D Network - Settings Pane Interactions', () => {
                 expect(nodeInData.y, 'Node Y position').to.be.closeTo(newPosition.y, 1);
             });
         });
-    });a
+    });
   
 });
 
