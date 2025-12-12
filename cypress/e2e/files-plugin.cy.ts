@@ -12,6 +12,15 @@ describe('File Handling and Processing', () => {
     cy.wait(2000); 
   });
 
+  it('uploads multiple filesadn then sets the datatype and the fields', () => {
+    // mostly an example of this function
+    cy.loadFiles([
+      {name: 'AngularTesting_DistanceMatrix_TN93_small.xlsx', datatype: 'matrix'},
+      {name: 'AngularTesting_seqs_TN93_small.fasta', datatype: 'fasta'},
+      {name: 'AngularTesting_nodelist_withseqs_TN93_small (2).csv', datatype: 'node', field1: 'seq', field2: '_id'}
+    ])
+  })
+
   it('uploads a single node list, auto-configures it, and enables launch', () => {
     // Upload the file from the overlay
     cy.attach_file('#fileDropRef', nodeFile);
