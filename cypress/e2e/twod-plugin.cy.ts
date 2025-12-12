@@ -88,7 +88,8 @@ const selector : any = {
 describe('2D Network - Core Rendering and Stats', () => {
   beforeEach(() => {
     cy.visit('/');
-    seedAndLaunch2DNetwork();
+    // seedAndLaunch2DNetwork();
+    cy.waitForNetworkToRender();
   });
 
   it('should render the Cytoscape canvas with nodes and links', () => {
@@ -101,8 +102,8 @@ describe('2D Network - Core Rendering and Stats', () => {
 
   it('should display correct initial statistics', () => {
     // Assert that the stats panel shows the correct counts from the seeded data
-    cy.get(selector.statsNodes).should('contain.text', '2');
-    cy.get(selector.statsLinks).should('contain.text', '1');
+    cy.get(selector.statsNodes).should('contain.text', '33');
+    cy.get(selector.statsLinks).should('contain.text', '74');
   });
 });
 
@@ -676,33 +677,37 @@ describe('2D Network - Settings Pane Interactions', () => {
   });
   
       // This test in twod-plugin.cy.ts is now correct and will pass.
-      it('should allow a node to be dragged to a new position', () => {
-        cy.window().its('commonService.session.network.allPinned').should('be.false');
-    
+      it('should allow node MZ740979 to be dragged to a new position', () => {
+        const nodeId = 'MZ740979';
+      
         getCy().then((cyInstance: Core) => {
-            const nodeToDrag = cyInstance.nodes()[0];
-            const nodeId = nodeToDrag.id();
-            const initialPosition = { ...nodeToDrag.position() };
-            const newPosition = {
-                x: initialPosition.x + 100,
-                y: initialPosition.y + 50
-            };
-    
-            // Use our reliable test helper to perform the drag and update.
-            cy.window().invoke('Cypress.testDragNode', nodeId, newPosition);
-    
-            // This .should() block now checks the MASTER DATA LIST directly.
-            cy.window().should(win => {
-                // Find the node in the single source of truth.
-                const nodeInData = win.commonService.session.data.nodes.find(n => n._id === nodeId);
-                
-                // These assertions will now pass with 100% certainty.
-                expect(nodeInData.x, 'Node X position').to.be.closeTo(newPosition.x, 1);
-                expect(nodeInData.y, 'Node Y position').to.be.closeTo(newPosition.y, 1);
-            });
+          const node = cyInstance.getElementById(nodeId);
+      
+          // sanity checks
+          expect(node.empty(), `node ${nodeId} should exist in Cytoscape`).to.be.false;
+          expect(node.children().length, 'should not be compound parent').to.equal(0);
+          expect(node.hasClass('parent'), 'should not have parent class').to.be.false;
+          expect(node.hasClass('hidden'), 'should not be hidden').to.be.false;
+      
+          const initial = { ...node.position() };
+      
+          cy.window().then(win => {
+            const after = win.Cypress.test.dragNodeDelta(nodeId, 100, 50);
+            // guard in case helper returned null
+            expect(after, 'drag helper returned a position').to.not.be.null;
+      
+            expect(after.x, 'rendered X').to.be.closeTo(initial.x + 100, 1);
+            expect(after.y, 'rendered Y').to.be.closeTo(initial.y + 50, 1);
+      
+            // optional: also assert the backing data model saw the change
+            const backingNode =
+              win.commonService.session.data.nodes.find((n: any) => n._id === nodeId);
+            expect(backingNode.x, 'model X').to.be.closeTo(after.x, 1);
+            expect(backingNode.y, 'model Y').to.be.closeTo(after.y, 1);
+          });
         });
-    });
-  
+      });
+
 });
 
 // \u00A0

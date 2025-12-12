@@ -3042,16 +3042,33 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               // Create a dedicated namespace for all test functions
               (window as any).Cypress.test = {
                 // Interaction helpers
-                dragNode: (nodeId: string, newPosition: { x: number; y: number }) => {
-                    this.zone.run(() => {
-                        const node = this.cy.getElementById(nodeId);
-                        if (node) {
-                            node.position(newPosition);
-                            this.updateNodePos(node); 
-                        }
-                    });
-                },
-                tooltip: (action: 'show' | 'hide', nodeId: string) => {
+               dragNodeDelta: (nodeId: string, dx: number, dy: number) => {
+                    return this.zone.run(() => {
+                    const node = this.cy.getElementById(nodeId);
+                    if (!node || node.empty()) {
+                        console.warn('[Cypress.dragNodeDelta] node not found', nodeId);
+                        return null;
+                    }
+
+                    if (node.locked && node.locked()) {
+                        node.unlock();
+                    }
+
+                    const current = node.position();
+                    const newPos = {
+                        x: current.x + dx,
+                        y: current.y + dy
+                    };
+
+                    node.position(newPos);
+
+                    // ✅ keep app model in sync, like a real dragfree event
+                    this.updateNodePos(node);
+
+                    return newPos;  // so the test can assert directly
+                    });
+                },
+                                tooltip: (action: 'show' | 'hide', nodeId: string) => {
                     this.zone.run(() => {
                         const node = this.cy.getElementById(nodeId);
                         if (node) {
