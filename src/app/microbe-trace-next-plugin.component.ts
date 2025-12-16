@@ -3416,10 +3416,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.showButtonGroup = false;
                 this.showSorting = false;
 
-                // this.GlobalSettingsDialogSettings.setVisibility(false);
-                //this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-
                 break;
             }
             case "Phylogenetic Tree": {

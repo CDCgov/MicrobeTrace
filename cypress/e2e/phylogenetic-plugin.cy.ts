@@ -42,8 +42,7 @@ describe('Phylogenetic Tree View', () => {
       cy.openGlobalSettings();
 
       cy.get('#node-color-variable').click()
-      cy.get('li[role="option"').contains('None').click()
-
+      cy.get('li[role="option"]').contains('None').click()
       cy.wait(100);
       cy.get('#node-color').invoke('val', '#00ff00').trigger('input');
 
@@ -56,7 +55,7 @@ describe('Phylogenetic Tree View', () => {
       cy.openGlobalSettings();
 
       cy.get('#node-color-variable').click()
-      cy.get('li[role="option"').contains('Lineage').click()
+      cy.get('li[role="option"]').contains('Lineage').click()
 
       cy.wait(100);
       cy.closeGlobalSettings();
@@ -82,7 +81,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeImageFilenameVariable').should('equal', 'cypress_tree_test');
 
       cy.get('#export-tree').click();
-      cy.wait(1000);
+      cy.wait(5000);
       cy.readFile('cypress/downloads/cypress_tree_test.png').should('exist')
     })
 
@@ -144,6 +143,7 @@ describe('Phylogenetic Tree View', () => {
       cy.contains('li[role="option"]', 'Vertical').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeLayoutVariable').should('equal', 'vertical');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.attr', 'd', 'M189.3152573529412 0 H 22.647058823529413 V 36.457115511109684')
     });
 
     it('should change the tree layout to circular', () => {
@@ -155,6 +155,7 @@ describe('Phylogenetic Tree View', () => {
       cy.contains('li[role="option"]', 'Circular').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeLayoutVariable').should('equal', 'circular');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.attr', 'd', 'M0,0A0,0 0 0 0 0,0L11.92210191297659,-13.789264078412542')
     });
 
     it('should change the tree mode to smooth', () => {
@@ -166,6 +167,7 @@ describe('Phylogenetic Tree View', () => {
       cy.contains('li[role="option"]', 'Smooth').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeModeVariable').should('equal', 'smooth');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.attr', 'd', 'M0,84.24938725490196C40.96105876977791,84.24938725490196,40.96105876977791,10.07843137254902,81.92211753955581,10.07843137254902')
     });
 
     it('should change the tree mode to straight', () => {
@@ -177,6 +179,7 @@ describe('Phylogenetic Tree View', () => {
       cy.contains('li[role="option"]', 'Straight').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeModeVariable').should('equal', 'straight');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.attr', 'd', 'M0 84.24938725490196 L 81.92211753955581 10.07843137254902')
     });
 
     it('should change the tree type to Unweighted (Tree)', () => {
@@ -188,6 +191,7 @@ describe('Phylogenetic Tree View', () => {
       cy.contains('li[role="option"]', 'Unweighted (Tree)').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeTypeVariable').should('equal', 'tree');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.attr', 'd', 'M0 139.5232843137255 V 129.44485294117646 H 115.5')
     });
 
     it('should change the tree type to Dendrogram', () => {
@@ -199,6 +203,7 @@ describe('Phylogenetic Tree View', () => {
       cy.contains('li[role="option"]', 'Dendrogram').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeTypeVariable').should('equal', 'dendrogram');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.attr', 'd', 'M0 84.24938725490196 V 10.07843137254902 H 1155')
     });
   
     it('should toggle leaf labels on and off', () => {
@@ -247,15 +252,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedLeafLabelSizeVariable').should('equal', 12);
       cy.get('@dialogContainer').find('#leaf-label-size').invoke('val', 24).trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedLeafLabelSizeVariable').should('equal', 24);
-    
-      cy.closeSettingsPane('Phylogenetic Tree Settings');
-
-      cy.openGlobalSettings();
-
-      cy.get('#node-color-variable').click()
-      cy.get('li[role="option"').contains('Lineage').click()
-
-      cy.closeGlobalSettings();
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf text').first().should('have.css', 'font-size', '24px');    
     });
 
     it('should toggle on/off leaf tooltip', () => {
@@ -283,7 +280,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedLeafTooltipShowVariable').should('be.true');
       cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().trigger('mouseenter', {force: true});
       cy.get('#phyloTooltip').should('be.visible');
-      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().trigger('mouseout', {force: true}); //mousemove?
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().trigger('mouseout', {force: true});
       cy.wait(200);
       cy.get('#phyloTooltip').should('not.be.visible');
     });
@@ -349,8 +346,10 @@ describe('Phylogenetic Tree View', () => {
       cy.get('@dialogContainer').contains('Leaf Size').click();
 
       cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeSize').should('equal', 5);
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().invoke('attr', 'r').should('equal', '5')
       cy.get('@dialogContainer').find('#leaf-size').invoke('val', 20).trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeSize').should('equal', 20);
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().invoke('attr', 'r').should('equal', '20')
     })
 
     it('should show branch labels and change branch label size', () => {
@@ -363,12 +362,16 @@ describe('Phylogenetic Tree View', () => {
       cy.get('@dialogContainer').contains('Branch Labels').click();
 
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchDistanceShowVariable').should('be.false');
+      cy.get(selectors.treeSvg).find('g.tidytree-link text').first().should('have.css', 'opacity', '0')
       cy.get('@dialogContainer').find('#branch-distance-visibility').contains('Show').click();
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchDistanceShowVariable').should('be.true');
+      cy.get(selectors.treeSvg).find('g.tidytree-link text').first().should('have.css', 'opacity', '1')
 
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchDistanceSizeVariable').should('equal', 12);
+      cy.get(selectors.treeSvg).find('g.tidytree-link text').first().should('have.css', 'font-size', '12px')
       cy.get('@dialogContainer').find('#link-size').invoke('val', 16).trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchDistanceSizeVariable').should('equal', 16);
+      cy.get(selectors.treeSvg).find('g.tidytree-link text').first().should('have.css', 'font-size', '16px')
     })
 
     it('should show branch nodes, update branch node size, and update branch size', () => {
@@ -383,14 +386,41 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchNodeShowVariable').should('be.false');
       cy.get('@dialogContainer').find('#branch-node-visibility').contains('Show').click();
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchNodeShowVariable').should('be.true');
+      cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').first().should('have.css', 'opacity', '1')
 
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchNodeSizeVariable').should('equal', 5);
       cy.get('@dialogContainer').find('#branch-node-size').invoke('val', 8).trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchNodeSizeVariable').should('equal', 8);
+      cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').first().should('have.attr', 'r', '8')
 
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchSizeVariable').should('equal', 3);
       cy.get('@dialogContainer').find('#branch-size').invoke('val', 7).trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchSizeVariable').should('equal', 7);
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.css', 'stroke-width', '7px')
     })    
+    
+    it('should root tree on a branch', () => { 
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 401.87745098039215 V 382.98039215686276 H 973.9957166831973')
+      cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
+      cy.get('#reroot').click()
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(37).should('have.attr', 'd', 'M0 78.95263352736929 V 10.07843137254902 H 112.03413679966168')
+    })
+
+    it('should rotate tree at a branch', () => { 
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 401.87745098039215 V 382.98039215686276 H 973.9957166831973')
+      cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
+      cy.get('#rotate').click()
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 416.9950980392157 V 433.37254901960785 H 973.9957166831973')
+    })
+
+    it('should flip tree at a branch', () => { 
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 401.87745098039215 V 382.98039215686276 H 973.9957166831973')
+      cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
+      cy.get('#flip').click()
+      cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 414.47549019607845 V 433.37254901960785 H 973.9957166831973')
+    })
   });
 });

@@ -23,6 +23,7 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 
 declare var google: any;
 
@@ -64,6 +65,7 @@ class LongLatClass implements LongLatInterface {
 export class MapComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    @ViewChild('mapContainer') exportContainer: ElementRef;
 
     viewActive: boolean = true;
     svgStyle: {} = {
@@ -94,7 +96,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     geocoder: any = null;
     //address: any = "new york city";
 
-    OriginalCenterLocation: any = null;
     markers: any[] = [];
     //gmapOptions: any;
     //overlays: any[];
@@ -248,6 +249,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
+        private exportService: ExportService,
         private gtmService: GoogleTagManagerService) {
 
             super(elRef.nativeElement);
@@ -787,13 +789,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.visuals.gisMap.ShowGEOMapExportPane = false;
         this.isExporting = true;
 
-        if (this.commonService.session.style.widgets['node-color-variable'] != 'None') {
-            this.visuals.microbeTrace.generateNodeColorTable("#node-color-table-bottom-map", false);
-        }
-
-        if (this.commonService.session.style.widgets['link-color-variable'] != 'None') {
-            this.visuals.microbeTrace.generateNodeLinkTable("#link-color-table-bottom-map", false);
-        }
+        /*
+        Currently not able to export map view as an SVG, with a lot of work may be possible with limitations (I was able to use similar idea from 2D)
+        1. updated preferCanvas to false initially, so it renders an SVG; 2. selected that element [document.querySelector('.mapStyle svg').outerHTML;]
+        3. made modifications and passed it to a modified this.exportService.requestSVGExport; 4. that was able to export but still needed to add xmlns="http://www.w3.org/2000/svg" to svg tag
+        The resulting svg was still incomplete; it didn't have collapsed nodes and only allowed the offline map setting (not sure if its possible to use basemap or satellite)
+        */
 
         if (!this.isExportClosed) {
             setTimeout(() => this.exportVisualization(undefined), 300);
@@ -808,40 +809,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     exportWork() {
+        this.lmap.removeControl(this.lmap.zoomControl)
         setTimeout(() => {
-            var format = this.visuals.gisMap.SelectedNetworkExportFileTypeListVariable;
-            const element = document.querySelector('MapComponent').parentElement;
-
-            domToImage.toBlob(element)
-                .then((blob) => {
-                    // Sometimes libraries don't play nice with each other.
-                    // Sometimes dom-to-image does not recognize the leaflet element
-                    // so we jiggle it and try again. Typically works the second time, but we try 10 times
-                    if (blob === null) {
-                        if (this.visuals.gisMap.exportTryCount > 10) {
-                            //return toast about export failed
-                        }
-                        this.visuals.gisMap.exportTryCount += 1;
-
-                        this.visuals.gisMap.lmap.flyToBounds(this.visuals.gisMap.lmap.getBounds());
-
-                        this.visuals.gisMap.exportWork();
-                    }
-                    else {
-                        saveAs(blob, this.visuals.gisMap.SelectedNetworkExportFilenameVariable + '.' + format);
-                        this.visuals.gisMap.isExporting = false;
-                        this.visuals.microbeTrace.clearTable("#node-color-table-bottom-map");
-                        this.visuals.microbeTrace.clearTable("#link-color-table-bottom-map");
-
-                        this.visuals.gisMap.exportTryCount = 0;
-
-                        this.visuals.microbeTrace.GlobalSettingsDialogSettings.restoreStateAfterExport();
-                        this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.restoreStateAfterExport();
-                        this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.restoreStateAfterExport();
-                        this.visuals.gisMap.NodeMapSettingsExportDialogSettings.restoreStateAfterExport();
-                    }
-                });
+            const exportOptions: ExportOptions = {
+                filename: this.SelectedNetworkExportFilenameVariable,
+                filetype: this.SelectedNetworkExportFileTypeListVariable,
+                scale: this.SelectedNetworkExportScaleVariable,
+                quality: this.SelectedNetworkExportQualityVariable,
+            }
+            this.exportService.setExportOptions(exportOptions);
+            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement]
+            this.exportService.requestExport(elementsToExport, true, true)
         }, 1000);
+        new Promise(resolve => setTimeout(resolve, 2000)).then(() => this.lmap.addControl(this.lmap.zoomControl))
     }
 
     displayColorOptions() {
@@ -1574,9 +1554,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     openExport() {
         this.ShowGEOMapExportPane = true;
 
-        this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
-        this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
-        this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
         this.visuals.gisMap.NodeMapSettingsExportDialogSettings.setStateBeforeExport();
     }
 
