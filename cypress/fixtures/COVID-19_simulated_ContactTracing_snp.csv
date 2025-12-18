@@ -1,0 +1,41 @@
+source,target,Contact type,,Exposure,Case status confirmed?
+MZ797703,MZ797980,sports team,,high,Y
+MZ797703,MZ745515,sports team,,med,N
+MZ797703,MZ797832,classroom,,high,N
+MZ797703,MZ415508,classroom,,low,N
+MZ797703,MZ505967,classroom,,high,Y
+MZ727698,MZ727700,party,,med,Y
+MZ727698,MZ759709,party,,low,Y
+MZ375596,MZ797980,classroom,,low,Y
+MZ797832,MZ375596,classroom,,high,N
+MZ505967,MZ415508,sports team,,low,N
+MZ797703,MZ375596,family member,,med,N
+MZ797965,MZ375596,family member,,low,Y
+MZ745181,MZ375596,family member,,high,Y
+MZ798055,MZ375596,family member,,high,Y
+MZ797839,MZ375596,classroom,,high,Y
+MZ727700,MZ727701,classroom,,high,Y
+MZ637292,MZ375596,sports team,,med,Y
+MZ637292,MZ797748,sports team,,med,N
+MZ712879,MZ745515,sports team,,med,N
+MZ787305,MZ740979,sports team,,med,N
+MZ696569,MZ591568,sports team,,high,N
+MZ727698,MZ727689,classroom,,high,Y
+MZ797980,MZ762276,family member,,high,Y
+MZ797735,MZ744384,family member,,low,Y
+MZ797519,MZ797735,classroom,,low,Y
+P1,MZ727700,,,low,Y
+P1,MZ727701,,,low,N
+P1,MZ591568,,,low,N
+P1,MZ727689,,,low,N
+P1,MZ744384,,,low,N
+P1,MZ797735,,,low,N
+P2,MZ797980,,,low,N
+P2,MZ745515,,,low,N
+P2,MZ797832,,,low,N
+P2,MZ415508,,,low,N
+P3,MZ375596,,,low,N
+P3,MZ797832,,,low,N
+P3,MZ505967,,,low,N
+P3,MZ797703,,,low,N
+P3,MZ797965,,,low,N

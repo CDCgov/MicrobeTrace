@@ -1,0 +1,16 @@
+ID,Virus_Name,Lineage,WHO_class,Collection_Date,State,Zip_code,Node_Class,Profession,Viral loads,Sex at birth,Node type,Virus source
+375596,hCoV-19/USA/CO-CDC-MMB08712754/2021,B.1.617.2,Delta,7/8/2021,Colorado,80301,VOC,service industry,,Female,Person,Human
+415508,hCoV-19/USA/PA-CDC-STM-000072865/2021,B.1.617.1,,7/10/2021,Pennsylvania,19019,VOI,Other ,,Female,Person,Human
+505967,SARS-CoV-2/human/USA/AZ-4001/2021,B.1.617.1,,7/12/2021,Arizona,85123,VOI,Other ,,Female,Person,Human
+797519,hCoV-19/USA/FL-CDC-QDX27272258/2021,B.1.1.7,Alpha,7/25/2021,Florida,32789,VOC,Hospitality,,Female,Person,Human
+797703,hCoV-19/USA/TX-CDC-QDX27272171/2021,B.1.617.2,Delta,7/24/2021,Texas,75039,VOC,Healthcare,,Male,Person,Human
+797735,hCoV-19/USA/FL-CDC-QDX27272212/2021,B.1.1.7,Alpha,7/25/2021,Florida,32801,VOC,Student,,Female,Person,Human
+797748,hCoV-19/USA/TX-CDC-QDX27272178/2021,B.1.617.2,Delta,7/24/2021,Texas,75039,VOC,Healthcare,,Male,Person,Human
+797832,hCoV-19/USA/TX-CDC-QDX27272181/2021,B.1.617.2,Delta,7/24/2021,Texas,75032,VOC,Healthcare,,Female,Person,Human
+797839,hCoV-19/USA/FL-CDC-QDX27272273/2021,B.1.617.2,Delta,7/25/2021,Florida,32807,VOC,Healthcare,,Female,Person,Human
+797965,hCoV-19/USA/TX-CDC-QDX27272175/2021,B.1.617.2,Delta,7/24/2021,Texas,75039,VOC,Healthcare,,Male,Person,Human
+797980,hCoV-19/USA/TX-CDC-QDX27272170/2021,B.1.617.2,Delta,7/24/2021,Texas,75039,VOC,Education,,Male,Person,Human
+798055,hCoV-19/USA/TX-CDC-QDX27272166/2021,B.1.617.2,Delta,7/24/2021,Texas,75039,VOC,Education,,Male,Person,Human
+G1,,,,,,,,,,,Facility,
+G2,,,,,,,,,,,Facility,
+G3,,,,,,,,,,,Facility,
