@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repo uses Cypress for E2E tests. UI is Angular + PrimeNG. Only the 2D Network view uses Cytoscape. Other views use different rendering stacks (example: Phylogenetic Tree is D3 + SVG, Map is Leaflet).
+This repo uses Cypress for E2E tests. UI is Angular + PrimeNG. Only the 2D Network and Bubble view use Cytoscape. Other views use different rendering stacks (example: Phylogenetic Tree is D3 + SVG, Map is Leaflet [canvas]).
 
 ## Cypress locations
 

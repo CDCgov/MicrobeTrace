@@ -37,7 +37,7 @@ describe('Map View', () => {
     /**
    * Test suite for toolbar and settings pane interactions.
    */
-  context('Settings and Interactions (Default Dataset)', () => {
+  context('Map Settings and Interactions (Default Dataset)', () => {
     beforeEach(() => {
       // Open the settings pane
       cy.get(selectors.settingsBtn).click();
@@ -47,6 +47,10 @@ describe('Map View', () => {
 
       cy.get('#map-field-zipcode').click();
       cy.contains('li[role="option"]', 'Zipcode').click();
+
+      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
+      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
+
       cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
       cy.wait(250);
     });
@@ -56,127 +60,13 @@ describe('Map View', () => {
       cy.window().its('commonService.session.style.widgets.map-field-zipcode').should('equal', 'Zip_code');
       cy.closeSettingsPane('Geospatial Settings');
     });
-    
-    // Map node colors should be mappable and remappable
-    it('should update node color to red', () => {
-      cy.closeSettingsPane('Geospatial Settings');
-      cy.openGlobalSettings();
-
-      cy.get('#node-color-variable').click()
-      cy.get('li[role="option"]').contains('None').click()
-
-      cy.wait(250);
-      cy.get('#node-color').invoke('val', '#ff0000').trigger('input');
-
-      // wait for the session model to update
-      cy.window().its('commonService.session.style.widgets.node-color', { timeout: 5000 })
-        .should('equal', '#ff0000');
-
-      // check collapsed markers (markerClusterGroup -> internal featureGroup layers)
-      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers', { timeout: 5000 })
-        .should(layers => {
-          Object.values(layers).forEach((layer: any) => {
-            if (layer._childCount > 0) {
-              return;
-            } else {
-              expect(layer.options.fillColor).to.equal('#ff0000');
-            }
-          });
-        });
-
-      cy.contains('#link-color-table-row p-selectButton span', 'Hide').parent().click();
-      cy.closeGlobalSettings();
-      cy.wait(250);
-      if (takeScreenshots) cy.screenshot('map/node-color-red', { overwrite: true});
-
-      cy.get(selectors.settingsBtn).click();
-
-      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
-      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Nodes').click()
-      cy.get('#map-node-collapsing').contains('Off').click()
-      cy.wait(100);
-
-      cy.window().its('commonService.visuals.gisMap.layers.featureGroup._layers', { timeout: 5000 })
-        .should(layers => { Object.values(layers).forEach((layer: any) => {
-          expect(layer.options.fillColor).to.equal('#ff0000');
-        });
-      });
-    })
-
-    it('should update node color by to lineage and then change one of the colors', () => {
-      cy.closeSettingsPane('Geospatial Settings');
-      cy.openGlobalSettings();
-
-      cy.get('#node-color-variable').click()
-      cy.get('li[role="option"]').contains('Lineage').click()
-      cy.wait(250);
-      cy.closeGlobalSettings();
-
-      cy.get('#node-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
-      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
-        Object.values(layers).forEach((layer: any) => {
-          if (layer.data && layer.data.ID === 'MZ375596') {
-            expect(layer.options.fillColor).to.equal('#777777');
-          }
-        });
-      });
-
-      cy.get('.leaflet-control-zoom-out').click({force: true});
-      cy.wait(1000);
-      if (takeScreenshots) cy.screenshot('map/node-colorado-gray', { overwrite: true});
-    })
-
-    // Map link colors should be mappable and remappable
-    it('should update link colors to red', () => {
-      cy.closeSettingsPane('Geospatial Settings');
-      cy.openGlobalSettings();
-
-      cy.get('#link-tooltip-variable').click()
-      cy.get('li[role="option"]').contains('None').click()
-
-      cy.wait(250);
-      cy.get('#link-color').invoke('val', '#ff0000').trigger('input');
-      cy.wait(100);
-
-      cy.closeGlobalSettings();
-      if (takeScreenshots) cy.screenshot('map/links-color-red', { overwrite: true})
-
-      cy.window().its('commonService.visuals.gisMap.layers.links._layers', { timeout: 5000 })
-        .should(layers => { Object.values(layers).forEach((layer: any) => {
-          expect(layer.options.color).to.equal('#ff0000');
-        });
-      });
-    })
-
-    it('should update link colors variable to Cluster and then change one of the colors', () => {
-      cy.closeSettingsPane('Geospatial Settings');
-      cy.openGlobalSettings();
-
-      cy.get('#link-tooltip-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
-
-      cy.wait(250);
-      cy.get('#link-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
-      cy.wait(100);
-      
-      cy.closeGlobalSettings();
-      if (takeScreenshots) cy.screenshot('map/link-color-var-change-gray', { overwrite: true})
-
-      cy.window().its('commonService.visuals.gisMap.layers.links._layers', { timeout: 5000 })
-        .should(layers => { Object.values(layers).forEach((layer: any) => {
-          if ( layer.data.cluster == 0) {
-            expect(layer.options.color).to.equal('#777777');
-          }          
-        });
-      });
-    })
 
     // Toggle Collapsing Nodes
     it('should toggle Collapsing Nodes', () => {
       // initial values
       cy.window().its('commonService.visuals.gisMap.SelectedNodeCollapsingTypeVariable').should('equal', 'On')
       cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
-        expect(Object.keys(layers)).to.have.length(6);
+        expect(Object.keys(layers)).to.have.length(7);
       });
       cy.window().its('commonService.visuals.gisMap.layers.featureGroup._layers').should(layers => {
         expect(Object.keys(layers)).to.have.length(0);
@@ -193,7 +83,7 @@ describe('Map View', () => {
         expect(Object.keys(layers)).to.have.length(0);
       });
       cy.window().its('commonService.visuals.gisMap.layers.featureGroup._layers').should(layers => {
-        expect(Object.keys(layers)).to.have.length(29);
+        expect(Object.keys(layers)).to.have.length(30);
       });
 
       cy.closeSettingsPane('Geospatial Settings');
@@ -212,7 +102,7 @@ describe('Map View', () => {
       cy.wait(100);
       cy.window().its('commonService.visuals.gisMap.SelectedNodeCollapsingTypeVariable').should('equal', 'On')
       cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
-        expect(Object.keys(layers)).to.have.length(6);
+        expect(Object.keys(layers)).to.have.length(7);
       });
       cy.window().its('commonService.visuals.gisMap.layers.featureGroup._layers').should(layers => {
         expect(Object.keys(layers)).to.have.length(0);
@@ -298,7 +188,7 @@ describe('Map View', () => {
       if (takeScreenshots) cy.screenshot('map/no-links', { overwrite: true});
 
       cy.window().its('commonService.visuals.gisMap.lmap._layers').should(layers => {
-        expect(Object.values(layers).length).to.equal(248);
+        expect(Object.values(layers).length).to.equal(249);
       })
     })
 
@@ -617,6 +507,42 @@ describe('Map View', () => {
         });
       })
     })
+    
+    it('should select a node by clicking on it', () => {
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.contains('.p-dialog-header', 'Link Color Table')
+        .parents('.p-dialog')
+        .find('button.p-dialog-close-button')
+        .click();
+
+      let NC_node: any;
+      cy.window().then((win: any) => {
+        const layers = win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers;
+        NC_node = Object.values(layers).find((node: any) => node.data && node.data._id == "MZ591568")
+        expect(NC_node).to.not.be.null;
+        expect(NC_node.data.selected).to.be.false;
+        expect(NC_node.options.color).to.be.eq('#000000')
+
+        const point = NC_node._point;
+        const eventInit: any = { bubbles: true, cancelable: true, composed: true };
+        const fakeOriginalEvent = new MouseEvent('click', eventInit);
+
+        const lmap = win.commonService.visuals.gisMap.lmap;
+        const containerPoint =  L.point(point.x, point.y);
+        const latlng = lmap.containerPointToLatLng(containerPoint);
+          
+        NC_node.fire('click', {latlng, layer: NC_node, containerPoint, originalEvent: fakeOriginalEvent});
+        cy.wait(100);
+
+        NC_node = Object.values(layers).find((node: any) => node.data && node.data._id == "MZ591568")
+        expect(NC_node).to.not.be.null;
+        expect(NC_node.data.selected).to.be.true;
+        expect(NC_node.options.color).to.be.eq('#ff8300')
+        // ensure selection is transferred to node stored in commonService
+        let cs_Node = win.commonService.getVisibleNodes().find(n => n._id == 'MZ591568')
+        expect(cs_Node.selected).to.be.true;
+      })
+    })
 
     it('should download map view as a png', () => {
       cy.closeSettingsPane('Geospatial Settings');
@@ -631,7 +557,7 @@ describe('Map View', () => {
     })
     
     // open map, select detailed or satellite basemap. Then close map and re-open. Confirm that map layer settings are maintained and that map renders accurately.
-    it('Should maintain selected map type (satellite) after opening and closing map view', () => {
+    it('should maintain selected map type (satellite) after opening and closing map view', () => {
       cy.window().its('commonService.session.style.widgets.map-satellite-show').should('equal', false);
       cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Components').click()
       cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('.p-accordionheader', 'Online').click();
@@ -657,6 +583,335 @@ describe('Map View', () => {
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         expect(mapView.lmap.hasLayer(mapView.layers.satellite)).to.equal(true)
       });
+    })
+  })
+
+  context('Global Settings updating Map', () => { 
+    beforeEach(() => {
+      // Open the settings pane
+      cy.get(selectors.settingsBtn).click();
+      // Verify it's open by finding the title anywhere on the page. This is robust.
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+
+      cy.get('#map-field-zipcode').click();
+      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
+      cy.wait(1000)
+
+
+      cy.closeSettingsPane('Geospatial Settings')
+      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
+      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
+      cy.openGlobalSettings();
+    });
+
+    // Map node colors should be mappable and remappable
+    it('should update node color to red', () => {
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('None').click()
+
+      cy.wait(250);
+      cy.get('#node-color').invoke('val', '#ff0000').trigger('input');
+
+      // wait for the session model to update
+      cy.window().its('commonService.session.style.widgets.node-color', { timeout: 5000 })
+        .should('equal', '#ff0000');
+
+      // check collapsed markers (markerClusterGroup -> internal featureGroup layers)
+      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers', { timeout: 5000 })
+        .should(layers => {
+          Object.values(layers).forEach((layer: any) => {
+            if (layer._childCount > 0) {
+              return;
+            } else {
+              expect(layer.options.fillColor).to.equal('#ff0000');
+            }
+          });
+        });
+
+      cy.contains('#link-color-table-row p-selectButton span', 'Hide').parent().click();
+      cy.closeGlobalSettings();
+      cy.wait(250);
+      if (takeScreenshots) cy.screenshot('map/node-color-red', { overwrite: true});
+
+      cy.get(selectors.settingsBtn).click();
+
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Nodes').click()
+      cy.get('#map-node-collapsing').contains('Off').click()
+      cy.wait(100);
+
+      cy.window().its('commonService.visuals.gisMap.layers.featureGroup._layers', { timeout: 5000 })
+        .should(layers => { Object.values(layers).forEach((layer: any) => {
+          expect(layer.options.fillColor).to.equal('#ff0000');
+        });
+      });
+    })
+
+    it('should update node color by to lineage and then change one of the colors', () => {
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('Lineage').click()
+      cy.wait(250);
+      cy.closeGlobalSettings();
+
+      cy.get('#node-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
+        Object.values(layers).forEach((layer: any) => {
+          if (layer.data && layer.data.ID === 'MZ375596') {
+            expect(layer.options.fillColor).to.equal('#777777');
+          }
+        });
+      });
+
+      cy.get('.leaflet-control-zoom-out').click({force: true});
+      cy.wait(1000);
+      if (takeScreenshots) cy.screenshot('map/node-colorado-gray', { overwrite: true});
+    })
+
+    // Map link colors should be mappable and remappable
+    it('should update link colors to red', () => {
+      cy.get('#link-tooltip-variable').click()
+      cy.get('li[role="option"]').contains('None').click()
+
+      cy.wait(250);
+      cy.get('#link-color').invoke('val', '#ff0000').trigger('input');
+      cy.wait(100);
+
+      cy.closeGlobalSettings();
+      if (takeScreenshots) cy.screenshot('map/links-color-red', { overwrite: true})
+
+      cy.window().its('commonService.visuals.gisMap.layers.links._layers', { timeout: 5000 })
+        .should(layers => { Object.values(layers).forEach((layer: any) => {
+          expect(layer.options.color).to.equal('#ff0000');
+        });
+      });
+    })
+
+    it('should update link colors variable to Cluster and then change one of the colors', () => {
+      cy.get('#link-tooltip-variable').click()
+      cy.get('li[role="option"]').contains('Cluster').click()
+
+      cy.wait(250);
+      cy.get('#link-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.wait(100);
+      
+      cy.closeGlobalSettings();
+      if (takeScreenshots) cy.screenshot('map/link-color-var-change-gray', { overwrite: true})
+
+      cy.window().its('commonService.visuals.gisMap.layers.links._layers', { timeout: 5000 })
+        .should(layers => { Object.values(layers).forEach((layer: any) => {
+          if ( layer.data.cluster == 0) {
+            expect(layer.options.color).to.equal('#777777');
+          }          
+        });
+      });
+    })
+
+    it('should update link threshold and confirm links are updated on map', () => {
+      cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
+      for (let i = 0; i < 4; i++) {
+        cy.get('#link-threshold').type('{uparrow}');
+      }
+      cy.wait(2000)
+      cy.window().then((win: any) => {
+          expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(20)
+          // duo links have 2 links/layers/polylines in map view; 1 has data the other doesn't
+          let links = win.commonService.visuals.gisMap.layers.links._layers;
+          expect(Object.values(links).length).to.eq(89)
+          //.forEach((layer: any) => {        })
+  
+      });
+      for (let i = 0; i < 8; i++) {
+        cy.get('#link-threshold').type('{downarrow}');
+      }
+      cy.wait(2000)
+      cy.window().then((win: any) => {
+        expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(12)
+        let links = win.commonService.visuals.gisMap.layers.links._layers;
+        expect(Object.values(links).length).to.eq(52)
+      })
+    })
+
+    it('should set node color variable and link color varialbe to cluster, then update link threshold to update node color', () => {
+      cy.get(selectors.settingsBtn).click();
+
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Nodes').click()
+      cy.get('#map-node-collapsing').contains('Off').click()
+      cy.closeSettingsPane('Geospatial Settings')
+
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('Cluster').click()
+
+      cy.get('#link-tooltip-variable').click()
+      cy.get('li[role="option"]').contains('Cluster').click()
+
+      cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
+      for (let i = 0; i < 6; i++) {
+        cy.get('#link-threshold').type('{uparrow}');
+      }
+      cy.wait(2000);
+      cy.window().then((win: any) => {
+        expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(22)
+        
+        let links = win.commonService.visuals.gisMap.layers.links._layers;
+        Object.values(links).filter((l: any) => l.data && l.data.source == 'MZ787305').forEach((l: any) => {
+          expect(l.options.color).to.be.eq('#1f78b4')
+        })
+
+        let nodes = win.commonService.visuals.gisMap.layers.featureGroup._layers;
+        Object.values(nodes).filter((node: any) => node.data && (node.data._id == 'MZ787305' || node.data._id == 'MZ740979')).forEach((node: any) => {
+          expect(node.options.fillColor).to.be.eq('#f22020')
+        })
+      })
+
+      for (let i = 0; i < 8; i++) {
+        cy.get('#link-threshold').type('{downarrow}');
+      }
+      cy.wait(2000);
+      cy.window().then((win: any) => {
+        expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(14)
+
+        let links = win.commonService.visuals.gisMap.layers.links._layers;
+        expect((Object.values(links).filter((l: any) => l.data && l.data.source == 'MZ787305')[0] as any).options.color).to.be.eq('#b2df8a')
+        let nodes = win.commonService.visuals.gisMap.layers.featureGroup._layers;
+        Object.values(nodes).filter((node: any) => node.data && (node.data._id == 'MZ787305' || node.data._id == 'MZ740979')).forEach((node: any) => {
+          expect(node.options.fillColor).to.be.eq('#f47a22');
+        })
+        Object.values(nodes).filter((node: any) => node.data && node.data._id == 'MZ744285').forEach((node: any) => {
+          expect(node.options.fillColor).to.be.eq('#b732cc')
+        })
+      })
+    })
+
+    it('should load style file', () => {
+      cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+      cy.get('#apply-style').should('exist');
+
+      cy.attach_file('#apply-style', 'Cypress_Test_Style.style', 'application/json');
+
+      cy.window()
+        .its('commonService.session.style.widgets', { timeout: 5000 })
+        .should(widgets => {
+          expect(widgets['node-color-variable']).to.equal('Profession');
+          expect(widgets['link-color-variable']).to.equal('Contact type');
+          expect(widgets['map-countries-show']).to.equal(true);
+          expect(widgets['map-collapsing-on']).to.equal(false);
+        });
+
+      cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+      cy.get('#node-color-variable .p-select-label').should('contain', 'Profession');
+
+      cy.window().its('commonService.visuals.gisMap').then(mapView => {
+        let nodeLayers = mapView.layers.featureGroup._layers;
+        expect(Object.keys(nodeLayers)).to.have.length(30);
+        Object.values(nodeLayers).forEach((node: any) => {
+          if (node.data && node.data.Profession === 'Education') {
+            expect(node.options.fillColor).to.equal('#f22020');
+          }
+        });
+        let linkLayers = mapView.layers.links._layers;
+        Object.values(linkLayers).forEach((link: any) => {
+          if (link.data && link.data['Contact Type'] == 'sports team') {
+            expect(link.options.color).to.equal('#33a02c')
+          }
+        })
+        expect(mapView.lmap.hasLayer(mapView.layers.countries)).to.equal(true)
+      });
+      cy.closeGlobalSettings();
+    })
+  })
+
+  context('Timeline Mode Testing', () => {
+    beforeEach(() => {
+      cy.openGlobalSettings().enableTimelineMode().closeGlobalSettings();
+
+      cy.get(selectors.settingsBtn).click();
+
+      //  Verify it's open by finding the title anywhere on the page. This is robust.
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.wait(2000)
+
+      cy.get('#map-field-zipcode').click();
+      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
+      cy.wait(250);
+      cy.closeSettingsPane('Geospatial Settings')      
+      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
+      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
+    });
+
+    it('starts and stops the timeline and also checks that play button is updated', () => {
+      cy.get('svg g.slider text.label').should('contain', 'Jun 28')
+      cy.get('svg g.slider circle.handle').should('not.have.attr', 'cx')
+      cy.get('#timeline-play-button').should('contain', 'Play').click();
+      cy.wait(7500)
+      cy.get('#timeline-play-button').should('contain', 'Pause').click();
+      cy.get('svg g.slider text.label').should('not.contain', 'Jun 28')
+      cy.get('svg g.slider circle.handle').invoke('attr', 'cx').then(Number).should('be.gt', 0)
+      cy.window().then((win: any) => {
+        let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
+
+        let mapNodeCount = 0;
+        Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
+          if (layer._childCount) mapNodeCount += layer._childCount;
+          else mapNodeCount += 1;
+        })
+        expect(visNodeCount_map).to.eq(mapNodeCount);
+      })
+    })
+    
+    it('changes color of node and link during timeline and then ensures color is kept after timeline ends', () => {
+      cy.get('#timeline-play-button').should('contain', 'Play').click();
+      cy.wait(7500)
+      cy.get('#timeline-play-button').should('contain', 'Pause').click();
+
+      cy.get('#node-color-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#link-color-table td input').first().invoke('val', '#000000').trigger('input').trigger('change');
+
+      cy.window().its('commonService.visuals.gisMap.layers').then(layers => {
+        let penNode: any = Object.values(layers.markerClusterGroup._featureGroup._layers).find((layer: any) => layer.data && layer.data.ID === 'MZ415508')
+        expect(penNode.options.fillColor).to.equal('#777777');
+        let penLink: any = Object.values(layers.links._layers).find((layer: any) => layer.data && layer.data.id === 'MZ415508-MZ797703')
+        expect(penLink.options.color).to.equal('#000000');
+      }) 
+
+      cy.openGlobalSettings().enableTimelineMode('None').closeGlobalSettings().wait(1000)
+      cy.window().its('commonService.visuals.gisMap.layers').then(layers => {
+        let penNode: any = Object.values(layers.markerClusterGroup._featureGroup._layers).find((layer: any) => layer.data && layer.data.ID === 'MZ415508')
+        expect(penNode.options.fillColor).to.equal('#777777');
+        let penLink: any = Object.values(layers.links._layers).find((layer: any) => layer.data && layer.data.id === 'MZ415508-MZ797703')
+        expect(penLink.options.color).to.equal('#000000');
+      }) 
+    })
+
+    it('clicks slider midway and then back to start', () => {
+
+      cy.get('#global-timeline svg line.track-overlay').first().click(300, 0, {force: true});
+      cy.wait(1500)
+      cy.get('svg g.slider text.label').should('contain', 'Jul 15') 
+      cy.window().then((win: any) => {
+        let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
+        let mapNodeCount = 0;
+        Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
+          if (layer._childCount) mapNodeCount += layer._childCount;
+          else mapNodeCount += 1;
+        })
+        expect(visNodeCount_map).to.eq(mapNodeCount).to.eq(16);
+      })
+
+      cy.get('#global-timeline svg line.track-overlay').first().click(0, 0, {force: true});
+      cy.wait(1500)
+      cy.get('svg g.slider text.label').should('contain', 'Jun 27') 
+      cy.window().then((win: any) => {
+        let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
+        let mapNodeCount = 0;
+        Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
+          if (layer._childCount) mapNodeCount += layer._childCount;
+          else mapNodeCount += 1;
+        })
+        expect(visNodeCount_map).to.eq(mapNodeCount).to.eq(0);
+      })
     })
   })
 })

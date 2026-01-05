@@ -390,3 +390,10 @@
 </p-dialog><!-- /.modal -->
 
 <div id="mapTooltip"></div>
+
+<p-dialog *ngIf="viewActive" header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
+    <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain location data and were omitted from Map View.</span>
+    <ol>
+        <li *ngFor="let node of nodesWithoutLoc"><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
+    </ol>
+</p-dialog>

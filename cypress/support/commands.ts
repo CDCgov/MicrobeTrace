@@ -49,6 +49,12 @@ declare global {
       // opens Global settings Menu
       openGlobalSettings(): Chainable<void>;
       closeGlobalSettings(): Chainable<void>;
+
+      /**
+       * Opens global settings and sets the Timeline By dropdown to the given label.
+       * Defaults to 'Date of Symptions Resolved'.
+       */
+      enableTimelineMode(variableLabel?: string): Chainable<void>;
       }
     }
   }
@@ -155,6 +161,17 @@ declare global {
     cy.contains('.p-dialog-title', 'Global Settings').parents('.p-dialog').find('button.p-dialog-close-button').click();
 
     cy.contains('.p-dialog-title', 'Global Settings').should('not.exist');
+  });
+
+  Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {
+    cy.openGlobalSettings();
+
+    cy.contains('#global-settings-modal .nav-link', 'Timeline').click();
+    cy.get('#timeline-config').should('be.visible');
+
+    cy.get('#node-timeline-variable').click();
+    cy.get('p-dropdownitem').contains('li', variableLabel).click();
+    cy.get('#node-timeline-variable .p-select-label').should('contain', variableLabel);
   });
   
   Cypress.Commands.add('waitForNetworkToRender', (timeout = 20000) => {

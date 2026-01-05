@@ -214,6 +214,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private lmap: Map;
     private mapTooltip: string = '#mapTooltip'
 
+    nodesWithoutLoc: {index: number, ID: string}[];
+    showPopupMessage: boolean = false;
+
     public leafletMarkers: Layer[] = [];
     public leafletInitialOptions: MapOptions;
     public leafletMarkerClusterOptions: MarkerClusterGroupOptions;
@@ -1017,6 +1020,17 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 }
             });
         }
+
+        this.nodesWithoutLoc = [];
+        let nodeLocSet: boolean = false;
+        this.nodes.forEach(n => {
+            if (!n._lat || !n._lon){
+                this.nodesWithoutLoc.push({index: n.index, ID: n._id})
+            }
+            if ( !nodeLocSet && n._lat && n._lon) nodeLocSet = true;
+        })
+        if (this.nodesWithoutLoc.length > 0 && nodeLocSet) this.showPopupMessage = true;
+
         if (callback) callback();
     }
 
