@@ -359,6 +359,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.viewActive = true; 
             this.cdref.detectChanges();
         })
+
+        // Subscribe to style file applied event
+        this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+            this.applyStyleFileSettings();
+        });
     }
 
     ngAfterViewInit() {
@@ -1262,7 +1267,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             if (!d._jlat || !d._jlon || d.visible === false) continue;
 
             let circleMarker: CircleWithData = L.circleMarker(L.latLng(d._jlat, d._jlon), {
-                weight: 1,
+                weight: d.selected ? 3 : 1,
                 color: d.selected ? selectedColor : '#000000',
                 opacity: opacity,
                 fillColor: colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(d[colorVariable]),

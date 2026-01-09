@@ -19,6 +19,7 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { runInThisContext } from 'vm';
 //import { MatHint } from '@angular/material/form-field';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 
 import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
@@ -32,7 +33,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   templateUrl: './phylogenetic-plugin.component.html',
   styleUrls: ['./phylogenetic-plugin.component.scss']
 })
-export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy {
+export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   viewActive: boolean = true;
@@ -72,48 +73,47 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     { label: 'Vertical', value: 'vertical' },
     { label: 'Circular', value: 'circular' },
   ];
-  SelectedTreeLayoutVariable = 'horizontal';
+  SelectedTreeLayoutVariable: 'horizontal'|'vertical'|'circular' = this.settings['tree-layout-horizontal'] ? 'horizontal' :  this.settings['tree-layout-vertical'] ? 'vertical' :this.settings['tree-layout-circular'] ? 'circular' : 'horizontal';
   TreeModes: object = [
     { label: 'Smooth', value: 'smooth' },
     { label: 'Square', value: 'square' },
     { label: 'Straight', value: 'straight' },
   ];
-  SelectedTreeModeVariable = 'square';
+  SelectedTreeModeVariable: 'smooth'|'square'|'straight' = this.settings['tree-mode-square'] ? 'square': this.settings['tree-mode-smooth'] ? 'smooth': this.settings['tree-mode-straight'] ? 'straight': 'square';
   TreeTypes: object = [
     { label: 'Weighted', value: 'weighted' },
     { label: 'Unweighted (Tree)', value: 'tree' },
     { label: 'Dendrogram', value: 'dendrogram' },
   ];
-  SelectedTreeTypeVariable = 'weighted';  // 'weighted';
-  SelectedVerticalStretchVariable = 1;
-  SelectedHorizontalStretchVariable = 1;
-
+  SelectedTreeTypeVariable = this.settings['tree-type'] ?? 'weighted';  // 'weighted';
+  SelectedVerticalStretchVariable = this.settings['tree-vertical-stretch'] ?? 1;
+  SelectedHorizontalStretchVariable = this.settings['tree-horizontal-stretch'] ?? 1;
 
   // Leaves Tab
-  SelectedLeafLabelShowVariable = true;
+  SelectedLeafLabelShowVariable = this.settings['tree-leaf-label-show'] ?? true;
   SelectedLeafLabelVariable: string = '_id';
   LeafLabelFieldList: SelectItem[] = [];
-  SelectedLeafLabelSizeVariable = 12;
-  SelectedLeafTooltipShowVariable = true;
+  SelectedLeafLabelSizeVariable = this.settings['tree-leaf-label-size'] ?? 12;
+  SelectedLeafTooltipShowVariable = this.settings['tree-tooltip-show'] ?? true;
   SelectedLeafTooltipVariable = '_id';
   //LeafTooltipFieldList: object[] = [];
-  SelectedLeafNodeShowVariable = true;
-  SelectedLeafNodeSizeVariable: string = 'None';
-  SelectedLeafNodeSize: number = 5;
+  SelectedLeafNodeShowVariable = this.settings['tree-leaf-node-show'] ?? true;
+  SelectedLeafNodeSizeVariable: string = this.settings['tree-leaf-node-radius-variable'] ?? 'None';
+  SelectedLeafNodeSize: number = this.settings['tree-leaf-node-size'] ?? 5;
   SelectedLeafNodeColorVariable = this.settings['node-color'];
   SelectedSelectedLeafNodeColorVariable = this.settings['selected-color'];
 
   // Branch Tab
-  SelectedBranchNodeShowVariable = false;
+  SelectedBranchNodeShowVariable = this.settings['tree-branch-nodes-show'] ?? false;
   SelectedBranchNodeSizeVariable = 5;
   SelectedBranchNodeColorVariable = this.settings['node-color'];
   SelectedBranchSizeVariable = 3;
-  SelectedBranchLabelSizeVariable = 12;
+  SelectedBranchLabelSizeVariable: 12 = 12;
   SelectedLinkColorVariable = this.settings['link-color'];
-  SelectedBranchLabelShowVariable = false;
-  SelectedBranchDistanceShowVariable = false;
-  SelectedBranchDistanceSizeVariable = 12;
-  SelectedBranchTooltipShowVariable = false;
+  SelectedBranchLabelShowVariable: false = false;
+  SelectedBranchDistanceShowVariable = !(this.settings['tree-branch-distances-hide'] ?? true); // inverse of its widget; defaults to false
+  SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size'] ?? 12;
+  //SelectedBranchTooltipShowVariable = false;
 
   hideShowOptions: object = [
     { label: 'Hide', value: false },
@@ -146,7 +146,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   PhylogeneticTreeExportDialogSettings: DialogSettings = new DialogSettings('#phylotree-settings-pane', false);
 
-  ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
+  //ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
   tree: TidyTree = null;
 
   private visuals: MicrobeTraceNextVisuals;
@@ -219,36 +219,36 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     if (!this.tree) return;
     this.svg = d3.select('#phylocanvas svg');
     this.svg.style('overflow', 'visible');
-    let nodes = this.commonService.session.data;
-    nodes = this.svg.select('g.nodes').selectAll('g').data(nodes, d => d.id)
-      .join(
-        enter => {
-          const g = enter.append('g')
-            .attr('tabindex', '0')
-            .on('mouseenter focusin', (x) => this.showTooltip(x))
-            .on('mouseout focusout', (x) => this.hideTooltip())
-            .on('contextmenu', (x) => this.showContextMenu(x))
-            .on('click', (x) => this.clickHandler(x))
-            .on('keydown', n => {
-              if ((d3 as any).event.code === 'Space') this.clickHandler(n);
-              if ((d3 as any).event.shiftKey && (d3 as any).event.key === 'F10') this.showContextMenu(n);
-            });
-          g.append('path')
-            .style('stroke', 'black')
-            .style('stroke-width', '2px');
-          g.append('text')
-            .attr('dy', 5)
-            .attr('dx', 8);
-          return g;
-        }
-      );
+    // let nodes = this.commonService.session.data; // This section seems redundant (replaced with getTreeHandlers)
+    // nodes = this.svg.select('g.nodes').selectAll('g').data(nodes, d => d.id)
+    //   .join(
+    //     enter => {
+    //       const g = enter.append('g')
+    //         .attr('tabindex', '0')
+    //         .on('mouseenter focusin', (x) => this.showTooltip(x))
+    //         .on('mouseout focusout', (x) => this.hideTooltip())
+    //         .on('contextmenu', (x) => this.showContextMenu(x))
+    //         .on('click', (x) => this.clickHandler(x))
+    //         .on('keydown', n => {
+    //           if ((d3 as any).event.code === 'Space') this.clickHandler(n);
+    //           if ((d3 as any).event.shiftKey && (d3 as any).event.key === 'F10') this.showContextMenu(n);
+    //         });
+    //       g.append('path')
+    //         .style('stroke', 'black')
+    //         .style('stroke-width', '2px');
+    //       g.append('text')
+    //         .attr('dy', 5)
+    //         .attr('dx', 8);
+    //       return g;
+    //     }
+    //   );
     this.tree.setBranchLabels(this.SelectedBranchLabelShowVariable);
     this.tree.eachBranchLabel(this.styleBranchLabel);
     this.tree.setBranchNodes(this.SelectedBranchNodeShowVariable);
     this.tree.eachBranchNode(this.styleBranchNode);
     this.tree.setBranchDistances(this.SelectedBranchDistanceShowVariable);
     this.tree.eachBranchDistance(this.styleBranchDistance);
-    this.tree.setLeafNodes(this.SelectedLeafNodeSizeVariable);
+    this.tree.setLeafNodes(this.SelectedLeafNodeShowVariable);
     if (typeof this.SelectedLeafNodeSizeVariable === "string"){
       this.updateMinMaxNode();
     }
@@ -361,7 +361,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.select(node)
       .attr('r', leafSize)
       .style('stroke', isSelected ? selectedColor : '#000000')
-      .style('stroke-width', isSelected ? '2px' : '1px');
+      .style('stroke-width', isSelected ? '3px' : '1px');
 
     if (variable === 'None') {
       d3.select(node).style('fill', this.SelectedLeafNodeColorVariable);
@@ -410,7 +410,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const handlers = {
       contextmenu: this.showContextMenu,
       showtooltip: this.showTooltip,
-      hidetooltip: this.hideTooltip
+      hidetooltip: this.hideTooltip,
+      select: this.clickHandler
     };
     return handlers;
   }
@@ -456,6 +457,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         this.styleTree();
       }
     })
+
+    // Subscribe to style file applied event
+    this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.applyStyleFileSettings();
+    });
   }
 
   ngOnDestroy(): void {
@@ -502,11 +508,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.styleTree();
   }
 
-  //openPinAllNodes() {
-
-
-  //}
-
   openRefreshScreen() {
 
   }
@@ -518,6 +519,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onTreeLayoutChange(event) {
     if (this.tree) {
       this.SelectedTreeLayoutVariable = event;
+      if (event == 'horizontal') {
+        this.commonService.session.style.widgets['tree-layout-horizontal'] = true;
+        this.commonService.session.style.widgets['tree-layout-vertical'] = this.commonService.session.style.widgets['tree-layout-circular'] = false
+      } else if (event == 'vertical') {
+        this.commonService.session.style.widgets['tree-layout-vertical'] = true;
+        this.commonService.session.style.widgets['tree-layout-horizontal'] = this.commonService.session.style.widgets['tree-layout-circular'] = false 
+      } else if (event == 'circular') {
+        this.commonService.session.style.widgets['tree-layout-circular'] = true;
+        this.commonService.session.style.widgets['tree-layout-horizontal'] = this.commonService.session.style.widgets['tree-layout-vertical'] = false 
+      }
       this.tree.setLayout(event);
       this.openCenter();
       this.styleTree();
@@ -527,6 +538,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onTreeModeChange(event) {
     if (this.tree){
       this.SelectedTreeModeVariable = event;
+      if (event == 'smooth') {
+        this.commonService.session.style.widgets['tree-mode-smooth'] = true;
+        this.commonService.session.style.widgets['tree-mode-square'] = this.commonService.session.style.widgets['tree-mode-straight'] = false
+      } else if (event == 'square') {
+        this.commonService.session.style.widgets['tree-mode-square'] = true;
+        this.commonService.session.style.widgets['tree-mode-smooth'] = this.commonService.session.style.widgets['tree-mode-straight'] = false
+      } else if (event == 'straight') {
+        this.commonService.session.style.widgets['tree-mode-straight'] = true;
+        this.commonService.session.style.widgets['tree-mode-smooth'] = this.commonService.session.style.widgets['tree-mode-square'] = false
+      }
       this.tree.setMode(event);
       this.openCenter();
       this.styleTree();
@@ -535,6 +556,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   onTreeTypeChange(event) {
     this.SelectedTreeTypeVariable = event;
+    this.commonService.session.style.widgets['tree-type'] = this.SelectedTreeTypeVariable;
     if (this.tree) {
       this.tree.setType(event);
       this.openCenter();
@@ -577,6 +599,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.tree.setHStretch(this.SelectedHorizontalStretchVariable);
     this.tree.setAnimation(cached);
     this.styleTree();
+    this.settings['tree-horizontal-stretch'] = this.SelectedHorizontalStretchVariable 
   }
 
   onVerticalStretchChange(event) {
@@ -585,13 +608,14 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.tree.setVStretch(this.SelectedVerticalStretchVariable);
     this.tree.setAnimation(cached);
     this.styleTree();
+    this.settings['tree-vertical-stretch'] = this.SelectedVerticalStretchVariable
   }
 
-  onBranchLabelShowChange(event) {
-    this.SelectedBranchLabelShowVariable = event;
-    this.tree.setBranchLabels(event);
-    this.styleTree();
-  }
+  // onBranchLabelShowChange(event) {
+  //   this.SelectedBranchLabelShowVariable = event;
+  //   this.tree.setBranchLabels(event);
+  //   this.styleTree();
+  // }
 
   onBranchLabelSizeChange(event) {
     this.SelectedBranchLabelSizeVariable = event;
@@ -602,17 +626,20 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.SelectedBranchDistanceShowVariable = event;
     this.tree.setBranchDistances(event);
     this.styleTree();
+    this.settings['tree-branch-distances-hide'] = !this.SelectedBranchDistanceShowVariable
   }
 
   onBranchDistanceSizeChange(event) {
     this.SelectedBranchDistanceSizeVariable = event;
     this.styleTree();
+    this.settings['tree-branch-distance-size'] = this.SelectedBranchDistanceSizeVariable
   }
 
   onBranchNodeShowChange(event) {
     this.SelectedBranchNodeShowVariable = event;
     this.tree.setBranchNodes(event);
     this.styleTree();
+    this.settings['tree-branch-nodes-show'] = this.SelectedBranchNodeShowVariable
   }
 
   onBranchNodeSizeChange(event) {
@@ -620,39 +647,50 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.styleTree();
   }
 
-  onBranchTooltipShowChange(event) {
-    this.SelectedBranchTooltipShowVariable = event;
-    this.styleTree();
-  }
+  // onBranchTooltipShowChange(event) {
+  //   this.SelectedBranchTooltipShowVariable = event;
+  //   this.styleTree();
+  // }
 
   onLeafLabelTooltipShowChange(event) {
     this.SelectedLeafTooltipShowVariable = event;
     this.styleTree();
+    this.settings['tree-tooltip-show'] = this.SelectedLeafTooltipShowVariable
   }
 
   onLeafLabelShowChange(event) {
     this.SelectedLeafLabelShowVariable = event;
     this.tree.setLeafLabels(event);
     this.styleTree();
+    this.settings['tree-leaf-label-show'] = this.SelectedLeafLabelShowVariable
   }
 
   showGlobalSettings() {
     this.DisplayGlobalSettingsDialogEvent.emit('Styling');
   }
 
+  onLeafNodeShowChange(event) {
+    this.SelectedLeafNodeShowVariable = event;
+    this.tree.setLeafNodes(this.SelectedLeafNodeShowVariable);
+    this.settings['tree-leaf-node-show'] = this.SelectedLeafNodeShowVariable
+  }
+
   onLeafNodeSizeChange(event) {
     this.SelectedLeafNodeSize = event;
     this.styleTree();
+    this.settings['tree-leaf-node-size'] = this.SelectedLeafNodeSize
   }
 
   onLeafNodeSizeVariableChange(event) {
     this.SelectedLeafNodeSizeVariable = event;
     this.styleTree();
+    this.settings['tree-leaf-node-radius-variable'] = this.SelectedLeafNodeSizeVariable
   }
 
   onLeafLabelSizeChange(event) {
     this.SelectedLeafLabelSizeVariable = event;
     this.styleTree();
+    this.settings['tree-leaf-label-size'] = this.SelectedLeafLabelSizeVariable
   }
 
   onBranchSizeChange(event) {
@@ -668,6 +706,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     let variable = this.visuals.phylogenetic.commonService.session.style.widgets['node-color-variable'];
     const nodeColor = this.visuals.phylogenetic.commonService.session.style.widgets['node-color'];
     this.SelectedLeafNodeColorVariable = nodeColor;
+    this.SelectedBranchNodeColorVariable = nodeColor;
+    this.SelectedSelectedLeafNodeColorVariable = this.settings['selected-color'];
     this.styleTree();
     const selectedColor = this.visuals.phylogenetic.commonService.GlobalSettingsModel.SelectedColorVariable;
   }
@@ -768,16 +808,17 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   clickHandler = (n) => {
     if ((d3 as any).event.ctrlKey) {
-      this.visuals.phylogenetic.commonService.session.data.nodes.find(node => node._id === n._id).selected = !n.selected;
+      this.commonService.session.data.nodes.find(node => node._id === n._id).selected = !n.selected;
     } else {
-      this.visuals.phylogenetic.commonService.session.data.nodes.forEach(node => {
-        if (node._id === n._id) {
+      this.commonService.session.data.nodes.forEach(node => {
+        if (node._id === n[0].data.id) {
           node.selected = !n.selected;
         } else {
           node.selected = false;
         }
       });
     }
+    $(document).trigger('node-selected');
   }
 
   showTooltip = (d) => {
@@ -834,6 +875,77 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     let Y = d3.event.pageY - rect.top; 
     return [X, Y];
   }
+
+  applyStyleFileSettings() {
+  this.settings = this.commonService.session.style.widgets;
+
+  // Layout & geometry
+  const layout = this.settings['tree-layout-horizontal'] ? 'horizontal'
+               : this.settings['tree-layout-vertical'] ? 'vertical'
+               : this.settings['tree-layout-circular'] ? 'circular' : null;
+  if (layout && layout != this.SelectedTreeLayoutVariable) {
+      this.SelectedTreeLayoutVariable = layout;
+      this.tree.setLayout(layout);
+  }
+  const mode   = this.settings['tree-mode-square'] ? 'square'
+               : this.settings['tree-mode-smooth'] ? 'smooth'
+               : this.settings['tree-mode-straight'] ? 'straight' : null;
+  if (mode && mode != this.SelectedTreeModeVariable) {
+      this.SelectedTreeModeVariable = mode;
+      this.tree.setMode(mode);
+  }
+
+  if (this.settings['tree-type'] && this.settings['tree-type'] != this.SelectedTreeTypeVariable) {
+    this.SelectedTreeTypeVariable = this.settings['tree-type'];
+    this.tree.setType(this.settings['tree-type']);
+  }
+
+  if (this.settings['tree-horizontal-stretch'] != this.SelectedHorizontalStretchVariable) {
+    this.SelectedHorizontalStretchVariable = this.settings['tree-horizontal-stretch']
+    this.tree.setHStretch(this.settings['tree-horizontal-stretch']);
+  }
+  if (this.settings['tree-vertical-stretch'] != this.SelectedVerticalStretchVariable) {
+    this.SelectedVerticalStretchVariable = this.settings['tree-vertical-stretch']
+    this.tree.setVStretch(this.settings['tree-vertical-stretch']);
+  }
+
+  // Branches
+  if (this.settings['tree-branch-distances-hide'] == this.SelectedBranchDistanceShowVariable) this.SelectedBranchDistanceShowVariable = !this.settings['tree-branch-distances-hide']
+  if (this.settings['tree-branch-distance-size'] != this.SelectedBranchDistanceSizeVariable) this.SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size']
+  if (this.settings['tree-branch-nodes-show'] != this.SelectedBranchNodeShowVariable) this.SelectedBranchNodeShowVariable = this.settings['tree-branch-nodes-show']
+
+  // Leaf Labels
+  if (this.settings['tree-leaf-label-show'] != this.SelectedLeafLabelShowVariable) this.SelectedLeafLabelShowVariable = this.settings['tree-leaf-label-show']
+  if (this.settings['tree-leaf-label-size'] != this.SelectedLeafLabelSizeVariable) this.SelectedLeafLabelSizeVariable = this.settings['tree-leaf-label-size']
+
+  // Leaf Nodes
+  if (this.settings['tree-leaf-node-show'] != this.SelectedLeafNodeShowVariable) this.SelectedLeafNodeShowVariable = this.settings['tree-leaf-node-show']
+  if (this.settings['tree-leaf-node-size'] != this.SelectedLeafNodeSize) this.SelectedLeafNodeSize = this.settings['tree-leaf-node-size']
+  if (this.settings['tree-leaf-node-radius-variable'] != this.SelectedLeafNodeSizeVariable) this.SelectedLeafNodeSizeVariable = this.settings['tree-leaf-node-radius-variable']
+
+  if(this.settings['tree-tooltip-show'] != this.SelectedLeafTooltipShowVariable) this.SelectedLeafTooltipShowVariable = this.settings['tree-tooltip-show']
+
+  // Colors
+  if (this.settings['node-color']) {
+    this.SelectedLeafNodeColorVariable = this.settings['node-color'];
+    this.SelectedBranchNodeColorVariable = this.settings['node-color'];
+  }
+  if (this.settings['selected-color']) {
+    this.SelectedSelectedLeafNodeColorVariable = this.settings['selected-color'];
+  }
+  if (this.settings['link-color']) {
+    this.SelectedLinkColorVariable = this.settings['link-color'];
+  }
+
+  // Final redraw
+  this.styleTree();
+  this.openCenter()
+}
+
+  updateVisualization() { console.warn('updatevisualization')}
+  onRecallSession() { console.warn('recallsession')}
+  onLoadNewData() { console.warn('loadnewdata')}
+  onFilterDataChange() { console.warn('filterdatachange')} 
 
 }
 

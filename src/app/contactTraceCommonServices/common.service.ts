@@ -343,7 +343,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-leaf-label-size': 12,
             'tree-leaf-node-radius-variable': 'None',
             'tree-leaf-node-show': true,
-            'tree-leaf-node-size': 9,
+            'tree-leaf-node-size': 5,
             'tree-mode-square': true,
             'tree-mode-smooth': false,
             'tree-mode-straight': false,
