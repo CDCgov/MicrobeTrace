@@ -2,8 +2,8 @@
 /// <reference types="cypress" />
 
 describe('File Handling and Processing', () => {
-  const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_small (2).csv';
-  const linkFile = 'AngularTestingEpiLinkList_small.csv';
+  const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
+  const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
 
   beforeEach(() => {
     cy.visit('/');
@@ -12,12 +12,12 @@ describe('File Handling and Processing', () => {
     cy.wait(2000); 
   });
 
-  it('uploads multiple filesadn then sets the datatype and the fields', () => {
+  it('uploads multiple files and then sets the datatype and the fields', () => {
     // mostly an example of this function
     cy.loadFiles([
-      {name: 'AngularTesting_DistanceMatrix_TN93_small.xlsx', datatype: 'matrix'},
-      {name: 'AngularTesting_seqs_TN93_small.fasta', datatype: 'fasta'},
-      {name: 'AngularTesting_nodelist_withseqs_TN93_small (2).csv', datatype: 'node', field1: 'seq', field2: '_id'}
+      {name: 'AngularTesting_DistanceMatrix_TN93_BS.xlsx', datatype: 'matrix'},
+      {name: 'AngularTesting_seqs_TN93_BS.fasta', datatype: 'fasta'},
+      {name: 'AngularTesting_nodes_Map.csv', datatype: 'node', field1: 'seq', field2: '_id'}
     ])
   })
 
