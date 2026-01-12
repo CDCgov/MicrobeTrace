@@ -65,6 +65,97 @@ describe('Phylogenetic Tree View', () => {
 
       cy.wait(100);
     })
+
+    it('should set node color variable to cluster, then update link threshold to update node color', () => {
+      cy.openGlobalSettings();
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('Cluster').click()
+
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-node-leaf circle[title="MZ740979"]')
+        .as('cluster2_node1');
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-node-leaf circle[title="MZ787305"]')
+        .as('cluster2_node2');
+
+      cy.get('@cluster2_node1').should('have.css', 'fill', 'rgb(183, 50, 204)');
+      cy.get('@cluster2_node2').should('have.css', 'fill', 'rgb(183, 50, 204)');
+
+      cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
+      for (let i = 0; i < 6; i++) {
+        cy.get('#link-threshold').type('{uparrow}');
+      }
+      cy.wait(2000);
+      cy.window().then((win: any) => { expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(22)})
+      cy.get('@cluster2_node1').should('have.css', 'fill', 'rgb(242, 32, 32)');
+      cy.get('@cluster2_node2').should('have.css', 'fill', 'rgb(242, 32, 32)');
+
+      for (let i = 0; i < 8; i++) {
+        cy.get('#link-threshold').type('{downarrow}');
+      }
+      cy.wait(2000);
+      cy.window().then((win: any) => { expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(14)})
+      cy.get('@cluster2_node1').should('have.css', 'fill', 'rgb(244, 122, 34)');
+      cy.get('@cluster2_node2').should('have.css', 'fill', 'rgb(244, 122, 34)');
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle[title="MZ744285"]').should('have.css', 'fill', 'rgb(183, 50, 204)')
+    })
+
+    it('should load style file', () => {
+      cy.openGlobalSettings();
+
+      cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+      cy.get('#apply-style').should('exist');
+      cy.attach_file('#apply-style', 'Cypress_Test_Style.style', 'application/json');
+      cy.wait(1000)
+      cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+      cy.get('#node-color-variable .p-select-label').should('contain', 'Profession');
+      cy.closeGlobalSettings();
+
+      cy.window().its('commonService.session.style.widgets').should(widgets => {
+        expect(widgets['node-color-variable']).to.equal('Profession');
+        // updated tree-layout to circular, tree mode to smooth, and tree-leaf-size to 12
+        expect(widgets['tree-layout-circular']).to.equal(true);
+        expect(widgets['tree-layout-horizontal']).to.equal(false);
+        expect(widgets['tree-mode-smooth']).to.equal(true);
+        expect(widgets['tree-mode-square']).to.equal(false);
+        expect(widgets['tree-type']).to.equal('dendrogram')
+        expect(widgets['tree-leaf-node-radius-variable']).to.equal('degree');
+        expect(widgets['tree-branch-distances-hide']).to.equal(false);
+        expect(widgets['tree-branch-distance-size']).to.equal(8);
+      });
+      cy.window().its('commonService.visuals.phylogenetic').should(tree => {
+        expect(tree.SelectedTreeLayoutVariable).to.equal('circular');
+        expect(tree.SelectedTreeModeVariable).to.equal('smooth');
+        expect(tree.SelectedTreeTypeVariable).to.equal('dendrogram')
+        expect(tree.SelectedLeafNodeSizeVariable).to.equal('degree');
+        expect(tree.SelectedBranchDistanceShowVariable).to.equal(true);
+        expect(tree.SelectedBranchDistanceSizeVariable).to.equal(8);
+      })
+
+      // node color and size
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-node-leaf circle')
+        .first()
+        .should('have.css', 'fill', 'rgb(242, 32, 32)')
+        .invoke('attr', 'r')
+        .then(value => {
+          const radius = Number.parseFloat(value || '');
+          expect(radius).to.be.closeTo(8.333, 0.01);
+        });
+
+      // node distance and font size
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-link text')
+        .first()
+        .should('have.css', 'font-size', '8px')
+        .should('have.css', 'opacity', '1')
+
+      // Layout, Mode, and Type
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-link path')
+        .first()
+        .should('have.attr', 'd', 'M0,0C126.82141082593625,20.702167908678085,84.04340685431595,-97.20573935894896,168.0868137086319,-194.41147871789792')
+    })
   })
 
   context('Export', () => {
@@ -308,6 +399,44 @@ describe('Phylogenetic Tree View', () => {
 
       cy.closeSettingsPane('Phylogenetic Tree Settings');
     });
+
+    it('should toggle leaf nodes', () => {
+      cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
+        .parents('.p-dialog').as('dialogContainer');
+
+      // Navigate to the correct settings tab
+      cy.get('@dialogContainer').contains('Leaves').click();
+      cy.get('@dialogContainer').contains('Leaf Size').click();
+
+      cy.get('@dialogContainer').contains('Show Leaf Nodes').parent().as('showHideLeafNodes')
+      cy.get('@showHideLeafNodes').contains('Hide').click();
+      // check variable
+
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-node-leaf circle')
+        .first()
+        .should('have.css', 'opacity', '0')
+
+      cy.get('@showHideLeafNodes').contains('p-togglebutton', 'Show').click();
+
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-node-leaf circle')
+        .first()
+        .should('have.css', 'opacity', '1')
+      
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+    })
+
+    it('should select a node by clicking on it', () => {
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+
+      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().trigger('click', {force: true}).should('have.css', 'stroke', 'rgb(255, 131, 0)')
+      cy.window().then((win: any) => { 
+        let node = win.commonService.getVisibleNodes().find(n => n._id == 'MZ798055')
+        expect(node).to.not.be.null;
+        expect(node.selected).to.be.true;
+      }) 
+    })
 
     it('should change leaf size variable and update min and max size', () => {
       // Use the robust method to find the dialog container

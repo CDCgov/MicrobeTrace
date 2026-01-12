@@ -795,12 +795,18 @@ describe('Map View', () => {
         .should(widgets => {
           expect(widgets['node-color-variable']).to.equal('Profession');
           expect(widgets['link-color-variable']).to.equal('Contact type');
-          expect(widgets['map-countries-show']).to.equal(true);
+          expect(widgets['map-countries-show']).to.equal(false);
+          expect(widgets['map-basemap-show']).to.equal(true);
           expect(widgets['map-collapsing-on']).to.equal(false);
+          expect(widgets['map-node-tooltip-variable']).to.equal('Lineage')
         });
 
       cy.contains('#global-settings-modal .nav-link', 'Styling').click();
       cy.get('#node-color-variable .p-select-label').should('contain', 'Profession');
+
+      cy.closeGlobalSettings();
+      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
+      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
 
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         let nodeLayers = mapView.layers.featureGroup._layers;
@@ -816,9 +822,35 @@ describe('Map View', () => {
             expect(link.options.color).to.equal('#33a02c')
           }
         })
-        expect(mapView.lmap.hasLayer(mapView.layers.countries)).to.equal(true)
+        expect(mapView.lmap.hasLayer(mapView.layers.countries)).to.equal(false)
+        expect(mapView.lmap.hasLayer(mapView.layers.basemap)).to.equal(true)
       });
-      cy.closeGlobalSettings();
+
+      let NC_node: any;
+      cy.window().then((win: any) => {
+        const layers = win.commonService.visuals.gisMap.layers.featureGroup._layers;
+        NC_node = Object.values(layers).find((node: any) => node.data && node.data._id == "MZ591568")
+        expect(NC_node).to.not.be.null;
+        
+        const lmap = win.commonService.visuals.gisMap.lmap;
+        const container = lmap.getContainer() as HTMLElement;
+        const rect = container.getBoundingClientRect();
+
+        const point = NC_node._point;
+        const clientX = Math.round(rect.left + point.x)
+        const clientY = Math.round(rect.top + point.y)
+        const eventInit: any = { bubbles: true, cancelable: true, composed: true,
+          button: 0, x: clientX, y: clientY,  pageX: clientX, pageY: clientY
+        };
+        const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
+
+        const containerPoint =  L.point(point.x, point.y);
+        const latlng = lmap.containerPointToLatLng(containerPoint);
+          
+        NC_node.fire('mouseover', {latlng, layer: NC_node, containerPoint, originalEvent: fakeOriginalEvent});
+        cy.wait(200);
+        cy.get('#mapTooltip', { timeout: 2000 }).should('be.visible').and('contain', 'B.1.351');
+      })
     })
   })
 
