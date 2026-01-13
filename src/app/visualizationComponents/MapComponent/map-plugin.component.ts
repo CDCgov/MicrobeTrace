@@ -1430,17 +1430,31 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Clicking on a node updates that status of node selected properties. Other nodes will be unselected and then triggers a document node-selected event
      */
     clickHandler(e) {
-        var node = e.sourceTarget.data;
-        var d = this.visuals.gisMap.commonService.session.data.nodes.find(d => d._id == node._id);
-        if (!e.originalEvent.ctrlKey) {
-            this.visuals.gisMap.commonService.session.data.nodes
-                .filter(node => node._id !== d._id)
-                .forEach(node => node.selected = false);
+        const node = e.sourceTarget.data;
+        if (!node || !node._id) return;
+      
+        const nodes = this.commonService.session.data.nodes;
+        const filtered = this.commonService.session.data.nodeFilteredValues;
+      
+        const setSelected = (id: string, selected: boolean) => {
+          nodes.filter(n => n._id === id).forEach(n => (n.selected = selected));
+          filtered.filter(n => n._id === id).forEach(n => (n.selected = selected));
+        };
+      
+        const ctrl = e.originalEvent && e.originalEvent.ctrlKey;
+      
+        if (!ctrl) {
+          // single select
+          nodes.forEach(n => setSelected(n._id, n._id === node._id));
+        } else {
+          // toggle multi-select
+          const cur = nodes.find(n => n._id === node._id)?.selected === true;
+          setSelected(node._id, !cur);
         }
-        d.selected = !d.selected;
-        $(document).trigger('node-selected')
-        //window.dispatchEvent(new Event('node-selected'));
-    }
+      
+        $(document).trigger('node-selected');
+      }
+      
 
     /**
      * @returns an array [X, Y] of the position of mouse relative to alignment view. Global position (i.e. d3.event.pageX) doesn't work for a dashboard
