@@ -1139,51 +1139,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // });
 
-            // TODO move this to a subscribed event than use document jquery
             $(document).on("node-selected", function () {
-                 const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
-                 const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
-                
-                 // Deselect all nodes first in cytoscape
-                 that.cy.elements().unselect();
-                
-                 // Select the nodes that are marked as selected in the common service
-                 if (mtSelectedNodeIds.length > 0) {
-                     const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
-                 that.cy.nodes(selector).select();
-                 }
-                
+                if (!that.cy) return;
+              
+                const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
+                const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
+              
+                // Clear cytoscape selection
+                that.cy.elements().unselect();
+              
+                // Apply multi-selection
                 if (mtSelectedNodeIds.length > 0) {
-                 that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1];
-                 } else {
-                 that.selectedNodeId = undefined;
-                 }
-                
-                 if (that.debugMode) {
-                    console.log('node-selected in 2d: ', that.selectedNodeId);
-                    console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
+                  const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
+                  that.cy.nodes(selector).select();
+                  that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1]; // keep last-selected for UI logic only
+                } else {
+                  that.selectedNodeId = undefined;
                 }
-
-                    // Deselect all nodes first
-                    that.cy.elements().unselect();
-
-                    // Select the newly selected node
-                    if (that.selectedNodeId) {
-                        const node = that.cy.getElementById(that.selectedNodeId);
-                        if (node) {
-                            node.select();
-                        }
-                    }
-
-                    console.log('node-selected in 2d: ', that.selectedNodeId);
-
-                    // that.debouncedRerender();
-                    if (that.debugMode) {
-                        console.log('node-selected in 2d: ', that.selectedNodeId);
-                        console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
-                    }
-            });
-
+              
+                if (that.debugMode) {
+                  console.log('node-selected in 2d ids: ', mtSelectedNodeIds);
+                }
+              });
+              
 
             if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
