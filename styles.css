@@ -2678,15 +2678,6 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
   position: absolute;
 }
 
-.tool-btn-container {
-  opacity: 1;
-  z-index: 2;
-  height: 50px;
-  top: 15px;
-  left: 15px;
-  position: absolute;
-}
-
 .transparency-symbol {
   cursor: pointer;
   padding-left: 4px;
