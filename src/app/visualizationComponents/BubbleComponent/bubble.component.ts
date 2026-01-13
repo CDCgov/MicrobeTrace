@@ -72,6 +72,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   ];
   SelectedNodeCollapsingTypeVariable: boolean;
 
+  private suppressCySelectionEvents: boolean = false;
+
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -140,9 +142,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     })
     
     let that = this;
-    $( document ).on("node-selected", function( ) {
-      if (that.viewActive) {
-          that.visuals.bubble.setSelectedNodes(that);
+    $(document).on("node-selected", function() {
+      if (that.viewActive && that.cy) {
+        that.visuals.bubble.setSelectedNodes(that);
       }
     });
 
@@ -384,28 +386,76 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         fit: true,
         padding: 30
       },
-
+  
       zoomingEnabled: true,
       userZoomingEnabled: true,
       panningEnabled: true,
       userPanningEnabled: true,
+    });
   
-    })
-
     this.AddAxes();
-    this.cy.nodes().lock()
-
-    // Example: Hover events
+    this.cy.nodes().lock();
+  
+    // --- NEW: Bubble <-> global selection sync (Bubble -> session -> other views) ---
+    this.cy.on('select', 'node', (evt) => {
+      if (this.suppressCySelectionEvents) return;
+  
+      const ele = evt.target;
+      if (ele.classes().length > 0) return; // ignore axis/label nodes
+      if (this.SelectedNodeCollapsingTypeVariable) return;
+  
+      const id = ele.id();
+  
+      // Update shared session selection
+      this.commonService.session.data.nodes
+        .filter((n) => n._id === id)
+        .forEach((n) => (n.selected = true));
+  
+      this.commonService.session.data.nodeFilteredValues
+        .filter((n) => n._id === id)
+        .forEach((n) => (n.selected = true));
+  
+      // Broadcast to other views (Table/2D/etc)
+      $(document).trigger('node-selected');
+    });
+  
+    this.cy.on('unselect', 'node', (evt) => {
+      if (this.suppressCySelectionEvents) return;
+  
+      const ele = evt.target;
+      if (ele.classes().length > 0) return; // ignore axis/label nodes
+      if (this.SelectedNodeCollapsingTypeVariable) return;
+  
+      const id = ele.id();
+  
+      // Update shared session selection
+      this.commonService.session.data.nodes
+        .filter((n) => n._id === id)
+        .forEach((n) => (n.selected = false));
+  
+      this.commonService.session.data.nodeFilteredValues
+        .filter((n) => n._id === id)
+        .forEach((n) => (n.selected = false));
+  
+      // Broadcast to other views (Table/2D/etc)
+      $(document).trigger('node-selected');
+    });
+  
+    // --- NEW: initial sync (session -> bubble) ---
+    this.syncCySelectionFromSession();
+  
+    // Existing hover events
     this.cy.on('mouseover', 'node', (evt) => {
       const node = evt.target;
       if (node.classes().length > 0) return;
       this.showTooltip(node.data(), evt.originalEvent);
     });
-
+  
     this.cy.on('mouseout', 'node', () => {
-        this.hideTooltip();
+      this.hideTooltip();
     });
   }
+  
 
   showTooltip(d, e) {
     let tooltipHTML: string = '';
@@ -858,20 +908,50 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   setSelectedNodes(that) {
+    if (!that.cy) return;
+  
+    // If collapsed, bubble nodes are aggregates, so node-level selection doesn't map cleanly.
     if (that.commonService.visuals.bubble.SelectedNodeCollapsingTypeVariable) {
       return;
     }
-    let nodes = that.commonService.getVisibleNodes()
-    nodes.forEach(node => {
-      let datum = that.visibleData.find(datum => datum.index == node.index)
-      let datum_all = that.allData.find(datum => datum.index == node.index)
-      if (node.selected) console.log('found: ', datum)
-
-      datum.strokeColor = node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000';
-      datum_all.strokeColor = node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000';
-    })
-    that.strokeColor = (d: DataRecord) => d.strokeColor;
+  
+    // Sync Cytoscape selection state from shared session state.
+    that.syncCySelectionFromSession();
   }
+  
+
+  private syncCySelectionFromSession() {
+    if (!this.cy) return;
+  
+    // If collapsed, selection doesn't map 1:1 to nodes.
+    if (this.SelectedNodeCollapsingTypeVariable) return;
+  
+    const selectedIds = new Set(
+      this.commonService.session.data.nodes
+        .filter((n) => n.selected)
+        .map((n) => n._id)
+    );
+  
+    this.suppressCySelectionEvents = true;
+  
+    // Clear selection first
+    this.cy.nodes().unselect();
+  
+    // Re-apply selection only for real nodes (skip axes/labels)
+    this.cy.nodes().forEach((ele) => {
+      if (ele.classes().length > 0) return; // axis nodes have classes
+      const id = ele.id();
+      if (selectedIds.has(id)) {
+        ele.select();
+      }
+    });
+  
+    this.suppressCySelectionEvents = false;
+  
+    // Force style refresh (border-color for node:selected)
+    this.cy.style().update();
+  }
+  
 
   updateNodes() {
     if (this.cy) {

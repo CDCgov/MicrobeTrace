@@ -773,19 +773,36 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     });
   }
 
-  clickHandler = (n) => {
-    if ((d3 as any).event.ctrlKey) {
-      this.visuals.phylogenetic.commonService.session.data.nodes.find(node => node._id === n._id).selected = !n.selected;
+  clickHandler = (d) => {
+    // d is treated elsewhere as an array with [0].data.id
+    const leafId = d?.[0]?.data?.id ?? d?.data?.id ?? d?.id;
+    if (!leafId) return;
+  
+    const ctrl = (d3 as any).event?.ctrlKey === true;
+  
+    const nodes = this.commonService.session.data.nodes;
+    const filtered = this.commonService.session.data.nodeFilteredValues;
+  
+    const setSelected = (id: string, selected: boolean) => {
+      nodes.filter(n => n._id === id).forEach(n => (n.selected = selected));
+      filtered.filter(n => n._id === id).forEach(n => (n.selected = selected));
+    };
+  
+    if (ctrl) {
+      const current = nodes.find(n => n._id === leafId)?.selected === true;
+      setSelected(leafId, !current);
     } else {
-      this.visuals.phylogenetic.commonService.session.data.nodes.forEach(node => {
-        if (node._id === n._id) {
-          node.selected = !n.selected;
-        } else {
-          node.selected = false;
-        }
-      });
+      // single select
+      nodes.forEach(n => setSelected(n._id, n._id === leafId));
     }
-  }
+  
+    // Broadcast to all views (Table/2D/Bubble/etc)
+    $(document).trigger('node-selected');
+  
+    // If you want immediate visual feedback even before the event cycles:
+    this.updateNodeColors();
+  };
+  
 
   showTooltip = (d) => {
     if (this.SelectedLeafTooltipShowVariable) {
