@@ -88,7 +88,7 @@
     "@angular-eslint/eslint-plugin": "16.3.1",
     "@angular-eslint/eslint-plugin-template": "16.3.1",
     "@angular-eslint/template-parser": "16.3.1",
-    "@angular/cli": "^18.2.12",
+    "@angular/cli": "^21.1.0",
     "@angular/compiler-cli": "^18.2.13",
     "@angular/language-service": "^18.2.13",
     "@types/cytoscape": "^3.21.8",
