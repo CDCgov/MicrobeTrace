@@ -66,7 +66,7 @@ const selector : any = {
   nodeLabelVar: '#node-label-variable',
   nodeRadiusSize: '#node-radius',
   linkWidthSize: '#link-width',
-  showGroupsToggle: '#colorPolygonsTable',
+  showGroupsToggle: '#polygons-show-toggle',
   groupByVar: '#polygons-foci',
   nodeBorderWidth: '#node-border-width',
   showArrowsToggle: '#link-directed-undirected',
