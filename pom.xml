@@ -26,6 +26,8 @@
           node_modules_ang/**,
           scripts/**,
           patches/**,
+          cypress/**,
+          help/**,
           data/**,
           test/**,
           **/*.map,
@@ -38,7 +40,11 @@
           Dockerfile,
           sonar-project.properties,
           **/*.gz,
-          **/*.br
+          **/*.br,
+          dist/MicrobeTrace/**,
+          dist/**/*.war,
+          dist/**/stats.json,
+          jetty-runner.jar
         </packagingExcludes>
       </configuration>
 
