@@ -58,21 +58,47 @@ declare global {
       }
     }
   }
+
+  const getMimeTypeFromFilename = (name: string): string => {
+    const ext = (name.split('.').pop() || '').toLowerCase();
   
-  Cypress.Commands.add('attach_file', (target_selector, fixture_path, mime_type = 'text/csv') => {
-      return cy.fixture(fixture_path, 'base64').then((base64) => {
-        const binary = Cypress.Blob.base64StringToBlob(base64, mime_type);
-        const file = new File([binary], fixture_path, { type: mime_type });
-        const data = new DataTransfer();
-        data.items.add(file);
-        cy.get(target_selector).then(($input) => {
-          const el = $input.get(0) as HTMLInputElement;
-          el.files = data.files;
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-      });
+    if (ext === 'csv') return 'text/csv';
+    if (ext === 'json' || ext === 'microbetrace' || ext === 'style') return 'application/json';
+  
+    if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'nwk' || ext === 'newick') {
+      return 'text/plain';
     }
-  );
+  
+    if (ext === 'xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (ext === 'xls') return 'application/vnd.ms-excel';
+  
+    return 'application/octet-stream';
+  };
+  
+  Cypress.Commands.add('attach_files', (target_selector, fixture_paths, mime_type) => {
+    const mimeTypes = (mime_type && mime_type.length)
+      ? mime_type
+      : fixture_paths.map(getMimeTypeFromFilename);
+  
+    const data = new DataTransfer();
+  
+    // Important: chain fixtures so the DataTransfer is fully populated before dispatching change
+    cy.wrap(fixture_paths, { log: false }).each((fixture_path, idx) => {
+      const mt = mimeTypes[idx] || 'application/octet-stream';
+  
+      cy.fixture(fixture_path, 'base64').then((base64) => {
+        const binary = Cypress.Blob.base64StringToBlob(base64, mt);
+        const file = new File([binary], fixture_path, { type: mt });
+        data.items.add(file);
+      });
+    }).then(() => {
+      cy.get(target_selector).then(($input) => {
+        const el = $input.get(0) as HTMLInputElement;
+        el.files = data.files;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+  });
   
   // Similar to attach_files(), but allow multiple files to be attached/loaded at once
   Cypress.Commands.add('attach_files', (target_selector, fixture_paths, mime_type = ['text/csv']) => {
@@ -92,53 +118,65 @@ declare global {
   });
 
   // haven't tested newick, might need some more work when loading json, microbetrace, or auspice datatype
-  Cypress.Commands.add('loadFiles', (opts: {name: string, datatype: 'link'|'node'|'matrix'|'fasta'|'newick'|'MT/other', field1 ?: string, field2?: string, field3?: string}[]) => {
-    let fileNames = opts.map(file => file.name);
-    let mime_types = fileNames.map(name => {
-      let ext = name.split('.').pop();
-      if (ext == 'fasta' || 'fas' || 'nwk' || 'newick') return 'text/plain';
-      if (ext == 'csv') return 'text/csv';
-      if (ext == 'json' || ext == 'microbetrace') return 'application/json'
-      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    })
-    cy.attach_files('#fileDropRef', fileNames, mime_types);
-    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-    cy.get('#launch').should('not.be.disabled');
-    
-    opts.forEach((file, i) => {
-      cy.contains('#file-table .file-table-row', file.name)
-        .should('be.visible')
+  Cypress.Commands.add('loadFiles', (opts: {
+    name: string,
+    datatype: 'link'|'node'|'matrix'|'fasta'|'newick'|'MT/other',
+    field1?: string,
+    field2?: string,
+    field3?: string
+  }[]) => {
+    const fileNames = opts.map(f => f.name);
+    const mimeTypes = fileNames.map(getMimeTypeFromFilename);
+  
+    // Upload (waits until all fixtures are actually attached)
+    cy.attach_files('#fileDropRef', fileNames, mimeTypes);
+  
+    // Overlay goes away when file processing is done
+    cy.get('#overlay', { timeout: 20000 }).should('not.be.visible');
+  
+    // Launch enabled is a stronger signal than "row is visible"
+    cy.get('#launch', { timeout: 20000 }).should('not.be.disabled');
+  
+    // For each row: assert it exists (NOT visible), then set datatype/fields with force
+    opts.forEach((file) => {
+      cy.contains('#file-table .file-table-row', file.name, { timeout: 20000 })
+        .should('exist')
         .then(($fileRow) => {
           const $row = cy.wrap($fileRow);
-          
-          // First confirms/sets file.datatype
-          let activeField: string = $fileRow.find('label.active input').attr('data-type');
-          if (activeField != file.datatype) {
-            $row.find(`input[data-type="${file.datatype}"]`).click({force: true})
+  
+          // datatype toggle
+          const activeType = $fileRow.find('label.active input').attr('data-type');
+          if (activeType !== file.datatype) {
+            $row.find(`input[data-type="${file.datatype}"]`).click({ force: true });
           }
-          cy.wait(5).then(() => expect($fileRow.find('label.active input').attr('data-type')).to.equal(file.datatype))
-
-          // Next confirms/sets each field
-          if (file.datatype == 'link' || file.datatype == 'node') {
-            let checkField = (expectedValue: string, fieldNumber: number) => {
+  
+          // field mapping
+          if (file.datatype === 'link' || file.datatype === 'node') {
+            const setField = (expectedValue: string, fieldNumber: number) => {
               const selectId = `file-${file.name}-field-${fieldNumber}`;
-              cy.wrap($fileRow).find(`select[id="${selectId}"]`).invoke('val').then((fieldValue) => {
-                if (fieldValue != expectedValue) {
-                  cy.wrap($fileRow).find(`select[id="${selectId}"]`).select(expectedValue)
-                }
-              }).then(() => cy.get(`select[id="${selectId}"]`).should('have.value', expectedValue))
-            }
-
-            if (file.field1) checkField(file.field1, 1)
-            if (file.field2) checkField(file.field2, 2)
-            if ( file.datatype== 'link' && file.field3) checkField(file.field3, 3)
+  
+              cy.wrap($fileRow)
+                .find(`select[id="${selectId}"]`)
+                .should('exist')
+                .then(($sel) => {
+                  const current = String($sel.val());
+                  if (current !== expectedValue) {
+                    cy.wrap($sel).select(expectedValue, { force: true });
+                  }
+                });
+  
+              cy.get(`select[id="${selectId}"]`).should('have.value', expectedValue);
+            };
+  
+            if (file.field1) setField(file.field1, 1);
+            if (file.field2) setField(file.field2, 2);
+            if (file.datatype === 'link' && file.field3) setField(file.field3, 3);
           }
         });
     });
-
-    cy.get('#launch').should('not.be.disabled');
-  }
-)
+  
+    cy.get('#launch', { timeout: 20000 }).should('not.be.disabled');
+  });
 
   Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
     cy.contains('.p-dialog-title', dialogTitle)

@@ -73,6 +73,13 @@ export type JourneyExpectations = {
     showGroupColors: boolean;
     showGroupLabels: boolean;
 
+    /**
+     * Explicit membership expectations:
+     * key is the group label (cluster id or subtype, etc).
+     * The parent cytoscape id might be either '<key>' or `group-<key>` depending on the code path.
+     */
+    expectedGroups?: Record<string, string[]>;
+
     thresholdChange?: {
       from: number;
       to: number;
@@ -84,6 +91,8 @@ export type JourneyExpectations = {
       groups: string[];
     };
   };
+
+
 };
 
 export type DatasetProfile = {

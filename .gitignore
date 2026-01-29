@@ -8,6 +8,8 @@
 # dependencies
 /node_modules
 /node_modules_dev
+/node_modules_classic
+/node_modules_ang
 /dev_node_modules
 /Hantavirus_Testing
 
@@ -66,3 +68,6 @@ slr_linux.tgz
 
 cypress/screenshots/*
 cypress/downloads/*
+
+# Maven
+target/

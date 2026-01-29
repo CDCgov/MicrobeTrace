@@ -3566,60 +3566,77 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateLayout();
     }
 
-    /**
-     * Applies arrow styling to edges based on current widget settings and edge data.
-     * Arrows are shown only for links that have distance and its within the threshold
-     */
-    private updateArrowStyles() {
-        if (!this.cy) return;
-
-        this.cy.style()
-            .selector('edge')
-            .style({
-                'target-arrow-shape': (ele) => {
-                    const data = ele.data();
-                    console.log('data: ', data, 'has distance', data.hasDistance, 'origin', data.origin)
-                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
-                        return 'triangle';
-                    }
-                    return 'none';
-                },
-                'source-arrow-shape': (ele) => {
-                    const data = ele.data();
-                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
-                        return 'triangle';
-                    }
-                    return 'none';
-                },
-                'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
-            })
-            .update();
-    }
+   /**
+ * Applies arrow styling to edges based on:
+ * - Global arrow toggle (widgets['link-directed'])
+ * - Per-edge directionality (edge.data().directed)
+ * - Optional bidirectional toggle + per-edge flag (widgets['link-bidirectional'] + edge.data().bidirectional)
+ */
+private updateArrowStyles(): void {
+    if (!this.cy) return;
+  
+    const isTruthy = (v: any): boolean => {
+      if (v === true) return true;
+      if (v === false || v === null || v === undefined) return false;
+      if (typeof v === 'number') return v !== 0;
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        return s === 'true' || s === '1' || s === 'yes' || s === 'y';
+      }
+      return false;
+    };
+  
+    const shouldShowDirected = (data: any): boolean => {
+      if (!this.widgets['link-directed']) return false;
+      return isTruthy(data?.directed);
+    };
+  
+    const shouldShowSource = (data: any): boolean => {
+      if (!shouldShowDirected(data)) return false;
+      if (!this.widgets['link-bidirectional']) return false;
+      return isTruthy(data?.bidirectional);
+    };
+  
+    this.cy.style()
+      .selector('edge')
+      .style({
+        'target-arrow-shape': (ele) => {
+          const data = ele.data();
+          return shouldShowDirected(data) ? 'triangle' : 'none';
+        },
+        'source-arrow-shape': (ele) => {
+          const data = ele.data();
+          return shouldShowSource(data) ? 'triangle' : 'none';
+        },
+        'target-arrow-color': 'data(lineColor)',
+        'source-arrow-color': 'data(lineColor)',
+        'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
+      })
+      .update();
+  }
 
 
     /**
      * Updates link-directed widget. When directed, links have an arrow added; when undirected, links have no arrow
      */
-    onLinkDirectedUndirectedChange(e) {
+    onLinkDirectedUndirectedChange(e: string) {
         if (e === "Show") {
-            $('#link-bidirectional-row').slideDown().css('display', 'flex');
-            this.widgets['link-directed'] = true;
+          $('#link-bidirectional-row').slideDown().css('display', 'flex');
+          this.widgets['link-directed'] = true;
         } else {
-            this.widgets['link-directed'] = false;
-            $("#link-bidirectional-row").slideUp();
+          this.widgets['link-directed'] = false;
+          $("#link-bidirectional-row").slideUp();
         }
-
+      
         this.updateArrowStyles();
-    }
+      }
 
 
 
-    onLinkBidirectionalChange(e) {
-        // Update the widget state
+      onLinkBidirectionalChange(e: string) {
         this.widgets['link-bidirectional'] = (e === "Show");
-
         this.updateArrowStyles();
-    }
+      }
 
     /**
      * Updates node-highlight widget. When true and a node is mouseoved current node, all it of links, and neighbor nodes will be highlighted
@@ -4276,9 +4293,13 @@ private async _partialUpdate() {
         this.SelectedLinkLengthVariable = this.widgets['link-length'];
         this.onLinkLengthChange(this.SelectedLinkLengthVariable);
 
-        //Links|Arrows
+       //Links|Arrows
         this.SelectedLinkArrowTypeVariable = this.widgets['link-directed'] ? "Show" : "Hide";
         this.onLinkDirectedUndirectedChange(this.SelectedLinkArrowTypeVariable);
+
+        //Links|Bidirectional
+        this.SelectedLinkBidirectionalTypeVariable = this.widgets['link-bidirectional'] ? "Show" : "Hide";
+        this.onLinkBidirectionalChange(this.SelectedLinkBidirectionalTypeVariable);
 
 
         //Network|Neighbors

@@ -5,12 +5,14 @@ import type { DatasetProfile } from '../datasets/profile';
 
 import {
   visitAppAndAcceptEula,
-  applyPreLaunchFileSettings,
   launchAndWaitForProcessing,
   goTo2DNetworkView,
   assertAfterLaunchCounts,
   enableGroupingShow,
-  assertGroupedByCluster
+  assertGroupedByCluster,
+  applyPreLaunchSessionSettings,
+  applyTwoDGroupingFromProfile,
+  assertGroupingMembershipFromProfile
 } from '../../../support/journey-helpers';
 
 describe('Journey Flow - Grouping (basic) - Cluster', () => {
@@ -22,17 +24,21 @@ describe('Journey Flow - Grouping (basic) - Cluster', () => {
 
       cy.loadFiles(profile.files);
 
-      applyPreLaunchFileSettings(profile);
+      applyPreLaunchSessionSettings(profile);
 
       launchAndWaitForProcessing(60000);
 
       goTo2DNetworkView();
-    //   cy.waitForNetworkToRender(30000);
 
       assertAfterLaunchCounts(profile);
 
+      // Either keep the old explicit calls...
       enableGroupingShow('cluster');
       assertGroupedByCluster();
+      assertGroupingMembershipFromProfile(profile);
+
+      // ...or let the profile drive grouping behavior (including colors/labels):
+      // applyTwoDGroupingFromProfile(profile);
     });
   });
 });
