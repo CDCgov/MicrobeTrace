@@ -6,7 +6,6 @@ import { GanttChartService } from './gantt-chart.service';
   selector: 'ngx-gantt-chart',
   templateUrl: './gantt-chart.component.html',
   styleUrls: ['./gantt-chart.component.scss'],
-  providers: [GanttChartService]
 })
 export class GanttChartComponent implements OnInit, OnChanges {
 
@@ -20,14 +19,17 @@ export class GanttChartComponent implements OnInit, OnChanges {
   yPadding = this.xPadding / 2;
   phaseTimelines;
   height: number;
+  min(n1: number, n2: number): number { return Math.min(n1, n2)  }
+  fontSize = 14;
 
-  gridWidthX: number;
-  gridWidthY: number;
+  gridWidthX: number = 150;
+  gridWidthY: number = 20;
 
   gridPrecisionX: number;
 
   gridID: string;
   gridPath: string;
+  gridFill: string;
 
   xAxis: any;
   yAxis: any;
@@ -93,9 +95,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
     // console.log(this.gridPrecisionX);
 
-    this.gridWidthX = this.ganttChartService.transformX(this.gridPrecisionX);
-    this.gridWidthY = this.ganttChartService.rectHeight / this.ganttChartService.ganttPhases.length;
-    this.gridPath = 'M ' + this.gridWidthX + ' 0 L 0 0 0 ' + this.gridWidthY;
+    this.gridPath = 'M 0 0 H' + this.gridWidthX + ' V' + this.gridWidthY + ' H 0 Z'
 
     this.xAxis = [];
     this.yAxis = [];
@@ -113,15 +113,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
       date = this.addDays(date, this.gridPrecisionX);
     }
 
-    // console.log(this.xAxis);
-    let cnt = 0;
-    for (const phase of this.ganttChartService.ganttPhases) {
-      const yPos = this.gridWidthY * cnt + this.gridWidthY * 0.5 + this.ganttChartService.yPadding;
-      this.yAxis.push({yPos, value: phase });
-      cnt++;
-    }
-    // console.log(this.yAxis);
-    // console.log(this.xAxis);
+    this.calculateLabelYPos();
   }
 
   getWidth(gEntry): number {
@@ -180,6 +172,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
           this.phaseTimelines[phase].push({from: timeline.from,
             to: timeline.to,
             color: team.color,
+            opacity: team.opacity,
             info: timeline.info,
             toolTip: (timeline.info ? 'block' : 'none')});
         }
@@ -206,15 +199,18 @@ export class GanttChartComponent implements OnInit, OnChanges {
     this.cdref.detectChanges();
     this.componentID = 1;
     this.setDimensions();
-    this.setColors();
+    this.gridID = 'grid' + this.componentID;
+    this.gridFill = `url(#${this.gridID})`
+    this.setDefaultGridWidthX();
     this.ganttChartService.setValues({
       componentID: this.componentID,
       width: this.width,
       xPadding: this.xPadding,
       yPadding: this.yPadding,
-      data: this.data
+      data: this.data,
+      gridWidthX: this.gridWidthX,
+      gridWidthY: this.gridWidthY
     });
-    this.gridID = 'grid' + this.ganttChartService.componentID;
     this.height = this.ganttChartService.height;
     this.definePhaseTimelines();
     this.computeGrid();
@@ -222,17 +218,55 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
   ngOnChanges() {
     this.setDimensions();
-    this.setColors();
     this.ganttChartService.setValues({
       componentID: this.componentID,
       width: this.width,
       xPadding: this.xPadding,
       yPadding: this.yPadding,
-      data: this.data
+      data: this.data,
+      gridWidthX: this.gridWidthX,
+      gridWidthY: this.gridWidthY
     });
     this.height = this.ganttChartService.height;
     this.definePhaseTimelines();
     this.computeGrid();
   }
 
+  setDefaultGridWidthX() {
+    this.gridWidthX = this.width ? (Math.floor((this.width - this.xPadding - 150) / 8 / 10) - 1) * 10 : 120;
+  }
+  calculateLabelYPos() {
+    this.yAxis = [];
+    let cnt = 0;
+
+    for (const phase of this.ganttChartService.ganttPhases) {
+      const yPos = this.gridWidthY * (cnt+.5) + this.ganttChartService.yPadding + 5
+      this.yAxis.push({yPos, value: phase });
+      cnt++;
+    }
+  }
+
+  updateGridWidthY(gridWidthY) {
+    this.gridWidthY = gridWidthY;
+    this.calculateLabelYPos();
+    this.ngOnChanges();
+  }
+
+  updateGridWidthX(gridWidthX) {
+    this.gridWidthX = gridWidthX;
+    this.ganttChartService.rectWidth = gridWidthX * 8;
+    this.width = gridWidthX * 8 + 210 + 10 + this.fontSize*2.5;
+    this.computeGrid();
+    this.ngOnChanges();
+  }
+
+  showGrid(show: boolean) {
+    if (show) this.gridFill = `url(#${this.gridID})`
+    else this.gridFill = 'none';
+  }
+
+  updateFontSize(fontSize: number) {
+    this.fontSize = fontSize;
+    this.width = this.gridWidthX * 8 + 210 + 10 + this.fontSize*2.5;
+  }
 }

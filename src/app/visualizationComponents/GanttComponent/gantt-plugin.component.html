@@ -11,15 +11,15 @@
     </div>
     <div class="m-portlet__body" style="height: 100%; overflow: scroll">
         <br />
-        <div className="gantt-plugin" id="gantt" ngShow="dataAvail()" style="cursor: grab;">
-            <ngx-gantt-chart [data]="ganttChartData"></ngx-gantt-chart>
+        <div class="gantt-plugin" id="gantt" ngShow="dataAvail()" style="cursor: grab;">
+            <ngx-gantt-chart #ganttChart [data]="ganttChartData"></ngx-gantt-chart>
         </div>
     </div>
 </div>
 <div class="view-controls">
 
     <p-dialog *ngIf="viewActive" id="gantt-settings-pane" [positionLeft]="GanttSettingsDialogSettings.left"
-        [positionTop]="GanttSettingsDialogSettings.top" [(visible)]="GanttSettingsDialogSettings.isVisible"
+        [positionTop]="GanttSettingsDialogSettings.top" [(visible)]="GanttSettingsDialogSettings.isVisible" [style]="{ width: '590px' }"
         [contentStyle]="{'overflow': 'visible'}" header="Gantt Settings" appendTo="body">
         <tabset class="tab-container tabbable-line">
             <tab heading="{{'Gantt Entry' | localize}}" [active]="true" customClass="m-tabs__item">
@@ -31,7 +31,7 @@
                                 <div class="col-4"><label for="entry-name">Gantt Entry Name</label></div>
                                 <div class="col-8">
                                     <input type="text" id="entry-name" class="form-control form-control-sm"
-                                        placeholder="Entry Name" [(ngModel)]="GanttEntryName">
+                                        placeholder="Entry Name" [(ngModel)]="GanttEntryName" />
                                 </div>
                             </div>
                             <div class="form-group row gantt-start-row" title="What field is the start date?"
@@ -54,7 +54,8 @@
                                 style="overflow:visible">
                                 <div class="col-4"><label for="gantt-color">Color</label></div>
                                 <div class="col-8">
-                                    <input type="color" id="gantt-color" [(ngModel)]="GanttEntryColor">
+                                    <input type="color" id="gantt-color" [(ngModel)]="GanttEntryColor" [ngStyle]="{'opacity': currentOpacity}"/>
+                                    <a class='transparency-symbol' (click)="openOpacityBar($event)">⇳</a>
                                 </div>
                             </div>
                             <div class="form-group row gantt-submit-row" style="overflow:visible">
@@ -65,32 +66,55 @@
                                 </div>
                             </div>
                         </div>
-                        <p-table [value]="ganttEntries" styleClass="p-datatable-striped" *ngIf="ganttEntries.length > 0">
-                            <ng-template pTemplate="header">
-                                <tr>
-                                    <th class='p-1 table-header-row'>Name</th>
-                                    <th class='p-1 table-header-row'>Start</th>
-                                    <th class='p-1 table-header-row'>End</th>
-                                    <th class='p-1 table-header-row'>Color</th>
-                                </tr>
-                            </ng-template>
-                            <ng-template pTemplate="body" let-rowData>
-                                <tr>
-                                    <td>{{ rowData.entryName }}</td>
-                                    <td>{{ rowData.startDate }}</td>
-                                    <td>{{ rowData.endDate }}</td>
-                                    <td><input type="color" value="{{ rowData.color }}" (change)="updateEntryColor(rowData.entryName, $event)"></td>
-                                    <td>
-                                        <a title="Remove" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="removeGanttEntry(rowData.entryName)">
-                                            <span class="material-icons"> delete_outline </span>
-                                        </a>
-                                    </td>
-                                </tr>
-                            </ng-template>
-
-                        </p-table>
                     </p-accordionTab>
                 </p-accordion>
+                <div style="height: 20px;"></div>
+                <p-table [value]="ganttEntries" styleClass="p-datatable-striped" *ngIf="ganttEntries.length > 0">
+                    <ng-template pTemplate="header">
+                        <tr>
+                            <th class='p-1 table-header-row'>Name</th>
+                            <th class='p-1 table-header-row'>Start</th>
+                            <th class='p-1 table-header-row'>End</th>
+                            <th class='p-1 table-header-row'>Color</th>
+                        </tr>
+                    </ng-template>
+                    <ng-template pTemplate="body" let-rowData>
+                        <tr>
+                            <td>{{ rowData.entryName }}</td>
+                            <td>{{ rowData.startDate }}</td>
+                            <td>{{ rowData.endDate }}</td>
+                            <td>
+                                <input type="color" value="{{ rowData.color }}" (change)="updateEntryColor(rowData.entryName, $event)" [ngStyle]="{'opacity': rowData.opacity}"/>
+                                <a class='transparency-symbol' (click)="openOpacityBar($event, rowData.entryName)">⇳</a>
+                            </td>
+                            <td>
+                                <a title="Remove" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="removeGanttEntry(rowData.entryName)">
+                                    <span class="material-icons"> delete_outline </span>
+                                </a>
+                            </td>
+                        </tr>
+                    </ng-template>
+                </p-table>
+            </tab>
+            <tab heading="{{'Visual Settings' | localize}}" customClass="m-tabs__item">
+                <div class="form-group row" title="Show or Hide grid?">
+                    <div class="col-4">Grid</div>
+                    <div class="col-8">
+                        <p-selectButton [options]="ShowHideOptions" [(ngModel)]="showGrid" (ngModelChange)="changeShowGrid()"></p-selectButton>
+                    </div>
+                </div>
+                <div class="form-group row" title="Adjust Height">
+                    <div class="col-4"><label >Spacing (Y)</label></div>
+                    <div class="col-8"><input type="number" class="form-control form-control-sm" min="10" step="5" max="50" [(ngModel)]="gridWidthY" (ngModelChange)="changeGridWidthY()" /></div>
+                </div>
+                <div class="form-group row" title="Adjust Width">
+                    <div class="col-4"><label >Spacing (X)</label></div>
+                    <div class="col-8"><input type="number" class="form-control form-control-sm" min="20" step="10" max="200" [(ngModel)]="gridWidthX" (ngModelChange)="changeGridWidthX()" /></div>
+                </div>
+                <div class="form-group row" title="Adjust Font Size">
+                    <div class="col-4"><label >Font Size</label></div>
+                    <div class="col-8"><input type="number" class="form-control form-control-sm" min="8" step="2" max="24" [(ngModel)]="fontSize" (ngModelChange)="changeFontSize()" /></div>
+                </div> 
             </tab>
         </tabset>
     </p-dialog>
@@ -104,7 +128,7 @@
                 <div class="form-group row">
                     <div class="col-8">
                         <input type="text" id="gantt-image-filename" class="form-control form-control-sm"
-                            placeholder="Image Filename" [(ngModel)]="SelectedGanttChartImageFilenameVariable">
+                            placeholder="Image Filename" [(ngModel)]="SelectedGanttChartImageFilenameVariable" />
                     </div>
                     <div class="col-3">
                         <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList"

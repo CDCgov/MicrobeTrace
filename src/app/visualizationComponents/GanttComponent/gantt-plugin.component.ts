@@ -11,6 +11,7 @@ import { CustomShapes } from '@app/helperClasses/customShapes';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GanttChartService } from './gantt-chart/gantt-chart.service';
+import { GanttChartComponent } from './gantt-chart/gantt-chart.component';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
@@ -31,6 +32,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     width: '1000px'
   };
 
+  @ViewChild('ganttChart') ganttChartElement: GanttChartComponent
   ganttChartData: object[];
 
   private customShapes: CustomShapes = new CustomShapes();
@@ -51,6 +53,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   GanttEndVariable: string = "";
   GanttEntryColor: string = "#000000";
   ganttEntries: object[] = [];
+  ganttEntryCount = 0;
   SelectedGanttChartImageFilenameVariable = "default_gantt_chart";
 
   // ganttChartData: Object[] = [];
@@ -60,6 +63,16 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     { label: 'jpeg', value: 'jpeg' },
     { label: 'svg', value: 'svg' }
   ];
+
+  ShowHideOptions: any = [
+    { label: 'Show', value: true },
+    { label: 'Hide', value: false }
+  ];
+  showGrid: boolean = true;
+  gridWidthY = 20;
+  gridWidthX = 120;
+  currentOpacity = 0.9
+  fontSize = 14;
 
   SelectedNetworkExportFileTypeListVariable = 'png';
   GanttSettingsDialogSettings: DialogSettings = new DialogSettings('#gantt-settings-pane', false);
@@ -164,8 +177,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     // return this.makeGanttEntry("_blank", "ipstart", "ipend", "#2ca02c");
   }
   goldenLayoutComponentResize() {
-    $('#gantt-plugin').height($('ganttcomponent').height()-19);
-    $('#gantt-plugin').width($('ganttcomponent').width()-1)
+    $('.gantt-plugin').height($('ganttcomponent').height()-19);
+    $('.gantt-plugin').width($('ganttcomponent').width()-1)
   }
 
   makeGanttEntry(dateName: string, startVariable: string, endVariable: string, entryColor: string): object {
@@ -183,23 +196,25 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
       }
     })
 
-    const ganttEntry = {name: dateName, color: entryColor, opacity: this.ganttChartService.ganttOpacity, timelines: timeline};
+    const ganttEntry = {name: dateName, color: entryColor, opacity: this.currentOpacity, timelines: timeline};
     return ganttEntry;
   }
 
   createGanttEntry(): void {
+    if (!this.GanttEntryName) this.GanttEntryName = `Entry ${this.ganttEntryCount + 1}`
+    this.ganttEntryCount += 1;
     if (!this.GanttEndVariable) {
       this.GanttEndVariable = this.GanttStartVariable;
     }
     if (this.ganttEntries.length === 0) { //} || this.ganttChartData.length === 1 && this.ganttChartData[0]["name"] === "_blank"){
       const newEntry = this.makeGanttEntry(this.GanttEntryName, this.GanttStartVariable, this.GanttEndVariable, this.GanttEntryColor);
-      this.ganttEntries = [{entryName: this.GanttEntryName, startDate: this.GanttStartVariable, endDate: this.GanttEndVariable, color: this.GanttEntryColor}]
+      this.ganttEntries = [{entryName: this.GanttEntryName, startDate: this.GanttStartVariable, endDate: this.GanttEndVariable, color: this.GanttEntryColor, opacity: this.currentOpacity}]
       this.ganttChartData = [newEntry];
 
     }
     else {
       const newEntry = this.makeGanttEntry(this.GanttEntryName, this.GanttStartVariable, this.GanttEndVariable, this.GanttEntryColor);
-      this.ganttEntries.push({entryName: this.GanttEntryName, startDate: this.GanttStartVariable, endDate: this.GanttEndVariable, color: this.GanttEntryColor});
+      this.ganttEntries.push({entryName: this.GanttEntryName, startDate: this.GanttStartVariable, endDate: this.GanttEndVariable, color: this.GanttEntryColor, opacity: this.currentOpacity});
       const existingData = cloneDeep(this.ganttChartData);
       existingData.push(newEntry);
       this.ganttChartData = existingData;
@@ -207,6 +222,11 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.cdref.markForCheck();
     this.resetEntryForm();
     this.visuals.gantt.GanttSettingsDialogSettings.setVisibility(false);
+
+    if (this.ganttEntryCount == 1) {
+      this.changeFontSize();
+      this.gridWidthX = this.ganttChartElement.gridWidthX;
+    }
 
   }
 
@@ -222,6 +242,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.GanttEntryColor = "#000000";
     this.GanttEndVariable = "";
     this.GanttStartVariable = "";
+    this.currentOpacity = 0.9;
   }
 
   updateEntryColor(entryName: string, event: Event): void {
@@ -234,6 +255,82 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     }
     this.ganttChartData = startingData;
 
+  }
+
+  openOpacityBar(e, entryName = '') {
+    let startingOpacity;
+    if (entryName) {
+      startingOpacity = this.ganttChartData.find(entry => entry["name"] === entryName)["opacity"]
+    } else {
+      startingOpacity = this.currentOpacity;
+    }
+
+    let removeTransparencyWrapper = setTimeout(() => {
+      $("#color-transparency-wrapper").fadeOut();
+    }, 7000)
+
+    $("#color-transparency-wrapper").css({
+      top: e.clientY + 129,
+      left: e.clientX,
+      display: "block",
+      zIndex: 99999
+    });
+
+    $("#color-transparency")
+      .off("change")
+      .val(startingOpacity)
+      .one("change", (f) => {
+        this.currentOpacity = Number(f.target['value'])
+        
+        if (entryName) {
+          const startingData = cloneDeep(this.ganttChartData);
+          for (let i=0; i<startingData.length; i++){
+            if (startingData[i]["name"] === entryName){
+              startingData[i]["opacity"] = this.currentOpacity;
+            }
+          }
+          this.ganttChartData = startingData;
+          let entry = this.ganttEntries.find(entry => entry['entryName'] == entryName)
+          entry["opacity"] = this.currentOpacity;
+          this.currentOpacity = 0.9;
+          this.ganttChartElement.ngOnChanges();
+        }
+
+        this.cdref.detectChanges();
+        clearTimeout(removeTransparencyWrapper)
+        $("#color-transparency-wrapper").fadeOut();
+    });
+  }
+
+  updateEntryOpacity(entryName: string, event: Event): void {
+    const opacity = (event.target as HTMLInputElement).value;
+    const startingData = cloneDeep(this.ganttChartData);
+    for (let i=0; i<startingData.length; i++){
+      if (startingData[i]["name"] === entryName){
+        startingData[i]["opacity"] = opacity;
+      }
+    }
+    this.ganttChartData = startingData;
+  }
+
+  changeShowGrid() {
+    this.ganttChartElement.showGrid(this.showGrid);
+  }
+
+  changeGridWidthY() {
+    this.ganttChartElement.updateGridWidthY(this.gridWidthY)
+  }
+
+  changeGridWidthX() {
+    this.ganttChartElement.updateGridWidthX(this.gridWidthX)
+  }
+
+  reduceHeight() {
+    this.ganttChartService.height = this.ganttChartService.height - 50;
+  }
+
+  changeFontSize() {
+    this.ganttChartElement.updateFontSize(this.fontSize);
   }
 
   getNodeIds(): string[] {
