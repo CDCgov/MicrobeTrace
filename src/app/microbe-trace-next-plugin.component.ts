@@ -6,7 +6,7 @@ import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
 import { debounceTime, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 import moment from 'moment';

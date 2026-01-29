@@ -7,7 +7,7 @@ import * as d3 from 'd3';
 import moment from 'moment';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';

@@ -2,7 +2,7 @@ import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDete
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as fileto from 'fileto';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';

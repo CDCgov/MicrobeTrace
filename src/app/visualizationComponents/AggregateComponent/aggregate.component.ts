@@ -9,7 +9,7 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 //import pdfMake from 'pdfmake/build/pdfmake.js';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';

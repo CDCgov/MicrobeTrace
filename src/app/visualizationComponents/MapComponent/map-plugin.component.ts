@@ -2,7 +2,7 @@
 import { EventManager } from '@angular/platform-browser';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as d3 from 'd3';
 import * as domToImage from 'dom-to-image-more';
 import * as L from 'leaflet';

@@ -3,7 +3,7 @@ import { EventManager } from '@angular/platform-browser';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 // import pdfMake from 'pdfmake/build/pdfmake.js';
 // import pdfFonts from 'pdfmake/build/vfs_fonts.js'
 

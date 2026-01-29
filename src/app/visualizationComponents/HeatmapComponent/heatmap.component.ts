@@ -4,7 +4,7 @@ import { Injector, Component, Output, EventEmitter,
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import * as _ from 'lodash';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as domToImage from 'html-to-image';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
