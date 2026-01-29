@@ -186,10 +186,10 @@
         </tab>
         <tab heading="{{'Components' | localize}}" customClass="m-tabs__item">
 
-            <p-accordion>
-                <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Network</ng-template>
-                    <div class="form-group row" title="Would you like to see Nodes on the map?">
+            <p-accordion [value]="null" [multiple]="true">
+                <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Network</p-accordion-header>
+                        <p-accordion-content><div class="form-group row" title="Would you like to see Nodes on the map?">
                         <div class="col-4">Nodes</div>
                         <div class="col-8">
                             <p-selectButton [options]="NodesTypes" id="map-node-show-hide"
@@ -205,10 +205,11 @@
                                 (ngModelChange)="onMapLinksShowHideChange($event)"></p-selectButton>
                         </div>
                     </div>
-                </p-accordionTab>
-                <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Offline</ng-template>
-                    <div class="form-group row" title="Would you like to see Countries on the map?">
+                        </p-accordion-content>
+                    </p-accordion-panel>
+                <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Offline</p-accordion-header>
+                        <p-accordion-content><div class="form-group row" title="Would you like to see Countries on the map?">
                         <div class="col-4">Countries</div>
                         <div class="col-8">
                             <p-selectButton [options]="CountriesTypes" id="map-countries-show-hide"
@@ -232,10 +233,11 @@
                                 (ngModelChange)="onCountiesShowHideChange($event)"></p-selectButton>
                         </div>
                     </div>
-                </p-accordionTab>
-                <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Online</ng-template>
-                    <div class="row">
+                        </p-accordion-content>
+                    </p-accordion-panel>
+                <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Online</p-accordion-header>
+                        <p-accordion-content><div class="row">
                         <div class="col-12">
                             <div class="alert alert-warning alert-dismissible" role="alert">
                                 Enabling any of the layers below will download tiles from the Internet. <!--a
@@ -262,7 +264,8 @@
                             </p-selectButton>
                         </div>
                     </div>
-                </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
             </p-accordion>
 
         </tab>
@@ -348,10 +351,10 @@
                     </div>
                 </div>
                 <div>
-                    <p-accordion>
-                        <p-accordionTab style="color:#495057">
-                            <ng-template pTemplate="header">Advanced</ng-template>
-                            <div id="map-export-advanced">
+                    <p-accordion [value]="null" [multiple]="true">
+                        <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Advanced</p-accordion-header>
+                        <p-accordion-content><div id="map-export-advanced">
                                 <div class="form-group row">
                                     <div class="col-3">
                                         <label for="map-export-scale">Scale</label>
@@ -379,7 +382,8 @@
                                     </div>
                                 </div>
                             </div>
-                        </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
                     </p-accordion>
                 </div>
             </div>

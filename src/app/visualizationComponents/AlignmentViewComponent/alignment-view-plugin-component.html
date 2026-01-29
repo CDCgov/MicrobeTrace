@@ -171,10 +171,10 @@
 
 <div class="view-controls">
     <p-dialog *ngIf="viewActive" id="alignment-settings-pane" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
-        <p-accordion>
-            <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Data</ng-template>
-                <div #dataControls>
+        <p-accordion [value]="null" [multiple]="true">
+            <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Data</p-accordion-header>
+                        <p-accordion-content><div #dataControls>
                     <div class="form-group row" title="Set a predefined size">
                         <div class="col-2"><label>Sequence</label></div>
                         <div class="col-10">
@@ -197,10 +197,11 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                         </div>
                     </div>
                 </div>
-            </p-accordionTab>
-            <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Layout</ng-template>
-                <div #layoutControls>
+                        </p-accordion-content>
+                    </p-accordion-panel>
+            <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Layout</p-accordion-header>
+                        <p-accordion-content><div #layoutControls>
                     <div class="form-group row" title="Show or Hide the Mini Map">
                         <div class="col-4"><label>Show Mini-Map</label></div>
                         <div class="col-8">
@@ -229,10 +230,11 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                         </div>
                     </div>
                 </div>
-            </p-accordionTab>
-            <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Labels and Order</ng-template>
-                <div #labelingControls>
+                        </p-accordion-content>
+                    </p-accordion-panel>
+            <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Labels and Order</p-accordion-header>
+                        <p-accordion-content><div #labelingControls>
                     <div class="form-group row" title="">
                         <div class="col-4"><label>Labels</label></div>
                         <div class="col-8">
@@ -246,10 +248,11 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                         </div>
                     </div>
                 </div>
-            </p-accordionTab>
-            <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Sizing</ng-template>
-                <div #sizingControls>
+                        </p-accordion-content>
+                    </p-accordion-panel>
+            <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Sizing</p-accordion-header>
+                        <p-accordion-content><div #sizingControls>
                     <div class="form-group row" title="Set a predefined size">
                         <div class="col-2"><label>Size</label></div>
                         <div class="col-10">
@@ -269,10 +272,11 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                         </div>
                     </div>
                 </div>
-            </p-accordionTab>
-            <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Colors</ng-template>
-                <div #colorControls>
+                        </p-accordion-content>
+                    </p-accordion-panel>
+            <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Colors</p-accordion-header>
+                        <p-accordion-content><div #colorControls>
                     <div class="form-group row" title="Select a color scheme">
                         <div class="col-3"><label>Color Scheme</label></div>
                         <div class="col-9">
@@ -302,7 +306,8 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                         </div>
                     </div>
                 </div>
-            </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
         </p-accordion>
     </p-dialog>
 </div>

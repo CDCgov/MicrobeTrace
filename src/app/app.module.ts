@@ -25,16 +25,16 @@ import { TableModule } from 'primeng/table';
 import { FileUploadModule } from 'primeng/fileupload';
 import { ListboxModule } from 'primeng/listbox';
 import { RadioButtonModule } from 'primeng/radiobutton';
-import { CalendarModule } from 'primeng/calendar';
+import { DatePickerModule } from 'primeng/datepicker';
 import { PaginatorModule } from 'primeng/paginator';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
 import { AccordionModule } from 'primeng/accordion';
-import { SidebarModule } from 'primeng/sidebar';
+import { DrawerModule } from 'primeng/drawer';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SliderModule } from 'primeng/slider';
-import { TabViewModule } from 'primeng/tabview';
+import { TabsModule as PrimeTabsModule } from 'primeng/tabs';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TreeModule } from 'primeng/tree';
 import { DialogModule } from 'primeng/dialog';
@@ -152,18 +152,18 @@ export class TestedComponent {
         TableModule,
         ListboxModule,
         RadioButtonModule,
-        CalendarModule,
+        DatePickerModule,
         PaginatorModule,
         ProgressBarModule,
         CoreModule,
         ConfirmDialogModule,
         SelectModule,
-        TabViewModule,
+        PrimeTabsModule,
         SelectButtonModule,
         TreeModule,
         DialogModule,
         AccordionModule,
-        SidebarModule,
+        DrawerModule,
         MultiSelectModule,
         SliderModule,
         CheckboxModule,

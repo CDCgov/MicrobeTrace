@@ -80,10 +80,11 @@
                 >
         <tabset class="tab-container tabbable-line">
             <tab heading="{{'Nodes' | localize}}" [active]="true" customClass="m-tabs__item">
-                <p-accordion>
-                    <p-accordionTab [selected]="false" style="color:#495057">
-                    <ng-template pTemplate="header">Labels and Tooltips</ng-template>
-                        <div #nodecontrolslabels>
+                <p-accordion [value]="null" [multiple]="true">
+                    <p-accordion-panel value="node-labels" style="color:#495057">
+                        <p-accordion-header>Labels and Tooltips</p-accordion-header>
+                        <p-accordion-content>
+                            <div #nodecontrolslabels>
                             <div class="form-group row" title="What field should be displayed as a label for the node?">
                                 <div class="col-4"><label for="node-label-variable">Label</label></div>
                                 <div class="col-8">
@@ -117,11 +118,12 @@
                                 </div>
                             </div>
                         </div>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
 
-                    <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Shapes and Sizes</ng-template>
-                        <div #nodecontrolsshapes>
+                    <p-accordion-panel value="node-shapes" style="color:#495057">
+                        <p-accordion-header>Shapes and Sizes</p-accordion-header>
+                        <p-accordion-content><div #nodecontrolsshapes>
                             <div class="form-group row" title="Which variable should determine the shape of the node?">
                                 <div class="col-4">
                                     <label for="node-symbol-variable">Shape By</label>
@@ -190,21 +192,23 @@
                             </div>
 
                         </div>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
 
-                    <p-accordionTab style="color:#495057" [selected]="false">
-                    <ng-template pTemplate="header">Colors</ng-template>
-                        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
-                    </p-accordionTab>
+                    <p-accordion-panel value="node-colors" style="color:#495057">
+                        <p-accordion-header>Colors</p-accordion-header>
+                        <p-accordion-content><button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+                        </p-accordion-content>
+                    </p-accordion-panel>
 
                 </p-accordion>
             </tab>
 
             <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
-                <p-accordion>
-                    <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Labels and Tooltips</ng-template>
-                        <div #linkcontrolslabels>
+                <p-accordion [value]="null" [multiple]="true">
+                    <p-accordion-panel value="link-labels" style="color:#495057">
+                        <p-accordion-header>Labels and Tooltips</p-accordion-header>
+                        <p-accordion-content><div #linkcontrolslabels>
                             <div class="form-group row" title="What data should be displayed when you hover over a link?">
                                 <div class="col-4"><label for="link-tooltip-variable">Tooltip</label></div>
                                 <div class="col-8">
@@ -230,11 +234,12 @@
                                 </div>
                               </div>  
                         </div>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
 
-                    <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Shapes and Sizes</ng-template>
-                        <div #linkcontrolsshapes>
+                    <p-accordion-panel value="link-shapes" style="color:#495057">
+                        <p-accordion-header>Shapes and Sizes</p-accordion-header>
+                        <p-accordion-content><div #linkcontrolsshapes>
                             <div id="link-transparency-row" class="form-group row" title="How transparent should the links be?">
                                 <div class="col-4"><label for="link-opacity">Transparency</label></div>
                                 <div class="col-8"><input type="range" class="custom-range" id="link-opacity" min="0" max="1" value="0" step="0.01" [(ngModel)]="SelectedLinkTransparencyVariable" (ngModelChange)="onLinkOpacityChange($event)"></div>
@@ -280,22 +285,24 @@
                                 </div>
                             </div>
                         </div>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
 
 
-                    <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Colors</ng-template>
-                        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
-                    </p-accordionTab>
+                    <p-accordion-panel value="link-colors" style="color:#495057">
+                        <p-accordion-header>Colors</p-accordion-header>
+                        <p-accordion-content><button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+                        </p-accordion-content>
+                    </p-accordion-panel>
 
                 </p-accordion>
             </tab>
 
             <tab heading="{{'Network' | localize}}" customClass="m-tabs__item">
-                <p-accordion>
-                    <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Display</ng-template>
-                        <div #networkcontrolslabels>
+                <p-accordion [value]="null" [multiple]="true">
+                    <p-accordion-panel value="network-display" style="color:#495057">
+                        <p-accordion-header>Display</p-accordion-header>
+                        <p-accordion-content><div #networkcontrolslabels>
                             <div class="form-group row" title="Should MicrobeTrace Highlight a node's neighbors when you hover on it?">
                                 <div class="col-4">Neighbors</div>
                                 <div class="col-8">
@@ -309,14 +316,15 @@
                                 </div>
                             </div>
                         </div>
-                    </p-accordionTab>                 
+                        </p-accordion-content>
+                    </p-accordion-panel>                 
                 </p-accordion>
             </tab>
             <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
-                <p-accordion>
-                    <p-accordionTab style="color:#495057" id="polygons-controls-accordion">
-                    <ng-template pTemplate="header">Controls</ng-template>
-                          <div id="polygons-controls" class="show" data-parent="#polygons-controls-accordion">
+                <p-accordion [value]="null" [multiple]="true">
+                    <p-accordion-panel value="grouping-controls" style="color:#495057" id="polygons-controls-accordion">
+                        <p-accordion-header>Controls</p-accordion-header>
+                        <p-accordion-content><div id="polygons-controls" class="show" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
                               <div class="form-group row" title="Show groups?">
                                 <div class="col-4">Groups</div>
@@ -338,10 +346,11 @@
                               </div>
                             </div>
                           </div>
-                    </p-accordionTab>
-                    <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" id="polygons-controls-accordion">
-                    <ng-template pTemplate="header">Labels</ng-template>
-                          <div id="polygons-controls-labels" data-parent="#polygons-controls-accordion">
+                        </p-accordion-content>
+                    </p-accordion-panel>
+                    <p-accordion-panel *ngIf="commonService.session.style.widgets['polygons-show']" value="grouping-labels" style="color:#495057" id="polygons-controls-accordion">
+                        <p-accordion-header>Labels</p-accordion-header>
+                        <p-accordion-content><div id="polygons-controls-labels" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
                               <div class="form-group row" title="Show group labels?">
                                 <div class="col-4">Groups Label</div>
@@ -367,11 +376,12 @@
                               </div>
                             </div>
                           </div>
-                        </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
                         <!-- style="display: none;" -->
-                        <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" id="polygons-controls-accordion">
-                    <ng-template pTemplate="header">Colors</ng-template>  
-                          <div id="polygons-controls-colors" data-parent="#polygons-controls-accordion">
+                        <p-accordion-panel *ngIf="commonService.session.style.widgets['polygons-show']" value="grouping-colors" style="color:#495057" id="polygons-controls-accordion">
+                        <p-accordion-header>Colors</p-accordion-header>
+                        <p-accordion-content><div id="polygons-controls-colors" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
                               <div id="color-polygons" class="form-group row" title="Distinguish groups by color?">
                                 <div class="col-4">Color Groups</div>
@@ -395,7 +405,8 @@
                               </div>              
                             </div>
                           </div>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
                 </p-accordion>
             </tab>
         </tabset>
@@ -608,10 +619,10 @@
         <div>
           <!-- Toggle Advanced Export Options -->
           <div [hidden]="SelectedNetworkExportFileTypeListVariable=='svg'">
-            <p-accordion>
-              <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Advanced</ng-template>
-                <div id="network-export-advanced">
+            <p-accordion [value]="null" [multiple]="true">
+              <p-accordion-panel value="export-advanced" style="color:#495057">
+                        <p-accordion-header>Advanced</p-accordion-header>
+                        <p-accordion-content><div id="network-export-advanced">
                   <div class="form-group row">
                     <div class="col-3">
                       <label for="network-export-scale">Scale</label>
@@ -653,7 +664,8 @@
                     </div>
                   </div>
                 </div>
-              </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
             </p-accordion>
           </div>
         </div>

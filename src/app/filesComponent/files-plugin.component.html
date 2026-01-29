@@ -184,34 +184,36 @@
                                         </div>
                                     </div>
 
-                                    <p-accordion *ngIf="IsReferenceSourceSelected == true">
-                                        <p-accordionTab style="color:#495057" [(selected)]="IsReferenceSourceSelected">
-                    <ng-template pTemplate="header">Reference Source Options</ng-template>
-
-                                            <div class="form-group row alignConfigRow">
-                                                <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
-                                                <div class="col-10">
-                                                    <p-selectButton [options]="ReferenceTypes" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
-                                                </div>
-                                            </div>
-
-                                            <p-accordionTab style="color:#495057" *ngIf="IsReferenceOptionsSelected == true" [(selected)]="IsReferenceOptionsSelected">
-                    <ng-template pTemplate="header">Reference Options</ng-template>
-                                                <div class="form-group row" id="reference-file-row">
-                                                    <div class="col-2" title="Against what sequence should MicrobeTrace align your sequences?">Reference</div>
-                                                    <div class="col-5">
-                                                        <div class="custom-file">
-                                                            <input type="file" class="custom-file-input" id="refSeqFileLoad" [(ngModel)]="SelectedRefSeqFileLoadVariable">
-                                                            <label class="custom-file-label" for="refSeqFileLoad" style="overflow:hidden">HXB2</label>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-5">
-                                                        <p-select id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-select>
-
-                                                        
+                                    <p-accordion *ngIf="IsReferenceSourceSelected == true" [value]="null" [multiple]="true">
+                                        <p-accordion-panel style="color:#495057" value="reference-source">
+                                            <p-accordion-header>Reference Source Options</p-accordion-header>
+                                            <p-accordion-content>
+                                                <div class="form-group row alignConfigRow">
+                                                    <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
+                                                    <div class="col-10">
+                                                        <p-selectButton [options]="ReferenceTypes" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
                                                     </div>
                                                 </div>
-                                            </p-accordionTab>
+
+                                                    <p-accordion *ngIf="IsReferenceOptionsSelected == true" [value]="null" [multiple]="true">
+                                                    <p-accordion-panel style="color:#495057" value="reference-options">
+                                                        <p-accordion-header>Reference Options</p-accordion-header>
+                                                        <p-accordion-content>
+                                                            <div class="form-group row" id="reference-file-row">
+                                                                <div class="col-2" title="Against what sequence should MicrobeTrace align your sequences?">Reference</div>
+                                                                <div class="col-5">
+                                                                    <div class="custom-file">
+                                                                        <input type="file" class="custom-file-input" id="refSeqFileLoad" [(ngModel)]="SelectedRefSeqFileLoadVariable">
+                                                                        <label class="custom-file-label" for="refSeqFileLoad" style="overflow:hidden">HXB2</label>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-5">
+                                                                    <p-select id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-select>
+                                                                </div>
+                                                            </div>
+                                                        </p-accordion-content>
+                                                    </p-accordion-panel>
+                                                </p-accordion>
 
                                                 <div class="row alignConfigRow">
                                                     <div class="form-group col offset-2" title="How much should MicrobeTrace reward matching bases?">
@@ -233,7 +235,8 @@
                                                         <input type="number" id="alignerGapE" class="form-control" value="2" min="0" [(ngModel)]="SelectedAlignerGapEVariable">
                                                     </div>
                                                 </div>
-                                        </p-accordionTab>
+                                            </p-accordion-content>
+                                        </p-accordion-panel>
                                     </p-accordion>
 
 

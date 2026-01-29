@@ -32,10 +32,10 @@
               >
               <tabset class="tab-container tabbable-line">
               <tab heading="{{'Heatmap' | localize}}" [active]="true" customClass="m-tabs__item">
-              <p-accordion [multiple]='true'>
-                  <p-accordionTab style="color:#495057" [selected]="true">
-                    <ng-template pTemplate="header">Invert</ng-template>
-                      <div>
+              <p-accordion [multiple]='true' [value]="null">
+                  <p-accordion-panel style="color:#495057" >
+                        <p-accordion-header>Invert</p-accordion-header>
+                        <p-accordion-content><div>
                           <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
                               <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
                               <div class="col-6">
@@ -49,10 +49,11 @@
                               </div>
                           </div>
                       </div>
-                  </p-accordionTab>
-                  <p-accordionTab style="color:#495057" [selected]="true">
-                    <ng-template pTemplate="header">Color</ng-template>
-                      <div>
+                        </p-accordion-content>
+                    </p-accordion-panel>
+                  <p-accordion-panel style="color:#495057" >
+                        <p-accordion-header>Color</p-accordion-header>
+                        <p-accordion-content><div>
                         <div class="form-group row gantt-color-row" title="What Should be the low color?" style="overflow:visible">
                             <div class="col-6"><label for="low-color">Low Color</label></div>
                             <div class="col-6">
@@ -72,10 +73,11 @@
                             </div>
                         </div>
                       </div>
-                  </p-accordionTab>
-                  <p-accordionTab style="color:#495057" [selected]="true">
-                    <ng-template pTemplate="header">Labels</ng-template>
-                      <div>
+                        </p-accordion-content>
+                    </p-accordion-panel>
+                  <p-accordion-panel style="color:#495057" >
+                        <p-accordion-header>Labels</p-accordion-header>
+                        <p-accordion-content><div>
                           <div class="form-group row label-visible-row" title="Should Labels be Displayed?" style="overflow:visible">
                               <div class="col-6"><label for="show-labels">Show Labels</label></div>
                               <div class="col-6">
@@ -83,7 +85,8 @@
                               </div>
                           </div>
                       </div>
-                  </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
               </p-accordion>
               </tab>
 

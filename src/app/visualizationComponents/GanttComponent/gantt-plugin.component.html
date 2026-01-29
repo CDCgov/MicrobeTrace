@@ -23,10 +23,10 @@
         [contentStyle]="{'overflow': 'visible'}" header="Gantt Settings" appendTo="body">
         <tabset class="tab-container tabbable-line">
             <tab heading="{{'Gantt Entry' | localize}}" [active]="true" customClass="m-tabs__item">
-                <p-accordion [multiple]="true" [activeIndex]="[0]">
-                    <p-accordionTab style="color:#495057" [active]="true">
-                    <ng-template pTemplate="header">New Entry</ng-template>
-                        <div #entrycontrols>
+                <p-accordion [multiple]="true" [activeIndex]="[0]" [value]="null">
+                    <p-accordion-panel style="color:#495057" [active]="true">
+                        <p-accordion-header>New Entry</p-accordion-header>
+                        <p-accordion-content><div #entrycontrols>
                             <div class="form-group row entry-name-row" title="What is the name of the entry?"
                                 style="overflow:visible">
                                 <div class="col-4"><label for="entry-name">Gantt Entry Name</label></div>
@@ -90,7 +90,8 @@
                             </ng-template>
 
                         </p-table>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
                 </p-accordion>
             </tab>
         </tabset>

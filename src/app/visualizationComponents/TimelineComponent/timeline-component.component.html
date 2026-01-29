@@ -125,10 +125,10 @@
                   </div>
               </div>
               <div [hidden]="EpiExportFileType=='svg'">
-                <p-accordion>
-                    <p-accordionTab style="color:#495057">
-                    <ng-template pTemplate="header">Advanced</ng-template>
-                        <div id="network-export-advanced">
+                <p-accordion [value]="null" [multiple]="true">
+                    <p-accordion-panel style="color:#495057">
+                        <p-accordion-header>Advanced</p-accordion-header>
+                        <p-accordion-content><div id="network-export-advanced">
                             <div class="form-group row">
                                 <div class="col-3">
                                     <label for="network-export-scale">Scale</label>
@@ -150,7 +150,8 @@
                                 </div>
                             </div>
                         </div>
-                    </p-accordionTab>
+                        </p-accordion-content>
+                    </p-accordion-panel>
                 </p-accordion>
             </div>
           </div>
