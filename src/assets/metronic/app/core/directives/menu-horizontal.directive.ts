@@ -1,7 +1,8 @@
 import { Directive, AfterViewInit, ElementRef } from '@angular/core';
 
 @Directive({
-    selector: '[mMenuHorizontal]'
+    selector: '[mMenuHorizontal]',
+    standalone: false
 })
 export class MenuHorizontalDirective implements AfterViewInit {
     menu: any;

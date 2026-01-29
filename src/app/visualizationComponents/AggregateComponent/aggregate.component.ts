@@ -18,9 +18,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
-  selector: 'AggregateComponent',
-  templateUrl: './aggregate.component.html',
-  styleUrls: ['./aggregate.component.scss'],
+    selector: 'AggregateComponent',
+    templateUrl: './aggregate.component.html',
+    styleUrls: ['./aggregate.component.scss'],
+    standalone: false
 })
 export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 

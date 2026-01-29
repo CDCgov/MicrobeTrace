@@ -16,9 +16,10 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
-  selector: 'app-timeline-component',
-  templateUrl: './timeline-component.component.html',
-  styleUrls: ['./timeline-component.component.scss']
+    selector: 'app-timeline-component',
+    templateUrl: './timeline-component.component.html',
+    styleUrls: ['./timeline-component.component.scss'],
+    standalone: false
 })
 export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 

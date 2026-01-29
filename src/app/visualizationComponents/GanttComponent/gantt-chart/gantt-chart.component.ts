@@ -3,10 +3,11 @@ import { colorSchemes } from '../constants/color-schemes';
 import { GanttChartService } from './gantt-chart.service';
 
 @Component({
-  selector: 'ngx-gantt-chart',
-  templateUrl: './gantt-chart.component.html',
-  styleUrls: ['./gantt-chart.component.scss'],
-  providers: [GanttChartService]
+    selector: 'ngx-gantt-chart',
+    templateUrl: './gantt-chart.component.html',
+    styleUrls: ['./gantt-chart.component.scss'],
+    providers: [GanttChartService],
+    standalone: false
 })
 export class GanttChartComponent implements OnInit, OnChanges {
 

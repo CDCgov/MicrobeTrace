@@ -3,7 +3,8 @@ import { AppConsts } from '@shared/app.constants';
 // import { LocalizationService } from '@abp/localization/localization.service';
 
 @Pipe({
-    name: 'localize'
+    name: 'localize',
+    standalone: false
 })
 export class LocalizePipe implements PipeTransform {
 

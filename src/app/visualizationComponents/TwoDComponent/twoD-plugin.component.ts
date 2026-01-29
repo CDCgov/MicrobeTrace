@@ -28,7 +28,8 @@ import { NgZone } from '@angular/core';
     selector: 'TwoDComponent',
     templateUrl: './twoD-plugin.component.html',
     styleUrls: ['./twoD-plugin.component.scss'],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 

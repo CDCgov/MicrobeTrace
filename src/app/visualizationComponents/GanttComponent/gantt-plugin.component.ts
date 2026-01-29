@@ -18,9 +18,10 @@ import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
-  selector: 'GanttComponent',
-  templateUrl: './gantt-plugin.component.html',
-  styleUrls: ['./gantt-plugin.component.scss']
+    selector: 'GanttComponent',
+    templateUrl: './gantt-plugin.component.html',
+    styleUrls: ['./gantt-plugin.component.scss'],
+    standalone: false
 })
 export class GanttComponent extends BaseComponentDirective implements OnInit {
   @ViewChild('ganttContainer', {read: ViewContainerRef}) ganttContainer: ViewContainerRef;

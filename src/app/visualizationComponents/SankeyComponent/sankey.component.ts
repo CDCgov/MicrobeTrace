@@ -20,9 +20,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 
 
 @Component({
-  selector: 'SankeyComponent',
-  templateUrl: './sankey.component.html',
-  styleUrls: ['./sankey.component.scss']
+    selector: 'SankeyComponent',
+    templateUrl: './sankey.component.html',
+    styleUrls: ['./sankey.component.scss'],
+    standalone: false
 })
 export class SankeyComponent extends BaseComponentDirective implements OnInit, OnDestroy {
 

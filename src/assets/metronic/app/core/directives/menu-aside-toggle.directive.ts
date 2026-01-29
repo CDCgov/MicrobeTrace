@@ -1,7 +1,8 @@
 import { Directive, ElementRef, AfterViewInit } from '@angular/core';
 
 @Directive({
-    selector: '[mMenuAsideToggle]'
+    selector: '[mMenuAsideToggle]',
+    standalone: false
 })
 export class MenuAsideToggleDirective implements AfterViewInit {
     toggle: any;

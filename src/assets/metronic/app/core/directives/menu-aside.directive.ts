@@ -5,7 +5,8 @@ import { LayoutRefService } from '../services/layout/layout-ref.service';
 import { mergeMap } from 'rxjs/operators';
 
 @Directive({
-    selector: '[mMenuAside]'
+    selector: '[mMenuAside]',
+    standalone: false
 })
 export class MenuAsideDirective {
     menu: any;

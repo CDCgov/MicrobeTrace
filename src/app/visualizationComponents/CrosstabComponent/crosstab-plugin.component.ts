@@ -16,9 +16,10 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
-  selector: 'CrosstabComponent',
-  templateUrl: './crosstab-plugin.component.html',
-  styleUrls: ['./crosstab-plugin.component.scss']
+    selector: 'CrosstabComponent',
+    templateUrl: './crosstab-plugin.component.html',
+    styleUrls: ['./crosstab-plugin.component.scss'],
+    standalone: false
 })
 export class CrosstabComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 

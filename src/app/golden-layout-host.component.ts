@@ -22,9 +22,9 @@ import { SankeyComponent } from './visualizationComponents/SankeyComponent/sanke
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 
 @Component({
-  selector: 'app-golden-layout-host',
-  template: '<ng-template #componentViewContainer></ng-template>',
-  styles: [`
+    selector: 'app-golden-layout-host',
+    template: '<ng-template #componentViewContainer></ng-template>',
+    styles: [`
     :host {
       height: 100%;
       width: 100%;
@@ -33,7 +33,8 @@ import { WaterfallComponent } from './visualizationComponents/WaterfallComponent
       position: relative;
     }
     `,
-  ],
+    ],
+    standalone: false
 })
 export class GoldenLayoutHostComponent implements OnDestroy {
   private _goldenLayout: GoldenLayout;

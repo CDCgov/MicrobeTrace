@@ -32,8 +32,9 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   @Component({
     selector: 'TableComponent',
     templateUrl: './table-plugin-component.html',
-    styleUrls: ['./table-plugin-component.less']
-  })
+    styleUrls: ['./table-plugin-component.less'],
+    standalone: false
+})
   export class TableComponent
     extends BaseComponentDirective
     implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {

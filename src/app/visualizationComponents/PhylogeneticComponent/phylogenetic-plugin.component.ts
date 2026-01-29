@@ -29,9 +29,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
  * @title PhylogeneticComponent
  */
 @Component({
-  selector: 'PhylogeneticComponent',
-  templateUrl: './phylogenetic-plugin.component.html',
-  styleUrls: ['./phylogenetic-plugin.component.scss']
+    selector: 'PhylogeneticComponent',
+    templateUrl: './phylogenetic-plugin.component.html',
+    styleUrls: ['./phylogenetic-plugin.component.scss'],
+    standalone: false
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 

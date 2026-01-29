@@ -95,8 +95,9 @@ const routerOptions: ExtraOptions = {
 // PlotlyModule.plotlyjs = PlotlyJS;
 
 @Component({
-  template: `<h1>Test2</h1>`,
-  selector: `app-tested`,
+    template: `<h1>Test2</h1>`,
+    selector: `app-tested`,
+    standalone: false
 })
 export class TestedComponent {
   constructor() { }

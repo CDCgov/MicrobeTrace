@@ -10,9 +10,10 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
-  selector: 'app-waterfall-component',
-  templateUrl: './waterfall.component.html',
-  styleUrls: ['./waterfall.component.scss']
+    selector: 'app-waterfall-component',
+    templateUrl: './waterfall.component.html',
+    styleUrls: ['./waterfall.component.scss'],
+    standalone: false
 })
 export class WaterfallComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 

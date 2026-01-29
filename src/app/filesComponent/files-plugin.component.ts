@@ -21,10 +21,11 @@ import { relativeTimeThreshold } from 'moment';
 
 
 @Component({
-  selector: 'FilesComponent',
-  templateUrl: './files-plugin.component.html',
-  styleUrls: ['./files-plugin.component.less'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'FilesComponent',
+    templateUrl: './files-plugin.component.html',
+    styleUrls: ['./files-plugin.component.less'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 
 export class FilesComponent extends BaseComponentDirective implements OnInit {

@@ -6,7 +6,8 @@ import {
   HostListener } from '@angular/core';
 
 @Directive({
-  selector: '[appDnd]'
+    selector: '[appDnd]',
+    standalone: false
 })
 export class DndDirective {
 

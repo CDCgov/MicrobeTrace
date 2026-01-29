@@ -40,7 +40,6 @@
       ]
     },
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "useDefineForClassFields": false
   },
   "exclude": [

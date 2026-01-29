@@ -16,9 +16,10 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
-  selector: 'AlignmentViewComponent',
-  templateUrl: './alignment-view-plugin-component.html',
-  styleUrls: ['./alignment-view-plugin-component.scss']
+    selector: 'AlignmentViewComponent',
+    templateUrl: './alignment-view-plugin-component.html',
+    styleUrls: ['./alignment-view-plugin-component.scss'],
+    standalone: false
 })
 export class AlignmentViewComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 

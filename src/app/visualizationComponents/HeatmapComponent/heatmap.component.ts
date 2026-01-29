@@ -19,9 +19,10 @@ import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
-  selector: 'HeatmapComponent',
-  templateUrl: './heatmap.component.html',
-  styleUrls: ['./heatmap.component.scss']
+    selector: 'HeatmapComponent',
+    templateUrl: './heatmap.component.html',
+    styleUrls: ['./heatmap.component.scss'],
+    standalone: false
 })
 export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 

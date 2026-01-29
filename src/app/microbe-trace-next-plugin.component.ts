@@ -28,7 +28,8 @@ import { buildDate, commitHash } from "src/environments/version";
     encapsulation: ViewEncapsulation.None,
     templateUrl: './microbe-trace-next-plugin.component.html',
     styleUrls: ['./microbe-trace-next-plugin.component.less'],
-    providers: [ConfirmationService]
+    providers: [ConfirmationService],
+    standalone: false
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {

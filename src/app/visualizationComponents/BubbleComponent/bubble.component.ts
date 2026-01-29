@@ -17,9 +17,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
 @Component({
-  selector: 'bubble-component',
-  templateUrl: './bubble.component.html',
-  styleUrls: ['./bubble.component.scss']
+    selector: 'bubble-component',
+    templateUrl: './bubble.component.html',
+    styleUrls: ['./bubble.component.scss'],
+    standalone: false
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 

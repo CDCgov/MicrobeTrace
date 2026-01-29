@@ -57,6 +57,7 @@ class LongLatClass implements LongLatInterface {
     selector: 'MapComponent',
     templateUrl: './map-plugin.component.html',
     styleUrls: ['./map-plugin.component.css'],
+    standalone: false
 })
 
 

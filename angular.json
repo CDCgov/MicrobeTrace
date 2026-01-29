@@ -33,13 +33,16 @@
           }
         },
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular-devkit/build-angular:application",
           "options": {
             "statsJson": true,
-            "outputPath": "dist/MicrobeTrace",
+            "outputPath": {
+              "base": "dist/MicrobeTrace"
+            },
             "index": "src/index.html",
-            "main": "src/main.ts",
-            "polyfills": "src/polyfills.ts",
+            "polyfills": [
+              "src/polyfills.ts"
+            ],
             "tsConfig": "src/tsconfig.app.json",
             "stylePreprocessorOptions": {
               "includePaths": [
@@ -93,7 +96,8 @@
             "scripts": [
               "src/assets/metronic/assets/vendors/base/vendors.bundle.js",
               "src/assets/metronic/assets/demo/default/base/scripts.bundle.js"
-            ]
+            ],
+            "browser": "src/main.ts"
           },
           "configurations": {
             "development": {
@@ -101,8 +105,6 @@
               "sourceMap": true,
               "namedChunks": true,
               "extractLicenses": true,
-              "vendorChunk": true,
-              "buildOptimizer": false,
               "watch": true,
               "budgets": [
                 {
@@ -134,8 +136,6 @@
               "namedChunks": false,
               "aot": false,
               "extractLicenses": false,
-              "vendorChunk": true,
-              "buildOptimizer": false,
               "budgets": [
                 {
                   "type": "initial",
