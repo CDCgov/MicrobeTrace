@@ -23,6 +23,7 @@
 
         <packagingExcludes>
           node_modules/**,
+          node_modules_ang/**,
           scripts/**,
           patches/**,
           data/**,

@@ -1,4 +1,8 @@
 node_modules
+target
+node_modules_ang
+node_modules_classic
+dist
 .DS_Store
 Thumbs.db
 *.log
