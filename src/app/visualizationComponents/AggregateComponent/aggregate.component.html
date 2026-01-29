@@ -41,14 +41,14 @@
         <div style="display: flex; width: 100%;">
           <span class="col-3">Table {{i+1}}</span>
           <span class="col-7">
-            <p-dropdown [options]="fieldOptions"  [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
+            <p-select [options]="fieldOptions"  [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
               <ng-template let-group pTemplate="group">
                 <span style="font-size: large; font-weight: bold;">{{ group.label }}</span>
               </ng-template>
               <ng-template let-item pTemplate="item">
                 <span>{{ item.short_label }}</span>
               </ng-template>
-            </p-dropdown>
+            </p-select>
           </span>
           <span class="col-2" *ngIf="SelectedDataFields.length > 1">
             <p-button icon="pi pi-times" class="deleteButton" (onClick)="deleteTable(i)"/>
@@ -71,8 +71,8 @@
                         placeholder="Filename" [(ngModel)]="SelectedAggregateExportFilename">
                   </div>
                   <div class="col-3">
-                    <p-dropdown [options]="AggregateExportFileTypeList"
-                        [(ngModel)]="SelectedAggregateExportFileType" appendTo="body"></p-dropdown>
+                    <p-select [options]="AggregateExportFileTypeList"
+                        [(ngModel)]="SelectedAggregateExportFileType" appendTo="body"></p-select>
                   </div>
               </div>
           </div>

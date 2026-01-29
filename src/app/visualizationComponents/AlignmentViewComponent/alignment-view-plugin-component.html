@@ -172,7 +172,8 @@
 <div class="view-controls">
     <p-dialog *ngIf="viewActive" id="alignment-settings-pane" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
         <p-accordion>
-            <p-accordionTab style="color:#495057" header="Data">
+            <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Data</ng-template>
                 <div #dataControls>
                     <div class="form-group row" title="Set a predefined size">
                         <div class="col-2"><label>Sequence</label></div>
@@ -192,12 +193,13 @@ Given sequence ('CT-T...'), Maintain Reading Frame will convert codon CCT to L.
 Maintain Codon will convert codon CT- to X (Unknown).">
                         <div class="col-5"><label>Translation Settings</label></div>
                         <div class="col-7">
-                            <p-dropdown [options]="['Maintain Codons', 'Maintain Reading Frame']" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-dropdown>
+                            <p-select [options]="['Maintain Codons', 'Maintain Reading Frame']" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
                         </div>
                     </div>
                 </div>
             </p-accordionTab>
-            <p-accordionTab style="color:#495057" header="Layout">
+            <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Layout</ng-template>
                 <div #layoutControls>
                     <div class="form-group row" title="Show or Hide the Mini Map">
                         <div class="col-4"><label>Show Mini-Map</label></div>
@@ -215,7 +217,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                     <div class="form-group row" title="Set the minor interval for the ruler. Set to 0 to remove minor interval.">
                         <div class="col-4"><label>Ruler Minor Interval</label></div>
                         <div class="col-8">
-                            <p-dropdown [options]="rulerIntervalOptions" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-dropdown>
+                            <p-select [options]="rulerIntervalOptions" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
                         </div>
                     </div>
                     <div class="form-group row" 
@@ -228,23 +230,25 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                     </div>
                 </div>
             </p-accordionTab>
-            <p-accordionTab style="color:#495057" header="Labels and Order">
+            <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Labels and Order</ng-template>
                 <div #labelingControls>
                     <div class="form-group row" title="">
                         <div class="col-4"><label>Labels</label></div>
                         <div class="col-8">
-                            <p-dropdown appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-dropdown>
+                            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
                         </div>
                     </div>
                     <div class="form-group row" title="">
                         <div class="col-4"><label>Sort By</label></div>
                         <div class="col-8">
-                            <p-dropdown appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-dropdown>
+                            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
                         </div>
                     </div>
                 </div>
             </p-accordionTab>
-            <p-accordionTab  style="color:#495057" header="Sizing">
+            <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Sizing</ng-template>
                 <div #sizingControls>
                     <div class="form-group row" title="Set a predefined size">
                         <div class="col-2"><label>Size</label></div>
@@ -266,7 +270,8 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                     </div>
                 </div>
             </p-accordionTab>
-            <p-accordionTab style="color:#495057" header="Colors">
+            <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Colors</ng-template>
                 <div #colorControls>
                     <div class="form-group row" title="Select a color scheme">
                         <div class="col-3"><label>Color Scheme</label></div>

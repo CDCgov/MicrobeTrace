@@ -24,7 +24,8 @@
         <tabset class="tab-container tabbable-line">
             <tab heading="{{'Gantt Entry' | localize}}" [active]="true" customClass="m-tabs__item">
                 <p-accordion [multiple]="true" [activeIndex]="[0]">
-                    <p-accordionTab style="color:#495057" header="New Entry" [active]="true">
+                    <p-accordionTab style="color:#495057" [active]="true">
+                    <ng-template pTemplate="header">New Entry</ng-template>
                         <div #entrycontrols>
                             <div class="form-group row entry-name-row" title="What is the name of the entry?"
                                 style="overflow:visible">
@@ -38,16 +39,16 @@
                                 style="overflow:visible">
                                 <div class="col-4"><label for="gantt-start">Start Date</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="gantt-start" appendTo="body" [options]="FieldList"
-                                        [(ngModel)]="GanttStartVariable"> </p-dropdown>
+                                    <p-select id="gantt-start" appendTo="body" [options]="FieldList"
+                                        [(ngModel)]="GanttStartVariable"> </p-select>
                                 </div>
                             </div>
                             <div class="form-group row gantt-end-row" title="What field is the end date?"
                                 style="overflow:visible">
                                 <div class="col-4"><label for="gantt-end">End Date</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="gantt-end" appendTo="body" [options]="FieldList"
-                                        [(ngModel)]="GanttEndVariable"> </p-dropdown>
+                                    <p-select id="gantt-end" appendTo="body" [options]="FieldList"
+                                        [(ngModel)]="GanttEndVariable"> </p-select>
                                 </div>
                             </div>
                             <div class="form-group row gantt-color-row" title="What color should the entry be?"
@@ -107,8 +108,8 @@
                             placeholder="Image Filename" [(ngModel)]="SelectedGanttChartImageFilenameVariable">
                     </div>
                     <div class="col-3">
-                        <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList"
-                            [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-dropdown>
+                        <p-select id="network-export-filetype" [options]="NetworkExportFileTypeList"
+                            [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-select>
                     </div>
                     <div class="col-8">
                         <button type="button" id="export-tree" class="btn btn-primary"

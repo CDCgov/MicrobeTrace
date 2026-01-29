@@ -10,7 +10,7 @@
         </span>
         <span style="display: inline-block; flex-grow: 0; line-height: 44px;">Dataset:</span>
         <span class="data-types" id="dataType" style="overflow: visible; position: relative; width: 150px; display: inline; flex-grow: 0;">
-            <p-dropdown #dataSet [options]="dataSetView" [(ngModel)]="dataSetViewSelected" (onChange)="openSelectDataSetScreen($event)" [style]="{'width': '110px'}"></p-dropdown>
+            <p-select #dataSet [options]="dataSetView" [(ngModel)]="dataSetViewSelected" (onChange)="openSelectDataSetScreen($event)" [style]="{'width': '110px'}"></p-select>
         </span>
         <span style="flex-grow: 1; width: calc(100% - 295px)">
             <p-multiSelect [options]="SelectedTableData.availableColumns" [(ngModel)]="SelectedTableData.tableColumns" [showToggleAll]=false [style]="{'max-width': '100%'}"></p-multiSelect>
@@ -123,8 +123,8 @@
                             placeholder="Filename" [(ngModel)]="SelectedTableExportFilenameVariable">
                     </div>
                     <div class="col-4">
-                        <p-dropdown [options]="TableExportFileTypeList"
-                            [(ngModel)]="SelectedTableExportFileTypeListVariable" appendTo="body"></p-dropdown>
+                        <p-select [options]="TableExportFileTypeList"
+                            [(ngModel)]="SelectedTableExportFileTypeListVariable" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" style="margin-top: 10px;" title="Do you want to export all the columns in the data or just the currently selected columns?">

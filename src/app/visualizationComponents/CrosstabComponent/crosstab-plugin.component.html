@@ -80,13 +80,13 @@
     <div class="form-group row" title="">
       <div class="col-3"><a>X</a></div>
       <div class="col-9">
-        <p-dropdown [options]="fieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-dropdown>
+        <p-select [options]="fieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-select>
       </div>
     </div>
     <div class="form-group row" title="">
       <div class="col-3"><a>Y</a></div>
       <div class="col-9">
-        <p-dropdown [options]="fieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-dropdown>
+        <p-select [options]="fieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-select>
       </div>
     </div>
     <div class="form-group row" title="Show raw counts or proportion of total?">
@@ -112,7 +112,7 @@
               <input type="text" style="height:42px" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="SelectedCrossTabExportFilename">
             </div>
             <div class="col-4">
-              <p-dropdown [options]="CrossTabExportFileTypeList" [(ngModel)]="SelectedCrossTabExportFileType" appendTo="body"></p-dropdown>
+              <p-select [options]="CrossTabExportFileTypeList" [(ngModel)]="SelectedCrossTabExportFileType" appendTo="body"></p-select>
             </div>
           </div>
         </div>

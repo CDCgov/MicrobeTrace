@@ -47,7 +47,7 @@
                     <div class="form-group row gantt-start-row" title="What variable would you like to add to the Sankey Chart?" style="overflow:visible">
                         <div class="col-4"><label>Variable Name</label></div>
                         <div class="col-8">
-                            <p-dropdown appendTo="body" [options]="FieldList" [(ngModel)]="SelectedFieldName"> </p-dropdown>
+                            <p-select appendTo="body" [options]="FieldList" [(ngModel)]="SelectedFieldName"> </p-select>
                         </div>
                     </div>
                     <div *ngIf="SankeyFieldNames.length < 2" style="color: red">2 Variables are required to generate a Sankey graph</div>
@@ -81,7 +81,7 @@
                 <div class="form-group row gantt-start-row" title="" style="overflow:visible">
                     <div class="col-5"><label>Link Color</label></div>
                     <div class="col-5">
-                        <p-dropdown appendTo="body" [options]="LinkColorOptions" [(ngModel)]="SelectedColorOption"> </p-dropdown>
+                        <p-select appendTo="body" [options]="LinkColorOptions" [(ngModel)]="SelectedColorOption"> </p-select>
                     </div>
                     <div div class="col-2" *ngIf="SelectedColorOption=='Uniform'">
                         <input type="color" style="border:none" [(ngModel)]="SelectedColorForUniform">
@@ -110,13 +110,14 @@
                             placeholder="Image Filename" [(ngModel)]="SelectedSankeyImageFilename">
                     </div>
                     <div class="col-4">
-                        <p-dropdown [options]="NetworkExportFileTypeList"
-                            [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-dropdown>
+                        <p-select [options]="NetworkExportFileTypeList"
+                            [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-select>
                     </div>
                 </div>
                 <div [hidden]="SelectedNetworkExportFileTypeListVariable=='svg'">
                     <p-accordion>
-                        <p-accordionTab style="color:#495057" header="Advanced">
+                        <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Advanced</ng-template>
                             <div>
                                 <div class="form-group row">
                                     <div class="col-3">

@@ -15,7 +15,7 @@ echo "===> Building Angular app..."
 npm run build -- --configuration production --optimization=false --base-href=./ || { echo "Angular build failed"; exit 1; }
 
 echo "===> Creating WAR file..."
-cd dist/MicrobeTrace/browser || { echo "dist/MicrobeTrace/browser not found"; exit 1; }
+cd dist/MicrobeTrace || { echo "dist/MicrobeTrace not found"; exit 1; }
 jar -cvf ../MicrobeTrace.war . || { echo "Failed to create WAR file"; exit 1; }
 
 COMMIT=$(git rev-parse --short HEAD)

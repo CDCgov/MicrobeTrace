@@ -21,7 +21,7 @@
             <label>Graph Type</label>
           </div>
           <div class="col-8">
-            <p-dropdown [options]="graphTypes" appendTo="body"  [(ngModel)]="selectedGraphType" (ngModelChange)="onGraphTypeChange()"></p-dropdown>
+            <p-select [options]="graphTypes" appendTo="body"  [(ngModel)]="selectedGraphType" (ngModelChange)="onGraphTypeChange()"></p-select>
           </div>
         </div>
         <div class="form-group row" title="Select a date field from your data. One is required to generate graph.">
@@ -29,7 +29,7 @@
             <label>Date Field</label>
           </div>  
           <div class="col-6" style="padding-right: 5px">
-            <p-dropdown id="epiCurve-date-field" [options]="FieldList" appendTo="body"  [(ngModel)]="SelectedDateFieldVariable" (ngModelChange)="onDateFieldChange(0)"></p-dropdown>
+            <p-select id="epiCurve-date-field" [options]="FieldList" appendTo="body"  [(ngModel)]="SelectedDateFieldVariable" (ngModelChange)="onDateFieldChange(0)"></p-select>
           </div>
           <div class="col-2" style="padding: 0px 15px 0px 10px" *ngIf="selectedGraphType!='Single Date Field' || widgets['epiCurve-stackColorBy'] == 'None'" title="Select a color for this date field.">
             <input type="color" id="epi-color-select" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][0]" (change)="onNodeColorChanged()">
@@ -40,7 +40,7 @@
             <label>Date Field 2</label>
           </div>
           <div class="col-6" style="padding-right: 5px">
-            <p-dropdown id="epiCurve-date-field" [options]="FieldList" appendTo="body"  [(ngModel)]="SelectedDateFieldVariable2" (ngModelChange)="onDateFieldChange(1)"></p-dropdown>
+            <p-select id="epiCurve-date-field" [options]="FieldList" appendTo="body"  [(ngModel)]="SelectedDateFieldVariable2" (ngModelChange)="onDateFieldChange(1)"></p-select>
           </div>
           <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
             <input type="color" id="node-color" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][1]" (change)="onNodeColorChanged()">
@@ -51,7 +51,7 @@
             <label>Date Field 3</label>
           </div>
           <div class="col-6" style="padding-right: 5px">
-            <p-dropdown id="epiCurve-date-field" [options]="FieldList" appendTo="body"  [(ngModel)]="SelectedDateFieldVariable3" (ngModelChange)="onDateFieldChange(2)"></p-dropdown>
+            <p-select id="epiCurve-date-field" [options]="FieldList" appendTo="body"  [(ngModel)]="SelectedDateFieldVariable3" (ngModelChange)="onDateFieldChange(2)"></p-select>
           </div>
           <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
             <input type="color" id="node-color" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][2]" (change)="onNodeColorChanged()">
@@ -62,7 +62,7 @@
             <label>Color By</label>
           </div>
           <div class="col-6" style="padding-right: 5px">
-            <p-dropdown id="epiCurve-date-field" [options]="FieldListStack" appendTo="body"  [(ngModel)]="this.widgets['epiCurve-stackColorBy']" (ngModelChange)="onUseNodeColorChange()"></p-dropdown>
+            <p-select id="epiCurve-date-field" [options]="FieldListStack" appendTo="body"  [(ngModel)]="this.widgets['epiCurve-stackColorBy']" (ngModelChange)="onUseNodeColorChange()"></p-select>
           </div>
         </div>
         <div class="form-group row" title="Select the size to bin the data by.">
@@ -70,7 +70,7 @@
             <label>Bin Size</label>
           </div>
           <div class="col-8">
-            <p-dropdown id="epiCurve-date-field" [options]="binSizes" appendTo="body"  [(ngModel)]="widgets['epiCurve-binSize']" (ngModelChange)="onBinSizeChange()"></p-dropdown>
+            <p-select id="epiCurve-date-field" [options]="binSizes" appendTo="body"  [(ngModel)]="widgets['epiCurve-binSize']" (ngModelChange)="onBinSizeChange()"></p-select>
           </div>
         </div>
         <div class="form-group row" title="What interval to display ticks on x axis" id="epi-tick-size">
@@ -126,7 +126,8 @@
               </div>
               <div [hidden]="EpiExportFileType=='svg'">
                 <p-accordion>
-                    <p-accordionTab style="color:#495057" header="Advanced">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Advanced</ng-template>
                         <div id="network-export-advanced">
                             <div class="form-group row">
                                 <div class="col-3">

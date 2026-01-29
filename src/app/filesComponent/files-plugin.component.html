@@ -185,7 +185,8 @@
                                     </div>
 
                                     <p-accordion *ngIf="IsReferenceSourceSelected == true">
-                                        <p-accordionTab style="color:#495057" header="Reference Source Options" [(selected)]="IsReferenceSourceSelected">
+                                        <p-accordionTab style="color:#495057" [(selected)]="IsReferenceSourceSelected">
+                    <ng-template pTemplate="header">Reference Source Options</ng-template>
 
                                             <div class="form-group row alignConfigRow">
                                                 <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
@@ -194,7 +195,8 @@
                                                 </div>
                                             </div>
 
-                                            <p-accordionTab style="color:#495057" header="Reference Options" *ngIf="IsReferenceOptionsSelected == true" [(selected)]="IsReferenceOptionsSelected">
+                                            <p-accordionTab style="color:#495057" *ngIf="IsReferenceOptionsSelected == true" [(selected)]="IsReferenceOptionsSelected">
+                    <ng-template pTemplate="header">Reference Options</ng-template>
                                                 <div class="form-group row" id="reference-file-row">
                                                     <div class="col-2" title="Against what sequence should MicrobeTrace align your sequences?">Reference</div>
                                                     <div class="col-5">
@@ -204,7 +206,7 @@
                                                         </div>
                                                     </div>
                                                     <div class="col-5">
-                                                        <p-dropdown id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-dropdown>
+                                                        <p-select id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-select>
 
                                                         
                                                     </div>

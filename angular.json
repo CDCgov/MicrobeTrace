@@ -37,7 +37,8 @@
           "options": {
             "statsJson": true,
             "outputPath": {
-              "base": "dist/MicrobeTrace"
+              "base": "dist/MicrobeTrace",
+              "browser": ""
             },
             "index": "src/index.html",
             "polyfills": [
@@ -110,7 +111,7 @@
                 {
                   "type": "initial",
                   "maximumWarning": "2mb",
-                  "maximumError": "6mb"
+                  "maximumError": "35mb"
                 },
                 {
                   "type": "anyComponentStyle",

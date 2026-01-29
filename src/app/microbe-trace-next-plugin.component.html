@@ -253,7 +253,7 @@
                                         <div class="form-group row" title="By what variable would you like to prune links from the network?">
                                             <div class="col-4"><label for="link-sort-variable">Filter Links on</label></div>
                                             <div class="col-8">
-                                                <p-dropdown id="link-sort-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-dropdown>
+                                                <p-select id="link-sort-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-select>
                                             </div>
                                         </div>
                                         <div class="form-group row" id="filtering-threshold" title="What's the maximum genetic distance you're willing to call a link?">
@@ -291,7 +291,7 @@
                                     <div class="form-group row" title="By what variable nodes be colored?">
                                         <div class="col-4"><label for="node-color-variable">Color Nodes By</label></div>
                                         <div class="col-8">
-                                            <p-dropdown id="node-color-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedColorNodesByVariable" (onChange)="onColorNodesByChanged()"></p-dropdown>
+                                            <p-select id="node-color-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedColorNodesByVariable" (onChange)="onColorNodesByChanged()"></p-select>
                                         </div>
                                     </div>
                                     <div id="node-color-table-row" [hidden]="!ShowGlobalSettingsNodeColorTable" class="form-group row" title="Should MicrobeTrace display the table of colors?">
@@ -311,7 +311,7 @@
                                     <div class="form-group row" title="By what variable should links be colored?">
                                         <div class="col-4"><label for="link-color-variable">Color Links By</label></div>
                                         <div class="col-8">
-                                            <p-dropdown id="link-tooltip-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-dropdown>
+                                            <p-select id="link-tooltip-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-select>
                                         </div>
                                     </div>
                                     <div id="link-color-table-row" *ngIf="SelectedColorLinksByVariable !== 'None'"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
@@ -355,7 +355,7 @@
                                     <div class="form-group row" title="By what variable timeline applied?">
                                         <div class="col-4"><label for="node-timeline-variable">Timeline By</label></div>
                                         <div class="col-8">
-                                            <p-dropdown id="node-timeline-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedTimelineVariable" (onChange)="onTimelineChanged($event.value)"></p-dropdown>
+                                            <p-select id="node-timeline-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedTimelineVariable" (onChange)="onTimelineChanged($event.value)"></p-select>
                                         </div>
                                     </div>
                                     <div class="form-group row " title="How much time between ticks of the timeline (ms)?">
@@ -423,7 +423,8 @@
             </div>
             <div>  <!-- Toggle Advanced Export Options -->
                 <p-accordion>
-                    <p-accordionTab style="color:#495057" header="Advanced">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Advanced</ng-template>
                         <div>
                             <div class="form-group row">
                                 <div class="col-3">
@@ -489,7 +490,8 @@
                     </div>
                     <div>  <!-- Toggle Advanced Export Options -->
                         <p-accordion *ngIf="ExportTablesFileType === 'png'">
-                            <p-accordionTab style="color:#495057" header="Advanced">
+                            <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Advanced</ng-template>
                                 <div>
                                     <div class="form-group row">
                                         <div class="col-3">
@@ -524,7 +526,7 @@
                                 <input style="height:42px" type="text" id="stash-name" class="form-control form-control-sm" [(ngModel)]="saveFileName" placeholder="Name your session!">
                             </div>
                             <div class="col-5">
-                                <p-dropdown [options]="saveFileTypeOptions" [(ngModel)]="selectedSaveFileType" appendTo="body"></p-dropdown>
+                                <p-select [options]="saveFileTypeOptions" [(ngModel)]="selectedSaveFileType" appendTo="body"></p-select>
                             </div>
                         </div>
                         <div *ngIf="selectedSaveFileType=='session'" class="form-group row" title="Should MicrobeTrace compress this save file?">

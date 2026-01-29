@@ -33,7 +33,8 @@
               <tabset class="tab-container tabbable-line">
               <tab heading="{{'Heatmap' | localize}}" [active]="true" customClass="m-tabs__item">
               <p-accordion [multiple]='true'>
-                  <p-accordionTab style="color:#495057" header="Invert" [selected]="true">
+                  <p-accordionTab style="color:#495057" [selected]="true">
+                    <ng-template pTemplate="header">Invert</ng-template>
                       <div>
                           <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
                               <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
@@ -49,7 +50,8 @@
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Color" [selected]="true">
+                  <p-accordionTab style="color:#495057" [selected]="true">
+                    <ng-template pTemplate="header">Color</ng-template>
                       <div>
                         <div class="form-group row gantt-color-row" title="What Should be the low color?" style="overflow:visible">
                             <div class="col-6"><label for="low-color">Low Color</label></div>
@@ -71,7 +73,8 @@
                         </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Labels" [selected]="true">
+                  <p-accordionTab style="color:#495057" [selected]="true">
+                    <ng-template pTemplate="header">Labels</ng-template>
                       <div>
                           <div class="form-group row label-visible-row" title="Should Labels be Displayed?" style="overflow:visible">
                               <div class="col-6"><label for="show-labels">Show Labels</label></div>
@@ -99,8 +102,8 @@
                             placeholder="Image Filename" [(ngModel)]="SelectedImageFilenameVariable">
                     </div>
                     <div class="col-3">
-                        <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList"
-                            [(ngModel)]="SelectedNetworkExportFileTypeVariable"></p-dropdown>
+                        <p-select id="network-export-filetype" [options]="NetworkExportFileTypeList"
+                            [(ngModel)]="SelectedNetworkExportFileTypeVariable"></p-select>
                     </div>
                     <div class="col-8">
                         <button type="button" id="export-tree" class="btn btn-primary"

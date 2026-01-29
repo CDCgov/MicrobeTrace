@@ -9,7 +9,6 @@ import  Lara  from '@primeng/themes/lara';
 import { providePrimeNG } from 'primeng/config';
 
 import { AppComponent } from './app.component';
-import * as $ from 'jquery';
 import { provideHttpClient, withInterceptorsFromDi, withJsonpSupport } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 // import { ServiceProxyModule } from '@shared/service-proxies/service-proxy.module';
@@ -30,7 +29,7 @@ import { CalendarModule } from 'primeng/calendar';
 import { PaginatorModule } from 'primeng/paginator';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { DropdownModule } from 'primeng/dropdown';
+import { SelectModule } from 'primeng/select';
 import { AccordionModule } from 'primeng/accordion';
 import { SidebarModule } from 'primeng/sidebar';
 import { MultiSelectModule } from 'primeng/multiselect';
@@ -158,7 +157,7 @@ export class TestedComponent {
         ProgressBarModule,
         CoreModule,
         ConfirmDialogModule,
-        DropdownModule,
+        SelectModule,
         TabViewModule,
         SelectButtonModule,
         TreeModule,

@@ -11,9 +11,9 @@
     "e2e": "ng e2e",
     "analyze": "ng build --configuration production --source-map=true --stats-json && webpack-bundle-analyzer dist/MicrobeTrace/stats.json",
     "predeploy": "node scripts/update-version.js",
-    "deploy": "ng build --configuration production --optimization=false --base-href https://cdcgov.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace/browser",
+    "deploy": "ng build --configuration production --optimization=false --base-href https://cdcgov.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace",
     "predeploy_dev": "node scripts/update-version.js",
-    "deploy_dev": "ng build --configuration production --optimization=false --base-href https://mossy426.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace/browser --repo https://github.com/mossy426/MicrobeTrace",
+    "deploy_dev": "ng build --configuration production --optimization=false --base-href https://mossy426.github.io/MicrobeTrace/ && npx ngh --dir dist/MicrobeTrace --repo https://github.com/mossy426/MicrobeTrace",
     "archive": "tar --exclude=.angular --exclude=dist --exclude=node_modules --exclude=node_modules_dev --exclude=.git --exclude=MicrobeTrace.tar.gz --exclude=MicrobeTrace.zip -czf MicrobeTrace.tar.gz . && powershell -Command \"$exclude = @('node_modules', 'node_modules_dev', 'dist', '.angular', '.git', 'MicrobeTrace.tar.gz', 'MicrobeTrace.zip'); $items = Get-ChildItem -Path . -Force | Where-Object { $exclude -notcontains $_.Name }; Compress-Archive -Path ($items | ForEach-Object { $_.FullName }) -DestinationPath MicrobeTrace.zip -Force\""
   },
   "browser": {

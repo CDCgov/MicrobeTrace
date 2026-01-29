@@ -55,3 +55,12 @@ import 'zone.js';  // Included with Angular CLI.
 (window as any).process = {
   env: { DEBUG: undefined },
 };
+
+// Import jQuery and expose it globally
+// This ensures jQuery is available before Angular code runs
+import jQuery from 'jquery';
+// Expose jQuery on window object for global access
+if (typeof window !== 'undefined') {
+  (window as any).$ = jQuery;
+  (window as any).jQuery = jQuery;
+}

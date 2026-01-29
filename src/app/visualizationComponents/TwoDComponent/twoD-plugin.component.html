@@ -81,12 +81,13 @@
         <tabset class="tab-container tabbable-line">
             <tab heading="{{'Nodes' | localize}}" [active]="true" customClass="m-tabs__item">
                 <p-accordion>
-                    <p-accordionTab [selected]="false" style="color:#495057" header="Labels and Tooltips">
+                    <p-accordionTab [selected]="false" style="color:#495057">
+                    <ng-template pTemplate="header">Labels and Tooltips</ng-template>
                         <div #nodecontrolslabels>
                             <div class="form-group row" title="What field should be displayed as a label for the node?">
                                 <div class="col-4"><label for="node-label-variable">Label</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="node-label-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedNodeLabelVariable" (ngModelChange)="onNodeLabelVaribleChange($event)"></p-dropdown>
+                                    <p-select id="node-label-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedNodeLabelVariable" (ngModelChange)="onNodeLabelVaribleChange($event)"></p-select>
                                 </div>
                             </div>
                             <div class="form-group row node-label-row" title="How big should node labels be?">
@@ -118,14 +119,15 @@
                         </div>
                     </p-accordionTab>
 
-                    <p-accordionTab style="color:#495057" header="Shapes and Sizes">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Shapes and Sizes</ng-template>
                         <div #nodecontrolsshapes>
                             <div class="form-group row" title="Which variable should determine the shape of the node?">
                                 <div class="col-4">
                                     <label for="node-symbol-variable">Shape By</label>
                                 </div>
                                 <div class="col-8">
-                                    <p-dropdown id="node-symbol-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedNodeSymbolVariable" (ngModelChange)="onNodeSymbolVariableChange($event)"></p-dropdown>
+                                    <p-select id="node-symbol-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedNodeSymbolVariable" (ngModelChange)="onNodeSymbolVariableChange($event)"></p-select>
                                 </div>
                             </div>
                             <div id="node-symbol-table-row" [hidden]="!ShowNodeSymbolTable" class="form-group row" title="What shape should the nodes be?">
@@ -138,7 +140,7 @@
                             <div id="node-symbol-row" [hidden]="ShowNodeSymbolWrapper" class="form-group row" title="What shape should the nodes be?">
                                 <div class="col-4"><label for="node-symbol">Shape</label></div>
                                 <div class="col-8">
-                                  <p-dropdown [options]="symbolMapping" optionValue="key" [(ngModel)]="selectedNodeShape" (ngModelChange)="onNodeShapeChange($event)">
+                                  <p-select [options]="symbolMapping" optionValue="key" [(ngModel)]="selectedNodeShape" (ngModelChange)="onNodeShapeChange($event)">
                                     <ng-template let-symbol pTemplate="selectedItem">
                                       <div>
                                         <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
@@ -151,14 +153,14 @@
                                         {{ symbol.name}}
                                       </div>
                                     </ng-template>
-                                  </p-dropdown>
+                                  </p-select>
                                 </div>
                             </div>
 
                             <div class="form-group row" title="Which variable should determine the size of the node?">
                                 <div class="col-4"><label for="node-radius-variable">Size By</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="node-radius-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedNodeRadiusVariable" (ngModelChange)="onNodeRadiusVariableChange($event)"></p-dropdown>
+                                    <p-select id="node-radius-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedNodeRadiusVariable" (ngModelChange)="onNodeRadiusVariableChange($event)"></p-select>
                                 </div>
                             </div>
                             <div id="node-max-radius-row" class="form-group row" title="Should node max radius to this variable?">
@@ -190,7 +192,8 @@
                         </div>
                     </p-accordionTab>
 
-                    <p-accordionTab style="color:#495057" [selected]="false" header="Colors">
+                    <p-accordionTab style="color:#495057" [selected]="false">
+                    <ng-template pTemplate="header">Colors</ng-template>
                         <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                     </p-accordionTab>
 
@@ -199,7 +202,8 @@
 
             <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
                 <p-accordion>
-                    <p-accordionTab style="color:#495057" header="Labels and Tooltips">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Labels and Tooltips</ng-template>
                         <div #linkcontrolslabels>
                             <div class="form-group row" title="What data should be displayed when you hover over a link?">
                                 <div class="col-4"><label for="link-tooltip-variable">Tooltip</label></div>
@@ -217,7 +221,7 @@
                             <div class="form-group row" title="What data should be displayed when you hover over a link?">
                                 <div class="col-4"><label for="link-label-variable">Label</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="link-label-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkLabelVariable" (ngModelChange)="onLinkLabelVariableChange($event)"></p-dropdown>
+                                    <p-select id="link-label-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkLabelVariable" (ngModelChange)="onLinkLabelVariableChange($event)"></p-select>
                                 </div>
                             </div>
                             <div class="form-group row" title="How many decimals should the number labels have?">
@@ -228,7 +232,8 @@
                         </div>
                     </p-accordionTab>
 
-                    <p-accordionTab style="color:#495057" header="Shapes and Sizes">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Shapes and Sizes</ng-template>
                         <div #linkcontrolsshapes>
                             <div id="link-transparency-row" class="form-group row" title="How transparent should the links be?">
                                 <div class="col-4"><label for="link-opacity">Transparency</label></div>
@@ -237,7 +242,7 @@
                             <div class="form-group row" title="Which variable should determine the width of a link?">
                                 <div class="col-4"><label for="link-width-variable">Width By</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="link-width-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkWidthByVariable" (ngModelChange)="onLinkWidthVariableChange($event)"></p-dropdown>
+                                    <p-select id="link-width-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkWidthByVariable" (ngModelChange)="onLinkWidthVariableChange($event)"></p-select>
                                 </div>
                             </div>
                             <div id="link-max-width-row" class="form-group row display-none" title="Should link max widths to this variable?">
@@ -278,7 +283,8 @@
                     </p-accordionTab>
 
 
-                    <p-accordionTab style="color:#495057" header="Colors">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Colors</ng-template>
                         <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                     </p-accordionTab>
 
@@ -287,7 +293,8 @@
 
             <tab heading="{{'Network' | localize}}" customClass="m-tabs__item">
                 <p-accordion>
-                    <p-accordionTab style="color:#495057" header="Display">
+                    <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Display</ng-template>
                         <div #networkcontrolslabels>
                             <div class="form-group row" title="Should MicrobeTrace Highlight a node's neighbors when you hover on it?">
                                 <div class="col-4">Neighbors</div>
@@ -307,7 +314,8 @@
             </tab>
             <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
                 <p-accordion>
-                    <p-accordionTab style="color:#495057" header="Controls" id="polygons-controls-accordion">
+                    <p-accordionTab style="color:#495057" id="polygons-controls-accordion">
+                    <ng-template pTemplate="header">Controls</ng-template>
                           <div id="polygons-controls" class="show" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
                               <div class="form-group row" title="Show groups?">
@@ -322,7 +330,7 @@
                               <div *ngIf="commonService.session.style.widgets['polygons-show']" class="form-group row polygons-settings-row" title="What node variable to group by?">
                                 <div class="col-4"><label for="polygons-foci">Group By</label></div>
                                 <div class="col-8">
-                                    <p-dropdown id="polygons-foci" [options]="FieldList" appendTo="body" [(ngModel)]="commonService.session.style.widgets['polygons-foci']" (ngModelChange)="centerPolygons($event)"></p-dropdown>
+                                    <p-select id="polygons-foci" [options]="FieldList" appendTo="body" [(ngModel)]="commonService.session.style.widgets['polygons-foci']" (ngModelChange)="centerPolygons($event)"></p-select>
                                 </div>
                               </div>
                               <div class="form-group row" title="Reapply forces to shrink groups and separate them from others. May lead to a better layout. Disabled when nodes are pinned.">
@@ -331,7 +339,8 @@
                             </div>
                           </div>
                     </p-accordionTab>
-                    <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" header="Labels" id="polygons-controls-accordion">
+                    <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" id="polygons-controls-accordion">
+                    <ng-template pTemplate="header">Labels</ng-template>
                           <div id="polygons-controls-labels" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
                               <div class="form-group row" title="Show group labels?">
@@ -360,7 +369,8 @@
                           </div>
                         </p-accordionTab>
                         <!-- style="display: none;" -->
-                        <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" header="Colors" id="polygons-controls-accordion">  
+                        <p-accordionTab *ngIf="commonService.session.style.widgets['polygons-show']" style="color:#495057" id="polygons-controls-accordion">
+                    <ng-template pTemplate="header">Colors</ng-template>  
                           <div id="polygons-controls-colors" data-parent="#polygons-controls-accordion">
                             <div class="card-body">
                               <div id="color-polygons" class="form-group row" title="Distinguish groups by color?">
@@ -440,7 +450,7 @@
                 <td class="tableCount" *ngIf="widgets['node-symbol-table-counts']">{{group.count}}</td>
                 <td class="tableFrequency" *ngIf="widgets['node-symbol-table-frequencies']">{{group.frequency}}</td>
                 <td>
-                  <p-dropdown [options]="symbolMapping" optionValue="key" [ngModel]="commonService.temp.style.nodeSymbolMap(group.key)" (ngModelChange)="onNodeShapeTableChange($event, group.key)" appendTo="body" styleClass="shapeDropdown">
+                  <p-select [options]="symbolMapping" optionValue="key" [ngModel]="commonService.temp.style.nodeSymbolMap(group.key)" (ngModelChange)="onNodeShapeTableChange($event, group.key)" appendTo="body" styleClass="shapeDropdown">
                     <ng-template let-symbol pTemplate="selectedItem">
                       <div>
                         <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
@@ -453,7 +463,7 @@
                         {{ symbol.name}}
                       </div>
                     </ng-template>
-                  </p-dropdown>
+                  </p-select>
                 </td>
               </tr>
              </table>          
@@ -587,19 +597,20 @@
             />
           </div>
           <div class="col-4">
-            <p-dropdown
+            <p-select
               id="network-export-filetype"
               [options]="NetworkExportFileTypeList"
               [(ngModel)]="SelectedNetworkExportFileTypeListVariable"
               (ngModelChange)="onNetworkExportFiletypeChange($event)"
-            ></p-dropdown>
+            ></p-select>
           </div>
         </div>
         <div>
           <!-- Toggle Advanced Export Options -->
           <div [hidden]="SelectedNetworkExportFileTypeListVariable=='svg'">
             <p-accordion>
-              <p-accordionTab style="color:#495057" header="Advanced">
+              <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Advanced</ng-template>
                 <div id="network-export-advanced">
                   <div class="form-group row">
                     <div class="col-3">

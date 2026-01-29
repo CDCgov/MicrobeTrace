@@ -28,37 +28,41 @@
               <tabset class="tab-container tabbable-line">
               <tab heading="{{'Tree' | localize}}" [active]="true" customClass="m-tabs__item">
               <p-accordion [multiple]='true'>
-                  <p-accordionTab style="color:#495057" header="Layout">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Layout</ng-template>
                       <div #treecontrolslabels>
                           <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
                               <div class="col-4"><label for="tree-layout">Layout</label></div>
                               <div class="col-8">
-                                  <p-dropdown id="tree-layout" appendTo="body" [options]="TreeLayouts" [(ngModel)]="SelectedTreeLayoutVariable" (ngModelChange)="onTreeLayoutChange($event)"> </p-dropdown>
+                                  <p-select id="tree-layout" appendTo="body" [options]="TreeLayouts" [(ngModel)]="SelectedTreeLayoutVariable" (ngModelChange)="onTreeLayoutChange($event)"> </p-select>
                               </div>
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Mode">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Mode</ng-template>
                       <div #treecontrolslabels>
                           <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
                               <div class="col-4"><label for="tree-mode">Mode</label></div>
                               <div class="col-8">
-                                  <p-dropdown id="tree-mode" appendTo="body" [options]="TreeModes" [(ngModel)]="SelectedTreeModeVariable" (ngModelChange)="onTreeModeChange($event)"> </p-dropdown>
+                                  <p-select id="tree-mode" appendTo="body" [options]="TreeModes" [(ngModel)]="SelectedTreeModeVariable" (ngModelChange)="onTreeModeChange($event)"> </p-select>
                               </div>
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Type">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Type</ng-template>
                       <div #treecontrolslabels>
                           <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
                               <div class="col-4"><label for="tree-type">Type</label></div>
                               <div class="col-8">
-                                  <p-dropdown id="tree-type" appendTo="body" [options]="TreeTypes" [(ngModel)]="SelectedTreeTypeVariable" (ngModelChange)="onTreeTypeChange($event)"> </p-dropdown>
+                                  <p-select id="tree-type" appendTo="body" [options]="TreeTypes" [(ngModel)]="SelectedTreeTypeVariable" (ngModelChange)="onTreeTypeChange($event)"> </p-select>
                               </div>
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Stretch">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Stretch</ng-template>
                       <div #treecontrolslabels>
                           <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
                               <div class="col-4"><label for="horizontal-stretch">Horizontal Stretch</label></div>
@@ -73,7 +77,8 @@
 
               <tab heading="{{'Leaves' | localize}}" customClass="m-tabs__item">
               <p-accordion>
-                  <p-accordionTab style="color:#495057" header="Labels and Tooltips">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Labels and Tooltips</ng-template>
                       <div #leafcontrolslabels>
                           <div class="form-group row leaf-label-visibility-row" title="Show leaf labels?">
                               <div class="col-4">Show Leaf Labels</div>
@@ -84,7 +89,7 @@
                           <div *ngIf="SelectedLeafLabelShowVariable" class="form-group row leaf-label-variable-row" title="What variable should be used as the leaf label?" style="overflow:visible">
                               <div class="col-4"><label for="leaf-label-variable">Label Variable</label></div>
                               <div class="col-8">
-                                  <p-dropdown id="leaf-label-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafLabelVariable" (ngModelChange)="onLeafLabelVariableChange($event)"> </p-dropdown>
+                                  <p-select id="leaf-label-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafLabelVariable" (ngModelChange)="onLeafLabelVariableChange($event)"> </p-select>
                               </div>
                           </div>
                           <div *ngIf="SelectedLeafLabelShowVariable" class="form-group row leaf-label-size-row" title="How big should leaf labels be?">
@@ -100,12 +105,13 @@
                           <div *ngIf="SelectedLeafTooltipShowVariable" class="form-group row leaf-tooltip-variable-row" title="What variable should be used as the leaf tooltip?" style="overflow:visible">
                               <div class="col-4"><label for="leaf-tooltip-variable">Tooltip Variable</label></div>
                               <div class="col-8">
-                                  <p-dropdown id="leaf-tooltip-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafTooltipVariable" (ngModelChange)="onLeafTooltipVariableChange($event)"> </p-dropdown>
+                                  <p-select id="leaf-tooltip-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafTooltipVariable" (ngModelChange)="onLeafTooltipVariableChange($event)"> </p-select>
                               </div>
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Leaf Size">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Leaf Size</ng-template>
                       <div #leafcontrolslabels>
                           <div class="form-group row " title="Show leaf nodes?">
                               <div class="col-4">Show Leaf Nodes</div>
@@ -115,12 +121,12 @@
                           </div>
                           <!--<div class="form-group row leaf-shape-row" title="What shape should leaves be?">
                               <div class="col-4"><label for="leaf-shape-variable">Leaf Shape</label></div>
-                              <p-dropdown id="leaf-shape-variable" [options]="LeafShapes" appendTo="body" [(ngModel)]="SelectedLeafShapeVariable" (ngModelChange)="onLeafShapeVariableChange($event)"></p-dropdown>
+                              <p-select id="leaf-shape-variable" [options]="LeafShapes" appendTo="body" [(ngModel)]="SelectedLeafShapeVariable" (ngModelChange)="onLeafShapeVariableChange($event)"></p-select>
                           </div>-->
                           <div *ngIf="SelectedLeafNodeShowVariable" class="form-group row leaf-size-var-row" title="What variable should be used to size the nodes?">
                               <div class="col-4"><label for="leaf-size-var">Leaf Size Variable</label></div>
                               <div class="col-8">
-                                <p-dropdown id="leaf-size-var" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafNodeSizeVariable" (ngModelChange)="onLeafNodeSizeVariableChange($event)"> </p-dropdown>
+                                <p-select id="leaf-size-var" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafNodeSizeVariable" (ngModelChange)="onLeafNodeSizeVariableChange($event)"> </p-select>
                               </div>
                           </div>
                           <div *ngIf="SelectedLeafNodeSizeVariable=='None' && SelectedLeafNodeShowVariable" class="form-group row leaf-size-row" title="How big should leaves be?">
@@ -137,7 +143,8 @@
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Colors">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Colors</ng-template>
                       <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                   </p-accordionTab>
               </p-accordion>
@@ -145,7 +152,8 @@
 
               <tab heading="{{'Branches' | localize}}" customClass="m-tabs__item">
               <p-accordion>
-                  <p-accordionTab style="color:#495057" header="Branch Labels">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Branch Labels</ng-template>
                       <div #branchcontrolslabels>
                           <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
                               <div class="col-4"><label for="branch-distance-visibility">Distance Labels</label></div>
@@ -159,7 +167,8 @@
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Branch Size">
+                  <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Branch Size</ng-template>
                       <div #branchcontrollables>
                         <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">
                               <div class="col-4"><label for="branch-node-visibility">Branch Nodes</label></div>
@@ -198,7 +207,7 @@
                                 <input type="text" id="tree-image-filename" class="form-control form-control-sm" placeholder="Image Filename" [(ngModel)]="SelectedTreeImageFilenameVariable" >
                             </div>
                             <div class="col-4">
-                                <p-dropdown id="network-export-filetype" appendTo="body" [options]="NetworkExportFileTypeList" [(ngModel)]="SelectedNetworkExportFileTypeListVariable" ></p-dropdown>
+                                <p-select id="network-export-filetype" appendTo="body" [options]="NetworkExportFileTypeList" [(ngModel)]="SelectedNetworkExportFileTypeListVariable" ></p-select>
                             </div>
                         </div>
                     </div>

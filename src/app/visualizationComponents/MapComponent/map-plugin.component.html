@@ -89,8 +89,8 @@
                         <a>Latitude</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-lat" [options]="FieldList" [(ngModel)]="SelectedLatitude"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-lat" [options]="FieldList" [(ngModel)]="SelectedLatitude"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" title="If your data have a longitude variable, select that here.">
@@ -98,8 +98,8 @@
                         <a>Longitude</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-lon" [options]="FieldList" [(ngModel)]="SelectedLongitude"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-lon" [options]="FieldList" [(ngModel)]="SelectedLongitude"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" title="If your data have a Census Tract variable, select that here.">
@@ -107,8 +107,8 @@
                         <a>Census Tract</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-tract" [options]="FieldList" [(ngModel)]="SelectedCensusTract"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-tract" [options]="FieldList" [(ngModel)]="SelectedCensusTract"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" title="If your data have a zipcode variable, select that here.">
@@ -116,8 +116,8 @@
                         <a>Zipcode</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-zipcode" [options]="FieldList" [(ngModel)]="SelectedZipCode"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-zipcode" [options]="FieldList" [(ngModel)]="SelectedZipCode"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" title="If your data have a County variable, select that here.">
@@ -125,8 +125,8 @@
                         <a>County</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-county" [options]="FieldList" [(ngModel)]="SelectedCounty"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-county" [options]="FieldList" [(ngModel)]="SelectedCounty"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" title="If your data have a (US) State variable, select that here.">
@@ -134,8 +134,8 @@
                         <a>State</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-state" [options]="FieldList" [(ngModel)]="SelectedState"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-state" [options]="FieldList" [(ngModel)]="SelectedState"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
                 <div class="form-group row" title="If your data have a Country variable, select that here.">
@@ -143,8 +143,8 @@
                         <a>Country</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedCountry"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedCountry"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
             <!--/ng-container>
@@ -157,8 +157,8 @@
                         <a>Residence Address &#11044;</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedResidenceAddress"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedResidenceAddress"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div> 
 
@@ -167,8 +167,8 @@
                         <a>Venue Address &#9650;</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedVenueAddress"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedVenueAddress"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
 
@@ -177,8 +177,8 @@
                         <a>Exposure Address &#9632;</a>
                     </div>
                     <div class="col-8">
-                        <p-dropdown id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedExposureAddress"
-                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
+                        <p-select id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedExposureAddress"
+                            (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
                     </div>
                 </div>
             </ng-container-->
@@ -187,7 +187,8 @@
         <tab heading="{{'Components' | localize}}" customClass="m-tabs__item">
 
             <p-accordion>
-                <p-accordionTab style="color:#495057" header="Network">
+                <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Network</ng-template>
                     <div class="form-group row" title="Would you like to see Nodes on the map?">
                         <div class="col-4">Nodes</div>
                         <div class="col-8">
@@ -205,7 +206,8 @@
                         </div>
                     </div>
                 </p-accordionTab>
-                <p-accordionTab style="color:#495057" header="Offline">
+                <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Offline</ng-template>
                     <div class="form-group row" title="Would you like to see Countries on the map?">
                         <div class="col-4">Countries</div>
                         <div class="col-8">
@@ -231,7 +233,8 @@
                         </div>
                     </div>
                 </p-accordionTab>
-                <p-accordionTab style="color:#495057" header="Online">
+                <p-accordionTab style="color:#495057">
+                    <ng-template pTemplate="header">Online</ng-template>
                     <div class="row">
                         <div class="col-12">
                             <div class="alert alert-warning alert-dismissible" role="alert">
@@ -295,9 +298,9 @@
             <div class="form-group row" title="What node data should be displayed as a tooltip for the node?">
                 <div class="col-4"><label for="map-node-tooltip-variable">Tooltip</label></div>
                 <div class="col-8">
-                    <p-dropdown id="map-node-tooltip-variable" [options]="FieldList" appendTo="body"
+                    <p-select id="map-node-tooltip-variable" [options]="FieldList" appendTo="body"
                         [(ngModel)]="SelectedNodeTooltipVariable" (ngModelChange)="onNodeToolTipChange($event)">
-                    </p-dropdown>
+                    </p-select>
                 </div>
             </div>
 
@@ -318,9 +321,9 @@
             <div class="form-group row" title="What link data would you like displayed as a tooltip for the link?">
                 <div class="col-4"><label for="map-link-tooltip-variable">Tooltip</label></div>
                 <div class="col-8">
-                    <p-dropdown id="map-link-tooltip-variable" [options]="LinkToolTipList" appendTo="body"
+                    <p-select id="map-link-tooltip-variable" [options]="LinkToolTipList" appendTo="body"
                         [(ngModel)]="SelectedLinkTooltipVariable" (ngModelChange)="onLinkToolTipChange($event)">
-                    </p-dropdown>
+                    </p-select>
                 </div>
             </div>
 
@@ -340,13 +343,14 @@
                             placeholder="Filename" [(ngModel)]="SelectedNetworkExportFilenameVariable">
                     </div>
                     <div class="col-3">
-                        <p-dropdown id="map-export-filetype" [options]="NetworkExportFileTypeList" appendTo="body"
-                            [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-dropdown>
+                        <p-select id="map-export-filetype" [options]="NetworkExportFileTypeList" appendTo="body"
+                            [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-select>
                     </div>
                 </div>
                 <div>
                     <p-accordion>
-                        <p-accordionTab style="color:#495057" header="Advanced">
+                        <p-accordionTab style="color:#495057">
+                            <ng-template pTemplate="header">Advanced</ng-template>
                             <div id="map-export-advanced">
                                 <div class="form-group row">
                                     <div class="col-3">
