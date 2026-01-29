@@ -92,6 +92,8 @@ cp node_modules/bioseq/dist/bioseq.min.js vendor/
 cp node_modules/patristic/dist/patristic.min.js vendor/
 cp node_modules/tn93/dist/tn93.min.js vendor/
 cp node_modules/papaparse/papaparse.min.js vendor/
+cp workers/select2.min.js vendor/
+cp workers/select2.min.css vendor/
 cp -r node_modules/open-iconic/font/fonts/ .
 
 # echo 'Building Dependencies...'
