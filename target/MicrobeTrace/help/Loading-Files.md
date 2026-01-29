@@ -1,9 +1,0 @@
-To load data into MicrobeTrace, [Open MicrobeTrace](http://microbetrace.herokuapp.com/) and click "Add Files". This will open a file selection dialog. Select the file(s) you wish to load.
-
-At this point, MicrobeTrace should show the list of selected files on screen, along with some controls for each file. The first control, in-line with the filename, is the file-type selector. MicrobeTrace will make a guess about which type of file you have loaded, but you should double-check it (it often gets this wrong, especially between node and link CSVs).
-
-Each file type requires its own inputs. Link CSVs require their `source` and `target` columns to be explicitly identified, and optionally their `distance` field. Node CSVs require their `id` field to be explicitly identified, and optionally their `sequence` field (though this seems to be unusual). FASTA and Distance Matrices presently require no additional information.
-
-If you have sequence information (either a FASTA file or a Node CSV with a `sequence` column), you'll see a "Settings" button next to the "Add Data" button. Clicking this will open a new dialog window containing options concerning the handling of sequence data. The first tab concerns the [alignment](https://github.com/CDCgov/MicrobeTrace/wiki/Alignment) of your sequences. The second tab manages the genetic [distance metrics](https://github.com/CDCgov/MicrobeTrace/wiki/Distance-Metrics) you would like MicrobeTrace to compute on your data. Presently, there are two available: TN93 and SNPs. The third tab contains only the control for the number of system cores you would like to devote to running MicrobeTrace. More cores may yield faster results, but may also result in slowing your computer down, sometimes drastically.
-
-Once you've loaded any data (in any format), the "Submit" button will appear. Click it to begin computing your [network](https://github.com/CDCgov/MicrobeTrace/wiki/Network-View).
