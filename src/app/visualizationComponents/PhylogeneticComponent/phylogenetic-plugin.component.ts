@@ -442,7 +442,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.goldenLayoutComponentResize()
     this.openTree();
 
-    this.container.on('resize', () => { this.goldenLayoutComponentResize() })
+    this.container.on('resize', () => {
+      this.goldenLayoutComponentResize();
+      this.openCenter()
+    })
     this.container.on('hide', () => {
       this.viewActive = false;
       this.cdref.detectChanges();

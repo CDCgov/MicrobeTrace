@@ -14,6 +14,7 @@ import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { values } from 'lodash';
 
 @Component({
   selector: 'CrosstabComponent',
@@ -53,13 +54,13 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   fieldList: SelectItem[];
   SelectedTableData: TableData;
   totalRow;
-  selectedSize = '';
+  selectedSize: 'small' | 'large' | undefined = undefined;
   scrollHeight: string;
   tableStyleCrosstab;
   sizes = [
-      { name: 'Small', class: 'p-datatable-sm' },
-      { name: 'Normal', class: '' },
-      { name: 'Large',  class: 'p-datatable-lg' }
+      { name: 'Small', value: 'small' },
+      { name: 'Normal', value: undefined },
+      { name: 'Large',  value: 'large' }
   ];
 
   constructor(injector: Injector,
@@ -94,7 +95,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     this.updateTable();
 
     // offsets: 70 table-wrapper padding-top, 10 table-wrapper padding-bottom
-    let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
+    let pFooterHeight = this.selectedSize == 'small' ? 41 : this.selectedSize == 'large' ? 65 : 57;
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
     let width = ($('crosstabcomponent').width() - 23) + 'px';
     this.tableStyleCrosstab = {
@@ -525,17 +526,18 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    * Resizes the component as need based on how the goldenlayout dashboard is resized
    */
   goldenLayoutComponentResize() {
-    let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
+    let pFooterHeight = this.selectedSize == 'small' ? 41 : this.selectedSize == 'large' ? 65 : 57;
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
     let width = ($('crosstabcomponent').width() - 23) + 'px';
     this.tableStyleCrosstab = {
         'max-width' : width,
         'display': 'block'
     }
+    this.cdref.detectChanges();
   }
 
   onTableSizeChange() {
-    let pFooterHeight = this.selectedSize == 'p-datatable-sm' ? 41 : this.selectedSize == 'p-datatable-lg' ? 65 : 57;
+    let pFooterHeight = this.selectedSize == 'small' ? 41 : this.selectedSize == 'large' ? 65 : 57;
     console.log('abc', pFooterHeight);
     this.scrollHeight = ($('crosstabcomponent').height() - 70 - 10 - pFooterHeight) + 'px';
   }

@@ -350,7 +350,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 }
         });
 
-        this.container.on('resize', () => { this.lmap.invalidateSize() })
+        this.container.on('resize', () => { 
+            this.lmap.invalidateSize();
+            this.centerMap();
+        })
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -542,7 +545,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             that.drawLinks();
             that.resetStack();
-            // that.visuals.gisMap.lmap.flyToBounds(that.layers.nodes().getBounds());
+            that.centerMap()
             }, false);
 
     }
