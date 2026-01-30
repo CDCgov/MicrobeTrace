@@ -13,7 +13,6 @@ export const GROUPING_PROFILES: DatasetProfile[] = [
         datatype: 'link',
         field1: 'source',
         field2: 'target',
-        // no field3 needed for this fixture if "Distance" is not present/used
       },
     ],
     preLaunch: {
@@ -33,6 +32,12 @@ export const GROUPING_PROFILES: DatasetProfile[] = [
         showGroups: true,
         showGroupColors: false,
         showGroupLabels: false,
+
+        expectedGroups: {
+          '2': ['KF773429', 'KF773432', 'KF773430'],
+          '1': ['KF773576', 'KF773579'],
+          '0': ['KF773427', 'KF773425', 'KF773426', 'KF773578', 'KF773571'],
+        },
       },
     },
   }),

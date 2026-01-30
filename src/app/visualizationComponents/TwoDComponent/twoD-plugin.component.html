@@ -313,8 +313,11 @@
                               <div class="form-group row" title="Show groups?">
                                 <div class="col-4">Groups</div>
                                 <div class="col-8">
-                                    <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-show']" (ngModelChange)="polygonsToggle($event)"></p-selectButton>
-                                </div>
+                                  <p-selectButton id="polygons-show-toggle" [options]="hideShowOptions"
+                                  [(ngModel)]="commonService.session.style.widgets['polygons-show']"
+                                  (ngModelChange)="polygonsToggle($event)">
+                                </p-selectButton>                              
+                              </div>
                               </div>
                               <div *ngIf="commonService.session.style.widgets['polygons-show']" class="form-group row polygons-settings-row" title="What node variable to group by?">
                                 <div class="col-4"><label for="polygons-foci">Group By</label></div>
@@ -369,8 +372,10 @@
                               <div *ngIf="commonService.session.style.widgets['polygons-color-show']" id="polygon-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
                                 <div class="col-4">Group Color Table</div>
                                 <div class="col-8">
-                                    <p-selectButton id="colorPolygonsTable" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']" (ngModelChange)="polygonColorsTableToggle($event)"></p-selectButton>
-                                </div>
+                                  <p-selectButton id="polygon-color-table-toggle" [options]="hideShowOptions"
+                                  [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']"
+                                  (ngModelChange)="polygonColorsTableToggle($event)">
+                                </p-selectButton>                                </div>
                               </div>
                               <div *ngIf="!commonService.session.style.widgets['polygons-color-show']" id="polygon-color-value-row" class="form-group row" title="What color should the groups be?">
                                 <div class="col-4"><label for="polygon-color">Group Color</label></div>
