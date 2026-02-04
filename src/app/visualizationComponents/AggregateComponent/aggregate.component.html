@@ -1,14 +1,15 @@
 <div class="aggregate-wrapper">
-    <div id="tool-btn-container" class="m-portlet">
-        <span style="overflow: visible; position: relative; width: 110px;">
-          <a title="Open Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
-        </span>
-        <span style="overflow: visible; position: relative; width: 110px;">
-          <a title="Export Crosstab Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-        </span>
-    </div>
-    <div style="overflow-y: auto; padding: 0px 20px;" [style.height.px]="viewHeight" id="tablesContainer">
-      <div class="row align-items-center" *ngFor="let table of SelectedDataTables; let i = index" style="margin: 20px 0px; justify-content: center;">
+  <div id="tool-btn-container" class="m-portlet">
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Open Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Export Crosstab Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+    </span>
+  </div>
+  <div style="overflow-y: auto; padding: 0px 20px;" [style.height.px]="viewHeight" id="tablesContainer">
+    @for (table of SelectedDataTables; track table; let i = $index) {
+      <div class="row align-items-center" style="margin: 20px 0px; justify-content: center;">
         <p-table
           [value]="table.data"
           [columns]="table.tableColumns"
@@ -19,68 +20,79 @@
           </ng-template>
           <ng-template pTemplate="header" let-columns>
             <tr>
-              <th *ngFor="let col of table.tableColumns" pSortableColumn="{{col.field}}">
-                {{ col.header}} <p-sortIcon field="{{col.field}}"></p-sortIcon>
-              </th>
+              @for (col of table.tableColumns; track col) {
+                <th pSortableColumn="{{col.field}}">
+                  {{ col.header}} <p-sortIcon field="{{col.field}}"></p-sortIcon>
+                </th>
+              }
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-rowData let-column="table.tableColumns">
             <tr>
-              <td *ngFor="let col of table.tableColumns">
-                {{ col.field=='percent' ? rowData['percent'].toFixed(2)+'%' : rowData[col.field] }}
-              </td>
+              @for (col of table.tableColumns; track col) {
+                <td>
+                  {{ col.field=='percent' ? rowData['percent'].toFixed(2)+'%' : rowData[col.field] }}
+                </td>
+              }
             </tr>
           </ng-template>
         </p-table>
       </div>
-    </div>
+    }
+  </div>
 
-    <p-dialog *ngIf="viewActive" [(visible)]="settingsOpen" header="Aggregate Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
+  @if (viewActive) {
+    <p-dialog [(visible)]="settingsOpen" header="Aggregate Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
       <p-orderList #orderList [value]="SelectedDataFields" [dragdrop]="true" (onReorder)="reordered($event)">
         <ng-template let-i="index" let-field pTemplate="item">
-        <div style="display: flex; width: 100%;">
-          <span class="col-3">Table {{i+1}}</span>
-          <span class="col-7">
-            <p-select [options]="fieldOptions"  [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
-              <ng-template let-group pTemplate="group">
-                <span style="font-size: large; font-weight: bold;">{{ group.label }}</span>
-              </ng-template>
-              <ng-template let-item pTemplate="item">
-                <span>{{ item.short_label }}</span>
-              </ng-template>
-            </p-select>
-          </span>
-          <span class="col-2" *ngIf="SelectedDataFields.length > 1">
-            <p-button icon="pi pi-times" class="deleteButton" (onClick)="deleteTable(i)"/>
-          </span>
-        </div>
-      </ng-template>
+          <div style="display: flex; width: 100%;">
+            <span class="col-3">Table {{i+1}}</span>
+            <span class="col-7">
+              <p-select [options]="fieldOptions"  [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
+                <ng-template let-group pTemplate="group">
+                  <span style="font-size: large; font-weight: bold;">{{ group.label }}</span>
+                </ng-template>
+                <ng-template let-item pTemplate="item">
+                  <span>{{ item.short_label }}</span>
+                </ng-template>
+              </p-select>
+            </span>
+            @if (SelectedDataFields.length > 1) {
+              <span class="col-2">
+                <p-button icon="pi pi-times" class="deleteButton" (onClick)="deleteTable(i)"/>
+              </span>
+            }
+          </div>
+        </ng-template>
       </p-orderList>
       <div class="form-group row" style="justify-content: center;">
         <p-button icon="pi pi-plus" label="Add Table" (onClick)="addTable()"/>
       </div>
-  </p-dialog>
+    </p-dialog>
+  }
 
-  <p-dialog *ngIf="viewActive" [(visible)]="exportOpen" header="Aggregate Export" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
+  @if (viewActive) {
+    <p-dialog [(visible)]="exportOpen" header="Aggregate Export" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
           <div class="modal-body" style='width: 100%; height: 100%;'>
-              <div class="form-group row">
-                  <div class="col-9">
-                    <input type="text" style="height:42px" class="form-control form-control-sm"
-                        placeholder="Filename" [(ngModel)]="SelectedAggregateExportFilename">
-                  </div>
-                  <div class="col-3">
-                    <p-select [options]="AggregateExportFileTypeList"
-                        [(ngModel)]="SelectedAggregateExportFileType" appendTo="body"></p-select>
-                  </div>
+            <div class="form-group row">
+              <div class="col-9">
+                <input type="text" style="height:42px" class="form-control form-control-sm"
+                  placeholder="Filename" [(ngModel)]="SelectedAggregateExportFilename">
+                </div>
+                <div class="col-3">
+                  <p-select [options]="AggregateExportFileTypeList"
+                  [(ngModel)]="SelectedAggregateExportFileType" appendTo="body"></p-select>
+                </div>
               </div>
-          </div>
-          <div class="modal-footer">
+            </div>
+            <div class="modal-footer">
               <button type="button" class="btn btn-error" (click)="exportOpen = !exportOpen">Cancel</button>
               <button type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
-          </div>
-      </div><!-- /.modal-content -->
+            </div>
+          </div><!-- /.modal-content -->
+        </div>
+      </p-dialog>
+    }
   </div>
-</p-dialog>
-</div>

@@ -1,417 +1,514 @@
 <div class="msa-viewer-container">
-    <div id="msa-viewer" [style.height.px]="alignmentViewHeight">
-        <div class="left">  
-            <div style="text-align: center;" [style.width.px]="leftWidth">
-                <div id='miniMapTitle' class="title" title="Mini Map of entire length for all the sequences. Click to move to an area of the viewer.">Mini Map</div>
-                <div id='alignmnetTopTitle' class="title" style="height: 100px; line-height: 100px;"></div>
-                <div class="title" style="height: 43px; line-height: 43px;" title="Number of Nucleotides from the start of the sequence">Ruler</div>
-                <div style="height: 17px;"></div>
-            </div>
-            <div class="canvasLabels" [style.height.px]="canvasViewHeight-17" [style.width.px]="leftWidth" #canvasLabels (scroll)="canvasHolder.scrollTop=canvasLabels.scrollTop">
-                <div *ngFor="let label of labelArray" [attr.data-index]="label['index']" [ngStyle]="{'font-size.px': fontSize, 'height.px': spanHeight}">{{ label[ this.widgets['alignView-labelField'] ] }}</div>
-            </div>
-        </div>
-        <div class="right" [style.height.px]="rightViewHeight">
-            <div id="miniMapHolder">
-                <div id="miniMap" (mouseenter)="showMiniMapHighlight($event, miniMap)" (mousemove)="updateMiniMapHighlight($event, miniMap)" (mouseleave)="hideMiniMapHighlight()" (click)="miniMapClick($event, miniMap, canvasHolder, canvasLabels, alignmentTop)" #miniMap>
-                    <div id="miniMapHighlight"></div>
-                    <!--<canvas> for miniMap here-->
-                </div>
-            </div>
-            <div id="alignmentTop" (scroll)="canvasHolder.scrollLeft=alignmentTop.scrollLeft" [style.width.px]="rightWidth" #alignmentTop>
-                <svg [attr.width]="getSVGWidth()" height="140" style="background-color: white;" xmlns:xlink="http://www.w3.org/1999/xlink">
-                    <g *ngIf="selectedSeqType != 'aa'">
-                        <g *ngFor="let nt of proportionMatrix; index as i">
-                            <g *ngIf="this.widgets['alignView-topDisplay'] === 'barplot' && i >=startPos-1">
-                                <g *ngFor="let prop of nt; index as j">
-                                    <rect *ngIf="prop>0" [attr.y]="positionMatrix[i][j]" [attr.x]="xPos(i)" [attr.height]="100*prop" [attr.width]="spanWidth" [attr.fill]="fillColor(j)"/>
-                                </g>
-                            </g>
-                            <g *ngIf="this.widgets['alignView-topDisplay'] === 'logo' && i >=startPos-1">
-                                <g class="A" *ngIf="nt[0]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][0] + ') scale(' + spanWidth/100 + ', ' + nt[0] + ')'" 
-                                    [attr.fill]="fillColor(0)">
-                                    <path d="M 0 100 L 33 0 L 66 0 L 100 100 L 75 100 L 66 75 L 33 75 L 25 100 L 0 100"/>
-                                    <path fill="#ffffff" d="M 41 55 L 50 25 L 58 55 L 41 55"/>
-                                </g>
-                                <path class="C" *ngIf="nt[1]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][1] + ') scale(' + spanWidth/100 + ', ' + nt[1] + ')'" 
-                                    [attr.fill]="fillColor(1)"
-                                    d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 10 75 28 L 100 28"/>
-                                <path class="G" *ngIf="nt[2]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrix[i][2] + ') scale(' + spanWidth/100 + ', ' + nt[2] + ')'" 
-                                    [attr.fill]="fillColor(2)"
-                                    d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 100 48 L 55 48 L 55 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 5 75 28 L 100 28"/>
-                                <path class="T" *ngIf="nt[3]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][3] + ') scale(' + spanWidth/100 + ', ' + nt[3] + ')'" 
-                                    [attr.fill]="fillColor(3)"
-                                    d="M 0 0 L 0 20 L 35 20 L 35 100 L 65 100 L 65 20 L 100 20 L 100 0 L 0 0"/>
-                            </g>
-                            <g *ngIf="((i+1) %100 == 0 && i > startPos+1 )|| i==startPos-1">
-                                <text y="120" [attr.x]="(i >= 100 && i!=startPos-1) ? xPos(i)-10 : xPos(i)">{{ i + 1 }}</text>
-                                <text y="140" [attr.x]="xPos(i)">|</text>
-                            </g>
-                            <g *ngIf="(i+1) % this.widgets['alignView-rulerMinorInterval'] == 0 && (i+1)%100 != 0 && i >startPos+1">
-                                <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)-5">{{ i + 1 }}</text>
-                                <text y="140" [attr.x]="xPos(i)">:</text>
-                            </g>
-                            <rect [attr.width]="spanWidth" [attr.x]="xPos(i)" height="100" y="0" style="fill: transparent" (mouseenter)="showTooltip($event, i)" (mouseleave)="hideTooltip()"/>
-                        </g>
-
-                    </g>
-                    <g *ngIf="selectedSeqType=='aa'">
-                        <g *ngFor="let aa of proportionMatrixAA; index as i">
-                            <g *ngIf="this.widgets['alignView-topDisplay'] === 'barplot'">
-                                <g *ngFor="let prop of aa; index as j">
-                                    <rect *ngIf="prop>0" [attr.y]="positionMatrixAA[i][j]" [attr.x]="xPos(i)" [attr.height]="100*prop" [attr.width]="spanWidth" [attr.fill]="fillColor(j)"/>
-                                </g>
-                            </g>
-                            <g *ngIf="this.widgets['alignView-topDisplay'] === 'logo'"> <!-- SVG for letters from: https://github.com/weng-lab/logojs-package/tree/master/src/components/glyphs -->
-                                <g class="A" *ngIf="aa[0]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][0] + ') scale(' + spanWidth/100 + ', ' + aa[0] + ')'" 
-                                    [attr.fill]="fillColor(0)">
-                                    <path d="M 0 100 L 33 0 L 66 0 L 100 100 L 75 100 L 66 75 L 33 75 L 25 100 L 0 100"/>
-                                    <path fill="#ffffff" d="M 41 55 L 50 25 L 58 55 L 41 55"/>
-                                </g>
-                                <g class="R" *ngIf="aa[1]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][1] + ') scale(' + spanWidth/100 + ', ' + aa[1] + ')'" 
-                                    [attr.fill]="fillColor(1)">
-                                    <path d="M 0 0 L 80 0 C 105 0 105 50 80 50 C 100 50 100 70 100 70 L 100 100 L 80 100 L 80 80 C 80 80 80 60 50 60 L 20 60 L 20 100 L 0 100 L 0 0" />
-                                    <path fill="#ffffff" d="M 20 15 L 70 15 C 80 15 80 35 70 35 L 20 35 L 20 15" />
-                                </g>
-                                <path class="N" *ngIf="aa[2]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][2] + ') scale(' + spanWidth/100 + ', ' + aa[2] + ')'" 
-                                    [attr.fill]="fillColor(2)"
-                                    d="M 0 100 L 0 0 L 20 0 L 80 75 L 80 0 L 100 0 L 100 100 L 80 100 L 20 25 L 20 100 L 0 100"/>
-                                <g class="D" *ngIf="aa[3]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][3] + ') scale(' + spanWidth/100 + ', ' + aa[3] + ')'" 
-                                    [attr.fill]="fillColor(3)">
-                                    <path d="M 0 0 L 60 0 C 110 0 110 100 60 100 L 0 100 L 0 0"/>
-                                    <path fill="#ffffff" d="M 20 15 L 40 15 C 85 15 85 85 40 85 L 20 85 L 20 15"/>
-                                </g>
-                                <path class="C" *ngIf="aa[4]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][4] + ') scale(' + spanWidth/100 + ', ' + aa[4] + ')'" 
-                                    [attr.fill]="fillColor(4)"
-                                    d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 10 75 28 L 100 28"/>
-                                <path class="E" *ngIf="aa[5]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][5] + ') scale(' + spanWidth/100 + ', ' + aa[5] + ')'" 
-                                    [attr.fill]="fillColor(5)"
-                                    d="M 0 0 L 100 0 L 100 20 L 20 20 L 20 40 L 90 40 L 90 60 L 20 60 L 20 80 L 100 80 L 100 100 L 0 100 L 0 0"/>
-                                <g class="Q" *ngIf="aa[6]>0 " [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][6] + ') scale(' + spanWidth/100 + ', ' + aa[6] + ')'" 
-                                    [attr.fill]="fillColor(6)">
-                                    <circle cx="50" cy="50" r="50"/>
-                                    <circle cx="50" cy="50" r="32" fill="#ffffff" />
-                                    <path d="M 85 100 L 55 70 L 70 55 L 100 85 L 85 100"/>
-                                </g>
-                                <path class="G" *ngIf="aa[7]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][7] + ') scale(' + spanWidth/100 + ', ' + aa[7] + ')'" 
-                                    [attr.fill]="fillColor(7)"
-                                    d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 100 48 L 55 48 L 55 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 5 75 28 L 100 28"/>
-                                <path class="H" *ngIf="aa[8]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][8] + ') scale(' + spanWidth/100 + ', ' + aa[8] + ')'" 
-                                    [attr.fill]="fillColor(8)"
-                                    d="M 0 0 L 20 0 L 20 40 L 80 40 L 80 0 L 100 0 L 100 100 L 80 100 L 80 60 L 20 60 L 20 100 L 0 100 L 0 0"/>
-                                <path class="I" *ngIf="aa[9]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][9] + ') scale(' + spanWidth/100 + ', ' + aa[9] + ')'" 
-                                    [attr.fill]="fillColor(9)"
-                                    d="M 40 0 L 60 0 L 60 100 L 40 100 L 40 0"/> 
-                                <path class="L" *ngIf="aa[10]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][10] + ') scale(' + spanWidth/100 + ', ' + aa[10] + ')'" 
-                                    [attr.fill]="fillColor(10)"
-                                    d="M 0 0 L 0 100 L 100 100 L 100 80 L 20 80 L 20 0 L 0 0"/>    
-                                <path class="K" *ngIf="aa[11]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][11] + ') scale(' + spanWidth/100 + ', ' + aa[11] + ')'" 
-                                    [attr.fill]="fillColor(11)"
-                                    d="M 0 0 L 20 0 L 20 40 L 75 0 L 100 0 L 50 50 L 100 100 L 75 100 L 30 65 L 20 75 L 20 100 L 0 100 L 0 0"/>
-                                <path class="M" *ngIf="aa[12]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][12] + ') scale(' + spanWidth/100 + ', ' + aa[12] + ')'" 
-                                    [attr.fill]="fillColor(12)"
-                                    d="M 0 0 L 20 0 L 50 35 L 80 0 L 100 0 L 100 100 L 80 100 L 80 30 L 50 65 L 20 30 L 20 100 L 0 100 L 0 0"/>
-                                <path class="F" *ngIf="aa[13]>0" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][13] + ') scale(' + spanWidth/100 + ', ' + aa[13] + ')'" 
-                                    [attr.fill]="fillColor(13)"
-                                    d="M 0 0 L 100 0 L 100 20 L 20 20 L 20 40 L 80 40 L 80 60 L 20 60 L 20 100 L 0 100 L 0 0"/> 
-                                <g class="P" *ngIf="aa[14]>0 " [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][14] + ') scale(' + spanWidth/100 + ', ' + aa[14] + ')'" 
-                                    [attr.fill]="fillColor(14)">
-                                    <path d="M 0 0 L 80 0 C 105 0 105 50 80 50 L 20 50 L 20 100 L 0 100 L 0 0"/>
-                                    <path fill="#ffffff" d="M 20 15 L 70 15 C 80 15 80 35 70 35 L 20 35 L 20 15" />
-                                </g>
-                                <path class="S" *ngIf="aa[15]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][15] + ') scale(' + spanWidth/100 + ', ' + aa[15] + ')'" 
-                                    fill="#ffffff" [attr.stroke]="fillColor(15)" stroke-width="16"
-                                    d="M92 26 A43 20 0 1 0 43 46 A42 23 0 1 1 9 68"/>
-                                <path class="T" *ngIf="aa[16]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][16] + ') scale(' + spanWidth/100 + ', ' + aa[16] + ')'" 
-                                    [attr.fill]="fillColor(16)"
-                                    d="M 0 0 L 0 20 L 35 20 L 35 100 L 65 100 L 65 20 L 100 20 L 100 0 L 0 0"/>
-                                <path class="W" *ngIf="aa[17]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][17] + ') scale(' + spanWidth/100 + ', ' + aa[17] + ')'" 
-                                    [attr.fill]="fillColor(17)"
-                                    d="M 0 0 L 20 0 L 30 70 L 50 30 L 70 70 L 80 0 L 100 0 L 90 100 L 70 100 L 50 65 L 30 100 L 10 100 L 0 0"/>
-                                <path class="Y" *ngIf="aa[18]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][18] + ') scale(' + spanWidth/100 + ', ' + aa[18] + ')'" 
-                                    [attr.fill]="fillColor(18)"
-                                    d="M 0 0 L 20 0 L 50 45 L 80 0 L 100 0 L 60 60 L 60 100 L 40 100 L 40 60 L 0 0"/>
-                                <path class="V" *ngIf="aa[19]>0" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][19] + ') scale(' + spanWidth/100 + ', ' + aa[19] + ')'" 
-                                    [attr.fill]="fillColor(19)"
-                                    d="M 0 0 L 20 0 L 50 80 L 80 0 L 100 0 L 60 100 L 40 100 L 0 0"/>
-                            </g>
-                            <g *ngIf="(i+1) %100 == 0 || i==0">
-                                <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)">{{ i + 1 }}</text>
-                                <text y="140" [attr.x]="xPos(i)">|</text>
-                            </g>
-                            <g *ngIf="(i+1) % this.widgets['alignView-rulerMinorInterval'] == 0 && (i+1)%100 != 0">
-                                <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)-5">{{ i + 1 }}</text>
-                                <text y="140" [attr.x]="xPos(i)">:</text>
-                            </g>
-                            <rect [attr.width]="spanWidth" [attr.x]="xPos(i)" height="100" y="0" style="fill: transparent" (mouseenter)="showTooltip($event, i)" (mouseleave)="hideTooltip()"/>
-                        </g>
-                    </g>
-
-
-                </svg>
-            </div>
-            <div class="canvasHolder" [style.height.px]="canvasViewHeight" [style.width.px]="rightWidth" (scroll)="canvasScroll(canvasHolder, canvasLabels, alignmentTop)" #canvasHolder></div>
-        </div>
+  <div id="msa-viewer" [style.height.px]="alignmentViewHeight">
+    <div class="left">
+      <div style="text-align: center;" [style.width.px]="leftWidth">
+        <div id='miniMapTitle' class="title" title="Mini Map of entire length for all the sequences. Click to move to an area of the viewer.">Mini Map</div>
+        <div id='alignmnetTopTitle' class="title" style="height: 100px; line-height: 100px;"></div>
+        <div class="title" style="height: 43px; line-height: 43px;" title="Number of Nucleotides from the start of the sequence">Ruler</div>
+        <div style="height: 17px;"></div>
+      </div>
+      <div class="canvasLabels" [style.height.px]="canvasViewHeight-17" [style.width.px]="leftWidth" #canvasLabels (scroll)="canvasHolder.scrollTop=canvasLabels.scrollTop">
+        @for (label of labelArray; track label) {
+          <div [attr.data-index]="label['index']" [ngStyle]="{'font-size.px': fontSize, 'height.px': spanHeight}">{{ label[ this.widgets['alignView-labelField'] ] }}</div>
+        }
+      </div>
     </div>
+    <div class="right" [style.height.px]="rightViewHeight">
+      <div id="miniMapHolder">
+        <div id="miniMap" (mouseenter)="showMiniMapHighlight($event, miniMap)" (mousemove)="updateMiniMapHighlight($event, miniMap)" (mouseleave)="hideMiniMapHighlight()" (click)="miniMapClick($event, miniMap, canvasHolder, canvasLabels, alignmentTop)" #miniMap>
+          <div id="miniMapHighlight"></div>
+          <!--<canvas> for miniMap here-->
+        </div>
+      </div>
+      <div id="alignmentTop" (scroll)="canvasHolder.scrollLeft=alignmentTop.scrollLeft" [style.width.px]="rightWidth" #alignmentTop>
+        <svg [attr.width]="getSVGWidth()" height="140" style="background-color: white;" xmlns:xlink="http://www.w3.org/1999/xlink">
+          @if (selectedSeqType != 'aa') {
+            <g>
+              @for (nt of proportionMatrix; track nt; let i = $index) {
+                <g>
+                  @if (this.widgets['alignView-topDisplay'] === 'barplot' && i >=startPos-1) {
+                    <g>
+                      @for (prop of nt; track prop; let j = $index) {
+                        <g>
+                          @if (prop>0) {
+                            <rect [attr.y]="positionMatrix[i][j]" [attr.x]="xPos(i)" [attr.height]="100*prop" [attr.width]="spanWidth" [attr.fill]="fillColor(j)"/>
+                          }
+                        </g>
+                      }
+                    </g>
+                  }
+                  @if (this.widgets['alignView-topDisplay'] === 'logo' && i >=startPos-1) {
+                    <g>
+                      @if (nt[0]>0) {
+                        <g class="A" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][0] + ') scale(' + spanWidth/100 + ', ' + nt[0] + ')'"
+                          [attr.fill]="fillColor(0)">
+                          <path d="M 0 100 L 33 0 L 66 0 L 100 100 L 75 100 L 66 75 L 33 75 L 25 100 L 0 100"/>
+                          <path fill="#ffffff" d="M 41 55 L 50 25 L 58 55 L 41 55"/>
+                        </g>
+                      }
+                      @if (nt[1]>0) {
+                        <path class="C" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][1] + ') scale(' + spanWidth/100 + ', ' + nt[1] + ')'"
+                          [attr.fill]="fillColor(1)"
+                          d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 10 75 28 L 100 28"/>
+                      }
+                      @if (nt[2]>0) {
+                        <path class="G" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrix[i][2] + ') scale(' + spanWidth/100 + ', ' + nt[2] + ')'"
+                          [attr.fill]="fillColor(2)"
+                          d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 100 48 L 55 48 L 55 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 5 75 28 L 100 28"/>
+                      }
+                      @if (nt[3]>0) {
+                        <path class="T" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][3] + ') scale(' + spanWidth/100 + ', ' + nt[3] + ')'"
+                          [attr.fill]="fillColor(3)"
+                          d="M 0 0 L 0 20 L 35 20 L 35 100 L 65 100 L 65 20 L 100 20 L 100 0 L 0 0"/>
+                      }
+                    </g>
+                  }
+                  @if (((i+1) %100 == 0 && i > startPos+1 )|| i==startPos-1) {
+                    <g>
+                      <text y="120" [attr.x]="(i >= 100 && i!=startPos-1) ? xPos(i)-10 : xPos(i)">{{ i + 1 }}</text>
+                      <text y="140" [attr.x]="xPos(i)">|</text>
+                    </g>
+                  }
+                  @if ((i+1) % this.widgets['alignView-rulerMinorInterval'] == 0 && (i+1)%100 != 0 && i >startPos+1) {
+                    <g>
+                      <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)-5">{{ i + 1 }}</text>
+                      <text y="140" [attr.x]="xPos(i)">:</text>
+                    </g>
+                  }
+                  <rect [attr.width]="spanWidth" [attr.x]="xPos(i)" height="100" y="0" style="fill: transparent" (mouseenter)="showTooltip($event, i)" (mouseleave)="hideTooltip()"/>
+                </g>
+              }
+            </g>
+          }
+          @if (selectedSeqType=='aa') {
+            <g>
+              @for (aa of proportionMatrixAA; track aa; let i = $index) {
+                <g>
+                  @if (this.widgets['alignView-topDisplay'] === 'barplot') {
+                    <g>
+                      @for (prop of aa; track prop; let j = $index) {
+                        <g>
+                          @if (prop>0) {
+                            <rect [attr.y]="positionMatrixAA[i][j]" [attr.x]="xPos(i)" [attr.height]="100*prop" [attr.width]="spanWidth" [attr.fill]="fillColor(j)"/>
+                          }
+                        </g>
+                      }
+                    </g>
+                  }
+                  @if (this.widgets['alignView-topDisplay'] === 'logo') {
+                    <g> <!-- SVG for letters from: https://github.com/weng-lab/logojs-package/tree/master/src/components/glyphs -->
+                      @if (aa[0]>0) {
+                        <g class="A" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][0] + ') scale(' + spanWidth/100 + ', ' + aa[0] + ')'"
+                          [attr.fill]="fillColor(0)">
+                          <path d="M 0 100 L 33 0 L 66 0 L 100 100 L 75 100 L 66 75 L 33 75 L 25 100 L 0 100"/>
+                          <path fill="#ffffff" d="M 41 55 L 50 25 L 58 55 L 41 55"/>
+                        </g>
+                      }
+                      @if (aa[1]>0) {
+                        <g class="R" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][1] + ') scale(' + spanWidth/100 + ', ' + aa[1] + ')'"
+                          [attr.fill]="fillColor(1)">
+                          <path d="M 0 0 L 80 0 C 105 0 105 50 80 50 C 100 50 100 70 100 70 L 100 100 L 80 100 L 80 80 C 80 80 80 60 50 60 L 20 60 L 20 100 L 0 100 L 0 0" />
+                          <path fill="#ffffff" d="M 20 15 L 70 15 C 80 15 80 35 70 35 L 20 35 L 20 15" />
+                        </g>
+                      }
+                      @if (aa[2]>0) {
+                        <path class="N" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][2] + ') scale(' + spanWidth/100 + ', ' + aa[2] + ')'"
+                          [attr.fill]="fillColor(2)"
+                          d="M 0 100 L 0 0 L 20 0 L 80 75 L 80 0 L 100 0 L 100 100 L 80 100 L 20 25 L 20 100 L 0 100"/>
+                      }
+                      @if (aa[3]>0) {
+                        <g class="D" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][3] + ') scale(' + spanWidth/100 + ', ' + aa[3] + ')'"
+                          [attr.fill]="fillColor(3)">
+                          <path d="M 0 0 L 60 0 C 110 0 110 100 60 100 L 0 100 L 0 0"/>
+                          <path fill="#ffffff" d="M 20 15 L 40 15 C 85 15 85 85 40 85 L 20 85 L 20 15"/>
+                        </g>
+                      }
+                      @if (aa[4]>0) {
+                        <path class="C" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][4] + ') scale(' + spanWidth/100 + ', ' + aa[4] + ')'"
+                          [attr.fill]="fillColor(4)"
+                          d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 10 75 28 L 100 28"/>
+                      }
+                      @if (aa[5]>0) {
+                        <path class="E" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][5] + ') scale(' + spanWidth/100 + ', ' + aa[5] + ')'"
+                          [attr.fill]="fillColor(5)"
+                          d="M 0 0 L 100 0 L 100 20 L 20 20 L 20 40 L 90 40 L 90 60 L 20 60 L 20 80 L 100 80 L 100 100 L 0 100 L 0 0"/>
+                      }
+                      @if (aa[6]>0 ) {
+                        <g class="Q" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][6] + ') scale(' + spanWidth/100 + ', ' + aa[6] + ')'"
+                          [attr.fill]="fillColor(6)">
+                          <circle cx="50" cy="50" r="50"/>
+                          <circle cx="50" cy="50" r="32" fill="#ffffff" />
+                          <path d="M 85 100 L 55 70 L 70 55 L 100 85 L 85 100"/>
+                        </g>
+                      }
+                      @if (aa[7]>0) {
+                        <path class="G" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][7] + ') scale(' + spanWidth/100 + ', ' + aa[7] + ')'"
+                          [attr.fill]="fillColor(7)"
+                          d="M 100 28 C 100 -13 0 -13 0 50 C 0 113 100 113 100 72 L 100 48 L 55 48 L 55 72 L 75 72 C 75 90 30 90 30 50 C 30 10 75 5 75 28 L 100 28"/>
+                      }
+                      @if (aa[8]>0) {
+                        <path class="H" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][8] + ') scale(' + spanWidth/100 + ', ' + aa[8] + ')'"
+                          [attr.fill]="fillColor(8)"
+                          d="M 0 0 L 20 0 L 20 40 L 80 40 L 80 0 L 100 0 L 100 100 L 80 100 L 80 60 L 20 60 L 20 100 L 0 100 L 0 0"/>
+                      }
+                      @if (aa[9]>0) {
+                        <path class="I" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][9] + ') scale(' + spanWidth/100 + ', ' + aa[9] + ')'"
+                          [attr.fill]="fillColor(9)"
+                          d="M 40 0 L 60 0 L 60 100 L 40 100 L 40 0"/>
+                      }
+                      @if (aa[10]>0) {
+                        <path class="L" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][10] + ') scale(' + spanWidth/100 + ', ' + aa[10] + ')'"
+                          [attr.fill]="fillColor(10)"
+                          d="M 0 0 L 0 100 L 100 100 L 100 80 L 20 80 L 20 0 L 0 0"/>
+                      }
+                      @if (aa[11]>0) {
+                        <path class="K" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][11] + ') scale(' + spanWidth/100 + ', ' + aa[11] + ')'"
+                          [attr.fill]="fillColor(11)"
+                          d="M 0 0 L 20 0 L 20 40 L 75 0 L 100 0 L 50 50 L 100 100 L 75 100 L 30 65 L 20 75 L 20 100 L 0 100 L 0 0"/>
+                      }
+                      @if (aa[12]>0) {
+                        <path class="M" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][12] + ') scale(' + spanWidth/100 + ', ' + aa[12] + ')'"
+                          [attr.fill]="fillColor(12)"
+                          d="M 0 0 L 20 0 L 50 35 L 80 0 L 100 0 L 100 100 L 80 100 L 80 30 L 50 65 L 20 30 L 20 100 L 0 100 L 0 0"/>
+                      }
+                      @if (aa[13]>0) {
+                        <path class="F" [attr.transform]="'translate(' + xPos(i) + ', ' +  positionMatrixAA[i][13] + ') scale(' + spanWidth/100 + ', ' + aa[13] + ')'"
+                          [attr.fill]="fillColor(13)"
+                          d="M 0 0 L 100 0 L 100 20 L 20 20 L 20 40 L 80 40 L 80 60 L 20 60 L 20 100 L 0 100 L 0 0"/>
+                      }
+                      @if (aa[14]>0 ) {
+                        <g class="P" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][14] + ') scale(' + spanWidth/100 + ', ' + aa[14] + ')'"
+                          [attr.fill]="fillColor(14)">
+                          <path d="M 0 0 L 80 0 C 105 0 105 50 80 50 L 20 50 L 20 100 L 0 100 L 0 0"/>
+                          <path fill="#ffffff" d="M 20 15 L 70 15 C 80 15 80 35 70 35 L 20 35 L 20 15" />
+                        </g>
+                      }
+                      @if (aa[15]>0) {
+                        <path class="S" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][15] + ') scale(' + spanWidth/100 + ', ' + aa[15] + ')'"
+                          fill="#ffffff" [attr.stroke]="fillColor(15)" stroke-width="16"
+                          d="M92 26 A43 20 0 1 0 43 46 A42 23 0 1 1 9 68"/>
+                      }
+                      @if (aa[16]>0) {
+                        <path class="T" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][16] + ') scale(' + spanWidth/100 + ', ' + aa[16] + ')'"
+                          [attr.fill]="fillColor(16)"
+                          d="M 0 0 L 0 20 L 35 20 L 35 100 L 65 100 L 65 20 L 100 20 L 100 0 L 0 0"/>
+                      }
+                      @if (aa[17]>0) {
+                        <path class="W" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][17] + ') scale(' + spanWidth/100 + ', ' + aa[17] + ')'"
+                          [attr.fill]="fillColor(17)"
+                          d="M 0 0 L 20 0 L 30 70 L 50 30 L 70 70 L 80 0 L 100 0 L 90 100 L 70 100 L 50 65 L 30 100 L 10 100 L 0 0"/>
+                      }
+                      @if (aa[18]>0) {
+                        <path class="Y" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][18] + ') scale(' + spanWidth/100 + ', ' + aa[18] + ')'"
+                          [attr.fill]="fillColor(18)"
+                          d="M 0 0 L 20 0 L 50 45 L 80 0 L 100 0 L 60 60 L 60 100 L 40 100 L 40 60 L 0 0"/>
+                      }
+                      @if (aa[19]>0) {
+                        <path class="V" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrixAA[i][19] + ') scale(' + spanWidth/100 + ', ' + aa[19] + ')'"
+                          [attr.fill]="fillColor(19)"
+                          d="M 0 0 L 20 0 L 50 80 L 80 0 L 100 0 L 60 100 L 40 100 L 0 0"/>
+                      }
+                    </g>
+                  }
+                  @if ((i+1) %100 == 0 || i==0) {
+                    <g>
+                      <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)">{{ i + 1 }}</text>
+                      <text y="140" [attr.x]="xPos(i)">|</text>
+                    </g>
+                  }
+                  @if ((i+1) % this.widgets['alignView-rulerMinorInterval'] == 0 && (i+1)%100 != 0) {
+                    <g>
+                      <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)-5">{{ i + 1 }}</text>
+                      <text y="140" [attr.x]="xPos(i)">:</text>
+                    </g>
+                  }
+                  <rect [attr.width]="spanWidth" [attr.x]="xPos(i)" height="100" y="0" style="fill: transparent" (mouseenter)="showTooltip($event, i)" (mouseleave)="hideTooltip()"/>
+                </g>
+              }
+            </g>
+          }
+
+
+        </svg>
+      </div>
+      <div class="canvasHolder" [style.height.px]="canvasViewHeight" [style.width.px]="rightWidth" (scroll)="canvasScroll(canvasHolder, canvasLabels, alignmentTop)" #canvasHolder></div>
+    </div>
+  </div>
 </div>
 
 <div id="tooltipHolder">
-    <div class="triangle"></div>
-    <span id="tooltipAlign"></span>
+  <div class="triangle"></div>
+  <span id="tooltipAlign"></span>
 </div>
 
 <div id="tool-btn-container" class="m-portlet">
-    <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
-    </span>
-    <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-    </span>
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+  </span>
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+  </span>
 </div>
 
 <div class="view-controls">
-    <p-dialog *ngIf="viewActive" id="alignment-settings-pane" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
-        <p-accordion [value]="null" [multiple]="true">
-            <p-accordion-panel style="color:#495057">
-                        <p-accordion-header>Data</p-accordion-header>
-                        <p-accordion-content><div #dataControls>
-                    <div class="form-group row" title="Set a predefined size">
-                        <div class="col-2"><label>Sequence</label></div>
-                        <div class="col-10">
-                            <p-selectButton [options]="seqTypeOptions" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
-                        </div>
-                    </div>
-                    <div class="form-group row node-label-row" title="Set start position." *ngIf="selectedSeqType != 'nt'">
-                        <div class="col-5"><label>Start Position</label></div>
-                        <div class="col-7">
-                            <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="startPos" (ngModelChange)="onSeqTypeChange()">
-                        </div>
-                    </div>
-                    <div class="form-group row" *ngIf="selectedSeqType == 'aa'" title="Maintain Reading Frame will ignore NT gaps when converting NTs to AAs, but will try to guess where AA gaps are. 
+  @if (viewActive) {
+    <p-dialog id="alignment-settings-pane" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
+      <p-accordion [value]="null" [multiple]="true">
+        <p-accordion-panel style="color:#495057">
+          <p-accordion-header>Data</p-accordion-header>
+          <p-accordion-content><div #dataControls>
+            <div class="form-group row" title="Set a predefined size">
+              <div class="col-2"><label>Sequence</label></div>
+              <div class="col-10">
+                <p-selectButton [options]="seqTypeOptions" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
+              </div>
+            </div>
+            @if (selectedSeqType != 'nt') {
+              <div class="form-group row node-label-row" title="Set start position.">
+                <div class="col-5"><label>Start Position</label></div>
+                <div class="col-7">
+                  <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="startPos" (ngModelChange)="onSeqTypeChange()">
+                </div>
+              </div>
+            }
+            @if (selectedSeqType == 'aa') {
+<div class="form-group row" title="Maintain Reading Frame will ignore NT gaps when converting NTs to AAs, but will try to guess where AA gaps are. 
 Maintain Codon doesn't ignore gaps when converting NTs into AAs.
 Given sequence ('CT-T...'), Maintain Reading Frame will convert codon CCT to L. 
 Maintain Codon will convert codon CT- to X (Unknown).">
-                        <div class="col-5"><label>Translation Settings</label></div>
-                        <div class="col-7">
-                            <p-select [options]="['Maintain Codons', 'Maintain Reading Frame']" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
-                        </div>
-                    </div>
+                <div class="col-5"><label>Translation Settings</label></div>
+                <div class="col-7">
+                  <p-select [options]="['Maintain Codons', 'Maintain Reading Frame']" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
                 </div>
-                        </p-accordion-content>
-                    </p-accordion-panel>
-            <p-accordion-panel style="color:#495057">
-                        <p-accordion-header>Layout</p-accordion-header>
-                        <p-accordion-content><div #layoutControls>
-                    <div class="form-group row" title="Show or Hide the Mini Map">
-                        <div class="col-4"><label>Show Mini-Map</label></div>
-                        <div class="col-8">
-                            <p-selectButton [options]="showHideOptions" [(ngModel)]="this.widgets['alignView-showMiniMap']" (onChange)="updateMiniMapVisibility()"></p-selectButton>
-                        </div>
-                    </div>
-                    <div class="form-group row" title="Switch between a Bar Plot representation or a Logo representation of the nucleotides present at each position">
-                        <div class="col-4"><label>Show Logo/Bar Plot</label></div>
-                        <div class="col-8">
-                            <p-selectButton [options]="alignmentTopDisplayOptions"
-                                [(ngModel)]="this.widgets['alignView-topDisplay']" (onChange)="onAlignmentTopChange()"></p-selectButton>
-                        </div>
-                    </div>
-                    <div class="form-group row" title="Set the minor interval for the ruler. Set to 0 to remove minor interval.">
-                        <div class="col-4"><label>Ruler Minor Interval</label></div>
-                        <div class="col-8">
-                            <p-select [options]="rulerIntervalOptions" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
-                        </div>
-                    </div>
-                    <div class="form-group row" 
-                    title="Select how you want NTs/AAs to be shown in the viewer. Show: Shows both the color and letter for each character. Minimum: Shows the color for each character and the letter for any that are different than the top sequence. Hide: Only shows the color for each character.">
-                        <div class="col-4"><label>Show Characters</label></div>
-                        <div class="col-8">
-                            <p-selectButton [options]="charSettingOptions"
-                                [(ngModel)]="this.widgets['alignView-charSetting']" (onChange)="updateAlignment()"></p-selectButton>
-                        </div>
-                    </div>
-                </div>
-                        </p-accordion-content>
-                    </p-accordion-panel>
-            <p-accordion-panel style="color:#495057">
-                        <p-accordion-header>Labels and Order</p-accordion-header>
-                        <p-accordion-content><div #labelingControls>
-                    <div class="form-group row" title="">
-                        <div class="col-4"><label>Labels</label></div>
-                        <div class="col-8">
-                            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
-                        </div>
-                    </div>
-                    <div class="form-group row" title="">
-                        <div class="col-4"><label>Sort By</label></div>
-                        <div class="col-8">
-                            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
-                        </div>
-                    </div>
-                </div>
-                        </p-accordion-content>
-                    </p-accordion-panel>
-            <p-accordion-panel style="color:#495057">
-                        <p-accordion-header>Sizing</p-accordion-header>
-                        <p-accordion-content><div #sizingControls>
-                    <div class="form-group row" title="Set a predefined size">
-                        <div class="col-2"><label>Size</label></div>
-                        <div class="col-10">
-                            <p-selectButton [options]="sizes" [(ngModel)]="this.widgets['alignView-selectedSize']" (onChange)="onSelectedSizeChanged()"></p-selectButton>
-                        </div>
-                    </div>
-                    <div class="form-group row node-label-row" title="Set a custom height. Updating sets size to custom">
-                        <div class="col-3"><label>Height</label></div>
-                        <div class="col-8">
-                            <input type="number" class="form-control form-control-sm" min="10" step="1" max="20" [(ngModel)]="spanHeight" (ngModelChange)="onSpanHeightChange($event)">
-                        </div>
-                    </div>
-                    <div class="form-group row node-label-row" title="Set a custom width. Updating sets size to custom">
-                        <div class="col-3"><label>Width</label></div>
-                        <div class="col-8">
-                            <input type="number" class="form-control form-control-sm" min="1" step="1" max="15" [(ngModel)]="spanWidth" (ngModelChange)="onSpanWidthChange($event)">
-                        </div>
-                    </div>
-                </div>
-                        </p-accordion-content>
-                    </p-accordion-panel>
-            <p-accordion-panel style="color:#495057">
-                        <p-accordion-header>Colors</p-accordion-header>
-                        <p-accordion-content><div #colorControls>
-                    <div class="form-group row" title="Select a color scheme">
-                        <div class="col-3"><label>Color Scheme</label></div>
-                        <div class="col-9">
-                            <p-selectButton [disabled]="selectedSeqType=='aa'" [options]="colorSchemeOptions" [(ngModel)]="this.widgets['alignView-colorSchemeName']"
-                                (onChange)="onSelectedColorChanged()"></p-selectButton>
-                        </div>
-                    </div>
-                    <div *ngIf="useCustomColorScheme && selectedSeqType!='aa'" class="customColorSchemeSelection">
-                        <div class="form-group row node-label-row" title="Select a custom color for each NT">
-                            <label>A:
-                                <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['A']" (change)="updateColorScheme('A', $event)">
-                            </label>
-                            <label>C: 
-                                <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['C']" (change)="updateColorScheme('C', $event)">
-                            </label>
-                            <label>G: 
-                                <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['G']" (change)="updateColorScheme('G', $event)">
-                            </label>
-                            <label>T: 
-                                <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['T']" (change)="updateColorScheme('T', $event)">
-                            </label>
-                        </div>
-                        <div class="form-group row node-label-row" title="Select a custom color for each NT"> 
-                            <label style="display: flex; align-items: center; gap:10px;">Ambiguities/Other: 
-                                <input type="color" [ngModel]="this.widgets['alignView-customColorScheme']['ambig']" (change)="updateColorScheme('ambig', $event)">
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                        </p-accordion-content>
-                    </p-accordion-panel>
-        </p-accordion>
-    </p-dialog>
+              </div>
+            }
+          </div>
+        </p-accordion-content>
+      </p-accordion-panel>
+      <p-accordion-panel style="color:#495057">
+        <p-accordion-header>Layout</p-accordion-header>
+        <p-accordion-content><div #layoutControls>
+          <div class="form-group row" title="Show or Hide the Mini Map">
+            <div class="col-4"><label>Show Mini-Map</label></div>
+            <div class="col-8">
+              <p-selectButton [options]="showHideOptions" [(ngModel)]="this.widgets['alignView-showMiniMap']" (onChange)="updateMiniMapVisibility()"></p-selectButton>
+            </div>
+          </div>
+          <div class="form-group row" title="Switch between a Bar Plot representation or a Logo representation of the nucleotides present at each position">
+            <div class="col-4"><label>Show Logo/Bar Plot</label></div>
+            <div class="col-8">
+              <p-selectButton [options]="alignmentTopDisplayOptions"
+              [(ngModel)]="this.widgets['alignView-topDisplay']" (onChange)="onAlignmentTopChange()"></p-selectButton>
+            </div>
+          </div>
+          <div class="form-group row" title="Set the minor interval for the ruler. Set to 0 to remove minor interval.">
+            <div class="col-4"><label>Ruler Minor Interval</label></div>
+            <div class="col-8">
+              <p-select [options]="rulerIntervalOptions" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
+            </div>
+          </div>
+          <div class="form-group row"
+            title="Select how you want NTs/AAs to be shown in the viewer. Show: Shows both the color and letter for each character. Minimum: Shows the color for each character and the letter for any that are different than the top sequence. Hide: Only shows the color for each character.">
+            <div class="col-4"><label>Show Characters</label></div>
+            <div class="col-8">
+              <p-selectButton [options]="charSettingOptions"
+              [(ngModel)]="this.widgets['alignView-charSetting']" (onChange)="updateAlignment()"></p-selectButton>
+            </div>
+          </div>
+        </div>
+      </p-accordion-content>
+    </p-accordion-panel>
+    <p-accordion-panel style="color:#495057">
+      <p-accordion-header>Labels and Order</p-accordion-header>
+      <p-accordion-content><div #labelingControls>
+        <div class="form-group row" title="">
+          <div class="col-4"><label>Labels</label></div>
+          <div class="col-8">
+            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
+          </div>
+        </div>
+        <div class="form-group row" title="">
+          <div class="col-4"><label>Sort By</label></div>
+          <div class="col-8">
+            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
+          </div>
+        </div>
+      </div>
+    </p-accordion-content>
+  </p-accordion-panel>
+  <p-accordion-panel style="color:#495057">
+    <p-accordion-header>Sizing</p-accordion-header>
+    <p-accordion-content><div #sizingControls>
+      <div class="form-group row" title="Set a predefined size">
+        <div class="col-2"><label>Size</label></div>
+        <div class="col-10">
+          <p-selectButton [options]="sizes" [(ngModel)]="this.widgets['alignView-selectedSize']" (onChange)="onSelectedSizeChanged()"></p-selectButton>
+        </div>
+      </div>
+      <div class="form-group row node-label-row" title="Set a custom height. Updating sets size to custom">
+        <div class="col-3"><label>Height</label></div>
+        <div class="col-8">
+          <input type="number" class="form-control form-control-sm" min="10" step="1" max="20" [(ngModel)]="spanHeight" (ngModelChange)="onSpanHeightChange($event)">
+        </div>
+      </div>
+      <div class="form-group row node-label-row" title="Set a custom width. Updating sets size to custom">
+        <div class="col-3"><label>Width</label></div>
+        <div class="col-8">
+          <input type="number" class="form-control form-control-sm" min="1" step="1" max="15" [(ngModel)]="spanWidth" (ngModelChange)="onSpanWidthChange($event)">
+        </div>
+      </div>
+    </div>
+  </p-accordion-content>
+</p-accordion-panel>
+<p-accordion-panel style="color:#495057">
+  <p-accordion-header>Colors</p-accordion-header>
+  <p-accordion-content><div #colorControls>
+    <div class="form-group row" title="Select a color scheme">
+      <div class="col-3"><label>Color Scheme</label></div>
+      <div class="col-9">
+        <p-selectButton [disabled]="selectedSeqType=='aa'" [options]="colorSchemeOptions" [(ngModel)]="this.widgets['alignView-colorSchemeName']"
+        (onChange)="onSelectedColorChanged()"></p-selectButton>
+      </div>
+    </div>
+    @if (useCustomColorScheme && selectedSeqType!='aa') {
+      <div class="customColorSchemeSelection">
+        <div class="form-group row node-label-row" title="Select a custom color for each NT">
+          <label>A:
+            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['A']" (change)="updateColorScheme('A', $event)">
+          </label>
+          <label>C:
+            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['C']" (change)="updateColorScheme('C', $event)">
+          </label>
+          <label>G:
+            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['G']" (change)="updateColorScheme('G', $event)">
+          </label>
+          <label>T:
+            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['T']" (change)="updateColorScheme('T', $event)">
+          </label>
+        </div>
+        <div class="form-group row node-label-row" title="Select a custom color for each NT">
+          <label style="display: flex; align-items: center; gap:10px;">Ambiguities/Other:
+            <input type="color" [ngModel]="this.widgets['alignView-customColorScheme']['ambig']" (change)="updateColorScheme('ambig', $event)">
+          </label>
+        </div>
+      </div>
+    }
+  </div>
+</p-accordion-content>
+</p-accordion-panel>
+</p-accordion>
+</p-dialog>
+}
 </div>
 
-<p-dialog *ngIf="viewActive" id="alignment-export-modal" [(visible)]="ShowAlignExportPane" appendTo="body" header="Export Alignment View">
+@if (viewActive) {
+  <p-dialog id="alignment-export-modal" [(visible)]="ShowAlignExportPane" appendTo="body" header="Export Alignment View">
     <tabset class="tab-container tabbable-line">
-        <tab heading="{{'Images' | localize}}" [active]="true" customClass="m-tabs__item">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-body" style='min-width: 400px; height: 100%;'>
-                        <div class="form-group row">
-                            <div class="col-9">
-                                <input type="text" class="form-control form-control-sm"
-                                    placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
-                            </div>
-                            <div class="col-3">
-                                <select [(ngModel)]="AlignmentExportFileTypeVis" class="form-control form-control-sm">
-                                    <option>svg</option>
-                                    <option>png</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div *ngIf="AlignmentExportFileTypeVis=='png'" class="form-group row">
-                            <div class="col-4" style="text-align: center;">Resolution</div>
-                            <div class="col-8" style="text-align: center;">
-                                {{ spanWidth * longestSeqLength }} x {{ spanHeight * nodesWithSeq.length +140 }} px
-                            </div>
-                                <div style="width: 100%; text-align: center; margin-top: 5px;"> Adjust Height and Width in settings to change export dimensions </div>
-                        </div>
+      <tab heading="{{'Images' | localize}}" [active]="true" customClass="m-tabs__item">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-body" style='min-width: 400px; height: 100%;'>
+              <div class="form-group row">
+                <div class="col-9">
+                  <input type="text" class="form-control form-control-sm"
+                    placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
+                  </div>
+                  <div class="col-3">
+                    <select [(ngModel)]="AlignmentExportFileTypeVis" class="form-control form-control-sm">
+                      <option>svg</option>
+                      <option>png</option>
+                    </select>
+                  </div>
+                </div>
+                @if (AlignmentExportFileTypeVis=='png') {
+                  <div class="form-group row">
+                    <div class="col-4" style="text-align: center;">Resolution</div>
+                    <div class="col-8" style="text-align: center;">
+                      {{ spanWidth * longestSeqLength }} x {{ spanHeight * nodesWithSeq.length +140 }} px
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-error"
-                            (click)="ShowAlignExportPane = false">Cancel</button>
-                        <button type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
-                    </div>
-                </div><!-- /.modal-content -->
-            </div><!-- /.modal-dialog -->
+                    <div style="width: 100%; text-align: center; margin-top: 5px;"> Adjust Height and Width in settings to change export dimensions </div>
+                  </div>
+                }
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-error"
+                (click)="ShowAlignExportPane = false">Cancel</button>
+                <button type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
+              </div>
+            </div><!-- /.modal-content -->
+          </div><!-- /.modal-dialog -->
         </tab>
         <tab heading="{{'Data' | localize}}" customClass="m-tabs__item">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-body" style='min-width: 400px; height: 100%;'>
-                        <div class="form-group row">
-                            <div class="col-9">
-                                <input type="text" class="form-control form-control-sm"
-                                    placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
-                            </div>
-                            <div class="col-3">
-                                <select [(ngModel)]="AlignmentExportFileTypeData" class="form-control form-control-sm">
-                                    <option>fasta</option>
-                                    <option>mega</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group row">
-                            <div class="col">
-                                <div class="form-check form-check-inline" title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
-                                    <input class="form-check-input" type="checkbox" id="include-consensus" #includeConsensus>
-                                    <label class="form-check-label" for="include-consensus">Include Consensus?</label>
-                                  </div>
-                            </div>
-                        </div>
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-body" style='min-width: 400px; height: 100%;'>
+                <div class="form-group row">
+                  <div class="col-9">
+                    <input type="text" class="form-control form-control-sm"
+                      placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-error"
-                            (click)="ShowAlignExportPane = false">Cancel</button>
-                        <button type="button" class="btn btn-primary" (click)="exportData(includeConsensus.checked)">Export</button>
+                    <div class="col-3">
+                      <select [(ngModel)]="AlignmentExportFileTypeData" class="form-control form-control-sm">
+                        <option>fasta</option>
+                        <option>mega</option>
+                      </select>
                     </div>
-                </div><!-- /.modal-content -->
+                  </div>
+                  <div class="form-group row">
+                    <div class="col">
+                      <div class="form-check form-check-inline" title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
+                        <input class="form-check-input" type="checkbox" id="include-consensus" #includeConsensus>
+                        <label class="form-check-label" for="include-consensus">Include Consensus?</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-error"
+                  (click)="ShowAlignExportPane = false">Cancel</button>
+                  <button type="button" class="btn btn-primary" (click)="exportData(includeConsensus.checked)">Export</button>
+                </div>
+              </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
-        </tab>
-        <tab heading="{{'DataTable' | localize}}" customClass="m-tabs__item">
+          </tab>
+          <tab heading="{{'DataTable' | localize}}" customClass="m-tabs__item">
             <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-body" style='min-width: 400px; height: 100%;'>
-                        <div class="form-group row">
-                            <div class="col-9">
-                                <input type="text" class="form-control form-control-sm"
-                                    placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
-                            </div>
-                        </div>
-                        <div class="form-group row">
-                            <div class="col">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="include-consensus" #includeConsensus2 title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
-                                    <label class="form-check-label" for="include-consensus">Include Consensus?</label>
-                                  </div>
-                            </div>
-                        </div>
+              <div class="modal-content">
+                <div class="modal-body" style='min-width: 400px; height: 100%;'>
+                  <div class="form-group row">
+                    <div class="col-9">
+                      <input type="text" class="form-control form-control-sm"
+                        placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
+                      </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-error"
-                            (click)="ShowAlignExportPane = false">Cancel</button>
-                        <button type="button" class="btn btn-primary" (click)="exportDataTable('advanced', includeConsensus2.checked)">Export</button>
+                    <div class="form-group row">
+                      <div class="col">
+                        <div class="form-check form-check-inline">
+                          <input class="form-check-input" type="checkbox" id="include-consensus" #includeConsensus2 title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
+                          <label class="form-check-label" for="include-consensus">Include Consensus?</label>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-error"
+                    (click)="ShowAlignExportPane = false">Cancel</button>
+                    <button type="button" class="btn btn-primary" (click)="exportDataTable('advanced', includeConsensus2.checked)">Export</button>
+                  </div>
                 </div><!-- /.modal-content -->
-            </div><!-- /.modal-dialog -->
-        </tab>
-    </tabset>
-</p-dialog><!-- /.modal -->
+              </div><!-- /.modal-dialog -->
+            </tab>
+          </tabset>
+        </p-dialog>
+        }<!-- /.modal -->
 
-<p-dialog *ngIf="viewActive" header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
-    <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain a sequence and were omitted from Alignment View.</span>
-    <ol>
-        <li *ngFor="let node of nodesWithoutSeq">Node index: {{ node.index }}, ID: {{ node.ID }} </li>
-    </ol>
-</p-dialog>
+        @if (viewActive) {
+          <p-dialog header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
+            <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain a sequence and were omitted from Alignment View.</span>
+            <ol>
+              @for (node of nodesWithoutSeq; track node) {
+                <li>Node index: {{ node.index }}, ID: {{ node.ID }} </li>
+              }
+            </ol>
+          </p-dialog>
+        }
