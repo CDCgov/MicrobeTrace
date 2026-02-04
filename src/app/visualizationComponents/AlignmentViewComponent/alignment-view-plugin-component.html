@@ -254,7 +254,7 @@
   @if (viewActive) {
     <p-dialog id="alignment-settings-pane" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
       <p-accordion [value]="null" [multiple]="true">
-        <p-accordion-panel style="color:#495057">
+        <p-accordion-panel value="align-data" style="color:#495057">
           <p-accordion-header>Data</p-accordion-header>
           <p-accordion-content><div #dataControls>
             <div class="form-group row" title="Set a predefined size">
@@ -285,7 +285,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
           </div>
         </p-accordion-content>
       </p-accordion-panel>
-      <p-accordion-panel style="color:#495057">
+      <p-accordion-panel value="align-layout" style="color:#495057">
         <p-accordion-header>Layout</p-accordion-header>
         <p-accordion-content><div #layoutControls>
           <div class="form-group row" title="Show or Hide the Mini Map">
@@ -318,7 +318,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
         </div>
       </p-accordion-content>
     </p-accordion-panel>
-    <p-accordion-panel style="color:#495057">
+    <p-accordion-panel value="align-labels" style="color:#495057">
       <p-accordion-header>Labels and Order</p-accordion-header>
       <p-accordion-content><div #labelingControls>
         <div class="form-group row" title="">
@@ -336,7 +336,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
       </div>
     </p-accordion-content>
   </p-accordion-panel>
-  <p-accordion-panel style="color:#495057">
+  <p-accordion-panel value="align-sizing" style="color:#495057">
     <p-accordion-header>Sizing</p-accordion-header>
     <p-accordion-content><div #sizingControls>
       <div class="form-group row" title="Set a predefined size">
@@ -360,7 +360,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
     </div>
   </p-accordion-content>
 </p-accordion-panel>
-<p-accordion-panel style="color:#495057">
+<p-accordion-panel value="align-colors" style="color:#495057">
   <p-accordion-header>Colors</p-accordion-header>
   <p-accordion-content><div #colorControls>
     <div class="form-group row" title="Select a color scheme">

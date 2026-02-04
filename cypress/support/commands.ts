@@ -208,7 +208,7 @@ declare global {
     cy.get('#timeline-config').should('be.visible');
 
     cy.get('#node-timeline-variable').click();
-    cy.get('p-dropdownitem').contains('li', variableLabel).click();
+    cy.get('p-selectitem').contains('li', variableLabel).click();
     cy.get('#node-timeline-variable .p-select-label').should('contain', variableLabel);
   });
   

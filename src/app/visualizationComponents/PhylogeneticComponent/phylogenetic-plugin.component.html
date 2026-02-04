@@ -29,7 +29,7 @@
       <tabset class="tab-container tabbable-line">
         <tab heading="{{'Tree' | localize}}" [active]="true" customClass="m-tabs__item">
           <p-accordion [multiple]='true' [value]="null">
-            <p-accordion-panel style="color:#495057">
+            <p-accordion-panel value="tree-layout" style="color:#495057">
               <p-accordion-header>Layout</p-accordion-header>
               <p-accordion-content><div #treecontrolslabels>
                 <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
@@ -41,7 +41,7 @@
               </div>
             </p-accordion-content>
           </p-accordion-panel>
-          <p-accordion-panel style="color:#495057">
+          <p-accordion-panel value="tree-mode" style="color:#495057">
             <p-accordion-header>Mode</p-accordion-header>
             <p-accordion-content><div #treecontrolslabels>
               <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
@@ -53,7 +53,7 @@
             </div>
           </p-accordion-content>
         </p-accordion-panel>
-        <p-accordion-panel style="color:#495057">
+        <p-accordion-panel value="tree-type" style="color:#495057">
           <p-accordion-header>Type</p-accordion-header>
           <p-accordion-content><div #treecontrolslabels>
             <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
@@ -65,7 +65,7 @@
           </div>
         </p-accordion-content>
       </p-accordion-panel>
-      <p-accordion-panel style="color:#495057">
+      <p-accordion-panel value="tree-stretch" style="color:#495057">
         <p-accordion-header>Stretch</p-accordion-header>
         <p-accordion-content><div #treecontrolslabels>
           <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
@@ -81,7 +81,7 @@
 </tab>
 <tab heading="{{'Leaves' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
-    <p-accordion-panel style="color:#495057">
+    <p-accordion-panel value="tree-leaflabels" style="color:#495057">
       <p-accordion-header>Labels and Tooltips</p-accordion-header>
       <p-accordion-content><div #leafcontrolslabels>
         <div class="form-group row leaf-label-visibility-row" title="Show leaf labels?">
@@ -121,7 +121,7 @@
       </div>
     </p-accordion-content>
   </p-accordion-panel>
-  <p-accordion-panel style="color:#495057">
+  <p-accordion-panel value="tree-leafsize" style="color:#495057">
     <p-accordion-header>Leaf Size</p-accordion-header>
     <p-accordion-content><div #leafcontrolslabels>
       <div class="form-group row " title="Show leaf nodes?">
@@ -163,7 +163,7 @@
   </div>
 </p-accordion-content>
 </p-accordion-panel>
-<p-accordion-panel style="color:#495057">
+<p-accordion-panel value="tree-leafcolors" style="color:#495057">
   <p-accordion-header>Colors</p-accordion-header>
   <p-accordion-content><button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
 </p-accordion-content>
@@ -172,7 +172,7 @@
 </tab>
 <tab heading="{{'Branches' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
-    <p-accordion-panel style="color:#495057">
+    <p-accordion-panel value="tree-branchlabels" style="color:#495057">
       <p-accordion-header>Branch Labels</p-accordion-header>
       <p-accordion-content><div #branchcontrolslabels>
         <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
@@ -190,7 +190,7 @@
       </div>
     </p-accordion-content>
   </p-accordion-panel>
-  <p-accordion-panel style="color:#495057">
+  <p-accordion-panel value="tree-branchsize" style="color:#495057">
     <p-accordion-header>Branch Size</p-accordion-header>
     <p-accordion-content><div #branchcontrollables>
       <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">

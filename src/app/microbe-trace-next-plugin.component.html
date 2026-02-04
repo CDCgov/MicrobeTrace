@@ -431,7 +431,7 @@
             </div>
             <div>  <!-- Toggle Advanced Export Options -->
               <p-accordion [value]="null" [multiple]="true">
-                <p-accordion-panel style="color:#495057">
+                <p-accordion-panel value="export-dashboard-advanced" style="color:#495057">
                   <p-accordion-header>Advanced</p-accordion-header>
                   <p-accordion-content><div>
                     <div class="form-group row">
@@ -500,7 +500,7 @@
           <div>  <!-- Toggle Advanced Export Options -->
             @if (ExportTablesFileType === 'png') {
               <p-accordion [value]="null" [multiple]="true">
-                <p-accordion-panel style="color:#495057">
+                <p-accordion-panel value="export-table-advanced" style="color:#495057">
                   <p-accordion-header>Advanced</p-accordion-header>
                   <p-accordion-content><div>
                     <div class="form-group row">

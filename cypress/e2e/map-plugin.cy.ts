@@ -788,7 +788,7 @@ describe('Map View', () => {
       cy.contains('#global-settings-modal .nav-link', 'Styling').click();
       cy.get('#apply-style').should('exist');
 
-      cy.attach_file('#apply-style', 'Cypress_Test_Style.style', 'application/json');
+      cy.attach_files('#apply-style', ['Cypress_Test_Style.style'], ['application/json']);
 
       cy.window()
         .its('commonService.session.style.widgets', { timeout: 5000 })

@@ -36,7 +36,7 @@ describe('Journey - upload -> launch -> 2D Network', () => {
 
   it('uploads a link list fixture, launches, and renders the 2D Network Cytoscape view', () => {
     // Upload via overlay
-    cy.attach_file('#fileDropRef', FIXTURE_LINKLIST);
+    cy.attach_files('#fileDropRef', [FIXTURE_LINKLIST]);
     acceptEulaIfPresent();
 
     cy.get('#overlay').should('not.be.visible', { timeout: 15000 });

@@ -188,7 +188,7 @@
   </tab>
   <tab heading="{{'Components' | localize}}" customClass="m-tabs__item">
     <p-accordion [value]="null" [multiple]="true">
-      <p-accordion-panel style="color:#495057">
+      <p-accordion-panel value="map-network" style="color:#495057">
         <p-accordion-header>Network</p-accordion-header>
         <p-accordion-content><div class="form-group row" title="Would you like to see Nodes on the map?">
           <div class="col-4">Nodes</div>
@@ -208,7 +208,7 @@
         </div>
       </p-accordion-content>
     </p-accordion-panel>
-    <p-accordion-panel style="color:#495057">
+    <p-accordion-panel value="map-offline" style="color:#495057">
       <p-accordion-header>Offline</p-accordion-header>
       <p-accordion-content><div class="form-group row" title="Would you like to see Countries on the map?">
         <div class="col-4">Countries</div>
@@ -236,7 +236,7 @@
       </div>
     </p-accordion-content>
   </p-accordion-panel>
-  <p-accordion-panel style="color:#495057">
+  <p-accordion-panel value="map-online" style="color:#495057">
     <p-accordion-header>Online</p-accordion-header>
     <p-accordion-content><div class="row">
       <div class="col-12">
@@ -350,7 +350,7 @@
             </div>
             <div>
               <p-accordion [value]="null" [multiple]="true">
-                <p-accordion-panel style="color:#495057">
+                <p-accordion-panel value="map-export-advanced" style="color:#495057">
                   <p-accordion-header>Advanced</p-accordion-header>
                   <p-accordion-content><div id="map-export-advanced">
                     <div class="form-group row">
