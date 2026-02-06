@@ -101,13 +101,7 @@
                         <div class="form-group row node-label-row" title="Where should the label appear relative to the node?">
                           <div class="col-4"><label for="node-label-orientation">Orientation</label></div>
                           <div class="col-8">
-                            <select id="node-label-orientation" [(ngModel)]="SelectedNodeLabelOrientationVariable" (ngModelChange)="onNodeLabelOrientationChange($event)">
-                              <option>Right</option>
-                              <option>Left</option>
-                              <option>Top</option>
-                              <option>Bottom</option>
-                              <option>Middle</option>
-                            </select>
+                            <p-select id="node-label-orientation" [options]="OrientationOptions" appendTo="body" [(ngModel)]="SelectedNodeLabelOrientationVariable" (ngModelChange)="onNodeLabelOrientationChange($event)"></p-select>
                           </div>
                         </div>
                         <div class="form-group row" title="What node data should be displayed as a tooltip for the node?">
@@ -137,7 +131,7 @@
                       <div id="node-symbol-table-row" [hidden]="!ShowNodeSymbolTable" class="form-group row" title="What shape should the nodes be?">
                         <div class="col-4">Table</div>
                         <div class="col-8">
-                          <p-selectButton [options]="TableTypes" [(ngModel)]="SelectedNetworkTableTypeVariable" (ngModelChange)="onNodeSymbolTableChange($event)"></p-selectButton>
+                          <p-selectButton [options]="TableTypes" [allowEmpty]="false" [(ngModel)]="SelectedNetworkTableTypeVariable" (ngModelChange)="onNodeSymbolTableChange($event)"></p-selectButton>
                         </div>
                       </div>
                       <div id="node-symbol-row" [hidden]="ShowNodeSymbolWrapper" class="form-group row" title="What shape should the nodes be?">
@@ -257,7 +251,7 @@
               <div id="link-reciprocalthickness-row" class="form-group row display-none" title="Should link widths be proportioned to the reciprocal of this variable?">
                 <div class="col-4">Reciprocal</div>
                 <div class="col-8">
-                  <p-selectButton id="link-width-reciprocal-non-reciprocal" appendTo="body"  [options]="ReciprocalTypes" [(ngModel)]="SelectedLinkReciprocalTypeVariable" (ngModelChange)="onLinkWidthReciprocalNonReciprocalChange($event)"></p-selectButton>
+                  <p-selectButton id="link-width-reciprocal-non-reciprocal" appendTo="body"  [options]="ReciprocalTypes" [allowEmpty]="false" [(ngModel)]="SelectedLinkReciprocalTypeVariable" (ngModelChange)="onLinkWidthReciprocalNonReciprocalChange($event)"></p-selectButton>
                 </div>
               </div>
               <div class="form-group row" id="link-width-row" title="How thick should the links be?">
@@ -271,13 +265,13 @@
               <div class="form-group row hideForHIVTrace" title="Shoul arrowheads pointing to the">
                 <div class="col-4">Arrows</div>
                 <div class="col-8">
-                  <p-selectButton id="link-directed-undirected" [options]="ArrowTypes" [(ngModel)]="SelectedLinkArrowTypeVariable" (ngModelChange)="onLinkDirectedUndirectedChange($event)"></p-selectButton>
+                  <p-selectButton id="link-directed-undirected" [options]="ArrowTypes" [allowEmpty]="false" [(ngModel)]="SelectedLinkArrowTypeVariable" (ngModelChange)="onLinkDirectedUndirectedChange($event)"></p-selectButton>
                 </div>
               </div>
               <div id="link-bidirectional-row" class="form-group row display-none" title="Should links be bidirectional?">
                 <div class="col-4">Bidirectional</div>
                 <div class="col-8">
-                  <p-selectButton id="link-bidirectional" [options]="bidirectionalOptions" [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-selectButton>
+                  <p-selectButton id="link-bidirectional" [options]="bidirectionalOptions" [allowEmpty]="false" [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-selectButton>
                 </div>
               </div>
             </div>
@@ -298,13 +292,13 @@
           <div class="form-group row" title="Should MicrobeTrace Highlight a node's neighbors when you hover on it?">
             <div class="col-4">Neighbors</div>
             <div class="col-8">
-              <p-selectButton id="dont-highlight-neighbors-highlight-neighbors" [options]="NeighborTypes" [(ngModel)]="SelectedNetworkNeighborTypeVariable" (ngModelChange)="onDontHighlightNeighborsHighlightNeighborsChange($event)"></p-selectButton>
+              <p-selectButton id="dont-highlight-neighbors-highlight-neighbors" [options]="NeighborTypes" [allowEmpty]="false" [(ngModel)]="SelectedNetworkNeighborTypeVariable" (ngModelChange)="onDontHighlightNeighborsHighlightNeighborsChange($event)"></p-selectButton>
             </div>
           </div>
           <div class="form-group row" title="Should MicrobeTrace Highlight a node's neighbors when you hover on it?">
             <div class="col-4">Gridlines</div>
             <div class="col-8">
-              <p-selectButton id="network-gridlines-show-hide" [options]="GridLineTypes" [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-selectButton>
+              <p-selectButton id="network-gridlines-show-hide" [options]="GridLineTypes" [allowEmpty]="false" [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-selectButton>
             </div>
           </div>
         </div>
@@ -321,7 +315,7 @@
           <div class="form-group row" title="Show groups?">
             <div class="col-4">Groups</div>
             <div class="col-8">
-              <p-selectButton id="polygons-show-toggle" [options]="hideShowOptions"
+              <p-selectButton id="polygons-show-toggle" [options]="hideShowOptions" [allowEmpty]="false"
                 [(ngModel)]="commonService.session.style.widgets['polygons-show']"
                 (ngModelChange)="polygonsToggle($event)">
               </p-selectButton>
@@ -350,7 +344,7 @@
           <div class="form-group row" title="Show group labels?">
             <div class="col-4">Groups Label</div>
             <div class="col-8">
-              <p-selectButton id="polygons-label-visibility" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-label-show']" (ngModelChange)="onPolygonLabelShowChange($event)"></p-selectButton>
+              <p-selectButton id="polygons-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="commonService.session.style.widgets['polygons-label-show']" (ngModelChange)="onPolygonLabelShowChange($event)"></p-selectButton>
             </div>
           </div>
           @if (commonService.session.style.widgets['polygons-label-show']) {
@@ -365,11 +359,7 @@
             <div class="form-group row polygons-label-row" title="How should the labels be oriented relative to center of group?">
               <div class="col-4"><label for="polygon-label-orientation">Orientation</label></div>
               <div class="col-8">
-                <select id="polygon-label-orientation" [(ngModel)]="SelectedPolygonLabelOrientationVariable" (ngModelChange)="onPolygonLabelOrientationChange($event)">
-                  <option selected>top</option>
-                  <option>middle</option>
-                  <option>bottom</option>
-                </select>
+                <p-select id="polygon-label-orientation" [options]="OrientationOptions" appendTo="body" [(ngModel)]="SelectedPolygonLabelOrientationVariable" (ngModelChange)="onPolygonLabelOrientationChange($event)"></p-select>
               </div>
             </div>
           }
@@ -387,14 +377,14 @@
         <div id="color-polygons" class="form-group row" title="Distinguish groups by color?">
           <div class="col-4">Color Groups</div>
           <div class="col-8">
-            <p-selectButton id="colorPolygons" [options]="hideShowOptions" [(ngModel)]="commonService.session.style.widgets['polygons-color-show']" (ngModelChange)="polygonColorsToggle($event)"></p-selectButton>
+            <p-selectButton id="colorPolygons" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="commonService.session.style.widgets['polygons-color-show']" (ngModelChange)="polygonColorsToggle($event)"></p-selectButton>
           </div>
         </div>
         @if (commonService.session.style.widgets['polygons-color-show']) {
           <div id="polygon-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
             <div class="col-4">Group Color Table</div>
             <div class="col-8">
-              <p-selectButton id="polygon-color-table-toggle" [options]="hideShowOptions"
+              <p-selectButton id="polygon-color-table-toggle" [options]="hideShowOptions" [allowEmpty]="false"
                 [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']"
                 (ngModelChange)="polygonColorsTableToggle($event)">
               </p-selectButton>                                </div>

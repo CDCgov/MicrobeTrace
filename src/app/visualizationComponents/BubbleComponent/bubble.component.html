@@ -51,7 +51,7 @@
       <div class="form-group row">
         <div class="col-4">Collapse</div>
         <div class="col-8">
-          <p-selectButton [options]="OnOffTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
+          <p-selectButton [options]="OnOffTypes" [allowEmpty]="false" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
           (ngModelChange)="onNodeCollapsingChange()"></p-selectButton>
         </div>
       </div>

@@ -116,7 +116,7 @@
                     title="What size would you like the Table's font to be?">
                     <div class="col-4"><label for="table-font-size">Size</label></div>
                     <div class="col-8">
-                      <p-selectButton [options]="sizes" [(ngModel)]="selectedSize" [multiple]="false" optionLabel="name" optionValue="class"></p-selectButton>
+                      <p-selectButton [options]="sizes" [(ngModel)]="selectedSize" [multiple]="false" [allowEmpty]="false" optionLabel="name" optionValue="class"></p-selectButton>
                     </div>
                   </div>
                 </div>
@@ -146,7 +146,7 @@
                 <div class="form-group row" style="margin-top: 10px;" title="Do you want to export all the columns in the data or just the currently selected columns?">
                   <div class="col-6"><label>Columns to Export</label></div>
                   <div class="col-6">
-                    <p-selectButton [style]="{'float': 'right'}" [options]="exportColumnOptions" [(ngModel)]="exportAllColumns"></p-selectButton>
+                    <p-selectButton [style]="{'float': 'right'}" [options]="exportColumnOptions" [allowEmpty]="false" [(ngModel)]="exportAllColumns"></p-selectButton>
                   </div>
                 </div>
               </div>

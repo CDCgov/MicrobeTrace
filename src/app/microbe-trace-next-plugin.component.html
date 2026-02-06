@@ -232,7 +232,7 @@
                     <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>
                   </div>
                   <div class="col-8">
-                    <p-selectButton [options]="PruneWityTypes" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectButton>
+                    <p-selectButton [options]="PruneWityTypes" [allowEmpty]="false" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectButton>
                   </div>
                 </div>
                 <div id="filtering-epsilon-row" class="form-group row" style="display: none;" title="Select a value for epislon to add links back to minimum spanning network. See 'A Novel Network Representation of SARS-CoV-2 Sequencing Data' for algorithm details.">
@@ -282,7 +282,7 @@
                   <div class="form-group row" title="Display a table of overview statistics for the network">
                     <div class="col-4">Statistics</div>
                     <div class="col-8">
-                      <p-selectButton [options]="StatisticsTypes" [(ngModel)]="SelectedStatisticsTypesVariable" (onChange)="onShowStatisticsChanged()"></p-selectButton>
+                      <p-selectButton [options]="StatisticsTypes" [allowEmpty]="false" [(ngModel)]="SelectedStatisticsTypesVariable" (onChange)="onShowStatisticsChanged()"></p-selectButton>
                     </div>
                   </div>
                 </div>
@@ -299,7 +299,7 @@
                   <div id="node-color-table-row" [hidden]="!ShowGlobalSettingsNodeColorTable" class="form-group row" title="Should MicrobeTrace display the table of colors?">
                     <div class="col-4"><label>Nodes Color Table</label></div>
                     <div class="col-8">
-                      <p-selectButton [options]="NodeColorTableTypes" [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectButton>
+                      <p-selectButton [options]="NodeColorTableTypes" [allowEmpty]="false" [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectButton>
                     </div>
                   </div>
 
@@ -322,7 +322,7 @@
                     <div id="link-color-table-row"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
                       <div class="col-4"><label>Link Color Table</label></div>
                       <div class="col-8">
-                        <p-selectButton [options]="LinkColorTableTypes" [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
+                        <p-selectButton [options]="LinkColorTableTypes" [allowEmpty]="false" [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
                       </div>
                     </div>
                   }

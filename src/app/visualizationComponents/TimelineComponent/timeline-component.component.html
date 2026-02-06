@@ -110,7 +110,7 @@
               <label>Legend Position</label>
             </div>
             <div class="col-8">
-              <p-selectButton [options]="legendPositionOptions" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-selectButton>
+              <p-selectButton [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-selectButton>
             </div>
           </div>
         </div>

@@ -40,13 +40,13 @@
                       <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
                         <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
                         <div class="col-6">
-                          <p-selectButton id="x-invert" [options]="invertOptions" [(ngModel)]="invertX" (ngModelChange)="updateInvertX($event)"></p-selectButton>
+                          <p-selectButton id="x-invert" [allowEmpty]="false" [options]="invertOptions" [(ngModel)]="invertX" (ngModelChange)="updateInvertX($event)"></p-selectButton>
                         </div>
                       </div>
                       <div class="form-group row invert-y-axis-row" title="Should Y Axis be Inverted?" style="overflow:visible">
                         <div class="col-6"><label for="y-invert">Invert Y Axis</label></div>
                         <div class="col-6">
-                          <p-selectButton id="y-invert" [options]="invertOptions" [(ngModel)]="invertY" (ngModelChange)="updateInvertY($event)"></p-selectButton>
+                          <p-selectButton id="y-invert" [allowEmpty]="false" [options]="invertOptions" [(ngModel)]="invertY" (ngModelChange)="updateInvertY($event)"></p-selectButton>
                         </div>
                       </div>
                     </div>

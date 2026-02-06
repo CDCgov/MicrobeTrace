@@ -24,11 +24,11 @@
         <svg [attr.width]="getSVGWidth()" height="140" style="background-color: white;" xmlns:xlink="http://www.w3.org/1999/xlink">
           @if (selectedSeqType != 'aa') {
             <g>
-              @for (nt of proportionMatrix; track nt; let i = $index) {
+              @for (nt of proportionMatrix; track i; let i = $index) {
                 <g>
                   @if (this.widgets['alignView-topDisplay'] === 'barplot' && i >=startPos-1) {
                     <g>
-                      @for (prop of nt; track prop; let j = $index) {
+                      @for (prop of nt; track j; let j = $index) {
                         <g>
                           @if (prop>0) {
                             <rect [attr.y]="positionMatrix[i][j]" [attr.x]="xPos(i)" [attr.height]="100*prop" [attr.width]="spanWidth" [attr.fill]="fillColor(j)"/>
@@ -82,11 +82,11 @@
           }
           @if (selectedSeqType=='aa') {
             <g>
-              @for (aa of proportionMatrixAA; track aa; let i = $index) {
+              @for (aa of proportionMatrixAA; track i; let i = $index) {
                 <g>
                   @if (this.widgets['alignView-topDisplay'] === 'barplot') {
                     <g>
-                      @for (prop of aa; track prop; let j = $index) {
+                      @for (prop of aa; track j; let j = $index) {
                         <g>
                           @if (prop>0) {
                             <rect [attr.y]="positionMatrixAA[i][j]" [attr.x]="xPos(i)" [attr.height]="100*prop" [attr.width]="spanWidth" [attr.fill]="fillColor(j)"/>

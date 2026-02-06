@@ -41,23 +41,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedDefaultViewVariable: string = "2D Network";
   SelectedGenerateNumberVariable: any = 100;
 
-  DirectionalityTypes: any = [
-    { label: 'Off', value: 'Off' },
-    { label: 'Inferred', value: 'Inferred' }
-  ];
-  SelectedDirectionalityTypeVariable: string = "Off";
+  // DirectionalityTypes: any = [
+  //   { label: 'Off', value: 'Off' },
+  //   { label: 'Inferred', value: 'Inferred' }
+  // ];
+  // SelectedDirectionalityTypeVariable: string = "Off";
 
-  TriangulationTypes: any = [
-    { label: 'Off', value: 'Off' },
-    { label: 'On', value: 'On' }
-  ];
-  SelectedTriangulationTypeVariable: string = "Off";
+  // TriangulationTypes: any = [
+  //   { label: 'Off', value: 'Off' },
+  //   { label: 'On', value: 'On' }
+  // ];
+  // SelectedTriangulationTypeVariable: string = "Off";
 
-  AutostashingTypes: any = [
-    { label: 'Off', value: 'Off' },
-    { label: 'On', value: 'On' }
-  ];
-  SelectedAutostashingTypeVariable: string = "Off";
+  // AutostashingTypes: any = [
+  //   { label: 'Off', value: 'Off' },
+  //   { label: 'On', value: 'On' }
+  // ];
+  // SelectedAutostashingTypeVariable: string = "Off";
 
 
   AlignTypes: any = [

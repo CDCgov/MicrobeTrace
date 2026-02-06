@@ -118,7 +118,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     //Polygon Tab
     SelectedPolygonLabelVariable: string = "None";
     SelectedPolygonColorVariable: string = "None";
-    SelectedPolygonLabelOrientationVariable: 'top' | 'bottom' | 'center' = "top";
+    SelectedPolygonLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Top';
     SelectedPolygonLabelSizeVariable: number = 0.0;
     SelectedPolygonGatherValue: number = 0.0;
     CenterPolygonVariable: string = "None";
@@ -126,9 +126,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedPolygonColorShowVariable: string = "Hide";
     SelectedPolygonColorTableShowVariable: string = "Hide";
 
-
+    OrientationOptions: object = [
+        { label: 'Middle', value: 'Middle'},
+        { label: 'Top', value: 'Top'},
+        { label: 'Bottom', value: 'Bottom'},
+        { label: 'Left', value: 'Left'},
+        { label: 'Right', value: 'Right'},
+    ]
     // Node Tab    
-    SelectedNodeLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Right';
+    SelectedNodeLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Middle';
     SelectedNodeLabelVariable: string = "None";
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeSymbolVariable: string = "None";
@@ -1525,7 +1531,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (flag) {
             // Ensure the label orientation is updated when polygons are turned on
-            this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
+            if (this.SelectedPolygonLabelShowVariable == 'Show') this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
+            else this.onPolygonLabelShowChange(false)
         } else {
             $(".polygons-settings-row").slideUp();
             //$('.polygons-label-row').slideUp();
@@ -2196,15 +2203,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates polygon-label-orientation widget and then redraws polygon labels
      */
     onPolygonLabelOrientationChange(e) {
+        if (e=='top') e = 'Top'
+        else if (e == 'middle') e = 'Middle'
+        else if (e == 'bottom') e = 'Bottom'
         this.widgets['polygon-label-orientation'] = e;
         // Adjust the orientation of the parent/group node labels in Cytoscape
-        if (this.cy) {
+        if (this.cy && this.widgets['polygons-label-show']) {
           
             // Define specific types for text alignment to satisfy TypeScript
             type TextAlignment = 'left' | 'center' | 'right';
             type VerticalAlignment = 'top' | 'bottom' | 'center';
 
-            let textValign: VerticalAlignment;
+            let textValign: VerticalAlignment = 'center';
             let textHalign: TextAlignment = 'center'; // Default horizontal alignment
 
             // Determine vertical alignment based on the selected orientation
@@ -2214,6 +2224,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     break;
                 case 'bottom':
                     textValign = 'bottom';
+                    break;
+                case 'right':
+                    textHalign = 'right';
+                    break;
+                case 'left':
+                    textHalign = 'left';
                     break;
                 case 'middle':
                 default:
@@ -2245,13 +2261,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
          // Update the parent/group nodes' labels in Cytoscape
     if (this.cy) {
         if (e) {
+            let textValign: "top" | "bottom" | "center" = 'center'
+            let textHalign: "center" | "left" | "right" = 'center'
+            if (this.SelectedPolygonLabelOrientationVariable == 'Bottom') textValign = 'bottom'
+            else if (this.SelectedPolygonLabelOrientationVariable == 'Top') textValign = 'top'
+            else if (this.SelectedPolygonLabelOrientationVariable == 'Left') textHalign = 'left'
+            else if (this.SelectedPolygonLabelOrientationVariable == 'Right') textHalign = 'right' 
             // Show labels: Set the label to the group name
             this.cy.style()
                 .selector('node.parent')
                 .style({
                     'label': 'data(label)', // Assumes parent nodes have a 'label' data field
-                    'text-valign': this.SelectedPolygonLabelOrientationVariable,
-                    'text-halign': 'center',
+                    'text-valign': textValign,
+                    'text-halign': textHalign,
                     'font-size': `${this.commonService.session.style.widgets['polygons-label-size']}px`, // Adjust as needed
                     //'text-background-color': '#ffffff',
                     //'text-background-opacity': 1,
@@ -4175,8 +4197,9 @@ private async _partialUpdate() {
         this.SelectedPolygonLabelSizeVariable = this.widgets['polygons-label-size'];
         this.onPolygonLabelSizeChange(this.SelectedPolygonLabelSizeVariable);
 
-        //Node|Orientation
-        this.SelectedPolygonLabelOrientationVariable = this.widgets['polygon-label-orientation'];
+        //Polygon Orientation
+        let widgetPolygonOrientation = this.widgets['polygon-label-orientation']
+        this.SelectedPolygonLabelOrientationVariable = widgetPolygonOrientation == 'top' ? 'Top' : widgetPolygonOrientation == 'bottom' ? 'Bottom': widgetPolygonOrientation == 'middle'? 'Middle': widgetPolygonOrientation;
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
         this.polygonsToggle(this.widgets['polygons-show']);
@@ -4316,8 +4339,9 @@ private async _partialUpdate() {
         this.onNetworkFrictionChange(this.SelecetedNetworkLinkStrengthVariable);
 
         // Ensure proper orientation is set
-        if (this.widgets['polygon-label-orientation'] !== 'top' || this.widgets['polygon-label-orientation'] !== 'bottom' || this.widgets['polygon-label-orientation'] !== 'middle') {
-            this.widgets['polygon-label-orientation'] = 'top';
+        let polygonOrientations = ['Top', 'Bottom', 'Center', 'Left', 'Right']
+        if ( !polygonOrientations.includes(this.widgets['polygon-label-orientation'])) {
+            this.widgets['polygon-label-orientation'] = 'Top';
         }
 
         //Network|Polygon Orientation

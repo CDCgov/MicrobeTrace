@@ -87,7 +87,7 @@
         <div class="form-group row leaf-label-visibility-row" title="Show leaf labels?">
           <div class="col-4">Show Leaf Labels</div>
           <div class="col-8">
-            <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
+            <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
           </div>
         </div>
         @if (SelectedLeafLabelShowVariable) {
@@ -107,7 +107,7 @@
         <div class="form-group row leaf-tooltip-visibility-row" title="Show leaf tooltips?">
           <div class="col-4">Show Leaf Tooltips</div>
           <div class="col-8">
-            <p-selectButton id="leaf-tooltip-visibility" [options]="hideShowOptions" [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectButton>
+            <p-selectButton id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectButton>
           </div>
         </div>
         @if (SelectedLeafTooltipShowVariable) {
@@ -127,7 +127,7 @@
       <div class="form-group row " title="Show leaf nodes?">
         <div class="col-4">Show Leaf Nodes</div>
         <div class="col-8">
-          <p-selectButton [options]="hideShowOptions" [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
+          <p-selectButton [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
         </div>
       </div>
       <!--<div class="form-group row leaf-shape-row" title="What shape should leaves be?">
@@ -178,7 +178,7 @@
         <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
           <div class="col-4"><label for="branch-distance-visibility">Distance Labels</label></div>
           <div class="col-8">
-            <p-selectButton id="branch-distance-visibility" [options]="hideShowOptions" [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectButton>
+            <p-selectButton id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectButton>
           </div>
         </div>
         @if (SelectedBranchDistanceShowVariable) {
@@ -196,7 +196,7 @@
       <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">
         <div class="col-4"><label for="branch-node-visibility">Branch Nodes</label></div>
         <div class="col-8">
-          <p-selectButton id="branch-node-visibility" [options]="hideShowOptions" [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectButton>
+          <p-selectButton id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectButton>
         </div>
       </div>
       @if (SelectedBranchNodeShowVariable) {

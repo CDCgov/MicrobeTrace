@@ -124,12 +124,12 @@
                       <button id="generate-sequences" class="btn btn-light btn-sm col"  (click)="generateSequences()">Sequences</button>
                     </div>
                   </div>
-                  <div class="form-group row" title="Would you like to attempt to infer the direction of your links?">
+                  <!--div class="form-group row" title="Would you like to attempt to infer the direction of your links?">
                     <div class="col-4">
                       <label style="padding-left: 10px;" class="mr-2">{{"Directionality" | localize}}</label>
                     </div>
                     <div class="col-8">
-                      <p-selectButton [options]="DirectionalityTypes" [(ngModel)]="SelectedDirectionalityTypeVariable"></p-selectButton>
+                      <p-selectButton [options]="DirectionalityTypes" [allowEmpty]="false" [(ngModel)]="SelectedDirectionalityTypeVariable"></p-selectButton>
                     </div>
                   </div>
                   <div class="form-group row" title="Would you like to attempt to triangulate missing values in your distance matrices?">
@@ -137,7 +137,7 @@
                       <label style="padding-left: 10px;" class="mr-2">{{"Triangulation" | localize}}</label>
                     </div>
                     <div class="col-8">
-                      <p-selectButton [options]="TriangulationTypes" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>
+                      <p-selectButton [options]="TriangulationTypes" [allowEmpty]="false" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>
                     </div>
                   </div>
                   <div class="form-group row"
@@ -147,9 +147,9 @@
                       <label style="padding-left: 10px;" class="mr-2">{{"Autostashing" | localize}}</label>
                     </div>
                     <div class="col-8">
-                      <p-selectButton [options]="AutostashingTypes" [(ngModel)]="SelectedAutostashingTypeVariable"></p-selectButton>
+                      <p-selectButton [options]="AutostashingTypes" [allowEmpty]="false" [(ngModel)]="SelectedAutostashingTypeVariable"></p-selectButton>
                     </div>
-                  </div>
+                  </div-->
                 </div>
               </tab>
             </tabset>
@@ -188,7 +188,7 @@
                   <div class="form-group row">
                     <div class="col-2" title="Should MicrobeTrace align your sequences?">Align</div>
                     <div class="col-10">
-                      <p-selectButton [options]="AlignTypes" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectButton>
+                      <p-selectButton [options]="AlignTypes" [allowEmpty]="false" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectButton>
                     </div>
                   </div>
 
@@ -200,7 +200,7 @@
                           <div class="form-group row alignConfigRow">
                             <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
                             <div class="col-10">
-                              <p-selectButton [options]="ReferenceTypes" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
+                              <p-selectButton [options]="ReferenceTypes" [allowEmpty]="false" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
                             </div>
                           </div>
                           @if (IsReferenceOptionsSelected == true) {
