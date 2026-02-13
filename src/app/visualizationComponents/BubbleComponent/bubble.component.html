@@ -19,7 +19,7 @@
       <div class="form-group row" title="">
         <div class="col-3"><a>X</a></div>
         <div class="col-7">
-          <p-select [options]="selectedFieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body"></p-select>
+          <p-select [options]="selectedFieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body" style="width: 100%;"></p-select>
         </div>
         <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
           <p-checkbox [(ngModel)]="xVarDate" (ngModelChange)="onDataChange('X')" binary="true" inputId="xVarDate"></p-checkbox>
@@ -29,7 +29,7 @@
       <div class="form-group row" title="">
         <div class="col-3"><a>Y</a></div>
         <div class="col-7">
-          <p-select [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body"></p-select>
+          <p-select [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body" style="width: 100%;"></p-select>
         </div>
         <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
           <p-checkbox [(ngModel)]="yVarDate" (ngModelChange)="onDataChange('Y')" binary="true" inputId="yVarDate"></p-checkbox>

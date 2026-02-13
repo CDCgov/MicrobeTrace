@@ -446,10 +446,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.syncCySelectionFromSession();
   
     // Existing hover events
-    this.cy.on('mouseover', 'node', (evt) => {
+    this.cy.on('mouseover', 'node', (evt: any, pos?) => {
+      const rp = evt.renderedPosition || pos;
       const node = evt.target;
       if (node.classes().length > 0) return;
-      this.showTooltip(node.data(), evt.originalEvent);
+      this.showTooltip(node.data(), rp);
     });
   
     this.cy.on('mouseout', 'node', () => {
@@ -458,7 +459,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
   
 
-  showTooltip(d, e) {
+  showTooltip(d, pos) {
     let tooltipHTML: string = '';
     if (this.SelectedNodeCollapsingTypeVariable) {
       tooltipHTML = `
@@ -491,7 +492,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     } else {
       tooltipHTML = `${d.id}`
     }
-    let [X, Y] = this.getRelativeMousePosition(event);
+    let [X, Y] = [pos.x, pos.y];
     
     this.toolTip.nativeElement.innerHTML = tooltipHTML;
     Object.assign(this.toolTip.nativeElement.style, {
