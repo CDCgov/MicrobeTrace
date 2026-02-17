@@ -5149,8 +5149,7 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
       } else if (file.format === 'link') {
         this.showMessage(`Parsing ${file.name} as Link List...`);
         let l = 0;
-        const sources = [];
-        const targets = [];
+        const seenTargetsBySource = new Map();
         /**
          * Processes and then adds link. updates value of l
          * @param {object} link
@@ -5184,50 +5183,26 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
           }
           const src = '' + safeLink[file.field1];
           const tgt = '' + safeLink[file.field2];
-          sources.push(src);
-          targets.push(tgt);
-          const srcIndex = targets.findIndex(t => t == src);
-          const tgtIndex = sources.findIndex(s => s == tgt);
-          // console.log("safe link is: ",safeLink);
-          // Link is the same -> bidirectional
-          if (srcIndex != -1 && tgtIndex != -1) {
-            // Set distance if distance set (field 3)
-            l += this.commonService.addLink(Object.assign({
-              source: '' + safeLink[file.field1],
-              target: '' + safeLink[file.field2],
-              origin: origin,
-              visible: true,
-              directed: file.field3 == 'None' ? true : false,
-              bidirectional: file.field3 == 'None' ? true : false,
-              distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-              hasDistance: file.field3 == 'None' ? false : true,
-              distanceOrigin: file.field3 == 'None' ? '' : file.name
-            }, safeLink), check);
-          } else {
-            // console.log("distance is: ", file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]))
-            // TODO uncomment when testing adding new link
-            //  console.log('adding 2: ', _.cloneDeep(Object.assign({
-            //         source: '' + safeLink[file.field1],
-            //         target: '' + safeLink[file.field2],
-            //         origin: origin,
-            //         visible: true,
-            //         directed : file.field3 != 'distance' ? true : false,
-            //         bidirectional: file.field3 != 'distance' ? true : false,
-            //         distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
-            //         hasDistance : file.field3 != 'distance' ? false : true,
-            //         distanceOrigin: file.field3 != 'distance' ? '' : file.name
-            //       }, safeLink)));
-            l += this.commonService.addLink(Object.assign({
-              source: '' + safeLink[file.field1],
-              target: '' + safeLink[file.field2],
-              origin: origin,
-              visible: true,
-              directed: file.field3 == 'None' ? true : false,
-              distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-              hasDistance: file.field3 == 'None' ? false : true,
-              distanceOrigin: file.field3 == 'None' ? '' : file.name
-            }, safeLink), check);
+          const hasReverseEdge = seenTargetsBySource.get(tgt)?.has(src) ?? false;
+          if (!seenTargetsBySource.has(src)) {
+            seenTargetsBySource.set(src, new Set());
           }
+          seenTargetsBySource.get(src)?.add(tgt);
+          const isDistanceFieldMissing = file.field3 == 'None';
+          const linkBase = {
+            source: src,
+            target: tgt,
+            origin: origin,
+            visible: true,
+            directed: isDistanceFieldMissing ? true : false,
+            distance: isDistanceFieldMissing ? 0 : parseFloat(safeLink[file.field3]),
+            hasDistance: isDistanceFieldMissing ? false : true,
+            distanceOrigin: isDistanceFieldMissing ? '' : file.name
+          };
+          if (hasReverseEdge && isDistanceFieldMissing) {
+            linkBase.bidirectional = true;
+          }
+          l += this.commonService.addLink(Object.assign(linkBase, safeLink), check);
           //  console.log('matrixx1: ',  JSON.stringify((window as any).context.commonService.temp.matrix));
         };
         if (file.extension === 'xls' || file.extension === 'xlsx') {
@@ -25723,8 +25698,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   version: () => (/* binding */ version)
 /* harmony export */ });
 const version = '2.0.0';
-const buildDate = '2026-01-30T18:13:31.732Z';
-const commitHash = '9bf870af';
+const buildDate = '2026-02-17T19:25:59.261Z';
+const commitHash = '618bd62d';
 
 /***/ }),
 
