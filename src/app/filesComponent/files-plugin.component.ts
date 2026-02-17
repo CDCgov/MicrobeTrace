@@ -803,8 +803,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.showMessage(`Parsing ${file.name} as Link List...`);
         let l = 0;
 
-        const sources = [];
-        const targets = [];
+        const seenTargetsBySource = new Map<string, Set<string>>();
 
         /**
          * Processes and then adds link. updates value of l
@@ -844,58 +843,30 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           const src = '' + safeLink[file.field1];
           const tgt = '' + safeLink[file.field2];
+          const hasReverseEdge = seenTargetsBySource.get(tgt)?.has(src) ?? false;
 
-          sources.push(src);
-          targets.push(tgt);
+          if (!seenTargetsBySource.has(src)) {
+            seenTargetsBySource.set(src, new Set<string>());
+          }
+          seenTargetsBySource.get(src)?.add(tgt);
 
-          const srcIndex = targets.findIndex(t => t == src);
-          const tgtIndex = sources.findIndex(s => s == tgt);
+          const isDistanceFieldMissing = file.field3 == 'None';
+          const linkBase = {
+            source: src,
+            target: tgt,
+            origin: origin,
+            visible: true,
+            directed: isDistanceFieldMissing ? true : false,
+            distance: isDistanceFieldMissing ? 0 : parseFloat(safeLink[file.field3]),
+            hasDistance: isDistanceFieldMissing ? false : true,
+            distanceOrigin: isDistanceFieldMissing ? '' : file.name
+          } as any;
 
-          // console.log("safe link is: ",safeLink);
+          if (hasReverseEdge && isDistanceFieldMissing) {
+            linkBase.bidirectional = true;
+          }
 
-          // Link is the same -> bidirectional
-          if(srcIndex != -1 && tgtIndex != -1) {
-              
-            // Set distance if distance set (field 3)
-            l += this.commonService.addLink(Object.assign({
-               source: '' + safeLink[file.field1],
-               target: '' + safeLink[file.field2],
-               origin: origin,
-               visible: true,
-               directed : file.field3 == 'None' ? true : false,
-               bidirectional: file.field3 == 'None' ? true : false,
-               distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-               hasDistance : file.field3 == 'None' ? false : true,
-               distanceOrigin: file.field3 == 'None' ? '' : file.name
-             }, safeLink), check);
-
-         } else {
-
-          // console.log("distance is: ", file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]))
-          // TODO uncomment when testing adding new link
-          //  console.log('adding 2: ', _.cloneDeep(Object.assign({
-          //         source: '' + safeLink[file.field1],
-          //         target: '' + safeLink[file.field2],
-          //         origin: origin,
-          //         visible: true,
-          //         directed : file.field3 != 'distance' ? true : false,
-          //         bidirectional: file.field3 != 'distance' ? true : false,
-          //         distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
-          //         hasDistance : file.field3 != 'distance' ? false : true,
-          //         distanceOrigin: file.field3 != 'distance' ? '' : file.name
-          //       }, safeLink)));
-
-           l += this.commonService.addLink(Object.assign({
-               source: '' + safeLink[file.field1],
-               target: '' + safeLink[file.field2],
-               origin: origin,
-               visible: true,
-               directed : file.field3 == 'None' ? true : false,
-               distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-               hasDistance : file.field3 == 'None' ? false : true,
-               distanceOrigin: file.field3 == 'None' ? '' : file.name
-             }, safeLink), check);
-         }  
+          l += this.commonService.addLink(Object.assign(linkBase, safeLink), check);
 
         //  console.log('matrixx1: ',  JSON.stringify((window as any).context.commonService.temp.matrix));
 
