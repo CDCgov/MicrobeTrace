@@ -69,3 +69,9 @@
 .flaticon-download:before {
   font-weight: 800 !important;
 }
+
+.map-btn {
+  background-color: #2196f3;
+  border: 1px solid #2196f3;
+  color: white
+}

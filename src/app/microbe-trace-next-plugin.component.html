@@ -232,7 +232,7 @@
                     <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>
                   </div>
                   <div class="col-8">
-                    <p-selectButton [options]="PruneWityTypes" [allowEmpty]="false" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectButton>
+                    <p-selectButton [options]="PruneWityTypes" [allowEmpty]="false" fluid id="prune-select" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectButton>
                   </div>
                 </div>
                 <div id="filtering-epsilon-row" class="form-group row" style="display: none;" title="Select a value for epislon to add links back to minimum spanning network. See 'A Novel Network Representation of SARS-CoV-2 Sequencing Data' for algorithm details.">
@@ -255,7 +255,7 @@
                   <div class="form-group row" title="By what variable would you like to prune links from the network?">
                     <div class="col-4"><label for="link-sort-variable">Filter Links on</label></div>
                     <div class="col-8">
-                      <p-select id="link-sort-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-select>
+                      <p-select id="link-sort-variable" class="width-percent-100" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-select>
                     </div>
                   </div>
                   <div class="form-group row" id="filtering-threshold" title="What's the maximum genetic distance you're willing to call a link?">
@@ -282,7 +282,7 @@
                   <div class="form-group row" title="Display a table of overview statistics for the network">
                     <div class="col-4">Statistics</div>
                     <div class="col-8">
-                      <p-selectButton [options]="StatisticsTypes" [allowEmpty]="false" [(ngModel)]="SelectedStatisticsTypesVariable" (onChange)="onShowStatisticsChanged()"></p-selectButton>
+                      <p-selectButton [options]="StatisticsTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedStatisticsTypesVariable" (onChange)="onShowStatisticsChanged()"></p-selectButton>
                     </div>
                   </div>
                 </div>
@@ -291,66 +291,66 @@
 
                 <div id="style-config" role="tabpanel" aria-labelledby="style-tab">
                   <div class="form-group row" title="By what variable nodes be colored?">
-                    <div class="col-4"><label for="node-color-variable">Color Nodes By</label></div>
-                    <div class="col-8">
-                      <p-select id="node-color-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedColorNodesByVariable" (onChange)="onColorNodesByChanged()"></p-select>
+                    <div class="col-5"><label for="node-color-variable">Color Nodes By</label></div>
+                    <div class="col-7">
+                      <p-select id="node-color-variable" class="width-percent-100" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedColorNodesByVariable" (onChange)="onColorNodesByChanged()"></p-select>
                     </div>
                   </div>
                   <div id="node-color-table-row" [hidden]="!ShowGlobalSettingsNodeColorTable" class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                    <div class="col-4"><label>Nodes Color Table</label></div>
-                    <div class="col-8">
-                      <p-selectButton [options]="NodeColorTableTypes" [allowEmpty]="false" [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectButton>
+                    <div class="col-5"><label>Nodes Color Table</label></div>
+                    <div class="col-7">
+                      <p-selectButton [options]="NodeColorTableTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectButton>
                     </div>
                   </div>
 
 
                   @if (SelectedColorNodesByVariable === 'None') {
                     <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
-                      <div class="col-4"><label for="node-color">Nodes</label></div>
-                      <div class="col-8">
+                      <div class="col-5"><label for="node-color">Nodes</label></div>
+                      <div class="col-7">
                         <input type="color" id="node-color" class="form-control form-control-sm" value="#1f77b4" [(ngModel)]="SelectedNodeColorVariable" (ngModelChange)="onNodeColorChanged()">
                       </div>
                     </div>
                   }
                   <div class="form-group row" title="By what variable should links be colored?">
-                    <div class="col-4"><label for="link-color-variable">Color Links By</label></div>
-                    <div class="col-8">
-                      <p-select id="link-tooltip-variable" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-select>
+                    <div class="col-5"><label for="link-color-variable">Color Links By</label></div>
+                    <div class="col-7">
+                      <p-select id="link-tooltip-variable" class="width-percent-100" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-select>
                     </div>
                   </div>
                   @if (SelectedColorLinksByVariable !== 'None') {
                     <div id="link-color-table-row"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                      <div class="col-4"><label>Link Color Table</label></div>
-                      <div class="col-8">
-                        <p-selectButton [options]="LinkColorTableTypes" [allowEmpty]="false" [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
+                      <div class="col-5"><label>Link Color Table</label></div>
+                      <div class="col-7">
+                        <p-selectButton [options]="LinkColorTableTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
                       </div>
                     </div>
                   }
 
                   @if (SelectedColorLinksByVariable === 'None') {
                     <div id="link-color-value-row" class="form-group row" title="What color should the links be?">
-                      <div class="col-4"><label for="link-color">Links</label></div>
-                      <div class="col-8">
+                      <div class="col-5"><label for="link-color">Links</label></div>
+                      <div class="col-7">
                         <input type="color" id="link-color" class="form-control form-control-sm" [(ngModel)]="SelectedLinkColorVariable" (ngModelChange)="onLinkColorChanged()">
                       </div>
                     </div>
                   }
 
                   <div class="form-group row" title="What color should denote selection?">
-                    <div class="col-4"><label for="selected-color">Selected</label></div>
-                    <div class="col-8">
+                    <div class="col-5"><label for="selected-color">Selected</label></div>
+                    <div class="col-7">
                       <input type="color" id="selected-color" class="form-control form-control-sm" value="#ff8300" [(ngModel)]="SelectedColorVariable" (ngModelChange)="updateGlobalSettingsModel()">
                     </div>
                   </div>
                   <div class="form-group row" title="What color should the background be?">
-                    <div class="col-4"><label for="background-color">Background</label></div>
-                    <div class="col-8">
+                    <div class="col-5"><label for="background-color">Background</label></div>
+                    <div class="col-7">
                       <input type="color" id="background-color" class="form-control form-control-sm" value="#ffffff" [(ngModel)]="SelectedBackgroundColorVariable" (ngModelChange)="onBackgroundChanged()">
                     </div>
                   </div>
                   <div class="form-group row" title="Load an existing MicrobeTrace style file">
-                    <div class="col-4">Apply Style</div>
-                    <div class="col-8">
+                    <div class="col-3 padding-right-5">Apply Style</div>
+                    <div class="col-9">
                       <input type="file" id="apply-style" class="d-none" accept=".style" [(ngModel)]="SelectedApplyStyleVariable" (change)="onApplyStyle($event)">
                       <label class="custom-file-label" for="apply-style">Choose MicrobeTrace Style File</label>
                     </div>
@@ -361,14 +361,14 @@
               <tab heading="{{'Timeline' | localize}}" customClass="m-tabs__item" style='width: 400px; height: 100%;'>
                 <div id="timeline-config" role="tabpanel" aria-labelledby="timeline-tab">
                   <div class="form-group row" title="By what variable timeline applied?">
-                    <div class="col-4"><label for="node-timeline-variable">Timeline By</label></div>
-                    <div class="col-8">
-                      <p-select id="node-timeline-variable" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedTimelineVariable" (onChange)="onTimelineChanged($event.value)"></p-select>
+                    <div class="col-6"><label for="node-timeline-variable">Timeline By</label></div>
+                    <div class="col-6">
+                      <p-select id="node-timeline-variable" class="width-percent-100" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedTimelineVariable" (onChange)="onTimelineChanged($event.value)"></p-select>
                     </div>
                   </div>
                   <div class="form-group row " title="How much time between ticks of the timeline (ms)?">
-                    <div class="col-4"><label>Timeline Speed: {{ timelineSpeed }} ms</label></div>
-                    <div class="col-8"><input type="range" class="custom-range" min="200" step="100" max="1000" [(ngModel)]="timelineSpeed"></div>
+                    <div class="col-6"><label>Timeline Speed: {{ timelineSpeed }} ms</label></div>
+                    <div class="col-6"><input type="range" class="custom-range" min="200" step="100" max="1000" [(ngModel)]="timelineSpeed"></div>
                   </div>
                   <div>Timeline works on 2D Network, Map, and Bubble Views.</div>
                 </div>

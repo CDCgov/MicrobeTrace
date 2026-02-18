@@ -94,7 +94,7 @@
           <a>Latitude</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-lat" [options]="FieldList" [(ngModel)]="SelectedLatitude"
+          <p-select id="map-field-lat" [options]="FieldList" [(ngModel)]="SelectedLatitude" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -103,7 +103,7 @@
           <a>Longitude</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-lon" [options]="FieldList" [(ngModel)]="SelectedLongitude"
+          <p-select id="map-field-lon" [options]="FieldList" [(ngModel)]="SelectedLongitude" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -112,7 +112,7 @@
           <a>Census Tract</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-tract" [options]="FieldList" [(ngModel)]="SelectedCensusTract"
+          <p-select id="map-field-tract" [options]="FieldList" [(ngModel)]="SelectedCensusTract" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -121,7 +121,7 @@
           <a>Zipcode</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-zipcode" [options]="FieldList" [(ngModel)]="SelectedZipCode"
+          <p-select id="map-field-zipcode" [options]="FieldList" [(ngModel)]="SelectedZipCode" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -130,7 +130,7 @@
           <a>County</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-county" [options]="FieldList" [(ngModel)]="SelectedCounty"
+          <p-select id="map-field-county" [options]="FieldList" [(ngModel)]="SelectedCounty" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -139,7 +139,7 @@
           <a>State</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-state" [options]="FieldList" [(ngModel)]="SelectedState"
+          <p-select id="map-field-state" [options]="FieldList" [(ngModel)]="SelectedState" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -148,7 +148,7 @@
           <a>Country</a>
         </div>
         <div class="col-8">
-          <p-select id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedCountry"
+          <p-select id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedCountry" class="width-percent-100"
           (ngModelChange)="onDataChange($event)" appendTo="body"></p-select>
         </div>
       </div>
@@ -193,7 +193,7 @@
         <p-accordion-content><div class="form-group row" title="Would you like to see Nodes on the map?">
           <div class="col-4">Nodes</div>
           <div class="col-8">
-            <p-selectButton [options]="NodesTypes" [allowEmpty]="false" id="map-node-show-hide"
+            <p-selectButton [options]="NodesTypes" [allowEmpty]="false" id="map-node-show-hide" fluid
               [(ngModel)]="SelectedNodesTypeVariable"
             (ngModelChange)="onMapNodeShowHideChange($event)"></p-selectButton>
           </div>
@@ -201,7 +201,7 @@
         <div class="form-group row" title="Would you like to see links on the map?">
           <div class="col-4">Links</div>
           <div class="col-8">
-            <p-selectButton [options]="LinksTypes" [allowEmpty]="false" id="map-link-show-hide"
+            <p-selectButton [options]="LinksTypes" [allowEmpty]="false" id="map-link-show-hide" fluid
               [(ngModel)]="SelectedLinksTypeVariable"
             (ngModelChange)="onMapLinksShowHideChange($event)"></p-selectButton>
           </div>
@@ -213,7 +213,7 @@
       <p-accordion-content><div class="form-group row" title="Would you like to see Countries on the map?">
         <div class="col-4">Countries</div>
         <div class="col-8">
-          <p-selectButton [options]="CountriesTypes" [allowEmpty]="false" id="map-countries-show-hide"
+          <p-selectButton [options]="CountriesTypes" [allowEmpty]="false" id="map-countries-show-hide" fluid
             [(ngModel)]="SelectedCountriesTypeVariable"
           (ngModelChange)="onCountriesShowHidChange($event)"></p-selectButton>
         </div>
@@ -221,7 +221,7 @@
       <div class="form-group row" title="Would you like to see (US) States on the map?">
         <div class="col-4">States</div>
         <div class="col-8">
-          <p-selectButton [options]="StatesTypes" [allowEmpty]="false" id="map-states-show-hide"
+          <p-selectButton [options]="StatesTypes" [allowEmpty]="false" id="map-states-show-hide" fluid
             [(ngModel)]="SelectedStatesTypeVariable"
           (ngModelChange)="onStatesShowHideChange($event)"></p-selectButton>
         </div>
@@ -229,7 +229,7 @@
       <div class="form-group row" title="Would you like to see (US) Counties on the map?">
         <div class="col-4">Counties</div>
         <div class="col-8">
-          <p-selectButton [options]="CountiesTypes" [allowEmpty]="false" id="map-counties-show-hide"
+          <p-selectButton [options]="CountiesTypes" [allowEmpty]="false" id="map-counties-show-hide" fluid
             [(ngModel)]="SelectedCountiesTypeVariable"
           (ngModelChange)="onCountiesShowHideChange($event)"></p-selectButton>
         </div>
@@ -241,7 +241,7 @@
     <p-accordion-content><div class="row">
       <div class="col-12">
         <div class="alert alert-warning alert-dismissible" role="alert">
-          Enabling any of the layers below will download tiles from the Internet. <!--a
+          Enabling any of the layers below will  <br/>download tiles from the Internet. <!--a
         href="https://github.com/CDCgov/MicrobeTrace/wiki/Tile-Maps" target="_blank">Read More.</a-->
         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
           <span aria-hidden="true">&times;</span>
@@ -252,7 +252,7 @@
   <div id="baseRow" class="form-group row ifOnline" title="Would you like to use a Tile Basemap?">
     <div class="col-4">Basemap</div>
     <div class="col-8">
-      <p-selectButton [options]="BasemapTypes" [allowEmpty]="false" id="map-basemap-show-hide"
+      <p-selectButton [options]="BasemapTypes" [allowEmpty]="false" id="map-basemap-show-hide" fluid
         [(ngModel)]="SelectedBasemapTypeVariable" (ngModelChange)="onBasemapChange($event)">
       </p-selectButton>
     </div>
@@ -260,7 +260,7 @@
   <div class="form-group row ifOnline" title="Would you like to use a Satellite layer?">
     <div class="col-4">Satellite</div>
     <div class="col-8">
-      <p-selectButton [options]="SatelliteTypes" [allowEmpty]="false" id="map-satellite-show-hide"
+      <p-selectButton [options]="SatelliteTypes" [allowEmpty]="false" id="map-satellite-show-hide" fluid
         [(ngModel)]="SelectedSatelliteTypeVariable" (ngModelChange)="onSatelliteChange($event)">
       </p-selectButton>
     </div>
@@ -272,13 +272,13 @@
 <tab heading="{{'Nodes' | localize}}" customClass="m-tabs__item">
   <div class="form-group row">
     <div class="col-4">Color</div>
-    <div class="col-8"><button class="btn btn-sm btn-light w-100 launch-color-options"
+    <div class="col-8"><button class="btn btn-sm map-btn w-100"
     (click)="displayColorOptions()">Color Options</button></div>
   </div>
   <div class="form-group row">
     <div class="col-4">Collapsing</div>
     <div class="col-8">
-      <p-selectButton [options]="NodeCollapsingTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable" id="map-node-collapsing"
+      <p-selectButton [options]="NodeCollapsingTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable" id="map-node-collapsing" fluid
       (ngModelChange)="onNodeCollapsingChange($event)"></p-selectButton>
     </div>
   </div>
@@ -289,9 +289,9 @@
     (ngModelChange)="onNodeTransparencyChange($event)"></div>
   </div>
   <div class="form-group row" title="How much randomness do you want to add to node locations?">
-    <div class="col-4">
+    <div class="col-4 padding-right-5">
       <label for="map-node-jitter">Jitter</label>
-      <button id="map-node-jitter-reroll" class="btn btn-light btn-sm" (click)="onNodeJitterChange()">Reroll</button>
+      <button id="map-node-jitter-reroll" class="btn map-btn btn-sm" (click)="onNodeJitterChange()" style="margin-left: 5px;">Reroll</button>
     </div>
     <div class="col-8"><input type="range" class="custom-range" id="map-node-jitter" min="-2" max="2"
       step="0.01" value="-2" [(ngModel)]="SelectedNodeJitterVariable"
@@ -300,7 +300,7 @@
   <div class="form-group row" title="What node data should be displayed as a tooltip for the node?">
     <div class="col-4"><label for="map-node-tooltip-variable">Tooltip</label></div>
     <div class="col-8">
-      <p-select id="map-node-tooltip-variable" [options]="FieldList" appendTo="body"
+      <p-select id="map-node-tooltip-variable" [options]="FieldList" appendTo="body" class="width-percent-100"
         [(ngModel)]="SelectedNodeTooltipVariable" (ngModelChange)="onNodeToolTipChange($event)">
       </p-select>
     </div>
@@ -309,7 +309,7 @@
 <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
   <div class="form-group row">
     <div class="col-4">Color</div>
-    <div class="col-8"><button class="btn btn-sm btn-light w-100 launch-color-options"
+    <div class="col-8"><button class="btn btn-sm map-btn w-100" 
     (click)="displayColorOptions()">Color Options</button></div>
   </div>
   <div class="form-group row" title="How transparent would you like links to be?">
@@ -321,7 +321,7 @@
   <div class="form-group row" title="What link data would you like displayed as a tooltip for the link?">
     <div class="col-4"><label for="map-link-tooltip-variable">Tooltip</label></div>
     <div class="col-8">
-      <p-select id="map-link-tooltip-variable" [options]="LinkToolTipList" appendTo="body"
+      <p-select id="map-link-tooltip-variable" [options]="LinkToolTipList" appendTo="body" class="width-percent-100"
         [(ngModel)]="SelectedLinkTooltipVariable" (ngModelChange)="onLinkToolTipChange($event)">
       </p-select>
     </div>

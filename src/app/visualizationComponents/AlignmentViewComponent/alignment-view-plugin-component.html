@@ -259,7 +259,7 @@
           <p-accordion-content><div #dataControls>
             <div class="form-group row" title="Set a predefined size">
               <div class="col-2"><label>Sequence</label></div>
-              <div class="col-10">
+              <div class="col-10" style="display: flex; justify-content: flex-end;">
                 <p-selectButton [options]="seqTypeOptions" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
               </div>
             </div>
@@ -278,7 +278,7 @@ Given sequence ('CT-T...'), Maintain Reading Frame will convert codon CCT to L.
 Maintain Codon will convert codon CT- to X (Unknown).">
                 <div class="col-5"><label>Translation Settings</label></div>
                 <div class="col-7">
-                  <p-select [options]="['Maintain Codons', 'Maintain Reading Frame']" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
+                  <p-select [options]="['Maintain Codons', 'Maintain Reading Frame']" class="width-percent-100" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
                 </div>
               </div>
             }
@@ -289,29 +289,29 @@ Maintain Codon will convert codon CT- to X (Unknown).">
         <p-accordion-header>Layout</p-accordion-header>
         <p-accordion-content><div #layoutControls>
           <div class="form-group row" title="Show or Hide the Mini Map">
-            <div class="col-4"><label>Show Mini-Map</label></div>
-            <div class="col-8">
-              <p-selectButton [options]="showHideOptions" [(ngModel)]="this.widgets['alignView-showMiniMap']" (onChange)="updateMiniMapVisibility()"></p-selectButton>
+            <div class="col-5"><label>Show Mini-Map</label></div>
+            <div class="col-7">
+              <p-selectButton [options]="showHideOptions" fluid [(ngModel)]="this.widgets['alignView-showMiniMap']" (onChange)="updateMiniMapVisibility()"></p-selectButton>
             </div>
           </div>
           <div class="form-group row" title="Switch between a Bar Plot representation or a Logo representation of the nucleotides present at each position">
-            <div class="col-4"><label>Show Logo/Bar Plot</label></div>
-            <div class="col-8">
-              <p-selectButton [options]="alignmentTopDisplayOptions"
+            <div class="col-5"><label>Show Logo/Bar Plot</label></div>
+            <div class="col-7">
+              <p-selectButton [options]="alignmentTopDisplayOptions" fluid
               [(ngModel)]="this.widgets['alignView-topDisplay']" (onChange)="onAlignmentTopChange()"></p-selectButton>
             </div>
           </div>
           <div class="form-group row" title="Set the minor interval for the ruler. Set to 0 to remove minor interval.">
-            <div class="col-4"><label>Ruler Minor Interval</label></div>
-            <div class="col-8">
-              <p-select [options]="rulerIntervalOptions" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
+            <div class="col-5"><label>Ruler Minor Interval</label></div>
+            <div class="col-7">
+              <p-select [options]="rulerIntervalOptions" class="width-percent-100" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
             </div>
           </div>
           <div class="form-group row"
             title="Select how you want NTs/AAs to be shown in the viewer. Show: Shows both the color and letter for each character. Minimum: Shows the color for each character and the letter for any that are different than the top sequence. Hide: Only shows the color for each character.">
             <div class="col-4"><label>Show Characters</label></div>
             <div class="col-8">
-              <p-selectButton [options]="charSettingOptions"
+              <p-selectButton [options]="charSettingOptions" fluid
               [(ngModel)]="this.widgets['alignView-charSetting']" (onChange)="updateAlignment()"></p-selectButton>
             </div>
           </div>
@@ -324,13 +324,13 @@ Maintain Codon will convert codon CT- to X (Unknown).">
         <div class="form-group row" title="">
           <div class="col-4"><label>Labels</label></div>
           <div class="col-8">
-            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
+            <p-select appendTo="body" [options]="labelFieldList" class="width-percent-100" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
           </div>
         </div>
         <div class="form-group row" title="">
           <div class="col-4"><label>Sort By</label></div>
           <div class="col-8">
-            <p-select appendTo="body" [options]="labelFieldList" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
+            <p-select appendTo="body" [options]="labelFieldList" class="width-percent-100" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
           </div>
         </div>
       </div>
@@ -342,7 +342,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
       <div class="form-group row" title="Set a predefined size">
         <div class="col-2"><label>Size</label></div>
         <div class="col-10">
-          <p-selectButton [options]="sizes" [(ngModel)]="this.widgets['alignView-selectedSize']" (onChange)="onSelectedSizeChanged()"></p-selectButton>
+          <p-selectButton [options]="sizes" fluid [(ngModel)]="this.widgets['alignView-selectedSize']" (onChange)="onSelectedSizeChanged()"></p-selectButton>
         </div>
       </div>
       <div class="form-group row node-label-row" title="Set a custom height. Updating sets size to custom">
@@ -366,7 +366,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
     <div class="form-group row" title="Select a color scheme">
       <div class="col-3"><label>Color Scheme</label></div>
       <div class="col-9">
-        <p-selectButton [disabled]="selectedSeqType=='aa'" [options]="colorSchemeOptions" [(ngModel)]="this.widgets['alignView-colorSchemeName']"
+        <p-selectButton [disabled]="selectedSeqType=='aa'" [options]="colorSchemeOptions" fluid [(ngModel)]="this.widgets['alignView-colorSchemeName']"
         (onChange)="onSelectedColorChanged()"></p-selectButton>
       </div>
     </div>

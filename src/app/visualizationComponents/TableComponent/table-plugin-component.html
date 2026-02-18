@@ -10,7 +10,7 @@
     </span>
     <span style="display: inline-block; flex-grow: 0; line-height: 44px;">Dataset:</span>
     <span class="data-types" id="dataType" style="overflow: visible; position: relative; width: 150px; display: inline; flex-grow: 0;">
-      <p-select #dataSet [options]="dataSetView" [(ngModel)]="dataSetViewSelected" (onChange)="openSelectDataSetScreen($event)" [style]="{'width': '110px'}"></p-select>
+      <p-select #dataSet [options]="dataSetView" [(ngModel)]="dataSetViewSelected" (onChange)="openSelectDataSetScreen($event)" [style]="{'width': '130px'}"></p-select>
     </span>
     <span style="flex-grow: 1; width: calc(100% - 295px)">
       <p-multiSelect [options]="SelectedTableData.availableColumns" [(ngModel)]="SelectedTableData.tableColumns" [showToggleAll]=false [style]="{'max-width': '100%'}"></p-multiSelect>

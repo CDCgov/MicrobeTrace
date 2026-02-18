@@ -19,7 +19,7 @@
       <div class="form-group row" title="">
         <div class="col-3"><a>X</a></div>
         <div class="col-7">
-          <p-select [options]="selectedFieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body" style="width: 100%;"></p-select>
+          <p-select [options]="selectedFieldList" class="width-percent-100" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body"></p-select>
         </div>
         <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
           <p-checkbox [(ngModel)]="xVarDate" (ngModelChange)="onDataChange('X')" binary="true" inputId="xVarDate"></p-checkbox>
@@ -29,7 +29,7 @@
       <div class="form-group row" title="">
         <div class="col-3"><a>Y</a></div>
         <div class="col-7">
-          <p-select [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body" style="width: 100%;"></p-select>
+          <p-select class="width-percent-100" [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body"></p-select>
         </div>
         <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
           <p-checkbox [(ngModel)]="yVarDate" (ngModelChange)="onDataChange('Y')" binary="true" inputId="yVarDate"></p-checkbox>
@@ -37,27 +37,29 @@
         </div>
       </div>
       <div class="form-group row node-label-row" title="How big should the nodes be?">
-        <div class="col-4"><label>Size</label></div>
-        <div class="col-8"><input type="range" class="custom-range" min="10" step="1" max="40" [(ngModel)]="nodeSize" (change)="onNodeSizeChange()"></div>
+        <div class="col-3"><label>Size</label></div>
+        <div class="col-7"><input type="range" class="custom-range" min="10" step="1" max="40" [(ngModel)]="nodeSize" (change)="onNodeSizeChange()"></div>
       </div>
       <div class="form-group row node-label-row" title="How much space between nodes? This has no effect when nodes are collapsed.">
-        <div class="col-4"><label>Spacing</label></div>
-        <div class="col-8"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()" [disabled]="SelectedNodeCollapsingTypeVariable"></div>
+        <div class="col-3"><label>Spacing</label></div>
+        <div class="col-7"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()" [disabled]="SelectedNodeCollapsingTypeVariable"></div>
       </div>
       <div class="form-group row node-label-row" title="Select a font Size for axis labels.">
-        <div class="col-4"><label>Label Size</label></div>
-        <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="40" [(ngModel)]="labelSize" (change)="onLabelSizeChange()"></div>
+        <div class="col-3 padding-right-5"><label>Label Size</label></div>
+        <div class="col-7"><input type="range" class="custom-range" min="10" step="2" max="40" [(ngModel)]="labelSize" (change)="onLabelSizeChange()"></div>
       </div>
       <div class="form-group row">
-        <div class="col-4">Collapse</div>
-        <div class="col-8">
-          <p-selectButton [options]="OnOffTypes" [allowEmpty]="false" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
+        <div class="col-3">Collapse</div>
+        <div class="col-7">
+          <p-selectButton [options]="OnOffTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeCollapsingTypeVariable"
           (ngModelChange)="onNodeCollapsingChange()"></p-selectButton>
         </div>
       </div>
       <div class="form-group row" title="">
-        <div class="col-4"><label>Node Color</label></div>
-        <button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'margin-left': '15px', 'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+        <div class="col-3" style="padding-right: 0px;"><label>Node Color</label></div>
+        <div class="col-7">
+          <button pButton type="button" label="Show Colors" class="ui-button-raised width-percent-100" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+        </div>
       </div>
     </p-dialog>
   }

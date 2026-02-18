@@ -58,7 +58,7 @@
                   <div class="form-group row gantt-start-row" title="What variable would you like to add to the Sankey Chart?" style="overflow:visible">
                     <div class="col-4"><label>Variable Name</label></div>
                     <div class="col-8">
-                      <p-select appendTo="body" [options]="FieldList" [(ngModel)]="SelectedFieldName"> </p-select>
+                      <p-select appendTo="body" [options]="FieldList" class="width-percent-100" [(ngModel)]="SelectedFieldName"> </p-select>
                     </div>
                   </div>
                   @if (SankeyFieldNames.length < 2) {
@@ -96,7 +96,7 @@
                 <div class="form-group row gantt-start-row" title="" style="overflow:visible">
                   <div class="col-5"><label>Link Color</label></div>
                   <div class="col-5">
-                    <p-select appendTo="body" [options]="LinkColorOptions" [(ngModel)]="SelectedColorOption"> </p-select>
+                    <p-select appendTo="body" [options]="LinkColorOptions" class="width-percent-100" [(ngModel)]="SelectedColorOption"> </p-select>
                   </div>
                   @if (SelectedColorOption=='Uniform') {
                     <div div class="col-2">

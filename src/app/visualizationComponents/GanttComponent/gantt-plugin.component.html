@@ -40,7 +40,7 @@
                         style="overflow:visible">
                         <div class="col-4"><label for="gantt-start">Start Date</label></div>
                         <div class="col-8">
-                          <p-select id="gantt-start" appendTo="body" [options]="FieldList"
+                          <p-select id="gantt-start" appendTo="body" [options]="FieldList" class="width-percent-100"
                           [(ngModel)]="GanttStartVariable"> </p-select>
                         </div>
                       </div>
@@ -48,7 +48,7 @@
                         style="overflow:visible">
                         <div class="col-4"><label for="gantt-end">End Date</label></div>
                         <div class="col-8">
-                          <p-select id="gantt-end" appendTo="body" [options]="FieldList"
+                          <p-select id="gantt-end" appendTo="body" [options]="FieldList" class="width-percent-100"
                           [(ngModel)]="GanttEndVariable"> </p-select>
                         </div>
                       </div>
@@ -113,7 +113,7 @@
                     placeholder="Image Filename" [(ngModel)]="SelectedGanttChartImageFilenameVariable">
                   </div>
                   <div class="col-3">
-                    <p-select id="network-export-filetype" [options]="NetworkExportFileTypeList"
+                    <p-select id="network-export-filetype" [options]="NetworkExportFileTypeList" appendTo="body"
                     [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-select>
                   </div>
                   <div class="col-8">

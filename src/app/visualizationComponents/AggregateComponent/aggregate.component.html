@@ -48,7 +48,7 @@
           <div style="display: flex; width: 100%;">
             <span class="col-3">Table {{i+1}}</span>
             <span class="col-7">
-              <p-select [options]="fieldOptions"  [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
+              <p-select [options]="fieldOptions"  class="width-percent-100" [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
                 <ng-template let-group pTemplate="group">
                   <span style="font-size: large; font-weight: bold;">{{ group.label }}</span>
                 </ng-template>

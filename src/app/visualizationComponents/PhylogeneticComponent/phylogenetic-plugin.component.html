@@ -35,7 +35,7 @@
                 <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
                   <div class="col-4"><label for="tree-layout">Layout</label></div>
                   <div class="col-8">
-                    <p-select id="tree-layout" appendTo="body" [options]="TreeLayouts" [(ngModel)]="SelectedTreeLayoutVariable" (ngModelChange)="onTreeLayoutChange($event)"> </p-select>
+                    <p-select id="tree-layout" appendTo="body" [options]="TreeLayouts" class="width-percent-100" [(ngModel)]="SelectedTreeLayoutVariable" (ngModelChange)="onTreeLayoutChange($event)"> </p-select>
                   </div>
                 </div>
               </div>
@@ -47,7 +47,7 @@
               <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
                 <div class="col-4"><label for="tree-mode">Mode</label></div>
                 <div class="col-8">
-                  <p-select id="tree-mode" appendTo="body" [options]="TreeModes" [(ngModel)]="SelectedTreeModeVariable" (ngModelChange)="onTreeModeChange($event)"> </p-select>
+                  <p-select id="tree-mode" appendTo="body" [options]="TreeModes" class="width-percent-100" [(ngModel)]="SelectedTreeModeVariable" (ngModelChange)="onTreeModeChange($event)"> </p-select>
                 </div>
               </div>
             </div>
@@ -59,7 +59,7 @@
             <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
               <div class="col-4"><label for="tree-type">Type</label></div>
               <div class="col-8">
-                <p-select id="tree-type" appendTo="body" [options]="TreeTypes" [(ngModel)]="SelectedTreeTypeVariable" (ngModelChange)="onTreeTypeChange($event)"> </p-select>
+                <p-select id="tree-type" appendTo="body" [options]="TreeTypes" class="width-percent-100" [(ngModel)]="SelectedTreeTypeVariable" (ngModelChange)="onTreeTypeChange($event)"> </p-select>
               </div>
             </div>
           </div>
@@ -69,10 +69,15 @@
         <p-accordion-header>Stretch</p-accordion-header>
         <p-accordion-content><div #treecontrolslabels>
           <div class="form-group row tree-type-row" title="What kind of tree should be displayed?" style="overflow:visible">
-            <div class="col-4"><label for="horizontal-stretch">Horizontal Stretch</label></div>
-            <input type="range" class="col-7 custom-range" id="horizontal-stretch" min="0.2" step="0.2" max="8" [(ngModel)]="SelectedHorizontalStretchVariable" (change)="onHorizontalStretchChange($event)">
-            <div class="col-4"><label for="vertical-stretch">Vertical Stretch</label></div>
-            <input type="range" class="col-7 custom-range" id="vertical-stretch" min="0.2" step="0.2" max="8" [(ngModel)]="SelectedVerticalStretchVariable" (change)="onVerticalStretchChange($event)">
+            <div class="col-5"><label for="horizontal-stretch">Horizontal Stretch</label></div>
+            <div class="col-7">
+              <input type="range" class="custom-range" id="horizontal-stretch" min="0.2" step="0.2" max="8" [(ngModel)]="SelectedHorizontalStretchVariable" (change)="onHorizontalStretchChange($event)">
+            </div>
+            <div class="col-5"><label for="vertical-stretch">Vertical Stretch</label></div>
+            <div class="col-7">
+              <input type="range" class="custom-range" id="vertical-stretch" min="0.2" step="0.2" max="8" [(ngModel)]="SelectedVerticalStretchVariable" (change)="onVerticalStretchChange($event)">
+            </div>
+            
           </div>
         </div>
       </p-accordion-content>
@@ -85,36 +90,36 @@
       <p-accordion-header>Labels and Tooltips</p-accordion-header>
       <p-accordion-content><div #leafcontrolslabels>
         <div class="form-group row leaf-label-visibility-row" title="Show leaf labels?">
-          <div class="col-4">Show Leaf Labels</div>
-          <div class="col-8">
-            <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
+          <div class="col-5">Show Leaf Labels</div>
+          <div class="col-7">
+            <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
           </div>
         </div>
         @if (SelectedLeafLabelShowVariable) {
           <div class="form-group row leaf-label-variable-row" title="What variable should be used as the leaf label?" style="overflow:visible">
-            <div class="col-4"><label for="leaf-label-variable">Label Variable</label></div>
-            <div class="col-8">
-              <p-select id="leaf-label-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafLabelVariable" (ngModelChange)="onLeafLabelVariableChange($event)"> </p-select>
+            <div class="col-5"><label for="leaf-label-variable">Label Variable</label></div>
+            <div class="col-7">
+              <p-select id="leaf-label-variable" appendTo="body" [options]="LeafLabelFieldList" class="width-percent-100" [(ngModel)]="SelectedLeafLabelVariable" (ngModelChange)="onLeafLabelVariableChange($event)"> </p-select>
             </div>
           </div>
         }
         @if (SelectedLeafLabelShowVariable) {
           <div class="form-group row leaf-label-size-row" title="How big should leaf labels be?">
-            <div class="col-4"><label for="leaf-label-size">Label Size</label></div>
-            <input type="range" class="col-7 custom-range" id="leaf-label-size" min="6" step="1" max="28" [(ngModel)]="SelectedLeafLabelSizeVariable" (ngModelChange)="onLeafLabelSizeChange($event)">
+            <div class="col-5"><label for="leaf-label-size">Label Size</label></div>
+            <div class="col-7"><input type="range" class="custom-range" id="leaf-label-size" min="6" step="1" max="28" [(ngModel)]="SelectedLeafLabelSizeVariable" (ngModelChange)="onLeafLabelSizeChange($event)"></div>
           </div>
         }
         <div class="form-group row leaf-tooltip-visibility-row" title="Show leaf tooltips?">
-          <div class="col-4">Show Leaf Tooltips</div>
-          <div class="col-8">
-            <p-selectButton id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectButton>
+          <div class="col-5">Show Leaf Tooltips</div>
+          <div class="col-7">
+            <p-selectButton id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectButton>
           </div>
         </div>
         @if (SelectedLeafTooltipShowVariable) {
           <div class="form-group row leaf-tooltip-variable-row" title="What variable should be used as the leaf tooltip?" style="overflow:visible">
-            <div class="col-4"><label for="leaf-tooltip-variable">Tooltip Variable</label></div>
-            <div class="col-8">
-              <p-select id="leaf-tooltip-variable" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafTooltipVariable" (ngModelChange)="onLeafTooltipVariableChange($event)"> </p-select>
+            <div class="col-5"><label for="leaf-tooltip-variable">Tooltip Variable</label></div>
+            <div class="col-7">
+              <p-select id="leaf-tooltip-variable" appendTo="body" [options]="LeafLabelFieldList" class="width-percent-100" [(ngModel)]="SelectedLeafTooltipVariable" (ngModelChange)="onLeafTooltipVariableChange($event)"> </p-select>
             </div>
           </div>
         }
@@ -125,9 +130,9 @@
     <p-accordion-header>Leaf Size</p-accordion-header>
     <p-accordion-content><div #leafcontrolslabels>
       <div class="form-group row " title="Show leaf nodes?">
-        <div class="col-4">Show Leaf Nodes</div>
-        <div class="col-8">
-          <p-selectButton [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
+        <div class="col-5">Show Leaf Nodes</div>
+        <div class="col-7">
+          <p-selectButton [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
         </div>
       </div>
       <!--<div class="form-group row leaf-shape-row" title="What shape should leaves be?">
@@ -136,27 +141,27 @@
     </div>-->
     @if (SelectedLeafNodeShowVariable) {
       <div class="form-group row leaf-size-var-row" title="What variable should be used to size the nodes?">
-        <div class="col-4"><label for="leaf-size-var">Leaf Size Variable</label></div>
-        <div class="col-8">
-          <p-select id="leaf-size-var" appendTo="body" [options]="LeafLabelFieldList" [(ngModel)]="SelectedLeafNodeSizeVariable" (ngModelChange)="onLeafNodeSizeVariableChange($event)"> </p-select>
+        <div class="col-5"><label for="leaf-size-var">Leaf Size Variable</label></div>
+        <div class="col-7">
+          <p-select id="leaf-size-var" appendTo="body" [options]="LeafLabelFieldList" class="width-percent-100" [(ngModel)]="SelectedLeafNodeSizeVariable" (ngModelChange)="onLeafNodeSizeVariableChange($event)"> </p-select>
         </div>
       </div>
     }
     @if (SelectedLeafNodeSizeVariable=='None' && SelectedLeafNodeShowVariable) {
       <div class="form-group row leaf-size-row" title="How big should leaves be?">
-        <div class="col-4"><label for="leaf-size">Leaf Size</label></div>
+        <div class="col-5"><label for="leaf-size">Leaf Size</label></div>
         <div class="col-7"><input type="range" class="custom-range" id="leaf-size" min="1" step="0.5" max="50" [(ngModel)]="SelectedLeafNodeSize" (ngModelChange)="onLeafNodeSizeChange($event)"></div>
       </div>
     }
     @if (SelectedLeafNodeSizeVariable!='None' && SelectedLeafNodeShowVariable) {
       <div class="form-group row " title="How big should leaves be?">
-        <div class="col-4"><label>Min Leaf Size</label></div>
+        <div class="col-5"><label>Min Leaf Size</label></div>
         <div class="col-7"><input type="range" class="custom-range" id="leaf-size-min" min="1" step="0.5" max="25" [(ngModel)]="minNodeWidth" (ngModelChange)="styleTree()"></div>
       </div>
     }
     @if (SelectedLeafNodeSizeVariable!='None' && SelectedLeafNodeShowVariable) {
       <div class="form-group row" title="How big should leaves be?">
-        <div class="col-4"><label>Max Leaf Size</label></div>
+        <div class="col-5"><label>Max Leaf Size</label></div>
         <div class="col-7"><input type="range" class="custom-range" id="leaf-size-max" min="5" step="0.5" max="40" [(ngModel)]="maxNodeWidth" (ngModelChange)="styleTree()"></div>
       </div>
     }
@@ -176,15 +181,15 @@
       <p-accordion-header>Branch Labels</p-accordion-header>
       <p-accordion-content><div #branchcontrolslabels>
         <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
-          <div class="col-4"><label for="branch-distance-visibility">Distance Labels</label></div>
-          <div class="col-8">
-            <p-selectButton id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectButton>
+          <div class="col-5"><label for="branch-distance-visibility">Distance Labels</label></div>
+          <div class="col-7">
+            <p-selectButton id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectButton>
           </div>
         </div>
         @if (SelectedBranchDistanceShowVariable) {
           <div class="form-group row link-size-row" title="How big should branch labels be?">
-            <div class="col-4"><label for="link-size">Branch Label Size</label></div>
-            <input type="range" class="col-7 custom-range" id="link-size" min="4" step="1" max="25" [(ngModel)]="SelectedBranchDistanceSizeVariable" (ngModelChange)="onBranchDistanceSizeChange($event)">
+            <div class="col-5"><label for="link-size">Branch Label Size</label></div>
+            <div class="col-7"><input type="range" class="custom-range" id="link-size" min="4" step="1" max="25" [(ngModel)]="SelectedBranchDistanceSizeVariable" (ngModelChange)="onBranchDistanceSizeChange($event)"></div>
           </div>
         }
       </div>
@@ -194,20 +199,20 @@
     <p-accordion-header>Branch Size</p-accordion-header>
     <p-accordion-content><div #branchcontrollables>
       <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">
-        <div class="col-4"><label for="branch-node-visibility">Branch Nodes</label></div>
-        <div class="col-8">
-          <p-selectButton id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectButton>
+        <div class="col-5"><label for="branch-node-visibility">Branch Nodes</label></div>
+        <div class="col-7">
+          <p-selectButton id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectButton>
         </div>
       </div>
       @if (SelectedBranchNodeShowVariable) {
         <div class="form-group row branch-node-size-row" title="How big should branch nodes be?">
-          <div class="col-4"><label for="branch-node-size">Branch Node Size</label></div>
-          <input type="range" class="col-7 custom-range" id="branch-node-size" min="1" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)">
+          <div class="col-5"><label for="branch-node-size">Branch Node Size</label></div>
+          <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)"></div>
         </div>
       }
       <div class="form-group row link-size-row" title="How big should branches be?">
-        <div class="col-4"><label for="branch-size">Branch Size</label></div>
-        <input type="range" class="col-7 custom-range" id="branch-size" min="1" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)">
+        <div class="col-5"><label for="branch-size">Branch Size</label></div>
+        <div class="col-7"><input type="range" class="custom-range" id="branch-size" min="1" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)"></div>
       </div>
     </div>
   </p-accordion-content>

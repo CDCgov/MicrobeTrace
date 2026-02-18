@@ -89,25 +89,25 @@
       <div class="form-group row" title="">
         <div class="col-3"><a>X</a></div>
         <div class="col-9">
-          <p-select [options]="fieldList" [(ngModel)]="xVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-select>
+          <p-select [options]="fieldList"  class="width-percent-100" [(ngModel)]="xVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-select>
         </div>
       </div>
       <div class="form-group row" title="">
         <div class="col-3"><a>Y</a></div>
         <div class="col-9">
-          <p-select [options]="fieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-select>
+          <p-select [options]="fieldList" class="width-percent-100" [(ngModel)]="yVariable" (ngModelChange)="onDataChange()" appendTo="body"></p-select>
         </div>
       </div>
       <div class="form-group row" title="Show raw counts or proportion of total?">
         <div class="col-3"><label>Show</label></div>
         <div class="col-9">
-          <p-selectButton [options]="showOptions" [allowEmpty]="false" [(ngModel)]="widgets['crosstab-useProportion']" [multiple]="false" (onChange)="useProportionChanged()"></p-selectButton>
+          <p-selectButton [options]="showOptions" [allowEmpty]="false" fluid [(ngModel)]="widgets['crosstab-useProportion']" [multiple]="false" (onChange)="useProportionChanged()"></p-selectButton>
         </div>
       </div>
       <div class="form-group row" title="What size would you like the Table's font to be?">
         <div class="col-3"><label for="table-font-size">Size</label></div>
         <div class="col-9">
-          <p-selectButton [options]="sizes" [allowEmpty]="false" [(ngModel)]="selectedSize" [multiple]="false" optionLabel="name" optionValue="class" (onChange)="onTableSizeChange()"></p-selectButton>
+          <p-selectButton [options]="sizes" [allowEmpty]="false" fluid [(ngModel)]="selectedSize" [multiple]="false" optionLabel="name" optionValue="class" (onChange)="onTableSizeChange()"></p-selectButton>
         </div>
       </div>
     </p-dialog>
