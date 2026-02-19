@@ -122,7 +122,7 @@
     "karma-jasmine": "~4.0.0",
     "karma-jasmine-html-reporter": "^1.5.0",
     "leaflet-image": "0.4.0",
-    "ngx-build-plus": "^9.0.0",
+    "ngx-build-plus": "^20.0.0",
     "papaparse": "5.4.1",
     "patristic": "^0.6.0",
     "pdfmake": "^0.2.10",
