@@ -11,8 +11,8 @@
       </div>
       <div class="m-portlet__body" style="height: 100%; overflow: scroll">
         <br />
-        <div className="gantt-plugin" id="gantt" ngShow="dataAvail()" style="cursor: grab;">
-          <ngx-gantt-chart [data]="ganttChartData"></ngx-gantt-chart>
+        <div class="gantt-plugin" id="gantt" ngShow="dataAvail()" style="cursor: grab;">
+            <ngx-gantt-chart #ganttChart [data]="ganttChartData"></ngx-gantt-chart>
         </div>
       </div>
     </div>
@@ -20,7 +20,7 @@
 
       @if (viewActive) {
         <p-dialog id="gantt-settings-pane" [positionLeft]="GanttSettingsDialogSettings.left"
-          [positionTop]="GanttSettingsDialogSettings.top" [(visible)]="GanttSettingsDialogSettings.isVisible"
+          [positionTop]="GanttSettingsDialogSettings.top" [(visible)]="GanttSettingsDialogSettings.isVisible" [style]="{ width: '590px' }"
           [contentStyle]="{'overflow': 'visible'}" header="Gantt Settings" appendTo="body">
           <tabset class="tab-container tabbable-line">
             <tab heading="{{'Gantt Entry' | localize}}" [active]="true" customClass="m-tabs__item">

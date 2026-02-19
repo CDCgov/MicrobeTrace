@@ -153,6 +153,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     this.sankey.size([this.svgWidth-this.widthOffset, this.svgHeight-100])
 
     if (this.data.nodes.length > 0) this.sankeyGO();
+    this.cdref.detectChanges();
   }
 
   /** Updates the value of widthOffset which calculated based on length of longest label in the last column. The widithOffset value

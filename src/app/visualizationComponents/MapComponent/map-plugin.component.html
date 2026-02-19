@@ -13,15 +13,18 @@
 <div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
 
 <div id="tool-btn-container-map" class="tool-btn-container m-portlet">
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
-  </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-  </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a id="centerMapButton" title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
-  </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+        <a id="centerMapButton" title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Nodes without Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
+    </span>
 </div>
 <div #mapContainer class="map-container">
   <!-- <div #gmap style="width:100%;height:600px"></div> -->
@@ -399,12 +402,17 @@
       <div id="mapTooltip"></div>
 
       @if (viewActive) {
-        <p-dialog header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
-          <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain location data and were omitted from Map View.</span>
-          <ol>
-            @for (node of nodesWithoutLoc; track node) {
-              <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
-            }
-          </ol>
+        <p-dialog header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ 'width': '35rem', 'max-height': '40rem' }">
+          @if (nodesWithoutLoc.length == 0) {
+            <span class="text-surface-500 dark:text-surface-400 block mb-8">All nodes contain location data.</span>
+          } @else {
+            <span *ngIf="nodesWithoutLoc.length > 0" class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain location data and were omitted from Map View:
+              <ol>
+                @for (node of nodesWithoutLoc; track node) {
+                  <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
+                }
+              </ol>
+            </span>
+          }
         </p-dialog>
       }

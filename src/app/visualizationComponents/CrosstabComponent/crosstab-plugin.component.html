@@ -43,7 +43,7 @@
           [value]="SelectedTableData.data"
           [columns]="SelectedTableData.tableColumns"
           [resizableColumns]="true"
-          [styleClass]="selectedSize"
+          [size]="selectedSize"
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
           [tableStyle]="tableStyleCrosstab"
@@ -107,7 +107,7 @@
       <div class="form-group row" title="What size would you like the Table's font to be?">
         <div class="col-3"><label for="table-font-size">Size</label></div>
         <div class="col-9">
-          <p-selectButton [options]="sizes" [allowEmpty]="false" fluid [(ngModel)]="selectedSize" [multiple]="false" optionLabel="name" optionValue="class" (onChange)="onTableSizeChange()"></p-selectButton>
+          <p-selectButton [options]="sizes" [allowEmpty]="false" fluid [(ngModel)]="selectedSize" [multiple]="false" optionLabel="name" optionValue="value" (onChange)="onTableSizeChange()"></p-selectButton>
         </div>
       </div>
     </p-dialog>

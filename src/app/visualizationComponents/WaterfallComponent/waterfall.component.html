@@ -13,7 +13,7 @@
           [(selection)]="selectedClusterRow"
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
-          [tableStyle]="{'border': '3px #e9ecef solid'}">
+          [tableStyle]="{'border': '3px #e9ecef solid', 'overflow-x': 'visible'}">
           <ng-template pTemplate="header">
             <tr style="background-color: #d8dadd; font-size: 22px;">
               <th>Cluster</th>
@@ -49,7 +49,7 @@
           [(selection)]="selectedNodeRow"
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
-          [tableStyle]="{'border': '3px #e9ecef solid'}">
+          [tableStyle]="{'border': '3px #e9ecef solid', 'overflow-x': 'visible'}">
           <ng-template pTemplate="header">
             <tr style="background-color: #d8dadd; font-size: 22px;">
               <th>Nodes</th>
@@ -87,7 +87,7 @@
           [(selection)]="selectedLinkRow"
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
-          [tableStyle]="{'border': '3px #e9ecef solid'}">
+          [tableStyle]="{'border': '3px #e9ecef solid', 'overflow-x': 'visible'}">
           <ng-template pTemplate="header">
             <tr style="background-color: #d8dadd; font-size: 22px;">
               <th>Links</th>

@@ -104,6 +104,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       'yaxis.autorange': true
     }
     PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
+    this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
   }
   
   ngOnInit(): void {
@@ -138,9 +139,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     //this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
     
 
-    this.goldenLayoutComponentResize();
+    this.goldenLayoutComponentResize(true);
 
-    this.container.on('resize', () => { this.goldenLayoutComponentResize() })
+    this.container.on('resize', () => { setTimeout(() => this.goldenLayoutComponentResize(), 200) })
     this.container.on('hide', () => { 
       this.viewActive = false; 
       this.cdref.detectChanges();
@@ -156,7 +157,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   drawHeatmap(config: object): void {
     this.commonService.getDM().then(({dm, labels}) => {
       this.nodeIds = labels;
-      const xLabels = labels.map(d => 'N' + d);
+      const xLabels = labels.map(d => d);
       const yLabels = xLabels.slice();
 
       if (this.invertX) {
@@ -185,11 +186,14 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     const width = parentElement.clientWidth;
     const height = parentElement.clientHeight;
 */
+      let marginLeft = this.heatmapShowLabels ? 90 : 10
+      let marginBottom = this.heatmapShowLabels ? 75 : 10
       this.heatmapLayout = {
           xaxis: config,
           yaxis: config,
-          width: $('#heatmap').parent().width(),
-          height: $('#heatmap').parent().height(),
+          width: $('#heatmap').parent().width() - 35,
+          height: $('#heatmap').parent().height() - 90,
+          margin: { t: 0, l: marginLeft, b: marginBottom, r: 0 }
         }
       this.heatmapConfig = {
           displaylogo: false,
@@ -202,13 +206,35 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     });
   }
 
-  goldenLayoutComponentResize(): void {
-    const height = $('heatmapcomponent').height();
-    const width = $('heatmapcomponent').width();
+  goldenLayoutComponentResize(initial=false): void {
+    const height = $('heatmapcomponent').height() - 72;
+    const width = $('heatmapcomponent').width() - 32;
     if (height)
-      $('#heatmap').height(height-19);
+      $('#heatmap').height(height);
     if (width)
-      $('#heatmap').width(width-1)
+      $('#heatmap').width(width)
+
+    if ( !initial) {
+      const config = {
+        autotick: false,
+        showticklabels: this.heatmapShowLabels
+      };
+      if (!config.showticklabels) {
+      config["ticks"] = '';
+      }
+
+      let marginLeft = this.heatmapShowLabels ? 90 : 10
+      let marginBottom = this.heatmapShowLabels ? 75 : 10
+      this.heatmapLayout = {
+        xaxis: config,
+        yaxis: config,
+        width: $('#heatmap').parent().width() - 35,
+        height: $('#heatmap').parent().height() - 90,
+        margin: { t: 0, l: marginLeft, b: marginBottom, r: 0 }
+      }
+      this.openCenter()
+    }
+
 /*    const heatmapElement = this.heatmapContainerRef.nativeElement;
     const parentElement = heatmapElement.parentElement;
   

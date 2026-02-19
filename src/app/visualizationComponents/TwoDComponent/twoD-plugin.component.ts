@@ -267,8 +267,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets = this.commonService.session.style.widgets;
 
-
-        this.container.on('resize', () => { this.fit()})
+        this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -3043,7 +3042,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               // Create a dedicated namespace for all test functions
               (window as any).Cypress.test = {
                 // Interaction helpers
-               dragNodeDelta: (nodeId: string, dx: number, dy: number) => {
+                dragNodeDelta: (nodeId: string, dx: number, dy: number) => {
                     return this.zone.run(() => {
                     const node = this.cy.getElementById(nodeId);
                     if (!node || node.empty()) {
@@ -3069,7 +3068,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     return newPos;  // so the test can assert directly
                     });
                 },
-                                tooltip: (action: 'show' | 'hide', nodeId: string) => {
+                tooltip: (action: 'show' | 'hide', nodeId: string) => {
                     this.zone.run(() => {
                         const node = this.cy.getElementById(nodeId);
                         if (node) {
@@ -3562,8 +3561,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets['link-width-max'] = e;
         this.updateMinMaxLink();
         this.scaleLinkWidth();
-
-        
     }
 
     /**
@@ -3871,17 +3868,17 @@ scaleLinkWidth() {
             dataValue = 0;
         }
         if (this.isNumber(dataValue)) {
-            const scaledWidth = this.linearScale(dataValue, min, max, minWidth, maxWidth, reciprocal);
-            edge.data('scaledWidth', scaledWidth);
+            const width = this.linearScale(dataValue, min, max, minWidth, maxWidth, reciprocal);
+            edge.data('width', width);
         } else {
             // Handle non-numeric values if necessary
-            edge.data('scaledWidth', minWidth);
+            edge.data('width', minWidth);
         }
     });
 
     // Update Cytoscape stylesheet to use the scaledWidth data
     this.cy.style().selector('edge').style({
-        'width': 'data(scaledWidth)'
+        'width': 'data(width)'
     }).update();
 }
     /**

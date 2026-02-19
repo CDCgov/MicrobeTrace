@@ -12,11 +12,10 @@
           <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
             (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
           </span>
-          <span atyle="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Current Distance Metric: {{this.heatmapMetric}}</span>
+          <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Current Distance Metric: {{this.heatmapMetric}}</span>
         </div>
-        <div class="m-portlet__body" style="height: 100%; overflow: scroll">
-          <br />
-          <div #heatmapContainer id="heatmap">
+        <div class="m-portlet__body" style="height: 100%; overflow: auto">
+            <div #heatmapContainer id="heatmap">
           </div>
         </div>
       </div>
@@ -27,8 +26,7 @@
             [positionLeft]="HeatmapSettingsDialogSettings.left"
             [positionTop]="HeatmapSettingsDialogSettings.top"
             [(visible)]="HeatmapSettingsDialogSettings.isVisible"
-            [contentStyle]="{'overflow': 'visible'}"
-            [style]="{'width': '20vw'}"
+            [contentStyle]="{'overflow': 'visible', 'width': '450px'}"
             header="Heatmap Settings" appendTo="body"
             >
             <tabset class="tab-container tabbable-line">

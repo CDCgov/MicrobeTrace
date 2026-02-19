@@ -644,6 +644,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
         width: width,
         display: 'block'
       };
+      this.cdref.detectChanges();
     }
   
     /**

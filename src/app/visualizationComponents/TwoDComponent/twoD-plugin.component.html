@@ -242,11 +242,11 @@
               </div>
               <div id="link-max-width-row" class="form-group row display-none" title="Should link max widths to this variable?">
                 <div class="col-4"><label for="link-width-max">Max Width</label></div>
-                <div class="col-8"><input type="range" class="custom-range" id="link-width-max" min="0.3" max="20" step=".3" value="8" [(ngModel)]="SelectedLinkWidthMax" (ngModelChange)="onLinkWidthMaxChange($event)"></div>
+                <div class="col-8"><input type="range" class="custom-range" id="link-width-max" min="0.3" max="30" step=".3" [(ngModel)]="SelectedLinkWidthMax" (ngModelChange)="onLinkWidthMaxChange($event)"></div>
               </div>
               <div id="link-min-width-row" class="form-group row display-none" title="Should link min widths to this variable?">
                 <div class="col-4"><label for="link-width-min">Min Width</label></div>
-                <div class="col-8"><input type="range" class="custom-range" id="link-width-min" min="0.3" max="20" step=".3" value="3" [(ngModel)]="SelectedLinkWidthMin" (ngModelChange)="onLinkWidthMinChange($event)"></div>
+                <div class="col-8"><input type="range" class="custom-range" id="link-width-min" min="0.3" max="20" step=".3" [(ngModel)]="SelectedLinkWidthMin" (ngModelChange)="onLinkWidthMinChange($event)"></div>
               </div>
               <div id="link-reciprocalthickness-row" class="form-group row display-none" title="Should link widths be proportioned to the reciprocal of this variable?">
                 <div class="col-4">Reciprocal</div>
@@ -256,7 +256,7 @@
               </div>
               <div class="form-group row" id="link-width-row" title="How thick should the links be?">
                 <div class="col-4"><label for="link-width">Width</label></div>
-                <div class="col-8"><input type="range" class="custom-range" id="link-width" min="0.3" max="30" step=".3" value="3" [(ngModel)]="SelectedLinkWidthVariable" (ngModelChange)="onLinkWidthChange($event)"></div>
+                <div class="col-8"><input type="range" class="custom-range" id="link-width" min="0.3" max="30" step=".3" [(ngModel)]="SelectedLinkWidthVariable" (ngModelChange)="onLinkWidthChange($event)"></div>
               </div>
               <div class="form-group row" title="How long should links be? Disabled when nodes are pinned.">
                 <div class="col-4"><label for="link-length">Length</label></div>
