@@ -6,6 +6,11 @@
   position: absolute;
   overflow: hidden;
   z-index: 1 !important;
+  padding: 1px;
+}
+
+#tree-image-filename, #newick-string-filename {
+ height: 46.5px;
 }
 
 #phyloTooltip {

@@ -12,10 +12,9 @@
             <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
                 (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
         </span>
-        <span atyle="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Current Distance Metric: {{this.heatmapMetric}}</span>
+        <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Current Distance Metric: {{this.heatmapMetric}}</span>
     </div>
-    <div class="m-portlet__body" style="height: 100%; overflow: scroll">
-        <br />
+    <div class="m-portlet__body" style="height: 100%; overflow: auto">
         <div #heatmapContainer id="heatmap">
         </div>
     </div>
@@ -26,14 +25,11 @@
               [positionLeft]="HeatmapSettingsDialogSettings.left" 
               [positionTop]="HeatmapSettingsDialogSettings.top" 
               [(visible)]="HeatmapSettingsDialogSettings.isVisible"  
-              [contentStyle]="{'overflow': 'visible'}"
-              [style]="{'width': '20vw'}"
+              [contentStyle]="{'overflow': 'visible', 'width': '450px'}"
               header="Heatmap Settings" appendTo="body"
               >
-              <tabset class="tab-container tabbable-line">
-              <tab heading="{{'Heatmap' | localize}}" [active]="true" customClass="m-tabs__item">
               <p-accordion [multiple]='true'>
-                  <p-accordionTab style="color:#495057" header="Invert" [selected]="true">
+                  <p-accordionTab style="color:#495057" header="Invert">
                       <div>
                           <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
                               <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
@@ -49,7 +45,7 @@
                           </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Color" [selected]="true">
+                  <p-accordionTab style="color:#495057" header="Color">
                       <div>
                         <div class="form-group row gantt-color-row" title="What Should be the low color?" style="overflow:visible">
                             <div class="col-6"><label for="low-color">Low Color</label></div>
@@ -71,20 +67,17 @@
                         </div>
                       </div>
                   </p-accordionTab>
-                  <p-accordionTab style="color:#495057" header="Labels" [selected]="true">
+                  <p-accordionTab style="color:#495057" header="Labels">
                       <div>
                           <div class="form-group row label-visible-row" title="Should Labels be Displayed?" style="overflow:visible">
                               <div class="col-6"><label for="show-labels">Show Labels</label></div>
                               <div class="col-6">
-                                  <p-selectButton id="show-labels" [options]="invertOptions" [(ngModel)]="heatmapShowLabels" (ngModelChange)="redrawHeatmap()"></p-selectButton>
+                                  <p-selectButton id="show-labels" [options]="invertOptions" [allowEmpty]="false" [(ngModel)]="heatmapShowLabels" (ngModelChange)="redrawHeatmap()"></p-selectButton>
                               </div>
                           </div>
                       </div>
                   </p-accordionTab>
               </p-accordion>
-              </tab>
-
-              </tabset>
     </p-dialog>
 </div>
 

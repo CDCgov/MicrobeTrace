@@ -136,7 +136,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         this.setSelectedNodes(this);
         setTimeout(() => {
           this.goldenLayoutComponentResize();
-          this.cdref.detectChanges();
         }, 5)
 
     })
@@ -904,7 +903,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   goldenLayoutComponentResize() {    
     this.viewHeight = this.container.height - 73;
     this.viewWidth = this.container.width - 42;
-    setTimeout(() => this.cy.fit(this.cy.nodes(), 30), 300);
+    this.cdref.detectChanges()
+    setTimeout(() => {
+      this.cy.fit(this.cy.nodes(), 30);
+      this.onLabelSizeChange()
+    }, 200);
   }
 
   setSelectedNodes(that) {

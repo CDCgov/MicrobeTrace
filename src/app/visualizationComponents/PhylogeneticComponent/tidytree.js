@@ -774,7 +774,7 @@ TidyTree.prototype.redraw = function () {
 
 function updateRuler(transform) {
   if (!transform) transform = { k: 1 };
-  let height = parseFloat(this.parent.style("height")) - this.margin[2] - 15;
+  let height = parseFloat(this.parent.style("height")) - this.margin[2] - 5;
   let ruler = this.parent.select("g.tidytree-ruler");
   let bg = ruler.select("rect");
   if (this.ruler) {

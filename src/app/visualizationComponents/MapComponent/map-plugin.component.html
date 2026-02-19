@@ -12,7 +12,7 @@
 
 <div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
 
-<div id="tool-btn-container" class="m-portlet">
+<div id="tool-btn-container-map" class="tool-btn-container m-portlet">
     <span style="overflow: visible; position: relative; width: 110px;">
         <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
     </span>
@@ -20,7 +20,10 @@
         <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+        <a id="centerMapButton" title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Nodes without Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
     </span>
 </div>
 <div #mapContainer class="map-container">
@@ -72,7 +75,7 @@
                 </div>
             </div> -->
 
-            <ng-container *ngIf="SelectedGeospatialTypeVariable === 'Off'">
+            <!--ng-container *ngIf="SelectedGeospatialTypeVariable === 'Off'"-->
 
                 <div class="row">
                     <div class="col-12">
@@ -147,11 +150,11 @@
                             (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
                     </div>
                 </div>
-            </ng-container>
+            <!--/ng-container>
             <ng-container *ngIf="SelectedGeospatialTypeVariable === 'On'">
                 <p>&#11044;  -  Residence Address</p>
                 <p>&#9650;  -  Venue Address</p>
-                <p>&#9632;  -  Exposure Address</p>
+                <p>&#9632;  -  Exposure Address</p-->
                 <!-- <div class="form-group row" title="If your data have a Residence Address variable, select that here.">
                     <div class="col-4">
                         <a>Residence Address &#11044;</a>
@@ -180,8 +183,8 @@
                         <p-dropdown id="map-field-country" [options]="FieldList" [(ngModel)]="SelectedExposureAddress"
                             (ngModelChange)="onDataChange($event)" appendTo="body"></p-dropdown>
                     </div>
-                </div>-->
-            </ng-container>
+                </div>
+            </ng-container-->
 
         </tab>
         <tab heading="{{'Components' | localize}}" customClass="m-tabs__item">
@@ -273,7 +276,7 @@
             <div class="form-group row">
                 <div class="col-4">Collapsing</div>
                 <div class="col-8">
-                    <p-selectButton [options]="NodeCollapsingTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable"
+                    <p-selectButton [options]="NodeCollapsingTypes" [(ngModel)]="SelectedNodeCollapsingTypeVariable" id="map-node-collapsing"
                         (ngModelChange)="onNodeCollapsingChange($event)"></p-selectButton>
                 </div>
             </div>
@@ -336,25 +339,24 @@
             <div class="modal-body" style='min-width: 400px; height: 100%;'>
                 <div class="form-group row">
                     <div class="col-9">
-                        <input type="text" id="network-export-filename" class="form-control form-control-sm"
+                        <input type="text" id="map-export-filename" class="form-control form-control-sm"
                             placeholder="Filename" [(ngModel)]="SelectedNetworkExportFilenameVariable">
                     </div>
                     <div class="col-3">
-                        <p-dropdown id="network-export-filetype" [options]="NetworkExportFileTypeList" appendTo="body"
+                        <p-dropdown id="map-export-filetype" [options]="NetworkExportFileTypeList" appendTo="body"
                             [(ngModel)]="SelectedNetworkExportFileTypeListVariable"></p-dropdown>
                     </div>
                 </div>
-                <!-- <div>
+                <div>
                     <p-accordion>
                         <p-accordionTab style="color:#495057" header="Advanced">
-                            <div id="network-export-advanced">
-
+                            <div id="map-export-advanced">
                                 <div class="form-group row">
                                     <div class="col-3">
-                                        <label for="network-export-scale">Scale</label>
+                                        <label for="map-export-scale">Scale</label>
                                     </div>
                                     <div class="col-9">
-                                        <input type="number" id="network-export-scale"
+                                        <input type="number" id="map-export-scale"
                                             class="form-control form-control-sm" min="0" step="0.1" value="1"
                                             [(ngModel)]="SelectedNetworkExportScaleVariable"
                                             (ngModelChange)="updateCalculatedResolution($event)">
@@ -362,15 +364,15 @@
                                 </div>
                                 <div class="form-group row">
                                     <div class="col-3">Resolution</div>
-                                    <div id="network-export-dimensions" class="col-9 text-right">
+                                    <div id="map-export-dimensions" class="col-9 text-right">
                                         {{CalculatedResolution}}</div>
                                 </div>
                                 <div class="row">
                                     <div class="col-3">
-                                        <label for="network-export-quality">Quality</label>
+                                        <label for="map-export-quality">Quality</label>
                                     </div>
                                     <div class="col-9">
-                                        <input type="range" class="custom-range" id="network-export-quality" min="0"
+                                        <input type="range" class="custom-range" id="map-export-quality" min="0"
                                             max="1.0" value="0.92" step="0.01"
                                             [(ngModel)]="SelectedNetworkExportQualityVariable">
                                     </div>
@@ -378,12 +380,12 @@
                             </div>
                         </p-accordionTab>
                     </p-accordion>
-                </div> -->
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-error"
                     (click)="ShowGEOMapExportPane = !ShowGEOMapExportPane">Cancel</button>
-                <button type="button" id="network-export" class="btn btn-primary"
+                <button type="button" id="map-export" class="btn btn-primary"
                     (click)="exportVisualization($event)">Export</button>
             </div>
         </div><!-- /.modal-content -->
@@ -391,3 +393,12 @@
 </p-dialog><!-- /.modal -->
 
 <div id="mapTooltip"></div>
+
+<p-dialog *ngIf="viewActive" header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ 'width': '35rem', 'max-height': '40rem' }">
+    <span *ngIf="nodesWithoutLoc.length == 0" class="text-surface-500 dark:text-surface-400 block mb-8">All nodes contain location data.</span>
+    <span *ngIf="nodesWithoutLoc.length > 0" class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain location data and were omitted from Map View:
+        <ol>
+            <li *ngFor="let node of nodesWithoutLoc"><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
+        </ol>
+    </span>
+</p-dialog>

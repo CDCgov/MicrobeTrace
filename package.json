@@ -106,6 +106,7 @@
     "alignment-viewer": "^0.3.2",
     "bioseq": "^0.1.4",
     "clipboard": "^2.0.4",
+    "cypress": "^14.5.2",
     "d3-force-attract": "^0.1.1",
     "d3-sankey": "^0.12.3",
     "d3-symbol-extra": "^0.1.0",

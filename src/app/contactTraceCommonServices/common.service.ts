@@ -1,5 +1,5 @@
 import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
 import * as Papa from 'papaparse';
@@ -250,7 +250,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-basemap-show': true,
             'map-collapsing-on': true,
             'map-counties-show': false,
-            'map-countries-show': true,
+            'map-countries-show': false,
             'map-field-lat': 'None',
             'map-field-lon': 'None',
             'map-field-tract': 'None',
@@ -343,7 +343,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-leaf-label-size': 12,
             'tree-leaf-node-radius-variable': 'None',
             'tree-leaf-node-show': true,
-            'tree-leaf-node-size': 9,
+            'tree-leaf-node-size': 5,
             'tree-mode-square': true,
             'tree-mode-smooth': false,
             'tree-mode-straight': false,
@@ -673,6 +673,22 @@ export class CommonService extends AppComponentBase implements OnInit {
     isNumber(a: any): boolean {
         return typeof a == 'number';
     };
+
+    public updateNodePosition(nodeId: string, newPosition: { x: number; y: number }): void {
+        const nodeToUpdate = this.session.data.nodes.find(n => n._id === nodeId);
+    
+        if (nodeToUpdate) {
+            console.log(`[Cypress Debug] Found node ${nodeId}. Current X: ${nodeToUpdate.x}`);
+            
+            // Use the passed-in position directly
+            nodeToUpdate.x = newPosition.x;
+            nodeToUpdate.y = newPosition.y;
+    
+            console.log(`[Cypress Debug] Updated node ${nodeId}. New X: ${nodeToUpdate.x}`);
+        } else {
+            console.warn(`[Cypress Debug] Could not find node ${nodeId} to update position.`);
+        }
+    }
 
     /**
      * Adds a new node to an array of nodes.
@@ -2744,15 +2760,15 @@ align(params): Promise<any> {
         // });
     }
 
-    getMapData(type): Promise<any> {
+    async getMapData(type): Promise<any> {
 
-        return new Promise(resolve => {
+        //return new Promise(resolve => {
 
             const parts = type.split(".");
             const name = parts[0],
                 format = parts[1];
             if (this.temp.mapData[name]) {
-                return resolve(this.temp.mapData[name]);
+                return this.temp.mapData[name];
             }
 
             let path: string;
@@ -2763,31 +2779,35 @@ align(params): Promise<any> {
 
                     if (format == "csv") {
                         path = 'assets/common/data/zipcodes.csv';
-                        return this.http.get(path, { responseType: 'text' }).toPromise()
-                            .then(response => {
-                                this.temp.mapData[name] = Papa.parse(response, { header: true }).data;
-                                return this.temp.mapData[name];
-                            });
+                        const response = await firstValueFrom(this.http.get(path, { responseType: 'text' }));
+                        this.temp.mapData[name] = Papa.parse(response, { header: true }).data;
+                        return this.temp.mapData[name];
+                        // return this.http.get(path, { responseType: 'text' }).toPromise()
+                        //     .then(response => {
+                        //         this.temp.mapData[name] = Papa.parse(response, { header: true }).data;
+                        //         return this.temp.mapData[name];
+                        //     });
                     }
                     break;
                 case "countries":
                     if (format == "json") {
                         path = 'assets/common/data/countries.json';
-                        return this.http.get(path).toPromise()
-                            .then(response => {
-                                this.temp.mapData[name] = response;
-                                return this.temp.mapData[name];
-                            });
+                        const response = await firstValueFrom(this.http.get(path));
+                        this.temp.mapData[name] = response;
+                        return this.temp.mapData[name];
+                        // return this.http.get(path).toPromise()
+                        //     .then(response => {
+                        //         this.temp.mapData[name] = response;
+                        //         return this.temp.mapData[name];
+                        //     });
                     }
                     break;
                 case "counties":
                     if (format == "json") {
                         path = 'assets/common/data/counties.json';
-                        return this.http.get(path).toPromise()
-                            .then(response => {
-                                this.temp.mapData[name] = response;
-                                return this.temp.mapData[name];
-                            });
+                        const response = await firstValueFrom(this.http.get(path));
+                        this.temp.mapData[name] = response;
+                        return this.temp.mapData[name];
                     }
                     break;
 
@@ -2796,23 +2816,29 @@ align(params): Promise<any> {
                         // let path = /*this.appRootUrl() +*/ 'assets/common/data/states.json';
 
                         path = 'assets/common/data/states.json';
-                        return this.http.get(path).toPromise()
-                            .then(response => {
-                                this.temp.mapData[name] = response;
-                                return this.temp.mapData[name];
-                            });
+                        const response = await firstValueFrom(this.http.get(path));
+                        this.temp.mapData[name] = response;
+                        return this.temp.mapData[name];
+                        // return this.http.get(path).toPromise()
+                        //     .then(response => {
+                        //         this.temp.mapData[name] = response;
+                        //         return this.temp.mapData[name];
+                        //     });
                     }
                     break;
 
                 case "land":
                     if (format == "json") {
                         path = 'assets/common/data/land.json';
+                        const response = await firstValueFrom(this.http.get(path));
+                        this.temp.mapData[name] = response;
+                        return this.temp.mapData[name];
 
-                        return this.http.get(path).toPromise()
-                            .then(response => {
-                                this.temp.mapData[name] = response;
-                                return this.temp.mapData[name];
-                            });
+                        // return this.http.get(path).toPromise()
+                        //     .then(response => {
+                        //         this.temp.mapData[name] = response;
+                        //         return this.temp.mapData[name];
+                        //     });
 
                         // $.get(path, response => {
                         //     resolve(this.temp.mapData[name]);
@@ -2832,7 +2858,7 @@ align(params): Promise<any> {
             //    }
             //    resolve(this.temp.mapData[name]);
             //});
-        });
+        //});
     };
 
     /** 

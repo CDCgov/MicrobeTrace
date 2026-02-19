@@ -803,8 +803,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.showMessage(`Parsing ${file.name} as Link List...`);
         let l = 0;
 
-        const sources = [];
-        const targets = [];
+        const seenTargetsBySource = new Map<string, Set<string>>();
 
         /**
          * Processes and then adds link. updates value of l
@@ -844,58 +843,30 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           const src = '' + safeLink[file.field1];
           const tgt = '' + safeLink[file.field2];
+          const hasReverseEdge = seenTargetsBySource.get(tgt)?.has(src) ?? false;
 
-          sources.push(src);
-          targets.push(tgt);
+          if (!seenTargetsBySource.has(src)) {
+            seenTargetsBySource.set(src, new Set<string>());
+          }
+          seenTargetsBySource.get(src)?.add(tgt);
 
-          const srcIndex = targets.findIndex(t => t == src);
-          const tgtIndex = sources.findIndex(s => s == tgt);
+          const isDistanceFieldMissing = file.field3 == 'None';
+          const linkBase = {
+            source: src,
+            target: tgt,
+            origin: origin,
+            visible: true,
+            directed: isDistanceFieldMissing ? true : false,
+            distance: isDistanceFieldMissing ? 0 : parseFloat(safeLink[file.field3]),
+            hasDistance: isDistanceFieldMissing ? false : true,
+            distanceOrigin: isDistanceFieldMissing ? '' : file.name
+          } as any;
 
-          // console.log("safe link is: ",safeLink);
+          if (hasReverseEdge && isDistanceFieldMissing) {
+            linkBase.bidirectional = true;
+          }
 
-          // Link is the same -> bidirectional
-          if(srcIndex != -1 && tgtIndex != -1) {
-              
-            // Set distance if distance set (field 3)
-            l += this.commonService.addLink(Object.assign({
-               source: '' + safeLink[file.field1],
-               target: '' + safeLink[file.field2],
-               origin: origin,
-               visible: true,
-               directed : file.field3 == 'None' ? true : false,
-               bidirectional: file.field3 == 'None' ? true : false,
-               distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-               hasDistance : file.field3 == 'None' ? false : true,
-               distanceOrigin: file.field3 == 'None' ? '' : file.name
-             }, safeLink), check);
-
-         } else {
-
-          // console.log("distance is: ", file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]))
-          // TODO uncomment when testing adding new link
-          //  console.log('adding 2: ', _.cloneDeep(Object.assign({
-          //         source: '' + safeLink[file.field1],
-          //         target: '' + safeLink[file.field2],
-          //         origin: origin,
-          //         visible: true,
-          //         directed : file.field3 != 'distance' ? true : false,
-          //         bidirectional: file.field3 != 'distance' ? true : false,
-          //         distance: file.field3 != 'distance' ? 0 : parseFloat(safeLink[file.field3]),
-          //         hasDistance : file.field3 != 'distance' ? false : true,
-          //         distanceOrigin: file.field3 != 'distance' ? '' : file.name
-          //       }, safeLink)));
-
-           l += this.commonService.addLink(Object.assign({
-               source: '' + safeLink[file.field1],
-               target: '' + safeLink[file.field2],
-               origin: origin,
-               visible: true,
-               directed : file.field3 == 'None' ? true : false,
-               distance: file.field3 == 'None' ? 0 : parseFloat(safeLink[file.field3]),
-               hasDistance : file.field3 == 'None' ? false : true,
-               distanceOrigin: file.field3 == 'None' ? '' : file.name
-             }, safeLink), check);
-         }  
+          l += this.commonService.addLink(Object.assign(linkBase, safeLink), check);
 
         //  console.log('matrixx1: ',  JSON.stringify((window as any).context.commonService.temp.matrix));
 
@@ -2005,8 +1976,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if(this.commonService.debugMode) {
       console.log('changing link threshold');
     }
-    this.SelectedDefaultDistanceThresholdVariable = parseFloat(e);
-    this.store.setLinkThreshold(parseFloat(e));
+    const newValue = e.target?.value ?? e;
+    this.SelectedDefaultDistanceThresholdVariable = parseFloat(newValue);
+    this.store.setLinkThreshold(parseFloat(newValue));
   }
 
   /**
@@ -2014,33 +1986,32 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Updates link-threshold variable to default values and updates clusters, nodes, links as well as visualizations and statitistics
    * @param {string} e such as 'snps' 
    */
-  onDistanceMetricChange = (e) => {
+  onDistanceMetricChange = (metric: string) => {
     if(this.commonService.debugMode) {
-      console.log('distance ch:', e);
+      console.log('distance ch:', metric);
     }
-    this.SelectedDefaultDistanceMetricVariable = e;
-    this.store.updatecurrentThresholdStepSize(e.toLowerCase())
-    if (e.toLowerCase() === 'snps') {
-      if(this.commonService.debugMode) {
-        console.log("saw snps");
-      }
-      $('#default-distance-threshold')
-        .attr('step', 1)
-        .val(16)
-        .trigger('change');
+    
+    // 1. Update the component's state property for the dropdown
+    this.SelectedDefaultDistanceMetricVariable = metric;
 
-        $("#ambiguities-row").slideUp();
-      this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.store.setMetricChanged('snps');
-      this.onLinkThresholdChange('16');
-    } else {
-      $('#default-distance-threshold')
-        .attr('step', 0.001)
-        .val(0.015)
-        .trigger('change');
-        $("#ambiguities-row").slideDown();
-      this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-      this.store.setMetricChanged('tn93');
+    // 2. Update the session state and notify the store (maintains original functionality)
+    this.commonService.session.style.widgets['default-distance-metric'] = metric.toLowerCase();
+    this.store.setMetricChanged(metric);
+    this.store.updatecurrentThresholdStepSize(metric.toLowerCase());
+
+    if (metric.toLowerCase() === 'snps') {
+      // 3. Update the step attribute and UI visibility
+      $('#default-distance-threshold').attr('step', 1);
+      $("#ambiguities-row").slideUp();
+      
+      // 4. Update the threshold value and notify the store
+      this.SelectedDefaultDistanceThresholdVariable = 16;
+      this.onLinkThresholdChange('16'); 
+    } else { // tn93
+      $('#default-distance-threshold').attr('step', 0.001);
+      $("#ambiguities-row").slideDown();
+
+      this.SelectedDefaultDistanceThresholdVariable = 0.015;
       this.onLinkThresholdChange('0.015');
     }
   }

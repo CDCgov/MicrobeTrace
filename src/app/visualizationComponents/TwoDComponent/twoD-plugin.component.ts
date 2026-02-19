@@ -21,6 +21,7 @@ import { Subject, Subscription, takeUntil } from 'rxjs';
 import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { NgZone } from '@angular/core'; 
 
 
 @Component({
@@ -249,7 +250,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         private clipboard: Clipboard,
         private gtmService: GoogleTagManagerService,
         private store: CommonStoreService,
-        private exportService: ExportService
+        private exportService: ExportService,
+        private zone: NgZone 
     ) {
 
         super(elRef.nativeElement);
@@ -258,8 +260,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets = this.commonService.session.style.widgets;
 
-
-        this.container.on('resize', () => { this.fit()})
+        this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -347,9 +348,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     ngAfterViewInit(): void {
-
         console.log('--- TwoD ngAfterViewInit called');
-    }
+      
+      }
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
 
@@ -664,42 +665,43 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     
         this.cy.on('mouseover', 'node', (evt) => {
-            const node = evt.target;
-            this.showNodeTooltip(node.data(), evt.originalEvent);
-
-            // Set cursor to grab
-            $('html,body').css('cursor', 'grab');
-
-            if (this.widgets['node-highlight']) {
-                // Highlight connected edges
-                node.connectedEdges().addClass('highlighted');
-            }
-
+            // Run UI updates inside Angular's zone
+            this.zone.run(() => {
+                const node = evt.target;
+                this.showNodeTooltip(node.data(), evt.originalEvent);
+                $('html,body').css('cursor', 'grab');
+    
+                if (this.widgets['node-highlight']) {
+                    node.connectedEdges().addClass('highlighted');
+                }
+            });
         });
     
         this.cy.on('mouseout', 'node', (evt) => {
-
-            const node = evt.target;
-
-            this.hideTooltip();
-
-            $('html,body').css('cursor', 'default');
-
-            if (this.widgets['node-highlight']) {
-                // Remove highlight from connected edges
-                node.connectedEdges().removeClass('highlighted');
-            }
-
+            // Run UI updates inside Angular's zone
+            this.zone.run(() => {
+                const node = evt.target;
+                this.hideTooltip();
+                $('html,body').css('cursor', 'default');
+    
+                if (this.widgets['node-highlight']) {
+                    node.connectedEdges().removeClass('highlighted');
+                }
+            });
         });
     
         // Edge events
         this.cy.on('mouseover', 'edge', (evt) => {
-            const edge = evt.target;
-            this.showLinkTooltip(edge.data(), evt.originalEvent);
+            this.zone.run(() => {
+                const edge = evt.target;
+                this.showLinkTooltip(edge.data(), evt.originalEvent);
+            });
         });
     
         this.cy.on('mouseout', 'edge', () => {
-            this.hideTooltip();
+            this.zone.run(() => {
+                this.hideTooltip();
+            });  
         });
     
         this.cy.on('dragfree', 'node', (evt) => {
@@ -992,13 +994,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates the saved postion of a node when it is dragged by the user
      * @param node
      */
-    updateNodePos(node) {
-      let globalNode = this.commonService.getVisibleNodes().find(x => x._id == node.data('id')) // need to update so it works with grouped nodes/polygons
-      globalNode['x'] = node.position().x;
-      globalNode['y'] = node.position().y;
+    // updateNodePos(node) {
+    //   let globalNode = this.commonService.getVisibleNodes().find(x => x._id == node.data('id')) // need to update so it works with grouped nodes/polygons
+    //   globalNode['x'] = node.position().x;
+    //   globalNode['y'] = node.position().y;
 
+    // }
+
+    updateNodePos(node: cytoscape.NodeSingular): void {
+        const nodeId = node.id();
+        // This is for REAL user events. It reads the now-updated position from Cytoscape.
+        const newPosition = node.position(); 
+        this.commonService.updateNodePosition(nodeId, newPosition);
     }
-
     /** Initializes the view.
      * 
      * Defines the structure of the svg of twoD network and adds functionalities such as click, zoom, forces, etc...
@@ -1130,32 +1138,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // });
 
-            // TODO move this to a subscribed event than use document jquery
             $(document).on("node-selected", function () {
-                 const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
-                 const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
-                
-                 // Deselect all nodes first in cytoscape
-                 that.cy.elements().unselect();
-                
-                 // Select the nodes that are marked as selected in the common service
-                 if (mtSelectedNodeIds.length > 0) {
-                     const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
-                 that.cy.nodes(selector).select();
-                 }
-                
+                if (!that.cy) return;
+              
+                const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
+                const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
+              
+                // Clear cytoscape selection
+                that.cy.elements().unselect();
+              
+                // Apply multi-selection
                 if (mtSelectedNodeIds.length > 0) {
-                 that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1];
-                 } else {
-                 that.selectedNodeId = undefined;
-                 }
-                
-                 if (that.debugMode) {
-                    console.log('node-selected in 2d: ', that.selectedNodeId);
-                    console.log('node-selected in data: ', that.data.nodes.find(node => node.id == that.selectedNodeId));
+                  const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
+                  that.cy.nodes(selector).select();
+                  that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1]; // keep last-selected for UI logic only
+                } else {
+                  that.selectedNodeId = undefined;
                 }
-            });
-
+              
+                if (that.debugMode) {
+                  console.log('node-selected in 2d ids: ', mtSelectedNodeIds);
+                }
+              });
+              
 
             if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
@@ -3008,6 +3013,167 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               userPanningEnabled: true
             });
             
+            if ((window as any).Cypress) {
+              (window as any).cytoscapeInstance = this.cy;
+              
+              // Create a dedicated namespace for all test functions
+              (window as any).Cypress.test = {
+                // Interaction helpers
+                dragNodeDelta: (nodeId: string, dx: number, dy: number) => {
+                    return this.zone.run(() => {
+                    const node = this.cy.getElementById(nodeId);
+                    if (!node || node.empty()) {
+                        console.warn('[Cypress.dragNodeDelta] node not found', nodeId);
+                        return null;
+                    }
+
+                    if (node.locked && node.locked()) {
+                        node.unlock();
+                    }
+
+                    const current = node.position();
+                    const newPos = {
+                        x: current.x + dx,
+                        y: current.y + dy
+                    };
+
+                    node.position(newPos);
+
+                    // ✅ keep app model in sync, like a real dragfree event
+                    this.updateNodePos(node);
+
+                    return newPos;  // so the test can assert directly
+                    });
+                },
+                tooltip: (action: 'show' | 'hide', nodeId: string) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (node) {
+                            if (action === 'show') {
+                                const mockEvent = { clientX: 100, clientY: 100 };
+                                this.showNodeTooltip(node.data(), mockEvent);
+                            } else {
+                                this.hideTooltip();
+                            }
+                        }
+                    });
+                },
+                linkTooltip: (action: 'show' | 'hide', edgeId: string) => {
+                     this.zone.run(() => {
+                        const edge = this.cy.getElementById(edgeId);
+                        if (edge) {
+                            if (action === 'show') {
+                                const mockEvent = { clientX: 300, clientY: 300 };
+                                this.showLinkTooltip(edge.data(), mockEvent);
+                            } else {
+                                this.hideTooltip();
+                            }
+                        }
+                    });
+                },
+    
+                // New settings helpers
+                setNodeSize: (size: number) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeRadiusSizeVariable = size;
+                        this.onNodeRadiusChange(size);
+                    });
+                },
+                setLinkWidth: (width: number) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkWidthVariable = width;
+                        this.onLinkWidthChange(width);
+                    });
+                },
+                togglePolygons: (show: boolean) => {
+                    this.zone.run(() => this.polygonsToggle(show));
+                },
+                setNodeLabel: (variable: string) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeLabelVariable = variable;
+                        this.onNodeLabelVaribleChange(variable);
+                    });
+                },
+                setNodeBorderWidth: (width: number) => {
+                    this.zone.run(() => {
+                        this.nodeBorderWidth = width;
+                        this.onNodeBorderWidthChange(width);
+                    });
+                },
+                toggleLinkArrows: (show: boolean) => {
+                    this.zone.run(() => {
+                        const value = show ? 'Show' : 'Hide';
+                        this.SelectedLinkArrowTypeVariable = value;
+                        this.onLinkDirectedUndirectedChange(value);
+                    });
+                },
+                toggleGridlines: (show: boolean) => {
+                     this.zone.run(() => {
+                        const value = show ? 'Show' : 'Hide';
+                        this.SelectedNetworkGridLineTypeVariable = value;
+                        this.onNetworkGridlinesShowHideChange(value);
+                    });
+                },
+                setNodeLabelSizeAndOrientation: (size: number, orientation: string) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeLabelSizeVariable = size;
+                        this.setNodeLabelSize(size);
+                        this.SelectedNodeLabelOrientationVariable = orientation as any;
+                        this.onNodeLabelOrientationChange(orientation);
+                    });
+                },
+                setNodeSizeByVariable: (variable: string) => {
+                    this.zone.run(() => {
+                        this.SelectedNodeRadiusVariable = variable;
+                        this.onNodeRadiusVariableChange(variable);
+                    });
+                },
+                setLinkOpacity: (opacity: number) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkTransparencyVariable = opacity;
+                        this.onLinkOpacityChange(opacity);
+                    });
+                },
+                toggleGroupLabels: (show: boolean) => {
+                    this.zone.run(() => {
+                        this.widgets['polygons-label-show'] = show;
+                        this.onPolygonLabelShowChange(show);
+                    });
+                },
+                setLinkWidthByVariable: (variable: string) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkWidthByVariable = variable;
+                        this.onLinkWidthVariableChange(variable);
+                    });
+                },
+                setLinkLength: (length: number) => {
+                    this.zone.run(() => {
+                        this.SelectedLinkLengthVariable = length;
+                        this.onLinkLengthChange(length);
+                    });
+                },
+                toggleNeighborHighlighting: (highlight: boolean) => {
+                    this.zone.run(() => {
+                        const value = highlight ? 'Highlighted' : 'Normal';
+                        this.SelectedNetworkNeighborTypeVariable = value;
+                        this.onDontHighlightNeighborsHighlightNeighborsChange(value);
+                    });
+                },
+                setGroupByVariable: (variable: string) => {
+                    this.zone.run(() => {
+                         this.centerPolygons(variable);
+                    });
+                },
+                setGroupLabelSizeAndOrientation: (size: number, orientation: string) => {
+                     this.zone.run(() => {
+                        this.SelectedPolygonLabelSizeVariable = size;
+                        this.onPolygonLabelSizeChange(size);
+                        this.SelectedPolygonLabelOrientationVariable = orientation as any;
+                        this.onPolygonLabelOrientationChange(orientation);
+                    });
+                }
+              };
+            }
             // Attach events
             this.attachCytoscapeEvents();
             
@@ -3372,8 +3538,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets['link-width-max'] = e;
         this.updateMinMaxLink();
         this.scaleLinkWidth();
-
-        
     }
 
     /**
@@ -3399,60 +3563,77 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateLayout();
     }
 
-    /**
-     * Applies arrow styling to edges based on current widget settings and edge data.
-     * Arrows are shown only for links that have distance and its within the threshold
-     */
-    private updateArrowStyles() {
-        if (!this.cy) return;
-
-        this.cy.style()
-            .selector('edge')
-            .style({
-                'target-arrow-shape': (ele) => {
-                    const data = ele.data();
-                    console.log('data: ', data, 'has distance', data.hasDistance, 'origin', data.origin)
-                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
-                        return 'triangle';
-                    }
-                    return 'none';
-                },
-                'source-arrow-shape': (ele) => {
-                    const data = ele.data();
-                    if (this.widgets['link-directed'] && (!data.hasDistance || (data.origin[0] !== data.distanceOrigin ))) {
-                        return 'triangle';
-                    }
-                    return 'none';
-                },
-                'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
-            })
-            .update();
-    }
+   /**
+ * Applies arrow styling to edges based on:
+ * - Global arrow toggle (widgets['link-directed'])
+ * - Per-edge directionality (edge.data().directed)
+ * - Optional bidirectional toggle + per-edge flag (widgets['link-bidirectional'] + edge.data().bidirectional)
+ */
+private updateArrowStyles(): void {
+    if (!this.cy) return;
+  
+    const isTruthy = (v: any): boolean => {
+      if (v === true) return true;
+      if (v === false || v === null || v === undefined) return false;
+      if (typeof v === 'number') return v !== 0;
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        return s === 'true' || s === '1' || s === 'yes' || s === 'y';
+      }
+      return false;
+    };
+  
+    const shouldShowDirected = (data: any): boolean => {
+      if (!this.widgets['link-directed']) return false;
+      return isTruthy(data?.directed);
+    };
+  
+    const shouldShowSource = (data: any): boolean => {
+      if (!shouldShowDirected(data)) return false;
+      if (!this.widgets['link-bidirectional']) return false;
+      return isTruthy(data?.bidirectional);
+    };
+  
+    this.cy.style()
+      .selector('edge')
+      .style({
+        'target-arrow-shape': (ele) => {
+          const data = ele.data();
+          return shouldShowDirected(data) ? 'triangle' : 'none';
+        },
+        'source-arrow-shape': (ele) => {
+          const data = ele.data();
+          return shouldShowSource(data) ? 'triangle' : 'none';
+        },
+        'target-arrow-color': 'data(lineColor)',
+        'source-arrow-color': 'data(lineColor)',
+        'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
+      })
+      .update();
+  }
 
 
     /**
      * Updates link-directed widget. When directed, links have an arrow added; when undirected, links have no arrow
      */
-    onLinkDirectedUndirectedChange(e) {
+    onLinkDirectedUndirectedChange(e: string) {
         if (e === "Show") {
-            $('#link-bidirectional-row').slideDown().css('display', 'flex');
-            this.widgets['link-directed'] = true;
+          $('#link-bidirectional-row').slideDown().css('display', 'flex');
+          this.widgets['link-directed'] = true;
         } else {
-            this.widgets['link-directed'] = false;
-            $("#link-bidirectional-row").slideUp();
+          this.widgets['link-directed'] = false;
+          $("#link-bidirectional-row").slideUp();
         }
-
+      
         this.updateArrowStyles();
-    }
+      }
 
 
 
-    onLinkBidirectionalChange(e) {
-        // Update the widget state
+      onLinkBidirectionalChange(e: string) {
         this.widgets['link-bidirectional'] = (e === "Show");
-
         this.updateArrowStyles();
-    }
+      }
 
     /**
      * Updates node-highlight widget. When true and a node is mouseoved current node, all it of links, and neighbor nodes will be highlighted
@@ -3664,17 +3845,17 @@ scaleLinkWidth() {
             dataValue = 0;
         }
         if (this.isNumber(dataValue)) {
-            const scaledWidth = this.linearScale(dataValue, min, max, minWidth, maxWidth, reciprocal);
-            edge.data('scaledWidth', scaledWidth);
+            const width = this.linearScale(dataValue, min, max, minWidth, maxWidth, reciprocal);
+            edge.data('width', width);
         } else {
             // Handle non-numeric values if necessary
-            edge.data('scaledWidth', minWidth);
+            edge.data('width', minWidth);
         }
     });
 
     // Update Cytoscape stylesheet to use the scaledWidth data
     this.cy.style().selector('edge').style({
-        'width': 'data(scaledWidth)'
+        'width': 'data(width)'
     }).update();
 }
     /**
@@ -4109,9 +4290,13 @@ private async _partialUpdate() {
         this.SelectedLinkLengthVariable = this.widgets['link-length'];
         this.onLinkLengthChange(this.SelectedLinkLengthVariable);
 
-        //Links|Arrows
+       //Links|Arrows
         this.SelectedLinkArrowTypeVariable = this.widgets['link-directed'] ? "Show" : "Hide";
         this.onLinkDirectedUndirectedChange(this.SelectedLinkArrowTypeVariable);
+
+        //Links|Bidirectional
+        this.SelectedLinkBidirectionalTypeVariable = this.widgets['link-bidirectional'] ? "Show" : "Hide";
+        this.onLinkBidirectionalChange(this.SelectedLinkBidirectionalTypeVariable);
 
 
         //Network|Neighbors
