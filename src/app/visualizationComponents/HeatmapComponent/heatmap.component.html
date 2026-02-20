@@ -26,49 +26,49 @@
             [positionLeft]="HeatmapSettingsDialogSettings.left"
             [positionTop]="HeatmapSettingsDialogSettings.top"
             [(visible)]="HeatmapSettingsDialogSettings.isVisible"
-            [contentStyle]="{'overflow': 'visible', 'width': '450px'}"
+            [contentStyle]="{'overflow': 'visible', 'width': '350px'}"
             header="Heatmap Settings" appendTo="body"
             >
-            <tabset class="tab-container tabbable-line">
-              <tab heading="{{'Heatmap' | localize}}" [active]="true" customClass="m-tabs__item">
-                <p-accordion [multiple]='true' [value]="null">
-                  <p-accordion-panel value="heatmap-invert" style="color:#495057" >
-                    <p-accordion-header>Invert</p-accordion-header>
-                    <p-accordion-content><div>
-                      <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
-                        <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
-                        <div class="col-6">
-                          <p-selectButton id="x-invert" [allowEmpty]="false" [options]="invertOptions" [(ngModel)]="invertX" (ngModelChange)="updateInvertX($event)"></p-selectButton>
-                        </div>
-                      </div>
-                      <div class="form-group row invert-y-axis-row" title="Should Y Axis be Inverted?" style="overflow:visible">
-                        <div class="col-6"><label for="y-invert">Invert Y Axis</label></div>
-                        <div class="col-6">
-                          <p-selectButton id="y-invert" [allowEmpty]="false" [options]="invertOptions" [(ngModel)]="invertY" (ngModelChange)="updateInvertY($event)"></p-selectButton>
-                        </div>
+            <p-accordion [multiple]='true' [value]="null">
+              <p-accordion-panel value="heatmap-invert" style="color:#495057" >
+                <p-accordion-header>Invert</p-accordion-header>
+                <p-accordion-content>
+                  <div>
+                    <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
+                      <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
+                      <div class="col-6">
+                        <p-selectButton id="x-invert" [allowEmpty]="false" [options]="invertOptions" fluid [(ngModel)]="invertX" (ngModelChange)="updateInvertX($event)"></p-selectButton>
                       </div>
                     </div>
-                  </p-accordion-content>
-                </p-accordion-panel>
-                <p-accordion-panel value="heatmap-color" style="color:#495057" >
-                  <p-accordion-header>Color</p-accordion-header>
-                  <p-accordion-content><div>
+                    <div class="form-group row invert-y-axis-row" title="Should Y Axis be Inverted?" style="overflow:visible">
+                      <div class="col-6"><label for="y-invert">Invert Y Axis</label></div>
+                      <div class="col-6">
+                        <p-selectButton id="y-invert" [allowEmpty]="false" [options]="invertOptions" fluid [(ngModel)]="invertY" (ngModelChange)="updateInvertY($event)"></p-selectButton>
+                      </div>
+                    </div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
+              <p-accordion-panel value="heatmap-color" style="color:#495057" >
+                <p-accordion-header>Color</p-accordion-header>
+                <p-accordion-content>
+                  <div>
                     <div class="form-group row gantt-color-row" title="What Should be the low color?" style="overflow:visible">
                       <div class="col-6"><label for="low-color">Low Color</label></div>
                       <div class="col-6">
-                        <input type="color" id="low-color" [(ngModel)]="loColor" (ngModelChange)="updateLoColor($event)">
+                        <input type="color" id="low-color" class="w-100" [(ngModel)]="loColor" (ngModelChange)="updateLoColor($event)">
                       </div>
                     </div>
                     <div class="form-group row gantt-color-row" title="What Should be the medium color?" style="overflow:visible">
                       <div class="col-6"><label for="med-color">Medium Color</label></div>
                       <div class="col-6">
-                        <input type="color" id="med-color" [(ngModel)]="medColor" (ngModelChange)="updateMedColor($event)">
+                        <input type="color" id="med-color" class="w-100" [(ngModel)]="medColor" (ngModelChange)="updateMedColor($event)">
                       </div>
                     </div>
                     <div class="form-group row gantt-color-row" title="What Should be the high color?" style="overflow:visible">
                       <div class="col-6"><label for="hi-color">High Color</label></div>
                       <div class="col-6">
-                        <input type="color" id="hi-color" [(ngModel)]="hiColor" (ngModelChange)="updateHiColor($event)">
+                        <input type="color" id="hi-color" class="w-100" [(ngModel)]="hiColor" (ngModelChange)="updateHiColor($event)">
                       </div>
                     </div>
                   </div>
@@ -80,18 +80,16 @@
                   <div class="form-group row label-visible-row" title="Should Labels be Displayed?" style="overflow:visible">
                     <div class="col-6"><label for="show-labels">Show Labels</label></div>
                     <div class="col-6">
-                      <p-selectButton id="show-labels" [options]="invertOptions" [(ngModel)]="heatmapShowLabels" (ngModelChange)="redrawHeatmap()"></p-selectButton>
+                      <p-selectButton id="show-labels" [options]="invertOptions" fluid [(ngModel)]="heatmapShowLabels" (ngModelChange)="redrawHeatmap()"></p-selectButton>
                     </div>
                   </div>
                 </div>
               </p-accordion-content>
-            </p-accordion-panel>
-          </p-accordion>
-        </tab>
-      </tabset>
-    </p-dialog>
-  }
-</div>
+              </p-accordion-panel>
+            </p-accordion>
+          </p-dialog>
+        }
+      </div>
 
 @if (viewActive) {
   <p-dialog id="network-export-modal" [(visible)]="ShowHeatmapExportPane"

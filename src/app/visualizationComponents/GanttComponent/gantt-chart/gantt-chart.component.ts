@@ -1,11 +1,12 @@
 import { Component, OnInit, OnChanges, Input, ElementRef, ChangeDetectorRef } from '@angular/core';
-import { colorSchemes } from '../constants/color-schemes';
+//import { colorSchemes } from '../constants/color-schemes';
 import { GanttChartService } from './gantt-chart.service';
 
 @Component({
   selector: 'ngx-gantt-chart',
   templateUrl: './gantt-chart.component.html',
   styleUrls: ['./gantt-chart.component.scss'],
+  standalone: false
 })
 export class GanttChartComponent implements OnInit, OnChanges {
 
@@ -99,6 +100,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
     this.xAxis = [];
     this.yAxis = [];
+    let xCount = 0;
 
     let date = this.ganttChartService.ganttMinDate;
     // let xPos = this.ganttChartService.transformGanttDate(date) + this.ganttChartService.xPadding + 150;
@@ -109,7 +111,9 @@ export class GanttChartComponent implements OnInit, OnChanges {
       // console.log(date);
       const xPos = this.ganttChartService.transformGanttDate(date) + this.ganttChartService.xPadding + 150;
       const transform = 'translate(' + xPos + 'px, ' + yTrans + 'px)';
-      this.xAxis.push({xPos, value: this.shortenDate(date), transform});
+      
+      this.xAxis.push({id: xCount, xPos, value: this.shortenDate(date), transform});
+      xCount += 1;
       date = this.addDays(date, this.gridPrecisionX);
     }
 
@@ -146,19 +150,19 @@ export class GanttChartComponent implements OnInit, OnChanges {
      
   }
 
-  setColors() {
-    let cnt = 0;
-    for (const team of this.data) {
-      if (!team.color) {
-        if (this.customColorScheme.length > 0) {
-          team.color = this.customColorScheme[cnt % this.customColorScheme.length];
-        } else {
-          team.color = colorSchemes[this.colorScheme][cnt % 10];
-        }
-        cnt++;
-      }
-    }
-  }
+  // setColors() {
+  //   let cnt = 0;
+  //   for (const team of this.data) {
+  //     if (!team.color) {
+  //       if (this.customColorScheme.length > 0) {
+  //         team.color = this.customColorScheme[cnt % this.customColorScheme.length];
+  //       } else {
+  //         team.color = colorSchemes[this.colorScheme][cnt % 10];
+  //       }
+  //       cnt++;
+  //     }
+  //   }
+  // }
 
   definePhaseTimelines() {
     this.phaseTimelines = {};
@@ -241,7 +245,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
     for (const phase of this.ganttChartService.ganttPhases) {
       const yPos = this.gridWidthY * (cnt+.5) + this.ganttChartService.yPadding + 5
-      this.yAxis.push({yPos, value: phase });
+      this.yAxis.push({id: cnt, yPos, value: phase });
       cnt++;
     }
   }

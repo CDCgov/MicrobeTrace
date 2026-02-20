@@ -142,12 +142,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
         });
     });
 
-    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-    
-
     // this.createGanttEntry();
-    this.ganttChartData = [this.makeBlankEntry()];
+    this.ganttChartData = [];
     this.openSettings();
     
     // this.ganttChartData = [this.makeGanttEntry("_blank", "Ipstart", "Ipend", "#2ca02c")];
@@ -161,8 +157,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
-      this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-      this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
     })
   }
 

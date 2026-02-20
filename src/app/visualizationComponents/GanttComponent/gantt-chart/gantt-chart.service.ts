@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { colorSchemes } from '../constants/color-schemes';
+//import { colorSchemes } from '../constants/color-schemes';
 
 @Injectable({
    providedIn: 'root'
@@ -111,9 +111,11 @@ export class GanttChartService {
     const tos: any = [];
     const phases = new Set();
     this.ganttTeams = [];
+    let teamsCount = 0;
     // this.setColors();
     for (const team of this.data) {
-      this.ganttTeams.push({name: team.name, color: team.color, opacity: team.opacity});
+      this.ganttTeams.push({id: teamsCount, name: team.name, color: team.color, opacity: team.opacity});
+      teamsCount += 1;
       for (const phase of Object.keys(team.timelines)) {
         phases.add(phase);
         for (const timeline of team.timelines[phase]) {
@@ -141,10 +143,8 @@ export class GanttChartService {
     this.maxX = this.ganttDateRange;
     let flag = 0;
     let qts = 1;
-    let gridPrecisionX = 0;
     while (flag === 0) {
       if (this.ganttDateRange <= 90 * qts) {
-        gridPrecisionX = 7 * qts;
         flag = 1;
         break;
       } else { qts = qts + 1; }

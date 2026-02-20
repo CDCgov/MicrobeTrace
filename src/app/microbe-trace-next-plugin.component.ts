@@ -96,7 +96,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.0';
+    version: string = '2.1';
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;

@@ -12,15 +12,14 @@
     [attr.height]="ganttChartService.rectHeight"
     stroke="#444444" [attr.fill]="gridFill" stroke-width="1"/>
 
-    @for (x of xAxis; track x; let i = $index) {
+    @for (x of xAxis; track x.id; let i = $index) {
       <g [ngStyle]="{'transform': x.transform}">
         <text *ngIf="gridWidthX > 70 || (i%2==0 && gridWidthX > 30) || i%4 == 0" class="x-axis-text" text-anchor="middle" dominant-baseline="middle" [ngStyle]="{'font-size': fontSize}">{{x.value}}</text>
       </g>
     }
 
-    @for (y of yAxis; track y) {
-      <text
- class="y-axis-text" text-anchor="end" [ngStyle]="{'font-size': fontSize}"
+    @for (y of yAxis; track y.id) {
+      <text class="y-axis-text" text-anchor="end" [ngStyle]="{'font-size': fontSize}"
       [attr.y]="y.yPos" [attr.x]="150+ganttChartService.xPadding-15">{{y.value}}</text>
     }
 
@@ -33,9 +32,9 @@
   fill="#f1f1f1" />
 
 
-      @for (legendLine of ganttChartService.legend; track legendLine; let i = $index) {
+      @for (legendLine of ganttChartService.legend; track $index; let i = $index) {
         <g>
-          @for (legendEntry of legendLine; track legendEntry; let j = $index) {
+          @for (legendEntry of legendLine; track legendEntry.id; let j = $index) {
             <g>
               @if (ganttChartService.legendWidth) {
                 <rect
@@ -55,9 +54,9 @@
           }
         </g>
       }
-      @for (phase of ganttChartService.ganttPhases; track phase; let i = $index) {
+      @for (phase of ganttChartService.ganttPhases; track $index; let i = $index) {
         <g>
-          @for (ganttEntry of phaseTimelines[phase]; track ganttEntry; let j = $index) {
+          @for (ganttEntry of phaseTimelines[phase]; track $index; let j = $index) {
             <g id="component">
               <rect class="gantt-entry"
                 [attr.x]="xPadding + 150 + ganttChartService.transformGanttDate(ganttEntry.from)"
