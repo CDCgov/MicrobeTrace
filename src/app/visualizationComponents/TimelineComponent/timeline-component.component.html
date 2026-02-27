@@ -2,7 +2,7 @@
   <svg #epiCurveSVG id="epiCurveSVG"></svg>
 </div>
 
-<div id="tool-btn-container" class="m-portlet">
+<div id="tool-btn-container-epi" class="tool-btn-container m-portlet">
   <span style="overflow: visible; position: relative;">
     <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
@@ -47,7 +47,7 @@
                 <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable2" (ngModelChange)="onDateFieldChange(1)"></p-select>
               </div>
               <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                <input type="color" id="node-color" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][1]" (change)="onNodeColorChanged()">
+                <input type="color" id="epi-color-select-2" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][1]" (change)="onNodeColorChanged()">
               </div>
             </div>
           }
@@ -60,7 +60,7 @@
                 <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable3" (ngModelChange)="onDateFieldChange(2)"></p-select>
               </div>
               <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                <input type="color" id="node-color" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][2]" (change)="onNodeColorChanged()">
+                <input type="color" id="epi-color-select-3" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][2]" (change)="onNodeColorChanged()">
               </div>
             </div>
           }
@@ -69,7 +69,7 @@
               <div class="col-4">
                 <label>Color By</label>
               </div>
-              <div class="col-8" style="padding-right: 5px">
+              <div class="col-8">
                 <p-select [options]="FieldListStack" appendTo="body" class="width-percent-100" [(ngModel)]="this.widgets['epiCurve-stackColorBy']" (ngModelChange)="onUseNodeColorChange()"></p-select>
               </div>
             </div>
@@ -93,16 +93,8 @@
           <div class="form-group row" title="Show data noncumulatively or cumulatively.">
             <div class="col-4">Epi Curve</div>
             <div class="col-8">
-              <div class="btn-group btn-group-toggle w-100">
-                <label class="btn btn-light btn-sm col" [class.active]="!widgets['epiCurve-cumulative']">
-                  <input type="radio" name="epiCurve-cumulation" (click)="setCumulative(false)">
-                  Noncumulative
-                </label>
-                <label class="btn btn-light btn-sm col" [class.active]="widgets['epiCurve-cumulative']">
-                  <input type="radio" name="epiCurve-cumulation" (click)="setCumulative(true)">
-                  Cumulative
-                </label>
-              </div>
+              <p-selectButton [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
+                [options]="[{'label': 'Noncumulative', 'value': false}, {'label': 'Cumulative', 'value': true}]"></p-selectButton>
             </div>
           </div>
           <div class="form-group row" title="Select where to display the legend.">

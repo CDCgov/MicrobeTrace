@@ -831,8 +831,6 @@ openSettings() {
 }
 
 setCumulative(value: boolean): void {
-  this.widgets['epiCurve-cumulative'] = value;
-
   this.refresh();
 }
 

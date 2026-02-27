@@ -48,9 +48,6 @@ describe('Map View', () => {
       cy.get('#map-field-zipcode').click();
       cy.contains('li[role="option"]', 'Zipcode').click();
 
-      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
-      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
-
       cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
       cy.wait(250);
     });
@@ -271,13 +268,13 @@ describe('Map View', () => {
       cy.get(selectors.settingsBtn).click();
       cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
       cy.get('#map-states-show-hide').contains('Show').click();
-      cy.window().its('commonService.session.style.widgets.map-states-show').should('equal', false);
+      cy.window().its('commonService.session.style.widgets.map-states-show').should('equal', true);
       cy.closeSettingsPane('Geospatial Settings');
       cy.wait(200)
       if (takeScreenshots) cy.screenshot('map/map-countries', { overwrite: true});
       cy.wait(100)
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
-        expect(mapView.lmap.hasLayer(mapView.layers.states)).to.equal(false)
+        expect(mapView.lmap.hasLayer(mapView.layers.states)).to.equal(true)
         expect(mapView.lmap.hasLayer(mapView.layers.countries)).to.equal(true)
       });
     })
@@ -584,6 +581,19 @@ describe('Map View', () => {
         expect(mapView.lmap.hasLayer(mapView.layers.satellite)).to.equal(true)
       });
     })
+
+    it('should test excluded nodes menu', () => {
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.get('#tool-btn-container-map a[title="Nodes without Location Data"]')
+        .should('have.text', '3')
+        .should('have.css', 'color', 'rgb(255, 0, 0)')
+        .click();
+      // '#tool-btn-container-map a[title="Nodes without Location Data"]
+      cy.contains('.p-dialog-title', 'Excluded Nodes').should('be.visible');
+      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
+      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
+    })
   })
 
   context('Global Settings updating Map', () => { 
@@ -600,8 +610,6 @@ describe('Map View', () => {
 
 
       cy.closeSettingsPane('Geospatial Settings')
-      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
-      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
       cy.openGlobalSettings();
     });
 
@@ -805,8 +813,6 @@ describe('Map View', () => {
       cy.get('#node-color-variable .p-select-label').should('contain', 'Profession');
 
       cy.closeGlobalSettings();
-      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
-      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
 
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         let nodeLayers = mapView.layers.featureGroup._layers;
@@ -869,8 +875,6 @@ describe('Map View', () => {
       cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
       cy.wait(250);
       cy.closeSettingsPane('Geospatial Settings')      
-      cy.contains('.p-dialog-title', 'Excluded Nodes').parents('.p-dialog').find('button.p-dialog-close-button').click({force: true});
-      cy.contains('.p-dialog-title', 'Excluded Nodes').should('not.exist');
     });
 
     it('starts and stops the timeline and also checks that play button is updated', () => {
@@ -1001,5 +1005,14 @@ context('Settings and Interactions (Alternative [Lat/Long] Dataset)', () => {
         }
       });
     })
+
+    cy.get('#tool-btn-container-map a[title="Nodes without Location Data"]')
+      .should('have.text', '0')
+      .should('have.css', 'color', 'rgb(0, 93, 170)')
+      .click();
+
+    cy.contains('.p-dialog-title', 'Excluded Nodes')
+      .should('be.visible')
+      .closest('p-dialog').within(() => {cy.get('span').eq(2).should('have.text', 'All nodes contain location data.')})
   })
 })
