@@ -1,110 +1,128 @@
 <div class="waterfall-wrapper">
 
-    <div class="row">
-        <div class="primeng-datatable-container col-4" >
-            <p-table #clusterTable *ngIf="IsDataAvailable == true && clusterTableData" 
-                [value]="clusterTableData"
-                dataKey="id"
-                rowExpandMode="single"
-                (onRowSelect)="onClusterRowSelect($event)"
-                (onRowUnselect)="onClusterRowUnselect()"
-                selectionMode="single"
-                [(selection)]="selectedClusterRow"
-                [scrollable]="true"
-                [scrollHeight]="scrollHeight"
-                [tableStyle]="{'border': '3px #e9ecef solid'}">
-                <ng-template pTemplate="header">
-                    <tr style="background-color: #d8dadd; font-size: 22px;">
-                        <th>Cluster</th>
-                        <th style="text-align: end;">Nodes</th>
-                    </tr>
-                </ng-template>
-                <ng-template pTemplate="body" let-datarow>
-                    <tr class="ui-selectable-row" [pSelectableRow]="datarow" [pRowToggler]="datarow">
-                        <td>{{datarow.id}}</td>
-                        <td style="text-align: end">{{datarow.nodeCount}}</td>
-                    </tr>
-                </ng-template>
-                <ng-template pTemplate="rowexpansion">
-                    <tr><td colspan="2" class="rowExpansionContent">
-                        <div *ngFor="let data of expandedClusterRowData" [style.width.px]="clusterTableWidth">{{data.key}}: {{data.value}}</div>
-                    </td></tr>
-                </ng-template>
-            </p-table>
-        </div>
-
-        <div class="primeng-datatable-container col-4">
-            <p-table #nodeTable *ngIf="IsDataAvailable == true && nodeTableData" 
-                [value]="nodeTableData"
-                dataKey="id"
-                rowExpandMode="single"
-                (onRowSelect)="onNodeRowSelect($event)"
-                (onRowUnselect)="onNodeRowUnselect()"
-                selectionMode="single"
-                [(selection)]="selectedNodeRow"
-                [scrollable]="true"
-                [scrollHeight]="scrollHeight"
-                [tableStyle]="{'border': '3px #e9ecef solid'}">
-                <ng-template pTemplate="header">
-                    <tr style="background-color: #d8dadd; font-size: 22px;">
-                        <th>Nodes</th>
-                        <th style="text-align: end;">Degree</th>
-                    </tr>
-                </ng-template>
-                <ng-template pTemplate="body" let-datarow>
-                    <tr class="ui-selectable-row" [pSelectableRow]="datarow" [pRowToggler]="datarow">
-                        <td>{{datarow.id}}</td>
-                        <td style="text-align: end">{{datarow.degree}}</td>
-                    </tr>
-                </ng-template>
-                <ng-template pTemplate="rowexpansion">
-                    <tr *ngIf="selectedNodeRow"><td colspan="2" class="rowExpansionContent">
-                        <div *ngFor="let data of expandedNodeRowData" [style.width.px]="nodeTableWidth">{{data.key}}: {{data.value}}</div>
-                    </td></tr>
-                </ng-template>
-            </p-table>
-        </div>
-
-        <div class="primeng-datatable-container col-4">
-            <p-table #linkTable *ngIf="IsDataAvailable == true && linkTableData" 
-                [value]="linkTableData"
-                dataKey="index"
-                rowExpandMode="single"
-                (onRowSelect)="onLinkRowSelect($event)"
-                (onRowUnselect)="onLinkRowUnselect()"
-                selectionMode="single"
-                [(selection)]="selectedLinkRow"
-                [scrollable]="true"
-                [scrollHeight]="scrollHeight"
-                [tableStyle]="{'border': '3px #e9ecef solid'}">
-                <ng-template pTemplate="header">
-                    <tr style="background-color: #d8dadd; font-size: 22px;">
-                        <th>Links</th>
-                        <th style="text-align: end;">Distance</th>
-                    </tr>
-                </ng-template>
-                <ng-template pTemplate="body" let-datarow>
-                    <tr class="ui-selectable-row" [pSelectableRow]="datarow" [pRowToggler]="datarow">
-                        <td>{{datarow.id}}</td>
-                        <td style="text-align: end">{{datarow.distance.toLocaleString()}}</td>
-                    </tr>
-                </ng-template>
-                <ng-template pTemplate="rowexpansion" let-datarow>
-                    <tr *ngIf="selectedLinkRow"><td colspan="2" class="rowExpansionContent">
-                        <div *ngFor="let data of expandedLinkRowData" [style.width.px]="linkTableWidth">{{data.key}}: {{data.value}}</div>
-                    </td></tr>
-                </ng-template>
-            </p-table>
-        </div>
+  <div class="row">
+    <div class="primeng-datatable-container col-4" >
+      @if (IsDataAvailable == true && clusterTableData) {
+        <p-table #clusterTable
+          [value]="clusterTableData"
+          dataKey="id"
+          rowExpandMode="single"
+          (onRowSelect)="onClusterRowSelect($event)"
+          (onRowUnselect)="onClusterRowUnselect()"
+          selectionMode="single"
+          [(selection)]="selectedClusterRow"
+          [scrollable]="true"
+          [scrollHeight]="scrollHeight"
+          [tableStyle]="{'border': '3px #e9ecef solid'}">
+          <ng-template pTemplate="header">
+            <tr style="background-color: #d8dadd; font-size: 22px;">
+              <th>Cluster</th>
+              <th style="text-align: end;">Nodes</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-datarow>
+            <tr class="ui-selectable-row" [pSelectableRow]="datarow" [pRowToggler]="datarow">
+              <td>{{datarow.id}}</td>
+              <td style="text-align: end">{{datarow.nodeCount}}</td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="rowexpansion">
+            <tr><td colspan="2" class="rowExpansionContent">
+              @for (data of expandedClusterRowData; track data) {
+                <div [style.width.px]="clusterTableWidth">{{data.key}}: {{data.value}}</div>
+              }
+            </td></tr>
+          </ng-template>
+        </p-table>
+      }
     </div>
 
-    <div class="m-content" *ngIf="IsDataAvailable == false">
-        <div id="file-panel" class="container-fluid" style="height:500px;">
-            <div id="file-prompt" class="d-flex justify-content-center">
-                <h1><b>Please add data files to load...</b></h1>
-                <br />
-            </div>
-        </div>
+    <div class="primeng-datatable-container col-4">
+      @if (IsDataAvailable == true && nodeTableData) {
+        <p-table #nodeTable
+          [value]="nodeTableData"
+          dataKey="id"
+          rowExpandMode="single"
+          (onRowSelect)="onNodeRowSelect($event)"
+          (onRowUnselect)="onNodeRowUnselect()"
+          selectionMode="single"
+          [(selection)]="selectedNodeRow"
+          [scrollable]="true"
+          [scrollHeight]="scrollHeight"
+          [tableStyle]="{'border': '3px #e9ecef solid'}">
+          <ng-template pTemplate="header">
+            <tr style="background-color: #d8dadd; font-size: 22px;">
+              <th>Nodes</th>
+              <th style="text-align: end;">Degree</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-datarow>
+            <tr class="ui-selectable-row" [pSelectableRow]="datarow" [pRowToggler]="datarow">
+              <td>{{datarow.id}}</td>
+              <td style="text-align: end">{{datarow.degree}}</td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="rowexpansion">
+            @if (selectedNodeRow) {
+              <tr><td colspan="2" class="rowExpansionContent">
+                @for (data of expandedNodeRowData; track data) {
+                  <div [style.width.px]="nodeTableWidth">{{data.key}}: {{data.value}}</div>
+                }
+              </td></tr>
+            }
+          </ng-template>
+        </p-table>
+      }
     </div>
+
+    <div class="primeng-datatable-container col-4">
+      @if (IsDataAvailable == true && linkTableData) {
+        <p-table #linkTable
+          [value]="linkTableData"
+          dataKey="index"
+          rowExpandMode="single"
+          (onRowSelect)="onLinkRowSelect($event)"
+          (onRowUnselect)="onLinkRowUnselect()"
+          selectionMode="single"
+          [(selection)]="selectedLinkRow"
+          [scrollable]="true"
+          [scrollHeight]="scrollHeight"
+          [tableStyle]="{'border': '3px #e9ecef solid'}">
+          <ng-template pTemplate="header">
+            <tr style="background-color: #d8dadd; font-size: 22px;">
+              <th>Links</th>
+              <th style="text-align: end;">Distance</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-datarow>
+            <tr class="ui-selectable-row" [pSelectableRow]="datarow" [pRowToggler]="datarow">
+              <td>{{datarow.id}}</td>
+              <td style="text-align: end">{{datarow.distance.toLocaleString()}}</td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="rowexpansion" let-datarow>
+            @if (selectedLinkRow) {
+              <tr><td colspan="2" class="rowExpansionContent">
+                @for (data of expandedLinkRowData; track data) {
+                  <div [style.width.px]="linkTableWidth">{{data.key}}: {{data.value}}</div>
+                }
+              </td></tr>
+            }
+          </ng-template>
+        </p-table>
+      }
+    </div>
+  </div>
+
+  @if (IsDataAvailable == false) {
+    <div class="m-content">
+      <div id="file-panel" class="container-fluid" style="height:500px;">
+        <div id="file-prompt" class="d-flex justify-content-center">
+          <h1><b>Please add data files to load...</b></h1>
+          <br />
+        </div>
+      </div>
+    </div>
+  }
 
 </div>

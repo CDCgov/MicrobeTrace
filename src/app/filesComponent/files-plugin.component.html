@@ -1,331 +1,341 @@
-﻿﻿<div class="m-content">
+﻿<div class="m-content">
 
-    <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
-        <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
-        </div>
-        <div id="file-prompt" *ngIf="!commonService.session?.files?.length" class="d-flex justify-content-center">
-            <h1><b>Please add data files to load...</b></h1>
-        </div>
-        <div class="spinner-wrapper" *ngIf="isLoadingFiles">
-            <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-        </div>
-    
+  <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
+    <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
     </div>
+    @if (!commonService.session?.files?.length) {
+      <div id="file-prompt" class="d-flex justify-content-center">
+        <h1><b>Please add data files to load...</b></h1>
+      </div>
+    }
+    @if (isLoadingFiles) {
+      <div class="spinner-wrapper">
+        <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+      </div>
+    }
 
-    <div id="tool-btn-container" class="m-portlet">
-        <span style="overflow: visible; position: relative; width: 110px;">
-            <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
-        </span>
-    </div>
-    
-    
+  </div>
 
-    <div class="view-controls">
-        <p-dialog id="file-settings-pane" [(visible)]="displayFileSettings" header="File Settings">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-body">
-                        <tabset class="tab-container tabbable-line" style='width: 100%;'>
-                            <tab heading="{{'Files' | localize}}" [active]="true" customClass="m-tabs__item">
-                                <div id="file-settings" class="tab-pane fade active show" role="tabpanel">
-                                    <div class="form-group row">
-                                        <div class="col-5">
-                                            <label style="padding-left: 10px;" for="default-distance-metric" class="mr-2" title="Which Genetic Distance Metric should Microbe use to first construct the network?">
-                                                {{"Distance Metric" | localize}}
-                                            </label>
-                                        </div>
-                                        <div class="col-7">
-                                            <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
-                                                <option value="tn93" selected>TN93</option>
-                                                <option value="snps">SNPs</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div id="ambiguities-row" *ngIf="SelectedDefaultDistanceMetricVariable=='tn93'" class="form-group row">
-                                        <div class="col-5">
-                                            <label style="padding-left: 10px;" for="ambiguity-resolution-strategy" class="mr-2" title="What Strategy should MicrobeTrace use to handle ambiguities?">
-                                                {{"Ambiguities" | localize}}
-                                            </label>
-                                        </div>
-                                        <div class="col-7">
-                                            <select id="ambiguity-resolution-strategy" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedAmbiguityResolutionStrategyVariable" (ngModelChange)="onAmbiguityStrategyChanged()">
-                                                <option value="AVERAGE">Average</option>
-                                                <option value="RESOLVE">Resolve</option>
-                                                <option value="SKIP">Skip</option>
-                                                <option value="GAPMM">GapMM</option>
-                                                <option value="HIVTRACE-G">HIV-TRACE -g</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div id="ambiguity-threshold-row" class="form-group row" *ngIf="(SelectedAmbiguityResolutionStrategyVariable=='HIVTRACE-G' || SelectedAmbiguityResolutionStrategyVariable=='RESOLVE') && SelectedDefaultDistanceMetricVariable=='tn93'">
-                                        <div class="col-5">
-                                            <label style="padding-left: 10px;" for="ambiguity-threshold" class="mr-2" title="What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.">
-                                                {{"Ambiguity Threshold" | localize}}
-                                            </label>
-                                        </div>
-                                        <div class="col-7">
-                                            <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
-                                        </div>
-                                    </div>
-                                    <div class="form-group row">
-                                        <div class="col-5">
-                                            <label style="padding-left: 10px;" for="default-distance-threshold" class="mr-2" title="What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.">
-                                                {{"Link Threshold" | localize}}
-                                            </label>
-                                        </div>
-                                        <div class="col-7">
-                                            <input type="number" id="default-distance-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedDefaultDistanceThresholdVariable" (ngModelChange)="onLinkThresholdChange($event)">
-                                        </div>
-                                    </div>
-                                    <div class="form-group row">
-                                        <div class="col-5">
-                                            <label style="padding-left: 10px;" for="default-view">{{"View to Launch" | localize}}</label>
-                                        </div>
-                                        <div class="col-7">
-                                            <select id="default-view" class="form-control form-control-sm" (change)="changeDefaultView($event)" title="Which view should MicrobeTrace render first, once it has successfully processed the data?" [(ngModel)]="SelectedDefaultViewVariable">
-                                                <option value="2D Network" selected>2D Network</option>
-                                                <option value="Table">Table</option>
-                                                <option value="Map">Map</option>
-                                                <option value="Phylogenetic Tree">Phylogenetic Tree</option>
-                                                <option value="Alignment View">Alignment View</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            </tab>
-                            <tab heading="{{'Experimental' | localize}}" customClass="m-tabs__item">
-                                <div id="experimental-settings" class="tab-pane fade active show" role="tabpanel">
-                                    <div class="form-group row">
-                                        <div class="col-12">
-                                            <div class="alert alert-warning alert-dismissible" role="alert">
-                                                <p>The following settings are experimental! Use at your own risk!</p>
-                                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                                    <span aria-hidden="true">&times;</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="form-group row" title="Would you like to generate a network based on random data?">
-                                        <div class="col-4">
-                                            <label style="padding-left: 10px;" class="mr-2">{{"Generate" | localize}}</label>
-                                        </div>
-                                        <div class="col">
-                                            <input id="generate-number" type="number" class="form-control form-control-sm" min="1" max="2000" step="1" value="100" [(ngModel)]="SelectedGenerateNumberVariable">
-                                        </div>
-                                        <div class="col">
-                                            <button id="generate-sequences" class="btn btn-light btn-sm col"  (click)="generateSequences()">Sequences</button>
-                                        </div>
-                                    </div>
-                                    <div class="form-group row" title="Would you like to attempt to infer the direction of your links?">
-                                        <div class="col-4">
-                                            <label style="padding-left: 10px;" class="mr-2">{{"Directionality" | localize}}</label>
-                                        </div>
-                                        <div class="col-8">
-                                            <p-selectButton [options]="DirectionalityTypes" [(ngModel)]="SelectedDirectionalityTypeVariable"></p-selectButton>                                           
-                                        </div>
-                                    </div>
-                                    <div class="form-group row" title="Would you like to attempt to triangulate missing values in your distance matrices?">
-                                        <div class="col-4">
-                                            <label style="padding-left: 10px;" class="mr-2">{{"Triangulation" | localize}}</label>
-                                        </div>
-                                        <div class="col-8">
-                                            <p-selectButton [options]="TriangulationTypes" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>                                           
-                                        </div>
-                                    </div>
-                                    <div class="form-group row"
+  <div id="tool-btn-container" class="m-portlet">
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    </span>
+  </div>
+
+
+
+  <div class="view-controls">
+    <p-dialog id="file-settings-pane" [(visible)]="displayFileSettings" header="File Settings">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-body">
+            <tabset class="tab-container tabbable-line" style='width: 100%;'>
+              <tab heading="{{'Files' | localize}}" [active]="true" customClass="m-tabs__item">
+                <div id="file-settings" class="tab-pane fade active show" role="tabpanel">
+                  <div class="form-group row">
+                    <div class="col-5">
+                      <label style="padding-left: 10px;" for="default-distance-metric" class="mr-2" title="Which Genetic Distance Metric should Microbe use to first construct the network?">
+                        {{"Distance Metric" | localize}}
+                      </label>
+                    </div>
+                    <div class="col-7">
+                      <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
+                        <option value="tn93" selected>TN93</option>
+                        <option value="snps">SNPs</option>
+                      </select>
+                    </div>
+                  </div>
+                  @if (SelectedDefaultDistanceMetricVariable=='tn93') {
+                    <div id="ambiguities-row" class="form-group row">
+                      <div class="col-5">
+                        <label style="padding-left: 10px;" for="ambiguity-resolution-strategy" class="mr-2" title="What Strategy should MicrobeTrace use to handle ambiguities?">
+                          {{"Ambiguities" | localize}}
+                        </label>
+                      </div>
+                      <div class="col-7">
+                        <select id="ambiguity-resolution-strategy" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedAmbiguityResolutionStrategyVariable" (ngModelChange)="onAmbiguityStrategyChanged()">
+                          <option value="AVERAGE">Average</option>
+                          <option value="RESOLVE">Resolve</option>
+                          <option value="SKIP">Skip</option>
+                          <option value="GAPMM">GapMM</option>
+                          <option value="HIVTRACE-G">HIV-TRACE -g</option>
+                        </select>
+                      </div>
+                    </div>
+                  }
+                  @if ((SelectedAmbiguityResolutionStrategyVariable=='HIVTRACE-G' || SelectedAmbiguityResolutionStrategyVariable=='RESOLVE') && SelectedDefaultDistanceMetricVariable=='tn93') {
+                    <div id="ambiguity-threshold-row" class="form-group row">
+                      <div class="col-5">
+                        <label style="padding-left: 10px;" for="ambiguity-threshold" class="mr-2" title="What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.">
+                          {{"Ambiguity Threshold" | localize}}
+                        </label>
+                      </div>
+                      <div class="col-7">
+                        <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
+                      </div>
+                    </div>
+                  }
+                  <div class="form-group row">
+                    <div class="col-5">
+                      <label style="padding-left: 10px;" for="default-distance-threshold" class="mr-2" title="What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.">
+                        {{"Link Threshold" | localize}}
+                      </label>
+                    </div>
+                    <div class="col-7">
+                      <input type="number" id="default-distance-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedDefaultDistanceThresholdVariable" (ngModelChange)="onLinkThresholdChange($event)">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-5">
+                      <label style="padding-left: 10px;" for="default-view">{{"View to Launch" | localize}}</label>
+                    </div>
+                    <div class="col-7">
+                      <select id="default-view" class="form-control form-control-sm" (change)="changeDefaultView($event)" title="Which view should MicrobeTrace render first, once it has successfully processed the data?" [(ngModel)]="SelectedDefaultViewVariable">
+                        <option value="2D Network" selected>2D Network</option>
+                        <option value="Table">Table</option>
+                        <option value="Map">Map</option>
+                        <option value="Phylogenetic Tree">Phylogenetic Tree</option>
+                        <option value="Alignment View">Alignment View</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </tab>
+              <tab heading="{{'Experimental' | localize}}" customClass="m-tabs__item">
+                <div id="experimental-settings" class="tab-pane fade active show" role="tabpanel">
+                  <div class="form-group row">
+                    <div class="col-12">
+                      <div class="alert alert-warning alert-dismissible" role="alert">
+                        <p>The following settings are experimental! Use at your own risk!</p>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Would you like to generate a network based on random data?">
+                    <div class="col-4">
+                      <label style="padding-left: 10px;" class="mr-2">{{"Generate" | localize}}</label>
+                    </div>
+                    <div class="col">
+                      <input id="generate-number" type="number" class="form-control form-control-sm" min="1" max="2000" step="1" value="100" [(ngModel)]="SelectedGenerateNumberVariable">
+                    </div>
+                    <div class="col">
+                      <button id="generate-sequences" class="btn btn-light btn-sm col"  (click)="generateSequences()">Sequences</button>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Would you like to attempt to infer the direction of your links?">
+                    <div class="col-4">
+                      <label style="padding-left: 10px;" class="mr-2">{{"Directionality" | localize}}</label>
+                    </div>
+                    <div class="col-8">
+                      <p-selectButton [options]="DirectionalityTypes" [(ngModel)]="SelectedDirectionalityTypeVariable"></p-selectButton>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Would you like to attempt to triangulate missing values in your distance matrices?">
+                    <div class="col-4">
+                      <label style="padding-left: 10px;" class="mr-2">{{"Triangulation" | localize}}</label>
+                    </div>
+                    <div class="col-8">
+                      <p-selectButton [options]="TriangulationTypes" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>
+                    </div>
+                  </div>
+                  <div class="form-group row"
                                          title="Should MicrobeTrace automatically stash your session so if your computer crashes you can recover your session?
                                 Please note that this causes MicrobeTrace to store data on your computer's hard drive, which may have implications for PII.">
-                                        <div class="col-4">
-                                            <label style="padding-left: 10px;" class="mr-2">{{"Autostashing" | localize}}</label>
-                                        </div>
-                                        <div class="col-8">
-                                            <p-selectButton [options]="AutostashingTypes" [(ngModel)]="SelectedAutostashingTypeVariable"></p-selectButton>                                          
-                                        </div>
-                                    </div>
-                                </div>
-                            </tab>
-                        </tabset>
+                    <div class="col-4">
+                      <label style="padding-left: 10px;" class="mr-2">{{"Autostashing" | localize}}</label>
                     </div>
+                    <div class="col-8">
+                      <p-selectButton [options]="AutostashingTypes" [(ngModel)]="SelectedAutostashingTypeVariable"></p-selectButton>
+                    </div>
+                  </div>
                 </div>
-            </div>
-        </p-dialog>
-
-
-
-
-        <p-dialog id="sequence-controls-modal" [(visible)]="displaySequenceSettings" header="Sequence Settings">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-body">
-                        <tabset class="tab-container tabbable-line" style='width: 100%;'>
-                            <tab heading="{{'Alignment' | localize}}" [active]="true" customClass="m-tabs__item">
-                                <div id="sequence-alignment" class="tab-pane fade show active" role="tabpanel">
-                                    <div class="form-group row">
-                                        <div class="col-12">
-                                            <div class="alert alert-warning alert-dismissible" role="alert">
-                                                <p>
-                                                    <span>{{"MicrobeTrace " | localize}}</span>
-                                                    is not intended to be an alignment program (although it can be used in that way).
-                                                    For best results, please align your sequences using
-                                                    <a href="https://en.wikipedia.org/wiki/List_of_sequence_alignment_software" target="_blank" rel="noreferrer noopener">an external tool</a>
-                                                    before loading them into MicrobeTrace.
-                                                    <a href="https://github.com/CDCgov/MicrobeTrace/wiki/Alignment" class="ifOnline" target="_blank" rel="noreferrer noopener">Click here for additional information.</a>
-                                                </p>
-                                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                                    <span aria-hidden="true">&times;</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="form-group row">
-                                        <div class="col-2" title="Should MicrobeTrace align your sequences?">Align</div>
-                                        <div class="col-10">
-                                            <p-selectButton [options]="AlignTypes" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectButton>
-                                        </div>
-                                    </div>
-
-                                    <p-accordion *ngIf="IsReferenceSourceSelected == true" [value]="null" [multiple]="true">
-                                        <p-accordion-panel style="color:#495057" value="reference-source">
-                                            <p-accordion-header>Reference Source Options</p-accordion-header>
-                                            <p-accordion-content>
-                                                <div class="form-group row alignConfigRow">
-                                                    <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
-                                                    <div class="col-10">
-                                                        <p-selectButton [options]="ReferenceTypes" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
-                                                    </div>
-                                                </div>
-
-                                                    <p-accordion *ngIf="IsReferenceOptionsSelected == true" [value]="null" [multiple]="true">
-                                                    <p-accordion-panel style="color:#495057" value="reference-options">
-                                                        <p-accordion-header>Reference Options</p-accordion-header>
-                                                        <p-accordion-content>
-                                                            <div class="form-group row" id="reference-file-row">
-                                                                <div class="col-2" title="Against what sequence should MicrobeTrace align your sequences?">Reference</div>
-                                                                <div class="col-5">
-                                                                    <div class="custom-file">
-                                                                        <input type="file" class="custom-file-input" id="refSeqFileLoad" [(ngModel)]="SelectedRefSeqFileLoadVariable">
-                                                                        <label class="custom-file-label" for="refSeqFileLoad" style="overflow:hidden">HXB2</label>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="col-5">
-                                                                    <p-select id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-select>
-                                                                </div>
-                                                            </div>
-                                                        </p-accordion-content>
-                                                    </p-accordion-panel>
-                                                </p-accordion>
-
-                                                <div class="row alignConfigRow">
-                                                    <div class="form-group col offset-2" title="How much should MicrobeTrace reward matching bases?">
-                                                        <label for="alignerMatch">Match Reward</label>
-                                                        <input type="number" id="alignerMatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMatchVariable">
-                                                    </div>
-                                                    <div class="form-group col" title="How much should MicrobeTrace penalize non-matching bases?">
-                                                        <label for="alignerMismatch">Mismatch Cost</label>
-                                                        <input type="number" id="alignerMismatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMismatchVariable">
-                                                    </div>
-                                                </div>
-                                                <div class="row alignConfigRow">
-                                                    <div class="form-group col offset-2" title="How much should MicrobeTrace Penalize opening a gap?">
-                                                        <label for="alignerGapO">Gap Opening Cost</label>
-                                                        <input type="number" id="alignerGapO" class="form-control" value="5" min="0" [(ngModel)]="SelectedAlignerGapOVariable">
-                                                    </div>
-                                                    <div class="form-group col" title="How much should MicrobeTrace Penalize extending a gap?">
-                                                        <label for="alignerGapE">Gap Extension Cost</label>
-                                                        <input type="number" id="alignerGapE" class="form-control" value="2" min="0" [(ngModel)]="SelectedAlignerGapEVariable">
-                                                    </div>
-                                                </div>
-                                            </p-accordion-content>
-                                        </p-accordion-panel>
-                                    </p-accordion>
-
-
-
-                                    <div class="row alignPreviewRow">
-                                        <div class="w-100 text-center" id="alignment-preview"></div>
-                                    </div>
-                                </div>
-                            </tab>
-                            <tab heading="{{'Audit' | localize}}" [active]="true" customClass="m-tabs__item">
-                                <div id="sequence-auditor" class="tab-pane fade show" role="tabpanel">
-                                    <div class="row mb-3" style="padding-left:15px;">
-                                        <div class="form-check col" title="Checks to see if a Sequence is empty.">
-                                            <input class="form-check-input" style="padding-left:5px;" type="checkbox" id="audit-empty" checked [(ngModel)]="SelectedAuditEmptyVariable">
-                                            <label class="form-check-label" style="padding-left:5px;" for="audit-empty">
-                                                Empty
-                                            </label>
-                                        </div>
-                                        <div class="form-check col" title="Checks to see if a Sequence is all gaps.">
-                                            <input class="form-check-input" type="checkbox" id="audit-gaps" checked [(ngModel)]="SelectedAuditGapsVariable">
-                                            <label class="form-check-label" style="padding-left:5px;" for="audit-gaps">
-                                                Gaps
-                                            </label>
-                                        </div>
-                                        <div class="form-check col" title="Check to see if sequence contains any characters that are RNA instead of DNA.">
-                                            <input class="form-check-input" type="checkbox" id="audit-RNA" checked [(ngModel)]="SelectedAuditRNAVariable">
-                                            <label class="form-check-label" style="padding-left:5px;" for="audit-RNA">
-                                                RNA
-                                            </label>
-                                        </div>
-                                        <div class="form-check col" title="Check to see if Sequence contains any characters that represent Amino Acids.">
-                                            <input class="form-check-input" type="checkbox" id="audit-amino-acids" checked [(ngModel)]="SelectedAuditAminoAcidsVariable">
-                                            <label class="form-check-label" style="padding-left:5px;" for="audit-amino-acids">
-                                                Amino Acids
-                                            </label>
-                                        </div>
-                                        <div class="form-check col" title="Check to see if Sequence contains any characters describing an alignment.">
-                                            <input class="form-check-input" type="checkbox" id="audit-CIGAR" checked [(ngModel)]="SelectedAuditCIGARVariable">
-                                            <label class="form-check-label" style="padding-left:5px;" for="audit-CIGAR">
-                                                CIGAR
-                                            </label>
-                                        </div>
-                                        <div class="form-check col" title="Check to see if Sequence contains any characters that are illegal in any genomic or proteomic alphabet.">
-                                            <input class="form-check-input" type="checkbox" id="audit-malformed" checked [(ngModel)]="SelectedAuditMalformedVariable">
-                                            <label class="form-check-label" style="padding-left:5px;" for="audit-malformed">
-                                                Malformed
-                                            </label>
-                                        </div>
-                                        <div class="col">
-                                            <button type="button" class="btn btn-primary btn-sm w-100" id="audit-launcher" (click)="run()">Run</button>
-                                        </div>
-                                    </div>
-                                    <div class="row" id="audited-sequences"></div>
-                                    <div class="row flex-row-reverse" style="padding-right: 21px">
-                                        <button class="btn btn-danger btn-sm" id="audit-toggle-all" (click)="toglleAll()">Toggle All</button>
-                                    </div>
-                                </div>
-                            </tab>
-                        </tabset>
-                    </div>
-                    <div class="modal-footer clearfix">
-                        <button (click)="updatePreview()" class="btn btn-success">View Preview</button>
-                        <button type="submit" class="btn btn-success pull-right" data-dismiss="modal"
-                                title="Confirm Load Settings are All Properly Set" (click)="displaySequenceSettings = !displaySequenceSettings">
-                            Confirm
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </p-dialog>
-
-    </div><div id="file-footer">
-        <br/>
-
-        <div class="m-portlet" style="padding: 1px">
-            <div class="d-flex justify-content-center">
-                <span>
-                    <input type="file" id="data-files1" class="d-none" multiple="true" onclick="this.value=null;" (change)="processFiles($event.target.files)">
-                    <label for="data-files1" class="btn btn-primary btn-nr floater mb-0">Add File(s)</label>
-                </span>
-                <span>
-                    <button type="button" class="btn btn-default btn-nr floater" (click)="showSequenceSettings()">Sequence Controls</button>
-                </span>
-                <span>
-                    <button id="launch" class="btn btn-success" (click)="launchClick()" title="Please select a Network CSV or FASTA File" disabled>Launch</button>
-                </span>
-            </div>
+              </tab>
+            </tabset>
+          </div>
         </div>
+      </div>
+    </p-dialog>
+
+
+
+
+    <p-dialog id="sequence-controls-modal" [(visible)]="displaySequenceSettings" header="Sequence Settings">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-body">
+            <tabset class="tab-container tabbable-line" style='width: 100%;'>
+              <tab heading="{{'Alignment' | localize}}" [active]="true" customClass="m-tabs__item">
+                <div id="sequence-alignment" class="tab-pane fade show active" role="tabpanel">
+                  <div class="form-group row">
+                    <div class="col-12">
+                      <div class="alert alert-warning alert-dismissible" role="alert">
+                        <p>
+                          <span>{{"MicrobeTrace " | localize}}</span>
+                          is not intended to be an alignment program (although it can be used in that way).
+                          For best results, please align your sequences using
+                          <a href="https://en.wikipedia.org/wiki/List_of_sequence_alignment_software" target="_blank" rel="noreferrer noopener">an external tool</a>
+                          before loading them into MicrobeTrace.
+                          <a href="https://github.com/CDCgov/MicrobeTrace/wiki/Alignment" class="ifOnline" target="_blank" rel="noreferrer noopener">Click here for additional information.</a>
+                        </p>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-2" title="Should MicrobeTrace align your sequences?">Align</div>
+                    <div class="col-10">
+                      <p-selectButton [options]="AlignTypes" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectButton>
+                    </div>
+                  </div>
+
+                  @if (IsReferenceSourceSelected == true) {
+                    <p-accordion [value]="null" [multiple]="true">
+                      <p-accordion-panel style="color:#495057" value="reference-source">
+                        <p-accordion-header>Reference Source Options</p-accordion-header>
+                        <p-accordion-content>
+                          <div class="form-group row alignConfigRow">
+                            <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
+                            <div class="col-10">
+                              <p-selectButton [options]="ReferenceTypes" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
+                            </div>
+                          </div>
+                          @if (IsReferenceOptionsSelected == true) {
+                            <p-accordion [value]="null" [multiple]="true">
+                              <p-accordion-panel style="color:#495057" value="reference-options">
+                                <p-accordion-header>Reference Options</p-accordion-header>
+                                <p-accordion-content>
+                                  <div class="form-group row" id="reference-file-row">
+                                    <div class="col-2" title="Against what sequence should MicrobeTrace align your sequences?">Reference</div>
+                                    <div class="col-5">
+                                      <div class="custom-file">
+                                        <input type="file" class="custom-file-input" id="refSeqFileLoad" [(ngModel)]="SelectedRefSeqFileLoadVariable">
+                                        <label class="custom-file-label" for="refSeqFileLoad" style="overflow:hidden">HXB2</label>
+                                      </div>
+                                    </div>
+                                    <div class="col-5">
+                                      <p-select id="refSeqID" [options]="RefSeqIDTypes" [(ngModel)]="SelectedRefSeqIDVariable"></p-select>
+                                    </div>
+                                  </div>
+                                </p-accordion-content>
+                              </p-accordion-panel>
+                            </p-accordion>
+                          }
+                          <div class="row alignConfigRow">
+                            <div class="form-group col offset-2" title="How much should MicrobeTrace reward matching bases?">
+                              <label for="alignerMatch">Match Reward</label>
+                              <input type="number" id="alignerMatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMatchVariable">
+                            </div>
+                            <div class="form-group col" title="How much should MicrobeTrace penalize non-matching bases?">
+                              <label for="alignerMismatch">Mismatch Cost</label>
+                              <input type="number" id="alignerMismatch" class="form-control" value="1" min="0" [(ngModel)]="SelectedAlignerMismatchVariable">
+                            </div>
+                          </div>
+                          <div class="row alignConfigRow">
+                            <div class="form-group col offset-2" title="How much should MicrobeTrace Penalize opening a gap?">
+                              <label for="alignerGapO">Gap Opening Cost</label>
+                              <input type="number" id="alignerGapO" class="form-control" value="5" min="0" [(ngModel)]="SelectedAlignerGapOVariable">
+                            </div>
+                            <div class="form-group col" title="How much should MicrobeTrace Penalize extending a gap?">
+                              <label for="alignerGapE">Gap Extension Cost</label>
+                              <input type="number" id="alignerGapE" class="form-control" value="2" min="0" [(ngModel)]="SelectedAlignerGapEVariable">
+                            </div>
+                          </div>
+                        </p-accordion-content>
+                      </p-accordion-panel>
+                    </p-accordion>
+                  }
+
+
+
+                  <div class="row alignPreviewRow">
+                    <div class="w-100 text-center" id="alignment-preview"></div>
+                  </div>
+                </div>
+              </tab>
+              <tab heading="{{'Audit' | localize}}" [active]="true" customClass="m-tabs__item">
+                <div id="sequence-auditor" class="tab-pane fade show" role="tabpanel">
+                  <div class="row mb-3" style="padding-left:15px;">
+                    <div class="form-check col" title="Checks to see if a Sequence is empty.">
+                      <input class="form-check-input" style="padding-left:5px;" type="checkbox" id="audit-empty" checked [(ngModel)]="SelectedAuditEmptyVariable">
+                      <label class="form-check-label" style="padding-left:5px;" for="audit-empty">
+                        Empty
+                      </label>
+                    </div>
+                    <div class="form-check col" title="Checks to see if a Sequence is all gaps.">
+                      <input class="form-check-input" type="checkbox" id="audit-gaps" checked [(ngModel)]="SelectedAuditGapsVariable">
+                      <label class="form-check-label" style="padding-left:5px;" for="audit-gaps">
+                        Gaps
+                      </label>
+                    </div>
+                    <div class="form-check col" title="Check to see if sequence contains any characters that are RNA instead of DNA.">
+                      <input class="form-check-input" type="checkbox" id="audit-RNA" checked [(ngModel)]="SelectedAuditRNAVariable">
+                      <label class="form-check-label" style="padding-left:5px;" for="audit-RNA">
+                        RNA
+                      </label>
+                    </div>
+                    <div class="form-check col" title="Check to see if Sequence contains any characters that represent Amino Acids.">
+                      <input class="form-check-input" type="checkbox" id="audit-amino-acids" checked [(ngModel)]="SelectedAuditAminoAcidsVariable">
+                      <label class="form-check-label" style="padding-left:5px;" for="audit-amino-acids">
+                        Amino Acids
+                      </label>
+                    </div>
+                    <div class="form-check col" title="Check to see if Sequence contains any characters describing an alignment.">
+                      <input class="form-check-input" type="checkbox" id="audit-CIGAR" checked [(ngModel)]="SelectedAuditCIGARVariable">
+                      <label class="form-check-label" style="padding-left:5px;" for="audit-CIGAR">
+                        CIGAR
+                      </label>
+                    </div>
+                    <div class="form-check col" title="Check to see if Sequence contains any characters that are illegal in any genomic or proteomic alphabet.">
+                      <input class="form-check-input" type="checkbox" id="audit-malformed" checked [(ngModel)]="SelectedAuditMalformedVariable">
+                      <label class="form-check-label" style="padding-left:5px;" for="audit-malformed">
+                        Malformed
+                      </label>
+                    </div>
+                    <div class="col">
+                      <button type="button" class="btn btn-primary btn-sm w-100" id="audit-launcher" (click)="run()">Run</button>
+                    </div>
+                  </div>
+                  <div class="row" id="audited-sequences"></div>
+                  <div class="row flex-row-reverse" style="padding-right: 21px">
+                    <button class="btn btn-danger btn-sm" id="audit-toggle-all" (click)="toglleAll()">Toggle All</button>
+                  </div>
+                </div>
+              </tab>
+            </tabset>
+          </div>
+          <div class="modal-footer clearfix">
+            <button (click)="updatePreview()" class="btn btn-success">View Preview</button>
+            <button type="submit" class="btn btn-success pull-right" data-dismiss="modal"
+              title="Confirm Load Settings are All Properly Set" (click)="displaySequenceSettings = !displaySequenceSettings">
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    </p-dialog>
+
+  </div><div id="file-footer">
+  <br/>
+
+  <div class="m-portlet" style="padding: 1px">
+    <div class="d-flex justify-content-center">
+      <span>
+        <input type="file" id="data-files1" class="d-none" multiple="true" onclick="this.value=null;" (change)="processFiles($event.target.files)">
+        <label for="data-files1" class="btn btn-primary btn-nr floater mb-0">Add File(s)</label>
+      </span>
+      <span>
+        <button type="button" class="btn btn-default btn-nr floater" (click)="showSequenceSettings()">Sequence Controls</button>
+      </span>
+      <span>
+        <button id="launch" class="btn btn-success" (click)="launchClick()" title="Please select a Network CSV or FASTA File" disabled>Launch</button>
+      </span>
     </div>
+  </div>
+</div>
 
 
 </div>
