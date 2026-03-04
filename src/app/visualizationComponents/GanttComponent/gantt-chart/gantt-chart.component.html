@@ -10,51 +10,52 @@ patternUnits="userSpaceOnUse">
 [attr.y]="ganttChartService.yPadding" 
 [attr.width]="ganttChartService.rectWidth" 
 [attr.height]="ganttChartService.rectHeight" 
-stroke="#444444" [attr.fill]="'url(#' + gridID + ')'" stroke-width="1"/>
+stroke="#444444" [attr.fill]="gridFill" stroke-width="1"/>
 
-<g *ngFor="let x of xAxis" [ngStyle]="{'transform': x.transform}">
-<text class="x-axis-text small" text-anchor="end" dominant-baseline="middle" [textContent]="x.value">{{x.value}}</text>
+<g *ngFor="let x of xAxis; index as i" [ngStyle]="{'transform': x.transform}">
+<text *ngIf="gridWidthX > 70 || (i%2==0 && gridWidthX > 30) || i%4 == 0" class="x-axis-text" text-anchor="middle" dominant-baseline="middle" [ngStyle]="{'font-size': fontSize}">{{x.value}}</text>
 </g>
 
 <text
-*ngFor="let y of yAxis" class="y-axis-text small" text-anchor="end"
-[attr.y]="y.yPos" [attr.x]="150+ganttChartService.xPadding-30" [textContent]="y.value">{{y.value}}</text>
+*ngFor="let y of yAxis" class="y-axis-text" text-anchor="end" [ngStyle]="{'font-size': fontSize}"
+[attr.y]="y.yPos" [attr.x]="150+ganttChartService.xPadding-15">{{y.value}}</text>
 
 
-<!-- Legion -->
-<rect [attr.x]="ganttChartService.xPadding + 150" 
-[attr.y]="ganttChartService.yPadding * 2 + 100 + ganttChartService.rectHeight" 
-[attr.width]="ganttChartService.legionWidth" 
-[attr.height]="ganttChartService.legionHeight" 
+<!-- Legend -->
+<rect [attr.x]="ganttChartService.xPadding + 150"
+[attr.y]="ganttChartService.yPadding * 2 + ganttChartService.rectHeight + 20" 
+[attr.width]="ganttChartService.legendWidth" 
+[attr.height]="ganttChartService.legendHeight" 
 fill="#f1f1f1" />
 
 
-<g *ngFor="let legionLine of ganttChartService.legion; index as i">
-  <g *ngFor="let legionEntry of legionLine; index as j">
-      <rect *ngIf="ganttChartService.legionWidth" 
-      [attr.x]="ganttChartService.xPadding + 150 + ganttChartService.legionWidth / 3 * 0.1 + ganttChartService.legionWidth / 3 * j" 
-      [attr.y]="ganttChartService.yPadding * 2 + 100 + ganttChartService.rectHeight + 20 + 40*i + 10" 
-      [attr.width]="ganttChartService.legionWidth / 3 * 0.2" 
+<g *ngFor="let legendLine of ganttChartService.legend; index as i">
+  <g *ngFor="let legendEntry of legendLine; index as j">
+      <rect *ngIf="ganttChartService.legendWidth" 
+      [attr.x]="ganttChartService.xPadding + 150 + ganttChartService.legendWidth / 3 * 0.1 + ganttChartService.legendWidth / 3 * j" 
+      [attr.y]="ganttChartService.yPadding * 2 + 40 + ganttChartService.rectHeight + 40*i" 
+      [attr.width]="40" 
       [attr.height]="20" 
       rx="6" ry="6"
-      [attr.fill]="legionEntry.color" />
+      [attr.opacity]="legendEntry.opacity ?? 0.9"
+      [attr.fill]="legendEntry.color" />
 
-      <!-- <path class="legion-line" [attr.d]="computeLegionPath(i)" fill="none" [attr.stroke]="x.color" /> -->
+      <!-- <path class="legend-line" [attr.d]="computeLegendPath(i)" fill="none" [attr.stroke]="x.color" /> -->
       <text class="axis-text" dominant-baseline="middle"
-      [attr.x]="ganttChartService.xPadding + 150 + ganttChartService.legionWidth / 3 * j + ganttChartService.legionWidth / 3 * 0.4" 
-      [attr.y]="ganttChartService.yPadding * 2 + 100 + ganttChartService.rectHeight + 20 + 40*i + 20" class="small"> {{ legionEntry.name }} </text>
+      [attr.x]="ganttChartService.xPadding + 150 + ganttChartService.legendWidth / 3 * 0.1 + ganttChartService.legendWidth / 3 * j + 50" 
+      [attr.y]="ganttChartService.yPadding * 2 + 40 + ganttChartService.rectHeight + 10 + 40*i" class="small"> {{ legendEntry.name }} </text>
   </g>
 </g>
   <g *ngFor="let phase of ganttChartService.ganttPhases; index as i">
     <g id="component" *ngFor="let ganttEntry of phaseTimelines[phase]; index as j">
         <rect class="gantt-entry"
         [attr.x]="xPadding + 150 + ganttChartService.transformGanttDate(ganttEntry.from)" 
-        [attr.y]="i * 60 + yPadding + 20" 
+        [attr.y]="i * gridWidthY + yPadding + (gridWidthY - min(20, gridWidthY))/2" 
         [attr.width]="getWidth(ganttEntry)"
-        [attr.height]="20" 
+        [attr.height]="min(20, gridWidthY)" 
         rx="6" ry="6"
         [attr.fill]="ganttEntry.color"
-        opacity="{{ganttEntry.opacity}}" />
+        [attr.opacity]="ganttEntry.opacity ?? 0.9" />
 
         <!-- [attr.x]="x + 150 + ganttChartService.transformGanttDate(ganttEntry.from)" 
         [attr.y]="i * 60 + y + 20"  -->

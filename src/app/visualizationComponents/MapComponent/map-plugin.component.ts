@@ -214,7 +214,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private lmap: Map;
     private mapTooltip: string = '#mapTooltip'
 
-    nodesWithoutLoc: {index: number, ID: string}[];
+    nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
 
     public leafletMarkers: Layer[] = [];
@@ -350,7 +350,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 }
         });
 
-        this.container.on('resize', () => { this.lmap.invalidateSize() })
+        this.container.on('resize', () => { 
+            this.lmap.invalidateSize();
+            this.centerMap();
+        })
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -542,7 +545,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             that.drawLinks();
             that.resetStack();
-            // that.visuals.gisMap.lmap.flyToBounds(that.layers.nodes().getBounds());
+            that.centerMap()
             }, false);
 
     }
@@ -1034,7 +1037,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             if ( !nodeLocSet && n._lat && n._lon) nodeLocSet = true;
         })
-        if (this.nodesWithoutLoc.length > 0 && nodeLocSet) this.showPopupMessage = true;
 
         if (callback) callback();
     }
@@ -1588,6 +1590,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.ShowGEOMapExportPane = true;
 
         this.visuals.gisMap.NodeMapSettingsExportDialogSettings.setStateBeforeExport();
+    }
+
+    showPopup() {
+        this.showPopupMessage = true;
     }
 
     openCenter() {

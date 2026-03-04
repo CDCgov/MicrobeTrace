@@ -11,7 +11,7 @@ export class GanttChartService {
   ganttTeams: Array<any>;
   ganttPhases: Array<any>;
   phaseTimelines;
-  legion;
+  legend;
   ganttMinDate;
   ganttMaxDate;
   ganttDateRange: number;
@@ -19,12 +19,13 @@ export class GanttChartService {
   yPadding: number;
   componentID: number;
   data: any;
-  ganttOpacity = "0.9";
 
+  gridWidthY: number;
+  gridWidthX: number;
   rectWidth: number;
   rectHeight: number;
-  legionWidth: number;
-  legionHeight: number;
+  legendWidth: number;
+  legendHeight: number;
   minX: number;
   maxX: number;
 
@@ -38,33 +39,36 @@ export class GanttChartService {
   constructor() { }
 
   computeRectDimensions() {
-    this.rectWidth = this.width - this.xPadding * 2 - 150;
-    this.rectHeight = this.ganttPhases.length * 60;
+    this.rectWidth = this.gridWidthX * 8;
+    this.rectHeight = this.ganttPhases.length * this.gridWidthY;
   }
 
-  computeLegionDimensions() {
+  computeLegendDimensions() {
     const noOfLines = Math.ceil(this.data.length / 3);
-    this.legionWidth = this.width - this.xPadding * 2 - 150;
-    this.legionHeight = 40 + 40 * noOfLines;
+    if (noOfLines == 1) {
+      this.legendWidth = this.rectWidth * this.data.length / 3
+    } else {
+      this.legendWidth = this.rectWidth;
+    }
+    this.legendHeight = 20 + 40 * noOfLines;
   }
 
   transformX(x: number) {
     return this.rectWidth * x / (this.maxX - this.minX);
   }
 
-  computeLegion() {
+  computeLegend() {
     const noOfLines = Math.ceil(this.data.length / 3);
-    this.legion = [];
+    this.legend = [];
     let cnt = 0;
     for (let line = 0; line < noOfLines; line++) {
-      const legionLine = [];
+      const legendLine = [];
       for (let i = 0; i < 3; i++) {
-        if (this.ganttTeams[cnt]) legionLine.push(this.ganttTeams[cnt]);
+        if (this.ganttTeams[cnt]) legendLine.push(this.ganttTeams[cnt]);
         cnt++;
       }
-      this.legion.push(legionLine);
+      this.legend.push(legendLine);
     }
-    // console.log(this.legion);
   }
 
   transformGanttDate(d) {
@@ -92,13 +96,17 @@ export class GanttChartService {
     width: width,
     xPadding: xPadding,
     yPadding: yPadding,
-    data: data
+    data: data,
+    gridWidthX: gridWidthX,
+    gridWidthY: gridWidthY
   }) {
     this.componentID = componentID;
     this.width = width;
     this.xPadding = xPadding;
     this.yPadding = yPadding;
     this.data = data;
+    this.gridWidthY = gridWidthY
+    this.gridWidthX = gridWidthX
     const froms: any = [];
     const tos: any = [];
     const phases = new Set();
@@ -122,7 +130,7 @@ export class GanttChartService {
     this.ganttMinDate = minDate;
     this.ganttMaxDate = maxDate;
     const noOfLines = Math.ceil(this.data.length / 3);
-    this.height = this.ganttPhases.length * 60 + this.yPadding * 3 + 100 + 40 + 30 * noOfLines;
+    this.height = this.ganttPhases.length * this.gridWidthY + this.yPadding * 3 + 20 + 30 * noOfLines;
 
     const oneDay = 24 * 60 * 60 * 1000;
     this.ganttDateRange = Math.round(Math.abs(
@@ -146,9 +154,8 @@ export class GanttChartService {
     this.ganttMaxDate = this.addDays(this.ganttMinDate, this.maxX);
 
     this.computeRectDimensions();
-    this.computeLegionDimensions();
-    this.computeLegion();
-    // this.printAll();
+    this.computeLegendDimensions();
+    this.computeLegend();
   }
 
   addDays(date, days: number) {

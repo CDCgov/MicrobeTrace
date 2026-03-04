@@ -106,6 +106,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     this.container.on('resize', () => { 
       this.updateViewHeight();
       this.updateTableColWidth();
+      this.cdref.detectChanges();
     })
     this.container.on('hide', () => { 
       this.viewActive = false; 

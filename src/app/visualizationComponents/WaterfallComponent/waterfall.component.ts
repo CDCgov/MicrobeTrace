@@ -99,12 +99,15 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
   }
 
   goldenLayoutComponentResize() {
+    this.clusterTableWidth = this.nodeTableWidth = this.linkTableWidth = 0;
+    this.cdref.detectChanges();
     this.clusterTableWidth = (this.clusterTable as any)._totalTableWidth().reduce((total, current ) => total += current, 0) - 28;
     this.nodeTableWidth = (this.nodeTable as any)._totalTableWidth().reduce((total, current ) => total += current, 0) - 28;
     this.linkTableWidth = (this.linkTable as any)._totalTableWidth().reduce((total, current ) => total += current, 0) - 28;
 
     let height = this.container.height - 50;
     this.scrollHeight = `${height}px`
+    this.cdref.detectChanges();
   }
 
   onClusterRowSelect(e) {
@@ -125,7 +128,8 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     this.expandedClusterRowData = [];
     Object.keys(cluster).filter(k => !(this.metaDataToSkip.includes(k) || k.charAt(0) == '_' || typeof cluster[k] == 'object')).forEach(k => {
       let prop = this.commonService.titleize(k)
-      this.expandedClusterRowData.push({'key': prop, 'value': cluster[k]});
+      let value = k == 'mean_genetic_distance' || k == 'links_per_node' ? cluster[k].toFixed(3) : cluster[k]
+      this.expandedClusterRowData.push({'key': prop, 'value': value});
     })
 
     this.selectedNodeRow = null;
