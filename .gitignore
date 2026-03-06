@@ -71,3 +71,10 @@ cypress/downloads/*
 
 # Maven
 target/
+
+# Local Tomcat harness
+tomcat-server/apache-tomcat-*/
+tomcat-server/logs/
+tomcat-server/work/
+tomcat-server/temp/
+tomcat-server/webapps/*
