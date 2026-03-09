@@ -3,6 +3,11 @@
   <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
     </div>
+    @if (handoffError) {
+      <div class="alert alert-danger mx-auto mt-4" role="alert" style="max-width: 960px;">
+        {{ handoffError }}
+      </div>
+    }
     @if (!commonService.session?.files?.length) {
       <div id="file-prompt" class="d-flex justify-content-center">
         <h1><b>Please add data files to load...</b></h1>

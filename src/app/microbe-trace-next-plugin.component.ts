@@ -20,6 +20,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
+import { EmbedHandoffService } from './embed/embed-handoff.service';
 
 
 @Component({
@@ -249,7 +250,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private cdref: ChangeDetectorRef,
         private el: ElementRef, 
         private store: CommonStoreService,
-        private exportService: ExportService
+        private exportService: ExportService,
+        private embedHandoffService: EmbedHandoffService
     ) {
 
 
@@ -2529,7 +2531,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this._goldenLayoutHostComponent['_goldenLayout.layoutConfig.dimensions.headerHeight'] = 36;
             this.addComponent('Files');
 
-          if (this.auspiceUrlVal) {
+          if (this.auspiceUrlVal && !this.embedHandoffService.hasPendingHandoffInUrl()) {
             if(this.commonService.debugMode) {
                 console.log("Trying to open URL");
             }

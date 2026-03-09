@@ -59,7 +59,12 @@
               "src/outbreakover.microbetrace",
               "src/COVID_DummySession.microbetrace",
               "src/assets/parse-csv-matrix.js",
-              "src/assets/papaparse.min.js"
+              "src/assets/papaparse.min.js",
+              {
+                "glob": "localforage.min.js",
+                "input": "node_modules/localforage/dist",
+                "output": "assets/embed/vendor"
+              }
             ],
             "styles": [
 
@@ -182,7 +187,12 @@
             "scripts": [],
             "assets": [
               "src/favicon.ico",
-              "src/assets"
+              "src/assets",
+              {
+                "glob": "localforage.min.js",
+                "input": "node_modules/localforage/dist",
+                "output": "assets/embed/vendor"
+              }
             ]
           }
         }

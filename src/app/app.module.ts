@@ -87,6 +87,8 @@ import { PlotlyModule } from 'angular-plotly.js';
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
+const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff');
+const googleTagManagerMode = analyticsDisabledForHandoff ? 'silent' : 'noisy';
 
 const routerOptions: ExtraOptions = {
   // Your router configurations
@@ -170,7 +172,7 @@ export class TestedComponent {
         LeafletModule,
         LeafletMarkerClusterModule,
         OrderListModule,
-        GoogleTagManagerModule.forRoot({ id: 'G-0MWHB1NG2M', }),
+        GoogleTagManagerModule.forRoot({ id: analyticsDisabledForHandoff ? null : 'G-0MWHB1NG2M', }),
         CommonModule], providers: [
           providePrimeNG({
             theme: {
@@ -184,6 +186,7 @@ export class TestedComponent {
         GanttChartService,
         GoldenLayoutComponentService,
         PlotlyModule,
+        { provide: 'googleTagManagerMode', useValue: googleTagManagerMode },
         provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
     ] })
 export class AppModule { }
