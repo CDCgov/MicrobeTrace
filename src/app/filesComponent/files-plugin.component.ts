@@ -254,7 +254,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         `).on('change', (e) => {
 
           //debugger;
-          this.commonService.session.data.reference = e.data;// this.value;
+          const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+          this.commonService.session.data.reference = target?.value ?? e.data;
 
         });
 
@@ -330,7 +331,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const lsv = e.data ? e.data : 'tn93';
+      const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+      const lsv = target?.value ?? e.data ?? 'tn93';
       this.commonService.localStorageService.setItem('default-distance-metric', lsv);
       $('#default-distance-metric').val(lsv);
       console.log(lsv);
@@ -339,6 +341,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
           .val(16);
+        this.SelectedDefaultDistanceThresholdVariable = 16;
+        this.commonService.session.style.widgets['link-threshold'] = 16;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
         console.log('default-distance-metric change file-plugin.component.ts snps');
         this.store.setLinkThreshold(16);
@@ -347,6 +351,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
+        this.SelectedDefaultDistanceThresholdVariable = 0.015;
+        this.commonService.session.style.widgets['link-threshold'] = 0.015;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
         this.store.setLinkThreshold(0.015);
@@ -370,7 +376,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const v = e.data; //this.value;
+      const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+      const v = target?.value ?? e.data;
       this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = v;
       if (v === 'HIVTRACE-G') {
         $('#ambiguity-threshold-row').slideDown();
@@ -383,7 +390,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const v = e.data; //this.value;
+      const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+      const v = parseFloat(String(target?.value ?? e.data));
       this.commonService.session.style.widgets['ambiguity-threshold'] = v;
     });
 
@@ -397,7 +405,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         //debugger;
 
-        const v = e.data;// this.value;
+        const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+        const v = target?.value ?? e.data;
         this.commonService.localStorageService.setItem('default-view', v);
         this.commonService.session.style.widgets['default-view'] = v;
         this.commonService.session.layout.content[0].type = v;
@@ -468,6 +477,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // Use this when building production (.ie gh-pages branch)
     if (!this.auspiceUrlVal) {
       this.auspiceUrlVal = this.commonService.getURL();
+    }
+
+    const skipDemoSession = new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
+
+    if (skipDemoSession) {
+      this.commonService.session.network.initialLoad = true;
     }
 
     if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
@@ -637,10 +652,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.cleanupData();
 
     this.commonService.updateLegacyNodeSymbols();
-    const thresholdOnLaunch = this.commonService.session.style.widgets["link-threshold"];
-    const metricOnLaunch = this.commonService.session.style.widgets["default-distance-metric"];
-    const ambiguityOnLaunch = this.commonService.session.style.widgets["ambiguity-resolution-strategy"];
-    const viewOnLaunch = this.commonService.session.style.widgets["default-view"];
+    const thresholdOnLaunch = parseFloat(String(
+      $('#default-distance-threshold').val() ??
+      this.SelectedDefaultDistanceThresholdVariable ??
+      this.commonService.session.style.widgets["link-threshold"]
+    ));
+    const metricOnLaunch = String(
+      $('#default-distance-metric').val() ??
+      this.SelectedDefaultDistanceMetricVariable ??
+      this.commonService.session.style.widgets["default-distance-metric"]
+    ).toLowerCase();
+    const ambiguityOnLaunch = String(
+      $('#ambiguity-resolution-strategy').val() ??
+      this.SelectedAmbiguityResolutionStrategyVariable ??
+      this.commonService.session.style.widgets["ambiguity-resolution-strategy"]
+    );
+    const viewOnLaunch = String(
+      $('#default-view').val() ??
+      this.SelectedDefaultViewVariable ??
+      this.commonService.session.style.widgets["default-view"]
+    );
 
 
     console.log('launch click');
@@ -667,6 +698,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
     this.commonService.session.style.widgets["default-view"] = viewOnLaunch;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = thresholdOnLaunch;
+    this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = metricOnLaunch;
+    this.store.setLinkThreshold(thresholdOnLaunch);
+    this.store.setMetricChanged(metricOnLaunch);
 
     this.commonService.session.messages = [];
     this.messages = [];
@@ -1978,8 +2013,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     const newValue = e.target?.value ?? e;
-    this.SelectedDefaultDistanceThresholdVariable = parseFloat(newValue);
-    this.store.setLinkThreshold(parseFloat(newValue));
+    const parsedValue = parseFloat(newValue);
+
+    this.SelectedDefaultDistanceThresholdVariable = parsedValue;
+    this.commonService.session.style.widgets['link-threshold'] = parsedValue;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = parsedValue;
+    this.store.setLinkThreshold(parsedValue);
   }
 
   /**

@@ -280,6 +280,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return element;
     }
 
+    private hasTestQueryFlag(flag: string): boolean {
+        return new URL(window.location.href).searchParams.get(flag) === '1';
+    }
+
     ngOnInit() {
 
         // Check if user has accepted the license:
@@ -494,6 +498,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
    * If no acceptance found, display the license modal.
    */
   private check_eula_acceptance(): void {
+    if (this.hasTestQueryFlag('skipEula')) {
+      this.commonService.localStorageService.setItem('microbetrace_eula_accepted', 'true');
+      this.display_eula_modal = false;
+      return;
+    }
+
     // Example of using the localStorageService if needed:
     this.commonService.localStorageService.getItem('microbetrace_eula_accepted', (err, result) => {
       if (!result) {
@@ -1034,8 +1044,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.metric.toLowerCase() === "snps") {
             //Hide Ambiguities
             $('#ambiguities-menu').hide();
-            this.threshold = "7";
-            this.commonService.session.style.widgets["link-threshold"] = 7;
+            this.threshold = "16";
+            this.commonService.session.style.widgets["link-threshold"] = 16;
         } else {
 
             $('#ambiguities-menu').show();
@@ -1264,6 +1274,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.widgets['link-color-variable'] && this.widgets['link-color-variable'] !== 'None') {
             this.SelectedLinkColorTableTypesVariable = 'Show';
             this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+        }
+
+        if (this.widgets['node-symbol-variable'] && this.widgets['node-symbol-variable'] !== 'None') {
+            this.widgets['node-symbol-table-visible'] = 'Show';
+
+            const twoD = this.commonService.visuals?.twoD;
+            if (twoD) {
+                twoD.widgets['node-symbol-variable'] = this.widgets['node-symbol-variable'];
+                twoD.widgets['node-symbol-table-visible'] = 'Show';
+                twoD.SelectedNodeSymbolVariable = this.widgets['node-symbol-variable'];
+                twoD.onNodeSymbolTableChange('Show');
+                twoD.onNodeSymbolVariableChange(this.widgets['node-symbol-variable'], true);
+                (twoD as any).cdref?.detectChanges?.();
+            }
         }
     }
 
@@ -3630,10 +3654,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
-        .val(7)
+        .val(16)
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.SelectedLinkThresholdVariable = '7';
+      this.SelectedLinkThresholdVariable = '16';
       this.onLinkThresholdChanged();
     } else {
       $('#default-distance-threshold')

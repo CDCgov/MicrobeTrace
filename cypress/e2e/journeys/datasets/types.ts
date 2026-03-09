@@ -43,12 +43,46 @@ export type ExpectedCounts = {
   singletons?: number;
 };
 
+export type ExpectationMode = 'observed' | 'intended';
+
+export type SplitExpectation<T> = {
+  observed: T;
+  intended?: T;
+  note?: string;
+};
+
+export type ExpectedValue<T> = T | SplitExpectation<T>;
+
+const isSplitExpectation = <T>(value: ExpectedValue<T>): value is SplitExpectation<T> => {
+  return typeof value === 'object' && value !== null && 'observed' in value;
+};
+
+export const resolveExpected = <T>(
+  value: ExpectedValue<T> | undefined,
+  mode: ExpectationMode = 'observed',
+): T | undefined => {
+  if (value === undefined) return undefined;
+  if (!isSplitExpectation(value)) return value;
+
+  if (mode === 'intended') {
+    return value.intended ?? value.observed;
+  }
+
+  return value.observed;
+};
+
+export const hasExpectedDeviation = <T>(value: ExpectedValue<T> | undefined): boolean => {
+  if (!value || !isSplitExpectation(value)) return false;
+  return value.intended !== undefined && value.intended !== value.observed;
+};
+
 export type JourneyExpectations = {
-  afterLaunch?: ExpectedCounts;
+  afterLaunch?: ExpectedValue<ExpectedCounts>;
 
   nn?: {
-    before: { visibleLinks: number };
-    after: { visibleLinks: number };
+    labelLinksWith?: LinkLabelVariable;
+    before: ExpectedValue<{ visibleLinks: number }>;
+    after: ExpectedValue<{ visibleLinks: number }>;
   };
 
   applyStyle?: {
@@ -83,12 +117,14 @@ export type JourneyExpectations = {
     thresholdChange?: {
       from: number;
       to: number;
-      expectedVisibleLinksAfter: number;
+      expectedVisibleLinksAfter: ExpectedValue<number>;
       expectPolygonsUnchanged: boolean;
+      note?: string;
     };
 
     changeGroupColors?: {
       groups: string[];
+      colorsByGroup?: Record<string, string>;
     };
   };
 

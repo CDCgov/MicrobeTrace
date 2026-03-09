@@ -297,6 +297,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     ngOnInit() {
+        this.commonService.visuals.twoD = this;
         
         // Console log this out to see what the window objetc has like temp
         // const windowKeys = Reflect.ownKeys(window);
