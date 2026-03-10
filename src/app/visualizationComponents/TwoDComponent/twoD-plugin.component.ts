@@ -47,6 +47,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     data;
+    pendingPartialUpdate = false;
     rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
     debugMode = false;
@@ -1655,7 +1656,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private updateGroupNodeColors(): void {
         const cy = this.cy;
         if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
             return;
         }
 
@@ -2085,7 +2085,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     updateGroupAssignments(foci: string, change: boolean=true): void {
         const cy = this.cy; // Reference to Cytoscape instance
         if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
             return;
         }
     
@@ -3234,6 +3233,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               this.store.setNetworkUpdated(false);
               this.commonService.session.network.rendering = false;
               this.commonService.demoNetworkRendered = true;
+
+              if (this.pendingPartialUpdate) {
+                void this._partialUpdate();
+              }
             });
             
             // Run the layout
@@ -3935,8 +3938,6 @@ scaleLinkWidth() {
     openCenter() {
         if (this.cy) {
             this.cy.fit(this.cy.nodes(), 30);
-        } else {
-            console.error('Cytoscape instance is not initialized.');
         }
     }
 
@@ -3969,9 +3970,12 @@ scaleLinkWidth() {
 private async _partialUpdate() {
     console.log('--- TwoD _partialUpdate called');
     if (!this.cy) {
-      console.error('Cytoscape instance not initialized; cannot update partially.');
+      // Initial settings sync can request updates before Cytoscape is ready.
+      this.pendingPartialUpdate = true;
       return;
     }
+
+    this.pendingPartialUpdate = false;
 
     // Cache positions BEFORE making changes to the graph
     if (!this.nodePositions) {
