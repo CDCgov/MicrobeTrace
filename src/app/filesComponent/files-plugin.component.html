@@ -3,7 +3,7 @@
   <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
     </div>
-    @if (!commonService.session?.files?.length) {
+    @if (!isLoadingFiles && !commonService.session?.files?.length) {
       <div id="file-prompt" class="d-flex justify-content-center">
         <h1><b>Please add data files to load...</b></h1>
       </div>

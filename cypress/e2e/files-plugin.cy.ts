@@ -28,6 +28,7 @@ describe('File Handling and Processing', () => {
 
     // Assert the file row is visible
     cy.contains('#file-table .file-table-row', nodeFile).should('be.visible');
+    cy.get('#file-prompt').should('not.exist');
     cy.get('#launch').should('not.be.disabled');
 
     // Assert file type is auto-detected as "Node"
