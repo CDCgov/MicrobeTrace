@@ -1,6 +1,6 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { NgModule, Component } from '@angular/core';
+import { NgModule, Component, ErrorHandler } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
@@ -83,6 +83,7 @@ import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
+import { GlobalErrorHandler } from './runtime-security/global-error-handler';
 
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
@@ -184,6 +185,10 @@ export class TestedComponent {
         GanttChartService,
         GoldenLayoutComponentService,
         PlotlyModule,
+        {
+          provide: ErrorHandler,
+          useClass: GlobalErrorHandler,
+        },
         provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
     ] })
 export class AppModule { }

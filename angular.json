@@ -35,7 +35,6 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "statsJson": true,
             "outputPath": {
               "base": "dist/MicrobeTrace",
               "browser": ""
@@ -131,12 +130,16 @@
                   "with": "src/environments/version.prod.ts"
                 }
               ],
-              "optimization": false,
-              "outputHashing": "none",
-              "sourceMap": true,
+              "optimization": {
+                "scripts": true,
+                "styles": true,
+                "fonts": false
+              },
+              "outputHashing": "all",
+              "sourceMap": false,
               "namedChunks": false,
               "aot": false,
-              "extractLicenses": false,
+              "extractLicenses": true,
               "budgets": [
                 {
                   "type": "initial",

@@ -2740,7 +2740,7 @@ align(params): Promise<any> {
             })
             .catch(error => {
                 console.error('Error fetching jurisdictions:', error);
-                throw error;
+                throw new Error('Unable to load jurisdiction reference data.');
             });
 
         // let options : any = {
