@@ -39,26 +39,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedAmbiguityThresholdVariable: any = 0.015;
   SelectedDefaultDistanceThresholdVariable: any = 0.015;
   SelectedDefaultViewVariable: string = "2D Network";
-  SelectedGenerateNumberVariable: any = 100;
-
-  // DirectionalityTypes: any = [
-  //   { label: 'Off', value: 'Off' },
-  //   { label: 'Inferred', value: 'Inferred' }
-  // ];
-  // SelectedDirectionalityTypeVariable: string = "Off";
-
-  // TriangulationTypes: any = [
-  //   { label: 'Off', value: 'Off' },
-  //   { label: 'On', value: 'On' }
-  // ];
-  // SelectedTriangulationTypeVariable: string = "Off";
-
-  // AutostashingTypes: any = [
-  //   { label: 'Off', value: 'Off' },
-  //   { label: 'On', value: 'On' }
-  // ];
-  // SelectedAutostashingTypeVariable: string = "Off";
-
 
   AlignTypes: any = [
     { label: 'None', value: 'None' },
@@ -421,64 +401,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       .val(cachedView ? cachedView : this.commonService.session.style.widgets['default-view'])
       .trigger('change');
 
-    //$('#generate-sequences').on('click', () => {
-    //    $('#file-prompt').remove();
-    //    $('#launch').prop('disabled', false).focus();
-    //    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', parseFloat($('#generate-number').val().toString()), 20))], 'generatedNodes.csv'));
-    //});
-
-    $('#infer-directionality-false').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['infer-directionality-false'] = true;
-    });
-
-    $('#infer-directionality').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['infer-directionality-false'] = false;
-    });
-
-    $('#triangulate-false').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['triangulate-false'] = true;
-    });
-
-    $('#triangulate').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['triangulate-false'] = false;
-    });
-
-    $('#stash-auto-yes').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.localStorageService.setItem('stash-auto', 'true');
-    });
-
-    if (localStorage.getItem('stash-auto') === 'true') {
-      $('#stash-auto-yes').parent().trigger('click');
-    }
-
-    $('#stash-auto-no').parent().on('click', () => {
-
-      //debugger;
-
-      if (this.commonService.temp.autostash) clearInterval(this.commonService.temp.autostash.interval);
-      this.commonService.localStorageService.setItem('stash-auto', 'false');
-    });
-
     if(this.commonService.session.network.launched){
       $('#launch').text('Update');
     }
-
-    
 
     // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
@@ -2109,12 +2034,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   onAmbiguityThresholdChanged() {
     this.commonService.session.style.widgets['ambiguity-threshold'] = this.SelectedAmbiguityThresholdVariable;
-  }
-
-  generateSequences() {
-    $('#file-prompt').remove();
-    $('#launch').prop('disabled', false).focus();
-    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', this.SelectedGenerateNumberVariable, 20))], 'generatedNodes.csv'));
   }
 
   applyStyleFileSettings() {

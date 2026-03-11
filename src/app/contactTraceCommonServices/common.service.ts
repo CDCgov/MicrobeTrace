@@ -1632,145 +1632,6 @@ parseFASTA(text): Promise<any> {
         return nodeCount;
     };
 
-    /**
-     * Generates new sequences
-     * ported from https://github.com/CDCgov/SeqSpawnR/blob/91d5857dbda5998839a002fbecae0f494dca960a/R/SequenceSpawner.R
-     * @param {string} idPrefix - prefix to label generated sequences
-     * @param {number} count - number of sequences to generate
-     * @param {number} snps - number of snps to add to a new sequence is random value from 0 - snps
-     * @param {string} seed -reference sequence for generating new sequences 
-     * @returns list of objects representings seq, each seq objects has {id: string, seq: string}
-     */
-    generateSeqs(idPrefix, count?, snps?, seed?) {
-        const start = Date.now();
-        if (!count) count = 1000;
-        if (!snps) snps = 100;
-        if (!seed) seed = this.session.data.reference;
-
-        const sampleCodons = [
-            "GCA",
-            "GCC",
-            "GCG",
-            "GCT",
-            "AAC",
-            "AAT",
-            "GAC",
-            "GAT",
-            "TGC",
-            "TGT",
-            "GAC",
-            "GAT",
-            "GAA",
-            "GAG",
-            "TTC",
-            "TTT",
-            "GGA",
-            "GGC",
-            "GGG",
-            "GGT",
-            "CAC",
-            "CAT",
-            "ATA",
-            "ATC",
-            "ATT",
-            "AAA",
-            "AAG",
-            "CTA",
-            "CTC",
-            "CTG",
-            "CTT",
-            "TTA",
-            "TTG",
-            "ATG",
-            "AAC",
-            "AAT",
-            "CCA",
-            "CCC",
-            "CCG",
-            "CCT",
-            "CAA",
-            "CAG",
-            "AGA",
-            "AGG",
-            "CGA",
-            "CGC",
-            "CGG",
-            "CGT",
-            "AGC",
-            "AGT",
-            "TCA",
-            "TCC",
-            "TCG",
-            "TCT",
-            "ACA",
-            "ACC",
-            "ACG",
-            "ACT",
-            "GTA",
-            "GTC",
-            "GTG",
-            "GTT",
-            "TGG",
-            "TAC",
-            "TAT",
-            "CAA",
-            "CAG",
-            "GAA",
-            "GAG"
-        ];
-        const sampleSNPs = ["A", "C", "G", "T"];
-
-        const sample = (vec, nCodons) => {
-            const samples = [];
-            for (let x = 0; x < nCodons; x++) {
-                let idx = Math.floor(this.r01() * vec.length);
-                samples.push(vec[idx]);
-            }
-            return samples;
-        }
-
-        const seqs = [];
-
-        seqs.push({ id: idPrefix + "0", seq: seed });
-
-        while (seqs.length < count) {
-            // number codons to vary
-            let nCodons = Math.floor(this.r01() * 10) + 1;
-
-            // randomly select this many to check for existence
-            const randomCodonSet = sample(sampleCodons, nCodons).join("");
-
-            // try again if not present
-            if (seqs[seqs.length - 1].seq.indexOf(randomCodonSet) == -1) continue;
-
-            // sequence to mutate
-            let oldseed = seqs[Math.floor(this.r01() * seqs.length)].seq;
-
-            // select codons to replace randomCodonSet
-            const replacementCodonSet = sample(sampleCodons, nCodons).join("");
-
-            // replace codon set
-            let newseed = oldseed.replace(randomCodonSet, replacementCodonSet);
-
-            // add snp substitutions randomly across entire sequence
-            // - randomly sample addedSNP
-            // - randomly pick SNPS to replace
-            let addedSNPs = Math.floor(this.r01() * snps);
-            for (let j = 0; j < addedSNPs; j++) {
-                let randomSNP = sample(sampleSNPs, 1)[0];
-                let locOfSNP = Math.floor(this.r01() * seed.length);
-                newseed =
-                    newseed.substr(0, locOfSNP) + randomSNP + newseed.substr(locOfSNP + 1);
-            }
-
-            seqs.push({ id: idPrefix + "" + seqs.length, seq: newseed });
-        }
-        if(this.debugMode) {
-            console.log("Sequence spawn time:", (Date.now() - start).toLocaleString(), 'ms');
-        }
-        return seqs;
-    };
-
     // Align function using a fresh align worker
 align(params): Promise<any> {
     return new Promise(resolve => {
@@ -2045,41 +1906,6 @@ align(params): Promise<any> {
           }
         });
       }
-      
-
-      computeDirectionality(): Promise<void> {
-        return new Promise(resolve => {
-          const directionalityWorker = this.computer.getDirectionalityWorker();
-          directionalityWorker.postMessage({
-            links: this.session.data.links,
-            tree: this.temp.tree
-          });
-          const sub = directionalityWorker.onmessage().subscribe((response) => {
-            const flips = new Uint8Array(response.data.output);
-            if (this.debugMode) {
-              console.log("Directionality Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-            }
-            const start = Date.now();
-            const n = flips.length;
-            for (let i = 0; i < n; i++) {
-              if (flips[i]) {
-                let fliplink = this.session.data.links[i];
-                let fliptemp = fliplink.source;
-                fliplink.source = fliplink.target;
-                fliplink.target = fliptemp;
-                fliplink.directed = true;
-              }
-            }
-            if (this.debugMode) {
-              console.log("Directionality Integration time: ", (Date.now() - start).toLocaleString(), "ms");
-            }
-            resolve();
-            directionalityWorker.terminate();
-            sub.unsubscribe();
-          });
-        });
-      }
-      
 
       computeMST(): Promise<void> {
         return new Promise((resolve, reject) => {
@@ -2128,28 +1954,17 @@ align(params): Promise<any> {
 
       computeNN(): Promise<void> {
         return this.workerComputeService.computeNN(this.session, this.temp);
-      }
-      
-
-     public computeTriangulation() {
-        this.workerComputeService.computeTriangulation(this.session, this.temp, this.addLink.bind(this))
-        .then(() => {
-          // continue processing after triangulation is complete
-        })
-        .catch(error => {
-          console.error('Error in triangulation:', error);
-        });
     }
 
     async runHamsters() {
 
         console.log('running hamsters');
-        if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
+        //if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
         console.log('run ham computeTree');
         await this.computeTree();
         console.log('compute tree end');
-        if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
+        //if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
         this.finishUp();
     };
 

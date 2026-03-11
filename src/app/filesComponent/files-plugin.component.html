@@ -26,134 +26,71 @@
 
   <div class="view-controls">
     <p-dialog id="file-settings-pane" [(visible)]="displayFileSettings" header="File Settings">
-      <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-          <div class="modal-body">
-            <tabset class="tab-container tabbable-line" style='width: 100%;'>
-              <tab heading="{{'Files' | localize}}" [active]="true" customClass="m-tabs__item">
-                <div id="file-settings" class="tab-pane fade active show" role="tabpanel">
-                  <div class="form-group row">
-                    <div class="col-5">
-                      <label style="padding-left: 10px;" for="default-distance-metric" class="mr-2" title="Which Genetic Distance Metric should Microbe use to first construct the network?">
-                        {{"Distance Metric" | localize}}
-                      </label>
-                    </div>
-                    <div class="col-7">
-                      <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
-                        <option value="tn93" selected>TN93</option>
-                        <option value="snps">SNPs</option>
-                      </select>
-                    </div>
-                  </div>
-                  @if (SelectedDefaultDistanceMetricVariable=='tn93') {
-                    <div id="ambiguities-row" class="form-group row">
-                      <div class="col-5">
-                        <label style="padding-left: 10px;" for="ambiguity-resolution-strategy" class="mr-2" title="What Strategy should MicrobeTrace use to handle ambiguities?">
-                          {{"Ambiguities" | localize}}
-                        </label>
-                      </div>
-                      <div class="col-7">
-                        <select id="ambiguity-resolution-strategy" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedAmbiguityResolutionStrategyVariable" (ngModelChange)="onAmbiguityStrategyChanged()">
-                          <option value="AVERAGE">Average</option>
-                          <option value="RESOLVE">Resolve</option>
-                          <option value="SKIP">Skip</option>
-                          <option value="GAPMM">GapMM</option>
-                          <option value="HIVTRACE-G">HIV-TRACE -g</option>
-                        </select>
-                      </div>
-                    </div>
-                  }
-                  @if ((SelectedAmbiguityResolutionStrategyVariable=='HIVTRACE-G' || SelectedAmbiguityResolutionStrategyVariable=='RESOLVE') && SelectedDefaultDistanceMetricVariable=='tn93') {
-                    <div id="ambiguity-threshold-row" class="form-group row">
-                      <div class="col-5">
-                        <label style="padding-left: 10px;" for="ambiguity-threshold" class="mr-2" title="What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.">
-                          {{"Ambiguity Threshold" | localize}}
-                        </label>
-                      </div>
-                      <div class="col-7">
-                        <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
-                      </div>
-                    </div>
-                  }
-                  <div class="form-group row">
-                    <div class="col-5">
-                      <label style="padding-left: 10px;" for="default-distance-threshold" class="mr-2" title="What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.">
-                        {{"Link Threshold" | localize}}
-                      </label>
-                    </div>
-                    <div class="col-7">
-                      <input type="number" id="default-distance-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedDefaultDistanceThresholdVariable" (ngModelChange)="onLinkThresholdChange($event)">
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <div class="col-5">
-                      <label style="padding-left: 10px;" for="default-view">{{"View to Launch" | localize}}</label>
-                    </div>
-                    <div class="col-7">
-                      <select id="default-view" class="form-control form-control-sm" (change)="changeDefaultView($event)" title="Which view should MicrobeTrace render first, once it has successfully processed the data?" [(ngModel)]="SelectedDefaultViewVariable">
-                        <option value="2D Network" selected>2D Network</option>
-                        <option value="Table">Table</option>
-                        <option value="Map">Map</option>
-                        <option value="Phylogenetic Tree">Phylogenetic Tree</option>
-                        <option value="Alignment View">Alignment View</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </tab>
-              <tab heading="{{'Experimental' | localize}}" customClass="m-tabs__item">
-                <div id="experimental-settings" class="tab-pane fade active show" role="tabpanel">
-                  <div class="form-group row">
-                    <div class="col-12">
-                      <div class="alert alert-warning alert-dismissible" role="alert">
-                        <p>The following settings are experimental! Use at your own risk!</p>
-                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                          <span aria-hidden="true">&times;</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="Would you like to generate a network based on random data?">
-                    <div class="col-4">
-                      <label style="padding-left: 10px;" class="mr-2">{{"Generate" | localize}}</label>
-                    </div>
-                    <div class="col">
-                      <input id="generate-number" type="number" class="form-control form-control-sm" min="1" max="2000" step="1" value="100" [(ngModel)]="SelectedGenerateNumberVariable">
-                    </div>
-                    <div class="col">
-                      <button id="generate-sequences" class="btn btn-light btn-sm col"  (click)="generateSequences()">Sequences</button>
-                    </div>
-                  </div>
-                  <!--div class="form-group row" title="Would you like to attempt to infer the direction of your links?">
-                    <div class="col-4">
-                      <label style="padding-left: 10px;" class="mr-2">{{"Directionality" | localize}}</label>
-                    </div>
-                    <div class="col-8">
-                      <p-selectButton [options]="DirectionalityTypes" [allowEmpty]="false" [(ngModel)]="SelectedDirectionalityTypeVariable"></p-selectButton>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="Would you like to attempt to triangulate missing values in your distance matrices?">
-                    <div class="col-4">
-                      <label style="padding-left: 10px;" class="mr-2">{{"Triangulation" | localize}}</label>
-                    </div>
-                    <div class="col-8">
-                      <p-selectButton [options]="TriangulationTypes" [allowEmpty]="false" [(ngModel)]="SelectedTriangulationTypeVariable"></p-selectButton>
-                    </div>
-                  </div>
-                  <div class="form-group row"
-                                         title="Should MicrobeTrace automatically stash your session so if your computer crashes you can recover your session?
-                                Please note that this causes MicrobeTrace to store data on your computer's hard drive, which may have implications for PII.">
-                    <div class="col-4">
-                      <label style="padding-left: 10px;" class="mr-2">{{"Autostashing" | localize}}</label>
-                    </div>
-                    <div class="col-8">
-                      <p-selectButton [options]="AutostashingTypes" [allowEmpty]="false" [(ngModel)]="SelectedAutostashingTypeVariable"></p-selectButton>
-                    </div>
-                  </div-->
-                </div>
-              </tab>
-            </tabset>
+      <div class="form-group row">
+        <div class="col-6">
+          <label style="padding-left: 10px;" for="default-distance-metric" class="mr-2" title="Which Genetic Distance Metric should Microbe use to first construct the network?">
+            {{"Distance Metric" | localize}}
+          </label>
+        </div>
+        <div class="col-6">
+          <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
+            <option value="tn93" selected>TN93</option>
+            <option value="snps">SNPs</option>
+          </select>
+        </div>
+      </div>
+      @if (SelectedDefaultDistanceMetricVariable=='tn93') {
+        <div id="ambiguities-row" class="form-group row">
+          <div class="col-6">
+            <label style="padding-left: 10px;" for="ambiguity-resolution-strategy" class="mr-2" title="What Strategy should MicrobeTrace use to handle ambiguities?">
+              {{"Ambiguities" | localize}}
+            </label>
           </div>
+          <div class="col-6">
+            <select id="ambiguity-resolution-strategy" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedAmbiguityResolutionStrategyVariable" (ngModelChange)="onAmbiguityStrategyChanged()">
+              <option value="AVERAGE">Average</option>
+              <option value="RESOLVE">Resolve</option>
+              <option value="SKIP">Skip</option>
+              <option value="GAPMM">GapMM</option>
+              <option value="HIVTRACE-G">HIV-TRACE -g</option>
+            </select>
+          </div>
+        </div>
+      }
+      @if ((SelectedAmbiguityResolutionStrategyVariable=='HIVTRACE-G' || SelectedAmbiguityResolutionStrategyVariable=='RESOLVE') && SelectedDefaultDistanceMetricVariable=='tn93') {
+        <div id="ambiguity-threshold-row" class="form-group row">
+          <div class="col-6">
+            <label style="padding-left: 10px;" for="ambiguity-threshold" class="mr-2" title="What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.">
+              {{"Ambiguity Threshold" | localize}}
+            </label>
+          </div>
+          <div class="col-6">
+            <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
+          </div>
+        </div>
+      }
+      <div class="form-group row">
+        <div class="col-6">
+          <label style="padding-left: 10px;" for="default-distance-threshold" class="mr-2" title="What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.">
+            {{"Link Threshold" | localize}}
+          </label>
+        </div>
+        <div class="col-6">
+          <input type="number" id="default-distance-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedDefaultDistanceThresholdVariable" (ngModelChange)="onLinkThresholdChange($event)">
+        </div>
+      </div>
+      <div class="form-group row">
+        <div class="col-6">
+          <label style="padding-left: 10px;" for="default-view">{{"View to Launch" | localize}}</label>
+        </div>
+        <div class="col-6">
+          <select id="default-view" class="form-control form-control-sm" (change)="changeDefaultView($event)" title="Which view should MicrobeTrace render first, once it has successfully processed the data?" [(ngModel)]="SelectedDefaultViewVariable">
+            <option value="2D Network" selected>2D Network</option>
+            <option value="Table">Table</option>
+            <option value="Map">Map</option>
+            <option value="Phylogenetic Tree">Phylogenetic Tree</option>
+            <option value="Alignment View">Alignment View</option>
+          </select>
         </div>
       </div>
     </p-dialog>
