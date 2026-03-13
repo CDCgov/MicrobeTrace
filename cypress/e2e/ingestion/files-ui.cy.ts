@@ -38,6 +38,17 @@ describe('File Handling and Processing', () => {
     cy.get(`[id="file-${nodeFile}-field-2"]`).should('have.value', 'seq');
   });
 
+  it('uploads via the welcome overlay input and launches without hitting the error boundary', () => {
+    cy.attach_files('#fileDropRef', [nodeFile, linkFile]);
+
+    cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
+    cy.contains('#file-table .file-table-row', nodeFile, { timeout: 20000 }).should('be.visible');
+    cy.contains('#file-table .file-table-row', linkFile, { timeout: 20000 }).should('be.visible');
+    cy.get('body').should('not.contain.text', 'Unexpected application error');
+    cy.get('#launch').should('not.be.disabled').click({ force: true });
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
+  });
+
   it('updates column mapping labels when file type is changed manually', () => {
     loadNodeFile();
 

@@ -2626,6 +2626,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     private _removeGlView(view : string) {
+        if (this.homepageTabs.findIndex(tab => tab.label === view) === -1) {
+            console.log(`Skipping removal for ${view}; tab is not active`);
+            return;
+        }
+
         console.log(`Removing ${view}`);
         this._goldenLayoutHostComponent.removeComponent(view);
         this.removeComponent(view);

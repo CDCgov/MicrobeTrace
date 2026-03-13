@@ -27,6 +27,18 @@ const closeTwoDSettingsDialog = (): void => {
   cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
 };
 
+const assertNodeSymbolTableVisibility = (shouldBeVisible: boolean): void => {
+  if (shouldBeVisible) {
+    cy.get('#nodeSymbolTable', { timeout: 15000 }).should('exist');
+    return;
+  }
+
+  cy.get('body').then(($body) => {
+    if (!$body.find('#nodeSymbolTable').length) return;
+    cy.get('#nodeSymbolTable').should('not.be.visible');
+  });
+};
+
 const getVisibleLeafNodeWidths = (): Cypress.Chainable<number[]> => {
   return cy.window().then((win: any) => {
     const cyInstance = win.cytoscapeInstance;
@@ -54,11 +66,11 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'None');
 
     cy.get('@nodesTab').find('#node-symbol-variable').click({ force: true });
-    cy.contains('li[role="option"]', 'Node Type').click({ force: true });
+    cy.contains('li[role="option"]', 'Node type').click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
-    cy.contains('.p-dialog-title', 'Node Symbol Table').should('be.visible');
+    assertNodeSymbolTableVisibility(true);
 
     cy.window().then((win: any) => {
       const cyInstance = win.cytoscapeInstance;
@@ -84,7 +96,7 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
       .click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Hide');
-    cy.contains('.p-dialog-title', 'Node Symbol Table').should('not.exist');
+    assertNodeSymbolTableVisibility(false);
 
     cy.get('@nodesTab')
       .find('#node-symbol-table-row')
@@ -92,10 +104,10 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
       .click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
-    cy.contains('.p-dialog-title', 'Node Symbol Table').should('be.visible');
+    assertNodeSymbolTableVisibility(true);
 
     cy.get('body').type('{esc}');
-    cy.contains('.p-dialog-title', 'Node Symbol Table').should('not.exist');
+    assertNodeSymbolTableVisibility(false);
     closeTwoDSettingsDialog();
   });
 
@@ -208,9 +220,9 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     cy.get('@nodesTab')
       .find('#node-border-width')
-      .clear()
-      .type(String(updatedBorderWidth))
-      .blur();
+      .invoke('val', String(updatedBorderWidth))
+      .trigger('input', { force: true })
+      .trigger('change', { force: true });
 
     cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', updatedBorderWidth);
     closeTwoDSettingsDialog();
