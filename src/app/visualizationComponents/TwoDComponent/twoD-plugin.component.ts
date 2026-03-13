@@ -2486,23 +2486,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // console.log('--- TwoD getLinkWidth link1: ', scalar, variable);
         if (variable == 'None') return scalar;
 
-        else {
-            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
-            let v = link[variable];
+        const rawValue = link[variable];
+        const numericValue = this.isNumber(rawValue) ? rawValue : Number(rawValue);
 
-
-            if (!this.isNumber(v)) v = mid;
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.linkScale(v);
-
-                return scaleValue;
-            } else {
-
-                return scalar; // Default to scalar if v is not a number
-            }
+        if (!Number.isFinite(numericValue)) {
+            return scalar;
         }
+
+        const minWidth = this.widgets['link-width-min'];
+        const maxWidth = this.widgets['link-width-max'];
+        const reciprocal = this.widgets['link-width-reciprocal'];
+
+        return this.linearScale(numericValue, this.linkMin, this.linkMax, minWidth, maxWidth, reciprocal);
     }
 
 
@@ -3464,8 +3459,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateLinkWidthRows(e);
         this.widgets['link-width-variable'] = e;
         this.updateMinMaxLink();
-        this.scaleLinkWidth();
+
+        if (e === 'None') {
+            this.scaleLinkWidth();
+            return;
+        }
+
+        this.onLinkWidthReciprocalNonReciprocalChange(this.getSelectedLinkReciprocalType());
         
+    }
+
+    private getSelectedLinkReciprocalType(): string {
+        const selectedLabel = $('#link-width-reciprocal-non-reciprocal .p-highlight')
+            .text()
+            .trim();
+
+        if (selectedLabel.includes('Non-Reciprocal')) {
+            return 'Non-Reciprocal';
+        }
+
+        if (selectedLabel.includes('Reciprocal')) {
+            return 'Reciprocal';
+        }
+
+        return this.SelectedLinkReciprocalTypeVariable;
     }
 
     /**
@@ -3560,6 +3577,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * This widget controls whether to set width smallest -> largest or largest -> smallest
      */
     onLinkWidthReciprocalNonReciprocalChange(e) {
+        this.SelectedLinkReciprocalTypeVariable = e;
         if (e == "Reciprocal") {
             this.widgets['link-width-reciprocal'] = true;
             this.scaleLinkWidth();
@@ -4435,7 +4453,7 @@ private async _partialUpdate() {
             const newWidth = this.getLinkWidth(edge.data());
             edge.data('width', newWidth);
         });
-        // this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        this.cy.style().update();
     }
 
 

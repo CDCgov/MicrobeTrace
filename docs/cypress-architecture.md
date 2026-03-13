@@ -125,13 +125,13 @@ Use direct Cypress commands for the maintained buckets:
 - Maintained 2D view-state:
   - `npx cypress run --headless --browser electron --spec cypress/e2e/view-state/twod-view.cy.ts`
 - Contracts:
-  - `npx cypress run --headless --browser electron --env contractMode=1 --spec cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts,cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts`
+  - `npx cypress run --headless --browser electron --env contractMode=1 --spec cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts`
 
 Local default equivalents (same suites with fixed local base URL):
 
 - `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec cypress/e2e/ingestion/files-ui.cy.ts,cypress/e2e/journeys/flows/*.cy.ts`
 - `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec cypress/e2e/view-state/twod-view.cy.ts`
-- `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --env contractMode=1 --spec cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts,cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts`
+- `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --env contractMode=1 --spec cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts`
 
 ## Migration Rules
 

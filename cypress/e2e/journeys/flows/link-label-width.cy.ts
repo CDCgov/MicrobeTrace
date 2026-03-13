@@ -88,7 +88,7 @@ const openLinksPanel = (panel: 'Labels and Tooltips' | 'Shapes and Sizes'): void
     .should('exist')
     .as('linksTab');
 
-  cy.get('@linksTab').contains('p-accordion-panel', panel).click({ force: true });
+  expandAccordionTabByHeader('@linksTab', panel);
 };
 
 const closeTwoDSettingsDialog = (): void => {
@@ -103,7 +103,7 @@ const openLinksPanelAndSetDecimalLength = (decimalLength: number): void => {
   openLinksPanel('Labels and Tooltips');
 
   cy.get('@linksTab').find('#link-label-decimal-length')
-    .clear()
+    .clear({ force: true })
     .type(String(decimalLength), { force: true })
     .blur();
 

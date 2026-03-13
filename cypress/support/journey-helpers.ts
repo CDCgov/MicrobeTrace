@@ -616,6 +616,26 @@ export function setGlobalDistanceMetric(metric: DistanceMetric): void {
     .should('equal', metric);
 }
 
+export function setGlobalLinkThreshold(threshold: number | string): void {
+  const nextThreshold = String(threshold);
+
+  cy.get('#link-threshold')
+    .should('be.visible')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.focus();
+      input.value = nextThreshold;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.window()
+    .its('commonService.session.style.widgets.link-threshold')
+    .should((value) => {
+      expect(Number(value)).to.equal(Number(nextThreshold));
+    });
+}
+
 export function assertVisibleNodeIds(expectedNodeIds: string[]): void {
   cy.window().then((win: unknown) => {
     const w = win as WinWithMT;

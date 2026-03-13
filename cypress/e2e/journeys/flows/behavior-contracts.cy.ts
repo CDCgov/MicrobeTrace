@@ -12,6 +12,7 @@ import {
   launchProfileToTwoD,
   openTwoDSettingsDialog,
   expandAccordionTabByHeader,
+  setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
 
 const contractMode =
@@ -28,8 +29,16 @@ const contractMode =
     openTwoDSettingsDialog();
 
     cy.get('.p-dialog:visible').contains('.nav-link', 'Links').click({ force: true });
-    cy.get('.tab-pane:visible').should('exist');
-    cy.get('.tab-pane:visible').contains('p-accordion-panel', 'Shapes and Sizes').click({ force: true });
+    cy.get('.tab-pane:visible').should('exist').as('linksTab');
+    expandAccordionTabByHeader('@linksTab', 'Shapes and Sizes');
+  };
+
+  const clickReciprocalToggle = (index: number): void => {
+    cy.get('@linksTab')
+      .find('#link-width-reciprocal-non-reciprocal')
+      .then(($toggle) => {
+        cy.wrap($toggle.first().children().eq(index)).click({ force: true });
+      });
   };
 
   const resolveWidthOrderingByDistance = (): Cypress.Chainable<'increasing' | 'decreasing'> => {
@@ -88,8 +97,7 @@ const contractMode =
 
       cy.openGlobalSettings();
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-      cy.get('#link-threshold').clear().type(String(thresholdChange!.to)).blur();
-      cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', thresholdChange!.to);
+      setGlobalLinkThreshold(thresholdChange!.to);
       cy.closeGlobalSettings();
 
       assertMetricCount('#numberOfVisibleLinks', intendedVisibleLinksAfter);
@@ -110,24 +118,31 @@ const contractMode =
       cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'distance');
       expandAccordionTabByHeader('.p-dialog:visible .tab-pane:visible', 'Shapes and Sizes');
 
-      resolveWidthOrderingByDistance().then((beforeOrdering) => {
-        cy.window().its('commonService.session.style.widgets.link-width-reciprocal').should('equal', true);
-        expect(beforeOrdering, 'intended ordering when reciprocal is on').to.equal('decreasing');
+      cy.window().its('commonService.session.style.widgets.link-width-reciprocal').then((initialReciprocal) => {
+        resolveWidthOrderingByDistance().then((beforeOrdering) => {
+          expect(
+            beforeOrdering,
+            `initial ordering when reciprocal is ${initialReciprocal ? 'on' : 'off'}`,
+          ).to.equal(initialReciprocal ? 'decreasing' : 'increasing');
+        });
       });
 
-      cy.get('.p-dialog:visible')
-        .find('#link-width-reciprocal-non-reciprocal')
-        .contains('Non-Reciprocal')
-        .click({ force: true });
+      clickReciprocalToggle(0);
+
+      cy.window().its('commonService.session.style.widgets.link-width-reciprocal').should('equal', true);
+
+      resolveWidthOrderingByDistance().then((afterReciprocalOrdering) => {
+        expect(afterReciprocalOrdering, 'intended ordering when reciprocal is on').to.equal('decreasing');
+      });
+
+      clickReciprocalToggle(1);
 
       cy.window().its('commonService.session.style.widgets.link-width-reciprocal').should('equal', false);
 
-      resolveWidthOrderingByDistance().then((afterOrdering) => {
-        expect(afterOrdering, 'intended ordering when reciprocal is off').to.equal('increasing');
+      resolveWidthOrderingByDistance().then((afterNonReciprocalOrdering) => {
+        expect(afterNonReciprocalOrdering, 'intended ordering when reciprocal is off').to.equal('increasing');
       });
 
-      cy.get('.p-dialog:visible').find('button.p-dialog-close-button').click({ force: true });
-      cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
     },
   );
 });

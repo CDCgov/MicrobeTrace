@@ -6,6 +6,7 @@ import {
   assertAfterLaunchCounts,
   assertMetricCount,
   launchProfileToTwoD,
+  setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
 
 type ParentSnapshot = {
@@ -47,8 +48,7 @@ describe('Journey Flow - Grouping Subtype Colors and Threshold', () => {
 
     cy.openGlobalSettings();
     cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-    cy.get('#link-threshold').clear().type(String(thresholdChange!.to)).blur();
-    cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', thresholdChange!.to);
+    setGlobalLinkThreshold(thresholdChange!.to);
     cy.closeGlobalSettings();
 
     assertMetricCount('#numberOfVisibleLinks', thresholdChange!.expectedVisibleLinksAfter as number);

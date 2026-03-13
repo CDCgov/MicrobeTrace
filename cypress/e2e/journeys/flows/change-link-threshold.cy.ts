@@ -5,6 +5,7 @@ import {
   applyTwoDGroupingFromProfile,
   assertMetricCount,
   launchProfileToTwoD,
+  setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
 
 describe('Journey Flow - Change Link Threshold', () => {
@@ -34,8 +35,7 @@ describe('Journey Flow - Change Link Threshold', () => {
 
     cy.openGlobalSettings();
     cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-    cy.get('#link-threshold').clear().type(String(thresholdChange!.to)).blur();
-    cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', thresholdChange!.to);
+    setGlobalLinkThreshold(thresholdChange!.to);
     cy.closeGlobalSettings();
 
     assertMetricCount('#numberOfVisibleLinks', observedVisibleLinksAfter);

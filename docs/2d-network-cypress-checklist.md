@@ -144,8 +144,7 @@ Maintained suite structure:
 
 ## 9. Contract Coverage
 
-- [x] Known grouped threshold mismatch is split into observed vs intended expectations.
-- [x] Post-launch metric switch intended behavior has contract coverage.
+- [x] Explicit reciprocal width orientation has contract coverage.
 - [x] Minimum Cluster Size expected behavior has contract coverage.
 - [x] Epsilon expected behavior has contract coverage.
 - [x] Mixed-origin Nearest Neighbor expected behavior has contract coverage.

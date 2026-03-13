@@ -6,6 +6,7 @@ import {
   assertMetricCount,
   launchProfileToTwoD,
   openGlobalFilteringTab,
+  setGlobalLinkThreshold,
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 import { byTestId, testIds } from '../../../support/selectors';
@@ -108,7 +109,7 @@ describe('Journey Flow - Mixed-Origin threshold, nearest neighbor, and reveal', 
     assertMixedOriginLaunchState(mixedOrigin!.multiOriginLinks);
 
     openGlobalFilteringTab();
-    cy.get('#link-threshold').clear().type(String(thresholdFlow!.toThreshold)).blur();
+    setGlobalLinkThreshold(thresholdFlow!.toThreshold);
     assertThresholdCloseTo(thresholdFlow!.toThreshold);
     waitForProcessingDialogToClear();
     cy.closeGlobalSettings();

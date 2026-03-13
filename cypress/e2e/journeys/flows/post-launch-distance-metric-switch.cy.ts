@@ -11,12 +11,7 @@ import {
   setTwoDLinkLabelVariable,
 } from '../../../support/journey-helpers';
 
-const contractMode =
-  Cypress.env('contractMode') === true ||
-  Cypress.env('contractMode') === '1' ||
-  Cypress.env('contractMode') === 1;
-
-(contractMode ? describe : describe.skip)('Journey Contracts - Post-launch Distance Metric Switch', () => {
+describe('Journey Flow - Post-launch Distance Metric Switch', () => {
   const profiles = getProfilesByTag('metric-switch');
 
   const assertVisibleDistanceLabels = () => {

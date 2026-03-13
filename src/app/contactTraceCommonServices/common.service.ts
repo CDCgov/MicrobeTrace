@@ -17,6 +17,7 @@ import { CommonStoreService } from './common-store.services';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
 import { ColorMappingService } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
+import * as tn93 from 'tn93';
 
 @Directive()
 @Injectable({
@@ -794,6 +795,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (matrix[newLink.source][newLink.target]) {
 
             const oldLink = matrix[newLink.source][newLink.target];
+            const oldDistanceOrigins = this.getLinkDistanceOrigins(oldLink);
+            const newDistanceOrigins = this.getLinkDistanceOrigins(newLink);
+            const mergedDistanceOrigins = this.uniq(oldDistanceOrigins.concat(newDistanceOrigins));
 
              // Ensure id is consistent during merge ---
              newLink.id = oldLink.id || id; // Prefer existing ID
@@ -835,6 +839,11 @@ export class CommonService extends AppComponentBase implements OnInit {
                 newLink.hasDistance = true;
                 newLink['distance'] = oldLink['distance'];
                 newLink.distanceOrigin = oldLink.distanceOrigin;
+            }
+
+            if (mergedDistanceOrigins.length > 0) {
+                oldLink.distanceOrigins = mergedDistanceOrigins;
+                newLink.distanceOrigins = mergedDistanceOrigins;
             }
 
             oldLink["origin"] = myorigin;
@@ -900,6 +909,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }, newLink);
     
             }
+
+               this.syncLinkDistanceOrigins(newLink);
                // Always add the new link without merging
                sdlinks.push(newLink);
                matrix[newLink.source][newLink.target] = newLink;
@@ -915,6 +926,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
         if (newLink.origin.length > 1 && this.session.style.widgets['link-origin-array-order'].length === 0) {
             this.session.style.widgets['link-origin-array-order'] = newLink.origin;
+        }
+
+        const normalizedLink = matrix[newLink.source]?.[newLink.target] ?? matrix[newLink.target]?.[newLink.source];
+        if (normalizedLink) {
+            this.syncLinkDistanceOrigins(normalizedLink);
         }
         
         if((newLink.source === "MZ798055" && newLink.target === "MZ375596") || (newLink.source === "MZ375596" && newLink.target === "MZ798055")){
@@ -947,6 +963,126 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         }
         return out;
+    }
+
+    getLinkDistanceOrigins(link: any): string[] {
+        const explicitOrigins = Array.isArray(link?.distanceOrigins)
+            ? link.distanceOrigins.filter((origin: any) => typeof origin === 'string' && origin.length > 0)
+            : [];
+
+        if (explicitOrigins.length > 0) {
+            return this.uniq(explicitOrigins);
+        }
+
+        if (typeof link?.distanceOrigin === 'string' && link.distanceOrigin.length > 0) {
+            return [link.distanceOrigin];
+        }
+
+        return [];
+    }
+
+    syncLinkDistanceOrigins(link: any): void {
+        const distanceOrigins = this.getLinkDistanceOrigins(link);
+
+        if (distanceOrigins.length > 0) {
+            link.distanceOrigins = distanceOrigins;
+            if (!link.distanceOrigin || !distanceOrigins.includes(link.distanceOrigin)) {
+                link.distanceOrigin = distanceOrigins[0];
+            }
+            return;
+        }
+
+        delete link.distanceOrigins;
+        if (!link.hasDistance) {
+            delete link.distanceOrigin;
+        }
+    }
+
+    private isDistanceBackedOrigin(originName: string, distanceOrigins: string[]): boolean {
+        return distanceOrigins.some(distanceOrigin => {
+            return Boolean(originName) && Boolean(distanceOrigin) && originName.includes(distanceOrigin);
+        });
+    }
+
+    private rebuildLinkMatrix(): void {
+        this.temp.matrix = [];
+
+        this.session.data.links.forEach((link, index) => {
+            link.index = index;
+
+            if (!this.temp.matrix[link.source]) {
+                this.temp.matrix[link.source] = {};
+            }
+
+            if (!this.temp.matrix[link.target]) {
+                this.temp.matrix[link.target] = {};
+            }
+
+            this.temp.matrix[link.source][link.target] = link;
+            this.temp.matrix[link.target][link.source] = link;
+        });
+    }
+
+    private removeGeneticDistanceLinks(): void {
+        const retainedLinks = this.session.data.links.filter((link) => {
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const hasGeneticDistance = distanceOrigins.includes('Genetic Distance');
+
+            if (!hasGeneticDistance) {
+                this.syncLinkDistanceOrigins(link);
+                return true;
+            }
+
+            const remainingOrigins = Array.isArray(link.origin)
+                ? link.origin.filter((origin: string) => origin !== 'Genetic Distance')
+                : [];
+            const remainingDistanceOrigins = distanceOrigins.filter(origin => origin !== 'Genetic Distance');
+
+            if (remainingOrigins.length === 0) {
+                return false;
+            }
+
+            link.origin = remainingOrigins;
+
+            if (remainingDistanceOrigins.length > 0) {
+                link.distanceOrigins = remainingDistanceOrigins;
+                link.distanceOrigin = remainingDistanceOrigins[0];
+                link.hasDistance = true;
+            } else {
+                link.hasDistance = false;
+                delete link.distanceOrigins;
+                delete link.distanceOrigin;
+                delete link.distance;
+            }
+
+            return true;
+        });
+
+        this.session.data.links = retainedLinks;
+        this.rebuildLinkMatrix();
+    }
+
+    async recomputeSequenceDerivedLinksForCurrentMetric(): Promise<boolean> {
+        if (!this.session.meta.anySequences) {
+            return false;
+        }
+
+        const subset = this.session.data.nodes.filter(this.hasSeq);
+        if (subset.length === 0) {
+            return false;
+        }
+
+        subset.forEach((node: any) => {
+            if (!node._seqInt && node.seq) {
+                node._seqInt = tn93.toInts(node.seq);
+            }
+        });
+
+        this.removeGeneticDistanceLinks();
+        await this.computeLinks(subset);
+        this.rebuildLinkMatrix();
+
+        return true;
     }
 
     public getSelectedNode(nodes: any[]): any {
@@ -2929,7 +3065,8 @@ align(params): Promise<any> {
         for (let i = 0; i < n; i++) {
     
             const link = links[i]; // Reference to the object in session.data.links
-    
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+
             // *** Step 1: Use a copy for checks ***
             let finalOrigins = [...link.origin]; // Copy origins for visibility logic
     
@@ -2939,23 +3076,22 @@ align(params): Promise<any> {
     
             // Add back the distance origin to the *copy* if it was removed (Safeguard)
             // Check against original link.origin, add to finalOrigins if needed
-            if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
-                 if (!finalOrigins.includes(link.distanceOrigin)) { // Avoid duplicates in copy
-                    finalOrigins.push(link.distanceOrigin);
-                 }
-            }
-            // Also ensure distanceOrigin exists in original if it should
-             if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
-                 link.origin.push(link.distanceOrigin); // Ensure original has it too if missing
-             }
+            distanceOrigins.forEach(distanceOrigin => {
+                if (!finalOrigins.includes(distanceOrigin)) {
+                    finalOrigins.push(distanceOrigin);
+                }
+                if (!link.origin.includes(distanceOrigin)) {
+                    link.origin.push(distanceOrigin);
+                }
+            });
     
     
             // Visibility Logic based on metric/threshold/hasDistance
             if (link[metric] == null) { // No distance value for the current metric
                  // Check for non-distance origins using the *copy*
-                if (finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin)).length > 0) {
+                if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
                     // Filter the *copy* for visibility check
-                    finalOrigins = finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin));
+                    finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
                     originWasFiltered = true; // *** Mark as filtered ***
                     overrideNN = true;
                     visible = true;
@@ -2969,14 +3105,14 @@ align(params): Promise<any> {
                          // Distance is above threshold. Check for other origins using the *copy*.
                         if (finalOrigins.filter(fileName => {
                                  const hasAuspice = /[Aa]uspice/.test(fileName); // Preserved Auspice check
-                                 const includesDistanceOrigin = link.distanceOrigin && fileName.includes(link.distanceOrigin);
+                                 const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
                                  return fileName && !includesDistanceOrigin && !hasAuspice;
                              }).length > 0
                         ) {
                             // Filter the *copy* for visibility check
                              finalOrigins = finalOrigins.filter(fileName => {
                                  const hasAuspice = /[Aa]uspice/.test(fileName);
-                                 const includesDistanceOrigin = link.distanceOrigin && fileName.includes(link.distanceOrigin);
+                                 const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
                                  return fileName && !includesDistanceOrigin && !hasAuspice;
                              });
                              originWasFiltered = true; // *** Mark as filtered ***
@@ -2998,9 +3134,9 @@ align(params): Promise<any> {
                  visible = visible && link.nn;
                  if (!visible && wasVisible) { // Check if NN made it invisible
                       // Check *copy* for other origins
-                     if (finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin)).length > 0) {
+                     if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
                          // Filter the *copy*
-                         finalOrigins = finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin));
+                         finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
                          originWasFiltered = true; // *** Mark as filtered ***
                          visible = true; // Keep visible due to non-distance origin
                      }
