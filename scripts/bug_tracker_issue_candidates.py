@@ -67,6 +67,10 @@ def render_bullets(items):
     return "\n".join(f"- {item}" for item in items)
 
 
+def is_closed_status(value: str):
+    return (value or "").strip().lower() in {"closed", "fixed", "resolved"}
+
+
 def build_issue(row, csv_path: str, repository: str, branch: str, commit_sha: str, actor: str):
     bug_id = row["id"].strip()
     area = (row.get("area") or "").strip()
@@ -133,6 +137,33 @@ Bug Tracker ID: `{bug_id}`
     }
 
 
+def build_close_payload(row, csv_path: str, repository: str, branch: str, commit_sha: str, actor: str):
+    bug_id = row["id"].strip()
+    line_number = row["_line_number"]
+    status = (row.get("status") or "").strip()
+    reviewed = (row.get("last_reviewed") or "").strip()
+
+    tracker_url = (
+        f"https://github.com/{repository}/blob/{commit_sha}/{csv_path}#L{line_number}"
+        if repository and commit_sha
+        else csv_path
+    )
+
+    comment = f"""Bug tracker row updated to `{status or "Closed"}`.
+
+- Tracker row: [{csv_path}#L{line_number}]({tracker_url})
+- Branch: `{branch}`
+- Commit: `{commit_sha}`
+- Updated by: `{actor}`
+- Last reviewed: `{reviewed or "Unspecified"}`
+"""
+
+    return {
+        "id": bug_id,
+        "comment": comment,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv-path", required=True)
@@ -149,8 +180,7 @@ def main():
     previous_rows = read_rows_from_git(args.before, args.csv_path)
 
     new_bug_ids = [bug_id for bug_id in current_rows if bug_id not in previous_rows]
-    closed_statuses = {"closed", "fixed", "resolved"}
-    issues = [
+    create_issues = [
         build_issue(
             current_rows[bug_id],
             args.csv_path,
@@ -160,11 +190,29 @@ def main():
             args.actor,
         )
         for bug_id in new_bug_ids
-        if (current_rows[bug_id].get("status") or "").strip().lower() not in closed_statuses
+        if not is_closed_status(current_rows[bug_id].get("status") or "")
+    ]
+
+    close_issues = [
+        build_close_payload(
+            current_rows[bug_id],
+            args.csv_path,
+            args.repository,
+            args.branch,
+            args.commit_sha,
+            args.actor,
+        )
+        for bug_id, row in current_rows.items()
+        if is_closed_status(row.get("status") or "")
+        and bug_id in previous_rows
+        and not is_closed_status(previous_rows[bug_id].get("status") or "")
     ]
 
     output_path = Path(args.output)
-    output_path.write_text(json.dumps(issues, indent=2), encoding="utf-8")
+    output_path.write_text(
+        json.dumps({"create": create_issues, "close": close_issues}, indent=2),
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":
