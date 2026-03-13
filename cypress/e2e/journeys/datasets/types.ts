@@ -105,6 +105,13 @@ export type JourneyExpectations = {
       cancel: ExpectedValue<{ visibleLinks: number }>;
       confirm: ExpectedValue<{ visibleLinks: number }>;
       preservedLinkIds?: string[];
+      thresholdFlow?: {
+        toThreshold: number;
+        afterThreshold: ExpectedValue<{ visibleLinks: number }>;
+        afterNearestNeighbor: ExpectedValue<{ visibleLinks: number }>;
+        afterReveal: ExpectedValue<{ visibleLinks: number }>;
+        thresholdPreservedLinkIds?: string[];
+      };
     };
 
     metricSwitch?: {

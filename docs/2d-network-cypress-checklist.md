@@ -65,8 +65,8 @@ Maintained suite structure:
 - [ ] Post-launch Distance Metric switch on sequence-capable inputs updates counts coherently.
 - [x] Threshold change while cluster minimum is greater than `1` does not unexpectedly reset cluster filtering.
 - [x] Threshold sparkline drag path is exercised, not only direct input typing.
-- [ ] Filtering still works correctly after loading multiple file origins that merge onto the same links.
-- [ ] Contract coverage exists for any known observed-vs-intended filtering deviations.
+- [x] Filtering still works correctly after loading multiple file origins that merge onto the same links.
+- [x] Contract coverage exists for any known observed-vs-intended filtering deviations.
 
 ## 3. General Settings: Styling
 
@@ -139,17 +139,17 @@ Maintained suite structure:
 - [x] Sequence-derived TN93 network -> group by subtype -> change threshold -> change group colors -> verify polygons and counts.
 - [x] Style dataset -> apply style -> change Minimum Cluster Size -> verify styling and tables still match visible nodes and links.
 - [x] Style dataset -> apply style -> open 2D settings -> change node label and tooltip -> verify style and labels coexist.
-- [ ] Mixed-origin dataset -> threshold change -> Nearest Neighbor -> reveal -> verify counts and origins remain correct.
-- [ ] Newick dataset -> launch 2D -> adjust one 2D link setting -> verify parsed distance links behave correctly.
+- [x] Mixed-origin dataset -> threshold change -> Nearest Neighbor -> reveal -> verify counts and origins remain correct.
+- [x] Newick dataset -> launch 2D -> adjust one 2D link setting -> verify parsed distance links behave correctly.
 
 ## 9. Contract Coverage
 
 - [x] Known grouped threshold mismatch is split into observed vs intended expectations.
 - [x] Post-launch metric switch intended behavior has contract coverage.
-- [ ] Minimum Cluster Size expected behavior has contract coverage.
-- [ ] Epsilon expected behavior has contract coverage.
-- [ ] Mixed-origin Nearest Neighbor expected behavior has contract coverage.
-- [ ] Newick expected launch counts have contract coverage.
+- [x] Minimum Cluster Size expected behavior has contract coverage.
+- [x] Epsilon expected behavior has contract coverage.
+- [x] Mixed-origin Nearest Neighbor expected behavior has contract coverage.
+- [x] Newick expected launch counts have contract coverage.
 
 ## 10. Fixture Gaps To Fill
 

@@ -93,6 +93,22 @@ export const FILTERING_PROFILES: DatasetProfile[] = [
             'KF773576-KF773579',
             'KF773429-KF773430',
           ],
+          thresholdFlow: {
+            toThreshold: 0.01,
+            afterThreshold: {
+              visibleLinks: 11,
+            },
+            afterNearestNeighbor: {
+              visibleLinks: 9,
+            },
+            afterReveal: {
+              visibleLinks: 9,
+            },
+            thresholdPreservedLinkIds: [
+              'KF773429-KF773430',
+              'KF773426-KF773578',
+            ],
+          },
         },
       },
     },
