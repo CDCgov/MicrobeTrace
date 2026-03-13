@@ -63,6 +63,18 @@
             "styles": [
 
               {
+                "input": "node_modules/@fontsource/roboto/300.css"
+              },
+              {
+                "input": "node_modules/@fontsource/roboto/400.css"
+              },
+              {
+                "input": "node_modules/@fontsource/roboto/500.css"
+              },
+              {
+                "input": "node_modules/material-icons/iconfont/material-icons.css"
+              },
+              {
                 "input": "src/microbetrace-theme.scss"
               },
               {

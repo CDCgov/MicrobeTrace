@@ -24,8 +24,8 @@
           [contentStyle]="{'overflow': 'visible'}" header="Gantt Settings" appendTo="body">
           <tabset class="tab-container tabbable-line">
             <tab heading="{{'Gantt Entry' | localize}}" [active]="true" customClass="m-tabs__item">
-              <p-accordion [multiple]="true" [activeIndex]="[0]" [value]="null">
-                <p-accordion-panel style="color:#495057" [active]="true">
+              <p-accordion [multiple]="true" [value]="['gantt-new-entry']">
+                <p-accordion-panel value="gantt-new-entry" style="color:#495057">
                   <p-accordion-header>New Entry</p-accordion-header>
                   <p-accordion-content><div #entrycontrols>
                     <div class="form-group row entry-name-row" title="What is the name of the entry?"

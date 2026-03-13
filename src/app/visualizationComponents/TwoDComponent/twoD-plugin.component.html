@@ -308,9 +308,9 @@
 </tab>
 <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
-    <p-accordion-panel value="grouping-controls" style="color:#495057" id="polygons-controls-accordion">
+    <p-accordion-panel value="grouping-controls" style="color:#495057">
       <p-accordion-header>Controls</p-accordion-header>
-      <p-accordion-content><div id="polygons-controls" class="show" data-parent="#polygons-controls-accordion">
+      <p-accordion-content><div id="polygons-controls">
         <div class="card-body">
           <div class="form-group row" title="Show groups?">
             <div class="col-4">Groups</div>
@@ -337,9 +337,9 @@
     </p-accordion-content>
   </p-accordion-panel>
   @if (commonService.session.style.widgets['polygons-show']) {
-    <p-accordion-panel value="grouping-labels" style="color:#495057" id="polygons-controls-accordion">
+    <p-accordion-panel value="grouping-labels" style="color:#495057">
       <p-accordion-header>Labels</p-accordion-header>
-      <p-accordion-content><div id="polygons-controls-labels" data-parent="#polygons-controls-accordion">
+      <p-accordion-content><div id="polygons-controls-labels">
         <div class="card-body">
           <div class="form-group row" title="Show group labels?">
             <div class="col-5 padding-right-5">Groups Label</div>
@@ -370,9 +370,9 @@
 }
 <!-- style="display: none;" -->
 @if (commonService.session.style.widgets['polygons-show']) {
-  <p-accordion-panel value="grouping-colors" style="color:#495057" id="polygons-controls-accordion">
+  <p-accordion-panel value="grouping-colors" style="color:#495057">
     <p-accordion-header>Colors</p-accordion-header>
-    <p-accordion-content><div id="polygons-controls-colors" data-parent="#polygons-controls-accordion">
+    <p-accordion-content><div id="polygons-controls-colors">
       <div class="card-body">
         <div id="color-polygons" class="form-group row" title="Distinguish groups by color?">
           <div class="col-5">Color Groups</div>
