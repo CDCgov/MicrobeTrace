@@ -20,6 +20,7 @@
 /src/app/contactTraceCommonServices/sample.json
 /src/app/contactTraceCommonServices/sampleAll.json
 /src/app/LangChain
+/src/environments/version.prod.ts
 
 
 # IDEs and editors
