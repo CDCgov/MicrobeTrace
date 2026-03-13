@@ -39,6 +39,8 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   SelectedDateFieldVariable3;
   binSizes = ['Day', 'Week', 'Month', 'Quarter', 'Year']
   tickInterval;
+  labelSize = 12;
+  legendLabelSize = 15;
 
   graphTypes = ['Single Date Field', 'Multi: Side by Side', 'Multi: Overlay']
   selectedGraphType = 'Single Date Field';
@@ -158,7 +160,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
     // colors
     if (this.widgets['epiCurve-colors'] == undefined) {
-      this.widgets['epiCurve-colors'] = ['#f5d742', '#f20fff', '#20ff1a'];
+      this.widgets['epiCurve-colors'] = ['#C6D8EB','#B79ECC', '#F3BF79'];
     }
 
     // stackColorBy field
@@ -186,13 +188,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   // this.initializeD3Chart();
   this.setupEventListeners();
-
-  if (this.widgets['epiCurve-legendPosition'] == 'Bottom') {
-    this.margin.bottom = 100;
-  } else {
-    this.margin.bottom = 50;
-  }
-  
   this.refresh();
  }
   
@@ -237,7 +232,7 @@ public refresh(): void {
 
   const epiCurve = this.svg.append("g")
     .classed("epiCurve-epi-curve", true)
-    .attr("transform", `translate(${this.margin.left}, 5)`);
+    .attr("transform", `translate(${this.margin.left}, ${this.margin.top})`);
 
   let bins = this.histogram(this.vnodes);
   
@@ -268,6 +263,7 @@ public refresh(): void {
       .attr("width", d => this.x(d.x1) - this.x(d.x0))
       .attr("height", d => this.height - this.y(d.length2[ind]))
       .attr("fill", this.localColorMap(value) )
+      .attr("stroke", "black" )
 
       nodeColors.push(this.localColorMap(value));
     })
@@ -281,7 +277,8 @@ public refresh(): void {
       .attr("transform", d => `translate(${this.x(d.x0)}, ${this.y(d.length)})`)
       .attr("width", d => this.x(d.x1) - this.x(d.x0))
       .attr("height", d => this.height - this.y(d.length))
-      .attr("fill", color);
+      .attr("fill", color)
+      .attr("stroke", "black");
 
     this.generateLegend(epiCurve, [color] ,[this.SelectedDateFieldVariable])
   }
@@ -337,13 +334,12 @@ private refreshMulti(): void {
 
   this.svg = d3.select(this.epiCurveSVGElement.nativeElement)
     .attr("width", this.width + this.margin.left + this.margin.right)
-    .attr("height", this.height + this.margin.top + this.margin.bottom)
-    .attr("transform", `translate(0, ${this.margin.top})`);
+    .attr("height", this.height + this.margin.top + this.margin.bottom);
     
 
   const epiCurve = this.svg.append("g")
     .classed("epiCurve-epi-curve", true)
-    .attr("transform", `translate(${this.margin.left}, 5)`);
+    .attr("transform", `translate(${this.margin.left}, ${this.margin.top})`);
 
   let maxCount = 0;
   let bins = [];
@@ -406,7 +402,8 @@ private refreshMulti(): void {
         .attr("transform", d => `translate(${xOffset[ind](d, that)}, ${this.y(d.length)})`)
         .attr("width", width)
         .attr("height", d => this.height - this.y(d.length))
-        .attr("fill", colors[ind]);
+        .attr("fill", colors[ind])
+        .attr("stroke", "black" );
     });
   }
 
@@ -431,12 +428,23 @@ updateLocalColorMap() {
 }
 
 updateSizes() {
+  this.updateBottomMargin();
   const wrapper = $(this.epiCurveElement.nativeElement).parent();
   $('#epiCurve').height(wrapper.height() - 50);
   this.width = wrapper.width() - this.margin.left - this.margin.right;
   // height represents the height of y axis
   this.height = wrapper.height() - this.margin.top - this.margin.bottom - 50;
   this.middle = this.height / 2;
+}
+
+private updateBottomMargin() {
+  const baseBottomMargin = this.widgets['epiCurve-legendPosition'] == 'Bottom' ? 100 : 50;
+  const labelSizePadding = Math.max(0, this.labelSize - 12) * 2;
+  const legendSizePadding = this.widgets['epiCurve-legendPosition'] == 'Bottom' ? Math.max(0, this.legendLabelSize - 15) * 2 : 0;
+  this.margin.bottom = baseBottomMargin + labelSizePadding + legendSizePadding;
+  this.margin.top = Math.max(8, Math.round(this.labelSize * 0.75));
+  this.margin.left = Math.max(45, Math.round(this.labelSize * 3.2));
+  this.margin.right = Math.max(20, Math.round(this.labelSize * 2))+10;
 }
 
 getTimes(fields) {
@@ -459,38 +467,56 @@ getTimes(fields) {
   }
   return times;
 }
+onLabelSizeChange() {
+  this.refresh();
+}
 
 updateAxes() {
-  let [xAxis, xLabelOffset] = this.configureXAxisSettings();
+  const xAxis = this.configureXAxisSettings();
+  const yDomainMax = Math.max(0, Math.ceil(this.y.domain()[1] as number));
+  const yTickStep = Math.max(1, Math.ceil(yDomainMax / 10));
+  const yTickValues = d3.range(0, yDomainMax + 1, yTickStep);
+  if (yTickValues[yTickValues.length - 1] !== yDomainMax) {
+    yTickValues.push(yDomainMax);
+  }
+  const yAxis = d3.axisLeft(this.y)
+    .tickValues(yTickValues)
+    .tickFormat((d: number) => `${Math.round(d)}`);
 
-  this.svg.append("g")
+  const xLabelY = this.height + this.margin.top + Math.max(40, Math.round(this.labelSize * 2.3));
+  const yTickOffset = -Math.max(9, Math.round(this.labelSize * 0.9));
+
+  const xAxisGroup = this.svg.append("g")
     .attr("class", "axis axis--x")
-    .attr("transform", `translate(${this.margin.left}, ${this.height+5})`)
+    .attr("transform", `translate(${this.margin.left}, ${this.height + this.margin.top})`)
     .call(xAxis)
-    .attr("text-anchor", "center")
-    .selectAll("text")
-    .attr("x", xLabelOffset);
+    .attr("text-anchor", "middle")
+    .attr("font-size", this.labelSize);
+  xAxisGroup.selectAll("text").attr("text-anchor", "middle");
 
   this.svg.append("g")
     .attr("class", "axis axis--y")
-    .attr("transform", `translate(${this.margin.left}, 5)`)
-    .call(d3.axisLeft(this.y))
-    .attr("text-anchor", null)
+    .attr("transform", `translate(${this.margin.left}, ${this.margin.top})`)
+    .call(yAxis)
+    .attr("font-size", this.labelSize)
     .selectAll("text")
-    .attr("x", -20);
+    .attr("text-anchor", "end")
+    .attr("x", yTickOffset);
 
   this.svg.append("text")
     .attr("class", "x label")
-    .attr("text-anchor", "center")
-    .attr("x", this.width/2)
-    .attr("y", this.height + 40)
+    .attr("text-anchor", "middle")
+    .attr("font-size", this.labelSize)
+    .attr("x", this.margin.left + this.width / 2)
+    .attr("y", xLabelY)
     .text(`Date (${this.widgets['epiCurve-binSize']=='Day'? 'Dai': this.widgets['epiCurve-binSize']}ly Bins)`);
 
   this.svg.append("text")
     .attr("class", "y label")
-    .attr("text-anchor", "center")
-    .attr("y", 15)
-    .attr("x", -this.middle-this.margin.top-this.margin.bottom)
+    .attr("text-anchor", "middle")
+    .attr("font-size", this.labelSize)
+    .attr("y", Math.max(14, Math.round(this.labelSize * 0.95)))
+    .attr("x", -(this.margin.top + this.height / 2))
     .attr("transform", "rotate(-90)")
     .text("Number of Cases");
 
@@ -524,54 +550,62 @@ updateAxes() {
 }
 
 generateLegend(epiCurve, colors, fieldNames) {
+  const legendFontSize = Math.max(6, Number(this.legendLabelSize || 15));
+  const legendFontSizePx = `${legendFontSize}px`;
+  const markerRadius = Math.max(4, Math.round(legendFontSize * 0.35));
+  const markerTextGap = Math.max(8, Math.round(legendFontSize * 0.65));
+  const legendRowHeight = Math.max(22, Math.round(legendFontSize * 1.9));
+  const legendCharWidth = Math.max(5.5, legendFontSize * 0.55);
+  const legendItemGap = Math.max(24, Math.round(legendFontSize * 1.8));
+
   let xOffset = 50; // default for left position
   if (this.widgets['epiCurve-legendPosition'] == 'Hide') {
     return;
   } else if (this.widgets['epiCurve-legendPosition'] == 'Bottom') {
     let prevLength = 0;
     let rowCount = 0;
-    let y = this.height + 50;
+    let y = this.height + this.margin.bottom - (Math.max(legendRowHeight, Math.round(this.labelSize * 1.5)) + 14);
     if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
       let field = this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable']);
-      epiCurve.append("text").attr("x", 70).attr("y", y).text(field + ': ').style("font-size", "15px").attr("alignment-baseline","middle")
+      epiCurve.append("text").attr("x", 70).attr("y", y).text(field + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
       prevLength += field.length + 3;
     } else if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] != 'Node Color' && this.widgets['epiCurve-stackColorBy'] != 'None') {
-      epiCurve.append("text").attr("x", 70).attr("y", y).text(this.widgets['epiCurve-stackColorBy'] + ': ').style("font-size", "15px").attr("alignment-baseline","middle")
+      epiCurve.append("text").attr("x", 70).attr("y", y).text(this.widgets['epiCurve-stackColorBy'] + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
       prevLength += this.widgets['epiCurve-stackColorBy'].length + 3;
     }
     fieldNames.forEach((name, i) => {
       // this first section calculates the location for each item/name in the legend
       let nLength = name==null ? 7: name.toString().length
-      let baseX = 70+40*(rowCount) + prevLength*7.5;
-      if (baseX+24+nLength*3 > this.width-70) {
+      let baseX = 70 + legendItemGap * rowCount + prevLength * legendCharWidth;
+      if (baseX + markerRadius * 2 + markerTextGap + nLength * legendCharWidth > this.width - 70) {
         rowCount = 0;
-        y += 30;
+        y -= legendRowHeight;
         prevLength = 0;
         baseX = 70;
       }
 
-      epiCurve.append("circle").attr("cx", baseX).attr("cy", y).attr("r", 6).style("fill", colors[i])
-      epiCurve.append("text").attr("x", baseX+10).attr("y", y).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", "15px").attr("alignment-baseline","middle")
+      epiCurve.append("circle").attr("cx", baseX).attr("cy", y).attr("r", markerRadius).style("fill", colors[i])
+      epiCurve.append("text").attr("x", baseX + markerRadius + markerTextGap).attr("y", y).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
 
       prevLength += nLength;
       rowCount += 1;
     })
     return;
   } else if (this.widgets['epiCurve-legendPosition'] == 'Right') {
-    xOffset = this.width - 120;
+    xOffset = this.width - Math.max(120, Math.round(legendFontSize * 8));
   }
   let count = 0;
   if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
     let field = this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable']);
-    epiCurve.append("text").attr("x", xOffset).attr("y", 30).text(field + ': ').style("font-size", "15px").attr("alignment-baseline","middle")
+    epiCurve.append("text").attr("x", xOffset).attr("y", legendRowHeight).text(field + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
     count += 1;
   } else if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] != 'Node Color' && this.widgets['epiCurve-stackColorBy'] != 'None') {
-    epiCurve.append("text").attr("x", xOffset).attr("y", 30).text(this.widgets['epiCurve-stackColorBy'] + ': ').style("font-size", "15px").attr("alignment-baseline","middle")
+    epiCurve.append("text").attr("x", xOffset).attr("y", legendRowHeight).text(this.widgets['epiCurve-stackColorBy'] + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
     count += 1;
   }
   fieldNames.forEach((name, i) => {
-    epiCurve.append("circle").attr("cx",xOffset).attr("cy",30*(count+1)).attr("r", 6).style("fill", colors[i])
-    epiCurve.append("text").attr("x", xOffset+20).attr("y", 30*(count+1)).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", "15px").attr("alignment-baseline","middle")
+    epiCurve.append("circle").attr("cx", xOffset).attr("cy", legendRowHeight * (count + 1)).attr("r", markerRadius).style("fill", colors[i])
+    epiCurve.append("text").attr("x", xOffset + markerRadius + markerTextGap).attr("y", legendRowHeight * (count + 1)).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
     count += 1;
   })
 }
@@ -720,17 +754,15 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
 
 /**
  * 
- * @return xAxis which is used to determine the interval and label for xAxis ticks and xLabelOffet which determine how much to shift each label
+ * @return xAxis which is used to determine the interval and label for xAxis ticks
  */
 configureXAxisSettings() {
   let xAxis;
   let numberOfDays = d3.timeDay.count(this.timeDomainStart, this.timeDomainEnd);
-  let xLabelOffset = -10;
   if (this.widgets['epiCurve-binSize'] == 'Year') {
     xAxis = d3.axisBottom(this.x).ticks(d3.timeYear).tickFormat(d3.timeFormat("%Y"));
   } else if (numberOfDays<366) {
     xAxis = d3.axisBottom(this.x).ticks(d3.timeMonth.every(this.tickInterval)).tickFormat(d3.timeFormat("%b %Y"))
-    xLabelOffset = -25;
   } else if (this.widgets['epiCurve-binSize'] == 'Quarter') {
     xAxis = d3.axisBottom(this.x)
       .ticks(d3.timeMonth.every(this.tickInterval < 3 ? this.tickInterval * 3 : 12))
@@ -740,7 +772,7 @@ configureXAxisSettings() {
       .ticks(d3.timeMonth.every(this.tickInterval))
       .tickFormat((d: Date) => d <= d3.timeYear(d) ? d.getFullYear().toString() : null);
   }
-  return [xAxis, xLabelOffset]
+  return xAxis;
 }
 
 goldenLayoutComponentResize() {
@@ -818,11 +850,11 @@ onNodeColorChanged() {
 }
 
 onLegendPositionChange() {
-  if (this.widgets['epiCurve-legendPosition'] == 'Bottom') {
-    this.margin.bottom = 100;
-  } else {
-    this.margin.bottom = 50;
-  }
+  this.refresh();
+}
+
+onLegendLabelSizeChange() {
+  this.legendLabelSize = Number(this.legendLabelSize);
   this.refresh();
 }
 
