@@ -3650,9 +3650,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
      */
-  onDistanceMetricChanged = () => {
+  onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
+    let didRecomputeSequenceLinks = false;
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
@@ -3660,7 +3661,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
       this.SelectedLinkThresholdVariable = '16';
-      this.onLinkThresholdChanged();
     } else {
       $('#default-distance-threshold')
         .attr('step', 0.001)
@@ -3668,7 +3668,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
       this.SelectedLinkThresholdVariable = '0.015';
-      this.onLinkThresholdChanged();
+    }
+
+    didRecomputeSequenceLinks = await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
+    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+      await this.commonService.computeMST();
+      this.commonService.session.style.widgets["mst-computed"] = true;
+    }
+
+    this.onLinkThresholdChanged();
+
+    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+      this.commonService.session.style.widgets["mst-computed"] = true;
     }
   }
 }

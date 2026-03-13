@@ -106,24 +106,14 @@
 
 
     @if (viewActive) {
-      <p-dialog id="table-settings-pane" [(visible)]="ShowTableSettingsPane" header="Table Settings" [style]="{width: '400px', height:'250px'}" appendTo="body">
-        <tabset class="tab-container tabbable-line" style='width: 100%;'>
-          <tab heading="{{'Table' | localize}}" [active]="true" customClass="m-tabs__item">
-            <div class="tab-pane fade show active" id="table-node-settings" role="tabpanel"aria-labelledby="nodes-tab">
-              <div class="tab-content">
-                <div class="tab-pane fade show active" role="tabpanel" aria-labelledby="table-tab">
-                  <div class="form-group row"
-                    title="What size would you like the Table's font to be?">
-                    <div class="col-4"><label for="table-font-size">Size</label></div>
-                    <div class="col-8">
-                      <p-selectButton [options]="sizes" [(ngModel)]="selectedSize" [multiple]="false" [allowEmpty]="false" optionLabel="name" optionValue="class"></p-selectButton>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </tab>
-        </tabset>
+      <p-dialog id="table-settings-pane" [(visible)]="ShowTableSettingsPane" header="Table Settings" [style]="{width: '400px'}" appendTo="body">
+        <div class="form-group row"
+          title="What size would you like the Table's font to be?">
+          <div class="col-4 mt-2"><label for="table-font-size">Size</label></div>
+          <div class="col-8">
+            <p-selectButton [options]="sizes" [(ngModel)]="selectedSize" [multiple]="false" [allowEmpty]="false" optionLabel="name" optionValue="class"></p-selectButton>
+          </div>
+        </div>
       </p-dialog>
     }
 

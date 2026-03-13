@@ -9,11 +9,17 @@ import type { DatasetProfile } from './types';
 import { NN_PROFILES } from './profiles/nn';
 import { STYLE_PROFILES } from './profiles/style';
 import { GROUPING_PROFILES } from './profiles/grouping';
+import { FILTERING_PROFILES } from './profiles/filtering';
+import { NEWICK_PROFILES } from './profiles/newick';
+import { LOAD_PROFILES } from './profiles/load';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
+  ...LOAD_PROFILES,
   ...NN_PROFILES,
   ...STYLE_PROFILES,
   ...GROUPING_PROFILES,
+  ...FILTERING_PROFILES,
+  ...NEWICK_PROFILES,
 ];
 
 export const DATASET_PROFILE_MAP: Record<string, DatasetProfile> = DATASET_PROFILES

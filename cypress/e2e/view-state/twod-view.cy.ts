@@ -1,68 +1,27 @@
 /// <reference types="cypress" />
 
 /**
- * Tests for the 2D Network visualization component.
+ * Maintained 2D view-state tests.
  *
- * These tests seed a minimal session via window.commonService to ensure
- * they are fast and not dependent on the file upload UI. Tests cover core rendering,
- * toolbar actions, and interactions with the settings pane to manipulate the
- * network's appearance and behavior.
+ * These cover pure 2D interaction mechanics against the sample dataset so they stay
+ * fast and focused. Uploaded-data journeys live under cypress/e2e/journeys/flows.
  */
-
-type WinWithCS = Window & { commonService: any };
 
 import { Core } from 'cytoscape';
+import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
+import { byTestId, testIds } from '../../support/selectors';
 
 const getCy = () => cy.window({ log: false }).its('cytoscapeInstance') as Cypress.Chainable<Core>;
-
-
-/**
- * Seeds a minimal session with two nodes and one link, then launches the 2D view.
- * This function provides a consistent starting state for all tests.
- *
- * @param {object} [options] - Optional parameters.
- * @param {boolean} [options.withGroup=false] - Whether to add a 'group' property to nodes for testing clustering.
- */
-const seedAndLaunch2DNetwork = (options: { withGroup?: boolean } = {}) => {
-  cy.window().then((win: unknown) => {
-    const w = win as WinWithCS;
-    const cs = w.commonService;
-
-    // Reset data to a clean state
-    cs.resetData();
-
-    // Add two nodes
-    cs.addNode({ _id: 'A', origin: ['test.csv'], group: options.withGroup ? 'G1' : undefined }, true);
-    cs.addNode({ _id: 'B', origin: ['test.csv'], group: options.withGroup ? 'G1' : undefined }, true);
-
-    // Add a link connecting the nodes
-    cs.addLink({
-      source: 'A',
-      target: 'B',
-      distance: 0.01,
-      origin: ['Genetic Distance'],
-      hasDistance: true,
-    }, true);
-
-    // Finalize data processing
-    cs.finishUp();
-
-    // Programmatically launch the 2D Network view
-    cs.launchView('2D Network');
-  });
-  // Wait for the view to fully render
-  cy.waitForNetworkToRender();
-};
 
 // Selectors for key elements in the 2D component
 const selector : any = {
   canvas: '#cy',
-  settingsBtn: 'TwoDComponent #tool-btn-container [title="Settings"]',
-  pinAllBtn: 'TwoDComponent #tool-btn-container [title="Pin All Nodes"]',
-  refreshBtn: 'TwoDComponent #tool-btn-container [title="Recalculate Layout"]',
+  settingsBtn: byTestId(testIds.twodSettingsButton),
+  pinAllBtn: byTestId(testIds.twodPinAllButton),
+  refreshBtn: byTestId(testIds.twodRecalculateLayoutButton),
   statsNodes: '#numberOfNodes',
   statsLinks: '#numberOfVisibleLinks',
-  settingsPane: '#network-settings-pane',
+  settingsPane: byTestId(testIds.twodSettingsDialog),
   nodeLabelVar: '#node-label-variable',
   nodeRadiusSize: '#node-radius',
   linkWidthSize: '#link-width',
@@ -87,9 +46,8 @@ const selector : any = {
 // Test suite for core rendering and functionality
 describe('2D Network - Core Rendering and Stats', () => {
   beforeEach(() => {
-    cy.visit('/');
-    // seedAndLaunch2DNetwork();
-    cy.waitForNetworkToRender();
+    visitAppAndAcceptEula({ skipDemoSession: false });
+    ensureTwoDNetworkView();
   });
 
   it('should render the Cytoscape canvas with nodes and links', () => {
@@ -165,20 +123,16 @@ describe('2D Network - Core Rendering and Stats', () => {
 describe('2D Network - Settings Pane Interactions', () => {
 
   beforeEach(() => {
-    cy.visit('/');
-    cy.wait(6000); // Allow for initial application bootstrap
-
-    cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
-     .click({ force: true });
-    
-    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-    
+    visitAppAndAcceptEula({ skipDemoSession: false });
+    ensureTwoDNetworkView();
     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
     cy.get(selector.settingsBtn).click();
 
     // Verify it's open and alias the container for use in tests
-    cy.contains('.p-dialog-title', '2D Network Settings').should('be.visible')
-      .parents('.p-dialog').as('dialogContainer');
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
   });
 
   context('Node settings', () => {
@@ -224,8 +178,8 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should update node label size and orientation', () => {
-        const newSize = 36;
-        const newOrientation = 'Top';
+      const newSize = 36;
+      const newOrientation = 'Top';
     
         cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
         cy.window().invoke('Cypress.test.setNodeLabel', '_id'); // Ensure labels are visible for testing
@@ -233,9 +187,10 @@ describe('2D Network - Settings Pane Interactions', () => {
         cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', 16);
         cy.get('@dialogContainer').find(selector.nodeLabelSize).invoke('val', newSize).trigger('change', { force: true });
         cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', newSize);
-    
+
         cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', 'Right');
-        cy.get('@dialogContainer').find(selector.nodeLabelOrientation).select(newOrientation);
+        cy.get('@dialogContainer').find(selector.nodeLabelOrientation).click();
+        cy.contains('li[role="option"]', newOrientation).click();
         cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', newOrientation);
 
         getCy().then(cy => {
@@ -533,7 +488,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     
     it('should update group label size and orientation', () => {
         const newSize = 40;
-        const newOrientation = 'bottom';
+        const newOrientation = 'Bottom';
       
         cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
         cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
@@ -544,14 +499,15 @@ describe('2D Network - Settings Pane Interactions', () => {
         cy.get('@dialogContainer').find(selector.groupLabelSize).invoke('val', newSize).trigger('change', { force: true });
         cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', newSize);
       
-        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'top');
-        cy.get('@dialogContainer').find(selector.groupLabelOrientation).select(newOrientation);
+        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'Top');
+        cy.get('@dialogContainer').find(selector.groupLabelOrientation).click();
+        cy.contains('li[role="option"]', 'Bottom').click();
         cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', newOrientation);
 
         getCy().then(cy => {
             const parentNode = cy.nodes('.parent').first();
             expect(parentNode.style('font-size')).to.contain(newSize);
-            expect(parentNode.style('text-valign')).to.equal(newOrientation);
+            expect(parentNode.style('text-valign')).to.equal(newOrientation.toLowerCase());
         });
     });
   });
@@ -564,14 +520,8 @@ describe('2D Network - Settings Pane Interactions', () => {
       const getCy = () => cy.window({ log: false }).its('cytoscapeInstance');
   
       beforeEach(() => {
-          cy.visit('/');
-          cy.wait(6000);
-  
-          cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
-           .click({ force: true });
-          
-          cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-          
+          visitAppAndAcceptEula({ skipDemoSession: false });
+          ensureTwoDNetworkView();
           cy.window({ timeout: 15000 }).should('have.property', 'cytoscapeInstance');
       });
   
@@ -676,7 +626,6 @@ describe('2D Network - Settings Pane Interactions', () => {
   //     });
   // });
   
-      // This test in twod-plugin.cy.ts is now correct and will pass.
       it('should allow node MZ740979 to be dragged to a new position', () => {
         const nodeId = 'MZ740979';
       

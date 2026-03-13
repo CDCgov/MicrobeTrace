@@ -4,10 +4,20 @@ import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 
 import { AppModule } from './app/app.module';
 import { environment } from './environments/environment';
+import { describeError, reportRuntimeError } from './app/runtime-security/runtime-error.store';
+import { installWindowRuntimeHardening } from './app/runtime-security/window-runtime-hardening';
 
 if (environment.production) {
   enableProdMode();
 }
 
+installWindowRuntimeHardening({
+  allowedMessageOrigins: environment.trustedMessageOrigins,
+  production: environment.production,
+});
+
 platformBrowserDynamic().bootstrapModule(AppModule, { applicationProviders: [provideZoneChangeDetection()], })
-  .catch(err => console.error(err));
+  .catch(err => {
+    reportRuntimeError({ source: 'bootstrap' });
+    console.error(`[RuntimeError] ${describeError(err)}`);
+  });

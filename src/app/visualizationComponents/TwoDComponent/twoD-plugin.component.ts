@@ -47,6 +47,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     data;
+    pendingPartialUpdate = false;
     rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
     debugMode = false;
@@ -1655,7 +1656,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private updateGroupNodeColors(): void {
         const cy = this.cy;
         if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
             return;
         }
 
@@ -2085,7 +2085,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     updateGroupAssignments(foci: string, change: boolean=true): void {
         const cy = this.cy; // Reference to Cytoscape instance
         if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
             return;
         }
     
@@ -2487,23 +2486,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // console.log('--- TwoD getLinkWidth link1: ', scalar, variable);
         if (variable == 'None') return scalar;
 
-        else {
-            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
-            let v = link[variable];
+        const rawValue = link[variable];
+        const numericValue = this.isNumber(rawValue) ? rawValue : Number(rawValue);
 
-
-            if (!this.isNumber(v)) v = mid;
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.linkScale(v);
-
-                return scaleValue;
-            } else {
-
-                return scalar; // Default to scalar if v is not a number
-            }
+        if (!Number.isFinite(numericValue)) {
+            return scalar;
         }
+
+        const minWidth = this.widgets['link-width-min'];
+        const maxWidth = this.widgets['link-width-max'];
+        const reciprocal = this.widgets['link-width-reciprocal'];
+
+        return this.linearScale(numericValue, this.linkMin, this.linkMax, minWidth, maxWidth, reciprocal);
     }
 
 
@@ -3070,23 +3064,43 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     });
                 },
                 tooltip: (action: 'show' | 'hide', nodeId: string) => {
-                    this.zone.run(() => {
-                        const node = this.cy.getElementById(nodeId);
-                        if (node) {
-                            if (action === 'show') {
-                                const mockEvent = { clientX: 100, clientY: 100 };
-                                this.showNodeTooltip(node.data(), mockEvent);
-                            } else {
-                                this.hideTooltip();
-                            }
-                        }
-                    });
-                },
+                  this.zone.run(() => {
+                      const node = this.cy.getElementById(nodeId);
+                      if (node) {
+                          if (action === 'show') {
+                              const mockEvent = { clientX: 100, clientY: 100 };
+                              this.showNodeTooltip(node.data(), mockEvent);
+                          } else {
+                              this.hideTooltip();
+                          }
+                      }
+                  });
+              },
+                hoverNode: (action: 'show' | 'hide', nodeId: string) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (!node || node.empty()) return;
+
+                        if (action === 'show') {
+                            const mockEvent = { clientX: 120, clientY: 120 };
+                            this.showNodeTooltip(node.data(), mockEvent);
+                            if (this.widgets['node-highlight']) {
+                                node.connectedEdges().addClass('highlighted');
+                            }
+                            return;
+                        }
+
+                        this.hideTooltip();
+                        if (this.widgets['node-highlight']) {
+                            node.connectedEdges().removeClass('highlighted');
+                        }
+                    });
+                },
                 linkTooltip: (action: 'show' | 'hide', edgeId: string) => {
-                     this.zone.run(() => {
-                        const edge = this.cy.getElementById(edgeId);
-                        if (edge) {
-                            if (action === 'show') {
+                    this.zone.run(() => {
+                      const edge = this.cy.getElementById(edgeId);
+                      if (edge) {
+                          if (action === 'show') {
                                 const mockEvent = { clientX: 300, clientY: 300 };
                                 this.showLinkTooltip(edge.data(), mockEvent);
                             } else {
@@ -3234,6 +3248,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               this.store.setNetworkUpdated(false);
               this.commonService.session.network.rendering = false;
               this.commonService.demoNetworkRendered = true;
+
+              if (this.pendingPartialUpdate) {
+                void this._partialUpdate();
+              }
             });
             
             // Run the layout
@@ -3441,8 +3459,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateLinkWidthRows(e);
         this.widgets['link-width-variable'] = e;
         this.updateMinMaxLink();
-        this.scaleLinkWidth();
+
+        if (e === 'None') {
+            this.scaleLinkWidth();
+            return;
+        }
+
+        this.onLinkWidthReciprocalNonReciprocalChange(this.getSelectedLinkReciprocalType());
         
+    }
+
+    private getSelectedLinkReciprocalType(): string {
+        const selectedLabel = $('#link-width-reciprocal-non-reciprocal .p-highlight')
+            .text()
+            .trim();
+
+        if (selectedLabel.includes('Non-Reciprocal')) {
+            return 'Non-Reciprocal';
+        }
+
+        if (selectedLabel.includes('Reciprocal')) {
+            return 'Reciprocal';
+        }
+
+        return this.SelectedLinkReciprocalTypeVariable;
     }
 
     /**
@@ -3537,6 +3577,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * This widget controls whether to set width smallest -> largest or largest -> smallest
      */
     onLinkWidthReciprocalNonReciprocalChange(e) {
+        this.SelectedLinkReciprocalTypeVariable = e;
         if (e == "Reciprocal") {
             this.widgets['link-width-reciprocal'] = true;
             this.scaleLinkWidth();
@@ -3935,8 +3976,6 @@ scaleLinkWidth() {
     openCenter() {
         if (this.cy) {
             this.cy.fit(this.cy.nodes(), 30);
-        } else {
-            console.error('Cytoscape instance is not initialized.');
         }
     }
 
@@ -3969,9 +4008,12 @@ scaleLinkWidth() {
 private async _partialUpdate() {
     console.log('--- TwoD _partialUpdate called');
     if (!this.cy) {
-      console.error('Cytoscape instance not initialized; cannot update partially.');
+      // Initial settings sync can request updates before Cytoscape is ready.
+      this.pendingPartialUpdate = true;
       return;
     }
+
+    this.pendingPartialUpdate = false;
 
     // Cache positions BEFORE making changes to the graph
     if (!this.nodePositions) {
@@ -4411,7 +4453,7 @@ private async _partialUpdate() {
             const newWidth = this.getLinkWidth(edge.data());
             edge.data('width', newWidth);
         });
-        // this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        this.cy.style().update();
     }
 
 

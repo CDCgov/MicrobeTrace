@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
@@ -41,26 +41,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedAmbiguityThresholdVariable: any = 0.015;
   SelectedDefaultDistanceThresholdVariable: any = 0.015;
   SelectedDefaultViewVariable: string = "2D Network";
-  SelectedGenerateNumberVariable: any = 100;
-
-  // DirectionalityTypes: any = [
-  //   { label: 'Off', value: 'Off' },
-  //   { label: 'Inferred', value: 'Inferred' }
-  // ];
-  // SelectedDirectionalityTypeVariable: string = "Off";
-
-  // TriangulationTypes: any = [
-  //   { label: 'Off', value: 'Off' },
-  //   { label: 'On', value: 'On' }
-  // ];
-  // SelectedTriangulationTypeVariable: string = "Off";
-
-  // AutostashingTypes: any = [
-  //   { label: 'Off', value: 'Off' },
-  //   { label: 'On', value: 'On' }
-  // ];
-  // SelectedAutostashingTypeVariable: string = "Off";
-
 
   AlignTypes: any = [
     { label: 'None', value: 'None' },
@@ -125,7 +105,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     public commonService: CommonService,
     private cdr: ChangeDetectorRef,
     private store: CommonStoreService,
-    private embedHandoffService: EmbedHandoffService
+    private embedHandoffService: EmbedHandoffService,
+    private ngZone: NgZone
     ) {
 
     super(elRef.nativeElement);
@@ -133,6 +114,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // this.title = this.container.title;
     this.id = this.container.parent.id;
 
+  }
+
+  private refreshTemplateState(): void {
+    this.ngZone.run(() => {
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnInit() {
@@ -418,64 +405,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       .val(cachedView ? cachedView : this.commonService.session.style.widgets['default-view'])
       .trigger('change');
 
-    //$('#generate-sequences').on('click', () => {
-    //    $('#file-prompt').remove();
-    //    $('#launch').prop('disabled', false).focus();
-    //    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', parseFloat($('#generate-number').val().toString()), 20))], 'generatedNodes.csv'));
-    //});
-
-    $('#infer-directionality-false').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['infer-directionality-false'] = true;
-    });
-
-    $('#infer-directionality').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['infer-directionality-false'] = false;
-    });
-
-    $('#triangulate-false').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['triangulate-false'] = true;
-    });
-
-    $('#triangulate').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['triangulate-false'] = false;
-    });
-
-    $('#stash-auto-yes').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.localStorageService.setItem('stash-auto', 'true');
-    });
-
-    if (localStorage.getItem('stash-auto') === 'true') {
-      $('#stash-auto-yes').parent().trigger('click');
-    }
-
-    $('#stash-auto-no').parent().on('click', () => {
-
-      //debugger;
-
-      if (this.commonService.temp.autostash) clearInterval(this.commonService.temp.autostash.interval);
-      this.commonService.localStorageService.setItem('stash-auto', 'false');
-    });
-
     if(this.commonService.session.network.launched){
       $('#launch').text('Update');
     }
-
-    
 
     // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
@@ -591,6 +523,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
 
     } 
+
+    this.refreshTemplateState();
 
   }
   
@@ -1496,18 +1430,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * When a new file/files are add, each one if processed by processFile
    * @param files 
    */
-  processFiles(files?: FileList) {
-    this.isLoadingFiles = true;
+  async processFiles(files?: FileList): Promise<void> {
+    const fileArray = files ? Array.from(files) : [];
+    this.isLoadingFiles = fileArray.length > 0;
+    this.refreshTemplateState();
 
-    if (Array.from(files).length > 0) {
-
-      Array.from(files).map(file => {
-        this.processFile(file);
-      });
-
+    if (!fileArray.length) {
+      this.isLoadingFiles = false;
+      this.refreshTemplateState();
+      return;
     }
 
-    this.isLoadingFiles = false;
+    try {
+      await Promise.all(fileArray.map(file => this.processFile(file)));
+    } finally {
+      this.isLoadingFiles = false;
+      this.refreshTemplateState();
+    }
 
   };
 
@@ -1519,9 +1458,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * XXXXX Currrently unable to load zip files XXXXX
    * @returns 
    */
-  processFile(rawfile?) {
+  async processFile(rawfile?): Promise<void> {
     if(!rawfile) {
       rawfile = this.commonService.session.files[0];
+    }
+
+    if (!rawfile) {
+      this.refreshTemplateState();
+      return;
     }
 
     if(this.commonService.debugMode) {
@@ -1547,48 +1491,74 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //             });
       //         });
       //     });
+      this.refreshTemplateState();
       return;
     }
 
     if (extension === 'microbetrace' || extension === 'hivtrace') {
-      //debugger;
-      let reader = new FileReader();
-      reader.onloadend = out => {this.commonService.processJSON(out.target, extension).then(() => this.populateTable())};
-      reader.readAsText(rawfile, 'UTF-8');
+      await new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onloadend = out => {
+          Promise.resolve(this.commonService.processJSON(out.target, extension))
+            .then(() => {
+              this.populateTable();
+              this.refreshTemplateState();
+              resolve();
+            })
+            .catch(reject);
+        };
+        reader.readAsText(rawfile, 'UTF-8');
+      });
       return;
     }
     if (extension === 'svg') {
-      //debugger;
-      let reader = new FileReader();
-      reader.onloadend = out => this.commonService.processSVG(out.target);
-      reader.readAsText(rawfile, 'UTF-8');
+      await new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onloadend = out => {
+          this.commonService.processSVG(out.target);
+          this.refreshTemplateState();
+          resolve();
+        };
+        reader.readAsText(rawfile, 'UTF-8');
+      });
       return;
     }
     if (extension === 'json') {
       const fileName = this.commonService.filterXSS(rawfile.name);
-      let reader = new FileReader();
-      reader.onloadend = (out) => {
-        const output = JSON.parse(out.target['result'] as string);
-        console.log(output);
-        if (output.meta && output.tree) {
-          const auspiceFile = { contents: output, name: fileName, extension: extension};
-          this.commonService.session.files.push(auspiceFile);
-          this.addToTable(auspiceFile);
-          // this.commonService.temp.auspiceOutput = output;
-        } else {
-          this.commonService.processJSON(out.target, extension);
-        }
-      };
-      reader.readAsText(rawfile, 'UTF-8');
+      await new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onloadend = (out) => {
+          try {
+            const output = JSON.parse(out.target['result'] as string);
+            console.log(output);
+            if (output.meta && output.tree) {
+              const auspiceFile = { contents: output, name: fileName, extension: extension};
+              this.commonService.session.files.push(auspiceFile);
+              this.addToTable(auspiceFile);
+            } else {
+              this.commonService.processJSON(out.target, extension);
+            }
+            this.refreshTemplateState();
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.readAsText(rawfile, 'UTF-8');
+      });
       return;
     }
 
-    fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(file => {
+    await fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(file => {
       //debugger;
       file.name = this.commonService.filterXSS(file.name);
       file.extension = file.name.split('.').pop().toLowerCase();
       this.commonService.session.files.push(file);
       this.addToTable(file);
+      this.refreshTemplateState();
     });
   }
 
@@ -1605,6 +1575,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.edgeIds = [];
 
     this.nodeEdgeCheck();
+    this.refreshTemplateState();
   }
 
   /**
@@ -1716,6 +1687,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           $('#launch').prop('disabled', false).focus();
           $('#launch').text('Update');
           root.slideUp(() => root.remove());
+          parentContext.refreshTemplateState();
         }))
         .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
           if (parentContext.isFileContentsEmpty(file)) {
@@ -2122,12 +2094,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   onAmbiguityThresholdChanged() {
     this.commonService.session.style.widgets['ambiguity-threshold'] = this.SelectedAmbiguityThresholdVariable;
-  }
-
-  generateSequences() {
-    $('#file-prompt').remove();
-    $('#launch').prop('disabled', false).focus();
-    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', this.SelectedGenerateNumberVariable, 20))], 'generatedNodes.csv'));
   }
 
   applyStyleFileSettings() {

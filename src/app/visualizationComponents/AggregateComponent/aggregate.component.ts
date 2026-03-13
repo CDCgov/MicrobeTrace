@@ -399,7 +399,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
   updateDataField(i,e) {
     console.log(`data field ${i} changed\nBefore: ${this.SelectedDataFields[0]}, ${this.SelectedDataFields[1]}, ${this.SelectedDataFields[2]}`);
-    console.log(e);
+    console.debug('Aggregate data field change payload:', e);
     this.SelectedDataFields[i] = e.value;
     console.log(`After: ${this.SelectedDataFields[0]}, ${this.SelectedDataFields[1]}, ${this.SelectedDataFields[2]}`);
     this.updateTable(i); 

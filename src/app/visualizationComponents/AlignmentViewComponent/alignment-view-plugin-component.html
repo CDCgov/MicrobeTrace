@@ -26,7 +26,7 @@
             <g>
               @for (nt of proportionMatrix; track i; let i = $index) {
                 <g>
-                  @if (this.widgets['alignView-topDisplay'] === 'barplot' && i >=startPos-1) {
+                  @if (this.widgets['alignView-topDisplay'] === 'barplot' && isIndexInRange(i)) {
                     <g>
                       @for (prop of nt; track j; let j = $index) {
                         <g>
@@ -37,7 +37,7 @@
                       }
                     </g>
                   }
-                  @if (this.widgets['alignView-topDisplay'] === 'logo' && i >=startPos-1) {
+                  @if (this.widgets['alignView-topDisplay'] === 'logo' && isIndexInRange(i)) {
                     <g>
                       @if (nt[0]>0) {
                         <g class="A" [attr.transform]="'translate(' + xPos(i) + ', ' + positionMatrix[i][0] + ') scale(' + spanWidth/100 + ', ' + nt[0] + ')'"
@@ -63,19 +63,21 @@
                       }
                     </g>
                   }
-                  @if (((i+1) %100 == 0 && i > startPos+1 )|| i==startPos-1) {
+                  @if (isIndexInRange(i) && (((i+1) %100 == 0 && i > startPos+1 )|| i==startPos-1)) {
                     <g>
                       <text y="120" [attr.x]="(i >= 100 && i!=startPos-1) ? xPos(i)-10 : xPos(i)">{{ i + 1 }}</text>
                       <text y="140" [attr.x]="xPos(i)">|</text>
                     </g>
                   }
-                  @if ((i+1) % this.widgets['alignView-rulerMinorInterval'] == 0 && (i+1)%100 != 0 && i >startPos+1) {
+                  @if ((i+1) % this.widgets['alignView-rulerMinorInterval'] == 0 && (i+1)%100 != 0 && isIndexInRange(i)) {
                     <g>
                       <text y="120" [attr.x]="i >= 100 ? xPos(i)-10 : xPos(i)-5">{{ i + 1 }}</text>
                       <text y="140" [attr.x]="xPos(i)">:</text>
                     </g>
                   }
-                  <rect [attr.width]="spanWidth" [attr.x]="xPos(i)" height="100" y="0" style="fill: transparent" (mouseenter)="showTooltip($event, i)" (mouseleave)="hideTooltip()"/>
+                  @if (isIndexInRange(i)) {
+                    <rect [attr.width]="spanWidth" [attr.x]="xPos(i)" height="100" y="0" style="fill: transparent" (mouseenter)="showTooltip($event, i)" (mouseleave)="hideTooltip()"/>
+                  }
                 </g>
               }
             </g>
@@ -248,6 +250,10 @@
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
   </span>
+  <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Nodes without Sequence Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutSeq.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutSeq.length }}</a>
+  </span>
+  <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Position: {{ startPos }}-{{ endPos }}</span>
 </div>
 
 <div class="view-controls">
@@ -260,17 +266,25 @@
             <div class="form-group row" title="Set a predefined size">
               <div class="col-2"><label>Sequence</label></div>
               <div class="col-10" style="display: flex; justify-content: flex-end;">
-                <p-selectButton [options]="seqTypeOptions" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
+                <p-selectButton [options]="seqTypeOptions" [allowEmpty]="false" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
               </div>
             </div>
-            @if (selectedSeqType != 'nt') {
-              <div class="form-group row node-label-row" title="Set start position.">
-                <div class="col-5"><label>Start Position</label></div>
-                <div class="col-7">
-                  <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="startPos" (ngModelChange)="onSeqTypeChange()">
-                </div>
+            <div class="form-group row node-label-row" title="Set start position (nucleotide-based, not amino-acid), 1-indexed inclusive">
+              <div class="col-5"><label>Start Position</label></div>
+              <div class="col-7">
+                <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="startPos" (ngModelChange)="onSeqTypeChange()">
               </div>
-            }
+            </div>
+            <div class="form-group row node-label-row" title="Set end position (nucleotide-based, not amino-acid), 1-indexed inclusive.">
+              <div class="col-5"><label>End Position</label></div>
+              <div class="col-7">
+                <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="endPos" (ngModelChange)="onSeqTypeChange()">
+              </div>
+            </div>
+            <div class="form-group row node-label-row">
+              <div class="col-5"><label>Length</label></div>
+              <div class="col-7"><span>{{ lengthString }}</span></div>
+            </div>
             @if (selectedSeqType == 'aa') {
 <div class="form-group row" title="Maintain Reading Frame will ignore NT gaps when converting NTs to AAs, but will try to guess where AA gaps are. 
 Maintain Codon doesn't ignore gaps when converting NTs into AAs.

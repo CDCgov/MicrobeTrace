@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import {} from '@angular/common/http';
+import { dismissRuntimeError, runtimeErrorNotice } from './runtime-security/runtime-error.store';
 
 declare var $: any;
 
@@ -10,7 +11,7 @@ declare var $: any;
     standalone: false
 })
 export class AppComponent {
-  title = 'sample-app';
+  protected readonly dismissRuntimeError = dismissRuntimeError;
+  protected readonly runtimeError = runtimeErrorNotice;
 }
-
 

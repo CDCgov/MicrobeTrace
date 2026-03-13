@@ -1,6 +1,8 @@
 // cypress/support/commands.ts
 /// <reference types="cypress" />
 
+import { byTestId, testIds } from './selectors';
+
 type FileLoadOptions = {
   name: string;
   datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
@@ -141,17 +143,21 @@ Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
 });
 
 Cypress.Commands.add('openGlobalSettings', () => {
-  cy.contains('button', 'Settings').click({ force: true });
-  cy.contains('.p-dialog-title', 'Global Settings').should('exist');
+  cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 }).should('be.visible');
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {
-  cy.contains('.p-dialog-title', 'Global Settings')
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
     .parents('.p-dialog')
     .find('button.p-dialog-close-button')
     .click({ force: true });
 
-  cy.contains('.p-dialog-title', 'Global Settings').should('not.exist');
+  cy.get('body').then(($body) => {
+    const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
+    if (!$body.find(dialogSelector).length) return;
+    cy.get(dialogSelector).should('not.be.visible');
+  });
 });
 
 Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {

@@ -18,3 +18,32 @@ body .ui-tabview .ui-tabview-panels .ui-tabview-panel {
     --vis-graph-node-label-background: black;
   }
 
+.runtime-error-banner {
+    position: sticky;
+    top: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.875rem 1rem;
+    background: #7a1f1f;
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.runtime-error-banner__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.runtime-error-banner__dismiss {
+    flex-shrink: 0;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
