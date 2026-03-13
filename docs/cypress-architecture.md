@@ -94,6 +94,7 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
 - Use `commonService` as a cross-check, not the primary source of truth, for user-visible 2D behavior.
 - Prelaunch session mutation is allowed only as a narrow fallback inside shared helpers when the UI does not fully persist launch settings yet.
 - When a maintained journey exposes a product bug, record it in `docs/2d-network-cypress-bug-log.csv` with the observed behavior, intended behavior if known, the spec that caught it, and the regression specs that must stay green after a fix.
+- New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor.
 
 ## Maintained Commands
 
@@ -107,9 +108,14 @@ Use direct Cypress commands for the maintained buckets:
   - `npm run e2e:journeys:all`
   - Local host equivalents (recommended for manual runs): 
     - `npm run start:local-cypress`
+    - `npm run e2e`
     - `npm run e2e:journeys:flows:local`
+    - `npm run e2e:journeys:flows:local:chrome`
     - `npm run e2e:journeys:view-state:local`
+    - `npm run e2e:journeys:view-state:local:chrome`
     - `npm run e2e:journeys:contracts:local`
+    - `npm run e2e:journeys:contracts:local:chrome`
+    - `npm run e2e:journeys:all:local:chrome`
     - `npm run e2e:journeys:all:local`
     - single-spec debug: `npm run e2e:journeys:spec:local -- --spec cypress/e2e/ingestion/files-ui.cy.ts`
 
