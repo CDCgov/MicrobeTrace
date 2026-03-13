@@ -12,6 +12,7 @@ import { GROUPING_PROFILES } from './profiles/grouping';
 import { FILTERING_PROFILES } from './profiles/filtering';
 import { NEWICK_PROFILES } from './profiles/newick';
 import { LOAD_PROFILES } from './profiles/load';
+import { LINK_PROFILES } from './profiles/links';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
   ...LOAD_PROFILES,
@@ -20,6 +21,7 @@ export const DATASET_PROFILES: DatasetProfile[] = [
   ...GROUPING_PROFILES,
   ...FILTERING_PROFILES,
   ...NEWICK_PROFILES,
+  ...LINK_PROFILES,
 ];
 
 export const DATASET_PROFILE_MAP: Record<string, DatasetProfile> = DATASET_PROFILES

@@ -192,4 +192,35 @@ export const FILTERING_PROFILES: DatasetProfile[] = [
       },
     },
   }),
+  P({
+    id: 'filtering-link-sort-alternate-metric',
+    title: 'Filtering: Filter Links on uses the selected uploaded numeric link field',
+    tags: ['filtering', 'filter-links-on', 'alternate-metric', 'load-to-twod'],
+    files: [
+      {
+        name: 'Cypress_FilterMetricNodes.csv',
+        datatype: 'node',
+      },
+      {
+        name: 'Cypress_FilterMetricLinks.csv',
+        datatype: 'link',
+        field1: 'source',
+        field2: 'target',
+        field3: 'distance',
+      },
+    ],
+    preLaunch: {
+      metric: 'tn93',
+      threshold: 0.025,
+      defaultView: '2D Network',
+    },
+    expectations: {
+      afterLaunch: {
+        nodes: 4,
+        visibleLinks: 2,
+        clusters: 1,
+        singletons: 1,
+      },
+    },
+  }),
 ];

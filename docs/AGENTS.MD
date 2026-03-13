@@ -111,7 +111,7 @@ When a test fails, do not immediately weaken the test. First identify which laye
 * For suspected app bugs, document divergence explicitly
 
   * Example: widget changed but SVG did not update, or Cytoscape moved but `session.data.nodes[*].x/y` stayed stale.
-  * Record it in `docs/2d-network-cypress-bug-log.csv` with the fixture, observed behavior, intended behavior if known, and the regression spec path.
+  * Record it in `docs/2d-network-cypress-bug-log.csv` with the fixture, observed behavior, intended behavior if known, the regression spec path, and fill in `cause_summary` / `fix_summary` before closing the bug row.
 
 Tip: keep diagnostic logs inside the spec while debugging, but remove noisy logging before committing.
 

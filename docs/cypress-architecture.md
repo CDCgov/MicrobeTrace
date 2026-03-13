@@ -93,8 +93,8 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
 - Prefer retryable assertions over one-shot reads when UI state is expected to change.
 - Use `commonService` as a cross-check, not the primary source of truth, for user-visible 2D behavior.
 - Prelaunch session mutation is allowed only as a narrow fallback inside shared helpers when the UI does not fully persist launch settings yet.
-- When a maintained journey exposes a product bug, record it in `docs/2d-network-cypress-bug-log.csv` with the observed behavior, intended behavior if known, the spec that caught it, and the regression specs that must stay green after a fix.
-- New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor.
+- When a maintained journey exposes a product bug, record it in `docs/2d-network-cypress-bug-log.csv` with the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
+- New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. When a row moves to `Closed`, `Fixed`, or `Resolved`, the workflow comments on the matching issue with the recorded root cause and fix summary, then closes it. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor.
 
 ## Maintained Commands
 
