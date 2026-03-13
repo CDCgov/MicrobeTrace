@@ -8,6 +8,7 @@ import { generateCanvas } from '../visualizationComponents/AlignmentViewComponen
 import * as tn93 from 'tn93';
 import * as patristic from 'patristic';
 import * as _ from 'lodash';
+import JSZip from 'jszip';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -1423,17 +1424,54 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   };
 
+  private applySerializedSession(payload: any, extension: string) {
+    Promise.resolve(this.commonService.processJSON(payload, extension))
+      .then(() => this.populateTable())
+      .catch(error => console.error('Unable to load MicrobeTrace session file.', error));
+  }
+
+  private loadCompressedSession(rawfile: File) {
+    JSZip.loadAsync(rawfile)
+      .then(zip => {
+        const sessionEntries = Object.values(zip.files).filter(entry => {
+          if (entry.dir) return false;
+          const entryExtension = entry.name.split('.').pop()?.toLowerCase();
+          return entryExtension === 'microbetrace' || entryExtension === 'hivtrace';
+        });
+        const sessionEntry = sessionEntries.find(entry => entry.name.toLowerCase().endsWith('.microbetrace')) || sessionEntries[0];
+
+        if (!sessionEntry) {
+          throw new Error('No MicrobeTrace session file found in zip archive.');
+        }
+
+        const entryExtension = sessionEntry.name.split('.').pop()?.toLowerCase();
+        if (!entryExtension) {
+          throw new Error('Compressed session file is missing an extension.');
+        }
+
+        return sessionEntry.async('text').then(contents => ({
+          contents,
+          entryExtension
+        }));
+      })
+      .then(({ contents, entryExtension }) => this.applySerializedSession(contents, entryExtension))
+      .catch(error => console.error('Unable to load compressed MicrobeTrace session file.', error));
+  }
+
   /**
    * Gets file extension and calls appropriate function to load info into MicrobeTrace.
    * For example, for json files commonService.processJSON is used.
    * Adds file to commonService.session.files and adds file to table with this.addToTable
-   * 
-   * XXXXX Currrently unable to load zip files XXXXX
-   * @returns 
+   *
+   * @returns
    */
   processFile(rawfile?) {
     if(!rawfile) {
       rawfile = this.commonService.session.files[0];
+    }
+
+    if(!rawfile) {
+      return;
     }
 
     if(this.commonService.debugMode) {
@@ -1448,24 +1486,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('process file end');
     if (extension === 'zip') {
-      //debugger;
-      // let new_zip = new JSZip();
-      // new_zip
-      //     .loadAsync(rawfile)
-      //     .then(zip => {
-      //         zip.forEach((relativePath, zipEntry) => {
-      //             zipEntry.async("text").then(c => {
-      //                 this.commonService.processJSON(c, zipEntry.name.split('.').pop())
-      //             });
-      //         });
-      //     });
+      this.loadCompressedSession(rawfile);
       return;
     }
 
     if (extension === 'microbetrace' || extension === 'hivtrace') {
-      //debugger;
       let reader = new FileReader();
-      reader.onloadend = out => {this.commonService.processJSON(out.target, extension).then(() => this.populateTable())};
+      reader.onloadend = out => this.applySerializedSession(out.target, extension);
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
