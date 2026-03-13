@@ -62,7 +62,8 @@ Maintained suite structure:
 - [x] Mixed-origin Nearest Neighbor shows the confirmation modal.
 - [x] Mixed-origin Nearest Neighbor cancel path leaves counts unchanged.
 - [x] Mixed-origin Nearest Neighbor confirm path preserves non-distance links correctly.
-- [ ] Post-launch Distance Metric switch on sequence-capable inputs updates counts coherently.
+- [x] Post-launch Distance Metric switch on sequence-capable inputs updates counts coherently.
+- [x] Filter Links on alternate numeric link field updates visible links by the selected field.
 - [x] Threshold change while cluster minimum is greater than `1` does not unexpectedly reset cluster filtering.
 - [x] Threshold sparkline drag path is exercised, not only direct input typing.
 - [x] Filtering still works correctly after loading multiple file origins that merge onto the same links.
@@ -108,8 +109,8 @@ Maintained suite structure:
 - [x] Link min and max width controls when sizing by variable.
 - [x] Link transparency control on uploaded profile data.
 - [x] Link length changes layout when nodes are not pinned.
-- [ ] Link arrows show correctly for directed edges.
-- [ ] Bidirectional arrows show correctly for bidirectional directed edges.
+- [x] Link arrows show correctly for directed edges.
+- [x] Bidirectional arrows show correctly for bidirectional directed edges.
 
 ## 6. 2D Settings: Network And Layout
 
@@ -152,8 +153,6 @@ Maintained suite structure:
 
 ## 10. Fixture Gaps To Fill
 
-- Fixture gap: a small directed-link dataset with `directed` and `bidirectional` fields for arrow coverage.
-- Fixture gap: a small link dataset with a second numeric link field so `Filter Links on` can be tested beyond `distance`.
 ## 11. Recommended Build Order
 
 - [x] Add `Minimum Cluster Size -> Reveal Everything` first.
