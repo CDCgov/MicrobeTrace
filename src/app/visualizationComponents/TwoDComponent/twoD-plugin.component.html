@@ -4,7 +4,7 @@
 
 <div id="tool-btn-container" class="m-portlet">
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
@@ -13,12 +13,12 @@
     <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Pin All Nodes" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+    <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
       [style.background]="commonService.session.network.allPinned ? 'lightblue': 'transparent'"
       ><i class="flaticon-pin primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a  title="Recalculate Layout. Disabled when nodes are pinned."  class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+      <a  title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
         [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
         <i class="flaticon-refresh primary"></i></a>
       </span>
@@ -77,7 +77,7 @@
 
       <div class="view-controls">
         @if (viewActive) {
-          <p-dialog id="network-settings-pane"
+          <p-dialog id="network-settings-pane" data-testid="twod-settings-dialog"
             [(visible)]="Node2DNetworkExportDialogSettings.isVisible"
             header="2D Network Settings" appendTo="body"
             >

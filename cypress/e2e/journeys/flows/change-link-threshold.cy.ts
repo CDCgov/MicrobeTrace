@@ -3,8 +3,8 @@
 import { getProfile, resolveExpected } from '../datasets/profile';
 import {
   applyTwoDGroupingFromProfile,
+  assertMetricCount,
   launchProfileToTwoD,
-  readMetricCount,
 } from '../../../support/journey-helpers';
 
 describe('Journey Flow - Change Link Threshold', () => {
@@ -30,7 +30,7 @@ describe('Journey Flow - Change Link Threshold', () => {
       cy.wrap(initialParents, { log: false }).as('initialParentIds');
     });
 
-    readMetricCount('#numberOfVisibleLinks').should('equal', beforeVisibleLinks);
+    assertMetricCount('#numberOfVisibleLinks', beforeVisibleLinks);
 
     cy.openGlobalSettings();
     cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
@@ -38,8 +38,7 @@ describe('Journey Flow - Change Link Threshold', () => {
     cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', thresholdChange!.to);
     cy.closeGlobalSettings();
 
-    readMetricCount('#numberOfVisibleLinks')
-      .should('equal', observedVisibleLinksAfter);
+    assertMetricCount('#numberOfVisibleLinks', observedVisibleLinksAfter);
 
     if (thresholdChange!.expectPolygonsUnchanged) {
       cy.get('@initialParentIds').then((initialParentIds) => {

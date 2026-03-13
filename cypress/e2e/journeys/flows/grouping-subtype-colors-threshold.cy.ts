@@ -4,8 +4,8 @@ import { getProfile } from '../datasets/profile';
 import {
   applyTwoDGroupingFromProfile,
   assertAfterLaunchCounts,
+  assertMetricCount,
   launchProfileToTwoD,
-  readMetricCount,
 } from '../../../support/journey-helpers';
 
 type ParentSnapshot = {
@@ -51,7 +51,7 @@ describe('Journey Flow - Grouping Subtype Colors and Threshold', () => {
     cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', thresholdChange!.to);
     cy.closeGlobalSettings();
 
-    readMetricCount('#numberOfVisibleLinks').should('equal', thresholdChange!.expectedVisibleLinksAfter as number);
+    assertMetricCount('#numberOfVisibleLinks', thresholdChange!.expectedVisibleLinksAfter as number);
 
     cy.get('@initialParentGroups').then((initialParentGroups) => {
       snapshotParentGroups().should((currentParentGroups) => {
