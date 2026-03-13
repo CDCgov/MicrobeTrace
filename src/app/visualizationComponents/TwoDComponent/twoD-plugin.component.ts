@@ -3069,23 +3069,43 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     });
                 },
                 tooltip: (action: 'show' | 'hide', nodeId: string) => {
-                    this.zone.run(() => {
-                        const node = this.cy.getElementById(nodeId);
-                        if (node) {
-                            if (action === 'show') {
-                                const mockEvent = { clientX: 100, clientY: 100 };
-                                this.showNodeTooltip(node.data(), mockEvent);
-                            } else {
-                                this.hideTooltip();
-                            }
-                        }
-                    });
-                },
+                  this.zone.run(() => {
+                      const node = this.cy.getElementById(nodeId);
+                      if (node) {
+                          if (action === 'show') {
+                              const mockEvent = { clientX: 100, clientY: 100 };
+                              this.showNodeTooltip(node.data(), mockEvent);
+                          } else {
+                              this.hideTooltip();
+                          }
+                      }
+                  });
+              },
+                hoverNode: (action: 'show' | 'hide', nodeId: string) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (!node || node.empty()) return;
+
+                        if (action === 'show') {
+                            const mockEvent = { clientX: 120, clientY: 120 };
+                            this.showNodeTooltip(node.data(), mockEvent);
+                            if (this.widgets['node-highlight']) {
+                                node.connectedEdges().addClass('highlighted');
+                            }
+                            return;
+                        }
+
+                        this.hideTooltip();
+                        if (this.widgets['node-highlight']) {
+                            node.connectedEdges().removeClass('highlighted');
+                        }
+                    });
+                },
                 linkTooltip: (action: 'show' | 'hide', edgeId: string) => {
-                     this.zone.run(() => {
-                        const edge = this.cy.getElementById(edgeId);
-                        if (edge) {
-                            if (action === 'show') {
+                    this.zone.run(() => {
+                      const edge = this.cy.getElementById(edgeId);
+                      if (edge) {
+                          if (action === 'show') {
                                 const mockEvent = { clientX: 300, clientY: 300 };
                                 this.showLinkTooltip(edge.data(), mockEvent);
                             } else {

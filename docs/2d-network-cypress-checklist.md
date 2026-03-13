@@ -49,7 +49,7 @@ Maintained suite structure:
 - [x] Sequence node list -> launch -> 2D smoke.
 - [x] Newick -> launch -> 2D smoke.
 - [x] Sequence node list + epi link list mixed-origin smoke.
-- [ ] Large dataset load smoke for 2D stability and counts sanity.
+- [x] Large dataset load smoke for 2D stability and counts sanity.
 
 ## 2. General Settings: Filtering
 
@@ -84,16 +84,16 @@ Maintained suite structure:
 
 ## 4. 2D Settings: Nodes
 
-- [ ] Node label variable on uploaded profile data.
-- [ ] Node label size on uploaded profile data.
-- [ ] Node label orientation on uploaded profile data.
-- [ ] Node tooltip contents on uploaded profile data.
-- [ ] Node shape by variable without a style file.
-- [ ] Node symbol table show/hide from the 2D settings pane.
-- [ ] Node size by variable without a style file.
-- [ ] Node min and max size controls when sizing by variable.
-- [ ] Node fixed size control when not sizing by variable.
-- [ ] Node border width control on uploaded profile data.
+- [x] Node label variable on uploaded profile data.
+- [x] Node label size on uploaded profile data.
+- [x] Node label orientation on uploaded profile data.
+- [x] Node tooltip contents on uploaded profile data.
+- [x] Node shape by variable without a style file.
+- [x] Node symbol table show/hide from the 2D settings pane.
+- [x] Node size by variable without a style file.
+- [x] Node min and max size controls when sizing by variable.
+- [x] Node fixed size control when not sizing by variable.
+- [x] Node border width control on uploaded profile data.
 
 ## 5. 2D Settings: Links
 
@@ -101,24 +101,24 @@ Maintained suite structure:
 - [x] Link label variable flow has its own dedicated uploaded-data journey.
 - [x] Link label decimal length on TN93 data.
 - [x] Link label decimal length on SNP data.
-- [ ] Link tooltip contents on uploaded profile data.
-- [ ] Link width fixed control on uploaded profile data.
+- [x] Link tooltip contents on uploaded profile data.
+- [x] Link width fixed control on uploaded profile data.
 - [x] Link width by variable on uploaded profile data.
 - [x] Link width reciprocal toggle on uploaded profile data.
-- [ ] Link min and max width controls when sizing by variable.
-- [ ] Link transparency control on uploaded profile data.
+- [x] Link min and max width controls when sizing by variable.
+- [x] Link transparency control on uploaded profile data.
 - [x] Link length changes layout when nodes are not pinned.
 - [ ] Link arrows show correctly for directed edges.
 - [ ] Bidirectional arrows show correctly for bidirectional directed edges.
 
 ## 6. 2D Settings: Network And Layout
 
-- [ ] Gridlines toggle on uploaded profile data.
-- [ ] Neighbor highlight toggle on uploaded profile data.
+- [x] Gridlines toggle on uploaded profile data.
+- [x] Neighbor highlight toggle on uploaded profile data.
 - [x] Pin All disables Recalculate Layout.
 - [x] Pin All prevents link-length relayout.
 - [x] Recalculate Layout changes positions when nodes are not pinned.
-- [ ] Dragging a node updates both rendered position and backing model on uploaded profile data.
+- [x] Dragging a node updates both rendered position and backing model on uploaded profile data.
 
 ## 7. 2D Settings: Grouping
 
@@ -128,17 +128,17 @@ Maintained suite structure:
 - [x] Show group labels.
 - [x] Change subtype polygon colors and confirm rendered polygons change.
 - [x] Threshold drop can be checked while polygons remain intact.
-- [ ] Group label size on uploaded grouped data.
-- [ ] Group label orientation on uploaded grouped data.
-- [ ] Grouping combined with Minimum Cluster Size filtering.
-- [ ] Grouping combined with Reveal Everything.
+- [x] Group label size on uploaded grouped data.
+- [x] Group label orientation on uploaded grouped data.
+- [x] Grouping combined with Minimum Cluster Size filtering.
+- [x] Grouping combined with Reveal Everything.
 - [x] Grouping combined with style application.
 
 ## 8. Cross-Feature Combination Journeys
 
-- [ ] Sequence-derived TN93 network -> group by subtype -> change threshold -> change group colors -> verify polygons and counts.
+- [x] Sequence-derived TN93 network -> group by subtype -> change threshold -> change group colors -> verify polygons and counts.
 - [x] Style dataset -> apply style -> change Minimum Cluster Size -> verify styling and tables still match visible nodes and links.
-- [ ] Style dataset -> apply style -> open 2D settings -> change node label and tooltip -> verify style and labels coexist.
+- [x] Style dataset -> apply style -> open 2D settings -> change node label and tooltip -> verify style and labels coexist.
 - [ ] Mixed-origin dataset -> threshold change -> Nearest Neighbor -> reveal -> verify counts and origins remain correct.
 - [ ] Newick dataset -> launch 2D -> adjust one 2D link setting -> verify parsed distance links behave correctly.
 
