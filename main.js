@@ -4442,13 +4442,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   FilesComponent: () => (/* binding */ FilesComponent)
 /* harmony export */ });
 /* harmony import */ var _Users_evanmoscoso_Desktop_EvanGit_MicrobeTrace_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./node_modules/@babel/runtime/helpers/esm/asyncToGenerator.js */ 89204);
-/* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! tslib */ 24398);
+/* harmony import */ var tslib__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! tslib */ 24398);
 /* harmony import */ var _files_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./files-plugin.component.html?ngResource */ 96303);
 /* harmony import */ var _files_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./files-plugin.component.less?ngResource */ 94908);
 /* harmony import */ var _files_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_files_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! @angular/core */ 37580);
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! @angular/core */ 37580);
 /* harmony import */ var _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../contactTraceCommonServices/common.service */ 42107);
-/* harmony import */ var xlsx__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! xlsx */ 13857);
+/* harmony import */ var xlsx__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! xlsx */ 13857);
 /* harmony import */ var papaparse__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! papaparse */ 92853);
 /* harmony import */ var papaparse__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(papaparse__WEBPACK_IMPORTED_MODULE_4__);
 /* harmony import */ var file_saver__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! file-saver */ 85841);
@@ -4462,11 +4462,14 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var patristic__WEBPACK_IMPORTED_MODULE_9___default = /*#__PURE__*/__webpack_require__.n(patristic__WEBPACK_IMPORTED_MODULE_9__);
 /* harmony import */ var lodash__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! lodash */ 46227);
 /* harmony import */ var lodash__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(lodash__WEBPACK_IMPORTED_MODULE_10__);
-/* harmony import */ var _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @shared/utils/event-emitter.service */ 44734);
-/* harmony import */ var _app_base_component_directive__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @app/base-component.directive */ 18784);
-/* harmony import */ var golden_layout__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! golden-layout */ 41735);
-/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! rxjs */ 10819);
-/* harmony import */ var _app_contactTraceCommonServices_common_store_services__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @app/contactTraceCommonServices/common-store.services */ 16546);
+/* harmony import */ var jszip__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! jszip */ 45834);
+/* harmony import */ var jszip__WEBPACK_IMPORTED_MODULE_11___default = /*#__PURE__*/__webpack_require__.n(jszip__WEBPACK_IMPORTED_MODULE_11__);
+/* harmony import */ var _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @shared/utils/event-emitter.service */ 44734);
+/* harmony import */ var _app_base_component_directive__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @app/base-component.directive */ 18784);
+/* harmony import */ var golden_layout__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! golden-layout */ 41735);
+/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! rxjs */ 10819);
+/* harmony import */ var _app_contactTraceCommonServices_common_store_services__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! @app/contactTraceCommonServices/common-store.services */ 16546);
+
 
 
 
@@ -4489,7 +4492,7 @@ __webpack_require__.r(__webpack_exports__);
 
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
-let FilesComponent = class FilesComponent extends _app_base_component_directive__WEBPACK_IMPORTED_MODULE_12__.BaseComponentDirective {
+let FilesComponent = class FilesComponent extends _app_base_component_directive__WEBPACK_IMPORTED_MODULE_13__.BaseComponentDirective {
   constructor(container, elRef, eventEmitterService, commonService, cdr, store) {
     super(elRef.nativeElement);
     this.container = container;
@@ -4497,7 +4500,7 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
     this.commonService = commonService;
     this.cdr = cdr;
     this.store = store;
-    this.LoadDefaultVisualizationEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_14__.EventEmitter();
+    this.LoadDefaultVisualizationEvent = new _angular_core__WEBPACK_IMPORTED_MODULE_15__.EventEmitter();
     this.SelectedDefaultDistanceMetricVariable = "tn93";
     this.SelectedAmbiguityResolutionStrategyVariable = "AVERAGE";
     this.SelectedAmbiguityThresholdVariable = 0.015;
@@ -4571,7 +4574,7 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
     this.edgeIds = [];
     this.uniqueNodes = [];
     this.uniqueEdgeNodes = [];
-    this.destroy$ = new rxjs__WEBPACK_IMPORTED_MODULE_15__.Subject();
+    this.destroy$ = new rxjs__WEBPACK_IMPORTED_MODULE_16__.Subject();
     /**
      * Updates SelectedDefaultDistanceThresholdVariable, microbeTrace.SelectedLinkThresholdVariable, and link-threshold widget values.
      * Then calls microbeTrace.onLinkThresholdChanged clusters, nodes, and links as well as visualizations and statistics
@@ -5206,10 +5209,10 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
           //  console.log('matrixx1: ',  JSON.stringify((window as any).context.commonService.temp.matrix));
         };
         if (file.extension === 'xls' || file.extension === 'xlsx') {
-          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_16__.read(file.contents, {
+          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_17__.read(file.contents, {
             type: 'array'
           });
-          const data = xlsx__WEBPACK_IMPORTED_MODULE_16__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          const data = xlsx__WEBPACK_IMPORTED_MODULE_17__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
           data.map(forEachLink);
           this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link Excel Table.`);
           let n = 0,
@@ -5332,10 +5335,10 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
         let m = 0;
         const n = 0;
         if (file.extension === 'xls' || file.extension === 'xlsx') {
-          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_16__.read(file.contents, {
+          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_17__.read(file.contents, {
             type: 'array'
           });
-          const data = xlsx__WEBPACK_IMPORTED_MODULE_16__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
+          const data = xlsx__WEBPACK_IMPORTED_MODULE_17__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
             raw: false,
             dateNF: 'yyyy-mm-dd'
           });
@@ -5414,10 +5417,10 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
       } else if (file.format === 'matrix') {
         this.showMessage(`Parsing ${file.name} as Distance Matrix...`);
         if (file.extension === 'xls' || file.extension === 'xlsx') {
-          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_16__.read(file.contents, {
+          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_17__.read(file.contents, {
             type: 'array'
           });
-          const data = xlsx__WEBPACK_IMPORTED_MODULE_16__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
+          const data = xlsx__WEBPACK_IMPORTED_MODULE_17__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
             header: 1
           });
           let nodeIDs = [],
@@ -5711,17 +5714,46 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
     }
     this.isLoadingFiles = false;
   }
+  applySerializedSession(payload, extension) {
+    Promise.resolve(this.commonService.processJSON(payload, extension)).then(() => this.populateTable()).catch(error => console.error('Unable to load MicrobeTrace session file.', error));
+  }
+  loadCompressedSession(rawfile) {
+    jszip__WEBPACK_IMPORTED_MODULE_11___default().loadAsync(rawfile).then(zip => {
+      const sessionEntries = Object.values(zip.files).filter(entry => {
+        if (entry.dir) return false;
+        const entryExtension = entry.name.split('.').pop()?.toLowerCase();
+        return entryExtension === 'microbetrace' || entryExtension === 'hivtrace';
+      });
+      const sessionEntry = sessionEntries.find(entry => entry.name.toLowerCase().endsWith('.microbetrace')) || sessionEntries[0];
+      if (!sessionEntry) {
+        throw new Error('No MicrobeTrace session file found in zip archive.');
+      }
+      const entryExtension = sessionEntry.name.split('.').pop()?.toLowerCase();
+      if (!entryExtension) {
+        throw new Error('Compressed session file is missing an extension.');
+      }
+      return sessionEntry.async('text').then(contents => ({
+        contents,
+        entryExtension
+      }));
+    }).then(({
+      contents,
+      entryExtension
+    }) => this.applySerializedSession(contents, entryExtension)).catch(error => console.error('Unable to load compressed MicrobeTrace session file.', error));
+  }
   /**
    * Gets file extension and calls appropriate function to load info into MicrobeTrace.
    * For example, for json files commonService.processJSON is used.
    * Adds file to commonService.session.files and adds file to table with this.addToTable
    *
-   * XXXXX Currrently unable to load zip files XXXXX
    * @returns
    */
   processFile(rawfile) {
     if (!rawfile) {
       rawfile = this.commonService.session.files[0];
+    }
+    if (!rawfile) {
+      return;
     }
     if (this.commonService.debugMode) {
       console.log('raw file: ', rawfile);
@@ -5731,25 +5763,12 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
     const extension = rawfile.name.split('.').pop().toLowerCase();
     console.log('process file end');
     if (extension === 'zip') {
-      //debugger;
-      // let new_zip = new JSZip();
-      // new_zip
-      //     .loadAsync(rawfile)
-      //     .then(zip => {
-      //         zip.forEach((relativePath, zipEntry) => {
-      //             zipEntry.async("text").then(c => {
-      //                 this.commonService.processJSON(c, zipEntry.name.split('.').pop())
-      //             });
-      //         });
-      //     });
+      this.loadCompressedSession(rawfile);
       return;
     }
     if (extension === 'microbetrace' || extension === 'hivtrace') {
-      //debugger;
       let reader = new FileReader();
-      reader.onloadend = out => {
-        this.commonService.processJSON(out.target, extension).then(() => this.populateTable());
-      };
+      reader.onloadend = out => this.applySerializedSession(out.target, extension);
       reader.readAsText(rawfile, 'UTF-8');
       return;
     }
@@ -5819,10 +5838,10 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
     const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || file.format && file.format.toLowerCase() === 'node';
     if (isXL) {
       try {
-        const workbook = xlsx__WEBPACK_IMPORTED_MODULE_16__.read(file.contents, {
+        const workbook = xlsx__WEBPACK_IMPORTED_MODULE_17__.read(file.contents, {
           type: 'array'
         });
-        const data = xlsx__WEBPACK_IMPORTED_MODULE_16__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const data = xlsx__WEBPACK_IMPORTED_MODULE_17__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         const headers = [];
         data.forEach(row => {
           Object.keys(row).forEach(key => {
@@ -6172,10 +6191,10 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
         } else {
           const file = nodeFilesWithSeqs[j];
           const seqLabel = file['field2'];
-          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_16__.read(file.contents, {
+          const workbook = xlsx__WEBPACK_IMPORTED_MODULE_17__.read(file.contents, {
             type: 'array'
           });
-          const dataJSON = xlsx__WEBPACK_IMPORTED_MODULE_16__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          const dataJSON = xlsx__WEBPACK_IMPORTED_MODULE_17__.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
           const headers = [];
           dataJSON.forEach(row => {
             Object.keys(row).forEach(key => {
@@ -6245,37 +6264,37 @@ let FilesComponent = class FilesComponent extends _app_base_component_directive_
   }
   static {
     this.ctorParameters = () => [{
-      type: golden_layout__WEBPACK_IMPORTED_MODULE_17__.ComponentContainer,
+      type: golden_layout__WEBPACK_IMPORTED_MODULE_18__.ComponentContainer,
       decorators: [{
-        type: _angular_core__WEBPACK_IMPORTED_MODULE_14__.Inject,
-        args: [_app_base_component_directive__WEBPACK_IMPORTED_MODULE_12__.BaseComponentDirective.GoldenLayoutContainerInjectionToken]
+        type: _angular_core__WEBPACK_IMPORTED_MODULE_15__.Inject,
+        args: [_app_base_component_directive__WEBPACK_IMPORTED_MODULE_13__.BaseComponentDirective.GoldenLayoutContainerInjectionToken]
       }]
     }, {
-      type: _angular_core__WEBPACK_IMPORTED_MODULE_14__.ElementRef
+      type: _angular_core__WEBPACK_IMPORTED_MODULE_15__.ElementRef
     }, {
-      type: _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_11__.EventEmitterService
+      type: _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_12__.EventEmitterService
     }, {
       type: _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_3__.CommonService
     }, {
-      type: _angular_core__WEBPACK_IMPORTED_MODULE_14__.ChangeDetectorRef
+      type: _angular_core__WEBPACK_IMPORTED_MODULE_15__.ChangeDetectorRef
     }, {
-      type: _app_contactTraceCommonServices_common_store_services__WEBPACK_IMPORTED_MODULE_13__.CommonStoreService
+      type: _app_contactTraceCommonServices_common_store_services__WEBPACK_IMPORTED_MODULE_14__.CommonStoreService
     }];
   }
   static {
     this.propDecorators = {
       LoadDefaultVisualizationEvent: [{
-        type: _angular_core__WEBPACK_IMPORTED_MODULE_14__.Output
+        type: _angular_core__WEBPACK_IMPORTED_MODULE_15__.Output
       }]
     };
   }
 };
-FilesComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_18__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_14__.Component)({
+FilesComponent = (0,tslib__WEBPACK_IMPORTED_MODULE_19__.__decorate)([(0,_angular_core__WEBPACK_IMPORTED_MODULE_15__.Component)({
   selector: 'FilesComponent',
   template: _files_plugin_component_html_ngResource__WEBPACK_IMPORTED_MODULE_1__,
-  changeDetection: _angular_core__WEBPACK_IMPORTED_MODULE_14__.ChangeDetectionStrategy.OnPush,
+  changeDetection: _angular_core__WEBPACK_IMPORTED_MODULE_15__.ChangeDetectionStrategy.OnPush,
   styles: [(_files_plugin_component_less_ngResource__WEBPACK_IMPORTED_MODULE_2___default())]
-}), (0,tslib__WEBPACK_IMPORTED_MODULE_18__.__metadata)("design:paramtypes", [golden_layout__WEBPACK_IMPORTED_MODULE_17__.ComponentContainer, _angular_core__WEBPACK_IMPORTED_MODULE_14__.ElementRef, _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_11__.EventEmitterService, _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_3__.CommonService, _angular_core__WEBPACK_IMPORTED_MODULE_14__.ChangeDetectorRef, _app_contactTraceCommonServices_common_store_services__WEBPACK_IMPORTED_MODULE_13__.CommonStoreService])], FilesComponent);
+}), (0,tslib__WEBPACK_IMPORTED_MODULE_19__.__metadata)("design:paramtypes", [golden_layout__WEBPACK_IMPORTED_MODULE_18__.ComponentContainer, _angular_core__WEBPACK_IMPORTED_MODULE_15__.ElementRef, _shared_utils_event_emitter_service__WEBPACK_IMPORTED_MODULE_12__.EventEmitterService, _contactTraceCommonServices_common_service__WEBPACK_IMPORTED_MODULE_3__.CommonService, _angular_core__WEBPACK_IMPORTED_MODULE_15__.ChangeDetectorRef, _app_contactTraceCommonServices_common_store_services__WEBPACK_IMPORTED_MODULE_14__.CommonStoreService])], FilesComponent);
 
 (function (FilesComponent) {
   FilesComponent.componentTypeName = 'Files';
@@ -25699,8 +25718,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   version: () => (/* binding */ version)
 /* harmony export */ });
 const version = '2.0.0';
-const buildDate = '2026-03-04T14:57:13.014Z';
-const commitHash = '9bf22fa';
+const buildDate = '2026-03-13T13:58:58.229Z';
+const commitHash = '6534b0d';
 
 /***/ }),
 
