@@ -29,6 +29,7 @@ Developed By ([some folks](https://github.com/CDCgov/MicrobeTrace/blob/master/hu
 * [Request Access to Our Slack](mailto:microbetrace@cdc.gov?subject=Slack%20Request&body=Hello!%0AI'd%20like%20an%20invitation%20to%20join%20the%20MicrobeTrace%20Slack%20Channel%2C%20please.%0AThank%20you!)
 * [Deploy Your Own Instance of MicrobeTrace](https://github.com/CDCgov/MicrobeTrace/wiki/z-Deployment)
 * [Help us Develop MicrobeTrace](https://github.com/CDCgov/MicrobeTrace/wiki/z-Development)
+* [Integrate the Partner Embed Button](docs/partner-embed-integration.md)
 
 ## Public Domain
 This project constitutes a work of the United States Government and is not

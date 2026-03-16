@@ -20,6 +20,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
+import { EmbedHandoffService } from './embed/embed-handoff.service';
 
 
 @Component({
@@ -249,7 +250,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private cdref: ChangeDetectorRef,
         private el: ElementRef, 
         private store: CommonStoreService,
-        private exportService: ExportService
+        private exportService: ExportService,
+        private embedHandoffService: EmbedHandoffService
     ) {
 
 
@@ -2529,7 +2531,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this._goldenLayoutHostComponent['_goldenLayout.layoutConfig.dimensions.headerHeight'] = 36;
             this.addComponent('Files');
 
-          if (this.auspiceUrlVal) {
+          if (this.auspiceUrlVal && !this.embedHandoffService.hasPendingHandoffInUrl()) {
             if(this.commonService.debugMode) {
                 console.log("Trying to open URL");
             }
@@ -2624,6 +2626,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     private _removeGlView(view : string) {
+        if (this.homepageTabs.findIndex(tab => tab.label === view) === -1) {
+            console.log(`Skipping removal for ${view}; tab is not active`);
+            return;
+        }
+
         console.log(`Removing ${view}`);
         this._goldenLayoutHostComponent.removeComponent(view);
         this.removeComponent(view);
@@ -3648,9 +3655,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
      */
-  onDistanceMetricChanged = () => {
+  onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
+    let didRecomputeSequenceLinks = false;
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
@@ -3658,7 +3666,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
       this.SelectedLinkThresholdVariable = '16';
-      this.onLinkThresholdChanged();
     } else {
       $('#default-distance-threshold')
         .attr('step', 0.001)
@@ -3666,7 +3673,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
       this.SelectedLinkThresholdVariable = '0.015';
-      this.onLinkThresholdChanged();
+    }
+
+    didRecomputeSequenceLinks = await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
+    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+      await this.commonService.computeMST();
+      this.commonService.session.style.widgets["mst-computed"] = true;
+    }
+
+    this.onLinkThresholdChanged();
+
+    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+      this.commonService.session.style.widgets["mst-computed"] = true;
     }
   }
 }

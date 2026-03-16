@@ -4,8 +4,10 @@ import type { DatasetProfile } from '../datasets/profile';
 import { getProfilesByTags, resolveExpected } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
+  assertMetricCount,
   launchProfileToTwoD,
-  readMetricCount,
+  openGlobalFilteringTab,
+  setFilteringPruneWith,
   setTwoDLinkLabelVariable,
 } from '../../../support/journey-helpers';
 
@@ -38,18 +40,16 @@ const contractMode =
         .should('equal', profile.preLaunch.threshold);
 
       assertAfterLaunchCounts(profile, 'intended');
-      readMetricCount('#numberOfVisibleLinks').should('equal', before!.visibleLinks);
+      assertMetricCount('#numberOfVisibleLinks', before!.visibleLinks);
 
       setTwoDLinkLabelVariable(labelLinksWith);
-      readMetricCount('#numberOfVisibleLinks').should('equal', before!.visibleLinks);
+      assertMetricCount('#numberOfVisibleLinks', before!.visibleLinks);
 
-      cy.openGlobalSettings();
-      cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-      cy.get('#prune-select').contains('span', 'Nearest Neighbor').click({ force: true });
-      cy.window().its('commonService.session.style.widgets.link-show-nn').should('equal', true);
+      openGlobalFilteringTab();
+      setFilteringPruneWith('Nearest Neighbor');
       cy.closeGlobalSettings();
 
-      readMetricCount('#numberOfVisibleLinks').should('equal', after!.visibleLinks);
+      assertMetricCount('#numberOfVisibleLinks', after!.visibleLinks);
     });
   });
 });

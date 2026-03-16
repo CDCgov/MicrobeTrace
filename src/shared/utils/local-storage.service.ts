@@ -25,6 +25,22 @@ export class LocalStorageService {
         localForage.setItem(key, value);
     }
 
+    getItemAsync<T>(key: string): Promise<T | null> {
+        if (!localForage) {
+            return Promise.resolve(null);
+        }
+
+        return localForage.getItem<T>(key);
+    }
+
+    setItemAsync<T>(key: string, value: T): Promise<T> {
+        if (!localForage) {
+            return Promise.resolve(value);
+        }
+
+        return localForage.setItem<T>(key, value);
+    }
+
     removeItem(key: string, value: ((err: any) => void) | null | undefined): void {
         if (!localForage) {
             return;
@@ -35,6 +51,14 @@ export class LocalStorageService {
         }
 
         localForage.removeItem(key, value);
+    }
+
+    removeItemAsync(key: string): Promise<void> {
+        if (!localForage) {
+            return Promise.resolve();
+        }
+
+        return localForage.removeItem(key);
     }
 
     keys() {

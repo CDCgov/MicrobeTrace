@@ -58,7 +58,7 @@ export const GROUPING_PROFILES: DatasetProfile[] = [
     expectations: {
       afterLaunch: {
         nodes: 14,
-        visibleLinks: 91,
+        visibleLinks: 17,
       },
       grouping: {
         groupBy: 'Subtype',
@@ -71,13 +71,8 @@ export const GROUPING_PROFILES: DatasetProfile[] = [
         thresholdChange: {
           from: 0.015,
           to: 0.010,
-          expectedVisibleLinksAfter: {
-            observed: 91,
-            intended: 9,
-            note: 'Grouped subtype polygons currently preserve 91 visible links even after lowering the threshold to 0.010.',
-          },
+          expectedVisibleLinksAfter: 9,
           expectPolygonsUnchanged: true,
-          note: 'Use observed behavior for smoke coverage; use intended behavior in contract mode to flag the filtering mismatch.',
         },
       },
     },

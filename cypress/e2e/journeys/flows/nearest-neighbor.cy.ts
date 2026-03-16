@@ -3,8 +3,10 @@
 import type { DatasetProfile } from '../datasets/profile';
 import { getProfilesByTag, resolveExpected } from '../datasets/profile';
 import {
+  assertMetricCount,
   launchProfileToTwoD,
-  readMetricCount,
+  openGlobalFilteringTab,
+  setFilteringPruneWith,
 } from '../../../support/journey-helpers';
 
 describe('Journey Flow - Nearest Neighbor', () => {
@@ -21,15 +23,13 @@ describe('Journey Flow - Nearest Neighbor', () => {
 
       launchProfileToTwoD(profile);
 
-      readMetricCount('#numberOfVisibleLinks').should('equal', before!.visibleLinks);
+      assertMetricCount('#numberOfVisibleLinks', before!.visibleLinks);
 
-      cy.openGlobalSettings();
-      cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-      cy.get('#prune-select').contains('span', 'Nearest Neighbor').click({ force: true });
-      cy.window().its('commonService.session.style.widgets.link-show-nn').should('equal', true);
+      openGlobalFilteringTab();
+      setFilteringPruneWith('Nearest Neighbor');
       cy.closeGlobalSettings();
 
-      readMetricCount('#numberOfVisibleLinks').should('equal', after!.visibleLinks);
+      assertMetricCount('#numberOfVisibleLinks', after!.visibleLinks);
     });
   });
 });

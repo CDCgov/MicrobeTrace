@@ -16,6 +16,8 @@ import { cloneDeep } from 'lodash';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { relativeTimeThreshold } from 'moment';
+import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
+import { ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -82,6 +84,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   displayFileSettings: boolean = false;
   displaySequenceSettings: boolean = false;
   displayloadingInformationModal: boolean = false;
+  handoffError: string | null = null;
 
   nodeIds: { fileName: string; ids: string[] }[] = [];
   edgeIds: { fileName: string; ids: { source: string; target: string }[] }[] = [];
@@ -102,6 +105,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     public commonService: CommonService,
     private cdr: ChangeDetectorRef,
     private store: CommonStoreService,
+    private embedHandoffService: EmbedHandoffService,
     private ngZone: NgZone
     ) {
 
@@ -412,9 +416,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     const skipDemoSession = new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
+    const hasPendingHandoff = this.embedHandoffService.hasPendingHandoffInUrl();
 
-    if (skipDemoSession) {
+    if (skipDemoSession || hasPendingHandoff) {
       this.commonService.session.network.initialLoad = true;
+    }
+
+    if (hasPendingHandoff) {
+      this.loadPendingEmbedHandoff();
     }
 
     if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
@@ -430,6 +439,49 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   // }, 2000);
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
+  }
+
+  private async loadPendingEmbedHandoff() {
+    this.isLoadingFiles = true;
+    this.handoffError = null;
+    this.dismissWelcomeOverlay();
+    this.cdr.markForCheck();
+
+    const result = await this.embedHandoffService.consumePendingHandoffFromUrl();
+    this.embedHandoffService.clearHandoffQueryParams();
+
+    if (result.status === 'none') {
+      this.isLoadingFiles = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (result.status === 'error') {
+      this.isLoadingFiles = false;
+      this.handoffError = result.message;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.removeAllFiles();
+    result.files.forEach((file: ImportedEmbedFile) => {
+      this.commonService.session.files.push(file);
+      this.addToTable(file);
+    });
+
+    this.isLoadingFiles = false;
+    this.commonService.session.network.initialLoad = true;
+    this.cdr.markForCheck();
+
+    setTimeout(() => {
+      this.launchClick();
+    }, 100);
+  }
+
+  private dismissWelcomeOverlay() {
+    $('#overlay').stop(true, true).fadeOut('fast');
+    $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
+    $('.m-portlet').stop(true, true).fadeTo('fast', 1);
   }
 
   ngOnDestroy() {
@@ -1692,7 +1744,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         const a = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'],
           b = type === 'node' ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq'] : ['TARGET', 'Target', 'target'],
           c = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
+        const explicitSelections = [file.field1, file.field2, file.field3];
         [a, b, c].forEach((list, i) => {
+          const existingSelection = explicitSelections[i];
+
+          if (existingSelection && (existingSelection === 'None' || parentContext.commonService.includes(headers, existingSelection))) {
+            $(these.get(i)).val(existingSelection);
+            return;
+          }
+
           $(these.get(i)).val("None");
           list.forEach(title => {
             if (parentContext.commonService.includes(headers, title)) $(these.get(i)).val(title);
@@ -1701,7 +1761,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             !(i === 1 && type === 'node') && //If Node Sequence...
             !(i === 2 && type === 'link')) { //...or Link distance...
             //...don't match to a variable in the dataset, leave them as "None".
-            $(these.get(i)).val(headers[i]);
+            $(these.get(i)).val(headers[i] || 'None');
             //Everything else, just guess the next ordinal column.
           }
         });

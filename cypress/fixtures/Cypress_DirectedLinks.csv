@@ -1,0 +1,4 @@
+source,target,relationship
+A,B,one-way
+B,A,reverse-pair
+C,D,one-way

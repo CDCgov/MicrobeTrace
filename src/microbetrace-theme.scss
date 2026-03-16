@@ -106,5 +106,13 @@ $red-palette: mat.m2-define-palette((
 $custom-theme-primary: mat.m2-define-palette($blue-palette, 500);
 $custom-theme-accent: $pink-palette;
 $custom-theme-warn: $red-palette;
-$custom-theme: mat.m2-define-light-theme($custom-theme-primary, $custom-theme-accent, $custom-theme-warn);
+$custom-theme: mat.m2-define-light-theme((
+  color: (
+    primary: $custom-theme-primary,
+    accent: $custom-theme-accent,
+    warn: $custom-theme-warn,
+  ),
+  typography: mat.m2-define-typography-config(),
+  density: 0,
+));
 @include mat.all-component-themes($custom-theme);

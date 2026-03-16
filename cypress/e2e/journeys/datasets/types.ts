@@ -79,6 +79,50 @@ export const hasExpectedDeviation = <T>(value: ExpectedValue<T> | undefined): bo
 export type JourneyExpectations = {
   afterLaunch?: ExpectedValue<ExpectedCounts>;
 
+  filtering?: {
+    minimumClusterSize?: {
+      from: number;
+      to: number;
+      after: ExpectedValue<ExpectedCounts>;
+      hiddenNodeIds?: string[];
+      reveal?: {
+        expectedCounts: ExpectedValue<ExpectedCounts>;
+        restoredNodeIds?: string[];
+      };
+    };
+
+    epsilonAfterNearestNeighbor?: {
+      fromExponent: number;
+      steps: Array<{
+        toExponent: number;
+        after: ExpectedValue<{ visibleLinks: number }>;
+        note?: string;
+      }>;
+    };
+
+    mixedOriginNearestNeighbor?: {
+      multiOriginLinks: number;
+      cancel: ExpectedValue<{ visibleLinks: number }>;
+      confirm: ExpectedValue<{ visibleLinks: number }>;
+      preservedLinkIds?: string[];
+      thresholdFlow?: {
+        toThreshold: number;
+        afterThreshold: ExpectedValue<{ visibleLinks: number }>;
+        afterNearestNeighbor: ExpectedValue<{ visibleLinks: number }>;
+        afterReveal: ExpectedValue<{ visibleLinks: number }>;
+        thresholdPreservedLinkIds?: string[];
+      };
+    };
+
+    metricSwitch?: {
+      steps: Array<{
+        toMetric: DistanceMetric;
+        expectedThreshold: number;
+        after: ExpectedValue<{ visibleLinks: number }>;
+      }>;
+    };
+  };
+
   nn?: {
     labelLinksWith?: LinkLabelVariable;
     before: ExpectedValue<{ visibleLinks: number }>;

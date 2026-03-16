@@ -99,7 +99,7 @@ export const NN_PROFILES: DatasetProfile[] = [
   P({
     id: 'nn-angulartesting-tn93-edgelist',
     title: 'NN Contract: AngularTesting distance edgelist loads 17 TN93 links and prunes to 10',
-    tags: ['nn-contract', 'angulartesting', 'tn93', 'edgelist', 'load-to-twod'],
+    tags: ['nn-contract', 'nn-epsilon', 'angulartesting', 'tn93', 'edgelist', 'load-to-twod'],
     files: [
       {
         name: 'AngularTesting_Distance_linklist_BS.csv',
@@ -123,13 +123,28 @@ export const NN_PROFILES: DatasetProfile[] = [
         before: { visibleLinks: 17 },
         after: { visibleLinks: 10 },
       },
+      filtering: {
+        epsilonAfterNearestNeighbor: {
+          fromExponent: -8,
+          steps: [
+            {
+              toExponent: -1,
+              after: { visibleLinks: 12 },
+            },
+            {
+              toExponent: 0,
+              after: { visibleLinks: 17 },
+            },
+          ],
+        },
+      },
     },
   }),
 
   P({
     id: 'nn-angulartesting-tn93-matrix',
     title: 'NN Contract: AngularTesting distance matrix loads 17 TN93 links and prunes to 10',
-    tags: ['nn-contract', 'angulartesting', 'tn93', 'matrix', 'load-to-twod'],
+    tags: ['nn-contract', 'nn-epsilon', 'angulartesting', 'tn93', 'matrix', 'load-to-twod'],
     files: [
       {
         name: 'AngularTesting_DistanceMatrix_TN93_BS.xlsx',
@@ -149,6 +164,21 @@ export const NN_PROFILES: DatasetProfile[] = [
         labelLinksWith: 'distance',
         before: { visibleLinks: 17 },
         after: { visibleLinks: 10 },
+      },
+      filtering: {
+        epsilonAfterNearestNeighbor: {
+          fromExponent: -8,
+          steps: [
+            {
+              toExponent: -1,
+              after: { visibleLinks: 12 },
+            },
+            {
+              toExponent: 0,
+              after: { visibleLinks: 17 },
+            },
+          ],
+        },
       },
     },
   }),

@@ -4,7 +4,7 @@
 
 <div id="tool-btn-container" class="m-portlet">
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
@@ -13,12 +13,12 @@
     <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Pin All Nodes" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+    <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
       [style.background]="commonService.session.network.allPinned ? 'lightblue': 'transparent'"
       ><i class="flaticon-pin primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a  title="Recalculate Layout. Disabled when nodes are pinned."  class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+      <a  title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
         [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
         <i class="flaticon-refresh primary"></i></a>
       </span>
@@ -77,7 +77,7 @@
 
       <div class="view-controls">
         @if (viewActive) {
-          <p-dialog id="network-settings-pane"
+          <p-dialog id="network-settings-pane" data-testid="twod-settings-dialog"
             [(visible)]="Node2DNetworkExportDialogSettings.isVisible"
             header="2D Network Settings" appendTo="body"
             >
@@ -308,9 +308,9 @@
 </tab>
 <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
-    <p-accordion-panel value="grouping-controls" style="color:#495057" id="polygons-controls-accordion">
+    <p-accordion-panel value="grouping-controls" style="color:#495057">
       <p-accordion-header>Controls</p-accordion-header>
-      <p-accordion-content><div id="polygons-controls" class="show" data-parent="#polygons-controls-accordion">
+      <p-accordion-content><div id="polygons-controls">
         <div class="card-body">
           <div class="form-group row" title="Show groups?">
             <div class="col-4">Groups</div>
@@ -337,9 +337,9 @@
     </p-accordion-content>
   </p-accordion-panel>
   @if (commonService.session.style.widgets['polygons-show']) {
-    <p-accordion-panel value="grouping-labels" style="color:#495057" id="polygons-controls-accordion">
+    <p-accordion-panel value="grouping-labels" style="color:#495057">
       <p-accordion-header>Labels</p-accordion-header>
-      <p-accordion-content><div id="polygons-controls-labels" data-parent="#polygons-controls-accordion">
+      <p-accordion-content><div id="polygons-controls-labels">
         <div class="card-body">
           <div class="form-group row" title="Show group labels?">
             <div class="col-5 padding-right-5">Groups Label</div>
@@ -370,9 +370,9 @@
 }
 <!-- style="display: none;" -->
 @if (commonService.session.style.widgets['polygons-show']) {
-  <p-accordion-panel value="grouping-colors" style="color:#495057" id="polygons-controls-accordion">
+  <p-accordion-panel value="grouping-colors" style="color:#495057">
     <p-accordion-header>Colors</p-accordion-header>
-    <p-accordion-content><div id="polygons-controls-colors" data-parent="#polygons-controls-accordion">
+    <p-accordion-content><div id="polygons-controls-colors">
       <div class="card-body">
         <div id="color-polygons" class="form-group row" title="Distinguish groups by color?">
           <div class="col-5">Color Groups</div>

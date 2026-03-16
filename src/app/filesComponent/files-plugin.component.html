@@ -3,6 +3,11 @@
   <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
     </div>
+    @if (handoffError) {
+      <div class="alert alert-danger mx-auto mt-4" role="alert" style="max-width: 960px;">
+        {{ handoffError }}
+      </div>
+    }
     @if (!isLoadingFiles && !commonService.session?.files?.length) {
       <div id="file-prompt" class="d-flex justify-content-center">
         <h1><b>Please add data files to load...</b></h1>
@@ -18,14 +23,14 @@
 
   <div id="tool-btn-container" class="m-portlet">
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+      <a title="Settings" data-testid="files-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
     </span>
   </div>
 
 
 
   <div class="view-controls">
-    <p-dialog id="file-settings-pane" [(visible)]="displayFileSettings" header="File Settings">
+    <p-dialog id="file-settings-pane" data-testid="files-settings-dialog" [(visible)]="displayFileSettings" header="File Settings">
       <div class="form-group row">
         <div class="col-6">
           <label style="padding-left: 10px;" for="default-distance-metric" class="mr-2" title="Which Genetic Distance Metric should Microbe use to first construct the network?">

@@ -3,8 +3,9 @@
 
 import type { Core } from 'cytoscape';
 import type { FileLoadSpec } from '../e2e/journeys/datasets/profile';
-import type { DatasetProfile, LinkLabelVariable } from '../e2e/journeys/datasets/profile';
+import type { DatasetProfile, DistanceMetric, LinkLabelVariable, PruneWith } from '../e2e/journeys/datasets/profile';
 import { resolveExpected } from '../e2e/journeys/datasets/profile';
+import { byTestId, testIds } from './selectors';
 
 type WinWithMT = Window & {
   commonService: any;
@@ -70,10 +71,10 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   }
 
   cy.get('body').then(($body) => {
-    const continueButton = $body.find('button:contains("Continue with Sample Dataset")');
+    const continueButton = $body.find(byTestId(testIds.appSampleDatasetButton));
     if (!continueButton.length) return;
 
-    cy.contains('button', 'Continue with Sample Dataset').click({ force: true });
+    cy.get(byTestId(testIds.appSampleDatasetButton)).click({ force: true });
     cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
   });
 }
@@ -112,6 +113,25 @@ export function syncPreLaunchProfileToSession(profile: DatasetProfile): void {
       microbeTrace.SelectedDistanceMetricVariable = profile.preLaunch.metric;
       microbeTrace.SelectedLinkThresholdVariable = profile.preLaunch.threshold;
     }
+  });
+}
+
+export function ensurePreLaunchProfileSynced(profile: DatasetProfile): void {
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const widgets = w.commonService.session.style.widgets;
+
+    const needsSync =
+      widgets['default-distance-metric'] !== profile.preLaunch.metric ||
+      Number(widgets['link-threshold']) !== Number(profile.preLaunch.threshold) ||
+      (
+        profile.preLaunch.defaultView !== undefined &&
+        widgets['default-view'] !== profile.preLaunch.defaultView
+      );
+
+    if (!needsSync) return;
+
+    syncPreLaunchProfileToSession(profile);
   });
 }
 
@@ -291,7 +311,7 @@ function hexToRgbString(hex: string): string {
     cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
   }
 
-  function expandAccordionTabByHeader(containerAlias: string, headerText: string): void {
+export function expandAccordionTabByHeader(containerAlias: string, headerText: string): void {
     const timeout = 15000;
   
     const HEADER_CLICK_SEL = [
@@ -430,8 +450,7 @@ function hexToRgbString(hex: string): string {
   }
   
 export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
-  // matches your existing file tests: click settings gear that opens #file-settings-pane
-  cy.get('a[title="Settings"]', { timeout: 15000 }).first().click({ force: true });
+  cy.get(byTestId(testIds.filesSettingsButton), { timeout: 15000 }).click({ force: true });
 
   cy.contains('.p-dialog-title', 'File Settings', { timeout: 15000 })
     .should('be.visible')
@@ -495,8 +514,8 @@ export function launchAndWaitForProcessing(timeout = 60000): void {
 }
 
 export function goTo2DNetworkView(): void {
-  cy.contains('button', 'View', { timeout: 15000 }).click({ force: true });
-  cy.contains('button[mat-menu-item]', '2D Network', { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuTwoD), { timeout: 15000 }).click({ force: true });
 
   assertTwoDNetworkReady();
 }
@@ -521,31 +540,205 @@ export function launchProfileToTwoD(profile: DatasetProfile): void {
   visitAppAndAcceptEula();
   cy.loadFiles(profile.files);
   applyPreLaunchFileSettings(profile);
-  syncPreLaunchProfileToSession(profile);
+  ensurePreLaunchProfileSynced(profile);
   launchAndWaitForProcessing(60000);
   ensureTwoDNetworkView();
+}
+
+export function assertMetricCount(selector: string, expected: number, timeout = 20000): void {
+  cy.get(selector, { timeout }).should(($metric) => {
+    const value = parseInt(String($metric.text()).replace(/,/g, ''), 10);
+    expect(value, `metric count for ${selector}`).to.equal(expected);
+  });
+}
+
+export function waitForProcessingDialogToClear(timeout = 30000): void {
+  cy.get('body', { timeout }).should(($body) => {
+    const visibleProcessingDialogs = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Processing Files...'))
+      .length;
+
+    expect(visibleProcessingDialogs, 'visible processing dialogs').to.equal(0);
+  });
+}
+
+export function openGlobalFilteringTab(): void {
+  cy.openGlobalSettings();
+  cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
+  cy.get('#filtering-config', { timeout: 15000 }).should('be.visible');
+}
+
+export function setFilteringPruneWith(value: PruneWith): void {
+  cy.get('#prune-select').contains('span', value).click({ force: true });
+  cy.window()
+    .its('commonService.GlobalSettingsModel.SelectedPruneWithTypesVariable')
+    .should('equal', value);
+
+  if (value === 'Nearest Neighbor') {
+    cy.window().its('commonService.session.style.widgets.link-show-nn').should('equal', true);
+    cy.get('#filtering-epsilon-row').should('be.visible');
+    return;
+  }
+
+  cy.window().its('commonService.session.style.widgets.link-show-nn').should('equal', false);
+  cy.get('#filtering-epsilon-row').should('not.be.visible');
+}
+
+export function setFilteringEpsilonExponent(exponent: number): void {
+  cy.get('#filtering-epsilon-row').should('be.visible');
+  cy.get(byTestId(testIds.filterEpsilon))
+    .should('be.visible')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = String(exponent);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.window()
+    .its('commonService.session.style.widgets.filtering-epsilon')
+    .should((value) => {
+      expect(Number(value)).to.equal(exponent);
+    });
+
+  cy.contains('#filtering-epsilon-row label', Math.pow(10, exponent).toPrecision(3)).should('be.visible');
+}
+
+export function setGlobalDistanceMetric(metric: DistanceMetric): void {
+  cy.get('#global-settings-modal')
+    .find('#default-distance-metric')
+    .should('be.visible')
+    .select(metric);
+
+  cy.window()
+    .its('commonService.session.style.widgets.default-distance-metric')
+    .should('equal', metric);
+}
+
+export function setGlobalLinkThreshold(threshold: number | string): void {
+  const nextThreshold = String(threshold);
+
+  cy.get('#link-threshold')
+    .should('be.visible')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.focus();
+      input.value = nextThreshold;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.window()
+    .its('commonService.session.style.widgets.link-threshold')
+    .should((value) => {
+      expect(Number(value)).to.equal(Number(nextThreshold));
+    });
+}
+
+export function assertVisibleNodeIds(expectedNodeIds: string[]): void {
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const cyInstance = w.cytoscapeInstance as Core;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const visibleNodeIds = cyInstance
+      .nodes(':visible')
+      .filter((node) => node.children().length === 0)
+      .map((node) => String(node.id()))
+      .sort();
+
+    expect(visibleNodeIds, 'visible node ids').to.deep.equal([...expectedNodeIds].sort());
+  });
+}
+
+export type StyleSnapshot = {
+  nodes: Record<string, string>;
+  nodeShapes: Record<string, string>;
+  nodeWidths: Record<string, string>;
+  edges: Record<string, string>;
+};
+
+type StylePreservationOptions = {
+  ignoreNodeWidths?: boolean;
+};
+
+export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
+  return cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const cyInstance = w.cytoscapeInstance as Core;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const visibleNodes = cyInstance
+      .nodes()
+      .filter((node) => !node.hasClass('parent') && node.visible());
+
+    const visibleEdges = cyInstance
+      .edges()
+      .filter((edge) => edge.visible());
+
+    return {
+      nodes: visibleNodes.reduce((acc: Record<string, string>, node) => {
+        acc[node.id()] = String(node.style('background-color') || '').replace(/\s+/g, '');
+        return acc;
+      }, {}),
+      nodeShapes: visibleNodes.reduce((acc: Record<string, string>, node) => {
+        acc[node.id()] = String(node.style('shape') || '').trim();
+        return acc;
+      }, {}),
+      nodeWidths: visibleNodes.reduce((acc: Record<string, string>, node) => {
+        acc[node.id()] = String(node.style('width') || '').trim();
+        return acc;
+      }, {}),
+      edges: visibleEdges.reduce((acc: Record<string, string>, edge) => {
+        acc[edge.id()] = String(edge.style('line-color') || '').replace(/\s+/g, '');
+        return acc;
+      }, {}),
+    };
+  });
+}
+
+export function assertVisibleStylePreserved(
+  before: StyleSnapshot,
+  after: StyleSnapshot,
+  options: StylePreservationOptions = {},
+): void {
+  Object.entries(after.nodes).forEach(([id, backgroundColor]) => {
+    expect(before.nodes[id], `node ${id} background-color`).to.equal(backgroundColor);
+  });
+
+  Object.entries(after.nodeShapes).forEach(([id, shape]) => {
+    expect(before.nodeShapes[id], `node ${id} shape`).to.equal(shape);
+  });
+
+  if (!options.ignoreNodeWidths) {
+    Object.entries(after.nodeWidths).forEach(([id, width]) => {
+      expect(before.nodeWidths[id], `node ${id} width`).to.equal(width);
+    });
+  }
+
+  Object.entries(after.edges).forEach(([id, lineColor]) => {
+    expect(before.edges[id], `edge ${id} color`).to.equal(lineColor);
+  });
 }
 
 export function assertAfterLaunchCounts(profile: DatasetProfile, mode: 'observed' | 'intended' = 'observed'): void {
   const expected = resolveExpected(profile.expectations.afterLaunch, mode);
   if (!expected) return;
 
-  const readInt = (selector: string) =>
-    cy.get(selector, { timeout: 20000 })
-      .invoke('text')
-      .then((t) => parseInt(String(t).replace(/,/g, ''), 10));
-
   if (expected.nodes !== undefined) {
-    readInt('#numberOfNodes').should('equal', expected.nodes);
+    assertMetricCount('#numberOfNodes', expected.nodes);
   }
   if (expected.visibleLinks !== undefined) {
-    readInt('#numberOfVisibleLinks').should('equal', expected.visibleLinks);
+    assertMetricCount('#numberOfVisibleLinks', expected.visibleLinks);
   }
   if (expected.clusters !== undefined) {
-    readInt('#numberOfDisjointComponents').should('equal', expected.clusters);
+    assertMetricCount('#numberOfDisjointComponents', expected.clusters);
   }
   if (expected.singletons !== undefined) {
-    readInt('#numberOfSingletonNodes').should('equal', expected.singletons);
+    assertMetricCount('#numberOfSingletonNodes', expected.singletons);
   }
 }
 
@@ -563,6 +756,13 @@ export function applyStyleFromProfile(profile: DatasetProfile): void {
   cy.contains('#global-settings-modal .nav-link', 'Styling').click();
   cy.get('#apply-style').should('exist');
   cy.attach_files('#apply-style', [style.styleFile], ['application/json']);
+
+  assertStyleWidgetsFromProfile(profile);
+}
+
+export function assertStyleWidgetsFromProfile(profile: DatasetProfile): void {
+  const style = profile.expectations.applyStyle;
+  if (!style) return;
 
   cy.window()
     .its('commonService.session.style.widgets', { timeout: 5000 })
@@ -653,7 +853,7 @@ export function setTwoDLinkLabelVariable(variable: LinkLabelVariable): void {
 }
 
 export function openTwoDSettingsDialog(): void {
-  cy.get('TwoDComponent #tool-btn-container a[title="Settings"]', { timeout: 15000 })
+  cy.get(byTestId(testIds.twodSettingsButton), { timeout: 15000 })
     .should('exist')
     .click({ force: true });
 
