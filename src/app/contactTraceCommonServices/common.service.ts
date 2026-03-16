@@ -2097,9 +2097,13 @@ align(params): Promise<any> {
         console.log('running hamsters');
         //if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
-        console.log('run ham computeTree');
-        await this.computeTree();
-        console.log('compute tree end');
+        let hasDistances = this.session.data.links.some(l => l.hasDistance === true && l.distance > 0)
+        if (hasDistances && this.session.data.links.length <= 2500) {
+            console.log('run ham computeTree');
+            const newickString = await this.computeTree();
+            this.session.data.newickString = newickString;
+            console.log('compute tree end');
+        }
         //if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
         this.finishUp();
     };

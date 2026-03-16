@@ -229,6 +229,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     Node2DNetworkExportDialogSettings: DialogSettings = new DialogSettings('#network-settings-pane', false);
 
     ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
+    private contextMenuNodeId: string | null = null;
 
     // TODO see if needed after transition to cytoscape
     // zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
@@ -626,6 +627,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     attachCytoscapeEvents() {
         console.log('--- TwoD attachCytoscapeEvents called');
+        $('#cy').off('contextmenu.twod').on('contextmenu.twod', (e) => e.preventDefault());
 
         // Debounced function to sync Cytoscape selections with the common service.
         const syncCySelectionToService = _.debounce(() => {
@@ -662,6 +664,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cy.on('tap', 'node', (evt) => {
             const node = evt.target;
             console.log('Selected node:', node.data());
+            this.hideContextMenu();
     
             // Update selectedNodeId and trigger change detection or re-render if necessary
             this.selectedNodeId = node.id();
@@ -671,6 +674,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             this.cy.style().update();
     
+        });
+
+        this.cy.on('cxttap', 'node', (evt) => {
+            const node = evt.target;
+            if (node.data('isParent')) {
+                return;
+            }
+            const originalEvent = evt.originalEvent as MouseEvent;
+            this.zone.run(() => {
+                this.showContextMenu(node.data(), originalEvent, node);
+            });
+        });
+
+        this.cy.on('tap', (evt) => {
+            if (evt.target === this.cy) {
+                this.hideContextMenu();
+            }
         });
     
         this.cy.on('mouseover', 'node', (evt) => {
@@ -1833,8 +1853,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     copyID() {
-        let id = $('#copyID').attr('data-clipboard-text')
-        this.clipboard.copy(id);
+        const id = ($('#copyID').attr('data-clipboard-text') || '').toString();
+        if (id) {
+            this.clipboard.copy(id);
+        }
         this.hideContextMenu();
     }
 
@@ -1842,27 +1864,117 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Used from Context Menu and copy node's sequence to the user's clipboard
      */
     copySeq() {
-        let seq = $('#copySeq').attr('data-clipboard-text')
-        this.clipboard.copy(seq);
+        const seq = ($('#copySeq').attr('data-clipboard-text') || '').toString();
+        if (seq) {
+            this.clipboard.copy(seq);
+        }
         this.hideContextMenu()
     }
 
     /**
-     * Upon right clicking a node, d, the context menu will appear, which allows the user to option to pin node, copy id, copy sequence, or view attributes
+     * Upon right clicking a node, d, the context menu will appear, which allows the user to option to copy id, copy sequence, or view attributes
      * @param d the node right clicked
      */
-    showContextMenu(d) {
+    showContextMenu(d, event: MouseEvent, node?) {
+        if (!event) {
+            return;
+        }
 
+        event.preventDefault();
+        event.stopPropagation();
+        this.hideTooltip();
+
+        const nodeId = (d?._id ?? d?.id ?? node?.id?.()) as string;
+        this.contextMenuNodeId = nodeId || null;
+        // if (node && node.select) {
+        //     node.select();
+        // }
+
+        const idText = (d?._id ?? d?.id ?? '').toString();
+        const seqText = (d?.sequence ?? d?.seq ?? '').toString();
+        $('#copyID').attr('data-clipboard-text', idText);
+        $('#copySeq').attr('data-clipboard-text', seqText);
+
+        const x = event.clientX ?? 0;
+        const y = event.clientY ?? 0;
+        const menu = $('#context-menu');
+        const menuWidth = (menu.outerWidth() as number) || 170;
+        const menuHeight = (menu.outerHeight() as number) || 140;
+        const maxX = Math.max(8, window.innerWidth - menuWidth - 8);
+        const maxY = Math.max(8, window.innerHeight - menuHeight - 8);
+        const left = Math.max(8, Math.min(x + 8, maxX));
+        const top = Math.max(8, Math.min(y + 8, maxY));
+
+        menu
+            .stop(true, true)
+            .css({
+                display: 'block',
+                position: 'fixed',
+                left: `${left}px`,
+                top: `${top}px`,
+                opacity: 1,
+                'z-index': 1200
+            });
     };
 
     /**
      * Hides the Context Menu
      */
     hideContextMenu() {
-        $('#context-menu').animate({ 'opacity': 0 }, 80, function () {
-            $(this).css('z-index', -1);
+        $('#context-menu').stop(true, true).animate({ 'opacity': 0 }, 80, function () {
+            $(this).css({ 'z-index': -1, display: 'none' });
         });
     };
+
+    private getContextMenuNodeData() {
+        if (!this.contextMenuNodeId) {
+            return null;
+        }
+        const nodeId = this.contextMenuNodeId;
+        const allNodes = [
+            ...(this.commonService.session.data.nodes || []),
+            ...(this.commonService.session.data.nodeFilteredValues || [])
+        ];
+        return allNodes.find(n => (n?._id ?? n?.id) === nodeId || (n?.id ?? n?._id) === nodeId) || null;
+    }
+
+    viewSelectedNodeAttributes() {
+        const node = this.getContextMenuNodeData();
+        if (!node) {
+            this.hideContextMenu();
+            return;
+        }
+
+        const excludedKeys = new Set(['_id', 'seq', 'data', 'hasDistance', 'x', 'y', 'vx', 'vy', 'selected', 'nodeSize', 'visible', 'index']);
+        this.ContextSelectedNodeAttributes = Object.keys(node)
+            .filter(key => !excludedKeys.has(key) && !key.startsWith('_'))
+            .sort((a, b) => {
+                const aIsId = a === 'ID';
+                const bIsId = b === 'ID';
+                if (aIsId && !bIsId) return -1;
+                if (!aIsId && bIsId) return 1;
+                return a.localeCompare(b);
+            })
+            .map(key => {
+                const rawValue = node[key];
+                let value = '';
+
+                if (rawValue === null || rawValue === undefined) {
+                    value = '';
+                } else if (Array.isArray(rawValue)) {
+                    value = rawValue.join(', ');
+                } else if (typeof rawValue === 'object') {
+                    value = JSON.stringify(rawValue);
+                } else {
+                    value = String(rawValue);
+                }
+
+                return { attribute: key, value };
+            });
+        this.ShowNetworkAttributes = true;
+        this.hideContextMenu();
+        this.cdref.detectChanges();
+    }
 
     /**
      * This function capitalizes the first letter of each word in a string.
@@ -4195,6 +4307,7 @@ private async _partialUpdate() {
             this.cy.removeAllListeners();
             this.cy.destroy();
         }
+        $('#cy').off('contextmenu.twod');
         this.cyContainer = null;
 
 
