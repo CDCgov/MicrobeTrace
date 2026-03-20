@@ -525,6 +525,26 @@ export function assertTwoDNetworkReady(timeout = 30000): void {
   cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
 }
 
+export function assertPhyloTreeReady(timeout = 30000): void {
+  cy.get('#phylocanvas', { timeout }).should('be.visible');
+}
+
+export function goToPhyloTreeView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Phylogenetic Tree', { timeout: 15000 }).click({ force: true });
+
+  assertPhyloTreeReady();
+}
+
+export function launchProfileToPhyloTree(profile: DatasetProfile): void {
+  visitAppAndAcceptEula();
+  cy.loadFiles(profile.files);
+  applyPreLaunchFileSettings(profile);
+  ensurePreLaunchProfileSynced(profile);
+  launchAndWaitForProcessing(60000);
+  goToPhyloTreeView();
+}
+
 export function ensureTwoDNetworkView(): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
     if ($body.find('#cy').length) {
@@ -636,8 +656,8 @@ export function setGlobalLinkThreshold(threshold: number | string): void {
     });
 }
 
-export function assertVisibleNodeIds(expectedNodeIds: string[]): void {
-  cy.window().then((win: unknown) => {
+export function assertVisibleNodeIds(expectedNodeIds: string[], timeout = 20000): void {
+  cy.window({ timeout }).should((win: unknown) => {
     const w = win as WinWithMT;
     const cyInstance = w.cytoscapeInstance as Core;
 

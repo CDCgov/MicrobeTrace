@@ -1087,11 +1087,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
-    /**
+     /**
      * Updates threshold based on selection and stores in style widget
      */
      public updateThreshold(ev: any): void {
-        const newThreshold = ev.target?.value ?? ev;
+        const newThreshold = ev?.target?.value ?? ev;
+
+        // Clearing the numeric input emits null through ngModelChange before the
+        // next keystroke arrives. Ignore that transient state instead of
+        // throwing or forcing the threshold to an invalid value mid-edit.
+        if (newThreshold === null || newThreshold === undefined || newThreshold === '') {
+            return;
+        }
+
+        const parsedThreshold = Number(newThreshold);
+        if (Number.isNaN(parsedThreshold)) {
+            return;
+        }
+
         this.threshold = newThreshold;
         
         if(this.commonService.debugMode) {
@@ -1103,7 +1116,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         
         // Emit the new threshold value to the debouncer for actual threshold change
-        this.thresholdDebouncer.next(Number(newThreshold));
+        this.thresholdDebouncer.next(parsedThreshold);
     }
 
 

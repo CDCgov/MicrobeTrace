@@ -93,6 +93,16 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
+    cy.window().then((win: any) => {
+      const initialVisibleNodeIds = win.cytoscapeInstance
+        .nodes(':visible')
+        .filter((node: any) => node.children().length === 0)
+        .map((node: any) => String(node.id()))
+        .sort();
+
+      cy.wrap(initialVisibleNodeIds, { log: false }).as('initialVisibleNodeIds');
+    });
+
     openGlobalFilteringTab();
     cy.get(byTestId(testIds.filterMinimumClusterSize))
       .clear()
@@ -104,15 +114,15 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
       .should('equal', minimumClusterSize!.to);
 
     cy.closeGlobalSettings();
+    waitForProcessingDialogToClear();
 
-    cy.window().then((win: any) => {
-      const visibleNodeIds = win.cytoscapeInstance
-        .nodes(':visible')
-        .filter((node: any) => node.children().length === 0)
-        .map((node: any) => String(node.id()))
-        .sort();
+    cy.get('@initialVisibleNodeIds').then((initialVisibleNodeIds) => {
+      const expectedVisibleNodeIds = (initialVisibleNodeIds as string[]).filter(
+        (nodeId) => !minimumClusterSize!.hiddenNodeIds!.includes(nodeId),
+      );
 
-      cy.wrap(visibleNodeIds, { log: false }).as('clusterFilteredNodeIds');
+      cy.wrap(expectedVisibleNodeIds, { log: false }).as('clusterFilteredNodeIds');
+      assertVisibleNodeIds(expectedVisibleNodeIds);
     });
 
     openGlobalFilteringTab();

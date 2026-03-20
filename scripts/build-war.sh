@@ -16,11 +16,11 @@ npm run build -- --configuration production --base-href=./ || { echo "Angular bu
 npm run verify:dist || { echo "Production artifact verification failed"; exit 1; }
 
 echo "===> Creating WAR file..."
+WAR_PATH="dist/Microbetrace.WAR"
+WAR_TMP_PATH="dist/Microbetrace.tmp.WAR"
+rm -f "$WAR_TMP_PATH"
 cd dist/MicrobeTrace || { echo "dist/MicrobeTrace not found"; exit 1; }
-jar -cvf ../MicrobeTrace.war . || { echo "Failed to create WAR file"; exit 1; }
+jar -cvf "../$(basename "$WAR_TMP_PATH")" . || { echo "Failed to create WAR file"; exit 1; }
+mv -f "../$(basename "$WAR_TMP_PATH")" "../$(basename "$WAR_PATH")" || { echo "Failed to replace WAR file"; exit 1; }
 
-COMMIT=$(git rev-parse --short HEAD)
-
-mv ../MicrobeTrace.war ../MicrobeTrace_${COMMIT}.war
-
-echo "===> WAR file created at dist/MicrobeTrace_${COMMIT}.war"
+echo "===> WAR file created at $WAR_PATH"
