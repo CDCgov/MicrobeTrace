@@ -3175,6 +3175,32 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     return newPos;  // so the test can assert directly
                     });
                 },
+                selectNodesInRenderedBox: (x1: number, y1: number, x2: number, y2: number) => {
+                    return this.zone.run(() => {
+                        const left = Math.min(x1, x2);
+                        const right = Math.max(x1, x2);
+                        const top = Math.min(y1, y2);
+                        const bottom = Math.max(y1, y2);
+
+                        const nodesToSelect = this.cy
+                            .nodes(':visible')
+                            .filter((node: any) => !node.hasClass('parent') && node.children().length === 0)
+                            .filter((node: any) => {
+                                const position = node.renderedPosition();
+                                return (
+                                    position.x >= left &&
+                                    position.x <= right &&
+                                    position.y >= top &&
+                                    position.y <= bottom
+                                );
+                            });
+
+                        this.cy.elements().unselect();
+                        nodesToSelect.select();
+
+                        return nodesToSelect.map((node: any) => node.id());
+                    });
+                },
                 tooltip: (action: 'show' | 'hide', nodeId: string) => {
                   this.zone.run(() => {
                       const node = this.cy.getElementById(nodeId);

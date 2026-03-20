@@ -589,6 +589,12 @@ export function openGlobalFilteringTab(): void {
   cy.get('#filtering-config', { timeout: 15000 }).should('be.visible');
 }
 
+export function openGlobalStylingTab(): void {
+  cy.openGlobalSettings();
+  cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+  cy.get('#style-config', { timeout: 15000 }).should('be.visible');
+}
+
 export function setFilteringPruneWith(value: PruneWith): void {
   cy.get('#prune-select').contains('span', value).click({ force: true });
   cy.window()

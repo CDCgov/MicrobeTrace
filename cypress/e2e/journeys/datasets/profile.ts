@@ -13,6 +13,7 @@ import { FILTERING_PROFILES } from './profiles/filtering';
 import { NEWICK_PROFILES } from './profiles/newick';
 import { LOAD_PROFILES } from './profiles/load';
 import { LINK_PROFILES } from './profiles/links';
+import { COLOR_BY_PROFILES } from './profiles/color-by';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
   ...LOAD_PROFILES,
@@ -22,6 +23,7 @@ export const DATASET_PROFILES: DatasetProfile[] = [
   ...FILTERING_PROFILES,
   ...NEWICK_PROFILES,
   ...LINK_PROFILES,
+  ...COLOR_BY_PROFILES,
 ];
 
 export const DATASET_PROFILE_MAP: Record<string, DatasetProfile> = DATASET_PROFILES

@@ -1,6 +1,6 @@
 # 2D Network Cypress E2E Checklist
 
-Current on `cypressTesting` as of 2026-03-13.
+Current on `cypressTesting` as of 2026-03-20.
 
 Companion QA tracker: `docs/2d-network-cypress-qa-tracker.csv`
 
@@ -79,6 +79,9 @@ Maintained suite structure:
 - [x] Expected style tables open after applying style.
 - [x] Background color change updates the 2D canvas.
 - [x] Selected color change updates rendered selected-node styling.
+- [x] Color Nodes By from Global Settings updates uploaded node colors in Cytoscape.
+- [x] Color Links By from Global Settings updates uploaded link colors in Cytoscape.
+- [x] Individual node and link color table entry edits update only the targeted Cytoscape categories.
 - [x] Style remains correct after threshold filtering changes.
 - [x] Style remains correct after Minimum Cluster Size filtering.
 - [x] Style remains correct after grouping is turned on.
@@ -86,6 +89,7 @@ Maintained suite structure:
 ## 4. 2D Settings: Nodes
 
 - [x] Node label variable on uploaded profile data.
+- [x] Node label hide and restore path on uploaded profile data.
 - [x] Node label size on uploaded profile data.
 - [x] Node label orientation on uploaded profile data.
 - [x] Node tooltip contents on uploaded profile data.
@@ -120,6 +124,7 @@ Maintained suite structure:
 - [x] Pin All prevents link-length relayout.
 - [x] Recalculate Layout changes positions when nodes are not pinned.
 - [x] Dragging a node updates both rendered position and backing model on uploaded profile data.
+- [x] Multi-node box select on uploaded data keeps Cytoscape and app-model selection in sync.
 
 ## 7. 2D Settings: Grouping
 
@@ -143,7 +148,12 @@ Maintained suite structure:
 - [x] Mixed-origin dataset -> threshold change -> Nearest Neighbor -> reveal -> verify counts and origins remain correct.
 - [x] Newick dataset -> launch 2D -> adjust one 2D link setting -> verify parsed distance links behave correctly.
 
-## 9. Contract Coverage
+## 9. Export And Session
+
+- [x] 2D network export writes a non-empty SVG or PNG file to downloads.
+- [x] Save Session and re-upload round-trip restores styled and grouped 2D state.
+
+## 10. Contract Coverage
 
 - [x] Explicit reciprocal width orientation has contract coverage.
 - [x] Minimum Cluster Size expected behavior has contract coverage.
@@ -151,9 +161,9 @@ Maintained suite structure:
 - [x] Mixed-origin Nearest Neighbor expected behavior has contract coverage.
 - [x] Newick expected launch counts have contract coverage.
 
-## 10. Fixture Gaps To Fill
+## 11. Fixture Gaps To Fill
 
-## 11. Recommended Build Order
+## 12. Recommended Build Order
 
 - [x] Add `Minimum Cluster Size -> Reveal Everything` first.
 - [x] Add `Nearest Neighbor + epsilon` second.
