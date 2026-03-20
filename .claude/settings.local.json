@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/e2e/journeys/flows/*.cy.ts)",
+      "Bash(grep -l \"tree\\\\|Tree\" /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/e2e/journeys/flows/*.cy.ts)",
+      "Bash(head -20 /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/e2e/journeys/flows/*.cy.ts)",
+      "Bash(ls /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/docs/*.csv)"
+    ]
+  }
+}
