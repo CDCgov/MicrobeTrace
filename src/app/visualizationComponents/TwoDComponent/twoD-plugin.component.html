@@ -567,15 +567,14 @@
   <a href="#" id="polygon-color-table-frequencies" class="dropdown-item">Toggle Frequencies</a>
 </div>
 
-<div id="context-menu" class="dropdown-menu">
-  <a href="javascript:;" id="pinNode" class="dropdown-item">Pin Node</a>
-  <button id="copyID" class="dropdown-item" (click)="copyID()">Copy ID</button>
-  <button id="copySeq" class="dropdown-item" (click)="copySeq()">Copy Sequence</button>
-  <a href="javascript:;" id="viewAttributes" class="dropdown-item">View Attributes</a>
+<div id="context-menu" class="dropdown-menu" style="display: none; opacity: 0; z-index: -1;">
+  <button type="button" id="copyID" class="dropdown-item" (click)="copyID()">Copy ID</button>
+  <button type="button" id="copySeq" class="dropdown-item" (click)="copySeq()">Copy Sequence</button>
+  <button type="button" id="viewAttributes" class="dropdown-item" (click)="viewSelectedNodeAttributes()">View Attributes</button>
 </div>
 
 
-<p-dialog id="network-attribute-table-wrapper" [(visible)]="ShowNetworkAttributes" header="Node Attributes" [style]="{width: '35vw'}" >
+<p-dialog id="network-attribute-table-wrapper" [(visible)]="ShowNetworkAttributes" header="Node Attributes" [style]="{'width': '40vw', 'max-height': '60vw'}" >
   <div class="col-12" style="width:100%;">
     <table id="network-attribute-table" style="width:100%">
       @for (item of ContextSelectedNodeAttributes; track item) {
