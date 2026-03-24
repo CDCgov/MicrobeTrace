@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -17,9 +17,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
 @Component({
-  selector: 'bubble-component',
-  templateUrl: './bubble.component.html',
-  styleUrls: ['./bubble.component.scss']
+    selector: 'bubble-component',
+    templateUrl: './bubble.component.html',
+    styleUrls: ['./bubble.component.scss'],
+    standalone: false
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -444,10 +445,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.syncCySelectionFromSession();
   
     // Existing hover events
-    this.cy.on('mouseover', 'node', (evt) => {
+    this.cy.on('mouseover', 'node', (evt: any, pos?) => {
+      const rp = evt.renderedPosition || pos;
       const node = evt.target;
       if (node.classes().length > 0) return;
-      this.showTooltip(node.data(), evt.originalEvent);
+      this.showTooltip(node.data(), rp);
     });
   
     this.cy.on('mouseout', 'node', () => {
@@ -456,7 +458,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
   
 
-  showTooltip(d, e) {
+  showTooltip(d, pos) {
     let tooltipHTML: string = '';
     if (this.SelectedNodeCollapsingTypeVariable) {
       tooltipHTML = `
@@ -489,7 +491,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     } else {
       tooltipHTML = `${d.id}`
     }
-    let [X, Y] = this.getRelativeMousePosition(event);
+    let [X, Y] = [pos.x, pos.y];
     
     this.toolTip.nativeElement.innerHTML = tooltipHTML;
     Object.assign(this.toolTip.nativeElement.style, {

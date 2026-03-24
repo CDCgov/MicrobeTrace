@@ -6,7 +6,7 @@ import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
 import { debounceTime, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 import moment from 'moment';
@@ -20,6 +20,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
+import { EmbedHandoffService } from './embed/embed-handoff.service';
 
 
 @Component({
@@ -28,7 +29,8 @@ import { buildDate, commitHash } from "src/environments/version";
     encapsulation: ViewEncapsulation.None,
     templateUrl: './microbe-trace-next-plugin.component.html',
     styleUrls: ['./microbe-trace-next-plugin.component.less'],
-    providers: [ConfirmationService]
+    providers: [ConfirmationService],
+    standalone: false
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
@@ -95,7 +97,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.0';
+    version: string = '2.1';
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
@@ -250,7 +252,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private cdref: ChangeDetectorRef,
         private el: ElementRef, 
         private store: CommonStoreService,
-        private exportService: ExportService
+        private exportService: ExportService,
+        private embedHandoffService: EmbedHandoffService
     ) {
 
 
@@ -279,6 +282,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     getElementById(id: string): HTMLElement | null {
         const element = this.el.nativeElement.querySelector(`#${id}`);
         return element;
+    }
+
+    private hasTestQueryFlag(flag: string): boolean {
+        return new URL(window.location.href).searchParams.get(flag) === '1';
     }
 
     ngOnInit() {
@@ -495,6 +502,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
    * If no acceptance found, display the license modal.
    */
   private check_eula_acceptance(): void {
+    if (this.hasTestQueryFlag('skipEula')) {
+      this.commonService.localStorageService.setItem('microbetrace_eula_accepted', 'true');
+      this.display_eula_modal = false;
+      return;
+    }
+
     // Example of using the localStorageService if needed:
     this.commonService.localStorageService.getItem('microbetrace_eula_accepted', (err, result) => {
       if (!result) {
@@ -1035,8 +1048,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.metric.toLowerCase() === "snps") {
             //Hide Ambiguities
             $('#ambiguities-menu').hide();
-            this.threshold = "7";
-            this.commonService.session.style.widgets["link-threshold"] = 7;
+            this.threshold = "16";
+            this.commonService.session.style.widgets["link-threshold"] = 16;
         } else {
 
             $('#ambiguities-menu').show();
@@ -1076,11 +1089,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
-    /**
+     /**
      * Updates threshold based on selection and stores in style widget
      */
      public updateThreshold(ev: any): void {
-        const newThreshold = ev.target?.value ?? ev;
+        const newThreshold = ev?.target?.value ?? ev;
+
+        // Clearing the numeric input emits null through ngModelChange before the
+        // next keystroke arrives. Ignore that transient state instead of
+        // throwing or forcing the threshold to an invalid value mid-edit.
+        if (newThreshold === null || newThreshold === undefined || newThreshold === '') {
+            return;
+        }
+
+        const parsedThreshold = Number(newThreshold);
+        if (Number.isNaN(parsedThreshold)) {
+            return;
+        }
+
         this.threshold = newThreshold;
         
         if(this.commonService.debugMode) {
@@ -1092,7 +1118,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         
         // Emit the new threshold value to the debouncer for actual threshold change
-        this.thresholdDebouncer.next(Number(newThreshold));
+        this.thresholdDebouncer.next(parsedThreshold);
     }
 
 
@@ -1265,6 +1291,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.widgets['link-color-variable'] && this.widgets['link-color-variable'] !== 'None') {
             this.SelectedLinkColorTableTypesVariable = 'Show';
             this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+        }
+
+        if (this.widgets['node-symbol-variable'] && this.widgets['node-symbol-variable'] !== 'None') {
+            this.widgets['node-symbol-table-visible'] = 'Show';
+
+            const twoD = this.commonService.visuals?.twoD;
+            if (twoD) {
+                twoD.widgets['node-symbol-variable'] = this.widgets['node-symbol-variable'];
+                twoD.widgets['node-symbol-table-visible'] = 'Show';
+                twoD.SelectedNodeSymbolVariable = this.widgets['node-symbol-variable'];
+                twoD.onNodeSymbolTableChange('Show');
+                twoD.onNodeSymbolVariableChange(this.widgets['node-symbol-variable'], true);
+                (twoD as any).cdref?.detectChanges?.();
+            }
         }
     }
 
@@ -2515,7 +2555,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this._goldenLayoutHostComponent['_goldenLayout.layoutConfig.dimensions.headerHeight'] = 36;
             this.addComponent('Files');
 
-          if (this.auspiceUrlVal) {
+          if (this.auspiceUrlVal && !this.embedHandoffService.hasPendingHandoffInUrl()) {
             if(this.commonService.debugMode) {
                 console.log("Trying to open URL");
             }
@@ -2610,6 +2650,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     private _removeGlView(view : string) {
+        if (this.homepageTabs.findIndex(tab => tab.label === view) === -1) {
+            console.log(`Skipping removal for ${view}; tab is not active`);
+            return;
+        }
+
         console.log(`Removing ${view}`);
         this._goldenLayoutHostComponent.removeComponent(view);
         this.removeComponent(view);
@@ -2695,7 +2740,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             e = "2D Network";
         }
 
-        this.resetLayout();
+        if (!this.auspiceUrlVal) this.resetLayout();
 
         // TODO:: see if timeout needed
         // setTimeout(() => {
@@ -3634,17 +3679,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
      */
-  onDistanceMetricChanged = () => {
+  onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
+    let didRecomputeSequenceLinks = false;
     if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
-        .val(7)
+        .val(16)
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.SelectedLinkThresholdVariable = '7';
-      this.onLinkThresholdChanged();
+      this.SelectedLinkThresholdVariable = '16';
     } else {
       $('#default-distance-threshold')
         .attr('step', 0.001)
@@ -3652,7 +3697,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
       this.SelectedLinkThresholdVariable = '0.015';
-      this.onLinkThresholdChanged();
+    }
+
+    didRecomputeSequenceLinks = await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
+    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+      await this.commonService.computeMST();
+      this.commonService.session.style.widgets["mst-computed"] = true;
+    }
+
+    this.onLinkThresholdChanged();
+
+    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+      this.commonService.session.style.widgets["mst-computed"] = true;
     }
   }
 }

@@ -1,8 +1,8 @@
-import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as fileto from 'fileto';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';
@@ -17,15 +17,18 @@ import { cloneDeep } from 'lodash';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { relativeTimeThreshold } from 'moment';
+import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
+import { ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
 
 @Component({
-  selector: 'FilesComponent',
-  templateUrl: './files-plugin.component.html',
-  styleUrls: ['./files-plugin.component.less'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'FilesComponent',
+    templateUrl: './files-plugin.component.html',
+    styleUrls: ['./files-plugin.component.less'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 
 export class FilesComponent extends BaseComponentDirective implements OnInit {
@@ -39,26 +42,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedAmbiguityThresholdVariable: any = 0.015;
   SelectedDefaultDistanceThresholdVariable: any = 0.015;
   SelectedDefaultViewVariable: string = "2D Network";
-  SelectedGenerateNumberVariable: any = 100;
-
-  DirectionalityTypes: any = [
-    { label: 'Off', value: 'Off' },
-    { label: 'Inferred', value: 'Inferred' }
-  ];
-  SelectedDirectionalityTypeVariable: string = "Off";
-
-  TriangulationTypes: any = [
-    { label: 'Off', value: 'Off' },
-    { label: 'On', value: 'On' }
-  ];
-  SelectedTriangulationTypeVariable: string = "Off";
-
-  AutostashingTypes: any = [
-    { label: 'Off', value: 'Off' },
-    { label: 'On', value: 'On' }
-  ];
-  SelectedAutostashingTypeVariable: string = "Off";
-
 
   AlignTypes: any = [
     { label: 'None', value: 'None' },
@@ -102,6 +85,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   displayFileSettings: boolean = false;
   displaySequenceSettings: boolean = false;
   displayloadingInformationModal: boolean = false;
+  handoffError: string | null = null;
 
   nodeIds: { fileName: string; ids: string[] }[] = [];
   edgeIds: { fileName: string; ids: { source: string; target: string }[] }[] = [];
@@ -121,7 +105,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private eventEmitterService: EventEmitterService,
     public commonService: CommonService,
     private cdr: ChangeDetectorRef,
-    private store: CommonStoreService
+    private store: CommonStoreService,
+    private embedHandoffService: EmbedHandoffService,
+    private ngZone: NgZone
     ) {
 
     super(elRef.nativeElement);
@@ -129,6 +115,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // this.title = this.container.title;
     this.id = this.container.parent.id;
 
+  }
+
+  private refreshTemplateState(): void {
+    this.ngZone.run(() => {
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnInit() {
@@ -254,7 +246,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         `).on('change', (e) => {
 
           //debugger;
-          this.commonService.session.data.reference = e.data;// this.value;
+          const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+          this.commonService.session.data.reference = target?.value ?? e.data;
 
         });
 
@@ -330,7 +323,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const lsv = e.data ? e.data : 'tn93';
+      const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+      const lsv = target?.value ?? e.data ?? 'tn93';
       this.commonService.localStorageService.setItem('default-distance-metric', lsv);
       $('#default-distance-metric').val(lsv);
       console.log(lsv);
@@ -339,6 +333,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
           .val(16);
+        this.SelectedDefaultDistanceThresholdVariable = 16;
+        this.commonService.session.style.widgets['link-threshold'] = 16;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
         console.log('default-distance-metric change file-plugin.component.ts snps');
         this.store.setLinkThreshold(16);
@@ -347,6 +343,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 0.001)
           .val(0.015);
+        this.SelectedDefaultDistanceThresholdVariable = 0.015;
+        this.commonService.session.style.widgets['link-threshold'] = 0.015;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 0.015;
         console.log('default-distance-metric change file-plugin.component.ts tn93');
         this.store.setLinkThreshold(0.015);
@@ -370,7 +368,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const v = e.data; //this.value;
+      const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+      const v = target?.value ?? e.data;
       this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = v;
       if (v === 'HIVTRACE-G') {
         $('#ambiguity-threshold-row').slideDown();
@@ -383,7 +382,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       //debugger;
 
-      const v = e.data; //this.value;
+      const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+      const v = parseFloat(String(target?.value ?? e.data));
       this.commonService.session.style.widgets['ambiguity-threshold'] = v;
     });
 
@@ -397,7 +397,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         //debugger;
 
-        const v = e.data;// this.value;
+        const target = e.target as HTMLInputElement | HTMLSelectElement | null;
+        const v = target?.value ?? e.data;
         this.commonService.localStorageService.setItem('default-view', v);
         this.commonService.session.style.widgets['default-view'] = v;
         this.commonService.session.layout.content[0].type = v;
@@ -405,69 +406,25 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       .val(cachedView ? cachedView : this.commonService.session.style.widgets['default-view'])
       .trigger('change');
 
-    //$('#generate-sequences').on('click', () => {
-    //    $('#file-prompt').remove();
-    //    $('#launch').prop('disabled', false).focus();
-    //    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', parseFloat($('#generate-number').val().toString()), 20))], 'generatedNodes.csv'));
-    //});
-
-    $('#infer-directionality-false').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['infer-directionality-false'] = true;
-    });
-
-    $('#infer-directionality').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['infer-directionality-false'] = false;
-    });
-
-    $('#triangulate-false').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['triangulate-false'] = true;
-    });
-
-    $('#triangulate').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.session.style.widgets['triangulate-false'] = false;
-    });
-
-    $('#stash-auto-yes').parent().on('click', () => {
-
-      //debugger;
-
-      this.commonService.localStorageService.setItem('stash-auto', 'true');
-    });
-
-    if (localStorage.getItem('stash-auto') === 'true') {
-      $('#stash-auto-yes').parent().trigger('click');
-    }
-
-    $('#stash-auto-no').parent().on('click', () => {
-
-      //debugger;
-
-      if (this.commonService.temp.autostash) clearInterval(this.commonService.temp.autostash.interval);
-      this.commonService.localStorageService.setItem('stash-auto', 'false');
-    });
-
     if(this.commonService.session.network.launched){
       $('#launch').text('Update');
     }
-
-    
 
     // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
     if (!this.auspiceUrlVal) {
       this.auspiceUrlVal = this.commonService.getURL();
+    }
+
+    const skipDemoSession = new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
+    const hasPendingHandoff = this.embedHandoffService.hasPendingHandoffInUrl();
+
+    if (skipDemoSession || hasPendingHandoff) {
+      this.commonService.session.network.initialLoad = true;
+    }
+
+    if (hasPendingHandoff) {
+      this.loadPendingEmbedHandoff();
     }
 
     if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
@@ -483,6 +440,49 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   // }, 2000);
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
+  }
+
+  private async loadPendingEmbedHandoff() {
+    this.isLoadingFiles = true;
+    this.handoffError = null;
+    this.dismissWelcomeOverlay();
+    this.cdr.markForCheck();
+
+    const result = await this.embedHandoffService.consumePendingHandoffFromUrl();
+    this.embedHandoffService.clearHandoffQueryParams();
+
+    if (result.status === 'none') {
+      this.isLoadingFiles = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (result.status === 'error') {
+      this.isLoadingFiles = false;
+      this.handoffError = result.message;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.removeAllFiles();
+    result.files.forEach((file: ImportedEmbedFile) => {
+      this.commonService.session.files.push(file);
+      this.addToTable(file);
+    });
+
+    this.isLoadingFiles = false;
+    this.commonService.session.network.initialLoad = true;
+    this.cdr.markForCheck();
+
+    setTimeout(() => {
+      this.launchClick();
+    }, 100);
+  }
+
+  private dismissWelcomeOverlay() {
+    $('#overlay').stop(true, true).fadeOut('fast');
+    $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
+    $('.m-portlet').stop(true, true).fadeTo('fast', 1);
   }
 
   ngOnDestroy() {
@@ -524,6 +524,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
 
     } 
+
+    this.refreshTemplateState();
 
   }
   
@@ -637,10 +639,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.cleanupData();
 
     this.commonService.updateLegacyNodeSymbols();
-    const thresholdOnLaunch = this.commonService.session.style.widgets["link-threshold"];
-    const metricOnLaunch = this.commonService.session.style.widgets["default-distance-metric"];
-    const ambiguityOnLaunch = this.commonService.session.style.widgets["ambiguity-resolution-strategy"];
-    const viewOnLaunch = this.commonService.session.style.widgets["default-view"];
+    const thresholdOnLaunch = parseFloat(String(
+      $('#default-distance-threshold').val() ??
+      this.SelectedDefaultDistanceThresholdVariable ??
+      this.commonService.session.style.widgets["link-threshold"]
+    ));
+    const metricOnLaunch = String(
+      $('#default-distance-metric').val() ??
+      this.SelectedDefaultDistanceMetricVariable ??
+      this.commonService.session.style.widgets["default-distance-metric"]
+    ).toLowerCase();
+    const ambiguityOnLaunch = String(
+      $('#ambiguity-resolution-strategy').val() ??
+      this.SelectedAmbiguityResolutionStrategyVariable ??
+      this.commonService.session.style.widgets["ambiguity-resolution-strategy"]
+    );
+    const viewOnLaunch = String(
+      $('#default-view').val() ??
+      this.SelectedDefaultViewVariable ??
+      this.commonService.session.style.widgets["default-view"]
+    );
 
 
     console.log('launch click');
@@ -667,6 +685,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
     this.commonService.session.style.widgets["default-view"] = viewOnLaunch;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = thresholdOnLaunch;
+    this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = metricOnLaunch;
+    this.store.setLinkThreshold(thresholdOnLaunch);
+    this.store.setMetricChanged(metricOnLaunch);
 
     this.commonService.session.messages = [];
     this.messages = [];
@@ -1409,18 +1431,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * When a new file/files are add, each one if processed by processFile
    * @param files 
    */
-  processFiles(files?: FileList) {
-    this.isLoadingFiles = true;
+  async processFiles(files?: FileList): Promise<void> {
+    const fileArray = files ? Array.from(files) : [];
+    this.isLoadingFiles = fileArray.length > 0;
+    this.refreshTemplateState();
 
-    if (Array.from(files).length > 0) {
-
-      Array.from(files).map(file => {
-        this.processFile(file);
-      });
-
+    if (!fileArray.length) {
+      this.isLoadingFiles = false;
+      this.refreshTemplateState();
+      return;
     }
 
-    this.isLoadingFiles = false;
+    try {
+      await Promise.all(fileArray.map(file => this.processFile(file)));
+    } finally {
+      this.isLoadingFiles = false;
+      this.refreshTemplateState();
+    }
 
   };
 
@@ -1465,12 +1492,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    *
    * @returns
    */
-  processFile(rawfile?) {
+  async processFile(rawfile?): Promise<void> {
     if(!rawfile) {
       rawfile = this.commonService.session.files[0];
     }
 
-    if(!rawfile) {
+    if (!rawfile) {
+      this.refreshTemplateState();
       return;
     }
 
@@ -1487,47 +1515,74 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     console.log('process file end');
     if (extension === 'zip') {
       this.loadCompressedSession(rawfile);
+      this.refreshTemplateState();
       return;
     }
 
     if (extension === 'microbetrace' || extension === 'hivtrace') {
-      let reader = new FileReader();
-      reader.onloadend = out => this.applySerializedSession(out.target, extension);
-      reader.readAsText(rawfile, 'UTF-8');
+      await new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onloadend = out => {
+          Promise.resolve(this.commonService.processJSON(out.target, extension))
+            .then(() => {
+              this.populateTable();
+              this.refreshTemplateState();
+              resolve();
+            })
+            .catch(reject);
+        };
+        reader.readAsText(rawfile, 'UTF-8');
+      });
       return;
     }
     if (extension === 'svg') {
-      //debugger;
-      let reader = new FileReader();
-      reader.onloadend = out => this.commonService.processSVG(out.target);
-      reader.readAsText(rawfile, 'UTF-8');
+      await new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onloadend = out => {
+          this.commonService.processSVG(out.target);
+          this.refreshTemplateState();
+          resolve();
+        };
+        reader.readAsText(rawfile, 'UTF-8');
+      });
       return;
     }
     if (extension === 'json') {
       const fileName = this.commonService.filterXSS(rawfile.name);
-      let reader = new FileReader();
-      reader.onloadend = (out) => {
-        const output = JSON.parse(out.target['result'] as string);
-        console.log(output);
-        if (output.meta && output.tree) {
-          const auspiceFile = { contents: output, name: fileName, extension: extension};
-          this.commonService.session.files.push(auspiceFile);
-          this.addToTable(auspiceFile);
-          // this.commonService.temp.auspiceOutput = output;
-        } else {
-          this.commonService.processJSON(out.target, extension);
-        }
-      };
-      reader.readAsText(rawfile, 'UTF-8');
+      await new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error);
+        reader.onloadend = (out) => {
+          try {
+            const output = JSON.parse(out.target['result'] as string);
+            console.log(output);
+            if (output.meta && output.tree) {
+              const auspiceFile = { contents: output, name: fileName, extension: extension};
+              this.commonService.session.files.push(auspiceFile);
+              this.addToTable(auspiceFile);
+            } else {
+              this.commonService.processJSON(out.target, extension);
+            }
+            this.refreshTemplateState();
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.readAsText(rawfile, 'UTF-8');
+      });
       return;
     }
 
-    fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(file => {
+    await fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(file => {
       //debugger;
       file.name = this.commonService.filterXSS(file.name);
       file.extension = file.name.split('.').pop().toLowerCase();
       this.commonService.session.files.push(file);
       this.addToTable(file);
+      this.refreshTemplateState();
     });
   }
 
@@ -1544,6 +1599,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.edgeIds = [];
 
     this.nodeEdgeCheck();
+    this.refreshTemplateState();
   }
 
   /**
@@ -1655,6 +1711,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           $('#launch').prop('disabled', false).focus();
           $('#launch').text('Update');
           root.slideUp(() => root.remove());
+          parentContext.refreshTemplateState();
         }))
         .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
           if (parentContext.isFileContentsEmpty(file)) {
@@ -1711,7 +1768,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         const a = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'],
           b = type === 'node' ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq'] : ['TARGET', 'Target', 'target'],
           c = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
+        const explicitSelections = [file.field1, file.field2, file.field3];
         [a, b, c].forEach((list, i) => {
+          const existingSelection = explicitSelections[i];
+
+          if (existingSelection && (existingSelection === 'None' || parentContext.commonService.includes(headers, existingSelection))) {
+            $(these.get(i)).val(existingSelection);
+            return;
+          }
+
           $(these.get(i)).val("None");
           list.forEach(title => {
             if (parentContext.commonService.includes(headers, title)) $(these.get(i)).val(title);
@@ -1720,7 +1785,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             !(i === 1 && type === 'node') && //If Node Sequence...
             !(i === 2 && type === 'link')) { //...or Link distance...
             //...don't match to a variable in the dataset, leave them as "None".
-            $(these.get(i)).val(headers[i]);
+            $(these.get(i)).val(headers[i] || 'None');
             //Everything else, just guess the next ordinal column.
           }
         });
@@ -2004,8 +2069,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('changing link threshold');
     }
     const newValue = e.target?.value ?? e;
-    this.SelectedDefaultDistanceThresholdVariable = parseFloat(newValue);
-    this.store.setLinkThreshold(parseFloat(newValue));
+    const parsedValue = parseFloat(newValue);
+
+    this.SelectedDefaultDistanceThresholdVariable = parsedValue;
+    this.commonService.session.style.widgets['link-threshold'] = parsedValue;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = parsedValue;
+    this.store.setLinkThreshold(parsedValue);
   }
 
   /**
@@ -2049,12 +2118,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   onAmbiguityThresholdChanged() {
     this.commonService.session.style.widgets['ambiguity-threshold'] = this.SelectedAmbiguityThresholdVariable;
-  }
-
-  generateSequences() {
-    $('#file-prompt').remove();
-    $('#launch').prop('disabled', false).focus();
-    this.processFile(new File([Papa.unparse(this.commonService.generateSeqs('gen-' + this.commonService.session.meta.readyTime + '-', this.SelectedGenerateNumberVariable, 20))], 'generatedNodes.csv'));
   }
 
   applyStyleFileSettings() {

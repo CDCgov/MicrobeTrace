@@ -7,7 +7,7 @@ import * as d3 from 'd3';
 import moment from 'moment';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
@@ -16,9 +16,10 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
-  selector: 'app-timeline-component',
-  templateUrl: './timeline-component.component.html',
-  styleUrls: ['./timeline-component.component.scss']
+    selector: 'app-timeline-component',
+    templateUrl: './timeline-component.component.html',
+    styleUrls: ['./timeline-component.component.scss'],
+    standalone: false
 })
 export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -862,8 +863,6 @@ openSettings() {
 }
 
 setCumulative(value: boolean): void {
-  this.widgets['epiCurve-cumulative'] = value;
-
   this.refresh();
 }
 

@@ -1,2 +1,10 @@
-
+<section *ngIf="runtimeError() as error" class="runtime-error-banner" role="alert" aria-live="assertive">
+  <div class="runtime-error-banner__body">
+    <strong>{{ error.title }}</strong>
+    <span>{{ error.message }}</span>
+  </div>
+  <button type="button" class="runtime-error-banner__dismiss" (click)="dismissRuntimeError()">
+    Dismiss
+  </button>
+</section>
 <router-outlet></router-outlet>

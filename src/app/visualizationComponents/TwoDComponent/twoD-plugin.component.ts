@@ -28,7 +28,8 @@ import { NgZone } from '@angular/core';
     selector: 'TwoDComponent',
     templateUrl: './twoD-plugin.component.html',
     styleUrls: ['./twoD-plugin.component.scss'],
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -46,6 +47,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     data;
+    pendingPartialUpdate = false;
     rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
     debugMode = false;
@@ -117,7 +119,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     //Polygon Tab
     SelectedPolygonLabelVariable: string = "None";
     SelectedPolygonColorVariable: string = "None";
-    SelectedPolygonLabelOrientationVariable: 'top' | 'bottom' | 'center' = "top";
+    SelectedPolygonLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Top';
     SelectedPolygonLabelSizeVariable: number = 0.0;
     SelectedPolygonGatherValue: number = 0.0;
     CenterPolygonVariable: string = "None";
@@ -125,9 +127,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedPolygonColorShowVariable: string = "Hide";
     SelectedPolygonColorTableShowVariable: string = "Hide";
 
-
+    OrientationOptions: object = [
+        { label: 'Middle', value: 'Middle'},
+        { label: 'Top', value: 'Top'},
+        { label: 'Bottom', value: 'Bottom'},
+        { label: 'Left', value: 'Left'},
+        { label: 'Right', value: 'Right'},
+    ]
     // Node Tab    
-    SelectedNodeLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Right';
+    SelectedNodeLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Middle';
     SelectedNodeLabelVariable: string = "None";
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeSymbolVariable: string = "None";
@@ -221,6 +229,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     Node2DNetworkExportDialogSettings: DialogSettings = new DialogSettings('#network-settings-pane', false);
 
     ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
+    private contextMenuNodeId: string | null = null;
 
     // TODO see if needed after transition to cytoscape
     // zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
@@ -290,6 +299,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     ngOnInit() {
+        this.commonService.visuals.twoD = this;
         
         // Console log this out to see what the window objetc has like temp
         // const windowKeys = Reflect.ownKeys(window);
@@ -617,6 +627,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     attachCytoscapeEvents() {
         console.log('--- TwoD attachCytoscapeEvents called');
+        $('#cy').off('contextmenu.twod').on('contextmenu.twod', (e) => e.preventDefault());
 
         // Debounced function to sync Cytoscape selections with the common service.
         const syncCySelectionToService = _.debounce(() => {
@@ -653,6 +664,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cy.on('tap', 'node', (evt) => {
             const node = evt.target;
             console.log('Selected node:', node.data());
+            this.hideContextMenu();
     
             // Update selectedNodeId and trigger change detection or re-render if necessary
             this.selectedNodeId = node.id();
@@ -662,6 +674,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             this.cy.style().update();
     
+        });
+
+        this.cy.on('cxttap', 'node', (evt) => {
+            const node = evt.target;
+            if (node.data('isParent')) {
+                return;
+            }
+            const originalEvent = evt.originalEvent as MouseEvent;
+            this.zone.run(() => {
+                this.showContextMenu(node.data(), originalEvent, node);
+            });
+        });
+
+        this.cy.on('tap', (evt) => {
+            if (evt.target === this.cy) {
+                this.hideContextMenu();
+            }
         });
     
         this.cy.on('mouseover', 'node', (evt) => {
@@ -1523,7 +1552,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (flag) {
             // Ensure the label orientation is updated when polygons are turned on
-            this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
+            if (this.SelectedPolygonLabelShowVariable == 'Show') this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
+            else this.onPolygonLabelShowChange(false)
         } else {
             $(".polygons-settings-row").slideUp();
             //$('.polygons-label-row').slideUp();
@@ -1646,7 +1676,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private updateGroupNodeColors(): void {
         const cy = this.cy;
         if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
             return;
         }
 
@@ -1824,8 +1853,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     copyID() {
-        let id = $('#copyID').attr('data-clipboard-text')
-        this.clipboard.copy(id);
+        const id = ($('#copyID').attr('data-clipboard-text') || '').toString();
+        if (id) {
+            this.clipboard.copy(id);
+        }
         this.hideContextMenu();
     }
 
@@ -1833,27 +1864,117 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Used from Context Menu and copy node's sequence to the user's clipboard
      */
     copySeq() {
-        let seq = $('#copySeq').attr('data-clipboard-text')
-        this.clipboard.copy(seq);
+        const seq = ($('#copySeq').attr('data-clipboard-text') || '').toString();
+        if (seq) {
+            this.clipboard.copy(seq);
+        }
         this.hideContextMenu()
     }
 
     /**
-     * Upon right clicking a node, d, the context menu will appear, which allows the user to option to pin node, copy id, copy sequence, or view attributes
+     * Upon right clicking a node, d, the context menu will appear, which allows the user to option to copy id, copy sequence, or view attributes
      * @param d the node right clicked
      */
-    showContextMenu(d) {
+    showContextMenu(d, event: MouseEvent, node?) {
+        if (!event) {
+            return;
+        }
 
+        event.preventDefault();
+        event.stopPropagation();
+        this.hideTooltip();
+
+        const nodeId = (d?._id ?? d?.id ?? node?.id?.()) as string;
+        this.contextMenuNodeId = nodeId || null;
+        // if (node && node.select) {
+        //     node.select();
+        // }
+
+        const idText = (d?._id ?? d?.id ?? '').toString();
+        const seqText = (d?.sequence ?? d?.seq ?? '').toString();
+        $('#copyID').attr('data-clipboard-text', idText);
+        $('#copySeq').attr('data-clipboard-text', seqText);
+
+        const x = event.clientX ?? 0;
+        const y = event.clientY ?? 0;
+        const menu = $('#context-menu');
+        const menuWidth = (menu.outerWidth() as number) || 170;
+        const menuHeight = (menu.outerHeight() as number) || 140;
+        const maxX = Math.max(8, window.innerWidth - menuWidth - 8);
+        const maxY = Math.max(8, window.innerHeight - menuHeight - 8);
+        const left = Math.max(8, Math.min(x + 8, maxX));
+        const top = Math.max(8, Math.min(y + 8, maxY));
+
+        menu
+            .stop(true, true)
+            .css({
+                display: 'block',
+                position: 'fixed',
+                left: `${left}px`,
+                top: `${top}px`,
+                opacity: 1,
+                'z-index': 1200
+            });
     };
 
     /**
      * Hides the Context Menu
      */
     hideContextMenu() {
-        $('#context-menu').animate({ 'opacity': 0 }, 80, function () {
-            $(this).css('z-index', -1);
+        $('#context-menu').stop(true, true).animate({ 'opacity': 0 }, 80, function () {
+            $(this).css({ 'z-index': -1, display: 'none' });
         });
     };
+
+    private getContextMenuNodeData() {
+        if (!this.contextMenuNodeId) {
+            return null;
+        }
+        const nodeId = this.contextMenuNodeId;
+        const allNodes = [
+            ...(this.commonService.session.data.nodes || []),
+            ...(this.commonService.session.data.nodeFilteredValues || [])
+        ];
+        return allNodes.find(n => (n?._id ?? n?.id) === nodeId || (n?.id ?? n?._id) === nodeId) || null;
+    }
+
+    viewSelectedNodeAttributes() {
+        const node = this.getContextMenuNodeData();
+        if (!node) {
+            this.hideContextMenu();
+            return;
+        }
+
+        const excludedKeys = new Set(['_id', 'seq', 'data', 'hasDistance', 'x', 'y', 'vx', 'vy', 'selected', 'nodeSize', 'visible', 'index']);
+        this.ContextSelectedNodeAttributes = Object.keys(node)
+            .filter(key => !excludedKeys.has(key) && !key.startsWith('_'))
+            .sort((a, b) => {
+                const aIsId = a === 'ID';
+                const bIsId = b === 'ID';
+                if (aIsId && !bIsId) return -1;
+                if (!aIsId && bIsId) return 1;
+                return a.localeCompare(b);
+            })
+            .map(key => {
+                const rawValue = node[key];
+                let value = '';
+
+                if (rawValue === null || rawValue === undefined) {
+                    value = '';
+                } else if (Array.isArray(rawValue)) {
+                    value = rawValue.join(', ');
+                } else if (typeof rawValue === 'object') {
+                    value = JSON.stringify(rawValue);
+                } else {
+                    value = String(rawValue);
+                }
+
+                return { attribute: key, value };
+            });
+        this.ShowNetworkAttributes = true;
+        this.hideContextMenu();
+        this.cdref.detectChanges();
+    }
 
     /**
      * This function capitalizes the first letter of each word in a string.
@@ -2076,7 +2197,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     updateGroupAssignments(foci: string, change: boolean=true): void {
         const cy = this.cy; // Reference to Cytoscape instance
         if (!cy) {
-            console.error('Cytoscape instance is not initialized.');
             return;
         }
     
@@ -2194,15 +2314,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates polygon-label-orientation widget and then redraws polygon labels
      */
     onPolygonLabelOrientationChange(e) {
+        if (e=='top') e = 'Top'
+        else if (e == 'middle') e = 'Middle'
+        else if (e == 'bottom') e = 'Bottom'
         this.widgets['polygon-label-orientation'] = e;
         // Adjust the orientation of the parent/group node labels in Cytoscape
-        if (this.cy) {
+        if (this.cy && this.widgets['polygons-label-show']) {
           
             // Define specific types for text alignment to satisfy TypeScript
             type TextAlignment = 'left' | 'center' | 'right';
             type VerticalAlignment = 'top' | 'bottom' | 'center';
 
-            let textValign: VerticalAlignment;
+            let textValign: VerticalAlignment = 'center';
             let textHalign: TextAlignment = 'center'; // Default horizontal alignment
 
             // Determine vertical alignment based on the selected orientation
@@ -2212,6 +2335,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     break;
                 case 'bottom':
                     textValign = 'bottom';
+                    break;
+                case 'right':
+                    textHalign = 'right';
+                    break;
+                case 'left':
+                    textHalign = 'left';
                     break;
                 case 'middle':
                 default:
@@ -2243,13 +2372,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
          // Update the parent/group nodes' labels in Cytoscape
     if (this.cy) {
         if (e) {
+            let textValign: "top" | "bottom" | "center" = 'center'
+            let textHalign: "center" | "left" | "right" = 'center'
+            if (this.SelectedPolygonLabelOrientationVariable == 'Bottom') textValign = 'bottom'
+            else if (this.SelectedPolygonLabelOrientationVariable == 'Top') textValign = 'top'
+            else if (this.SelectedPolygonLabelOrientationVariable == 'Left') textHalign = 'left'
+            else if (this.SelectedPolygonLabelOrientationVariable == 'Right') textHalign = 'right' 
             // Show labels: Set the label to the group name
             this.cy.style()
                 .selector('node.parent')
                 .style({
                     'label': 'data(label)', // Assumes parent nodes have a 'label' data field
-                    'text-valign': this.SelectedPolygonLabelOrientationVariable,
-                    'text-halign': 'center',
+                    'text-valign': textValign,
+                    'text-halign': textHalign,
                     'font-size': `${this.commonService.session.style.widgets['polygons-label-size']}px`, // Adjust as needed
                     //'text-background-color': '#ffffff',
                     //'text-background-opacity': 1,
@@ -2463,23 +2598,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // console.log('--- TwoD getLinkWidth link1: ', scalar, variable);
         if (variable == 'None') return scalar;
 
-        else {
-            let mid = (this.linkMax - this.linkMin) / 2 + this.linkMin;
-            let v = link[variable];
+        const rawValue = link[variable];
+        const numericValue = this.isNumber(rawValue) ? rawValue : Number(rawValue);
 
-
-            if (!this.isNumber(v)) v = mid;
-
-            // Ensure v is a number before using linkScale
-            if (typeof v === 'number') {
-                let scaleValue = this.linkScale(v);
-
-                return scaleValue;
-            } else {
-
-                return scalar; // Default to scalar if v is not a number
-            }
+        if (!Number.isFinite(numericValue)) {
+            return scalar;
         }
+
+        const minWidth = this.widgets['link-width-min'];
+        const maxWidth = this.widgets['link-width-max'];
+        const reciprocal = this.widgets['link-width-reciprocal'];
+
+        return this.linearScale(numericValue, this.linkMin, this.linkMax, minWidth, maxWidth, reciprocal);
     }
 
 
@@ -3045,24 +3175,70 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     return newPos;  // so the test can assert directly
                     });
                 },
+                selectNodesInRenderedBox: (x1: number, y1: number, x2: number, y2: number) => {
+                    return this.zone.run(() => {
+                        const left = Math.min(x1, x2);
+                        const right = Math.max(x1, x2);
+                        const top = Math.min(y1, y2);
+                        const bottom = Math.max(y1, y2);
+
+                        const nodesToSelect = this.cy
+                            .nodes(':visible')
+                            .filter((node: any) => !node.hasClass('parent') && node.children().length === 0)
+                            .filter((node: any) => {
+                                const position = node.renderedPosition();
+                                return (
+                                    position.x >= left &&
+                                    position.x <= right &&
+                                    position.y >= top &&
+                                    position.y <= bottom
+                                );
+                            });
+
+                        this.cy.elements().unselect();
+                        nodesToSelect.select();
+
+                        return nodesToSelect.map((node: any) => node.id());
+                    });
+                },
                 tooltip: (action: 'show' | 'hide', nodeId: string) => {
-                    this.zone.run(() => {
-                        const node = this.cy.getElementById(nodeId);
-                        if (node) {
-                            if (action === 'show') {
-                                const mockEvent = { clientX: 100, clientY: 100 };
-                                this.showNodeTooltip(node.data(), mockEvent);
-                            } else {
-                                this.hideTooltip();
-                            }
-                        }
-                    });
-                },
+                  this.zone.run(() => {
+                      const node = this.cy.getElementById(nodeId);
+                      if (node) {
+                          if (action === 'show') {
+                              const mockEvent = { clientX: 100, clientY: 100 };
+                              this.showNodeTooltip(node.data(), mockEvent);
+                          } else {
+                              this.hideTooltip();
+                          }
+                      }
+                  });
+              },
+                hoverNode: (action: 'show' | 'hide', nodeId: string) => {
+                    this.zone.run(() => {
+                        const node = this.cy.getElementById(nodeId);
+                        if (!node || node.empty()) return;
+
+                        if (action === 'show') {
+                            const mockEvent = { clientX: 120, clientY: 120 };
+                            this.showNodeTooltip(node.data(), mockEvent);
+                            if (this.widgets['node-highlight']) {
+                                node.connectedEdges().addClass('highlighted');
+                            }
+                            return;
+                        }
+
+                        this.hideTooltip();
+                        if (this.widgets['node-highlight']) {
+                            node.connectedEdges().removeClass('highlighted');
+                        }
+                    });
+                },
                 linkTooltip: (action: 'show' | 'hide', edgeId: string) => {
-                     this.zone.run(() => {
-                        const edge = this.cy.getElementById(edgeId);
-                        if (edge) {
-                            if (action === 'show') {
+                    this.zone.run(() => {
+                      const edge = this.cy.getElementById(edgeId);
+                      if (edge) {
+                          if (action === 'show') {
                                 const mockEvent = { clientX: 300, clientY: 300 };
                                 this.showLinkTooltip(edge.data(), mockEvent);
                             } else {
@@ -3210,6 +3386,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               this.store.setNetworkUpdated(false);
               this.commonService.session.network.rendering = false;
               this.commonService.demoNetworkRendered = true;
+
+              if (this.pendingPartialUpdate) {
+                void this._partialUpdate();
+              }
             });
             
             // Run the layout
@@ -3417,8 +3597,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateLinkWidthRows(e);
         this.widgets['link-width-variable'] = e;
         this.updateMinMaxLink();
-        this.scaleLinkWidth();
+
+        if (e === 'None') {
+            this.scaleLinkWidth();
+            return;
+        }
+
+        this.onLinkWidthReciprocalNonReciprocalChange(this.getSelectedLinkReciprocalType());
         
+    }
+
+    private getSelectedLinkReciprocalType(): string {
+        const selectedLabel = $('#link-width-reciprocal-non-reciprocal .p-highlight')
+            .text()
+            .trim();
+
+        if (selectedLabel.includes('Non-Reciprocal')) {
+            return 'Non-Reciprocal';
+        }
+
+        if (selectedLabel.includes('Reciprocal')) {
+            return 'Reciprocal';
+        }
+
+        return this.SelectedLinkReciprocalTypeVariable;
     }
 
     /**
@@ -3513,6 +3715,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * This widget controls whether to set width smallest -> largest or largest -> smallest
      */
     onLinkWidthReciprocalNonReciprocalChange(e) {
+        this.SelectedLinkReciprocalTypeVariable = e;
         if (e == "Reciprocal") {
             this.widgets['link-width-reciprocal'] = true;
             this.scaleLinkWidth();
@@ -3911,8 +4114,6 @@ scaleLinkWidth() {
     openCenter() {
         if (this.cy) {
             this.cy.fit(this.cy.nodes(), 30);
-        } else {
-            console.error('Cytoscape instance is not initialized.');
         }
     }
 
@@ -3945,9 +4146,12 @@ scaleLinkWidth() {
 private async _partialUpdate() {
     console.log('--- TwoD _partialUpdate called');
     if (!this.cy) {
-      console.error('Cytoscape instance not initialized; cannot update partially.');
+      // Initial settings sync can request updates before Cytoscape is ready.
+      this.pendingPartialUpdate = true;
       return;
     }
+
+    this.pendingPartialUpdate = false;
 
     // Cache positions BEFORE making changes to the graph
     if (!this.nodePositions) {
@@ -4129,6 +4333,7 @@ private async _partialUpdate() {
             this.cy.removeAllListeners();
             this.cy.destroy();
         }
+        $('#cy').off('contextmenu.twod');
         this.cyContainer = null;
 
 
@@ -4171,8 +4376,9 @@ private async _partialUpdate() {
         this.SelectedPolygonLabelSizeVariable = this.widgets['polygons-label-size'];
         this.onPolygonLabelSizeChange(this.SelectedPolygonLabelSizeVariable);
 
-        //Node|Orientation
-        this.SelectedPolygonLabelOrientationVariable = this.widgets['polygon-label-orientation'];
+        //Polygon Orientation
+        let widgetPolygonOrientation = this.widgets['polygon-label-orientation']
+        this.SelectedPolygonLabelOrientationVariable = widgetPolygonOrientation == 'top' ? 'Top' : widgetPolygonOrientation == 'bottom' ? 'Bottom': widgetPolygonOrientation == 'middle'? 'Middle': widgetPolygonOrientation;
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
         this.polygonsToggle(this.widgets['polygons-show']);
@@ -4312,8 +4518,9 @@ private async _partialUpdate() {
         this.onNetworkFrictionChange(this.SelecetedNetworkLinkStrengthVariable);
 
         // Ensure proper orientation is set
-        if (this.widgets['polygon-label-orientation'] !== 'top' || this.widgets['polygon-label-orientation'] !== 'bottom' || this.widgets['polygon-label-orientation'] !== 'middle') {
-            this.widgets['polygon-label-orientation'] = 'top';
+        let polygonOrientations = ['Top', 'Bottom', 'Center', 'Left', 'Right']
+        if ( !polygonOrientations.includes(this.widgets['polygon-label-orientation'])) {
+            this.widgets['polygon-label-orientation'] = 'Top';
         }
 
         //Network|Polygon Orientation
@@ -4385,7 +4592,7 @@ private async _partialUpdate() {
             const newWidth = this.getLinkWidth(edge.data());
             edge.data('width', newWidth);
         });
-        // this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        this.cy.style().update();
     }
 
 

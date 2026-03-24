@@ -9,6 +9,8 @@
 // https://www.typescriptlang.org/docs/handbook/writing-declaration-files.html
 
 declare var System: any;
+declare var $: any;
+declare var jQuery: any;
 
 declare var mOffcanvas: any; // Related to Metronic
 declare var mMenu: any; // Related to Metronic

@@ -6,10 +6,10 @@ export const STYLE_PROFILES: DatasetProfile[] = [
   P({
     id: 'style-apply-cypress-test-style',
     title: 'Apply Style: nodes colored by profession, shaped by NodeType, sized by degree; links colored by contact type',
-    tags: ['style', 'apply-style'],
+    tags: ['style', 'apply-style', 'load-to-twod'],
     files: [
       { name: 'TestStyleNodelist_snp.csv', datatype: 'node' },
-      { name: 'TestStyleEdgelist_snp.csv', datatype: 'link', field1: 'source', field2: 'target', field3: 'distance' },
+      { name: 'TestStyleEdgelist_snp.csv', datatype: 'link', field1: 'source', field2: 'target' },
     ],
     preLaunch: {
       metric: 'snps',
@@ -17,13 +17,55 @@ export const STYLE_PROFILES: DatasetProfile[] = [
       defaultView: '2D Network',
     },
     expectations: {
+      afterLaunch: {
+        nodes: 24,
+        visibleLinks: 12,
+        clusters: 5,
+        singletons: 7,
+      },
       applyStyle: {
         styleFile: 'Cypress_Test_Style.style',
         expectWidgets: {
-          nodeColorVariable: 'profession',
-          nodeSymbolVariable: 'NodeType',
+          nodeColorVariable: 'Profession',
+          nodeSymbolVariable: 'Node type',
           nodeRadiusVariable: 'degree',
-          linkColorVariable: 'Contact',
+          linkColorVariable: 'Contact type',
+        },
+        expectTables: {
+          nodeColorTable: true,
+          nodeSymbolTable: true,
+          linkColorTable: true,
+          nodeSizeTable: false,
+        },
+      },
+    },
+  }),
+
+  P({
+    id: 'style-apply-cypress-test-style-threshold',
+    title: 'Apply Style and Threshold Smoke: styled 2D with distance list',
+    tags: ['style', 'apply-style', 'filtering', 'threshold', 'load-to-twod'],
+    files: [
+      { name: 'TestStyleNodelist_snp.csv', datatype: 'node' },
+      { name: 'TestStyleEdgelist_snp_weighted.csv', datatype: 'link', field1: 'source', field2: 'target' },
+    ],
+    preLaunch: {
+      metric: 'snps',
+      threshold: 16,
+      defaultView: '2D Network',
+    },
+    expectations: {
+      afterLaunch: {
+        nodes: 15,
+        visibleLinks: 12,
+      },
+      applyStyle: {
+        styleFile: 'Cypress_Test_Style.style',
+        expectWidgets: {
+          nodeColorVariable: 'Profession',
+          nodeSymbolVariable: 'Node type',
+          nodeRadiusVariable: 'degree',
+          linkColorVariable: 'Contact type',
         },
         expectTables: {
           nodeColorTable: true,

@@ -21,7 +21,7 @@
   import { SelectItem } from 'primeng/api';
   import { BaseComponentDirective } from '@app/base-component.directive';
   import { ComponentContainer } from 'golden-layout';
-  import * as saveAs from 'file-saver';
+  import { saveAs } from 'file-saver';
   import { GoogleTagManagerService } from 'angular-google-tag-manager';
   import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -32,8 +32,9 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   @Component({
     selector: 'TableComponent',
     templateUrl: './table-plugin-component.html',
-    styleUrls: ['./table-plugin-component.less']
-  })
+    styleUrls: ['./table-plugin-component.less'],
+    standalone: false
+})
   export class TableComponent
     extends BaseComponentDirective
     implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {

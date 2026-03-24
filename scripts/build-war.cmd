@@ -10,12 +10,16 @@ CLS
 @REM Add Java to PATH - Modify this path to your Java installation path
 @REM This may not be necessary if Java is already added to PATH
 SET PATH=C:\Program Files\Java\jdk-21\bin;%PATH%
+SET WAR_PATH=dist\Microbetrace.WAR
+SET WAR_TMP_PATH=dist\Microbetrace.tmp.WAR
 
 @REM Build Angular application and create WAR file
 @REM NPM and Java must be installed and added to PATH
-npm run build -- --configuration production --optimization=false --base-href=./ && ^
-@REM node --max-old-space-size=4096 ..\node_modules\@angular\cli\bin\ng build --configuration production --optimization=false --base-href=./ && ^
+@REM node --max-old-space-size=4096 ..\node_modules\@angular\cli\bin\ng build --configuration production --base-href=./ && ^
+IF EXIST %WAR_TMP_PATH% DEL /F /Q %WAR_TMP_PATH%
+npm run build -- --configuration production --base-href=./ && ^
+npm run verify:dist && ^
 java -version && ^
-jar -cvf dist\MicrobeTrace.war -C dist\MicrobeTrace\ .
-for /f %%i in ('git rev-parse --short HEAD') do set commit=%%i
-move dist\MicrobeTrace.war dist\MicrobeTrace_%commit%.war
+jar -cvf %WAR_TMP_PATH% -C dist\MicrobeTrace\ . && ^
+move /Y %WAR_TMP_PATH% %WAR_PATH% >NUL && ^
+echo WAR file created at %WAR_PATH%

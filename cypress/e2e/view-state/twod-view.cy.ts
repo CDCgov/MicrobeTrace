@@ -1,68 +1,27 @@
 /// <reference types="cypress" />
 
 /**
- * Tests for the 2D Network visualization component.
+ * Maintained 2D view-state tests.
  *
- * These tests seed a minimal session via window.commonService to ensure
- * they are fast and not dependent on the file upload UI. Tests cover core rendering,
- * toolbar actions, and interactions with the settings pane to manipulate the
- * network's appearance and behavior.
+ * These cover pure 2D interaction mechanics against the sample dataset so they stay
+ * fast and focused. Uploaded-data journeys live under cypress/e2e/journeys/flows.
  */
-
-type WinWithCS = Window & { commonService: any };
 
 import { Core } from 'cytoscape';
+import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
+import { byTestId, testIds } from '../../support/selectors';
 
 const getCy = () => cy.window({ log: false }).its('cytoscapeInstance') as Cypress.Chainable<Core>;
-
-
-/**
- * Seeds a minimal session with two nodes and one link, then launches the 2D view.
- * This function provides a consistent starting state for all tests.
- *
- * @param {object} [options] - Optional parameters.
- * @param {boolean} [options.withGroup=false] - Whether to add a 'group' property to nodes for testing clustering.
- */
-const seedAndLaunch2DNetwork = (options: { withGroup?: boolean } = {}) => {
-  cy.window().then((win: unknown) => {
-    const w = win as WinWithCS;
-    const cs = w.commonService;
-
-    // Reset data to a clean state
-    cs.resetData();
-
-    // Add two nodes
-    cs.addNode({ _id: 'A', origin: ['test.csv'], group: options.withGroup ? 'G1' : undefined }, true);
-    cs.addNode({ _id: 'B', origin: ['test.csv'], group: options.withGroup ? 'G1' : undefined }, true);
-
-    // Add a link connecting the nodes
-    cs.addLink({
-      source: 'A',
-      target: 'B',
-      distance: 0.01,
-      origin: ['Genetic Distance'],
-      hasDistance: true,
-    }, true);
-
-    // Finalize data processing
-    cs.finishUp();
-
-    // Programmatically launch the 2D Network view
-    cs.launchView('2D Network');
-  });
-  // Wait for the view to fully render
-  cy.waitForNetworkToRender();
-};
 
 // Selectors for key elements in the 2D component
 const selector : any = {
   canvas: '#cy',
-  settingsBtn: 'TwoDComponent #tool-btn-container [title="Settings"]',
-  pinAllBtn: 'TwoDComponent #tool-btn-container [title="Pin All Nodes"]',
-  refreshBtn: 'TwoDComponent #tool-btn-container [title="Recalculate Layout"]',
+  settingsBtn: byTestId(testIds.twodSettingsButton),
+  pinAllBtn: byTestId(testIds.twodPinAllButton),
+  refreshBtn: byTestId(testIds.twodRecalculateLayoutButton),
   statsNodes: '#numberOfNodes',
   statsLinks: '#numberOfVisibleLinks',
-  settingsPane: '#network-settings-pane',
+  settingsPane: byTestId(testIds.twodSettingsDialog),
   nodeLabelVar: '#node-label-variable',
   nodeRadiusSize: '#node-radius',
   linkWidthSize: '#link-width',
@@ -87,9 +46,8 @@ const selector : any = {
 // Test suite for core rendering and functionality
 describe('2D Network - Core Rendering and Stats', () => {
   beforeEach(() => {
-    cy.visit('/');
-    // seedAndLaunch2DNetwork();
-    cy.waitForNetworkToRender();
+    visitAppAndAcceptEula({ skipDemoSession: false });
+    ensureTwoDNetworkView();
   });
 
   it('should render the Cytoscape canvas with nodes and links', () => {
@@ -165,20 +123,16 @@ describe('2D Network - Core Rendering and Stats', () => {
 describe('2D Network - Settings Pane Interactions', () => {
 
   beforeEach(() => {
-    cy.visit('/');
-    cy.wait(6000); // Allow for initial application bootstrap
-
-    cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
-     .click({ force: true });
-    
-    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-    
+    visitAppAndAcceptEula({ skipDemoSession: false });
+    ensureTwoDNetworkView();
     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
     cy.get(selector.settingsBtn).click();
 
     // Verify it's open and alias the container for use in tests
-    cy.contains('.p-dialog-title', '2D Network Settings').should('be.visible')
-      .parents('.p-dialog').as('dialogContainer');
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
   });
 
   context('Node settings', () => {
@@ -195,7 +149,7 @@ describe('2D Network - Settings Pane Interactions', () => {
      
       cy.window().its('commonService.session.style.widgets.node-radius').should('equal', initialSize);
      
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Shapes and Sizes').click();
      
       cy.get('@dialogContainer').find(selector.nodeRadiusSize)
        .invoke('val', newSize)
@@ -210,7 +164,7 @@ describe('2D Network - Settings Pane Interactions', () => {
      });
 
     it('should update node label via dropdown', () => {
-        cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+        cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
         cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
         
         cy.get('@dialogContainer').find(selector.nodeLabelVar).click();
@@ -224,18 +178,19 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should update node label size and orientation', () => {
-        const newSize = 36;
-        const newOrientation = 'Top';
+      const newSize = 36;
+      const newOrientation = 'Top';
     
-        cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+        cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
         cy.window().invoke('Cypress.test.setNodeLabel', '_id'); // Ensure labels are visible for testing
     
         cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', 16);
         cy.get('@dialogContainer').find(selector.nodeLabelSize).invoke('val', newSize).trigger('change', { force: true });
         cy.window().its('commonService.session.style.widgets.node-label-size').should('equal', newSize);
-    
+
         cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', 'Right');
-        cy.get('@dialogContainer').find(selector.nodeLabelOrientation).select(newOrientation);
+        cy.get('@dialogContainer').find(selector.nodeLabelOrientation).click();
+        cy.contains('li[role="option"]', newOrientation).click();
         cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', newOrientation);
 
         getCy().then(cy => {
@@ -249,7 +204,7 @@ describe('2D Network - Settings Pane Interactions', () => {
         const initialWidth = 2.0;
         const newWidth = 5;
     
-        cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+        cy.get('@dialogContainer').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
         cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', initialWidth);
     
@@ -263,7 +218,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should update node tooltip variable and reflect in tooltip content', () => {
-        cy.get('@dialogContainer').contains('p-accordionTab', 'Labels and Tooltips').click();
+        cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
         
         cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('deep.equal', ['_id']);
         
@@ -284,7 +239,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should change node sizing to be by variable and reflect in the network', () => {
-        cy.get('@dialogContainer').contains('p-accordionTab', 'Shapes and Sizes').click();
+        cy.get('@dialogContainer').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
         cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'None');
         cy.get('@dialogContainer').find('#node-radius-row').should('be.visible');
@@ -328,7 +283,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     
       cy.window().its('commonService.session.style.widgets.link-width').should('equal', initialWidth);
       
-      cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+      cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
       cy.get('@dialogContainer').find(selector.linkWidthSize)
         .invoke('val', newWidth)
@@ -345,7 +300,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     it('should update link opacity via the slider', () => {
         const newOpacity = 0.5;
     
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
         cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', 0);
     
@@ -360,7 +315,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
     
     it('should toggle link directionality arrows', () => {
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
         cy.window().its('commonService.session.style.widgets.link-directed').should('be.false');
         getCy().then(cy => expect(cy.edges().first().style('target-arrow-shape')).to.equal('none'));
@@ -375,7 +330,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
     
     it('should update link tooltip variable', () => {
-      cy.get('@dialogContainer').find('.tab-pane.active').should('be.visible').contains('p-accordionTab', 'Labels and Tooltips').click();
+      cy.get('@dialogContainer').find('.tab-pane.active').should('be.visible').contains('p-accordion-panel', 'Labels and Tooltips').click();
       
       cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('be.empty');
       
@@ -393,7 +348,7 @@ describe('2D Network - Settings Pane Interactions', () => {
         
     
     // it('should change link sizing to be by variable', () => {
-    //     cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+    //     cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Shapes and Sizes').click();
       
     //     cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'None');
     //     cy.get('@dialogContainer').find('#link-width-row').should('be.visible');
@@ -426,7 +381,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     // it('should update link length via the slider', () => {
     //     const newLength = 100;
       
-    //     cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Shapes and Sizes').click();
+    //     cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Shapes and Sizes').click();
       
     //     cy.window().its('commonService.session.style.widgets.link-length').should('equal', 50);
       
@@ -451,7 +406,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should toggle network gridlines and update visibility', () => {
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Display').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Display').click();
 
         cy.window().its('commonService.session.style.widgets.network-gridlines-show').should('be.false');
         cy.get('.grid-overlay').should('have.class', 'hidden');
@@ -466,7 +421,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should toggle neighbor highlighting', () => {
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Display').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Display').click();
       
         cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
       
@@ -484,7 +439,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should create and remove grouping polygons', () => {
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
 
         cy.window().its('commonService.session.style.widgets.polygons-show').should('be.false');
         getCy().then(cy => expect(cy.nodes('.parent').length).to.equal(0));
@@ -499,10 +454,10 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
 
     it('should toggle group label visibility', () => {
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
         cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
     
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Labels').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Labels').click();
     
         cy.window().its('commonService.session.style.widgets.polygons-label-show').should('be.false');
     
@@ -516,7 +471,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     });
     
     // it('should change the grouping variable', () => {
-    //     cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+    //     cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
     //     cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
       
     //     cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'cluster');
@@ -533,25 +488,26 @@ describe('2D Network - Settings Pane Interactions', () => {
     
     it('should update group label size and orientation', () => {
         const newSize = 40;
-        const newOrientation = 'bottom';
+        const newOrientation = 'Bottom';
       
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Controls').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
         cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
-        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordionTab', 'Labels').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Labels').click();
         cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Show').click();
       
         cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', 16);
         cy.get('@dialogContainer').find(selector.groupLabelSize).invoke('val', newSize).trigger('change', { force: true });
         cy.window().its('commonService.session.style.widgets.polygons-label-size').should('equal', newSize);
       
-        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'top');
-        cy.get('@dialogContainer').find(selector.groupLabelOrientation).select(newOrientation);
+        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'Top');
+        cy.get('@dialogContainer').find(selector.groupLabelOrientation).click();
+        cy.contains('li[role="option"]', 'Bottom').click();
         cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', newOrientation);
 
         getCy().then(cy => {
             const parentNode = cy.nodes('.parent').first();
             expect(parentNode.style('font-size')).to.contain(newSize);
-            expect(parentNode.style('text-valign')).to.equal(newOrientation);
+            expect(parentNode.style('text-valign')).to.equal(newOrientation.toLowerCase());
         });
     });
   });
@@ -564,14 +520,8 @@ describe('2D Network - Settings Pane Interactions', () => {
       const getCy = () => cy.window({ log: false }).its('cytoscapeInstance');
   
       beforeEach(() => {
-          cy.visit('/');
-          cy.wait(6000);
-  
-          cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
-           .click({ force: true });
-          
-          cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-          
+          visitAppAndAcceptEula({ skipDemoSession: false });
+          ensureTwoDNetworkView();
           cy.window({ timeout: 15000 }).should('have.property', 'cytoscapeInstance');
       });
   
@@ -676,7 +626,6 @@ describe('2D Network - Settings Pane Interactions', () => {
   //     });
   // });
   
-      // This test in twod-plugin.cy.ts is now correct and will pass.
       it('should allow node MZ740979 to be dragged to a new position', () => {
         const nodeId = 'MZ740979';
       

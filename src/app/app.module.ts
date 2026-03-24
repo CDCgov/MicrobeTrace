@@ -1,6 +1,6 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { NgModule, Component } from '@angular/core';
+import { NgModule, Component, ErrorHandler } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
@@ -9,7 +9,6 @@ import  Lara  from '@primeng/themes/lara';
 import { providePrimeNG } from 'primeng/config';
 
 import { AppComponent } from './app.component';
-import * as $ from 'jquery';
 import { provideHttpClient, withInterceptorsFromDi, withJsonpSupport } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 // import { ServiceProxyModule } from '@shared/service-proxies/service-proxy.module';
@@ -26,16 +25,16 @@ import { TableModule } from 'primeng/table';
 import { FileUploadModule } from 'primeng/fileupload';
 import { ListboxModule } from 'primeng/listbox';
 import { RadioButtonModule } from 'primeng/radiobutton';
-import { CalendarModule } from 'primeng/calendar';
+import { DatePickerModule } from 'primeng/datepicker';
 import { PaginatorModule } from 'primeng/paginator';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { DropdownModule } from 'primeng/dropdown';
+import { SelectModule } from 'primeng/select';
 import { AccordionModule } from 'primeng/accordion';
-import { SidebarModule } from 'primeng/sidebar';
+import { DrawerModule } from 'primeng/drawer';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SliderModule } from 'primeng/slider';
-import { TabViewModule } from 'primeng/tabview';
+import { TabsModule as PrimeTabsModule } from 'primeng/tabs';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TreeModule } from 'primeng/tree';
 import { DialogModule } from 'primeng/dialog';
@@ -53,8 +52,8 @@ import { CoreModule } from '@metronic/app/core/core.module';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
-import { LeafletModule } from '@asymmetrik/ngx-leaflet';
-import { LeafletMarkerClusterModule } from '@asymmetrik/ngx-leaflet-markercluster';
+import { LeafletModule } from '@bluehalo/ngx-leaflet';
+import { LeafletMarkerClusterModule } from '@bluehalo/ngx-leaflet-markercluster';
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
@@ -84,10 +83,13 @@ import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
+import { GlobalErrorHandler } from './runtime-security/global-error-handler';
 
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
+const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff');
+const googleTagManagerMode = analyticsDisabledForHandoff ? 'silent' : 'noisy';
 
 const routerOptions: ExtraOptions = {
   // Your router configurations
@@ -95,8 +97,9 @@ const routerOptions: ExtraOptions = {
 // PlotlyModule.plotlyjs = PlotlyJS;
 
 @Component({
-  template: `<h1>Test2</h1>`,
-  selector: `app-tested`,
+    template: `<h1>Test2</h1>`,
+    selector: `app-tested`,
+    standalone: false
 })
 export class TestedComponent {
   constructor() { }
@@ -152,25 +155,25 @@ export class TestedComponent {
         TableModule,
         ListboxModule,
         RadioButtonModule,
-        CalendarModule,
+        DatePickerModule,
         PaginatorModule,
         ProgressBarModule,
         CoreModule,
         ConfirmDialogModule,
-        DropdownModule,
-        TabViewModule,
+        SelectModule,
+        PrimeTabsModule,
         SelectButtonModule,
         TreeModule,
         DialogModule,
         AccordionModule,
-        SidebarModule,
+        DrawerModule,
         MultiSelectModule,
         SliderModule,
         CheckboxModule,
         LeafletModule,
         LeafletMarkerClusterModule,
         OrderListModule,
-        GoogleTagManagerModule.forRoot({ id: 'G-0MWHB1NG2M', }),
+        GoogleTagManagerModule.forRoot({ id: analyticsDisabledForHandoff ? null : 'G-0MWHB1NG2M', }),
         CommonModule], providers: [
           providePrimeNG({
             theme: {
@@ -184,6 +187,11 @@ export class TestedComponent {
         GanttChartService,
         GoldenLayoutComponentService,
         PlotlyModule,
+        { provide: 'googleTagManagerMode', useValue: googleTagManagerMode },
+        {
+          provide: ErrorHandler,
+          useClass: GlobalErrorHandler,
+        },
         provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
     ] })
 export class AppModule { }

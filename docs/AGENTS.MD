@@ -4,38 +4,50 @@ This repo uses Cypress for E2E tests. UI is Angular + PrimeNG. Only the 2D Netwo
 
 ## Cypress locations
 
-* Tests live in `cypress/e2e/`
+* Maintained ingestion specs live in `cypress/e2e/ingestion/`
+* Maintained uploaded-data journeys live in `cypress/e2e/journeys/flows/`
+* Maintained 2D view-state specs live in `cypress/e2e/view-state/`
+* Quarantined legacy specs live in `cypress/e2e/legacy-disabled/`
 * Shared commands live in `cypress/support/commands.ts`
+* Shared selectors live in `cypress/support/selectors.ts`
 * Fixtures live in `cypress/fixtures/`
 
 ## What to test where
 
 * View-level tests
 
-  * Keep per-view tests in `cypress/e2e/<view>-plugin.cy.ts` (example: `phylogenetic-plugin.cy.ts`, `map-plugin.cy.ts`, `twod-plugin.cy.ts`).
-  * These should validate: view opens, view settings affect view output, export works (when supported).
+  * Keep active 2D view-mechanics tests in `cypress/e2e/view-state/`.
+  * These should validate: view opens, view settings affect view output, layout and interaction mechanics work.
 * Cross-view user journeys
 
-  * Put high-value end-to-end flows in `cypress/e2e/journeys/*`.
+  * Put high-value uploaded-data end-to-end flows in `cypress/e2e/journeys/*`.
   * Example journey: app load -> upload files -> launch -> open a view -> change settings -> verify UI and internal state.
+* Ingestion-only tests
+
+  * Put file upload, remapping, and file-settings coverage in `cypress/e2e/ingestion/`.
+* Legacy tests
+
+  * If a spec depends on obsolete UI or missing fixtures, move it to `cypress/e2e/legacy-disabled/` instead of leaving it in the maintained suite.
 
 ## Shared UI patterns (applies to all views)
 
 * First load overlay
 
+  * Prefer the shared helper in `cypress/support/journey-helpers.ts` or the shared test ids in `cypress/support/selectors.ts`.
   * Either click `Continue with Sample Dataset`, or upload files via `#fileDropRef`.
   * Always wait for overlay to disappear: `cy.get('#overlay').should('not.be.visible', { timeout: 10000 })`
 * View navigation (top toolbar)
 
+  * Prefer `data-testid` selectors for toolbar navigation.
   * Open a view via:
 
-    * `cy.contains('button', 'View').click()`
-    * `cy.contains('button[mat-menu-item]', '<View Name>').click()`
+    * `[data-testid="app-view-menu-button"]`
+    * `[data-testid="app-view-menu-2d-network"]`
 * Global Settings (top toolbar)
 
   * Open with the shared command: `cy.openGlobalSettings()`
   * Close with: `cy.closeGlobalSettings()`
-  * Assert dialog title: `.p-dialog-title` contains `Global Settings`
+  * Prefer `[data-testid="app-global-settings-dialog"]` for dialog scoping
 * View Settings and Export (per-view tool button containers)
 
   * Each view has its own tool container and its own dialogs (examples: `#tool-btn-container-phylo`, `#tool-btn-container-map`, `TwoDComponent #tool-btn-container`)
@@ -99,6 +111,7 @@ When a test fails, do not immediately weaken the test. First identify which laye
 * For suspected app bugs, document divergence explicitly
 
   * Example: widget changed but SVG did not update, or Cytoscape moved but `session.data.nodes[*].x/y` stayed stale.
+  * Record it in `docs/2d-network-cypress-bug-log.csv` with the fixture, observed behavior, intended behavior if known, the regression spec path, and fill in `cause_summary` / `fix_summary` before closing the bug row.
 
 Tip: keep diagnostic logs inside the spec while debugging, but remove noisy logging before committing.
 

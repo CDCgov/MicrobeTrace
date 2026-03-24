@@ -5,7 +5,7 @@ import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '@app/helperClasses/dialogSettings';
 import * as _ from 'lodash';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as domToImage from 'html-to-image';
 import { CustomShapes } from '@app/helperClasses/customShapes';
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -19,9 +19,10 @@ import { ExportService } from '@app/contactTraceCommonServices/export.service';
 
 
 @Component({
-  selector: 'GanttComponent',
-  templateUrl: './gantt-plugin.component.html',
-  styleUrls: ['./gantt-plugin.component.scss']
+    selector: 'GanttComponent',
+    templateUrl: './gantt-plugin.component.html',
+    styleUrls: ['./gantt-plugin.component.scss'],
+    standalone: false
 })
 export class GanttComponent extends BaseComponentDirective implements OnInit {
   @ViewChild('ganttContainer', {read: ViewContainerRef}) ganttContainer: ViewContainerRef;
@@ -141,12 +142,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
         });
     });
 
-    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-    
-
     // this.createGanttEntry();
-    this.ganttChartData = [this.makeBlankEntry()];
+    this.ganttChartData = [];
     this.openSettings();
     
     // this.ganttChartData = [this.makeGanttEntry("_blank", "Ipstart", "Ipend", "#2ca02c")];
@@ -160,8 +157,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
-      this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-      this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
     })
   }
 

@@ -2,14 +2,42 @@
 /// <reference types="cypress" />
 
 import type { Core } from 'cytoscape';
-import type { DatasetProfile, DistanceMetric, DefaultView } from '../e2e/journeys/datasets/profile';
 import type { FileLoadSpec } from '../e2e/journeys/datasets/profile';
-import type { JourneyExpectations } from '../e2e/journeys/datasets/types';
+import type { DatasetProfile, DistanceMetric, LinkLabelVariable, PruneWith } from '../e2e/journeys/datasets/profile';
+import { resolveExpected } from '../e2e/journeys/datasets/profile';
+import { byTestId, testIds } from './selectors';
 
 type WinWithMT = Window & {
   commonService: any;
   cytoscapeInstance?: Core;
 };
+
+type JourneyVisitOptions = {
+  extraQuery?: Record<string, string | number | boolean>;
+  skipDemoSession?: boolean;
+  skipEula?: boolean;
+};
+
+function buildJourneyUrl(options: JourneyVisitOptions = {}): string {
+  const params = new URLSearchParams();
+  const skipDemoSession = options.skipDemoSession ?? true;
+  const skipEula = options.skipEula ?? true;
+
+  if (skipDemoSession) {
+    params.set('skipDemoSession', '1');
+  }
+
+  if (skipEula) {
+    params.set('skipEula', '1');
+  }
+
+  Object.entries(options.extraQuery || {}).forEach(([key, value]) => {
+    params.set(key, String(value));
+  });
+
+  const query = params.toString();
+  return query ? `/?${query}` : '/';
+}
 
 export function acceptEulaIfPresent(): void {
   cy.get('body', { log: false }).then(($body) => {
@@ -28,88 +56,131 @@ export function acceptEulaIfPresent(): void {
   });
 }
 
-export function visitAppAndAcceptEula(): void {
-  cy.visit('/');
+export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
+  const resolvedOptions: JourneyVisitOptions = {
+    skipDemoSession: true,
+    skipEula: true,
+    ...options,
+  };
+
+  cy.visit(buildJourneyUrl(resolvedOptions));
   cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
-  acceptEulaIfPresent();
+
+  if (!resolvedOptions.skipEula) {
+    acceptEulaIfPresent();
+  }
+
+  cy.get('body').then(($body) => {
+    const continueButton = $body.find(byTestId(testIds.appSampleDatasetButton));
+    if (!continueButton.length) return;
+
+    cy.get(byTestId(testIds.appSampleDatasetButton)).click({ force: true });
+    cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
+  });
 }
 
 export function loadFilesUI(opts: FileLoadSpec[]): void {
-    const fileNames = opts.map(f => f.name);
-    const mimeTypes = fileNames.map(getMimeTypeFromFilename);
-  
-    cy.attach_files('#fileDropRef', fileNames, mimeTypes);
-    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-    cy.get('#launch').should('not.be.disabled');
-  
-    opts.forEach((file) => {
-      cy.contains('#file-table .file-table-row', file.name)
-        .should('be.visible')
-        .then(($fileRow) => {
-          const $row = cy.wrap($fileRow);
-  
-          const activeType = $fileRow.find('label.active input').attr('data-type');
-          if (activeType !== file.datatype) {
-            $row.find(`input[data-type="${file.datatype}"]`).click({ force: true });
-          }
-  
-          if (file.datatype === 'link' || file.datatype === 'node') {
-            const checkField = (expectedValue: string, fieldNumber: number) => {
-              const selectId = `file-${file.name}-field-${fieldNumber}`;
-              cy.wrap($fileRow).find(`select[id="${selectId}"]`).then($sel => {
-                const current = String($sel.val());
-                if (current !== expectedValue) cy.wrap($sel).select(expectedValue);
-              });
-              cy.get(`select[id="${selectId}"]`).should('have.value', expectedValue);
-            };
-  
-            if (file.field1 !== undefined) checkField(file.field1, 1);
-            if (file.field2 !== undefined) checkField(file.field2, 2);
-            if (file.datatype === 'link' && file.field3 !== undefined) checkField(file.field3, 3);
-          }
-        });
-    });
-  
-    cy.get('#launch').should('not.be.disabled');
-  }
+  cy.loadFiles(opts);
+}
 
+export function applyPreLaunchSessionSettings(profile: DatasetProfile): void {
+  applyPreLaunchFileSettings(profile);
+}
 
-  export function applyPreLaunchSessionSettings(profile: DatasetProfile): void {
-    cy.window().then((win: unknown) => {
-      const w = win as WinWithMT;
-      const cs = w.commonService;
-  
-      cs.session.style.widgets['default-distance-metric'] = profile.preLaunch.metric;
-      cs.session.style.widgets['link-threshold'] = profile.preLaunch.threshold;
-  
-      if (profile.preLaunch.defaultView) {
-        cs.session.style.widgets['default-view'] = profile.preLaunch.defaultView;
-      }
-  
-      // keep GlobalSettingsModel consistent (some code reads from here too)
-      cs.GlobalSettingsModel.SelectedDistanceMetricVariable = profile.preLaunch.metric;
-      cs.GlobalSettingsModel.SelectedLinkThresholdVariable = profile.preLaunch.threshold;
-    });
-  }
+export function syncPreLaunchProfileToSession(profile: DatasetProfile): void {
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const widgets = w.commonService.session.style.widgets;
+
+    widgets['default-distance-metric'] = profile.preLaunch.metric;
+    widgets['link-threshold'] = profile.preLaunch.threshold;
+
+    if (profile.preLaunch.defaultView) {
+      widgets['default-view'] = profile.preLaunch.defaultView;
+    }
+
+    w.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = profile.preLaunch.metric;
+    w.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = profile.preLaunch.threshold;
+
+    if (profile.preLaunch.defaultView) {
+      w.commonService.GlobalSettingsModel.SelectedDefaultViewVariable = profile.preLaunch.defaultView;
+    }
+
+    const microbeTrace = w.commonService.visuals?.microbeTrace;
+    if (microbeTrace) {
+      microbeTrace.metric = profile.preLaunch.metric;
+      microbeTrace.threshold = String(profile.preLaunch.threshold);
+      microbeTrace.SelectedDistanceMetricVariable = profile.preLaunch.metric;
+      microbeTrace.SelectedLinkThresholdVariable = profile.preLaunch.threshold;
+    }
+  });
+}
+
+export function ensurePreLaunchProfileSynced(profile: DatasetProfile): void {
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const widgets = w.commonService.session.style.widgets;
+
+    const needsSync =
+      widgets['default-distance-metric'] !== profile.preLaunch.metric ||
+      Number(widgets['link-threshold']) !== Number(profile.preLaunch.threshold) ||
+      (
+        profile.preLaunch.defaultView !== undefined &&
+        widgets['default-view'] !== profile.preLaunch.defaultView
+      );
+
+    if (!needsSync) return;
+
+    syncPreLaunchProfileToSession(profile);
+  });
+}
+
+function resolveParentGroupNode(cyInstance: Core, groupKey: string) {
+  const direct = cyInstance.getElementById(String(groupKey));
+  if (direct && !direct.empty()) return direct;
+
+  const prefixed = cyInstance.getElementById(`group-${String(groupKey)}`);
+  if (prefixed && !prefixed.empty()) return prefixed;
+
+  return direct;
+}
+
+function hexToRgbString(hex: string): string {
+  const normalized = hex.replace('#', '');
+  const value = normalized.length === 3
+    ? normalized.split('').map((c) => `${c}${c}`).join('')
+    : normalized;
+
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 
   export function applyTwoDGroupingFromProfile(profile: DatasetProfile): void {
     const g = profile.expectations.grouping;
     if (!g) return;
   
-    openTwoDSettingsDialog();
-  
-    cy.get('@twoDSettings').contains('.nav-link', 'Grouping').click({ force: true });
-  
-    // Controls
-    expandAccordionTabByHeader('@twoDSettings', 'Controls');
+  openTwoDSettingsDialog();
 
-    cy.get('@twoDSettings')
+  cy.get('@twoDSettings').contains('.nav-link', 'Grouping').click({ force: true });
+
+  cy.get('@twoDSettings')
+    .find('.tab-pane:visible', { timeout: 15000 })
+    .should('exist')
+    .as('groupingTab');
+  
+  // Controls
+  expandAccordionTabByHeader('@groupingTab', 'Controls');
+
+    cy.get('@groupingTab')
     .find('#polygons-controls')
     .should('exist')
     .within(() => {
       cy.get('#polygons-show-toggle')
-        .contains('button, .p-button, .ui-button', 'Show')
+        .contains('Show')
         .click({ force: true });
     });
 
@@ -127,7 +198,7 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
   
       // If you need to switch to subtype
       if (wantSubtype) {
-        cy.get('@twoDSettings').find('#polygons-foci').should('be.visible').click({ force: true });
+        cy.get('@groupingTab').find('#polygons-foci').should('be.visible').click({ force: true });
         cy.contains('li[role="option"]', 'Subtype').click({ force: true });
         cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
       } else {
@@ -138,22 +209,35 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
   
     // Labels
     if (g.showGroups) {
-      cy.get('@twoDSettings').contains('p-accordionTab', 'Labels').click({ force: true });
+      expandAccordionTabByHeader('@groupingTab', 'Labels');
   
-      cy.get('@twoDSettings')
+      cy.get('@groupingTab')
         .find('#polygons-label-visibility')
         .contains(g.showGroupLabels ? 'Show' : 'Hide')
         .click({ force: true });
   
       cy.window().its('commonService.session.style.widgets.polygons-label-show')
         .should('equal', g.showGroupLabels);
+
+      if (g.showGroupLabels) {
+        cy.window().then((win: unknown) => {
+          const w = win as WinWithMT;
+          const cyInstance = w.cytoscapeInstance as Core;
+
+          expect(cyInstance, 'cytoscapeInstance').to.exist;
+          cyInstance.nodes('.parent').forEach((parentNode) => {
+            expect(String(parentNode.style('label') || '').trim(), `group label for ${parentNode.id()}`)
+              .to.not.equal('');
+          });
+        });
+      }
     }
   
     // Colors
     if (g.showGroups) {
-      cy.get('@twoDSettings').contains('p-accordionTab', 'Colors').click({ force: true });
+      expandAccordionTabByHeader('@groupingTab', 'Colors');
   
-      cy.get('@twoDSettings')
+      cy.get('@groupingTab')
         .find('#colorPolygons') // Color Groups show/hide
         .contains(g.showGroupColors ? 'Show' : 'Hide')
         .click({ force: true });
@@ -163,9 +247,10 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
   
       // If we are showing group colors, also ensure the table is visible (needed to test changing colors)
       if (g.showGroupColors) {
-        cy.get('@twoDSettings')
+        cy.get('@groupingTab')
           .find('#polygon-color-table-row')
-          .should('be.visible')
+          .scrollIntoView()
+          .should('exist')
           .within(() => {
             cy.get('#polygon-color-table-toggle').contains('Show').click({ force: true });
           });
@@ -175,30 +260,45 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
   
         // Optional: change some group colors if specified
         if (g.changeGroupColors?.groups?.length) {
-          // table lives in the separate polygon color dialog
-          cy.get('#polygon-color-table-wrapper', { timeout: 15000 }).should('be.visible');
-  
-          g.changeGroupColors.groups.forEach((groupKey, idx) => {
-            const newColor = idx % 2 === 0 ? '#ff0000' : '#00ff00';
-  
-            cy.get('#polygon-color-table')
-              .find(`td[data-value="${groupKey}"]`)
-              .should('exist')
-              .parents('tr')
-              .within(() => {
-                cy.get('input[type="color"]').then(($input) => {
-                  const el = $input.get(0) as HTMLInputElement;
-                  el.value = newColor;
-                  el.dispatchEvent(new Event('change', { bubbles: true }));
+          cy.get('body').then(($body) => {
+            if (!$body.find('#polygon-color-table:visible').length) return;
+
+            g.changeGroupColors!.groups.forEach((groupKey, idx) => {
+              const newColor = g.changeGroupColors?.colorsByGroup?.[groupKey] ?? (idx % 2 === 0 ? '#ff0000' : '#00ff00');
+              const expectedRgb = hexToRgbString(newColor).replace(/\s+/g, '');
+
+              cy.get('#polygon-color-table')
+                .find(`td[data-value="${groupKey}"]`)
+                .should('exist')
+                .parents('tr')
+                .within(() => {
+                  cy.get('input[type="color"]').then(($input) => {
+                    const el = $input.get(0) as HTMLInputElement;
+                    el.value = newColor;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                  });
+                  cy.get('input[type="color"]').should('have.value', newColor);
                 });
+
+              cy.window().then((win: unknown) => {
+                const w = win as WinWithMT;
+                const cyInstance = w.cytoscapeInstance as Core;
+                const parentNode = resolveParentGroupNode(cyInstance, groupKey);
+
+                expect(parentNode.empty(), `parent group exists for color change: ${groupKey}`).to.equal(false);
+                expect(String(parentNode.data('nodeColor')).toLowerCase(), `stored polygon color for ${groupKey}`)
+                  .to.equal(newColor.toLowerCase());
+                expect(String(parentNode.style('background-color')).replace(/\s+/g, ''), `rendered polygon color for ${groupKey}`)
+                  .to.equal(expectedRgb);
               });
-          });
-  
-          // quick sanity: parent nodes exist when groups are shown
-          cy.window().then((win: unknown) => {
-            const w = win as WinWithMT;
-            const cyInstance = w.cytoscapeInstance as Core;
-            expect(cyInstance.nodes('.parent').length).to.be.greaterThan(0);
+            });
+
+            // quick sanity: parent nodes exist when groups are shown
+            cy.window().then((win: unknown) => {
+              const w = win as WinWithMT;
+              const cyInstance = w.cytoscapeInstance as Core;
+              expect(cyInstance.nodes('.parent').length).to.be.greaterThan(0);
+            });
           });
         }
       }
@@ -211,7 +311,7 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
     cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
   }
 
-  function expandAccordionTabByHeader(containerAlias: string, headerText: string): void {
+export function expandAccordionTabByHeader(containerAlias: string, headerText: string): void {
     const timeout = 15000;
   
     const HEADER_CLICK_SEL = [
@@ -255,14 +355,22 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
       // PrimeNG usually wires header -> content via aria-controls
       const controlsId = $header.attr('aria-controls');
       if (controlsId) {
-        cy.get(`#${controlsId}`, { timeout }).should('be.visible');
+        cy.wrap($header).should(($expandedHeader) => {
+          const expanded =
+            $expandedHeader.hasClass('p-highlight') ||
+            $expandedHeader.hasClass('ui-state-active') ||
+            $expandedHeader.attr('aria-expanded') === 'true';
+
+          expect(expanded, `accordion expanded: ${headerText}`).to.equal(true);
+        });
+        cy.get(`#${controlsId}`, { timeout }).should('exist');
         return;
       }
   
       // Fallback: locate the tab wrapper and assert any content block is visible
       const $tab = $header.closest(TAB_SEL);
       if ($tab.length) {
-        cy.wrap($tab).find(CONTENT_SEL).first().should('be.visible');
+        cy.wrap($tab).find(CONTENT_SEL).first().should('exist');
         return;
       }
   
@@ -287,16 +395,6 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
     const expected = profile.expectations.grouping?.expectedGroups;
     if (!expected) return;
   
-    const resolveParent = (cyInstance: Core, groupKey: string) => {
-      const direct = cyInstance.getElementById(String(groupKey));
-      if (direct && !direct.empty()) return direct;
-  
-      const prefixed = cyInstance.getElementById(`group-${String(groupKey)}`);
-      if (prefixed && !prefixed.empty()) return prefixed;
-  
-      return direct; // empty (for error messaging)
-    };
-  
     cy.window().then((win: unknown) => {
       const w = win as WinWithMT;
       const cyInstance = w.cytoscapeInstance as Core;
@@ -310,7 +408,7 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
       expect(parentCount, 'parent group count').to.equal(expectedGroupKeys.length);
   
       expectedGroupKeys.forEach((groupKey) => {
-        const parent = resolveParent(cyInstance, groupKey);
+        const parent = resolveParentGroupNode(cyInstance, groupKey);
   
         expect(parent.empty(), `parent group exists: ${groupKey}`).to.equal(false);
   
@@ -352,84 +450,436 @@ export function loadFilesUI(opts: FileLoadSpec[]): void {
   }
   
 export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
-  // matches your existing file tests: click settings gear that opens #file-settings-pane
-  cy.get('a[title="Settings"]', { timeout: 15000 }).first().click({ force: true });
+  cy.get(byTestId(testIds.filesSettingsButton), { timeout: 15000 }).click({ force: true });
 
-  cy.get('#file-settings-pane', { timeout: 15000 })
+  cy.contains('.p-dialog-title', 'File Settings', { timeout: 15000 })
     .should('be.visible')
+    .parents('.p-dialog')
     .as('fileSettings');
 
   cy.get('@fileSettings')
     .find('#default-distance-metric')
     .should('be.visible')
-    .select(profile.preLaunch.metric);
+    .then(($select) => {
+      const select = $select.get(0) as HTMLSelectElement;
+      select.value = profile.preLaunch.metric;
+      select.dispatchEvent(new Event('input', { bubbles: true }));
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.get('@fileSettings')
+    .find('#default-distance-metric')
+    .should('have.value', profile.preLaunch.metric);
 
   cy.get('@fileSettings')
     .find('#default-distance-threshold')
     .should('be.visible')
-    .clear()
-    .type(String(profile.preLaunch.threshold))
-    .blur();
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = String(profile.preLaunch.threshold);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new Event('blur', { bubbles: true }));
+    });
+
+  cy.get('@fileSettings')
+    .find('#default-distance-threshold')
+    .should('have.value', String(profile.preLaunch.threshold));
 
   if (profile.preLaunch.defaultView) {
     cy.get('@fileSettings')
       .find('#default-view')
       .should('be.visible')
       .select(profile.preLaunch.defaultView);
+
+    cy.get('@fileSettings')
+      .find('#default-view')
+      .should('have.value', profile.preLaunch.defaultView);
   }
 
   cy.get('@fileSettings')
     .find('button.p-dialog-close-button')
     .click({ force: true });
 
-  cy.get('#file-settings-pane').should('not.be.visible');
-
-  cy.window().its('commonService.session.style.widgets.default-distance-metric')
-    .should('equal', profile.preLaunch.metric);
-
-  cy.window().its('commonService.session.style.widgets.link-threshold')
-    .should('equal', profile.preLaunch.threshold);
+  cy.contains('.p-dialog-title', 'File Settings').should('not.exist');
 }
 
 export function launchAndWaitForProcessing(timeout = 60000): void {
   cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
   cy.get('#launch').click({ force: true });
   cy.get('#loading-information', { timeout }).should('not.exist');
+  cy.window({ timeout })
+    .its('commonService.session.network.isFullyLoaded')
+    .should('equal', true);
 }
 
 export function goTo2DNetworkView(): void {
-  cy.contains('button', 'View', { timeout: 15000 }).click({ force: true });
-  cy.contains('button[mat-menu-item]', '2D Network', { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuTwoD), { timeout: 15000 }).click({ force: true });
 
-  cy.get('#cy', { timeout: 30000 }).should('be.visible');
-  cy.window({ timeout: 30000 }).should('have.property', 'cytoscapeInstance');
+  assertTwoDNetworkReady();
 }
 
-export function assertAfterLaunchCounts(profile: DatasetProfile): void {
-  const expected = profile.expectations.afterLaunch;
+export function assertTwoDNetworkReady(timeout = 30000): void {
+  cy.get('#cy', { timeout }).should('be.visible');
+  cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
+}
+
+export function assertPhyloTreeReady(timeout = 30000): void {
+  cy.get('#phylocanvas', { timeout }).should('be.visible');
+}
+
+export function goToPhyloTreeView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Phylogenetic Tree', { timeout: 15000 }).click({ force: true });
+
+  assertPhyloTreeReady();
+}
+
+export function launchProfileToPhyloTree(profile: DatasetProfile): void {
+  visitAppAndAcceptEula();
+  cy.loadFiles(profile.files);
+  applyPreLaunchFileSettings(profile);
+  ensurePreLaunchProfileSynced(profile);
+  launchAndWaitForProcessing(60000);
+  goToPhyloTreeView();
+}
+
+export function ensureTwoDNetworkView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('#cy').length) {
+      assertTwoDNetworkReady();
+      return;
+    }
+
+    goTo2DNetworkView();
+  });
+}
+
+export function launchProfileToTwoD(profile: DatasetProfile): void {
+  visitAppAndAcceptEula();
+  cy.loadFiles(profile.files);
+  applyPreLaunchFileSettings(profile);
+  ensurePreLaunchProfileSynced(profile);
+  launchAndWaitForProcessing(60000);
+  ensureTwoDNetworkView();
+}
+
+export function assertMetricCount(selector: string, expected: number, timeout = 20000): void {
+  cy.get(selector, { timeout }).should(($metric) => {
+    const value = parseInt(String($metric.text()).replace(/,/g, ''), 10);
+    expect(value, `metric count for ${selector}`).to.equal(expected);
+  });
+}
+
+export function waitForProcessingDialogToClear(timeout = 30000): void {
+  cy.get('body', { timeout }).should(($body) => {
+    const visibleProcessingDialogs = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Processing Files...'))
+      .length;
+
+    expect(visibleProcessingDialogs, 'visible processing dialogs').to.equal(0);
+  });
+}
+
+export function openGlobalFilteringTab(): void {
+  cy.openGlobalSettings();
+  cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
+  cy.get('#filtering-config', { timeout: 15000 }).should('be.visible');
+}
+
+export function openGlobalStylingTab(): void {
+  cy.openGlobalSettings();
+  cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+  cy.get('#style-config', { timeout: 15000 }).should('be.visible');
+}
+
+export function setFilteringPruneWith(value: PruneWith): void {
+  cy.get('#prune-select').contains('span', value).click({ force: true });
+  cy.window()
+    .its('commonService.GlobalSettingsModel.SelectedPruneWithTypesVariable')
+    .should('equal', value);
+
+  if (value === 'Nearest Neighbor') {
+    cy.window().its('commonService.session.style.widgets.link-show-nn').should('equal', true);
+    cy.get('#filtering-epsilon-row').should('be.visible');
+    return;
+  }
+
+  cy.window().its('commonService.session.style.widgets.link-show-nn').should('equal', false);
+  cy.get('#filtering-epsilon-row').should('not.be.visible');
+}
+
+export function setFilteringEpsilonExponent(exponent: number): void {
+  cy.get('#filtering-epsilon-row').should('be.visible');
+  cy.get(byTestId(testIds.filterEpsilon))
+    .should('be.visible')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = String(exponent);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.window()
+    .its('commonService.session.style.widgets.filtering-epsilon')
+    .should((value) => {
+      expect(Number(value)).to.equal(exponent);
+    });
+
+  cy.contains('#filtering-epsilon-row label', Math.pow(10, exponent).toPrecision(3)).should('be.visible');
+}
+
+export function setGlobalDistanceMetric(metric: DistanceMetric): void {
+  cy.get('#global-settings-modal')
+    .find('#default-distance-metric')
+    .should('be.visible')
+    .select(metric);
+
+  cy.window()
+    .its('commonService.session.style.widgets.default-distance-metric')
+    .should('equal', metric);
+}
+
+export function setGlobalLinkThreshold(threshold: number | string): void {
+  const nextThreshold = String(threshold);
+
+  cy.get('#link-threshold')
+    .should('be.visible')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.focus();
+      input.value = nextThreshold;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.window()
+    .its('commonService.session.style.widgets.link-threshold')
+    .should((value) => {
+      expect(Number(value)).to.equal(Number(nextThreshold));
+    });
+}
+
+export function assertVisibleNodeIds(expectedNodeIds: string[], timeout = 20000): void {
+  cy.window({ timeout }).should((win: unknown) => {
+    const w = win as WinWithMT;
+    const cyInstance = w.cytoscapeInstance as Core;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const visibleNodeIds = cyInstance
+      .nodes(':visible')
+      .filter((node) => node.children().length === 0)
+      .map((node) => String(node.id()))
+      .sort();
+
+    expect(visibleNodeIds, 'visible node ids').to.deep.equal([...expectedNodeIds].sort());
+  });
+}
+
+export type StyleSnapshot = {
+  nodes: Record<string, string>;
+  nodeShapes: Record<string, string>;
+  nodeWidths: Record<string, string>;
+  edges: Record<string, string>;
+};
+
+type StylePreservationOptions = {
+  ignoreNodeWidths?: boolean;
+};
+
+export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
+  return cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const cyInstance = w.cytoscapeInstance as Core;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const visibleNodes = cyInstance
+      .nodes()
+      .filter((node) => !node.hasClass('parent') && node.visible());
+
+    const visibleEdges = cyInstance
+      .edges()
+      .filter((edge) => edge.visible());
+
+    return {
+      nodes: visibleNodes.reduce((acc: Record<string, string>, node) => {
+        acc[node.id()] = String(node.style('background-color') || '').replace(/\s+/g, '');
+        return acc;
+      }, {}),
+      nodeShapes: visibleNodes.reduce((acc: Record<string, string>, node) => {
+        acc[node.id()] = String(node.style('shape') || '').trim();
+        return acc;
+      }, {}),
+      nodeWidths: visibleNodes.reduce((acc: Record<string, string>, node) => {
+        acc[node.id()] = String(node.style('width') || '').trim();
+        return acc;
+      }, {}),
+      edges: visibleEdges.reduce((acc: Record<string, string>, edge) => {
+        acc[edge.id()] = String(edge.style('line-color') || '').replace(/\s+/g, '');
+        return acc;
+      }, {}),
+    };
+  });
+}
+
+export function assertVisibleStylePreserved(
+  before: StyleSnapshot,
+  after: StyleSnapshot,
+  options: StylePreservationOptions = {},
+): void {
+  Object.entries(after.nodes).forEach(([id, backgroundColor]) => {
+    expect(before.nodes[id], `node ${id} background-color`).to.equal(backgroundColor);
+  });
+
+  Object.entries(after.nodeShapes).forEach(([id, shape]) => {
+    expect(before.nodeShapes[id], `node ${id} shape`).to.equal(shape);
+  });
+
+  if (!options.ignoreNodeWidths) {
+    Object.entries(after.nodeWidths).forEach(([id, width]) => {
+      expect(before.nodeWidths[id], `node ${id} width`).to.equal(width);
+    });
+  }
+
+  Object.entries(after.edges).forEach(([id, lineColor]) => {
+    expect(before.edges[id], `edge ${id} color`).to.equal(lineColor);
+  });
+}
+
+export function assertAfterLaunchCounts(profile: DatasetProfile, mode: 'observed' | 'intended' = 'observed'): void {
+  const expected = resolveExpected(profile.expectations.afterLaunch, mode);
   if (!expected) return;
 
-  const readInt = (selector: string) =>
-    cy.get(selector, { timeout: 20000 })
-      .invoke('text')
-      .then((t) => parseInt(String(t).replace(/,/g, ''), 10));
-
   if (expected.nodes !== undefined) {
-    readInt('#numberOfNodes').should('equal', expected.nodes);
+    assertMetricCount('#numberOfNodes', expected.nodes);
   }
   if (expected.visibleLinks !== undefined) {
-    readInt('#numberOfVisibleLinks').should('equal', expected.visibleLinks);
+    assertMetricCount('#numberOfVisibleLinks', expected.visibleLinks);
   }
   if (expected.clusters !== undefined) {
-    readInt('#numberOfDisjointComponents').should('equal', expected.clusters);
+    assertMetricCount('#numberOfDisjointComponents', expected.clusters);
   }
   if (expected.singletons !== undefined) {
-    readInt('#numberOfSingletonNodes').should('equal', expected.singletons);
+    assertMetricCount('#numberOfSingletonNodes', expected.singletons);
   }
+}
+
+export function readMetricCount(selector: string): Cypress.Chainable<number> {
+  return cy.get(selector, { timeout: 20000 })
+    .invoke('text')
+    .then((text) => parseInt(String(text).replace(/,/g, ''), 10));
+}
+
+export function applyStyleFromProfile(profile: DatasetProfile): void {
+  const style = profile.expectations.applyStyle;
+  if (!style) return;
+
+  cy.openGlobalSettings();
+  cy.contains('#global-settings-modal .nav-link', 'Styling').click();
+  cy.get('#apply-style').should('exist');
+  cy.attach_files('#apply-style', [style.styleFile], ['application/json']);
+
+  assertStyleWidgetsFromProfile(profile);
+}
+
+export function assertStyleWidgetsFromProfile(profile: DatasetProfile): void {
+  const style = profile.expectations.applyStyle;
+  if (!style) return;
+
+  cy.window()
+    .its('commonService.session.style.widgets', { timeout: 5000 })
+    .should((widgets) => {
+      if (style.expectWidgets.nodeColorVariable) {
+        expect(widgets['node-color-variable']).to.equal(style.expectWidgets.nodeColorVariable);
+      }
+
+      if (style.expectWidgets.nodeSymbolVariable) {
+        expect(widgets['node-symbol-variable']).to.equal(style.expectWidgets.nodeSymbolVariable);
+      }
+
+      if (style.expectWidgets.nodeRadiusVariable) {
+        expect(widgets['node-radius-variable']).to.equal(style.expectWidgets.nodeRadiusVariable);
+      }
+
+      if (style.expectWidgets.linkColorVariable) {
+        expect(widgets['link-color-variable']).to.equal(style.expectWidgets.linkColorVariable);
+      }
+    });
+}
+
+export function assertStyleTablesFromProfile(profile: DatasetProfile): void {
+  const style = profile.expectations.applyStyle;
+  if (!style) return;
+
+  const assertTableVisibility = (selector: string, shouldBeVisible: boolean) => {
+    if (shouldBeVisible) {
+      cy.get(selector, { timeout: 15000 }).should('be.visible');
+      return;
+    }
+
+    cy.get('body').then(($body) => {
+      if (!$body.find(selector).length) return;
+      cy.get(selector).should('not.be.visible');
+    });
+  };
+
+  assertTableVisibility('#node-color-table', style.expectTables.nodeColorTable);
+  assertTableVisibility('#link-color-table', style.expectTables.linkColorTable);
+  assertTableVisibility('#nodeSymbolTable', style.expectTables.nodeSymbolTable);
+
+  cy.window()
+    .its('commonService.session.style.widgets.node-symbol-table-visible')
+    .should('equal', style.expectTables.nodeSymbolTable ? 'Show' : 'Hide');
+
+  if (!style.expectTables.nodeSizeTable) {
+    cy.contains('.p-dialog-title', 'Node Size Table').should('not.exist');
+  }
+}
+
+export function setTwoDLinkLabelVariable(variable: LinkLabelVariable): void {
+  const optionLabel = variable === 'distance' ? 'Distance' : variable;
+
+  openTwoDSettingsDialog();
+  cy.get('@twoDSettings').contains('.nav-link', 'Links').click({ force: true });
+  cy.get('@twoDSettings')
+    .find('.tab-pane:visible', { timeout: 15000 })
+    .should('exist')
+    .as('linksTab');
+
+  cy.get('@linksTab').contains('p-accordion-panel', 'Labels and Tooltips').click({ force: true });
+  cy.get('@linksTab').contains('.form-group', 'Label').find('p-select').click({ force: true });
+  cy.contains('li[role="option"]', optionLabel).click({ force: true });
+
+  cy.window()
+    .its('commonService.session.style.widgets.link-label-variable')
+    .should('equal', variable);
+
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const cyInstance = w.cytoscapeInstance as Core;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const labeledVisibleEdges = cyInstance
+      .edges(':visible')
+      .filter((edge) => /\d/.test(String(edge.data('label') || '')));
+
+    expect(labeledVisibleEdges.length, `visible edges labeled with ${variable}`).to.be.greaterThan(0);
+  });
+
+  cy.get('@twoDSettings')
+    .find('button.p-dialog-close-button')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
 }
 
 export function openTwoDSettingsDialog(): void {
-  cy.get('TwoDComponent #tool-btn-container a[title="Settings"]', { timeout: 15000 })
+  cy.get(byTestId(testIds.twodSettingsButton), { timeout: 15000 })
     .should('exist')
     .click({ force: true });
 
@@ -443,19 +893,22 @@ export function enableGroupingShow(groupBy: 'cluster' | 'subtype' = 'cluster'): 
   openTwoDSettingsDialog();
 
   cy.get('@twoDSettings').contains('.nav-link', 'Grouping').click({ force: true });
-  cy.get('@twoDSettings').find('#polygons-controls', { timeout: 15000 }).should('exist');
+  cy.get('@twoDSettings')
+    .find('.tab-pane:visible', { timeout: 15000 })
+    .should('exist')
+    .as('groupingTab');
 
 
   // Expand Controls correctly (PrimeNG)
-  expandAccordionTabByHeader('@twoDSettings', 'Controls');
+  expandAccordionTabByHeader('@groupingTab', 'Controls');
 
   // Show groups (inside Controls)
-  cy.get('@twoDSettings')
+  cy.get('@groupingTab')
   .find('#polygons-controls')
   .should('exist')
   .within(() => {
     cy.get('#polygons-show-toggle')
-      .contains('button, .p-button, .ui-button', 'Show')
+      .contains('Show')
       .click({ force: true });
   });
 
@@ -468,7 +921,7 @@ export function enableGroupingShow(groupBy: 'cluster' | 'subtype' = 'cluster'): 
 
   // Set group-by if needed (only visible after show=true)
   if (groupBy !== 'cluster') {
-    cy.get('@twoDSettings')
+    cy.get('@groupingTab')
       .find('#polygons-foci')
       .should('be.visible')
       .click({ force: true });

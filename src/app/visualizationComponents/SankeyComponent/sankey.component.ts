@@ -1,7 +1,7 @@
 import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild, OnDestroy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 //import * as domToImage from 'html-to-image';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
@@ -20,9 +20,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 
 
 @Component({
-  selector: 'SankeyComponent',
-  templateUrl: './sankey.component.html',
-  styleUrls: ['./sankey.component.scss']
+    selector: 'SankeyComponent',
+    templateUrl: './sankey.component.html',
+    styleUrls: ['./sankey.component.scss'],
+    standalone: false
 })
 export class SankeyComponent extends BaseComponentDirective implements OnInit, OnDestroy {
 

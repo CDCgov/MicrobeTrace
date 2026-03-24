@@ -4,23 +4,24 @@
     "overrides": [
       {
         "files": ["*.ts"],
-        "parserOptions": {
-          "project": ["tsconfig.app.json", "tsconfig.spec.json"],
-          "createDefaultProgram": true
-        },
+        "plugins": ["@typescript-eslint"],
         "extends": [
           "plugin:@angular-eslint/recommended",
           "plugin:@angular-eslint/template/process-inline-templates"
         ],
         "rules": {
-          // Add or override ESLint rules here
+          "@angular-eslint/contextual-lifecycle": "off",
+          "@angular-eslint/no-empty-lifecycle-method": "off",
+          "@angular-eslint/prefer-inject": "off",
+          "@angular-eslint/prefer-standalone": "off"
         }
       },
       {
         "files": ["*.html"],
         "extends": ["plugin:@angular-eslint/template/recommended"],
         "rules": {
-          // Add or override ESLint rules for templates here
+          "@angular-eslint/template/eqeqeq": "off",
+          "@angular-eslint/template/prefer-control-flow": "off"
         }
       }
     ]

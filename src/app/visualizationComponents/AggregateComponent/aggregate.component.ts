@@ -9,7 +9,7 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 //import pdfMake from 'pdfmake/build/pdfmake.js';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';
@@ -18,9 +18,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
-  selector: 'AggregateComponent',
-  templateUrl: './aggregate.component.html',
-  styleUrls: ['./aggregate.component.scss'],
+    selector: 'AggregateComponent',
+    templateUrl: './aggregate.component.html',
+    styleUrls: ['./aggregate.component.scss'],
+    standalone: false
 })
 export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -398,7 +399,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
   updateDataField(i,e) {
     console.log(`data field ${i} changed\nBefore: ${this.SelectedDataFields[0]}, ${this.SelectedDataFields[1]}, ${this.SelectedDataFields[2]}`);
-    console.log(e);
+    console.debug('Aggregate data field change payload:', e);
     this.SelectedDataFields[i] = e.value;
     console.log(`After: ${this.SelectedDataFields[0]}, ${this.SelectedDataFields[1]}, ${this.SelectedDataFields[2]}`);
     this.updateTable(i); 

@@ -1,0 +1,138 @@
+name: Bug Tracker Issues
+
+on:
+  push:
+    paths:
+      - docs/2d-network-cypress-bug-log.csv
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-issues:
+    runs-on: ubuntu-latest
+    env:
+      BUG_TRACKER_ASSIGNEE: ${{ vars.BUG_TRACKER_ASSIGNEE || github.actor }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build bug tracker issue payloads
+        run: |
+          python3 scripts/bug_tracker_issue_candidates.py \
+            --csv-path docs/2d-network-cypress-bug-log.csv \
+            --before "${{ github.event.before }}" \
+            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" \
+            --actor "${{ github.actor }}" \
+            --repository "${{ github.repository }}" \
+            --output "${RUNNER_TEMP}/bug-tracker-issues.json"
+
+      - name: Create issues for new bug rows
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issueFile = `${process.env.RUNNER_TEMP}/bug-tracker-issues.json`;
+            const payload = JSON.parse(fs.readFileSync(issueFile, 'utf8'));
+            const issues = payload.create || [];
+
+            if (!issues.length) {
+              core.info('No new bug tracker rows found.');
+            } else {
+              const assignee = process.env.BUG_TRACKER_ASSIGNEE;
+
+              for (const issue of issues) {
+                const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue in:title "[Bug Tracker] ${issue.id}"`;
+                const existing = await github.rest.search.issuesAndPullRequests({
+                  q: query,
+                  per_page: 1,
+                });
+
+                if (existing.data.items.length) {
+                  core.info(`Issue already exists for ${issue.id}: ${existing.data.items[0].html_url}`);
+                  continue;
+                }
+
+                let created;
+                try {
+                  created = await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: issue.title,
+                    body: issue.body,
+                    assignees: assignee ? [assignee] : undefined,
+                  });
+                } catch (error) {
+                  if (assignee) {
+                    core.warning(`Could not assign ${issue.id} to ${assignee}: ${error.message}`);
+                    created = await github.rest.issues.create({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      title: issue.title,
+                      body: issue.body,
+                    });
+                  } else {
+                    throw error;
+                  }
+                }
+
+                core.info(`Created ${issue.id}: ${created.data.html_url}`);
+              }
+            }
+
+      - name: Close issues for resolved bug rows
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issueFile = `${process.env.RUNNER_TEMP}/bug-tracker-issues.json`;
+            const payload = JSON.parse(fs.readFileSync(issueFile, 'utf8'));
+            const issues = payload.close || [];
+
+            if (!issues.length) {
+              core.info('No bug tracker rows moved to a closed status.');
+              return;
+            }
+
+            for (const issue of issues) {
+              const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue in:title "[Bug Tracker] ${issue.id}"`;
+              const existing = await github.rest.search.issuesAndPullRequests({
+                q: query,
+                per_page: 1,
+              });
+
+              if (!existing.data.items.length) {
+                core.warning(`No existing GitHub issue found for ${issue.id}; skipping close.`);
+                continue;
+              }
+
+              const current = existing.data.items[0];
+              const issueNumber = current.number;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: issue.comment,
+              });
+
+              if (current.state === 'closed') {
+                core.info(`Issue already closed for ${issue.id}: ${current.html_url}`);
+                continue;
+              }
+
+              const updated = await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                state: 'closed',
+                state_reason: 'completed',
+              });
+
+              core.info(`Closed ${issue.id}: ${updated.data.html_url}`);
+            }

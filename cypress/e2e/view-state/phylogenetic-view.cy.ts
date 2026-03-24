@@ -105,7 +105,7 @@ describe('Phylogenetic Tree View', () => {
 
       cy.contains('#global-settings-modal .nav-link', 'Styling').click();
       cy.get('#apply-style').should('exist');
-      cy.attach_file('#apply-style', 'Cypress_Test_Style.style', 'application/json');
+      cy.attach_files('#apply-style', ['Cypress_Test_Style.style'], ['application/json']);
       cy.wait(1000)
       cy.contains('#global-settings-modal .nav-link', 'Styling').click();
       cy.get('#node-color-variable .p-select-label').should('contain', 'Profession');
@@ -229,7 +229,7 @@ describe('Phylogenetic Tree View', () => {
         .parents('.p-dialog').as('dialogContainer');
 
       // Perform actions within the found container
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Layout').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Layout').click();
       cy.get('@dialogContainer').find(selectors.layoutDropdown).click();
       cy.contains('li[role="option"]', 'Vertical').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
@@ -241,7 +241,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeLayoutVariable').should('equal', 'horizontal');
       cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
         .parents('.p-dialog').as('dialogContainer');
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Layout').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Layout').click();
       cy.get('@dialogContainer').find(selectors.layoutDropdown).click();
       cy.contains('li[role="option"]', 'Circular').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
@@ -253,7 +253,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeModeVariable').should('equal', 'square');
       cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
         .parents('.p-dialog').as('dialogContainer');
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Mode').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Mode').click();
       cy.get('@dialogContainer').find('#tree-mode').click();
       cy.contains('li[role="option"]', 'Smooth').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
@@ -265,7 +265,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeModeVariable').should('equal', 'square');
       cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
         .parents('.p-dialog').as('dialogContainer');
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Mode').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Mode').click();
       cy.get('@dialogContainer').find('#tree-mode').click();
       cy.contains('li[role="option"]', 'Straight').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
@@ -277,7 +277,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeTypeVariable').should('equal', 'weighted');
       cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
         .parents('.p-dialog').as('dialogContainer');
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Type').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Type').click();
       cy.get('@dialogContainer').find('#tree-type').click();
       cy.contains('li[role="option"]', 'Unweighted (Tree)').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');
@@ -289,7 +289,7 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedTreeTypeVariable').should('equal', 'weighted');
       cy.contains('.p-dialog-title', 'Phylogenetic Tree Settings')
         .parents('.p-dialog').as('dialogContainer');
-      cy.get('@dialogContainer').contains('p-accordionTab', 'Type').click();
+      cy.get('@dialogContainer').contains('p-accordion-panel', 'Type').click();
       cy.get('@dialogContainer').find('#tree-type').click();
       cy.contains('li[role="option"]', 'Dendrogram').click();
       cy.closeSettingsPane('Phylogenetic Tree Settings');

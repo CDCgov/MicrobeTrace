@@ -16,9 +16,10 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 @Component({
-  selector: 'AlignmentViewComponent',
-  templateUrl: './alignment-view-plugin-component.html',
-  styleUrls: ['./alignment-view-plugin-component.scss']
+    selector: 'AlignmentViewComponent',
+    templateUrl: './alignment-view-plugin-component.html',
+    styleUrls: ['./alignment-view-plugin-component.scss'],
+    standalone: false
 })
 export class AlignmentViewComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -46,6 +47,8 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   seqArray: string[];
   seqArrayShortened: any[];
   longestSeqLength: number = 0;
+  currentSeqLength: number = 0;
+  lengthString: string = '';
 
   /**
    * count matrix: [ [#A, #C, #G, #T, #other/ambig]-for each location, ... ]
@@ -82,7 +85,9 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     { label: 'Amino Acids', value: 'aa'}
   ];
   selectedSeqType = 'nt';
+  // startPos and endPos are visible to user and are therefore 1-indexed instead of 0-indexed. They are also inclusive
   startPos = 1;
+  endPos = 3000;
   //rulerMinorInterval: number = 20; replaced with this.widgets['alignView-rulerMinorInterval']
   rulerIntervalOptions = [0, 10, 20, 25, 50]
   translationSetting = 'Maintain Codons'
@@ -201,6 +206,9 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     } else {
       this.useCustomColorScheme = true;
     }
+    this.currentSeqLength = this.endPos - this.startPos + 1;
+    this.updateLengthString();
+    this.seqArray = this.nodesWithSeq.map(index => this.commonService.session.data.nodes[index]["seq"].toUpperCase().slice(this.startPos-1, this.endPos))
     this.onSelectedColorChanged(true)
 
     // updates spanWidth, spanHeight, rightWidth, leftWidth, fontSize, and then updates alignment
@@ -234,10 +242,6 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   ngAfterViewInit(): void {
     this.highlightRows();
-
-    if (this.nodesWithoutSeq.length > 0) {
-      this.showPopupMessage = true;
-    }
   }
 
   ngOnDestroy(): void {
@@ -344,6 +348,34 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     this.longestSeqLength = longestSeq;
   }
 
+  updateCurrentSeqLength(AAs=false) {
+    if (AAs) {
+      this.currentSeqLength = Math.ceil((this.endPos-this.startPos+1)/3)
+    }
+    else {
+      this.currentSeqLength = this.endPos-this.startPos+1;
+    }
+    this.updateLengthString()
+  }
+
+  isIndexInRange(i) {
+    return i >= this.startPos-1 && i <= this.endPos-1;
+  }
+
+  updateLengthString() {
+    if (this.selectedSeqType == 'aa') {
+      let bp_length = this.endPos-this.startPos+1;
+      let aa_length = Math.floor(bp_length/3)
+      this.lengthString = `${bp_length} nt => ${aa_length} aa`;
+    } else {
+      this.lengthString = `${this.currentSeqLength} nt`;
+    }
+  }
+
+  showPopup() {
+    this.showPopupMessage = true;
+  }
+
   /**
   * Updates the alignment by generating a new canvas, and recalcuating various heights
   */
@@ -398,7 +430,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     let highlightHeight = viewHeight/(this.spanHeight*scaleFactorNumber);
 
     // want the minimap to be around this.rightWidth pixels wide; caculate how much to downscale by and then downscale
-    let scaleFactorLength = (this.longestSeqLength < this.rightWidth)? 1 : Math.ceil(this.longestSeqLength/this.rightWidth);
+    let scaleFactorLength = (this.currentSeqLength < this.rightWidth)? 1 : Math.ceil(this.currentSeqLength/this.rightWidth);
     let highlightWidth = $('.canvasHolder').width()/(this.spanWidth*scaleFactorLength)
 
     let canvasWidth = $('#miniMap canvas').width()
@@ -455,10 +487,10 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     let highlightDimensions =  document.getElementById('miniMapHighlight').getBoundingClientRect();
 
     // want the minimap to be around this.rightWidth pixels wide; caculate how much to downscale by and then downscale
-    let scaleFactorLength = (this.longestSeqLength < this.rightWidth)? 1 : Math.ceil(this.longestSeqLength/this.rightWidth);
+    let scaleFactorLength = (this.currentSeqLength < this.rightWidth)? 1 : Math.ceil(this.currentSeqLength/this.rightWidth);
     // need to reduce number of sequences on minimap if there are too many
     let scaleFactorNumber = (this.nodesWithSeq.length <= 100)? 1: Math.ceil(this.nodesWithSeq.length/100);
-    //let scaleFactor = Math.ceil(this.longestSeqLength/this.rightWidth)
+
     let horizontalScroll = (highlightDimensions.left - mmDimensions.left)*this.spanWidth*scaleFactorLength;    
     alignmentTop.scrollLeft = horizontalScroll < 10 ? horizontalScroll : horizontalScroll + 7;
     canvasHolder.scrollLeft = horizontalScroll < 10 ? horizontalScroll : horizontalScroll + 7;
@@ -511,28 +543,28 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
    * 
    */
   shortenNodesWithSeq() {
-    if (this.longestSeqLength < this.rightWidth && this.nodesWithSeq.length <= 100) {
+    if (this.currentSeqLength < this.rightWidth && this.nodesWithSeq.length <= 100) {
       this.seqArrayShortened = this.seqArray
-      $('#miniMap').css({'width': this.longestSeqLength+'px', 'height': this.nodesWithSeq.length+'px'})
+      $('#miniMap').css({'width': this.currentSeqLength+'px', 'height': this.nodesWithSeq.length+'px'})
       $('#miniMapTitle').css({'height': (this.nodesWithSeq.length+16)+'px', 'line-height': (this.nodesWithSeq.length+16)+'px'})
       return; 
     }
 
     // want the minimap to be around this.rightWidth pixels wide; caculate how much to downscale by and then downscale
-    let scaleFactorLength = (this.longestSeqLength < this.rightWidth)? 1 : Math.ceil(this.longestSeqLength/this.rightWidth);
+    let scaleFactorLength = (this.currentSeqLength < this.rightWidth)? 1 : Math.ceil(this.currentSeqLength/this.rightWidth);
     // need to reduce number of sequences on minimap if there are too many
     let scaleFactorNumber = (this.nodesWithSeq.length <= 100)? 1: Math.ceil(this.nodesWithSeq.length/100);
     this.seqArrayShortened = [];
     this.seqArray.forEach((seq, index) => {
       if (index % scaleFactorNumber != 0) return;
       let downSizedSeq = "";
-      for (let i=0; i < this.longestSeqLength; i+= scaleFactorLength) {
+      for (let i=0; i < this.currentSeqLength; i+= scaleFactorLength) {
         downSizedSeq += seq.charAt(i);
       }
       this.seqArrayShortened.push(downSizedSeq)
     })
 
-    $('#miniMap').css({'width': Math.ceil(this.longestSeqLength/scaleFactorLength)+'px', 'height': Math.ceil(this.nodesWithSeq.length/scaleFactorNumber)+'px'})
+    $('#miniMap').css({'width': Math.ceil(this.currentSeqLength/scaleFactorLength)+'px', 'height': Math.ceil(this.nodesWithSeq.length/scaleFactorNumber)+'px'})
     $('#miniMapTitle').css({'height': Math.ceil(this.nodesWithSeq.length/scaleFactorNumber+16)+'px', 'line-height': Math.ceil(this.nodesWithSeq.length/scaleFactorNumber+16)+'px'})
   }
 
@@ -619,11 +651,11 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
       // count matrix: [ [#A, #R, #N, #D, #C, #E, #Q, #G, #H, #I, #L, #K, #M, #F, #P, #S, #T, #W, #Y, #V, #*, #-, #X]-for each location, ... ]
       let countMatrix = [];
   
-      for (let i =0; i<this.longestSeqLength; i++) {
+      for (let i =0; i<this.currentSeqLength; i++) {
         countMatrix.push(Array(23).fill(0));
       }
   
-      for (let seq of this.seqArray) {
+      for (const seq of this.seqArray) {
         for (let i=0; i< seq.length; i++) {
           let nt = seq[i];
           switch (nt) {
@@ -828,6 +860,8 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
       return 0
     } else if (this.selectedSeqType=='codon') {
       return this.spanWidth*(i-this.startPos+1+Math.floor((i-this.startPos+1)/3))
+    } else if (this.selectedSeqType == 'nt') {
+      return this.spanWidth*(i-this.startPos+1);
     } else {
       return this.spanWidth*i;
     }
@@ -836,19 +870,19 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   /** Calculates the need with of SVG image based on selectedSeqType and the length of the sequences */
   getSVGWidth() {
     if (this.selectedSeqType == 'nt') {
-      return this.spanWidth*this.proportionMatrix.length+17
+      return this.spanWidth*(this.endPos-this.startPos+1)+15
     } else if (this.selectedSeqType == 'codon') {
-      let length = this.proportionMatrix.length
-      return this.spanWidth*(length+Math.floor(length/3))+17
+      let length = this.endPos-this.startPos+1
+      let spaces = length % 3 == 0 ? (length/3)-1 : Math.floor(length/3)
+      return this.spanWidth*(length+spaces)+15
     } else {
-      return this.spanWidth*this.proportionMatrixAA.length+17
+      return this.spanWidth*this.proportionMatrixAA.length+15
     }
   }
 
   /** Updates Alignment View when type of sequence is changed */
   onSeqTypeChange() {
     if (this.selectedSeqType=='nt') {
-      this.startPos = 1;
       this.revert2NT();
     } else if (this.selectedSeqType == 'codon') {
       this.NT2Codon(this.startPos-1);
@@ -877,18 +911,19 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   convertToAASequence(startPos=0) {
     let NT2AA_table = this.getNT2AATable();
 
-    this.seqArray = this.getData(this.nodesWithSeq, 'seq');
-
-    this.updateLongestSeqLength();
+    this.seqArray = this.nodesWithSeq.map(index => this.commonService.session.data.nodes[index]["seq"].toUpperCase().slice(this.startPos-1, this.endPos))
+    this.updateCurrentSeqLength()
     let AAarray = [];
     let NT_check = /^[ACGT]+$/;
     
     this.seqArray.forEach(seq => {
       if (this.translationSetting=='Maintain Codons') {
         let aaString = ''
-        for (let i=startPos; i< seq.length; i += 3) {
+        for (let i=0; i< this.currentSeqLength; i += 3) {
           let codon = seq.substring(i, i+3);
-          if (NT_check.test(codon)) {
+          if (codon.length != 3) {
+            continue;
+          } else if (NT_check.test(codon)) {
             aaString += NT2AA_table[codon];
           } else if (codon == '---') {
             aaString += '-'
@@ -901,7 +936,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
         let aaString = '';
         let gapCount = 0;
         let codon = '';
-        for (let i=startPos; i < seq.length; i++) {
+        for (let i=0; i< this.currentSeqLength; i++) {
           let nt = seq.charAt(i);
           if (nt == '-') {
             gapCount += 1;
@@ -951,7 +986,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     }
 
     this.updateAlignment();
-    this.updateLongestSeqLength();
+    this.updateCurrentSeqLength(true);
     this.shortenNodesWithSeq();
     this.proportionMatrixAA = this.calculateProportionAminoAcids();
     this.positionMatrixAA = this.calculatePositionMatrixAminoAcids();
@@ -1018,8 +1053,8 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   /** Reverts the view back to the original sequence view */
   revert2NT() {
-    this.seqArray = this.getData(this.nodesWithSeq, 'seq');
-    this.updateLongestSeqLength();
+    this.seqArray = this.nodesWithSeq.map(index => this.commonService.session.data.nodes[index]["seq"].toUpperCase().slice(this.startPos-1, this.endPos))
+    this.updateCurrentSeqLength()
     this.shortenNodesWithSeq();
     this.onSelectedColorChanged();
   }
@@ -1027,17 +1062,17 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   /** Converts the sequence into a codons by introducing spaces every 3NTs and then updates the view */
   NT2Codon(start) {
     let newSeqs = []
-    this.seqArray = this.getData(this.nodesWithSeq, 'seq');
+    this.seqArray = this.nodesWithSeq.map(index => this.commonService.session.data.nodes[index]["seq"].toUpperCase().slice(this.startPos-1, this.endPos))
     this.seqArray.forEach(seq => {
       let codons = []
-      for (let i=start; i<seq.length; i+= 3) {
+      for (let i=0; i<seq.length; i += 3) {
         codons.push(seq.slice(i, i+3));
       }
       newSeqs.push(codons.join(' '));
     })
 
     this.seqArray = newSeqs;
-    this.updateLongestSeqLength();
+    this.updateCurrentSeqLength();
     this.shortenNodesWithSeq();
     this.onSelectedColorChanged();
   }
@@ -1587,7 +1622,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     this.onLabelFieldChange();
 
     // updates seqArray with new order
-    this.seqArray = this.getData(this.nodesWithSeq, 'seq');
+    this.seqArray = this.nodesWithSeq.map(index => this.commonService.session.data.nodes[index]["seq"].toUpperCase().slice(this.startPos-1, this.endPos))
 
     // updates seqArrayShortened with new order
     this.shortenNodesWithSeq();
