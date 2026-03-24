@@ -1,15 +1,17 @@
 /// <reference types="cypress" />
 
 import type { DatasetProfile } from '../datasets/profile';
-import { getProfilesByTags, resolveExpected } from '../datasets/profile';
+import { getProfilesByTags } from '../datasets/profile';
 import {
-  assertAfterLaunchCounts,
-  assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   openGlobalFilteringTab,
   setFilteringPruneWith,
   setTwoDLinkLabelVariable,
 } from '../../../support/journey-helpers';
+import type { OracleStep } from '../../../oracle/types';
 
 const contractMode =
   Cypress.env('contractMode') === true ||
@@ -23,12 +25,17 @@ const contractMode =
     it(profile.title, () => {
       const nn = profile.expectations.nn;
       const labelLinksWith = nn?.labelLinksWith ?? 'distance';
-      const before = resolveExpected(nn?.before, 'intended');
-      const after = resolveExpected(nn?.after, 'intended');
 
       expect(nn, 'nearest neighbor contract').to.exist;
-      expect(before?.visibleLinks, 'intended visible links before nearest neighbor').to.be.a('number');
-      expect(after?.visibleLinks, 'intended visible links after nearest neighbor').to.be.a('number');
+
+      const oracleSteps: OracleStep[] = [
+        {
+          id: 'after-nn',
+          kind: 'set-nearest-neighbor',
+          enabled: true,
+        },
+      ];
+      computeOracleForProfile(profile, oracleSteps);
 
       launchProfileToTwoD(profile);
 
@@ -39,17 +46,22 @@ const contractMode =
         .its('commonService.session.style.widgets.link-threshold')
         .should('equal', profile.preLaunch.threshold);
 
-      assertAfterLaunchCounts(profile, 'intended');
-      assertMetricCount('#numberOfVisibleLinks', before!.visibleLinks);
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       setTwoDLinkLabelVariable(labelLinksWith);
-      assertMetricCount('#numberOfVisibleLinks', before!.visibleLinks);
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       openGlobalFilteringTab();
       setFilteringPruneWith('Nearest Neighbor');
       cy.closeGlobalSettings();
 
-      assertMetricCount('#numberOfVisibleLinks', after!.visibleLinks);
+      getOracleSnapshot('oracleResult', 'after-nn').then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
     });
   });
 });

@@ -320,14 +320,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 } else {
                     this.rerenderOnActive = true;
                 }
+                this.refreshVisibleNodeSymbolTable();
                 //this.loadSettings();
             }
         });
 
         this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
             if (this.widgets['node-symbol-variable'] == 'cluster') {
-                this.generateNodeSymbolSelectionTable("#node-symbol-table", this.widgets['node-symbol-variable']);
-                this.cdref.detectChanges();
+                this.refreshVisibleNodeSymbolTable();
             }
         })
 
@@ -355,6 +355,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
         this.InitView();
 
+    }
+
+    private refreshVisibleNodeSymbolTable() {
+        if (this.widgets['node-symbol-variable'] === 'None') return;
+        if (this.widgets['node-symbol-table-visible'] === 'Hide') return;
+
+        this.generateNodeSymbolSelectionTable("#node-symbol-table", this.widgets['node-symbol-variable']);
+        this.cdref.detectChanges();
     }
 
     ngAfterViewInit(): void {

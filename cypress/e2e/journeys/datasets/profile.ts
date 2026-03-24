@@ -14,6 +14,8 @@ import { NEWICK_PROFILES } from './profiles/newick';
 import { LOAD_PROFILES } from './profiles/load';
 import { LINK_PROFILES } from './profiles/links';
 import { COLOR_BY_PROFILES } from './profiles/color-by';
+import { TIMELINE_PROFILES } from './profiles/timeline';
+import { MAP_PROFILES } from './profiles/map';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
   ...LOAD_PROFILES,
@@ -24,6 +26,8 @@ export const DATASET_PROFILES: DatasetProfile[] = [
   ...NEWICK_PROFILES,
   ...LINK_PROFILES,
   ...COLOR_BY_PROFILES,
+  ...TIMELINE_PROFILES,
+  ...MAP_PROFILES,
 ];
 
 export const DATASET_PROFILE_MAP: Record<string, DatasetProfile> = DATASET_PROFILES

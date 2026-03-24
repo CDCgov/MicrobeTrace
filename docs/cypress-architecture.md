@@ -1,8 +1,41 @@
 # Cypress Architecture
 
-Current on `cypressTesting` as of 2026-03-10.
+Current on `cypressTesting` as of 2026-03-20.
 
-This is the maintained Cypress structure for MicrobeTrace. It exists to keep uploaded-data end-to-end coverage, pure view-mechanics coverage, and retired legacy specs clearly separated.
+This is the maintained Cypress structure for MicrobeTrace. It exists to keep uploaded-data end-to-end coverage, pure view-mechanics coverage, contract-mode intended-behavior checks, and retired legacy specs clearly separated.
+
+## Terminology
+
+- Ingestion flow:
+  - A spec that stops at file loading, datatype assignment, and prelaunch file-settings behavior.
+  - It represents the Files view and launch preparation, not the full rendered 2D feature matrix.
+- Journey flow:
+  - A spec that loads real data through the app and exercises a user-visible end-to-end behavior.
+  - It represents a realistic uploaded-data workflow, usually ending in assertions against the rendered 2D network.
+- View-state flow:
+  - A spec that checks interaction mechanics of a specific rendered view without needing lots of fixture combinations.
+  - It represents UI mechanics such as dragging, relayout, highlighting, labels, and tooltips, not the broader “did the right network get built from these files?” question.
+- Smoke spec:
+  - A maintained spec whose main job is to stay green on the currently shipped product and catch regressions in the main user path.
+  - Smoke specs may use `observed` expectations when the current product behavior is known to differ from the intended behavior and the suite still needs a stable regression signal.
+- Contract spec:
+  - A spec that encodes the intended behavior, even if the smoke suite has to tolerate a known deviation somewhere else.
+  - In this repo, contract specs usually live in `*.contract.cy.ts` files and run only when `contractMode` is enabled.
+  - A contract is effectively the answer to “what behavior are we promising should be true?”
+- `contractMode`:
+  - A Cypress env flag that turns on the intended-behavior contract specs.
+  - When it is off, those specs still show up in the folder layout but intentionally self-skip.
+- `observed` expectation:
+  - The behavior the current app actually shows today.
+  - Use this only when the product still has a known deviation and the maintained smoke suite must reflect reality to stay useful.
+- `intended` expectation:
+  - The behavior the product is supposed to have.
+  - This is the default expectation for contract specs.
+- Oracle-backed assertion:
+  - An assertion that compares the UI result against an independent Node-side expected result instead of against values computed by the app itself.
+  - In this repo, the filtering oracle is the independent expected-result engine for visible node and link membership.
+- Dataset profile:
+  - The typed fixture definition under `cypress/e2e/journeys/datasets/` that describes which files to load, what prelaunch settings to use, and what expectations are tied to that scenario.
 
 ## Maintained Layers
 
@@ -23,10 +56,14 @@ Use this layer for:
 - Path: `cypress/e2e/journeys/flows/`
 - Purpose: uploaded-data end-to-end coverage
 - Data source: real fixtures loaded through the Files view
+- Subtypes:
+  - maintained smoke and behavior specs in `*.cy.ts`
+  - intended-behavior contract specs in `*.contract.cy.ts`
 - Assertion style:
   - visible DOM stats
   - rendered Cytoscape state
   - `observed` vs `intended` expectations where current product behavior is known to differ
+  - oracle-backed exact link and node membership when the behavior is supposed to be independent from the UI implementation
 
 Use this layer for:
 
@@ -35,6 +72,11 @@ Use this layer for:
 - styling behavior
 - grouping behavior
 - cross-feature combinations
+
+Important detail:
+
+- `*.contract.cy.ts` stays under `journeys/flows/` so it can share the same dataset profiles and helpers as the smoke suite.
+- These specs self-skip unless `Cypress.env('contractMode')` is truthy, so seeing them as pending during the broad journey run is expected.
 
 ### 3. View-State Flows
 
@@ -71,12 +113,145 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
 
 - `cypress/e2e/journeys/datasets/`
   - profile registry and typed expectations for uploaded-data journeys
+  - remains the single source of truth for fixture names, prelaunch settings, and observed vs intended expectations
 - `cypress/support/journey-helpers.ts`
-  - shared UI-driven helpers for launching profiles and asserting 2D behavior
+  - shared helpers for launching profiles, opening settings panes, asserting DOM stats, and comparing the rendered 2D graph against oracle snapshots
+- `cypress/support/commands.ts`
+  - shared Cypress commands for file loading, global settings access, and generic interaction helpers
 - `cypress/support/selectors.ts`
   - shared `data-testid` selectors for stable Cypress targeting
+- `cypress/oracle/`
+  - Node-side filtering oracle and Cypress task registration
+  - `filtering-oracle.ts`: independent graph oracle
+  - `task.ts`: registers `oracle:compute` in `cypress.config.ts`
+  - `types.ts`: shared manifest, step, snapshot, and debug types
+- `cypress/fixtures/OracleSynthetic_*.csv`
+  - small synthetic fixtures used only for oracle contract coverage
 - `docs/2d-network-cypress-bug-log.csv`
   - bug and deviation log for product behavior that Cypress exposes
+
+## Filtering Oracle
+
+The filtering oracle is the independent source of truth for 2D visible node and link membership in filtering-heavy Cypress flows.
+
+Purpose:
+
+- compute expected 2D visibility without driving the app UI
+- validate threshold, nearest-neighbor, epsilon, mixed-origin preservation, and post-launch metric-switch behavior against a non-UI code path
+- let Cypress compare exact visible link IDs and counts instead of only checking coarse totals
+
+Independence boundary:
+
+- The oracle must not import `CommonService` or reuse the current UI-triggered graph mutation path.
+- It may reuse low-level domain utilities that are not UI logic, such as `tn93`, plus the current SNP distance rule.
+
+Current manifest model:
+
+```ts
+type OracleManifest = {
+  files: FileLoadSpec[];
+  preLaunch: PreLaunchSettings;
+  steps: OracleStep[];
+};
+```
+
+Current supported input file types:
+
+- link CSV
+- node CSV
+- matrix XLSX
+- FASTA
+
+Current supported step kinds:
+
+- `set-threshold`
+- `set-nearest-neighbor`
+- `set-epsilon`
+- `set-distance-metric`
+- `reveal-everything`
+
+Current output model:
+
+- exact visible link IDs
+- exact visible node IDs
+- visible link count
+- visible node count
+- disjoint-component count
+- singleton count
+- per-link debug state:
+  - origins
+  - distance origins
+  - non-distance origins
+  - active distance
+  - threshold pruning
+  - nearest-neighbor pruning
+  - non-distance preservation
+
+Current oracle semantics:
+
+- Link IDs are canonical undirected IDs like `A-B`.
+- Multi-origin links are merged by endpoint pair.
+- Distance-backed origins and non-distance origins are tracked separately.
+- If a genetic-distance edge is pruned by threshold or nearest neighbor but a non-distance origin still exists, the link stays visible and is marked as preserved by non-distance origin.
+- Nearest neighbor uses the same MST-path epsilon interpretation as the current UI behavior, not the older simpler nearest-neighbor helper.
+- Metric switches rebuild sequence-derived genetic links and reset the threshold to the default for the new metric:
+  - `tn93 = 0.015`
+  - `snps = 16`
+
+Current oracle scope:
+
+- Covered:
+  - threshold changes
+  - nearest neighbor
+  - epsilon progression
+  - mixed-origin preservation
+  - post-launch metric switching
+  - reveal behavior on the mixed-origin filtering path
+- Intentionally out of scope in v1:
+  - styling
+  - layout
+  - grouping polygons
+  - timeline/date filtering
+  - minimum cluster size
+
+Important detail:
+
+- In the current mixed-origin contract, `Reveal Everything` does not reset threshold or nearest-neighbor filtering, so the oracle models `reveal-everything` as preserving the active filtering state on that path.
+- The Cytoscape renderer may emit duplicate rendered edge IDs like `A-B-2`; `assertVisibleLinkIds()` normalizes those back to the canonical logical ID when comparing against oracle snapshots.
+
+## Oracle-backed Helpers and Specs
+
+Shared helper pattern:
+
+- `buildOracleManifest(profile, steps)`
+- `computeOracleForProfile(profile, steps, alias?)`
+- `getOracleSnapshot(alias?, snapshotId?)`
+- `assertNetworkMatchesOracleSnapshot(snapshot, options?)`
+
+Usage rule:
+
+- Compute the oracle once per scenario.
+- Reuse snapshot IDs across UI steps in the same test instead of recomputing after every click.
+
+Current oracle-backed filtering coverage:
+
+- `cypress/e2e/journeys/flows/change-link-threshold.cy.ts`
+- `cypress/e2e/journeys/flows/nearest-neighbor.cy.ts`
+- `cypress/e2e/journeys/flows/nearest-neighbor-epsilon.cy.ts`
+- `cypress/e2e/journeys/flows/mixed-origin-threshold-nn-reveal.cy.ts`
+- `cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts`
+- `cypress/e2e/journeys/flows/behavior-contracts.cy.ts`
+- `cypress/e2e/journeys/flows/filtering-newick.contract.cy.ts`
+- `cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts`
+- `cypress/e2e/journeys/flows/filtering-oracle.contract.cy.ts`
+
+The dedicated oracle contract spec covers:
+
+- stable undirected ID generation
+- MST-path epsilon inclusion
+- mixed-origin preservation through threshold and nearest-neighbor pruning
+- metric-switch default thresholds
+- fixture-backed AngularTesting edge-list, matrix, FASTA, and mixed-origin scenarios
 
 ## Selector Rules
 
@@ -91,8 +266,12 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
 
 - No new `cy.wait(<number>)` in maintained specs.
 - Prefer retryable assertions over one-shot reads when UI state is expected to change.
+- Use rendered DOM and Cytoscape state as the primary source of truth for user-visible 2D behavior.
 - Use `commonService` as a cross-check, not the primary source of truth, for user-visible 2D behavior.
 - Prelaunch session mutation is allowed only as a narrow fallback inside shared helpers when the UI does not fully persist launch settings yet.
+- For filtering behavior that changes visible node or link membership, prefer oracle-backed assertions over hand-maintained expected counts.
+- In smoke specs, keep `observed` expectations only where a known product deviation still exists and the smoke suite must remain green.
+- In contract specs, prefer `intended` behavior and exact membership assertions.
 - When a maintained journey exposes a product bug, record it in `docs/2d-network-cypress-bug-log.csv` with the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
 - New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. When a row moves to `Closed`, `Fixed`, or `Resolved`, the workflow comments on the matching issue with the recorded root cause and fix summary, then closes it. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor.
 
@@ -101,12 +280,11 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
 Use direct Cypress commands for the maintained buckets:
 
 - Preferred wrapper scripts:
-
   - `npm run e2e:journeys:flows`
   - `npm run e2e:journeys:view-state`
   - `npm run e2e:journeys:contracts`
   - `npm run e2e:journeys:all`
-  - Local host equivalents (recommended for manual runs): 
+  - Local host equivalents:
     - `npm run start:local-cypress`
     - `npm run e2e`
     - `npm run e2e:journeys:flows:local`
@@ -118,11 +296,10 @@ Use direct Cypress commands for the maintained buckets:
     - `npm run e2e:journeys:all:local:chrome`
     - `npm run e2e:journeys:all:local`
     - single-spec debug: `npm run e2e:journeys:spec:local -- --spec cypress/e2e/ingestion/files-ui.cy.ts`
-
   - If your environment already runs a local app, pass your own base URL:
     - `npm run e2e:journeys:flows:local -- --config baseUrl=http://127.0.0.1:4211`
 
-  Raw command equivalents:
+Raw command equivalents:
 
 - Maintained ingestion:
   - `npx cypress run --headless --browser electron --spec cypress/e2e/ingestion/files-ui.cy.ts`
@@ -131,13 +308,13 @@ Use direct Cypress commands for the maintained buckets:
 - Maintained 2D view-state:
   - `npx cypress run --headless --browser electron --spec cypress/e2e/view-state/twod-view.cy.ts`
 - Contracts:
-  - `npx cypress run --headless --browser electron --env contractMode=1 --spec cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts`
+  - `npx cypress run --headless --browser electron --env contractMode=1 --spec "cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/filtering-newick.contract.cy.ts,cypress/e2e/journeys/flows/filtering-oracle.contract.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts,cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts"`
 
-Local default equivalents (same suites with fixed local base URL):
+Local default equivalents:
 
 - `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec cypress/e2e/ingestion/files-ui.cy.ts,cypress/e2e/journeys/flows/*.cy.ts`
 - `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec cypress/e2e/view-state/twod-view.cy.ts`
-- `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --env contractMode=1 --spec cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts`
+- `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --env contractMode=1 --spec "cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/filtering-newick.contract.cy.ts,cypress/e2e/journeys/flows/filtering-oracle.contract.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts,cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts"`
 
 ## Migration Rules
 
@@ -145,9 +322,12 @@ When adding new 2D coverage:
 
 1. Put uploaded-data behavior in `journeys/flows`.
 2. Put pure control mechanics in `view-state`.
-3. Add or update `data-testid` hooks before leaning on brittle text selectors.
-4. Update:
+3. For filtering behavior that changes visible node or link membership, add an oracle manifest and assert exact IDs plus counts unless the behavior is explicitly outside the oracle scope.
+4. Keep `cypress/e2e/journeys/datasets/` as the only fixture registry; do not create a separate oracle fixture registry.
+5. Add or update `data-testid` hooks before leaning on brittle text selectors.
+6. Update:
    - `docs/2d-network-cypress-checklist.md`
    - `docs/2d-network-cypress-qa-tracker.csv`
    - `docs/2d-network-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
-5. If a legacy spec is being replaced, move it to `legacy-disabled` or delete it if git history is enough and no quarantine value remains.
+7. If the new behavior belongs in the oracle, keep the oracle implementation UI-independent. Do not import `CommonService`, dialog state, or current rendering helpers into `cypress/oracle/`.
+8. If a legacy spec is being replaced, move it to `legacy-disabled` or delete it if git history is enough and no quarantine value remains.

@@ -17,6 +17,14 @@ import { CommonStoreService } from './common-store.services';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
 import { ColorMappingService } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
+import {
+    buildStoredDistanceEdgeCache,
+    buildThresholdSweepSummary,
+    buildVisibleClusterSummary,
+    type ThresholdAnalysisBaseEdge,
+    type StoredDistanceEdgeCache,
+    type ThresholdSweepSummary
+} from './threshold-analysis';
 import * as tn93 from 'tn93';
 
 @Directive()
@@ -449,6 +457,11 @@ export class CommonService extends AppComponentBase implements OnInit {
             mapData: {},
             matrix: {},
             messageTimeout: null,
+            analysis: {
+                version: 0,
+                storedDistanceCache: {},
+                thresholdSweepCache: {}
+            },
             /* functions in style object get replaced If user decides to color a node, link, or polygon variable.
              * these functions are replaced with one from the d3 package usind d3.scaleOrdinal(...).domain(...)
              */
@@ -466,6 +479,150 @@ export class CommonService extends AppComponentBase implements OnInit {
     }
     temp: any = this.tempSkeleton();
     session = this.sessionSkeleton();
+
+    private getAnalysisCache() {
+        if (!this.temp.analysis) {
+            this.temp.analysis = {
+                version: 0,
+                storedDistanceCache: {},
+                thresholdSweepCache: {}
+            };
+        }
+
+        if (!this.temp.analysis.storedDistanceCache) {
+            this.temp.analysis.storedDistanceCache = {};
+        }
+
+        if (!this.temp.analysis.thresholdSweepCache) {
+            this.temp.analysis.thresholdSweepCache = {};
+        }
+
+        return this.temp.analysis;
+    }
+
+    private invalidateThresholdAnalysisCache() {
+        const analysis = this.getAnalysisCache();
+        analysis.version++;
+        analysis.storedDistanceCache = {};
+        analysis.thresholdSweepCache = {};
+    }
+
+    private getStoredDistanceEdgeCache(metric = this.session.style.widgets["link-sort-variable"]): StoredDistanceEdgeCache {
+        const analysis = this.getAnalysisCache();
+        const cached = analysis.storedDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
+
+        if (cached && cached.version === analysis.version) {
+            return cached;
+        }
+
+        const rebuilt = buildStoredDistanceEdgeCache(
+            this.session.data.nodes,
+            this.session.data.links,
+            metric,
+            analysis.version
+        );
+
+        analysis.storedDistanceCache[metric] = rebuilt;
+        return rebuilt;
+    }
+
+    public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
+        const analysis = this.getAnalysisCache();
+        const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
+        const cacheKey = `${metric}|nn:${showNN ? 1 : 0}`;
+        const cached = analysis.thresholdSweepCache[cacheKey] as ThresholdSweepSummary | undefined;
+
+        if (cached && cached.version === analysis.version) {
+            return cached;
+        }
+
+        const distanceCache = this.getStoredDistanceEdgeCache(metric);
+        const summary = buildThresholdSweepSummary(
+            distanceCache,
+            this.getThresholdAnalysisBaseEdges(metric, distanceCache),
+            this.getThresholdAnalysisExcludedLinkIndexes(metric)
+        );
+        analysis.thresholdSweepCache[cacheKey] = summary;
+        return summary;
+    }
+
+    private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
+        const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
+
+        this.session.data.links.forEach((link) => {
+            const sourceIndex = cache.nodeIndexById[link.source];
+            const targetIndex = cache.nodeIndexById[link.target];
+
+            if (
+                sourceIndex === undefined ||
+                targetIndex === undefined ||
+                sourceIndex === targetIndex
+            ) {
+                return;
+            }
+
+            const rawMetricValue = link?.[metric];
+            const metricValue = typeof rawMetricValue === 'number'
+                ? rawMetricValue
+                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
+                    ? Number(rawMetricValue)
+                    : NaN);
+            const hasNumericMetric = Number.isFinite(metricValue);
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const origins = Array.isArray(link?.origin) ? link.origin : [];
+            const hasNonDistanceOrigin = origins.some((originName: string) => {
+                const hasAuspice = /[Aa]uspice/.test(originName);
+                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
+            });
+            const isThresholdControlled = hasNumericMetric && link.hasDistance;
+            const isAlwaysVisible = hasNonDistanceOrigin || !isThresholdControlled;
+
+            if (!isAlwaysVisible) {
+                return;
+            }
+
+            const edgeKey = sourceIndex < targetIndex
+                ? `${sourceIndex}:${targetIndex}`
+                : `${targetIndex}:${sourceIndex}`;
+
+            if (!edgesByKey.has(edgeKey)) {
+                edgesByKey.set(edgeKey, { sourceIndex, targetIndex });
+            }
+        });
+
+        return Array.from(edgesByKey.values());
+    }
+
+    private getThresholdAnalysisExcludedLinkIndexes(metric: string): Set<number> {
+        if (!this.session.style.widgets["link-show-nn"]) {
+            return new Set<number>();
+        }
+
+        const excludedIndexes = new Set<number>();
+
+        this.session.data.links.forEach((link, linkIndex) => {
+            const rawMetricValue = link?.[metric];
+            const metricValue = typeof rawMetricValue === 'number'
+                ? rawMetricValue
+                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
+                    ? Number(rawMetricValue)
+                    : NaN);
+            const hasNumericMetric = Number.isFinite(metricValue);
+            const isThresholdControlled = hasNumericMetric && link.hasDistance;
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const origins = Array.isArray(link?.origin) ? link.origin : [];
+            const hasNonDistanceOrigin = origins.some((originName: string) => {
+                const hasAuspice = /[Aa]uspice/.test(originName);
+                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
+            });
+
+            if (isThresholdControlled && !link.nn && !hasNonDistanceOrigin) {
+                excludedIndexes.add(linkIndex);
+            }
+        });
+
+        return excludedIndexes;
+    }
 
 
     /**
@@ -742,6 +899,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           newElement.data = newNode.data.data;
         }
         this.session.data.nodes.push(newElement);
+        this.invalidateThresholdAnalysisCache();
 
         return 1;
     };
@@ -936,8 +1094,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         if((newLink.source === "MZ798055" && newLink.target === "MZ375596") || (newLink.source === "MZ375596" && newLink.target === "MZ798055")){
             console.log('new link 222: ', JSON.stringify(newLink));
         }
-    
-       
+
+        this.invalidateThresholdAnalysisCache();
+
         return linkIsNew;
 
         // TODO Remove when not needed
@@ -2400,30 +2559,31 @@ align(params): Promise<any> {
         console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
+        let singletons = 0;
         if (this.session.style.widgets["timeline-date-field"] == 'None') {
             linkCount = vlinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
               cluster => cluster.visible && cluster.nodes > 1).length;
+            singletons = vnodes.filter(d => d.degree == 0).length;
         } else {
-            let n = vlinks.length;
-            for (let i = 0; i < n; i++) {
-                const src = vnodes.find(d => d._id == vlinks[i].source || d.id == vlinks[i].source);
-                const tgt = vnodes.find(d => d._id == vlinks[i].target || d.id == vlinks[i].target);
-                if (src && tgt) linkCount++;
-            }
-            
-            n = vnodes.length;
-            const clusters = {};
-            for (let i = 0; i < n; i++) {
-                const id = vnodes[i].cluster;
-                if (clusters[id]) clusters[id]++;
-                else clusters[id] = 1;
-            }
-            clusterCount = this.session.data.clusters.filter(cluster => clusters[cluster.id] && clusters[cluster.id]>0 && cluster.visible && cluster.nodes > 1).length;
+            const metric = this.session.style.widgets["link-sort-variable"];
+            const visibleNodeIds = new Set(
+                vnodes.map(node => String(node._id ?? node.id ?? ''))
+            );
+            const timelineLinks = vlinks.filter(link => {
+                return visibleNodeIds.has(String(link.source)) && visibleNodeIds.has(String(link.target));
+            });
+            const timelineSummary = buildVisibleClusterSummary(
+                vnodes,
+                timelineLinks.map(link => ({ ...link, visible: true })),
+                metric
+            );
 
+            linkCount = timelineLinks.length;
+            clusterCount = timelineSummary.clusterCount;
+            singletons = timelineSummary.singletonCount;
         }
-        const singletons = vnodes.filter(d => d.degree == 0).length;
         $("#numberOfSelectedNodes").text(vnodes.filter(d => d.selected).length.toLocaleString());
         $("#numberOfNodes").text(vnodes.length.toLocaleString());
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
@@ -2884,114 +3044,28 @@ align(params): Promise<any> {
      */
     tagClusters(): Promise<void> {
         return new Promise<void>(resolve => {
-            let start = Date.now();
-            let clusters = this.session.data.clusters = [];
-            let nodes = this.session.data.nodes,
-                links = this.session.data.links,
-                labels = nodes.map(d => d._id);
-            const numNodes = nodes.length,
-                numLinks = links.length;
-            let tempnodes = this.temp.nodes = [];
-            let lsv = this.session.style.widgets["link-sort-variable"];
+            const start = Date.now();
+            const metric = this.session.style.widgets["link-sort-variable"];
+            const summary = buildVisibleClusterSummary(
+                this.session.data.nodes,
+                this.session.data.links,
+                metric
+            );
 
-            /**
-             * A function that performs a depth-first search.
-             * @param id - The ID of the node to start the search from.
-             * @param cluster - The cluster to search in.
-             * @returns {void}
-             */
-            const DFS = (id, cluster) => {
-                // if id is found in tempNode exit function
-                if (tempnodes.indexOf(id) >= 0) return;
-                // else add it, and continue DFS
-                tempnodes.push(id);
-                let node: any = {};
-                for (let i = 0; i < numNodes; i++) {
-                    const d = nodes[i];
-                    if (!d._id) {
-                        d._id = d.id;
-                    }
-                    if (d._id == id) {
-                        node = d;
-                        break;
-                    }
-                }
-                const clusterID = cluster.id;
-                node.cluster = clusterID;
-                cluster.nodes++;
-                let row = this.temp.matrix[id];
-                if (!row) return;
-                for (let j = 0; j < numNodes; j++) {
-                    const l = row[labels[j]];
-                    if (!l) continue;
-                    if (!l.visible) continue;
-                    l.cluster = clusterID;
-                    cluster.links++;
-                    cluster.sum_distances += l[lsv];
-                    if (tempnodes.length == numNodes) return;
-                    // recursively call DFS on both source and target
-                    DFS(l.source, cluster);
-                    DFS(l.target, cluster);
-                }
-            }; // DFS function close
+            this.session.data.clusters = summary.clusters;
+            this.temp.nodes = [];
 
-           nodes.forEach(d => {
-                d.degree = 0;
-                const id = d._id;
-
-                // if id isn't in temp nodes, add new cluster and do DFS
-                if (tempnodes.indexOf(id) == -1) {
-
-                    const cluster = {
-                        id: clusters.length > 0 ? clusters.length : 0,
-                        nodes: 0,
-                        links: 0,
-                        sum_distances: 0,
-                        links_per_node: 0,
-                        mean_genetic_distance: undefined,
-                        visible: true
-                    };
-
-
-                    clusters.push(cluster);
-                    DFS(id, cluster);
-                    if (tempnodes.length == numNodes) return;
-                }
-            })
-
-            if(this.debugMode) {
-                console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
-            }
-
-            start = Date.now();
-            //This is O(N^3)
-            //TODO: Refactor using temp.matrix to get O(N^2)
-            for (let m = 0; m < numLinks; m++) {
-                const l = links[m];
-                if (!l.visible) continue;
-                let s = false,
-                    t = false;
-                for (let n = 0; n < numNodes; n++) {
-                    const node = nodes[n];
-                    if (l.source == node._id) {
-                        s = true;
-                        node.degree++;
-                    }
-                    if (l.target == node._id) {
-                        t = true;
-                        node.degree++;
-                    }
-                    if (s && t) break;
-                }
-            }
-            // console.log('clustersssss: ' , clusters);
-            clusters.forEach(c => {
-                c.links = c.links / 2;
-                c.links_per_node = c.links / c.nodes;
-                c.mean_genetic_distance = c.sum_distances / 2 / c.links;
+            this.session.data.nodes.forEach((node, index) => {
+                node.cluster = summary.nodeClusterByIndex[index];
+                node.degree = summary.degrees[index];
             });
-            if(this.debugMode) {
-                console.log("Degree Computation time:", (Date.now() - start).toLocaleString(), "ms");
+
+            this.session.data.links.forEach((link, index) => {
+                link.cluster = summary.linkClusterByIndex[index];
+            });
+
+            if (this.debugMode) {
+                console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
             }
             resolve();
         });
@@ -3253,6 +3327,7 @@ align(params): Promise<any> {
         let width = 260,
         height = 48,
         svg = null;
+        const readout = $("#threshold-sparkline-readout");
 
         // Update histogram so that it can be altered outside of the main wrapper 
         if(histogram){
@@ -3265,19 +3340,20 @@ align(params): Promise<any> {
         .attr("width", width)
         .attr("height", height);
 
-        // add all link distances to data, find max and min distances
-        let lsv = this.session.style.widgets["link-sort-variable"],
-            n = this.session.data.links.length,
-            max = Number.MIN_SAFE_INTEGER,
-            min = Number.MAX_SAFE_INTEGER,
-            data = Array(n),
-            dist = null;
-        for (let i = 0; i < n; i++) {
-            dist = this.session.data.links[i][lsv];
-            data[i] = dist;
-            if (dist < min) min = dist;
-            if (dist > max) max = dist;
+        const lsv = this.session.style.widgets["link-sort-variable"];
+        const distanceCache = this.getStoredDistanceEdgeCache(lsv);
+        const data = [...distanceCache.sortedValues];
+        const sweepSummary = this.getThresholdSweepSummary(lsv);
+
+        if (data.length === 0) {
+            if (readout.length > 0) {
+                readout.text("No threshold readout available");
+            }
+            return;
         }
+
+        let min = data[0];
+        let max = data[data.length - 1];
 
         // Add all link distances to data, find max and min distances
         // const links = this.session.data.links;
@@ -3305,6 +3381,11 @@ align(params): Promise<any> {
         let range = max - min;
         let ticks = 40;
 
+        if (range === 0) {
+            range = 1;
+            max = min + range;
+        }
+
         const x = d3
             .scaleLinear()
             .domain([min, max])
@@ -3320,6 +3401,24 @@ align(params): Promise<any> {
             .domain([0, d3.max(bins, d => (d as any).length)])
             .range([height, 0]);
 
+        const decimalPlaces = (this.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+        const formatThresholdValue = (value: number) => {
+            if (!Number.isFinite(value)) {
+                return 'N/A';
+            }
+            return decimalPlaces === 0
+                ? Math.round(value).toLocaleString()
+                : value.toFixed(decimalPlaces).replace(/\.?0+$/, '');
+        };
+        const formatClusterCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'cluster' : 'clusters'}`;
+        const setDefaultReadout = () => {
+            if (readout.length === 0) {
+                return;
+            }
+
+            readout.text("Hover chart for cluster count");
+        };
+
         const bar = svg
             .selectAll(".bar")
             .data(bins)
@@ -3334,17 +3433,119 @@ align(params): Promise<any> {
             .attr("width", 6)
             .attr("height", d => height - y(d.length));
 
+        let clusterY = null;
+        let hoverGuide = null;
+        let hoverDot = null;
+
+        if (sweepSummary.thresholds.length > 0) {
+            const maxClusterCount = Math.max(...sweepSummary.clusterCounts, 1);
+            clusterY = d3
+                .scaleLinear()
+                .domain([0, maxClusterCount])
+                .range([height - 2, 2]);
+
+            const clusterLine = d3
+                .line<number>()
+                .curve(d3.curveStepAfter)
+                .x((_, index) => x(sweepSummary.thresholds[index]))
+                .y((value) => clusterY(value));
+
+            svg
+                .append("path")
+                .datum(sweepSummary.clusterCounts)
+                .attr("class", "threshold-cluster-sweep")
+                .attr("fill", "none")
+                .attr("stroke", "#ff8300")
+                .attr("stroke-width", 1.5)
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("opacity", 0.9)
+                .attr("pointer-events", "none")
+                .attr("d", clusterLine);
+
+            hoverGuide = svg
+                .append("line")
+                .attr("class", "threshold-cluster-hover-guide")
+                .attr("y1", 2)
+                .attr("y2", height - 2)
+                .attr("stroke", "#ff8300")
+                .attr("stroke-width", 1)
+                .attr("stroke-dasharray", "2,2")
+                .attr("opacity", 0)
+                .attr("pointer-events", "none");
+
+            hoverDot = svg
+                .append("circle")
+                .attr("class", "threshold-cluster-hover-dot")
+                .attr("r", 3)
+                .attr("fill", "#ff8300")
+                .attr("stroke", "#ffffff")
+                .attr("stroke-width", 1)
+                .attr("opacity", 0)
+                .attr("pointer-events", "none");
+        }
+
         let that = this;
+        setDefaultReadout();
+
+        function getHoveredThresholdValue() {
+            const xc = Math.max(0, Math.min(width, (d3 as any).mouse(svg.node())[0]));
+            return x.invert(xc);
+        }
 
         /**
          * Uses the position on the histogram to set the link thresehold value
          */
         function updateThreshold() {
-            let xc = (d3 as any).mouse(svg.node())[0];
-            let decimalPlaces = (that.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
-
-            that.session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
+            const hoveredThreshold = getHoveredThresholdValue();
+            that.session.style.widgets["link-threshold"] = hoveredThreshold;
             $("#link-threshold").val(parseFloat(that.session.style.widgets["link-threshold"].toFixed(decimalPlaces)));
+        }
+
+        function updateHoverReadout() {
+            if (readout.length === 0 || sweepSummary.thresholds.length === 0 || !clusterY) {
+                return;
+            }
+
+            const hoveredThreshold = getHoveredThresholdValue();
+            let closestIndex = 0;
+            let closestDistance = Math.abs(sweepSummary.thresholds[0] - hoveredThreshold);
+
+            for (let index = 1; index < sweepSummary.thresholds.length; index++) {
+                const distance = Math.abs(sweepSummary.thresholds[index] - hoveredThreshold);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestIndex = index;
+                }
+            }
+
+            const thresholdValue = sweepSummary.thresholds[closestIndex];
+            const clusterCount = sweepSummary.clusterCounts[closestIndex];
+            readout.text(`Orange line at ${formatThresholdValue(thresholdValue)}: ${formatClusterCount(clusterCount)}`);
+
+            if (hoverGuide) {
+                hoverGuide
+                    .attr("x1", x(thresholdValue))
+                    .attr("x2", x(thresholdValue))
+                    .attr("opacity", 0.7);
+            }
+
+            if (hoverDot) {
+                hoverDot
+                    .attr("cx", x(thresholdValue))
+                    .attr("cy", clusterY(clusterCount))
+                    .attr("opacity", 1);
+            }
+        }
+
+        function clearHoverReadout() {
+            setDefaultReadout();
+            if (hoverGuide) {
+                hoverGuide.attr("opacity", 0);
+            }
+            if (hoverDot) {
+                hoverDot.attr("opacity", 0);
+            }
         }
 
         svg.on("click", () => {
@@ -3353,23 +3554,36 @@ align(params): Promise<any> {
         });
 
         svg.on("mouseover", () => {
-            let xc = (d3 as any).mouse(svg.node())[0];
-            $('#filtering-threshold').prop('title', "Whats the maximum genetic distance you're willing to call a link? " + ((this.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? ((xc / width) * range * 1.05 + min).toLocaleString() : Math.round(((xc / width) * range * 1.05 + min)).toLocaleString()));
+            updateHoverReadout();
+            const hoveredThreshold = getHoveredThresholdValue();
+            $('#filtering-threshold').prop('title', `Set the maximum genetic distance allowed for threshold-controlled links. Current hover: ${formatThresholdValue(hoveredThreshold)}.`);
           });
+
+        svg.on("mousemove", () => {
+            updateHoverReadout();
+        });
+
+        svg.on("mouseleave", () => {
+            clearHoverReadout();
+        });
 
         svg.on("mousedown", () => {
             (d3 as any).event.preventDefault();
-            svg.on("mousemove", updateThreshold);
+            svg.on("mousemove", () => {
+                updateThreshold();
+                updateHoverReadout();
+            });
             svg.on("mouseup mouseleave", () => {
                 this._debouncedUpdateNetworkVisuals();
+                clearHoverReadout();
                 svg
-                    .on("mousemove", null)
+                    .on("mousemove", updateHoverReadout)
                     .on("mouseup", null)
-                    .on("mouseleave", null);
+                    .on("mouseleave", clearHoverReadout);
             });
         });
 
-        data = [];
+        data.length = 0;
 
     };
 

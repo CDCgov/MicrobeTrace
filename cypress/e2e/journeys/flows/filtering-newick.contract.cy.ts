@@ -8,7 +8,10 @@ import {
 import {
   assertAfterLaunchCounts,
   assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
   assertVisibleNodeIds,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   openGlobalFilteringTab,
   setFilteringEpsilonExponent,
@@ -16,6 +19,7 @@ import {
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 import { byTestId, testIds } from '../../../support/selectors';
+import type { OracleStep } from '../../../oracle/types';
 
 const contractMode =
   Cypress.env('contractMode') === true ||
@@ -132,32 +136,46 @@ const contractMode =
     it(`${profile.title} applies the intended epsilon progression`, () => {
       const nn = profile.expectations.nn;
       const epsilon = profile.expectations.filtering?.epsilonAfterNearestNeighbor;
-      const afterNearestNeighbor = resolveExpected(nn?.after, 'intended');
 
       expect(nn, 'nearest neighbor contract').to.exist;
       expect(epsilon, 'epsilon contract').to.exist;
-      expect(afterNearestNeighbor?.visibleLinks, 'intended visible links after nearest neighbor').to.be.a('number');
+
+      const oracleSteps: OracleStep[] = [
+        {
+          id: 'after-nn',
+          kind: 'set-nearest-neighbor',
+          enabled: true,
+        },
+        ...epsilon!.steps.map((step, index) => ({
+          id: `epsilon-step-${index}`,
+          kind: 'set-epsilon' as const,
+          exponent: step.toExponent,
+        })),
+      ];
+      computeOracleForProfile(profile, oracleSteps);
 
       launchProfileToTwoD(profile);
-      assertAfterLaunchCounts(profile, 'intended');
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       openGlobalFilteringTab();
       setFilteringPruneWith('Nearest Neighbor');
       cy.closeGlobalSettings();
 
-      assertMetricCount('#numberOfVisibleLinks', afterNearestNeighbor!.visibleLinks);
+      getOracleSnapshot('oracleResult', 'after-nn').then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
-      epsilon!.steps.forEach((step) => {
-        const expectedAfter = resolveExpected(step.after, 'intended');
-
-        expect(expectedAfter?.visibleLinks, `intended visible links at epsilon ${step.toExponent}`).to.be.a('number');
-
+      epsilon!.steps.forEach((step, index) => {
         openGlobalFilteringTab();
         setFilteringEpsilonExponent(step.toExponent);
         cy.closeGlobalSettings();
         waitForProcessingDialogToClear();
 
-        assertMetricCount('#numberOfVisibleLinks', expectedAfter!.visibleLinks);
+        getOracleSnapshot('oracleResult', `epsilon-step-${index}`).then((snapshot) => {
+          assertNetworkMatchesOracleSnapshot(snapshot);
+        });
       });
     });
   });
@@ -166,15 +184,24 @@ const contractMode =
     `${mixedOriginProfile?.title ?? 'Unknown profile'} keeps the intended mixed-origin nearest-neighbor behavior`,
     () => {
       const mixedOrigin = mixedOriginProfile!.expectations.filtering?.mixedOriginNearestNeighbor;
-      const confirmExpectation = resolveExpected(mixedOrigin?.confirm, 'intended');
       const epiOrigin = mixedOriginProfile!.files.find((file) => file.datatype === 'link')?.name ?? '';
       const confirmationText = 'It appears that you have links from two different sources';
 
       expect(mixedOrigin, 'mixed-origin nearest neighbor contract').to.exist;
-      expect(confirmExpectation?.visibleLinks, 'intended visible links after mixed-origin nearest neighbor').to.be.a('number');
+
+      const oracleSteps: OracleStep[] = [
+        {
+          id: 'after-nn',
+          kind: 'set-nearest-neighbor',
+          enabled: true,
+        },
+      ];
+      computeOracleForProfile(mixedOriginProfile!, oracleSteps);
 
       launchProfileToTwoD(mixedOriginProfile!);
-      assertAfterLaunchCounts(mixedOriginProfile!, 'intended');
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       openGlobalFilteringTab();
       cy.get('#filtering-epsilon-row').should('not.be.visible');
@@ -187,7 +214,9 @@ const contractMode =
       cy.closeGlobalSettings();
 
       waitForProcessingDialogToClear();
-      assertMetricCount('#numberOfVisibleLinks', confirmExpectation!.visibleLinks);
+      getOracleSnapshot('oracleResult', 'after-nn').then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
       assertMixedOriginPreservedLinks(mixedOrigin!.preservedLinkIds ?? [], epiOrigin);
     },
   );

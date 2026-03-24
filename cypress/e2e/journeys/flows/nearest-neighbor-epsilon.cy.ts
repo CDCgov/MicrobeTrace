@@ -1,16 +1,18 @@
 /// <reference types="cypress" />
 
 import type { DatasetProfile } from '../datasets/profile';
-import { getProfilesByTag, resolveExpected } from '../datasets/profile';
+import { getProfilesByTag } from '../datasets/profile';
 import {
-  assertAfterLaunchCounts,
-  assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   openGlobalFilteringTab,
   setFilteringEpsilonExponent,
   setFilteringPruneWith,
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
+import type { OracleStep } from '../../../oracle/types';
 
 describe('Journey Flow - Nearest Neighbor Epsilon', () => {
   const profiles = getProfilesByTag('nn-epsilon');
@@ -19,15 +21,29 @@ describe('Journey Flow - Nearest Neighbor Epsilon', () => {
     it(`${profile.title} and epsilon adds links back in controlled steps`, () => {
       const nn = profile.expectations.nn;
       const epsilon = profile.expectations.filtering?.epsilonAfterNearestNeighbor;
-      const afterNearestNeighbor = resolveExpected(nn?.after, 'observed');
 
       expect(nn, 'nearest neighbor expectation').to.exist;
-      expect(afterNearestNeighbor?.visibleLinks, 'visible links after nearest neighbor').to.be.a('number');
       expect(epsilon, 'epsilon expectation').to.exist;
       expect(epsilon?.steps.length, 'epsilon step count').to.be.greaterThan(0);
 
+      const oracleSteps: OracleStep[] = [
+        {
+          id: 'after-nn',
+          kind: 'set-nearest-neighbor',
+          enabled: true,
+        },
+        ...epsilon!.steps.map((step, index) => ({
+          id: `epsilon-step-${index}`,
+          kind: 'set-epsilon' as const,
+          exponent: step.toExponent,
+        })),
+      ];
+      computeOracleForProfile(profile, oracleSteps);
+
       launchProfileToTwoD(profile);
-      assertAfterLaunchCounts(profile);
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       openGlobalFilteringTab();
       cy.get('#filtering-epsilon-row').should('not.be.visible');
@@ -40,19 +56,19 @@ describe('Journey Flow - Nearest Neighbor Epsilon', () => {
       setFilteringPruneWith('Nearest Neighbor');
       cy.closeGlobalSettings();
 
-      assertMetricCount('#numberOfVisibleLinks', afterNearestNeighbor!.visibleLinks);
+      getOracleSnapshot('oracleResult', 'after-nn').then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
-      epsilon!.steps.forEach((step) => {
-        const expectedAfter = resolveExpected(step.after, 'observed');
-
-        expect(expectedAfter?.visibleLinks, `visible links after epsilon ${step.toExponent}`).to.be.a('number');
-
+      epsilon!.steps.forEach((step, index) => {
         openGlobalFilteringTab();
         setFilteringEpsilonExponent(step.toExponent);
         cy.closeGlobalSettings();
 
         waitForProcessingDialogToClear();
-        assertMetricCount('#numberOfVisibleLinks', expectedAfter!.visibleLinks);
+        getOracleSnapshot('oracleResult', `epsilon-step-${index}`).then((snapshot) => {
+          assertNetworkMatchesOracleSnapshot(snapshot);
+        });
       });
     });
   });

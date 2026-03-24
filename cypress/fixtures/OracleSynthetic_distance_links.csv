@@ -1,0 +1,7 @@
+source,target,distance
+B,A,1
+C,A,1.05
+C,B,1
+D,B,1
+D,C,1
+D,A,2

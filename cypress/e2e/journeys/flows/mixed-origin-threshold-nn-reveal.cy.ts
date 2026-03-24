@@ -1,15 +1,17 @@
 /// <reference types="cypress" />
 
-import { getProfile, resolveExpected } from '../datasets/profile';
+import { getProfile } from '../datasets/profile';
 import {
-  assertAfterLaunchCounts,
-  assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   openGlobalFilteringTab,
   setGlobalLinkThreshold,
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 import { byTestId, testIds } from '../../../support/selectors';
+import type { OracleStep } from '../../../oracle/types';
 
 describe('Journey Flow - Mixed-Origin threshold, nearest neighbor, and reveal', () => {
   const profile = getProfile('filtering-mixed-origin-nearest-neighbor');
@@ -94,18 +96,31 @@ describe('Journey Flow - Mixed-Origin threshold, nearest neighbor, and reveal', 
   };
 
   it('keeps merged-origin links coherent through thresholding, nearest neighbor, and reveal', () => {
-    const afterThreshold = resolveExpected(thresholdFlow?.afterThreshold, 'observed');
-    const afterNearestNeighbor = resolveExpected(thresholdFlow?.afterNearestNeighbor, 'observed');
-    const afterReveal = resolveExpected(thresholdFlow?.afterReveal, 'observed');
-
     expect(mixedOrigin, 'mixed-origin nearest neighbor expectation').to.exist;
     expect(thresholdFlow, 'mixed-origin threshold flow expectation').to.exist;
-    expect(afterThreshold?.visibleLinks, 'visible links after threshold').to.be.a('number');
-    expect(afterNearestNeighbor?.visibleLinks, 'visible links after nearest neighbor').to.be.a('number');
-    expect(afterReveal?.visibleLinks, 'visible links after reveal').to.be.a('number');
+
+    const oracleSteps: OracleStep[] = [
+      {
+        id: 'after-threshold',
+        kind: 'set-threshold',
+        threshold: thresholdFlow!.toThreshold,
+      },
+      {
+        id: 'after-nn',
+        kind: 'set-nearest-neighbor',
+        enabled: true,
+      },
+      {
+        id: 'after-reveal',
+        kind: 'reveal-everything',
+      },
+    ];
+    computeOracleForProfile(profile, oracleSteps);
 
     launchProfileToTwoD(profile);
-    assertAfterLaunchCounts(profile);
+    getOracleSnapshot().then((snapshot) => {
+      assertNetworkMatchesOracleSnapshot(snapshot);
+    });
     assertMixedOriginLaunchState(mixedOrigin!.multiOriginLinks);
 
     openGlobalFilteringTab();
@@ -114,7 +129,9 @@ describe('Journey Flow - Mixed-Origin threshold, nearest neighbor, and reveal', 
     waitForProcessingDialogToClear();
     cy.closeGlobalSettings();
 
-    assertMetricCount('#numberOfVisibleLinks', afterThreshold!.visibleLinks);
+    getOracleSnapshot('oracleResult', 'after-threshold').then((snapshot) => {
+      assertNetworkMatchesOracleSnapshot(snapshot);
+    });
     assertThresholdPreservedMergedLinks(
       thresholdFlow!.thresholdPreservedLinkIds ?? [],
       thresholdFlow!.toThreshold,
@@ -131,7 +148,9 @@ describe('Journey Flow - Mixed-Origin threshold, nearest neighbor, and reveal', 
     waitForProcessingDialogToClear();
     cy.closeGlobalSettings();
 
-    assertMetricCount('#numberOfVisibleLinks', afterNearestNeighbor!.visibleLinks);
+    getOracleSnapshot('oracleResult', 'after-nn').then((snapshot) => {
+      assertNetworkMatchesOracleSnapshot(snapshot);
+    });
     assertThresholdPreservedMergedLinks(
       thresholdFlow!.thresholdPreservedLinkIds ?? [],
       thresholdFlow!.toThreshold,
@@ -147,7 +166,9 @@ describe('Journey Flow - Mixed-Origin threshold, nearest neighbor, and reveal', 
     waitForProcessingDialogToClear();
     cy.closeGlobalSettings();
 
-    assertMetricCount('#numberOfVisibleLinks', afterReveal!.visibleLinks);
+    getOracleSnapshot('oracleResult', 'after-reveal').then((snapshot) => {
+      assertNetworkMatchesOracleSnapshot(snapshot);
+    });
     assertThresholdPreservedMergedLinks(
       thresholdFlow!.thresholdPreservedLinkIds ?? [],
       thresholdFlow!.toThreshold,

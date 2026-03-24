@@ -1,15 +1,17 @@
 /// <reference types="cypress" />
 
 import type { DatasetProfile } from '../datasets/profile';
-import { getProfilesByTag, resolveExpected } from '../datasets/profile';
+import { getProfilesByTag } from '../datasets/profile';
 import {
-  assertAfterLaunchCounts,
-  assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   openGlobalFilteringTab,
   setGlobalDistanceMetric,
   setTwoDLinkLabelVariable,
 } from '../../../support/journey-helpers';
+import type { OracleStep } from '../../../oracle/types';
 
 describe('Journey Flow - Post-launch Distance Metric Switch', () => {
   const profiles = getProfilesByTag('metric-switch');
@@ -32,17 +34,22 @@ describe('Journey Flow - Post-launch Distance Metric Switch', () => {
       expect(metricSwitch, 'metric-switch expectation').to.exist;
       expect(metricSwitch?.steps.length, 'metric-switch step count').to.be.greaterThan(0);
 
+      const oracleSteps: OracleStep[] = metricSwitch!.steps.map((step, index) => ({
+        id: `metric-switch-${index}`,
+        kind: 'set-distance-metric',
+        metric: step.toMetric,
+      }));
+      computeOracleForProfile(profile, oracleSteps);
+
       launchProfileToTwoD(profile);
-      assertAfterLaunchCounts(profile);
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       setTwoDLinkLabelVariable('distance');
       assertVisibleDistanceLabels();
 
-      metricSwitch!.steps.forEach((step) => {
-        const expectedAfter = resolveExpected(step.after, 'observed');
-
-        expect(expectedAfter?.visibleLinks, `visible links after switch to ${step.toMetric}`).to.be.a('number');
-
+      metricSwitch!.steps.forEach((step, index) => {
         openGlobalFilteringTab();
         setGlobalDistanceMetric(step.toMetric);
         cy.closeGlobalSettings();
@@ -60,7 +67,9 @@ describe('Journey Flow - Post-launch Distance Metric Switch', () => {
           });
         cy.get('#link-threshold').should('have.value', String(step.expectedThreshold));
 
-        assertMetricCount('#numberOfVisibleLinks', expectedAfter!.visibleLinks);
+        getOracleSnapshot('oracleResult', `metric-switch-${index}`).then((snapshot) => {
+          assertNetworkMatchesOracleSnapshot(snapshot);
+        });
         assertVisibleDistanceLabels();
       });
     });

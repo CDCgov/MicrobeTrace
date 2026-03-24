@@ -1,4 +1,5 @@
 import { defineConfig } from "cypress";
+import { registerOracleTasks } from "./cypress/oracle/task";
 
 export default defineConfig({
   e2e: {
@@ -22,7 +23,8 @@ export default defineConfig({
       contractMode: 0,
     },
     setupNodeEvents(on, config) {
-      // implement node event listeners here
+      registerOracleTasks(on);
+      return config;
     },
   },
 });

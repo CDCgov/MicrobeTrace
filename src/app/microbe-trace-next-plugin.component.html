@@ -258,12 +258,104 @@
                       <p-select id="link-sort-variable" class="width-percent-100" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-select>
                     </div>
                   </div>
-                  <div class="form-group row" id="filtering-threshold" title="What's the maximum genetic distance you're willing to call a link?">
-                    <div class="col-4"><label for="link-threshold">Filtering Threshold</label></div>
+                  <div class="form-group row" id="filtering-threshold" title="Set the maximum genetic distance allowed for threshold-controlled links. Black bars show the distance distribution. The orange line shows how the cluster count changes as the threshold increases.">
+                    <div class="col-4">
+                      <label for="link-threshold">
+                        Filtering Threshold
+                        <i
+                          class="pi pi-info-circle threshold-help-icon"
+                          title="Black bars show how many links fall into each distance bin. The orange line shows how the number of multi-node clusters changes as the threshold increases."></i>
+                      </label>
+                    </div>
                     <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
                     <div class="col-8  offset-4">
                       <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getCurrentThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="updateThreshold($event)">
                     </div>
+                    <div class="col-8 offset-4 threshold-sparkline-readout" id="threshold-sparkline-readout">
+                      Hover chart for cluster count
+                    </div>
+                  </div>
+                  <div class="threshold-stability-shell">
+                    <button
+                      type="button"
+                      class="threshold-stability-toggle"
+                      data-testid="threshold-stability-toggle"
+                      [attr.aria-expanded]="thresholdStabilityExpanded"
+                      (click)="toggleThresholdStabilityPanel()">
+                      <span class="threshold-stability-toggle__text">
+                        <span class="threshold-stability-toggle__title">Threshold Stability</span>
+                        <span class="threshold-stability-toggle__subtitle">Compare flat sections of the orange line.</span>
+                      </span>
+                      <span class="threshold-stability-toggle__meta" title="Distinct threshold values drawn from the current distance data.">
+                        @if (thresholdSweepSampleCount > 0) {
+                          {{ thresholdSweepSampleCount.toLocaleString() }} distinct thresholds
+                        }
+                      </span>
+                      <i class="pi" [class.pi-chevron-down]="!thresholdStabilityExpanded" [class.pi-chevron-up]="thresholdStabilityExpanded"></i>
+                    </button>
+
+                    @if (thresholdStabilityExpanded) {
+                      <div class="threshold-stability-panel" data-testid="threshold-stability-panel">
+                        <div class="threshold-stability-panel__hint">
+                          Orange line = cluster count at each threshold.
+                          <i
+                            class="pi pi-info-circle threshold-help-icon"
+                            title="Flat sections of the orange line mean the cluster count stays the same across that threshold range."></i>
+                        </div>
+                        @if (thresholdStabilityCurrent) {
+                          <div class="threshold-stability-panel__current">
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Threshold</span>
+                              <span class="threshold-stability-stat__value">{{ formatThresholdStabilityValue(thresholdStabilityCurrent.threshold) }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Clusters</span>
+                              <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.clusterCount.toLocaleString() }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Singletons</span>
+                              <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.singletonCount.toLocaleString() }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Largest Cluster</span>
+                              <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.largestClusterSize.toLocaleString() }}</span>
+                            </div>
+                          </div>
+                        }
+                        @if (thresholdStabilityMessage) {
+                          <div class="threshold-stability-panel__message">{{ thresholdStabilityMessage }}</div>
+                        }
+                        @if (thresholdStabilityRegions.length > 0) {
+                          <div class="threshold-stability-panel__regions">
+                            @for (region of thresholdStabilityRegions; track $index) {
+                              <div class="threshold-stability-region" [class.threshold-stability-region--current]="region.isCurrent">
+                                <div class="threshold-stability-region__summary">
+                                  <div class="threshold-stability-region__range">
+                                    {{ formatThresholdStabilityValue(region.startThreshold) }} to {{ formatThresholdStabilityValue(region.endThreshold) }}
+                                  </div>
+                                  <div class="threshold-stability-region__chips">
+                                    <span class="threshold-stability-region__chip">{{ formatThresholdStabilityClusterLabel(region.clusterCount) }}</span>
+                                    <span class="threshold-stability-region__chip">{{ formatThresholdStabilitySampleLabel(region.samples) }}</span>
+                                  </div>
+                                  <div class="threshold-stability-region__meta">{{ describeThresholdStabilityRegion(region) }}</div>
+                                  @if (region.isCurrent) {
+                                    <div class="threshold-stability-region__badge">Current range</div>
+                                  }
+                                </div>
+                                <button
+                                  type="button"
+                                  class="btn btn-light btn-sm threshold-stability-region__action"
+                                  data-testid="threshold-stability-apply"
+                                  [attr.data-threshold]="region.suggestedThreshold"
+                                  (click)="applyThresholdStabilitySuggestion(region)">
+                                  Use {{ formatThresholdStabilityValue(region.suggestedThreshold) }}
+                                </button>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
                   </div>
                   <div class="form-group row" title="Click to reveal all hidden elements of the network.">
                     <div class="col-4"><label for="reveal-all">Reveal</label></div>

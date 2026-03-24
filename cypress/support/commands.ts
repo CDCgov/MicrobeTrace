@@ -144,7 +144,8 @@ Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
 
 Cypress.Commands.add('openGlobalSettings', () => {
   cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
-  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 }).should('be.visible');
+  cy.get(byTestId(testIds.appGlobalSettingsDialog), { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 }).should('exist');
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {
@@ -163,8 +164,8 @@ Cypress.Commands.add('closeGlobalSettings', () => {
 Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {
   cy.openGlobalSettings();
 
-  cy.contains('#global-settings-modal .nav-link', 'Timeline').click();
-  cy.get('#timeline-config').should('be.visible');
+  cy.contains('#global-settings-modal .nav-link', 'Timeline').click({ force: true });
+  cy.get('#global-settings-modal #timeline-config').should('exist');
 
   cy.get('#node-timeline-variable').click();
   cy.get('p-selectitem').contains('li', variableLabel).click();

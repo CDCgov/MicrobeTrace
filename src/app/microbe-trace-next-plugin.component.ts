@@ -21,6 +21,29 @@ import { ExportService, ExportOptions } from './contactTraceCommonServices/expor
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
+import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+
+type ThresholdSweepSnapshot = {
+    threshold: number;
+    componentCount: number;
+    clusterCount: number;
+    singletonCount: number;
+    largestClusterSize: number;
+    sourceThreshold: number | null;
+};
+
+type ThresholdStabilityRegion = {
+    startThreshold: number;
+    endThreshold: number;
+    suggestedThreshold: number;
+    width: number;
+    samples: number;
+    clusterCount: number;
+    singletonCount: number;
+    largestClusterSize: number;
+    componentCount: number;
+    isCurrent: boolean;
+};
 
 
 @Component({
@@ -146,6 +169,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedLinkSortVariable: string = 'Distance';
     SelectedLinkThresholdVariable: any = parseFloat(this.threshold);
     SelectedDistanceMetricVariable = this.metric;
+    thresholdSweepMetricLabel: string = '';
+    thresholdSweepSampleCount: number = 0;
+    thresholdStabilityExpanded: boolean = false;
+    thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
+    thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
+    thresholdStabilityMessage: string = '';
 
     RevealTypes: any = [
         { label: 'Everything', value: 'Everything' }
@@ -263,6 +292,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // Add this line to expose the service for Cypress tests
         (window as any).commonService = this.commonService;
+        this.commonService.visuals.microbeTrace = this;
 
         this.activeTabIndex = 0;
 
@@ -324,17 +354,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 if (!this.store.settingsLoadedValue) {
                     console.log('--- Loading UI settings as settingsLoadedValue is false ---');
                     this.loadUISettings();
-                    // After loading UI settings, check if table needs immediate regeneration
-                    if (this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedColorLinksByVariable !== 'None') {
-                        console.log('--- Regenerating Link Color Table after initial UI load ---');
-                        this.generateNodeLinkTable('#link-color-table');
-                    }
+                    console.log('--- Regenerating visible color tables after initial UI load ---');
+                    this.refreshVisibleColorTables();
                 }
                 // Case 2: Subsequent network updates (e.g., from threshold change)
                 // Regenerate table only if UI settings are already loaded AND table should be visible/relevant
-                else if (this.store.settingsLoadedValue && this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedColorLinksByVariable !== 'None') {
-                    console.log('--- Regenerating Link Color Table due to network update (settings already loaded) ---');
-                    this.generateNodeLinkTable('#link-color-table');
+                else if (this.store.settingsLoadedValue) {
+                    console.log('--- Regenerating visible color tables due to network update ---');
+                    this.refreshVisibleColorTables();
+                }
+
+                if (this.GlobalSettingsDialogSettings?.isVisible) {
+                    this.refreshThresholdStabilityPanel(false);
                 }
             }
         });
@@ -1189,6 +1220,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this._lastClusterMinimum = val;
+        this.refreshThresholdStabilityPanel();
     }
 
     private _lastLinkSortValue: string = this.commonService.session.style.widgets["link-sort-variable"];
@@ -1228,11 +1260,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     const fixedThresholdValue = linkThresholdValue.toFixed(decimals);
 
     // 3) If you want to store it back as a number (not a string), parseFloat again:
-    this.SelectedLinkThresholdVariable = parseFloat(fixedThresholdValue);
+        this.SelectedLinkThresholdVariable = parseFloat(fixedThresholdValue);
 
         // If not loading all settings at once, update link threshold
         if(!silent) {
             this.onLinkThresholdChanged();
+        } else {
+            this.refreshThresholdStabilityPanel();
         }
         // this.commonService._debouncedUpdateNetworkVisuals();
     
@@ -1527,9 +1561,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.homepageTabs.forEach(tab => {
             if (tab.componentRef &&
                 tab.componentRef.instance.updateLinkColor) {
-                tab.componentRef.instance.updateLinkColor();
+                    tab.componentRef.instance.updateLinkColor();
             }
         })
+    }
+
+    private refreshVisibleColorTables(): void {
+        if (this.GlobalSettingsNodeColorDialogSettings?.isVisible && this.SelectedColorNodesByVariable !== 'None') {
+            this.generateNodeColorTable('#node-color-table');
+        }
+
+        if (this.GlobalSettingsLinkColorDialogSettings?.isVisible && this.SelectedColorLinksByVariable !== 'None') {
+            this.generateNodeLinkTable('#link-color-table');
+        }
     }
 
     public onLinkColorChanged(silent: boolean = false) : void {
@@ -2428,6 +2472,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // this.updatedVisualization();
 
         this.commonService.updateStatistics();
+        this.refreshThresholdStabilityPanel();
 
     };
 
@@ -2525,6 +2570,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         //this.commonService.updateThresholdHistogram();
+        this.refreshThresholdStabilityPanel(false);
 
         console.log('--- getGlobalSettingsData end - last of loadDefaultVisualization in MT');
 
@@ -3306,10 +3352,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.GlobalSettingsDialogSettings.setVisibility(true);
         this.cachedGlobalSettingsVisibility = this.GlobalSettingsDialogSettings.isVisible;
+        this.thresholdStabilityExpanded = false;
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+        this.refreshThresholdStabilityPanel(false);
 
         this.globalSettingsTab.tabs[activeTab === "Styling" ? 1 : 0].active = true;
+    }
+
+    toggleThresholdStabilityPanel(): void {
+        this.thresholdStabilityExpanded = !this.thresholdStabilityExpanded;
     }
 
 
@@ -3699,7 +3751,217 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
       this.commonService.session.style.widgets["mst-computed"] = true;
     }
+
+    this.refreshThresholdStabilityPanel();
   }
+
+    private getThresholdSweepSnapshotAtThreshold(summary: ThresholdSweepSummary, threshold: number): ThresholdSweepSnapshot {
+        const nodeCount = this.commonService.session.data.nodes.length;
+
+        if (summary.thresholds.length === 0 || threshold < summary.thresholds[0]) {
+            return {
+                threshold,
+                componentCount: nodeCount,
+                clusterCount: 0,
+                singletonCount: nodeCount,
+                largestClusterSize: nodeCount > 0 ? 1 : 0,
+                sourceThreshold: null
+            };
+        }
+
+        let low = 0;
+        let high = summary.thresholds.length - 1;
+        let matchIndex = 0;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (summary.thresholds[mid] <= threshold) {
+                matchIndex = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        return {
+            threshold,
+            componentCount: summary.componentCounts[matchIndex],
+            clusterCount: summary.clusterCounts[matchIndex],
+            singletonCount: summary.singletonCounts[matchIndex],
+            largestClusterSize: summary.largestClusterSizes[matchIndex],
+            sourceThreshold: summary.thresholds[matchIndex]
+        };
+    }
+
+    private buildThresholdStabilityRegions(
+        summary: ThresholdSweepSummary,
+        currentThreshold: number
+    ): ThresholdStabilityRegion[] {
+        if (summary.thresholds.length < 2) {
+            return [];
+        }
+
+        const regions: ThresholdStabilityRegion[] = [];
+        let runStart = 0;
+
+        const pushRegion = (startIndex: number, endIndex: number) => {
+            const startThreshold = summary.thresholds[startIndex];
+            const endThreshold = summary.thresholds[endIndex];
+            const width = endThreshold - startThreshold;
+            const samples = endIndex - startIndex + 1;
+
+            if (width <= 0 && samples < 2) {
+                return;
+            }
+
+            regions.push({
+                startThreshold,
+                endThreshold,
+                suggestedThreshold: startThreshold + width / 2,
+                width,
+                samples,
+                clusterCount: summary.clusterCounts[startIndex],
+                singletonCount: summary.singletonCounts[startIndex],
+                largestClusterSize: summary.largestClusterSizes[startIndex],
+                componentCount: summary.componentCounts[startIndex],
+                isCurrent: currentThreshold >= startThreshold && currentThreshold <= endThreshold
+            });
+        };
+
+        for (let index = 1; index < summary.thresholds.length; index++) {
+            if (summary.clusterCounts[index] !== summary.clusterCounts[runStart]) {
+                pushRegion(runStart, index - 1);
+                runStart = index;
+            }
+        }
+
+        pushRegion(runStart, summary.thresholds.length - 1);
+
+        return regions
+            .sort((a, b) => {
+                if (a.isCurrent !== b.isCurrent) {
+                    return a.isCurrent ? -1 : 1;
+                }
+
+                const distanceFromCurrentA = Math.abs(a.suggestedThreshold - currentThreshold);
+                const distanceFromCurrentB = Math.abs(b.suggestedThreshold - currentThreshold);
+                if (distanceFromCurrentA !== distanceFromCurrentB) {
+                    return distanceFromCurrentA - distanceFromCurrentB;
+                }
+
+                if (b.samples !== a.samples) {
+                    return b.samples - a.samples;
+                }
+
+                if (b.width !== a.width) {
+                    return b.width - a.width;
+                }
+
+                return a.startThreshold - b.startThreshold;
+            })
+            .slice(0, 3);
+    }
+
+    private getVisibleThresholdSnapshot(threshold: number): ThresholdSweepSnapshot {
+        const visibleNodes = this.commonService.getVisibleNodes();
+        const visibleClusters = this.commonService.getVisibleClusters();
+        const clusterCount = visibleClusters.filter(cluster => cluster.nodes > 1).length;
+        const singletonCount = visibleNodes.filter(node => Number(node.degree ?? 0) === 0).length;
+        const largestClusterSize = visibleClusters.reduce((largest, cluster) => {
+            return cluster.nodes > largest ? cluster.nodes : largest;
+        }, 0);
+
+        return {
+            threshold,
+            componentCount: visibleClusters.length,
+            clusterCount,
+            singletonCount,
+            largestClusterSize,
+            sourceThreshold: null
+        };
+    }
+
+    refreshThresholdStabilityPanel(markForCheck = true): void {
+        const nodes = this.commonService.session.data.nodes;
+
+        if (!nodes || nodes.length === 0) {
+            this.thresholdSweepMetricLabel = '';
+            this.thresholdSweepSampleCount = 0;
+            this.thresholdStabilityCurrent = null;
+            this.thresholdStabilityRegions = [];
+            this.thresholdStabilityMessage = '';
+            if (markForCheck) {
+                this.cdref.markForCheck();
+            }
+            return;
+        }
+
+        const metric = this.SelectedLinkSortVariable || this.commonService.session.style.widgets["link-sort-variable"];
+        const threshold = Number(this.commonService.session.style.widgets["link-threshold"]);
+        const summary = this.commonService.getThresholdSweepSummary(metric);
+
+        this.thresholdSweepMetricLabel = metric;
+        this.thresholdSweepSampleCount = summary.thresholds.length;
+        this.thresholdStabilityCurrent = this.getVisibleThresholdSnapshot(threshold);
+        this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
+
+        if (summary.thresholds.length === 0) {
+            this.thresholdStabilityMessage = `No numeric ${this.commonService.titleize(metric)} values are available for this view.`;
+        } else if (this.thresholdStabilityRegions.length === 0) {
+            this.thresholdStabilityMessage = 'No broad flat range was found for the current metric.';
+        } else {
+            this.thresholdStabilityMessage = '';
+        }
+
+        if (markForCheck) {
+            this.cdref.markForCheck();
+        }
+    }
+
+    applyThresholdStabilitySuggestion(region: ThresholdStabilityRegion): void {
+        this.threshold = String(region.suggestedThreshold);
+        this.SelectedLinkThresholdVariable = region.suggestedThreshold;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
+        this.executeThresholdChange(region.suggestedThreshold);
+    }
+
+    formatThresholdStabilityClusterLabel(clusterCount: number): string {
+        return `${clusterCount.toLocaleString()} ${clusterCount === 1 ? 'cluster' : 'clusters'}`;
+    }
+
+    formatThresholdStabilitySampleLabel(sampleCount: number): string {
+        return `${sampleCount.toLocaleString()} ${sampleCount === 1 ? 'distinct threshold' : 'distinct thresholds'}`;
+    }
+
+    describeThresholdStabilityRegion(region: ThresholdStabilityRegion): string {
+        const currentThreshold = Number(this.commonService.session.style.widgets["link-threshold"]);
+
+        if (region.isCurrent) {
+            return 'Current threshold sits in this flat range.';
+        }
+
+        if (region.suggestedThreshold < currentThreshold) {
+            return 'Lower-threshold option.';
+        }
+
+        if (region.suggestedThreshold > currentThreshold) {
+            return 'Higher-threshold option.';
+        }
+
+        return 'Alternative flat range.';
+    }
+
+    formatThresholdStabilityValue(value: number | null | undefined): string {
+        if (value === null || value === undefined || !Number.isFinite(value)) {
+            return 'N/A';
+        }
+
+        if (Math.abs(value - Math.round(value)) < 1e-9) {
+            return Math.round(value).toLocaleString();
+        }
+
+        return value.toFixed(3).replace(/\.?0+$/, '');
+    }
 }
 
 class BpaaSPayloadWrapper {

@@ -66,6 +66,7 @@ Maintained suite structure:
 - [x] Filter Links on alternate numeric link field updates visible links by the selected field.
 - [x] Threshold change while cluster minimum is greater than `1` does not unexpectedly reset cluster filtering.
 - [x] Threshold sparkline drag path is exercised, not only direct input typing.
+- [x] Threshold stability panel can surface suggested stable thresholds and apply one back into filtering.
 - [x] Filtering still works correctly after loading multiple file origins that merge onto the same links.
 - [x] Contract coverage exists for any known observed-vs-intended filtering deviations.
 
@@ -160,6 +161,7 @@ Maintained suite structure:
 - [x] Epsilon expected behavior has contract coverage.
 - [x] Mixed-origin Nearest Neighbor expected behavior has contract coverage.
 - [x] Newick expected launch counts have contract coverage.
+- [x] Filtering oracle exact-membership and metric-default behavior has dedicated contract coverage.
 
 ## 11. Fixture Gaps To Fill
 

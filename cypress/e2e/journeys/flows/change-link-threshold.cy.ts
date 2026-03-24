@@ -1,26 +1,33 @@
 /// <reference types="cypress" />
 
-import { getProfile, resolveExpected } from '../datasets/profile';
+import { getProfile } from '../datasets/profile';
 import {
   applyTwoDGroupingFromProfile,
-  assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
+import type { OracleStep } from '../../../oracle/types';
 
 describe('Journey Flow - Change Link Threshold', () => {
   const profile = getProfile('grouping-tn93-polygons-subtype');
 
   it(profile.title, () => {
     const thresholdChange = profile.expectations.grouping?.thresholdChange;
-    const beforeVisibleLinks = resolveExpected(profile.expectations.afterLaunch, 'observed')?.visibleLinks;
-    const observedVisibleLinksAfter = resolveExpected(
-      thresholdChange?.expectedVisibleLinksAfter,
-      'observed',
-    );
     expect(thresholdChange, 'threshold change expectation').to.exist;
-    expect(beforeVisibleLinks, 'pre-threshold visible link count').to.be.a('number');
-    expect(observedVisibleLinksAfter, 'observed post-threshold visible link count').to.be.a('number');
+    const initialThreshold = thresholdChange!.from;
+    const loweredThreshold = thresholdChange!.to;
+
+    const oracleSteps: OracleStep[] = [
+      {
+        id: 'after-threshold',
+        kind: 'set-threshold',
+        threshold: loweredThreshold,
+      },
+    ];
+    computeOracleForProfile(profile, oracleSteps);
 
     launchProfileToTwoD(profile);
     applyTwoDGroupingFromProfile(profile);
@@ -31,16 +38,9 @@ describe('Journey Flow - Change Link Threshold', () => {
       cy.wrap(initialParents, { log: false }).as('initialParentIds');
     });
 
-    assertMetricCount('#numberOfVisibleLinks', beforeVisibleLinks);
+    const assertGroupingParentsUnchanged = (): void => {
+      if (!thresholdChange!.expectPolygonsUnchanged) return;
 
-    cy.openGlobalSettings();
-    cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-    setGlobalLinkThreshold(thresholdChange!.to);
-    cy.closeGlobalSettings();
-
-    assertMetricCount('#numberOfVisibleLinks', observedVisibleLinksAfter);
-
-    if (thresholdChange!.expectPolygonsUnchanged) {
       cy.get('@initialParentIds').then((initialParentIds) => {
         cy.window().then((win: any) => {
           const cyInstance = win.cytoscapeInstance;
@@ -48,6 +48,39 @@ describe('Journey Flow - Change Link Threshold', () => {
           expect(currentParentIds).to.deep.equal(initialParentIds);
         });
       });
-    }
+    };
+
+    const assertInitialThresholdState = (): void => {
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
+      assertGroupingParentsUnchanged();
+    };
+
+    const assertLoweredThresholdState = (): void => {
+      getOracleSnapshot('oracleResult', 'after-threshold').then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
+      assertGroupingParentsUnchanged();
+    };
+
+    assertInitialThresholdState();
+
+    cy.openGlobalSettings();
+    cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
+
+    setGlobalLinkThreshold(loweredThreshold);
+    assertLoweredThresholdState();
+
+    setGlobalLinkThreshold(initialThreshold);
+    assertInitialThresholdState();
+
+    setGlobalLinkThreshold(loweredThreshold);
+    assertLoweredThresholdState();
+
+    setGlobalLinkThreshold(initialThreshold);
+    assertInitialThresholdState();
+
+    cy.closeGlobalSettings();
   });
 });

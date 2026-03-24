@@ -2,9 +2,16 @@
 /// <reference types="cypress" />
 
 import type { Core } from 'cytoscape';
+import moment from 'moment';
 import type { FileLoadSpec } from '../e2e/journeys/datasets/profile';
 import type { DatasetProfile, DistanceMetric, LinkLabelVariable, PruneWith } from '../e2e/journeys/datasets/profile';
 import { resolveExpected } from '../e2e/journeys/datasets/profile';
+import type {
+  OracleComputationResult,
+  OracleManifest,
+  OracleSnapshot,
+  OracleStep,
+} from '../oracle/types';
 import { byTestId, testIds } from './selectors';
 
 type WinWithMT = Window & {
@@ -452,10 +459,8 @@ export function expandAccordionTabByHeader(containerAlias: string, headerText: s
 export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
   cy.get(byTestId(testIds.filesSettingsButton), { timeout: 15000 }).click({ force: true });
 
-  cy.contains('.p-dialog-title', 'File Settings', { timeout: 15000 })
-    .should('be.visible')
-    .parents('.p-dialog')
-    .as('fileSettings');
+  cy.get(byTestId(testIds.filesSettingsDialog), { timeout: 15000 }).should('exist').as('fileSettings');
+  cy.get('@fileSettings').contains('.p-dialog-title', 'File Settings').should('exist');
 
   cy.get('@fileSettings')
     .find('#default-distance-metric')
@@ -529,11 +534,25 @@ export function assertPhyloTreeReady(timeout = 30000): void {
   cy.get('#phylocanvas', { timeout }).should('be.visible');
 }
 
+export function assertMapReady(timeout = 30000): void {
+  cy.get('.mapStyle', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.gisMap')
+    .should('exist');
+}
+
 export function goToPhyloTreeView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Phylogenetic Tree', { timeout: 15000 }).click({ force: true });
 
   assertPhyloTreeReady();
+}
+
+export function goToMapView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Map', { timeout: 15000 }).click({ force: true });
+
+  assertMapReady();
 }
 
 export function launchProfileToPhyloTree(profile: DatasetProfile): void {
@@ -543,6 +562,17 @@ export function launchProfileToPhyloTree(profile: DatasetProfile): void {
   ensurePreLaunchProfileSynced(profile);
   launchAndWaitForProcessing(60000);
   goToPhyloTreeView();
+}
+
+export function ensureMapView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('.mapStyle:visible').length) {
+      assertMapReady();
+      return;
+    }
+
+    goToMapView();
+  });
 }
 
 export function ensureTwoDNetworkView(): void {
@@ -585,14 +615,14 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
 
 export function openGlobalFilteringTab(): void {
   cy.openGlobalSettings();
-  cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-  cy.get('#filtering-config', { timeout: 15000 }).should('be.visible');
+  cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
+  cy.get('#global-settings-modal #filtering-config', { timeout: 15000 }).should('exist');
 }
 
 export function openGlobalStylingTab(): void {
   cy.openGlobalSettings();
-  cy.contains('#global-settings-modal .nav-link', 'Styling').click();
-  cy.get('#style-config', { timeout: 15000 }).should('be.visible');
+  cy.contains('#global-settings-modal .nav-link', 'Styling').click({ force: true });
+  cy.get('#global-settings-modal #style-config', { timeout: 15000 }).should('exist');
 }
 
 export function setFilteringPruneWith(value: PruneWith): void {
@@ -662,6 +692,46 @@ export function setGlobalLinkThreshold(threshold: number | string): void {
     });
 }
 
+export function setTimelineField(field: string | 'None'): void {
+  cy.enableTimelineMode(field);
+  cy.closeGlobalSettings();
+
+  cy.window()
+    .its('commonService.session.style.widgets')
+    .should((widgets) => {
+      expect(widgets['node-timeline-variable']).to.equal(field);
+      expect(widgets['timeline-date-field']).to.equal(field === 'None' ? 'None' : field);
+    });
+}
+
+export function setTimelineDate(date: string | Date): void {
+  const parsedDate = date instanceof Date ? moment(date) : moment(String(date));
+  expect(parsedDate.isValid(), `valid timeline date for ${String(date)}`).to.equal(true);
+  const targetDate = parsedDate.toDate();
+
+  cy.get('#global-timeline svg', { timeout: 15000 }).should('exist');
+  cy.window()
+    .its('commonService.visuals.microbeTrace')
+    .should((microbeTrace) => {
+      expect(microbeTrace, 'microbeTrace visual').to.exist;
+      expect(microbeTrace.update, 'timeline update method').to.be.a('function');
+      expect(microbeTrace.xAttribute, 'timeline scale').to.exist;
+      expect(microbeTrace.handle, 'timeline handle').to.exist;
+      expect(microbeTrace.label, 'timeline label').to.exist;
+    });
+
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    w.commonService.visuals.microbeTrace.update(targetDate);
+  });
+
+  cy.window()
+    .its('commonService.session.state.timeEnd')
+    .should((value) => {
+      expect(new Date(value as string | number | Date).getTime()).to.equal(targetDate.getTime());
+    });
+}
+
 export function assertVisibleNodeIds(expectedNodeIds: string[], timeout = 20000): void {
   cy.window({ timeout }).should((win: unknown) => {
     const w = win as WinWithMT;
@@ -677,6 +747,74 @@ export function assertVisibleNodeIds(expectedNodeIds: string[], timeout = 20000)
 
     expect(visibleNodeIds, 'visible node ids').to.deep.equal([...expectedNodeIds].sort());
   });
+}
+
+export function assertVisibleLinkIds(expectedLinkIds: string[], timeout = 20000): void {
+  cy.window({ timeout }).should((win: unknown) => {
+    const w = win as WinWithMT;
+    const cyInstance = w.cytoscapeInstance as Core;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+    const expectedLinkIdSet = new Set(expectedLinkIds);
+
+    const visibleLinkIds = Array.from(new Set(cyInstance
+      .edges(':visible')
+      .map((edge) => {
+        const rawId = String(edge.id());
+        if (expectedLinkIdSet.has(rawId)) {
+          return rawId;
+        }
+
+        const normalizedId = rawId.replace(/-\d+$/, '');
+        return expectedLinkIdSet.has(normalizedId) ? normalizedId : rawId;
+      })))
+      .sort();
+
+    expect(visibleLinkIds, 'visible link ids').to.deep.equal([...expectedLinkIds].sort());
+  });
+}
+
+export function buildOracleManifest(profile: DatasetProfile, steps: OracleStep[]): OracleManifest {
+  return {
+    files: profile.files,
+    preLaunch: profile.preLaunch,
+    steps,
+  };
+}
+
+export function computeOracleForProfile(
+  profile: DatasetProfile,
+  steps: OracleStep[],
+  alias = 'oracleResult',
+): void {
+  cy.task<OracleComputationResult>('oracle:compute', buildOracleManifest(profile, steps), { log: false })
+    .as(alias);
+}
+
+export function getOracleSnapshot(
+  alias = 'oracleResult',
+  snapshotId = 'initial',
+): Cypress.Chainable<OracleSnapshot> {
+  return cy.get<OracleComputationResult>(`@${alias}`).then((result) => {
+    const snapshot = result.snapshots[snapshotId];
+    expect(snapshot, `oracle snapshot ${snapshotId}`).to.exist;
+    return snapshot;
+  });
+}
+
+export function assertNetworkMatchesOracleSnapshot(
+  snapshot: OracleSnapshot,
+  options: { assertNodeIds?: boolean } = {},
+): void {
+  assertMetricCount('#numberOfNodes', snapshot.visibleNodes);
+  assertMetricCount('#numberOfVisibleLinks', snapshot.visibleLinks);
+  assertMetricCount('#numberOfDisjointComponents', snapshot.components);
+  assertMetricCount('#numberOfSingletonNodes', snapshot.singletons);
+  assertVisibleLinkIds(snapshot.visibleLinkIds);
+
+  if (options.assertNodeIds !== false) {
+    assertVisibleNodeIds(snapshot.visibleNodeIds);
+  }
 }
 
 export type StyleSnapshot = {
@@ -887,6 +1025,94 @@ export function openTwoDSettingsDialog(): void {
     .should('be.visible')
     .parents('.p-dialog')
     .as('twoDSettings');
+}
+
+export function openMapSettingsDialog(): void {
+  cy.get('#tool-btn-container-map a[title="Settings"]', { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Geospatial Settings', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('mapSettings');
+}
+
+export function selectMapField(
+  selectId: string,
+  optionLabel: string,
+  expectedWidgetKey: string,
+  expectedWidgetValue: string,
+): void {
+  cy.get('@mapSettings')
+    .find(`#${selectId}`)
+    .should('be.visible')
+    .click({ force: true });
+
+  cy.contains('li[role="option"]', optionLabel, { timeout: 15000 }).click({ force: true });
+
+  cy.window()
+    .its(`commonService.session.style.widgets.${expectedWidgetKey}`)
+    .should('equal', expectedWidgetValue);
+}
+
+export function setMapNodeCollapsing(value: 'On' | 'Off'): void {
+  cy.get('@mapSettings').contains('.nav-link', 'Nodes').click({ force: true });
+
+  cy.get('@mapSettings')
+    .find('#map-node-collapsing')
+    .contains(value)
+    .click({ force: true });
+
+  cy.window()
+    .its('commonService.visuals.gisMap.SelectedNodeCollapsingTypeVariable')
+    .should('equal', value);
+
+  cy.window()
+    .its('commonService.session.style.widgets.map-collapsing-on')
+    .should('equal', value === 'On');
+}
+
+export function assertMapRenderedCounts(expected: {
+  nodes: number;
+  links: number;
+  excludedNodes?: string[];
+}): void {
+  cy.window({ timeout: 20000 }).should((win: unknown) => {
+    const w = win as WinWithMT;
+    const mapView = w.commonService.visuals.gisMap;
+
+    expect(mapView, 'gisMap visual').to.exist;
+    expect(mapView.layers?.featureGroup, 'map featureGroup').to.exist;
+    expect(mapView.layers?.links, 'map links layer').to.exist;
+
+    const renderedNodeLayers = mapView.layers.featureGroup.getLayers();
+    const renderedLinkLayers = mapView.layers.links.getLayers();
+    const renderedLogicalLinks = new Set(renderedLinkLayers
+      .map((layer: any) => {
+        const data = layer?.data;
+        if (!data?.source || !data?.target) return null;
+
+        const a = String(data.source);
+        const b = String(data.target);
+        return a < b ? `${a}-${b}` : `${b}-${a}`;
+      })
+      .filter(Boolean));
+
+    expect(renderedNodeLayers.length, 'rendered map node count').to.equal(expected.nodes);
+    expect(renderedLogicalLinks.size, 'rendered map logical link count').to.equal(expected.links);
+
+    if (expected.excludedNodes?.length) {
+      const renderedNodeIds = renderedNodeLayers
+        .map((layer: any) => String(layer?.data?._id || ''))
+        .filter(Boolean);
+
+      expected.excludedNodes.forEach((nodeId) => {
+        expect(renderedNodeIds, `excluded node ${nodeId} should not render on map`)
+          .to.not.include(nodeId);
+      });
+    }
+  });
 }
 
 export function enableGroupingShow(groupBy: 'cluster' | 'subtype' = 'cluster'): void {

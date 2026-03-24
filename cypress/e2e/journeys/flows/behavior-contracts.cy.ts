@@ -3,17 +3,19 @@
 import {
   DATASET_PROFILES,
   hasExpectedDeviation,
-  resolveExpected,
   type DatasetProfile,
 } from '../datasets/profile';
 import {
   applyTwoDGroupingFromProfile,
-  assertMetricCount,
+  assertNetworkMatchesOracleSnapshot,
+  computeOracleForProfile,
+  getOracleSnapshot,
   launchProfileToTwoD,
   openTwoDSettingsDialog,
   expandAccordionTabByHeader,
   setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
+import type { OracleStep } from '../../../oracle/types';
 
 const contractMode =
   Cypress.env('contractMode') === true ||
@@ -84,23 +86,32 @@ const contractMode =
   thresholdProfiles.forEach((profile: DatasetProfile) => {
     it(`${profile.title} applies the intended threshold behavior`, () => {
       const thresholdChange = profile.expectations.grouping?.thresholdChange;
-      const intendedVisibleLinksAfter = resolveExpected(
-        thresholdChange?.expectedVisibleLinksAfter,
-        'intended',
-      );
 
       expect(thresholdChange, 'threshold change contract').to.exist;
-      expect(intendedVisibleLinksAfter, 'intended visible links after threshold change').to.be.a('number');
+
+      const oracleSteps: OracleStep[] = [
+        {
+          id: 'after-threshold',
+          kind: 'set-threshold',
+          threshold: thresholdChange!.to,
+        },
+      ];
+      computeOracleForProfile(profile, oracleSteps);
 
       launchProfileToTwoD(profile);
       applyTwoDGroupingFromProfile(profile);
+      getOracleSnapshot().then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
 
       cy.openGlobalSettings();
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
       setGlobalLinkThreshold(thresholdChange!.to);
       cy.closeGlobalSettings();
 
-      assertMetricCount('#numberOfVisibleLinks', intendedVisibleLinksAfter);
+      getOracleSnapshot('oracleResult', 'after-threshold').then((snapshot) => {
+        assertNetworkMatchesOracleSnapshot(snapshot);
+      });
     });
   });
 

@@ -79,6 +79,15 @@ export const hasExpectedDeviation = <T>(value: ExpectedValue<T> | undefined): bo
 export type JourneyExpectations = {
   afterLaunch?: ExpectedValue<ExpectedCounts>;
 
+  timeline?: {
+    field: string;
+    checkpoints: Array<{
+      id: string;
+      date: string;
+      after?: ExpectedValue<ExpectedCounts>;
+    }>;
+  };
+
   filtering?: {
     minimumClusterSize?: {
       from: number;
