@@ -498,9 +498,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   openExport() {
     this.ShowPhylogeneticExportPane = true;
 
-    this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
-    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
-    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
     this.isExportClosed = false;
 
   }

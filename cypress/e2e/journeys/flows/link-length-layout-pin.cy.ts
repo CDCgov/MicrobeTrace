@@ -103,7 +103,7 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
     readNodeSnapshots(4)
       .then((baselinePositions) => {
         setLinkLength(120);
-        cy.wait(350);
+        cy.wait(600);
         return readNodeSnapshots(4).then((afterLengthChange) => {
           assertNodeMovement(baselinePositions, afterLengthChange, 'moved');
           return afterLengthChange;
@@ -112,7 +112,7 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
       .then((afterLengthChange) => {
         cy.get(recalculateButton).should('not.have.class', 'disabled');
         cy.get(recalculateButton).click({ force: true });
-        cy.wait(350);
+        cy.wait(600);
         return readNodeSnapshots(4).then((afterRecalculate) => {
           assertNodeMovement(afterLengthChange, afterRecalculate, 'moved');
           return afterRecalculate;
@@ -128,7 +128,7 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
 
         return readNodeSnapshots(4).then((pinnedBeforeAction) => {
           setLinkLength(80, 120);
-          cy.wait(350);
+          cy.wait(600);
           cy.window().its('commonService.session.style.widgets.link-length').should('equal', 120);
           return readNodeSnapshots(4).then((pinnedAfterLengthAttempt) => {
             assertNodeMovement(pinnedBeforeAction, pinnedAfterLengthAttempt, 'still');
@@ -149,6 +149,7 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
         cy.get(recalculateButton).should('not.have.class', 'disabled');
 
         setLinkLength(95);
+        cy.wait(600);
         return readNodeSnapshots(4).then((afterUnpin) => {
           assertNodeMovement(pinnedAfterRecalculate, afterUnpin, 'moved');
         });
