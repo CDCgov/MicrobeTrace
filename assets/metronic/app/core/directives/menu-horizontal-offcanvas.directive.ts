@@ -3,7 +3,8 @@ import { filter } from 'rxjs/operators';
 import { NavigationEnd, Router } from '@angular/router';
 
 @Directive({
-    selector: '[mMenuHorizontalOffcanvas]'
+    selector: '[mMenuHorizontalOffcanvas]',
+    standalone: false
 })
 export class MenuHorizontalOffcanvasDirective implements AfterViewInit {
     menuOffcanvas: any;

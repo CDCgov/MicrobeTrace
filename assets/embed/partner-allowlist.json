@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "defaults": {
+    "maxFiles": 10,
+    "maxFileBytes": 20971520,
+    "maxTotalBytes": 52428800,
+    "ttlMs": 900000
+  },
+  "partners": {
+    "local-dev": {
+      "origins": [
+        "http://localhost:4200",
+        "http://127.0.0.1:4200",
+        "http://localhost:4300",
+        "http://127.0.0.1:4300"
+      ]
+    }
+  }
+}
