@@ -1900,8 +1900,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const idText = (d?._id ?? d?.id ?? '').toString();
         const seqText = (d?.sequence ?? d?.seq ?? '').toString();
+        const hasSequence = seqText.trim().length > 0;
         $('#copyID').attr('data-clipboard-text', idText);
-        $('#copySeq').attr('data-clipboard-text', seqText);
+        $('#copySeq')
+            .attr('data-clipboard-text', seqText)
+            .prop('disabled', !hasSequence);
 
         const x = event.clientX ?? 0;
         const y = event.clientY ?? 0;

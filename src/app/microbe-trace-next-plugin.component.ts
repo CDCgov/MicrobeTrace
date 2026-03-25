@@ -2775,7 +2775,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             e = "2D Network";
         }
 
-        this.resetLayout();
+        if (!this.auspiceUrlVal) this.resetLayout();
 
         // TODO:: see if timeout needed
         // setTimeout(() => {
