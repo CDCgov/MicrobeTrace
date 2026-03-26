@@ -32,18 +32,23 @@ For maintained Map journeys, prefer this pattern:
 
 - [x] Uploaded node + distance-link data can launch, switch to Map, and render deterministically there.
 - [x] Zipcode mapping can be configured on uploaded data.
+- [x] Uploaded latitude and longitude mapping can be configured on uploaded data.
 - [x] Nodes without location data are counted and listed in the Excluded Nodes dialog.
 - [x] Rendered Map node and link layer counts can be asserted deterministically on uploaded data.
+- [x] Rendered Leaflet node coordinates can be checked against uploaded lat/long values.
 - [x] Threshold changes while Map is active update rendered Map link counts.
 - [x] Threshold round-trip back to the original value restores the original rendered Map link count.
+- [x] Deterministic timeline checkpoints can be asserted on Map with oracle-backed expected membership.
+- [x] Uploaded node and link color mappings can be asserted on Map.
+- [x] Targeted node and link color table edits can be checked against rendered Map layers.
 
 ## Legacy-Only Coverage
 
-- [~] Node collapsing on and off.
-- [~] Node transparency.
-- [~] Link transparency.
-- [~] Hide and show nodes.
-- [~] Hide and show links.
+- [x] Node collapsing on and off.
+- [x] Node transparency.
+- [x] Link transparency.
+- [x] Hide and show nodes.
+- [x] Hide and show links.
 - [~] Offline layers: countries, states, counties.
 - [~] Online layers: basemap, satellite.
 - [~] Center, pan, and zoom controls.
@@ -58,10 +63,9 @@ These remain useful for exploratory coverage, but they are not currently part of
 
 ## Highest-Value Next Gaps
 
-- [ ] Uploaded latitude/longitude mapping on a small deterministic fixture.
-- [ ] Deterministic Map timeline checkpoints on uploaded data.
-- [ ] Uploaded-data Map color or style assertions.
-- [ ] Migration of the most valuable Map control mechanics out of the old sample-data spec and into maintained journeys.
+- [ ] Migration of the remaining lower-priority Map controls out of the old sample-data spec and into maintained journeys.
+
+If we later need exact style-file coverage on uploaded Map data, that is a narrower follow-up than the broader uploaded-data color-mapping gap that is now covered.
 
 ## Notes
 

@@ -1,0 +1,5 @@
+source,target,distance,Contact type
+A,B,5,classroom
+A,C,7,sports team
+B,D,9,classroom
+C,D,11,sports team

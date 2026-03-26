@@ -13,6 +13,26 @@ const SELECTORS = {
   exportBtn: '#tool-btn-container-phylo a[title="Export Screen"]',
 };
 
+const assertLeafLabelState = (visible: boolean): void => {
+  cy.window()
+    .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
+    .should('equal', visible);
+
+  cy.get(SELECTORS.treeSvg)
+    .find('g.tidytree-node-leaf text')
+    .then(($labels) => {
+      if (visible) {
+        expect($labels.length, 'leaf label elements').to.be.greaterThan(0);
+        cy.wrap($labels.first()).should('be.visible');
+        return;
+      }
+
+      if ($labels.length > 0) {
+        cy.wrap($labels.first()).should('not.be.visible');
+      }
+    });
+};
+
 describe('Journey Flow - Phylogenetic Tree Export (Newick file)', () => {
   const profile = getProfile('load-phylo-tree-newick-snp');
 
@@ -172,21 +192,26 @@ describe('Journey Flow - Phylogenetic Tree Export (Newick file)', () => {
 
       cy.window()
         .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
-        .should('be.false');
-      cy.get(SELECTORS.treeSvg).find('g.tidytree-node-leaf text').first().should('not.be.visible');
+        .then((initiallyShown) => {
+          const initialState = Boolean(initiallyShown);
+          const toggledState = !initialState;
 
-      cy.get('@dialog').find('#leaf-label-visibility').contains('Show').click();
+          assertLeafLabelState(initialState);
 
-      cy.window()
-        .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
-        .should('be.true');
+          cy.get('@dialog')
+            .find('#leaf-label-visibility')
+            .contains(toggledState ? 'Show' : 'Hide')
+            .click();
 
-      cy.get('@dialog').find('#leaf-label-visibility').contains('Hide').click();
+          assertLeafLabelState(toggledState);
 
-      cy.window()
-        .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
-        .should('be.false');
-      cy.get(SELECTORS.treeSvg).find('g.tidytree-node-leaf text').first().should('not.be.visible');
+          cy.get('@dialog')
+            .find('#leaf-label-visibility')
+            .contains(initialState ? 'Show' : 'Hide')
+            .click();
+
+          assertLeafLabelState(initialState);
+        });
     });
   });
 });

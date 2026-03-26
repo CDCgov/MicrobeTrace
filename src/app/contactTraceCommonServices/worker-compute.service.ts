@@ -1,7 +1,15 @@
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import * as patristic from 'patristic';
 import { WorkerModule } from '../workers/workModule';
+import type {
+  PatristicWorkerRequest,
+  PatristicWorkerResponse,
+  PatristicEdgeBatchResponse,
+  PatristicTreeReadyResponse,
+  PatristicProgressResponse,
+  PatristicErrorResponse,
+} from '../workers/patristic-engine.types';
 
 /**
  * This service delegates all Worker-based computations.
@@ -540,5 +548,216 @@ export class WorkerComputeService {
         sub.unsubscribe();
       });
     });
+  }
+
+  // ─── Patristic Distance Engine ───────────────────────────────────────────
+
+  /** Currently active patristic job ID for cancellation. */
+  private patristicJobId = 0;
+  /** Leaf names from the last initialized tree (set by TREE_READY). */
+  private patristicLeafNames: string[] = [];
+
+  /**
+   * Initialize the patristic engine with a Newick string.
+   * This preprocesses the tree (flatten, LCA build) in the worker.
+   * The preprocessing is cached in the worker across threshold changes.
+   *
+   * @returns Promise that resolves with tree metadata when ready.
+   */
+  public initPatristicTree(newickString: string): Promise<PatristicTreeReadyResponse> {
+    return new Promise((resolve, reject) => {
+      const worker = this.computer.getPatristicWorker();
+      const jobId = ++this.patristicJobId;
+
+      const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+        const msg = event.data;
+        if (msg.jobId !== jobId) return;
+
+        switch (msg.type) {
+          case 'TREE_READY':
+            this.patristicLeafNames = msg.leafNames;
+            worker.removeEventListener('message', handler);
+            resolve(msg);
+            break;
+          case 'ERROR':
+            worker.removeEventListener('message', handler);
+            reject(new Error(msg.message));
+            break;
+          // Ignore PROGRESS for now
+        }
+      };
+
+      worker.addEventListener('message', handler);
+      worker.postMessage({
+        type: 'INIT_TREE',
+        jobId,
+        newickString,
+      } as PatristicWorkerRequest);
+    });
+  }
+
+  /**
+   * Request thresholded patristic edges from the worker.
+   * The tree must have been initialized via initPatristicTree() first.
+   *
+   * Streams edge batches as an Observable. Each batch contains:
+   * - sources: Uint32Array of leaf indices
+   * - targets: Uint32Array of leaf indices
+   * - distances: Float32Array of patristic distances
+   * - done: boolean indicating if this is the last batch
+   *
+   * Use getPatristicLeafNames() to map leaf indices to node IDs.
+   *
+   * @param threshold - Maximum patristic distance to include
+   * @param maxEdges - Optional cap on total edges
+   * @param batchSize - Edges per batch (default 10000)
+   * @returns Observable of edge batches
+   */
+  public buildPatristicEdges(
+    threshold: number,
+    maxEdges?: number,
+    batchSize?: number
+  ): Observable<PatristicEdgeBatchResponse> {
+    const subject = new Subject<PatristicEdgeBatchResponse>();
+    const worker = this.computer.getPatristicWorker();
+    const jobId = ++this.patristicJobId;
+
+    const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+      const msg = event.data;
+      if (msg.jobId !== jobId) return;
+
+      switch (msg.type) {
+        case 'EDGE_BATCH':
+          subject.next(msg);
+          if (msg.done) {
+            worker.removeEventListener('message', handler);
+            subject.complete();
+          }
+          break;
+        case 'ERROR':
+          worker.removeEventListener('message', handler);
+          subject.error(new Error(msg.message));
+          break;
+        // Ignore PROGRESS for now (can be added to a separate subject)
+      }
+    };
+
+    worker.addEventListener('message', handler);
+    worker.postMessage({
+      type: 'BUILD_EDGES',
+      jobId,
+      threshold,
+      maxEdges,
+      batchSize,
+    } as PatristicWorkerRequest);
+
+    return subject.asObservable();
+  }
+
+  /**
+   * Convenience method: Initialize tree and build edges in one call.
+   * Returns all qualifying edges as flat arrays once complete.
+   *
+   * This is the main integration point for files-plugin.component.ts.
+   *
+   * @param newickString - Newick format tree string
+   * @param threshold - Maximum patristic distance to include
+   * @param addLink - Callback to add each link to session (CommonService.addLink)
+   * @param filterXSS - Callback to sanitize leaf names
+   * @param session - Session object for debug logging
+   * @returns Promise resolving to { newLinks, totalLinks, leafNames }
+   */
+  public async computePatristicEdges(
+    newickString: string,
+    threshold: number,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any
+  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] }> {
+    const start = Date.now();
+
+    // Step 1: Initialize tree (flatten + LCA)
+    const treeReady = await this.initPatristicTree(newickString);
+
+    if (session?.debugMode) {
+      console.log(
+        'Patristic tree preprocessing time:',
+        (Date.now() - start).toLocaleString(),
+        'ms',
+        `(${treeReady.leafCount} leaves, ${treeReady.nodeCount} nodes)`
+      );
+    }
+
+    const leafNames = treeReady.leafNames.map(filterXSS);
+    const edgeStart = Date.now();
+
+    // Step 2: Stream thresholded edges
+    return new Promise((resolve, reject) => {
+      let newLinks = 0;
+      let totalLinks = 0;
+      const check = false; // Fresh newick load, no need for duplicate checking
+
+      this.buildPatristicEdges(threshold).subscribe({
+        next: (batch) => {
+          const n = batch.sources.length;
+          for (let k = 0; k < n; k++) {
+            const sourceIdx = batch.sources[k];
+            const targetIdx = batch.targets[k];
+            newLinks += addLink(
+              {
+                source: leafNames[sourceIdx],
+                target: leafNames[targetIdx],
+                origin: ['Newick Tree'],
+                distance: batch.distances[k],
+                distanceOrigin: 'Newick Tree',
+                hasDistance: true,
+              },
+              check
+            );
+            totalLinks++;
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => {
+          if (session?.debugMode) {
+            console.log(
+              'Patristic edge generation + merge time:',
+              (Date.now() - edgeStart).toLocaleString(),
+              'ms',
+              `(${totalLinks} edges below threshold ${threshold})`
+            );
+          }
+          resolve({ newLinks, totalLinks, leafNames });
+        },
+      });
+    });
+  }
+
+  /**
+   * Cancel any active patristic computation.
+   */
+  public cancelPatristicJob(): void {
+    const worker = this.computer.getPatristicWorker();
+    worker.postMessage({
+      type: 'CANCEL',
+      jobId: this.patristicJobId,
+    } as PatristicWorkerRequest);
+  }
+
+  /**
+   * Get leaf names from the last initialized patristic tree.
+   * Useful for mapping leaf indices in edge batches to node IDs.
+   */
+  public getPatristicLeafNames(): string[] {
+    return this.patristicLeafNames;
+  }
+
+  /**
+   * Terminate the patristic worker entirely.
+   * Call when loading a new session or cleaning up.
+   */
+  public terminatePatristicWorker(): void {
+    this.computer.terminatePatristicWorker();
+    this.patristicLeafNames = [];
   }
 }

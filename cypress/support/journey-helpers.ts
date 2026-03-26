@@ -828,6 +828,30 @@ type StylePreservationOptions = {
   ignoreNodeWidths?: boolean;
 };
 
+type MapLocationFilter =
+  | {
+      field: string;
+    }
+  | {
+      latitudeField: string;
+      longitudeField: string;
+    };
+
+function hasMapLocationValue(value: unknown): boolean {
+  return value !== null &&
+    value !== undefined &&
+    (typeof value === 'number' || String(value).trim() !== '');
+}
+
+function nodeMatchesMapLocationFilter(node: any, locationFilter: MapLocationFilter): boolean {
+  if ('field' in locationFilter) {
+    return hasMapLocationValue(node?.[locationFilter.field]);
+  }
+
+  return hasMapLocationValue(node?.[locationFilter.latitudeField]) &&
+    hasMapLocationValue(node?.[locationFilter.longitudeField]);
+}
+
 export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
   return cy.window().then((win: unknown) => {
     const w = win as WinWithMT;
@@ -1112,6 +1136,64 @@ export function assertMapRenderedCounts(expected: {
           .to.not.include(nodeId);
       });
     }
+  });
+}
+
+export function assertMapMatchesOracleSnapshot(
+  snapshot: OracleSnapshot,
+  locationFilter: MapLocationFilter,
+): void {
+  assertMetricCount('#numberOfNodes', snapshot.visibleNodes);
+  assertMetricCount('#numberOfVisibleLinks', snapshot.visibleLinks);
+  assertMetricCount('#numberOfDisjointComponents', snapshot.components);
+  assertMetricCount('#numberOfSingletonNodes', snapshot.singletons);
+
+  cy.window({ timeout: 20000 }).should((win: unknown) => {
+    const w = win as WinWithMT;
+    const mapView = w.commonService.visuals.gisMap;
+    const sessionNodes = w.commonService.session.data.nodes || [];
+
+    expect(mapView, 'gisMap visual').to.exist;
+    expect(mapView.layers?.featureGroup, 'map featureGroup').to.exist;
+    expect(mapView.layers?.links, 'map links layer').to.exist;
+
+    const nodeById = new Map<string, any>(sessionNodes.map((node: any) => [
+      String(node?._id ?? node?.id ?? node?.ID),
+      node,
+    ]));
+
+    const expectedMapNodeIds = snapshot.visibleNodeIds
+      .filter((nodeId) => nodeMatchesMapLocationFilter(nodeById.get(String(nodeId)), locationFilter))
+      .sort();
+
+    const expectedMapNodeIdSet = new Set(expectedMapNodeIds);
+
+    const expectedMapLinkIds = Object.values(snapshot.linkDebug)
+      .filter((link) => link.visible &&
+        expectedMapNodeIdSet.has(link.source) &&
+        expectedMapNodeIdSet.has(link.target))
+      .map((link) => link.id)
+      .sort();
+
+    const renderedNodeIds = mapView.layers.featureGroup.getLayers()
+      .map((layer: any) => String(layer?.data?._id || ''))
+      .filter(Boolean)
+      .sort();
+
+    const renderedLinkIds = Array.from(new Set(mapView.layers.links.getLayers()
+      .map((layer: any) => {
+        const data = layer?.data;
+        if (!data?.source || !data?.target) return null;
+
+        const source = String(data.source);
+        const target = String(data.target);
+        return source < target ? `${source}-${target}` : `${target}-${source}`;
+      })
+      .filter(Boolean)))
+      .sort();
+
+    expect(renderedNodeIds, 'rendered map node ids').to.deep.equal(expectedMapNodeIds);
+    expect(renderedLinkIds, 'rendered map logical link ids').to.deep.equal(expectedMapLinkIds);
   });
 }
 
