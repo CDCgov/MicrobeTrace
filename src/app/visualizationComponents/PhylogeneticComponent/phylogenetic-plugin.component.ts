@@ -65,6 +65,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   maxNodeWidth: number = 15;
   nodeMid: number = 1;
   debugMode = false;
+  hasNewickFile: boolean;
 
 
 
@@ -111,7 +112,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedBranchSizeVariable = 3;
   SelectedBranchLabelSizeVariable: 12 = 12;
   SelectedLinkColorVariable = this.settings['link-color'];
-  SelectedBranchLabelShowVariable: false = false;
+  SelectedBranchLabelShowVariable: boolean = false;
   SelectedBranchDistanceShowVariable = !(this.settings['tree-branch-distances-hide'] ?? true); // inverse of its widget; defaults to false
   SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size'] ?? 12;
   //SelectedBranchTooltipShowVariable = false;
@@ -145,10 +146,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   ShowAdvancedExport = true;
 
-  PhylogeneticTreeExportDialogSettings: DialogSettings = new DialogSettings('#phylotree-settings-pane', false);
+  PhylogeneticTreeDialogSettings: DialogSettings = new DialogSettings('#phylotree-settings-pane', false);
 
   //ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
   tree: TidyTree = null;
+  originalTreeData: any = null;
+  hasTreeBeenModifiedFromOriginal = false;
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
@@ -188,6 +191,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       const tree = this.buildTree(newickString);
       this.tree = tree;
       this.commonService.visuals.phylogenetic.tree = tree;
+      this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
+      this.hasTreeBeenModifiedFromOriginal = false;
       //this.mergeNodeData();
       this.hideTooltip();
       this.styleTree();
@@ -199,11 +204,14 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         const tree = this.buildTree(newickString);
         this.tree = tree;
         this.commonService.visuals.phylogenetic.tree = tree;
+        this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
+        this.hasTreeBeenModifiedFromOriginal = false;
         //this.mergeNodeData();
         this.hideTooltip();
         this.styleTree();
       //});
     }
+    this.hasNewickFile = this.commonService.session.files.some(file => file.format == 'newick');
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 
@@ -490,7 +498,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   openSettings() {
-    this.visuals.phylogenetic.PhylogeneticTreeExportDialogSettings.setVisibility(true);
+    this.visuals.phylogenetic.PhylogeneticTreeDialogSettings.setVisibility(true);
     // this.context.twoD.ShowStatistics = !this.context.twoD.Show2DSettingsPane;
   }
 
@@ -615,11 +623,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-vertical-stretch'] = this.SelectedVerticalStretchVariable
   }
 
-  // onBranchLabelShowChange(event) {
-  //   this.SelectedBranchLabelShowVariable = event;
-  //   this.tree.setBranchLabels(event);
-  //   this.styleTree();
-  // }
+  onBranchLabelShowChange(event) {
+    this.SelectedBranchLabelShowVariable = event;
+    this.tree.setBranchLabels(event);
+    this.styleTree();
+  }
 
   onBranchLabelSizeChange(event) {
     this.SelectedBranchLabelSizeVariable = event;
@@ -649,6 +657,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onBranchNodeSizeChange(event) {
     this.SelectedBranchNodeSizeVariable = event;
     this.styleTree();
+  }
+
+  onBranchNodeLabelChange(event) {
+    this.SelectedBranchLabelShowVariable
   }
 
   // onBranchTooltipShowChange(event) {
@@ -774,6 +786,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.event.preventDefault();
     this.hideTooltip();
     const tree = this.tree;
+    const clickedNode = d?.[0];
+    const isBranchNode = !!(clickedNode && clickedNode.children && clickedNode.children.length > 0);
     let [x, y] = this.getRelativeMousePosition();
     const leftVal = this.getContextLeftVal(x);
     const topVal = this.getContextTopVal(y);
@@ -786,22 +800,65 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       .style('top', `${topVal}px`);
     d3.select('#reroot').on('click', c => {
       tree.setData(d[0].data.reroot());
+      this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
+      this.cdref.detectChanges();
     });
     d3.select('#rotate').on('click', c => {
       tree.setData(d[0].data.rotate().getRoot());
+      this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
+      this.cdref.detectChanges();
     });
     d3.select('#flip').on('click', c => {
       tree.setData(d[0].data.flip().getRoot());
+      this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
+      this.cdref.detectChanges();
     });
+    d3.select('#view-subtree')
+      .style('display', isBranchNode ? 'block' : 'none')
+      .on('click', c => {
+        if (!isBranchNode) return;
+        this.viewSubtree(d);
+        this.hideContextMenu();
+      });
     d3.select('#phylocanvas svg').on('click', c => {
       this.hideContextMenu();
     });
+  }
+
+  viewSubtree = (d) => {
+    if (!this.tree) return;
+
+    const clickedNode = d?.[0];
+    const isBranchNode = !!(clickedNode && clickedNode.children && clickedNode.children.length > 0);
+    if (!isBranchNode) return;
+
+    const subtreeData = clickedNode.data?.clone ? clickedNode.data.clone() : clickedNode.data;
+    // Normalize subtree root so weighted ruler starts at 0 for subtree view.
+    if (subtreeData) {
+      subtreeData.length = 0;
+    }
+    this.tree.setData(subtreeData);
+    this.hasTreeBeenModifiedFromOriginal = true;
+    this.styleTree();
+    this.openCenter();
+    this.cdref.detectChanges();
+  }
+
+  restoreFullTree = () => {
+    if (!this.tree || !this.originalTreeData) return;
+
+    const fullTreeData = this.originalTreeData.clone ? this.originalTreeData.clone() : this.originalTreeData;
+    this.tree.setData(fullTreeData);
+    this.hasTreeBeenModifiedFromOriginal = false;
+    this.styleTree();
+    this.openCenter();
+    this.cdref.detectChanges();
   }
 
   hideContextMenu = () => {

@@ -2257,7 +2257,8 @@ align(params): Promise<any> {
         //if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
         let hasDistances = this.session.data.links.some(l => l.hasDistance === true && l.distance > 0)
-        if (hasDistances && this.session.data.links.length <= 2500) {
+        let hasNewickString = typeof this.session.data.newickString === 'string' && this.session.data.newickString.trim().length > 0;
+        if (hasDistances && this.session.data.links.length <= 2500 && !hasNewickString) {
             console.log('run ham computeTree');
             const newickString = await this.computeTree();
             this.session.data.newickString = newickString;

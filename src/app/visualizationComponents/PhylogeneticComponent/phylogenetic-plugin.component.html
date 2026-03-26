@@ -9,6 +9,9 @@
     <span style="overflow: visible; position: relative; width: 110px;">
       <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
     </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Restore Full Tree" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="restoreFullTree()" [style.opacity]="hasTreeBeenModifiedFromOriginal ? 1 : 0.45" [style.pointer-events]="hasTreeBeenModifiedFromOriginal ? 'auto' : 'none'"><i class="pi pi-refresh primary"></i></a>
+    </span>
   </div>
   <div class="m-portlet__body" style="height: 100%;">
     <br />
@@ -20,9 +23,9 @@
 
   @if (viewActive) {
     <p-dialog id="phylotree-settings-pane"
-      [positionLeft]="PhylogeneticTreeExportDialogSettings.left"
-      [positionTop]="PhylogeneticTreeExportDialogSettings.top"
-      [(visible)]="PhylogeneticTreeExportDialogSettings.isVisible"
+      [positionLeft]="PhylogeneticTreeDialogSettings.left"
+      [positionTop]="PhylogeneticTreeDialogSettings.top"
+      [(visible)]="PhylogeneticTreeDialogSettings.isVisible"
       [contentStyle]="{'overflow': 'visible', 'width': '450px'}"
       header="Phylogenetic Tree Settings" appendTo="body"
       >
@@ -178,7 +181,7 @@
 <tab heading="{{'Branches' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
     <p-accordion-panel value="tree-branchlabels" style="color:#495057">
-      <p-accordion-header>Branch Labels</p-accordion-header>
+      <p-accordion-header>Branch Labels and Size</p-accordion-header>
       <p-accordion-content><div #branchcontrolslabels>
         <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
           <div class="col-5"><label for="branch-distance-visibility">Distance Labels</label></div>
@@ -193,10 +196,14 @@
           </div>
         }
       </div>
+      <div class="form-group row link-size-row" title="How big should branches be?">
+        <div class="col-5"><label for="branch-size">Branch Size</label></div>
+        <div class="col-7"><input type="range" class="custom-range" id="branch-size" min="1" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)"></div>
+      </div>
     </p-accordion-content>
   </p-accordion-panel>
   <p-accordion-panel value="tree-branchsize" style="color:#495057">
-    <p-accordion-header>Branch Size</p-accordion-header>
+    <p-accordion-header>Branch Nodes</p-accordion-header>
     <p-accordion-content><div #branchcontrollables>
       <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">
         <div class="col-5"><label for="branch-node-visibility">Branch Nodes</label></div>
@@ -210,13 +217,23 @@
           <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)"></div>
         </div>
       }
-      <div class="form-group row link-size-row" title="How big should branches be?">
-        <div class="col-5"><label for="branch-size">Branch Size</label></div>
-        <div class="col-7"><input type="range" class="custom-range" id="branch-size" min="1" step="1" max="10" [(ngModel)]="SelectedBranchSizeVariable" (ngModelChange)="onBranchSizeChange($event)"></div>
+      @if (hasNewickFile) {
+      <div class="form-group row" title="Show branch Nodes labels?">
+        <div class="col-5"><label for="branch-node-visibility2">Branch Nodes Labels</label></div>
+        <div class="col-7">
+          <p-selectButton id="branch-node-visibility2" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchLabelShowVariable" (ngModelChange)="onBranchLabelShowChange($event)"></p-selectButton>
+        </div>
       </div>
+      }
+      @if (SelectedBranchLabelShowVariable && hasNewickFile) {
+        <div class="form-group row" title="How big should branch nodes labels be?">
+          <div class="col-5"><label for="branch-node-size">Branch Node Label Size</label></div>
+          <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="16" [(ngModel)]="SelectedBranchLabelSizeVariable" (ngModelChange)="onBranchLabelSizeChange($event)"></div>
+        </div>
+      }
     </div>
   </p-accordion-content>
-</p-accordion-panel>
+  </p-accordion-panel> 
 </p-accordion>
 </tab>
 </tabset>
@@ -227,6 +244,7 @@
   <div id="reroot" class="dropdown-item">Set As Root</div>
   <div id="rotate" class="dropdown-item" title="Rotate by reversing the order of children of the current branch">Rotate</div>
   <div id="flip" class="dropdown-item" title="Flip by reversing the order of all of the decendants of the branch">Flip</div>
+  <div id="view-subtree" class="dropdown-item" title="Show only this branch and its descendants">View Subtree</div>
 </div>
 @if (viewActive) {
   <p-dialog id="network-export-modal" [(visible)]="ShowPhylogeneticExportPane" header="Export Phylogenetic Tree" class="dialogSize" (onHide)="onCloseExport()" appendTo="body">

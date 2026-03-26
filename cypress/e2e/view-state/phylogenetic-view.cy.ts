@@ -10,9 +10,41 @@ describe('Phylogenetic Tree View', () => {
     treeContainer: '#phylocanvas',
     treeSvg: '#phylocanvas svg', // Target the SVG element directly
     settingsBtn: '#tool-btn-container-phylo a[title="Settings"]',
+    restoreTreeBtn: '#tool-btn-container-phylo a[title="Restore Full Tree"]',
     settingsPane: '#phylotree-settings-pane', // Used only to check for non-visibility
     layoutDropdown: '#tree-layout',
     leafLabelsToggle: '#leaf-label-visibility'
+  };
+
+  const captureInitialTreeState = () => {
+    cy.window().then((win: any) => {
+      cy.wrap(win.commonService.visuals.phylogenetic.tree.data.toNewick(false)).as('initialTreeNewick');
+      cy.wrap(win.commonService.visuals.phylogenetic.tree.data.getLeaves().length).as('initialLeafCount');
+    });
+  };
+
+  const assertRestoreButtonState = (isEnabled: boolean) => {
+    cy.window()
+      .its('commonService.visuals.phylogenetic.hasTreeBeenModifiedFromOriginal')
+      .should(isEnabled ? 'be.true' : 'be.false');
+    cy.get(selectors.restoreTreeBtn)
+      .should('have.css', 'pointer-events', isEnabled ? 'auto' : 'none');
+  };
+
+  const assertTreeMatchesInitialNewick = () => {
+    cy.get('@initialTreeNewick').then(initialTreeNewick => {
+      cy.window().then((win: any) => {
+        expect(win.commonService.visuals.phylogenetic.tree.data.toNewick(false)).to.equal(initialTreeNewick);
+      });
+    });
+  };
+
+  const assertTreeDiffersFromInitialNewick = () => {
+    cy.get('@initialTreeNewick').then(initialTreeNewick => {
+      cy.window().then((win: any) => {
+        expect(win.commonService.visuals.phylogenetic.tree.data.toNewick(false)).to.not.equal(initialTreeNewick);
+      });
+    });
   };
 
   /**
@@ -36,7 +68,6 @@ describe('Phylogenetic Tree View', () => {
     cy.get(selectors.treeContainer, { timeout: 15000 }).should('be.visible');
   });
 
-  // probably should move these test at some point
   context('Global Settings', () => {
     it('should update node color to all green nodes', () => {
       cy.openGlobalSettings();
@@ -510,7 +541,7 @@ describe('Phylogenetic Tree View', () => {
 
       // Navigate to the correct settings tab
       cy.get('@dialogContainer').contains('Branches').click();
-      cy.get('@dialogContainer').contains('Branch Size').click();
+      cy.get('@dialogContainer').contains('Branch Nodes').click();
 
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchNodeShowVariable').should('be.false');
       cy.get('@dialogContainer').find('#branch-node-visibility').contains('Show').click();
@@ -522,7 +553,9 @@ describe('Phylogenetic Tree View', () => {
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchNodeSizeVariable').should('equal', 8);
       cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').first().should('have.attr', 'r', '8')
 
-      cy.window().its('commonService.visuals.phylogenetic.SelectedBranchSizeVariable').should('equal', 3);
+      cy.get('@dialogContainer').contains('Branch Nodes').click();
+      cy.get('@dialogContainer').contains('Branch Labels and Size').click();
+      cy.window().its('commonService.visuals.phylogenetic.SelectedBranchSizeVariable').should('equal', 3); // Error here
       cy.get('@dialogContainer').find('#branch-size').invoke('val', 7).trigger('input').trigger('change');
       cy.window().its('commonService.visuals.phylogenetic.SelectedBranchSizeVariable').should('equal', 7);
       cy.get(selectors.treeSvg).find('g.tidytree-link path').first().should('have.css', 'stroke-width', '7px')
@@ -530,26 +563,74 @@ describe('Phylogenetic Tree View', () => {
     
     it('should root tree on a branch', () => { 
       cy.closeSettingsPane('Phylogenetic Tree Settings');
+      captureInitialTreeState();
+      assertRestoreButtonState(false);
       cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 401.87745098039215 V 382.98039215686276 H 973.9957166831973')
       cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
       cy.get('#reroot').click()
       cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(37).should('have.attr', 'd', 'M0 78.95263352736929 V 10.07843137254902 H 112.03413679966168')
+      assertTreeDiffersFromInitialNewick();
+      assertRestoreButtonState(true);
+      cy.get(selectors.restoreTreeBtn).click();
+      assertTreeMatchesInitialNewick();
+      assertRestoreButtonState(false);
     })
 
     it('should rotate tree at a branch', () => { 
       cy.closeSettingsPane('Phylogenetic Tree Settings');
+      captureInitialTreeState();
+      assertRestoreButtonState(false);
       cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 401.87745098039215 V 382.98039215686276 H 973.9957166831973')
       cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
       cy.get('#rotate').click()
       cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 416.9950980392157 V 433.37254901960785 H 973.9957166831973')
+      assertTreeDiffersFromInitialNewick();
+      assertRestoreButtonState(true);
+      cy.get(selectors.restoreTreeBtn).click();
+      assertTreeMatchesInitialNewick();
+      assertRestoreButtonState(false);
     })
 
     it('should flip tree at a branch', () => { 
       cy.closeSettingsPane('Phylogenetic Tree Settings');
+      captureInitialTreeState();
+      assertRestoreButtonState(false);
       cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 401.87745098039215 V 382.98039215686276 H 973.9957166831973')
       cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
       cy.get('#flip').click()
       cy.get(selectors.treeSvg).find('g.tidytree-link path').eq(42).should('have.attr', 'd', 'M877.4060254027639 414.47549019607845 V 433.37254901960785 H 973.9957166831973')
+      assertTreeDiffersFromInitialNewick();
+      assertRestoreButtonState(true);
+      cy.get(selectors.restoreTreeBtn).click();
+      assertTreeMatchesInitialNewick();
+      assertRestoreButtonState(false);
+    })
+
+    it('should create a subtree and then revert back', () => {
+      cy.closeSettingsPane('Phylogenetic Tree Settings');
+      captureInitialTreeState();
+      assertRestoreButtonState(false);
+
+      cy.get(selectors.treeSvg).find('g.tidytree-node-internal circle').eq(21).trigger('contextmenu');
+      cy.get('#view-subtree').should('be.visible').click();
+
+      assertTreeDiffersFromInitialNewick();
+      cy.get('@initialLeafCount').then(initialLeafCount => {
+        cy.window().then((win: any) => {
+          const subtreeLeafCount = win.commonService.visuals.phylogenetic.tree.data.getLeaves().length;
+          expect(subtreeLeafCount).to.be.lessThan(initialLeafCount as number);
+        });
+      });
+      assertRestoreButtonState(true);
+
+      cy.get(selectors.restoreTreeBtn).click();
+      assertTreeMatchesInitialNewick();
+      cy.get('@initialLeafCount').then(initialLeafCount => {
+        cy.window().then((win: any) => {
+          expect(win.commonService.visuals.phylogenetic.tree.data.getLeaves().length).to.equal(initialLeafCount);
+        });
+      });
+      assertRestoreButtonState(false);
     })
   });
 });
