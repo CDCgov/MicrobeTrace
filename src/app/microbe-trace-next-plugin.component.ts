@@ -194,7 +194,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorLinksByVariable: string = 'origin';
 
     SelectedTimelineVariable: string = 'None';
+    timelineSpeedOptions: number[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
     timelineSpeed: number = 200;
+    timelineSpeedIndex: number = this.timelineSpeedOptions.indexOf(this.timelineSpeed);
 
 
     LinkColorTableTypes: any = [
@@ -2024,6 +2026,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.commonService.session.timeline = setInterval(this.step, this.timelineSpeed, this);
             }
 
+    }
+
+    public onTimelineSpeedIndexChanged(index: number): void {
+        const parsedIndex = Number(index);
+        const safeIndex = Number.isFinite(parsedIndex)
+            ? Math.max(0, Math.min(this.timelineSpeedOptions.length - 1, parsedIndex))
+            : this.timelineSpeedIndex;
+        this.timelineSpeedIndex = safeIndex;
+        this.timelineSpeed = this.timelineSpeedOptions[safeIndex];
     }
 
     update(h) {

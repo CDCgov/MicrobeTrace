@@ -460,7 +460,7 @@
                   </div>
                   <div class="form-group row " title="How much time between ticks of the timeline (ms)?">
                     <div class="col-6"><label>Timeline Speed: {{ timelineSpeed }} ms</label></div>
-                    <div class="col-6"><input type="range" class="custom-range" min="200" step="100" max="1000" [(ngModel)]="timelineSpeed"></div>
+                    <div class="col-6"><input type="range" class="custom-range" min="0" step="1" [max]="timelineSpeedOptions.length - 1" [ngModel]="timelineSpeedIndex" (ngModelChange)="onTimelineSpeedIndexChanged($event)"></div>
                   </div>
                   <div>Timeline works on 2D Network, Map, and Bubble Views.</div>
                 </div>

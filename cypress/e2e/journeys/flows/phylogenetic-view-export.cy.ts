@@ -172,13 +172,6 @@ describe('Journey Flow - Phylogenetic Tree Export (Newick file)', () => {
 
       cy.window()
         .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
-        .should('be.true');
-      cy.get(SELECTORS.treeSvg).find('g.tidytree-node-leaf text').first().should('be.visible');
-
-      cy.get('@dialog').find('#leaf-label-visibility').contains('Hide').click();
-
-      cy.window()
-        .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
         .should('be.false');
       cy.get(SELECTORS.treeSvg).find('g.tidytree-node-leaf text').first().should('not.be.visible');
 
@@ -187,6 +180,13 @@ describe('Journey Flow - Phylogenetic Tree Export (Newick file)', () => {
       cy.window()
         .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
         .should('be.true');
+
+      cy.get('@dialog').find('#leaf-label-visibility').contains('Hide').click();
+
+      cy.window()
+        .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
+        .should('be.false');
+      cy.get(SELECTORS.treeSvg).find('g.tidytree-node-leaf text').first().should('not.be.visible');
     });
   });
 });

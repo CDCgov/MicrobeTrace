@@ -94,7 +94,7 @@
             <div class="col-4 padding-right-5"><label>Label Size</label></div>
             <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="28" [(ngModel)]="labelSize" (ngModelChange)="onLabelSizeChange()"></div>
           </div>
-          <div class="form-group row" title="Show data noncumulatively or cumulatively.">
+        <div class="form-group row" title="Show data noncumulatively or cumulatively.">
             <div class="col-4">Epi Curve</div>
             <div class="col-8">
               <p-selectButton [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
@@ -115,7 +115,7 @@
               <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="28" [(ngModel)]="legendLabelSize" (ngModelChange)="onLegendLabelSizeChange()"></div>
             </div>
           }
-        </div>
+      </div>
       </div>
     </div>
   </p-dialog>

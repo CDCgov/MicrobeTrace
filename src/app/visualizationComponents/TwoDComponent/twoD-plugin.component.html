@@ -182,7 +182,7 @@
                       <div class="form-group row" title="What should the width of the node border be?">
                         <div class="col-4"><label for="node-radius-variable">Border Width</label></div>
                         <div class="col-8">
-                          <input type="number" class="form-control form-control-sm" id="node-border-width" min="0.5" step="0.5" value="2" [(ngModel)]="nodeBorderWidth" (ngModelChange)="onNodeBorderWidthChange($event)">
+                          <input type="number" class="form-control form-control-sm" id="node-border-width" min="0" step="0.1" value="2" [(ngModel)]="nodeBorderWidth" (ngModelChange)="onNodeBorderWidthChange($event)">
                         </div>
                       </div>
                     </div>

@@ -4655,7 +4655,8 @@ private async _partialUpdate() {
      * @returns The border width.
      */
     getNodeBorderWidth(node: any): number {
-        return this.widgets['node-border-width'] || 2; // Default to 2 if not set
+        const borderWidth = Number(this.widgets['node-border-width']);
+        return Number.isFinite(borderWidth) ? borderWidth : 2;
     }
 
 
