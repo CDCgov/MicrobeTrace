@@ -513,6 +513,101 @@ describe('2D Network - Settings Pane Interactions', () => {
   });
 });
 
+describe('2D Network - Context Menu Interactions', () => {
+  const openNodeContextMenu = (nodeId: string) => {
+    getCy().then((cyInstance: Core) => {
+      const node = cyInstance.getElementById(nodeId);
+      
+      expect(node.empty(), `node ${nodeId} should exist`).to.be.false;
+      const { x, y } = node.position()
+
+      node.emit('cxttap', {
+        target: node,
+        originalEvent:  {
+          clientX: x,
+          clientY: y,
+          preventDefault: () => undefined,
+          stopPropagation: () => undefined
+        }
+      });
+    });
+
+    cy.get('#context-menu').should('be.visible');
+  };
+
+  beforeEach(() => {
+    visitAppAndAcceptEula({ skipDemoSession: false });
+    ensureTwoDNetworkView();
+    cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
+  });
+
+  it('should open a context menu with node actions on right click', () => {
+    openNodeContextMenu('MZ696569');
+
+    cy.get('#copyID').should('be.visible').and('contain.text', 'Copy ID');
+    cy.get('#copySeq').should('be.visible').and('contain.text', 'Copy Sequence');
+    cy.get('#viewAttributes').should('be.visible').and('contain.text', 'View Attributes');
+  });
+
+  it('should copy node id from the context menu', () => {
+    let expectedClipboardId = 'MZ696569';
+
+    cy.window().then((win: any) => {
+      cy.spy(win.commonService.visuals.twoD.clipboard, 'copy').as('clipboardCopy');
+    });
+
+    openNodeContextMenu(expectedClipboardId);
+    cy.get('#copyID')
+      .should('have.attr', 'data-clipboard-text', expectedClipboardId)
+      .click();
+
+    cy.get('@clipboardCopy').should('have.been.calledWith', expectedClipboardId);
+    cy.get('#context-menu').should('not.be.visible');
+  });
+
+  it('should copy node sequence from the context menu', () => {
+    const nodeID = 'MZ696569';
+
+    cy.window().then((win: any) => {
+      const node = win.commonService.getVisibleNodes().find((n: any) => n.id === nodeID);
+      if (!node) {
+        throw new Error(`Could not find visible node with id ${nodeID}`);
+      }
+      const expectedSequence = node.seq;
+      expect(expectedSequence, `sequence for node ${nodeID}`).to.be.a('string').and.not.be.empty;
+
+      cy.spy(win.commonService.visuals.twoD.clipboard, 'copy').as('clipboardCopy');
+
+      openNodeContextMenu(nodeID);
+      cy.get('#copySeq')
+        .should('not.be.disabled')
+        .should('have.attr', 'data-clipboard-text', expectedSequence)
+        .click();
+
+      cy.get('@clipboardCopy').should('have.been.calledWith', expectedSequence);
+      cy.get('#context-menu').should('not.be.visible');
+    });
+  });
+
+  it('should open node attributes from the context menu', () => {
+    let nodeID = 'MZ696569';
+    openNodeContextMenu(nodeID);
+    cy.get('#viewAttributes').click();
+
+
+    cy.window().its('commonService.visuals.twoD.ShowNetworkAttributes').should('be.true');
+    cy.window().its('commonService.visuals.twoD.ContextSelectedNodeAttributes').should((attrs: any[]) => {
+      expect(attrs.length).to.be.greaterThan(0);
+      const attrNames = attrs.map(item => item.attribute);
+      expect(attrNames).to.not.include('_id');
+      expect(attrNames).to.not.include('seq');
+    });
+    cy.contains('.p-dialog-title', 'Node Attributes').should('be.visible');
+    cy.get('#network-attribute-table tr').its('length').should('be.greaterThan', 0);
+    cy.get('#context-menu').should('not.be.visible');
+  });
+});
+
 
   // Test suite for mouse interactions
 

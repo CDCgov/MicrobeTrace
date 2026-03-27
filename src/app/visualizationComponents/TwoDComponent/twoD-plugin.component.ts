@@ -689,7 +689,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (node.data('isParent')) {
                 return;
             }
-            const originalEvent = evt.originalEvent as MouseEvent;
+
+            let originalEvent;
+            if (evt.originalEvent == undefined) {
+                let {x, y} = node.renderedPosition();
+                originalEvent = new MouseEvent('cxttap', {clientX: x, clientY: y})
+            } else {
+                originalEvent= evt.originalEvent as MouseEvent;
+            } 
+
             this.zone.run(() => {
                 this.showContextMenu(node.data(), originalEvent, node);
             });

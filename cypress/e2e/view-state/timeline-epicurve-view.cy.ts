@@ -48,6 +48,70 @@ describe('Epi Curve / Timeline View', () => {
         cy.closeSettingsPane('Epi Curve Settings');
       })
 
+      it('updates Label Size and increases axis label font size', () => {
+        const updatedLabelSize = 22;
+        let initialLabelSize = 0;
+
+        cy.get('#epiCurveSVG text.x.label')
+          .should('exist')
+          .invoke('attr', 'font-size')
+          .then((fontSizeAttr) => {
+            initialLabelSize = Number(fontSizeAttr || 0);
+            expect(initialLabelSize).to.be.greaterThan(0);
+          });
+
+        updateRangeSetting('Label Size', updatedLabelSize);
+
+        cy.window()
+          .its('commonService.visuals.epiCurve.labelSize')
+          .should('equal', updatedLabelSize);
+
+        cy.get('#epiCurveSVG text.x.label')
+          .should(($xLabel) => {
+            const nextLabelSize = Number($xLabel.attr('font-size') || 0);
+            expect(nextLabelSize).to.equal(updatedLabelSize);
+            expect(nextLabelSize).to.be.greaterThan(initialLabelSize);
+          });
+
+        cy.get('#epiCurveSVG text.y.label')
+          .should(($yLabel) => {
+            const nextLabelSize = Number($yLabel.attr('font-size') || 0);
+            expect(nextLabelSize).to.equal(updatedLabelSize);
+          });
+
+        cy.closeSettingsPane('Epi Curve Settings');
+      })
+
+      it('updates Legend Size and increases legend text font size', () => {
+        const updatedLegendSize = 24;
+        let initialLegendTextSize = 0;
+
+        selectLegendPosition('Left');
+        cy.get('#epiCurveSVG .epiCurve-epi-curve text')
+          .first()
+          .should('exist')
+          .then(($legendText) => {
+            initialLegendTextSize = parseFloat($legendText.css('font-size'));
+            expect(initialLegendTextSize).to.be.greaterThan(0);
+          });
+
+        updateRangeSetting('Legend Size', updatedLegendSize);
+
+        cy.window()
+          .its('commonService.visuals.epiCurve.legendLabelSize')
+          .should('equal', updatedLegendSize);
+
+        cy.get('#epiCurveSVG .epiCurve-epi-curve text')
+          .first()
+          .should(($legendText) => {
+            const nextLegendTextSize = parseFloat($legendText.css('font-size'));
+            expect(nextLegendTextSize).to.equal(updatedLegendSize);
+            expect(nextLegendTextSize).to.be.greaterThan(initialLegendTextSize);
+          });
+
+        cy.closeSettingsPane('Epi Curve Settings');
+      })
+
       it("Tests Cumulative Toggle, Single", () => {
         selectBinSize('Week');
 
@@ -376,6 +440,21 @@ describe('Epi Curve / Timeline View', () => {
       cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
         .eq(rectToCheck)
         .should('have.attr', 'fill', color);
+    }
+
+    let updateRangeSetting = (settingLabel: 'Label Size' | 'Legend Size', size: number) => {
+      cy.contains('.p-dialog-title', 'Epi Curve Settings')
+        .parents('.p-dialog')
+        .within(() => {
+          cy.contains('label', settingLabel)
+            .parents('.form-group.row')
+            .first()
+            .find('input[type="range"]')
+            .invoke('val', size)
+            .trigger('input')
+            .trigger('change')
+            .should('have.value', `${size}`);
+        });
     }
 
     let selectBinSize = (binSize: 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year') => {
