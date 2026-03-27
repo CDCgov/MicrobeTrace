@@ -6,7 +6,7 @@ This repo uses Cypress for E2E tests. UI is Angular + PrimeNG. Only the 2D Netwo
 
 * Maintained ingestion specs live in `cypress/e2e/ingestion/`
 * Maintained uploaded-data journeys live in `cypress/e2e/journeys/flows/`
-* Maintained 2D view-state specs live in `cypress/e2e/view-state/`
+* Maintained view-state specs (all views) live in `cypress/e2e/view-state/`
 * Quarantined legacy specs live in `cypress/e2e/legacy-disabled/`
 * Shared commands live in `cypress/support/commands.ts`
 * Shared selectors live in `cypress/support/selectors.ts`
@@ -16,12 +16,14 @@ This repo uses Cypress for E2E tests. UI is Angular + PrimeNG. Only the 2D Netwo
 
 * View-level tests
 
-  * Keep active 2D view-mechanics tests in `cypress/e2e/view-state/`.
+  * Keep active view-mechanics tests for all views in `cypress/e2e/view-state/` when coverage is dataset-independent.
+  * Prefer default/sample dataset startup (`Continue with Sample Dataset`) or intentionally seeded state for view-state specs.
   * These should validate: view opens, view settings affect view output, layout and interaction mechanics work.
 * Cross-view user journeys
 
   * Put high-value uploaded-data end-to-end flows in `cypress/e2e/journeys/*`.
   * Example journey: app load -> upload files -> launch -> open a view -> change settings -> verify UI and internal state.
+  * Do not add a journey that only duplicates existing view-state mechanics with the same expected outcome. Add journey coverage only when uploaded-data paths can change behavior or provide distinct value.
 * Ingestion-only tests
 
   * Put file upload, remapping, and file-settings coverage in `cypress/e2e/ingestion/`.

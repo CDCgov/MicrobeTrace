@@ -14,6 +14,7 @@ This is the maintained Cypress structure for MicrobeTrace. It exists to keep upl
   - It represents a realistic uploaded-data workflow, usually ending in assertions against the rendered 2D network.
 - View-state flow:
   - A spec that checks interaction mechanics of a specific rendered view without needing lots of fixture combinations.
+  - It is typically run with the default/sample dataset or intentionally seeded state because the targeted behavior is expected to be dataset-independent.
   - It represents UI mechanics such as dragging, relayout, highlighting, labels, and tooltips, not the broader “did the right network get built from these files?” question.
 - Smoke spec:
   - A maintained spec whose main job is to stay green on the currently shipped product and catch regressions in the main user path.
@@ -72,6 +73,12 @@ Use this layer for:
 - styling behavior
 - grouping behavior
 - cross-feature combinations
+- uploaded-data-specific behavior where file origin, merge semantics, or prelaunch configuration can change outcomes
+
+Avoid redundant duplication:
+
+- Do not add a journey that only repeats already-maintained view-state mechanics with the same expected outcome.
+- Add journey counterparts when the uploaded-data path can produce a different outcome or adds distinct value.
 
 Important detail:
 
@@ -81,19 +88,18 @@ Important detail:
 ### 3. View-State Flows
 
 - Path: `cypress/e2e/view-state/`
-- Purpose: fast checks for 2D interaction mechanics that do not need uploaded-data permutations
-- Data source: sample dataset or intentionally seeded state
+- Purpose: fast checks for interaction mechanics across all views that do not need uploaded-data permutations
+- Data source: default/sample dataset or intentionally seeded state
 - Assertion style:
-  - rendered Cytoscape state
+  - rendered view state (Cytoscape, Leaflet, SVG, or DOM depending on view)
   - visible control behavior
   - backing model checks only when the view behavior depends on them
 
 Use this layer for:
 
-- pinning and relayout mechanics
-- gridlines and neighbor highlighting
-- label, tooltip, and layout control mechanics
-- drag interactions
+- view open/close and per-view settings mechanics that should be stable regardless of upload path
+- layout, drag, tooltip, and toggle behavior for the specific view under test
+- per-view rendering mechanics that do not require uploaded-data permutations
 
 ### 4. Legacy-Disabled Specs
 
@@ -270,6 +276,7 @@ The dedicated oracle contract spec covers:
 - Use `commonService` as a cross-check, not the primary source of truth, for user-visible 2D behavior.
 - Prelaunch session mutation is allowed only as a narrow fallback inside shared helpers when the UI does not fully persist launch settings yet.
 - For filtering behavior that changes visible node or link membership, prefer oracle-backed assertions over hand-maintained expected counts.
+- Avoid redundant duplicate coverage across `view-state` and `journeys/flows` when expected outcomes are the same. Duplicate only when the uploaded-data path is expected to produce a different or higher-risk outcome.
 - In smoke specs, keep `observed` expectations only where a known product deviation still exists and the smoke suite must remain green.
 - In contract specs, prefer `intended` behavior and exact membership assertions.
 - When a maintained journey exposes a product bug, record it in `docs/2d-network-cypress-bug-log.csv` with the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
@@ -318,16 +325,17 @@ Local default equivalents:
 
 ## Migration Rules
 
-When adding new 2D coverage:
+When adding new coverage:
 
 1. Put uploaded-data behavior in `journeys/flows`.
-2. Put pure control mechanics in `view-state`.
-3. For filtering behavior that changes visible node or link membership, add an oracle manifest and assert exact IDs plus counts unless the behavior is explicitly outside the oracle scope.
-4. Keep `cypress/e2e/journeys/datasets/` as the only fixture registry; do not create a separate oracle fixture registry.
-5. Add or update `data-testid` hooks before leaning on brittle text selectors.
-6. Update:
+2. Put pure view mechanics that are dataset-independent in `view-state` (default/sample dataset or intentionally seeded state).
+3. Do not duplicate existing maintained `view-state` coverage in `journeys/flows` unless the uploaded-data path is expected to produce a different outcome.
+4. For filtering behavior that changes visible node or link membership, add an oracle manifest and assert exact IDs plus counts unless the behavior is explicitly outside the oracle scope.
+5. Keep `cypress/e2e/journeys/datasets/` as the only fixture registry; do not create a separate oracle fixture registry.
+6. Add or update `data-testid` hooks before leaning on brittle text selectors.
+7. Update:
    - `docs/2d-network-cypress-checklist.md`
    - `docs/2d-network-cypress-qa-tracker.csv`
    - `docs/2d-network-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
-7. If the new behavior belongs in the oracle, keep the oracle implementation UI-independent. Do not import `CommonService`, dialog state, or current rendering helpers into `cypress/oracle/`.
-8. If a legacy spec is being replaced, move it to `legacy-disabled` or delete it if git history is enough and no quarantine value remains.
+8. If the new behavior belongs in the oracle, keep the oracle implementation UI-independent. Do not import `CommonService`, dialog state, or current rendering helpers into `cypress/oracle/`.
+9. If a legacy spec is being replaced, move it to `legacy-disabled` or delete it if git history is enough and no quarantine value remains.
