@@ -14,6 +14,13 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
+import {
+    TWO_D_CUSTOM_NODE_SYMBOL_OPTIONS,
+    getCustomNodeShapeData,
+    isCustomNodeIconShape,
+    normalizeCustomNodeIconShapeKey,
+    resolveCustomNodeIconCytoscapeShape
+} from './twoD-node-icons';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -73,6 +80,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         { key: "star", value: '\u2605', name: ' (Star)' },
         { key: "tag", value: '\u2617', name: ' (Tag)' },
         { key: "vee", value: 'V', name: ' (Vee)' },
+        ...TWO_D_CUSTOM_NODE_SYMBOL_OPTIONS,
     ];
     shapeAggregates: { key: string, count: Number, frequency: Number }[] = [];
     shapeSort: { key: string, assending: boolean} = { key: 'count', assending: true};
@@ -424,6 +432,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             node.label = this.getNodeLabel(node);
             node.nodeSize = Number(this.getNodeSize(node));
             [node.nodeColor, node.bgOpacity] = this.getNodeColor(node);
+            const shapeKey = this.getNodeShape(node);
             return {
                 data: {
                     id: node.id,
@@ -431,7 +440,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     //nodeColor: this.getNodeColor(node), // <-- Added for dynamic node color
                     selectedBorderColor: this.widgets['selected-color'],
                     fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
-                    shape: this.getNodeShape(node),
+                    shape: resolveCustomNodeIconCytoscapeShape(shapeKey),
+                    shapeKey,
+                    ...getCustomNodeShapeData(shapeKey, node.nodeColor),
                     // Include any additional node-specific data properties
                     ...node
                 },
@@ -444,6 +455,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             node.label = this.getNodeLabel(node);
             node.nodeSize = Number(this.getNodeSize(node));
             [node.nodeColor, node.bgOpacity] = this.getNodeColor(node); // <-- Added for dynamic node color
+            const shapeKey = this.getNodeShape(node);
             return {
                 data: {
                     id: node.id,
@@ -454,7 +466,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     borderWidth: this.getNodeBorderWidth(node), // <-- Added for dynamic border width
                     selectedBorderColor: this.widgets['selected-color'],
                     fontSize: this.getNodeFontSize(node), // <-- Added for dynamic label size
-                    shape: this.getNodeShape(node),
+                    shape: resolveCustomNodeIconCytoscapeShape(shapeKey),
+                    shapeKey,
+                    ...getCustomNodeShapeData(shapeKey, node.nodeColor),
                     // Include any additional node-specific data properties
                     ...node
                 },
@@ -532,6 +546,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-opacity': 'data(bgOpacity)',
                 }
             },
+            {
+                selector: 'node[iconBackgroundImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(iconBackgroundImage)',
+                    'background-image-containment': 'over',
+                    'background-fit': 'contain',
+                    'background-clip': 'node',
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    // @ts-ignore
+                    'background-image-opacity': 'data(bgOpacity)',
+                    'background-opacity': 0,
+                    'border-width': 0
+                }
+            },
                 {
                     selector: '.hidden',
                     css: {
@@ -543,6 +574,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node[nodeColor]',
                 css: {
                     'background-color': 'data(nodeColor)'
+                }
+            },
+            {
+                selector: 'node[nodeColor][iconBackgroundImage]',
+                css: {
+                    'background-color': '#ffffff',
+                    // @ts-ignore
+                    'background-opacity': 'data(bgOpacity)'
                 }
             },
             // Apply styles only to nodes with fontSize defined
@@ -607,9 +646,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node:selected',
+                selector: 'node:selected[!iconBackgroundImage]',
                 css: {
                     'background-color': 'data(nodeColor)',
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[iconBackgroundImage]',
+                css: {
+                    'background-color': '#ffffff',
+                    // @ts-ignore
+                    'background-opacity': 'data(bgOpacity)',
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
                 }
@@ -2476,6 +2525,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.symbolMapping.some(x => x.key === name)) {
             return name;
         }
+        const normalizedCustomShape = normalizeCustomNodeIconShapeKey(name);
+        if (normalizedCustomShape) {
+            return normalizedCustomShape;
+        }
         switch (name) {
             case 'symbolCircle':
                 return 'ellipse';
@@ -4018,6 +4071,12 @@ private updateArrowStyles(): void {
             node.data('nodeColor', newColor);
             node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
+
+            const shapeKey = node.data('shapeKey');
+            if (isCustomNodeIconShape(shapeKey)) {
+                const customShapeData = getCustomNodeShapeData(shapeKey, newColor);
+                node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
+            }
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
 
@@ -4630,8 +4689,19 @@ private async _partialUpdate() {
     updateNodeShapes() {
         if (!this.cy) return;
         this.cy.nodes().forEach(node => {
-            const newShape = this.getNodeShape(node.data());
-            node.data('shape', newShape);
+            const shapeKey = this.getNodeShape(node.data());
+            node.data('shapeKey', shapeKey);
+            node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
+
+            if (isCustomNodeIconShape(shapeKey)) {
+                const nodeColor = node.data('nodeColor') || this.getNodeColor(node.data())[0];
+                const customShapeData = getCustomNodeShapeData(shapeKey, nodeColor);
+                node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
+                node.data('customIconKey', customShapeData.customIconKey);
+            } else {
+                node.removeData('iconBackgroundImage');
+                node.removeData('customIconKey');
+            }
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
