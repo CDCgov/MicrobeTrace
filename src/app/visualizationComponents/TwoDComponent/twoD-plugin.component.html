@@ -218,6 +218,10 @@
                   <div class="col-8">
                     <p-select id="link-label-variable" [options]="ToolTipFieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedLinkLabelVariable" (ngModelChange)="onLinkLabelVariableChange($event)"></p-select>
                   </div>
+                <div class="form-group row" title="How large should link labels be?">
+                  <div class="col-4"><label for="link-label-size">Label Size</label></div>
+                  <div class="col-8"><input type="range" class="custom-range" id="link-label-size" min="6" value="16" max="72" [(ngModel)]="SelectedLinkLabelSizeVariable" (change)="onLinkLabelSizeChange($event)"></div>
+                </div>
                 </div>
                 <div class="form-group row" title="How many decimals should the number labels have?">
                   <div class="col-4"><label for="link-label-decimal-length">Decimal Length</label></div>
