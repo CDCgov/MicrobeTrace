@@ -5,7 +5,7 @@ import { byTestId, testIds } from './selectors';
 
 type FileLoadOptions = {
   name: string;
-  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
+  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'auspice' | 'MT/other';
   field1?: string;
   field2?: string;
   field3?: string;
@@ -59,9 +59,9 @@ const buildDataTransfer = (fixturePaths: string[], mimeTypes: string[]) => {
   return cy.wrap(fixturePaths, { log: false }).each((fixturePath, index) => {
     const mimeType = mimeTypes[index] || 'application/octet-stream';
 
-    cy.fixture(String(fixturePath), 'base64').then((base64) => {
-      const binary = Cypress.Blob.base64StringToBlob(base64, mimeType);
-      const file = new File([binary], String(fixturePath), { type: mimeType });
+    cy.fixture(String(fixturePath), null).then((contents) => {
+      const bytes = contents instanceof Uint8Array ? contents : Cypress.Buffer.from(contents);
+      const file = new File([bytes], String(fixturePath), { type: mimeType });
       data.items.add(file);
     });
   }).then(() => data);

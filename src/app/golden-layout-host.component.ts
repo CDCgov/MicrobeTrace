@@ -243,7 +243,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
         componentItem.parent.removeChild(componentItem);
       }
     } else {
-      throw new Error('Component not found for the provided id');
+      console.warn('removeComponent skipped missing component id', componentId);
     }
   }
 
@@ -293,5 +293,4 @@ export class GoldenLayoutHostComponent implements OnDestroy {
     this.TabChangedEvent.emit(contentItem._title);
   }
 }
-
 

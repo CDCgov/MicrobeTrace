@@ -15,6 +15,7 @@ export type FileDatatype =
   | 'matrix'
   | 'fasta'
   | 'newick'
+  | 'auspice'
   | 'MT/other';
 
 export type PruneWith = 'None' | 'Nearest Neighbor';

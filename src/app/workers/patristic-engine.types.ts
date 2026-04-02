@@ -84,6 +84,8 @@ export interface PatristicTreeReadyResponse {
   leafCount: number;
   nodeCount: number;
   leafNames: string[];
+  /** Maximum root-to-leaf depth in the parsed tree. Useful for SNP detection heuristics. */
+  maxRootDepth: number;
 }
 
 export interface PatristicProgressResponse {
@@ -91,6 +93,21 @@ export interface PatristicProgressResponse {
   jobId: number;
   phase: 'parse' | 'flatten' | 'lca' | 'pairs';
   percent: number;
+}
+
+export interface PatristicEdgeBuildStats {
+  /** Total unordered leaf pairs for the active tree. */
+  totalLeafPairs: number;
+  /** Leaf pairs accounted for so far via direct evaluation or subtree pruning. */
+  accountedLeafPairs: number;
+  /** Leaf pairs whose exact distance was evaluated. */
+  evaluatedLeafPairs: number;
+  /** Leaf pairs skipped because subtree lower bounds exceeded threshold. */
+  prunedLeafPairs: number;
+  /** Number of subtree cross-products pruned before descending to leaves. */
+  prunedSubtreeComparisons: number;
+  /** True when traversal stopped early because a display edge cap was reached. */
+  maxEdgesReached?: boolean;
 }
 
 export interface PatristicEdgeBatchResponse {
@@ -106,6 +123,8 @@ export interface PatristicEdgeBatchResponse {
   totalEmitted: number;
   /** True when this is the final batch. */
   done: boolean;
+  /** Present on the final batch to describe how the threshold search completed. */
+  buildStats?: PatristicEdgeBuildStats;
 }
 
 export interface PatristicMatrixChunkResponse {

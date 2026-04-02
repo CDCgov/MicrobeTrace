@@ -465,12 +465,7 @@ export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
   cy.get('@fileSettings')
     .find('#default-distance-metric')
     .should('be.visible')
-    .then(($select) => {
-      const select = $select.get(0) as HTMLSelectElement;
-      select.value = profile.preLaunch.metric;
-      select.dispatchEvent(new Event('input', { bubbles: true }));
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    .select(profile.preLaunch.metric, { force: true });
 
   cy.get('@fileSettings')
     .find('#default-distance-metric')
@@ -479,13 +474,9 @@ export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
   cy.get('@fileSettings')
     .find('#default-distance-threshold')
     .should('be.visible')
-    .then(($input) => {
-      const input = $input.get(0) as HTMLInputElement;
-      input.value = String(profile.preLaunch.threshold);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('blur', { bubbles: true }));
-    });
+    .clear({ force: true })
+    .type(String(profile.preLaunch.threshold), { force: true })
+    .blur();
 
   cy.get('@fileSettings')
     .find('#default-distance-threshold')
@@ -512,15 +503,19 @@ export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
 export function launchAndWaitForProcessing(timeout = 60000): void {
   cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
   cy.get('#launch').click({ force: true });
-  cy.get('#loading-information', { timeout }).should('not.exist');
   cy.window({ timeout })
     .its('commonService.session.network.isFullyLoaded')
     .should('equal', true);
+  waitForProcessingDialogToClear(timeout);
 }
 
 export function goTo2DNetworkView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuTwoD), { timeout: 15000 }).click({ force: true });
+  cy.window({ timeout: 15000 }).then((win: any) => {
+    win?.commonService?.visuals?.microbeTrace?.publishLoadNewData?.();
+    win?.commonService?.visuals?.microbeTrace?.publishFilterDataChange?.();
+  });
 
   assertTwoDNetworkReady();
 }
@@ -576,8 +571,8 @@ export function ensureMapView(): void {
 }
 
 export function ensureTwoDNetworkView(): void {
-  cy.get('body', { timeout: 15000 }).then(($body) => {
-    if ($body.find('#cy').length) {
+  cy.window({ timeout: 15000 }).then((win: any) => {
+    if (Cypress.$('#cy').length && win?.cytoscapeInstance) {
       assertTwoDNetworkReady();
       return;
     }
@@ -603,6 +598,22 @@ export function assertMetricCount(selector: string, expected: number, timeout = 
 }
 
 export function waitForProcessingDialogToClear(timeout = 30000): void {
+  cy.get('body', { timeout }).then(($body) => {
+    const processingDialogTitle = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Processing Files...'));
+
+    if (!processingDialogTitle.length) {
+      return;
+    }
+
+    cy.contains('.p-dialog-title', 'Processing Files...', { timeout })
+      .parents('.p-dialog')
+      .within(() => {
+        cy.contains('button', 'Close', { timeout: 5000 }).click({ force: true });
+      });
+  });
+
   cy.get('body', { timeout }).should(($body) => {
     const visibleProcessingDialogs = $body
       .find('.p-dialog:visible .p-dialog-title')

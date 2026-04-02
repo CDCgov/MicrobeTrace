@@ -1,4 +1,5 @@
 import { describeError, reportRuntimeError } from './runtime-error.store';
+import { shouldIgnoreRuntimeError } from './runtime-error-filter';
 
 export interface WindowRuntimeHardeningOptions {
   allowedMessageOrigins?: string[];
@@ -46,6 +47,14 @@ export function installWindowRuntimeHardening(options: WindowRuntimeHardeningOpt
   }, true);
 
   window.addEventListener('error', (event: ErrorEvent) => {
+    if (shouldIgnoreRuntimeError(event.error ?? event.message, {
+      filename: event.filename,
+      source: 'window.error',
+    })) {
+      event.preventDefault();
+      return;
+    }
+
     reportRuntimeError({ source: 'window.error' });
     console.error(`[RuntimeError] ${describeError(event.error ?? event.message)}`);
 
@@ -55,6 +64,11 @@ export function installWindowRuntimeHardening(options: WindowRuntimeHardeningOpt
   }, true);
 
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+    if (shouldIgnoreRuntimeError(event.reason, { source: 'window.unhandledrejection' })) {
+      event.preventDefault();
+      return;
+    }
+
     reportRuntimeError({ source: 'window.unhandledrejection' });
     console.error(`[RuntimeError] ${describeError(event.reason)}`);
 

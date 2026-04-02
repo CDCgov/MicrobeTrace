@@ -22,13 +22,23 @@ import type {
   PatristicWorkerRequest,
   PatristicWorkerResponse,
   PatristicEdgeBatchResponse,
+  PatristicEdgeBuildStats,
 } from './patristic-engine.types';
 
 // ─── Worker state (persists across messages) ─────────────────────────────────
 
 let currentTree: FlatTree | null = null;
 let currentLca: LcaIndex | null = null;
+let currentThresholdSearchIndex: ThresholdSearchIndex | null = null;
 let cancelledJobs = new Set<number>();
+
+interface ThresholdSearchIndex {
+  children: number[][];
+  leafCountByNode: Uint32Array;
+  minLeafDepthByNode: Float64Array;
+  maxLeafDepthByNode: Float64Array;
+  leafIndexByNode: Int32Array;
+}
 
 // ─── Tree flattening ─────────────────────────────────────────────────────────
 
@@ -36,7 +46,7 @@ let cancelledJobs = new Set<number>();
  * Flatten a patristic Branch tree into contiguous typed arrays.
  * This replaces the recursive JS object tree with cache-friendly arrays.
  */
-function flattenTree(root: any): FlatTree {
+export function flattenTree(root: any): FlatTree {
   // First pass: count nodes
   let nodeCount = 0;
   const stack: any[] = [root];
@@ -67,7 +77,7 @@ function flattenTree(root: any): FlatTree {
     const idx = nextIndex++;
 
     parent[idx] = parentIdx;
-    const bl = typeof node.length === 'number' && node.length >= 0 ? node.length : 0;
+    const bl = typeof node.length === 'number' ? node.length : 0;
     branchLength[idx] = bl;
     rootDepth[idx] = parentIdx >= 0 ? rootDepth[parentIdx] + bl : 0;
 
@@ -105,7 +115,22 @@ function flattenTree(root: any): FlatTree {
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
-function validateTree(tree: FlatTree): string | null {
+export function validateTree(tree: FlatTree): string | null {
+  if (tree.leafCount === 0) {
+    return 'Tree has no leaves.';
+  }
+
+  // Guard against empty Newick inputs that parse to a placeholder node with synthetic name.
+  if (tree.nodeCount === 1 && tree.leafNames[0] === 'leaf_0' && tree.leafCount === 1) {
+    return 'Empty Newick.';
+  }
+
+  for (let i = 0; i < tree.leafCount; i++) {
+    if ((tree.leafNames[i] ?? '').trim().length === 0) {
+      return 'Empty Newick.';
+    }
+  }
+
   // Check for negative branch lengths
   for (let i = 0; i < tree.nodeCount; i++) {
     if (tree.branchLength[i] < 0) {
@@ -130,11 +155,71 @@ function validateTree(tree: FlatTree): string | null {
     seen.add(name);
   }
 
-  if (tree.leafCount === 0) {
-    return 'Tree has no leaves.';
+  return null;
+}
+
+function buildChildrenIndex(tree: FlatTree): number[][] {
+  const children: number[][] = new Array(tree.nodeCount);
+  for (let i = 0; i < tree.nodeCount; i++) {
+    children[i] = [];
+  }
+  for (let i = 1; i < tree.nodeCount; i++) {
+    children[tree.parent[i]].push(i);
+  }
+  return children;
+}
+
+function buildThresholdSearchIndex(tree: FlatTree): ThresholdSearchIndex {
+  const children = buildChildrenIndex(tree);
+  const leafCountByNode = new Uint32Array(tree.nodeCount);
+  const minLeafDepthByNode = new Float64Array(tree.nodeCount);
+  const maxLeafDepthByNode = new Float64Array(tree.nodeCount);
+  const leafIndexByNode = new Int32Array(tree.nodeCount).fill(-1);
+
+  minLeafDepthByNode.fill(Number.POSITIVE_INFINITY);
+  maxLeafDepthByNode.fill(Number.NEGATIVE_INFINITY);
+
+  for (let i = 0; i < tree.leafCount; i++) {
+    leafIndexByNode[tree.leafNodeIndex[i]] = i;
   }
 
-  return null;
+  for (let nodeIdx = tree.nodeCount - 1; nodeIdx >= 0; nodeIdx--) {
+    if (tree.isLeaf[nodeIdx]) {
+      const depth = tree.rootDepth[nodeIdx];
+      leafCountByNode[nodeIdx] = 1;
+      minLeafDepthByNode[nodeIdx] = depth;
+      maxLeafDepthByNode[nodeIdx] = depth;
+      continue;
+    }
+
+    const nodeChildren = children[nodeIdx];
+    let leafCount = 0;
+    let minDepth = Number.POSITIVE_INFINITY;
+    let maxDepth = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < nodeChildren.length; i++) {
+      const childIdx = nodeChildren[i];
+      leafCount += leafCountByNode[childIdx];
+      if (minLeafDepthByNode[childIdx] < minDepth) {
+        minDepth = minLeafDepthByNode[childIdx];
+      }
+      if (maxLeafDepthByNode[childIdx] > maxDepth) {
+        maxDepth = maxLeafDepthByNode[childIdx];
+      }
+    }
+
+    leafCountByNode[nodeIdx] = leafCount;
+    minLeafDepthByNode[nodeIdx] = minDepth;
+    maxLeafDepthByNode[nodeIdx] = maxDepth;
+  }
+
+  return {
+    children,
+    leafCountByNode,
+    minLeafDepthByNode,
+    maxLeafDepthByNode,
+    leafIndexByNode,
+  };
 }
 
 // ─── LCA via Euler tour + Sparse Table RMQ ───────────────────────────────────
@@ -147,20 +232,13 @@ function validateTree(tree: FlatTree): string | null {
  * 2. Sparse table: for range-minimum queries on the Euler tour depths.
  *    Preprocessing O(N log N), each query O(1).
  */
-function buildLcaIndex(tree: FlatTree): LcaIndex {
+export function buildLcaIndex(tree: FlatTree): LcaIndex {
   const tourLength = 2 * tree.nodeCount - 1;
   const euler = new Int32Array(tourLength);
   const eulerDepth = new Int32Array(tourLength);
   const firstOccurrence = new Int32Array(tree.nodeCount).fill(-1);
 
-  // Build children adjacency list from parent array
-  const childrenStart: number[][] = new Array(tree.nodeCount);
-  for (let i = 0; i < tree.nodeCount; i++) {
-    childrenStart[i] = [];
-  }
-  for (let i = 1; i < tree.nodeCount; i++) {
-    childrenStart[tree.parent[i]].push(i);
-  }
+  const childrenStart = buildChildrenIndex(tree);
 
   // Iterative Euler tour DFS
   // Stack entries: [nodeIndex, childPointer, depth]
@@ -237,7 +315,7 @@ function buildLcaIndex(tree: FlatTree): LcaIndex {
  * Query LCA of two nodes. Returns the node index of their LCA.
  * O(1) per query.
  */
-function queryLca(nodeA: number, nodeB: number, lca: LcaIndex): number {
+export function queryLca(nodeA: number, nodeB: number, lca: LcaIndex): number {
   let l = lca.firstOccurrence[nodeA];
   let r = lca.firstOccurrence[nodeB];
   if (l > r) {
@@ -257,7 +335,7 @@ function queryLca(nodeA: number, nodeB: number, lca: LcaIndex): number {
  * Compute patristic distance between two leaves.
  * dist(i, j) = rootDepth[i] + rootDepth[j] - 2 * rootDepth[lca(i, j)]
  */
-function patristicDistance(
+export function patristicDistance(
   leafIndexA: number,
   leafIndexB: number,
   tree: FlatTree,
@@ -269,6 +347,200 @@ function patristicDistance(
   return tree.rootDepth[nodeA] + tree.rootDepth[nodeB] - 2 * tree.rootDepth[lcaNode];
 }
 
+type ThresholdSearchCallbacks = {
+  maxEdges?: number;
+  onEmitPair?: (sourceLeafIndex: number, targetLeafIndex: number, distance: number) => void;
+  onProgress?: (percent: number) => void;
+  shouldCancel?: () => boolean;
+};
+
+type ThresholdSearchResult = {
+  buildStats: PatristicEdgeBuildStats;
+  cancelled: boolean;
+};
+
+function runThresholdSearch(
+  tree: FlatTree,
+  thresholdIndex: ThresholdSearchIndex,
+  threshold: number,
+  callbacks: ThresholdSearchCallbacks = {}
+): ThresholdSearchResult {
+  const totalLeafPairs = (tree.leafCount * (tree.leafCount - 1)) / 2;
+  const buildStats: PatristicEdgeBuildStats = {
+    totalLeafPairs,
+    accountedLeafPairs: 0,
+    evaluatedLeafPairs: 0,
+    prunedLeafPairs: 0,
+    prunedSubtreeComparisons: 0,
+  };
+
+  const maxEdges = callbacks.maxEdges ?? Infinity;
+  const searchStack: Array<[number, number, number]> = [];
+  let emittedEdges = 0;
+  let lastProgressPercent = -1;
+  let stackSteps = 0;
+
+  const reportProgress = () => {
+    if (!callbacks.onProgress) {
+      return;
+    }
+
+    const percent = totalLeafPairs === 0
+      ? 100
+      : Math.floor((buildStats.accountedLeafPairs / totalLeafPairs) * 100);
+
+    if (percent > lastProgressPercent && percent % 5 === 0) {
+      lastProgressPercent = percent;
+      callbacks.onProgress(percent);
+    }
+  };
+
+  for (let nodeIdx = 0; nodeIdx < tree.nodeCount; nodeIdx++) {
+    const nodeChildren = thresholdIndex.children[nodeIdx];
+    if (nodeChildren.length < 2) {
+      continue;
+    }
+
+    for (let i = nodeChildren.length - 1; i >= 1; i--) {
+      for (let j = i - 1; j >= 0; j--) {
+        searchStack.push([nodeChildren[i], nodeChildren[j], tree.rootDepth[nodeIdx]]);
+      }
+    }
+  }
+
+  while (searchStack.length > 0 && emittedEdges < maxEdges) {
+    if (callbacks.shouldCancel && stackSteps % 2048 === 0 && callbacks.shouldCancel()) {
+      return { buildStats, cancelled: true };
+    }
+    stackSteps++;
+
+    const [nodeA, nodeB, lcaDepth] = searchStack.pop()!;
+    const candidatePairCount =
+      thresholdIndex.leafCountByNode[nodeA] * thresholdIndex.leafCountByNode[nodeB];
+    const lowerBound =
+      thresholdIndex.minLeafDepthByNode[nodeA] +
+      thresholdIndex.minLeafDepthByNode[nodeB] -
+      2 * lcaDepth;
+
+    if (lowerBound > threshold) {
+      buildStats.accountedLeafPairs += candidatePairCount;
+      buildStats.prunedLeafPairs += candidatePairCount;
+      buildStats.prunedSubtreeComparisons += 1;
+      reportProgress();
+      continue;
+    }
+
+    const isLeafA = tree.isLeaf[nodeA] === 1;
+    const isLeafB = tree.isLeaf[nodeB] === 1;
+
+    if (isLeafA && isLeafB) {
+      buildStats.accountedLeafPairs += 1;
+      buildStats.evaluatedLeafPairs += 1;
+
+      const distance = tree.rootDepth[nodeA] + tree.rootDepth[nodeB] - 2 * lcaDepth;
+      reportProgress();
+
+      if (distance <= threshold) {
+        callbacks.onEmitPair?.(
+          thresholdIndex.leafIndexByNode[nodeA],
+          thresholdIndex.leafIndexByNode[nodeB],
+          distance
+        );
+        emittedEdges++;
+      }
+
+      continue;
+    }
+
+    const splitA = !isLeafA;
+    const splitB = !isLeafB;
+
+    if (splitA && (!splitB || thresholdIndex.leafCountByNode[nodeA] >= thresholdIndex.leafCountByNode[nodeB])) {
+      const childNodes = thresholdIndex.children[nodeA];
+      for (let i = childNodes.length - 1; i >= 0; i--) {
+        searchStack.push([childNodes[i], nodeB, lcaDepth]);
+      }
+      continue;
+    }
+
+    const childNodes = thresholdIndex.children[nodeB];
+    for (let i = childNodes.length - 1; i >= 0; i--) {
+      searchStack.push([nodeA, childNodes[i], lcaDepth]);
+    }
+  }
+
+  if (Number.isFinite(maxEdges) && emittedEdges >= maxEdges && searchStack.length > 0) {
+    buildStats.maxEdgesReached = true;
+  }
+
+  reportProgress();
+  return { buildStats, cancelled: false };
+}
+
+/**
+ * Test-only helper to collect threshold-filtered edges from a flattened tree.
+ * Returned batches preserve the same shapes as worker EDGE_BATCH payloads minus `jobId`.
+ */
+export function collectThresholdedEdgeBatches(
+  tree: FlatTree,
+  _lca: LcaIndex,
+  threshold: number,
+  options: { batchSize?: number; maxEdges?: number } = {}
+): Omit<PatristicEdgeBatchResponse, 'jobId'>[] {
+  const batchSize = options.batchSize ?? 10000;
+  const maxEdges = options.maxEdges ?? Infinity;
+  const thresholdIndex = buildThresholdSearchIndex(tree);
+
+  let batchSources = new Uint32Array(batchSize);
+  let batchTargets = new Uint32Array(batchSize);
+  let batchDistances = new Float32Array(batchSize);
+  let batchPos = 0;
+  let totalEmitted = 0;
+  let finalBuildStats: PatristicEdgeBuildStats | undefined;
+
+  const batches: Omit<PatristicEdgeBatchResponse, 'jobId'>[] = [];
+
+  const flushBatch = (count: number, done: boolean, buildStats?: PatristicEdgeBuildStats) => {
+    const s = count < batchSources.length ? batchSources.slice(0, count) : batchSources;
+    const t = count < batchTargets.length ? batchTargets.slice(0, count) : batchTargets;
+    const d = count < batchDistances.length ? batchDistances.slice(0, count) : batchDistances;
+
+    batches.push({
+      type: 'EDGE_BATCH',
+      sources: s,
+      targets: t,
+      distances: d,
+      totalEmitted,
+      done,
+      buildStats,
+    });
+  };
+
+  const searchResult = runThresholdSearch(tree, thresholdIndex, threshold, {
+    maxEdges,
+    onEmitPair: (sourceLeafIndex, targetLeafIndex, distance) => {
+      batchSources[batchPos] = sourceLeafIndex;
+      batchTargets[batchPos] = targetLeafIndex;
+      batchDistances[batchPos] = distance;
+      batchPos++;
+      totalEmitted++;
+
+      if (batchPos >= batchSize) {
+        flushBatch(batchPos, false);
+        batchSources = new Uint32Array(batchSize);
+        batchTargets = new Uint32Array(batchSize);
+        batchDistances = new Float32Array(batchSize);
+        batchPos = 0;
+      }
+    },
+  });
+
+  finalBuildStats = searchResult.buildStats;
+
+  flushBatch(batchPos, true, finalBuildStats);
+  return batches;
+}
+
 // ─── Edge generation ─────────────────────────────────────────────────────────
 
 /**
@@ -277,69 +549,61 @@ function patristicDistance(
  */
 function generateThresholdedEdges(
   tree: FlatTree,
-  lca: LcaIndex,
+  thresholdIndex: ThresholdSearchIndex,
   threshold: number,
   jobId: number,
   batchSize: number = 10000,
   maxEdges: number = Infinity
 ): void {
-  const n = tree.leafCount;
-  const totalPairs = (n * (n - 1)) / 2;
-
-  // Pre-allocate batch buffers
   let batchSources = new Uint32Array(batchSize);
   let batchTargets = new Uint32Array(batchSize);
   let batchDistances = new Float32Array(batchSize);
   let batchPos = 0;
   let totalEmitted = 0;
-  let pairsProcessed = 0;
-  let lastProgressPercent = -1;
 
-  for (let i = 0; i < n && totalEmitted < maxEdges; i++) {
-    for (let j = 0; j < i && totalEmitted < maxEdges; j++) {
-      // Check cancellation periodically (every 100K pairs)
-      if (pairsProcessed % 100000 === 0 && cancelledJobs.has(jobId)) {
-        cancelledJobs.delete(jobId);
-        return;
+  const searchResult = runThresholdSearch(tree, thresholdIndex, threshold, {
+    maxEdges,
+    shouldCancel: () => cancelledJobs.has(jobId),
+    onProgress: (percent) => {
+      respond({
+        type: 'PROGRESS',
+        jobId,
+        phase: 'pairs',
+        percent,
+      });
+    },
+    onEmitPair: (sourceLeafIndex, targetLeafIndex, distance) => {
+      batchSources[batchPos] = sourceLeafIndex;
+      batchTargets[batchPos] = targetLeafIndex;
+      batchDistances[batchPos] = distance;
+      batchPos++;
+      totalEmitted++;
+
+      if (batchPos >= batchSize) {
+        flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, false);
+        batchSources = new Uint32Array(batchSize);
+        batchTargets = new Uint32Array(batchSize);
+        batchDistances = new Float32Array(batchSize);
+        batchPos = 0;
       }
+    },
+  });
 
-      const dist = patristicDistance(i, j, tree, lca);
-      pairsProcessed++;
-
-      // Report progress periodically
-      const percent = Math.floor((pairsProcessed / totalPairs) * 100);
-      if (percent > lastProgressPercent && percent % 5 === 0) {
-        lastProgressPercent = percent;
-        respond({
-          type: 'PROGRESS',
-          jobId,
-          phase: 'pairs',
-          percent,
-        });
-      }
-
-      if (dist <= threshold) {
-        batchSources[batchPos] = i;
-        batchTargets[batchPos] = j;
-        batchDistances[batchPos] = dist;
-        batchPos++;
-        totalEmitted++;
-
-        // Flush batch when full
-        if (batchPos >= batchSize) {
-          flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, false);
-          // Allocate new buffers (old ones were transferred)
-          batchSources = new Uint32Array(batchSize);
-          batchTargets = new Uint32Array(batchSize);
-          batchDistances = new Float32Array(batchSize);
-          batchPos = 0;
-        }
-      }
-    }
+  if (searchResult.cancelled) {
+    cancelledJobs.delete(jobId);
+    return;
   }
 
-  // Flush remaining
-  flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true);
+  flushBatch(
+    jobId,
+    batchSources,
+    batchTargets,
+    batchDistances,
+    batchPos,
+    totalEmitted,
+    true,
+    searchResult.buildStats
+  );
 }
 
 /**
@@ -396,7 +660,8 @@ function flushBatch(
   distances: Float32Array,
   count: number,
   totalEmitted: number,
-  done: boolean
+  done: boolean,
+  buildStats?: PatristicEdgeBuildStats
 ): void {
   // Slice to actual size if batch is partially filled
   const s = count < sources.length ? sources.slice(0, count) : sources;
@@ -411,6 +676,7 @@ function flushBatch(
     distances: d,
     totalEmitted,
     done,
+    buildStats,
   };
 
   // Transfer the typed array buffers (zero-copy)
@@ -448,12 +714,25 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
         if (validationError) {
           respond({ type: 'ERROR', jobId, message: validationError });
           currentTree = null;
+          currentLca = null;
+          currentThresholdSearchIndex = null;
           return;
         }
+
+        currentThresholdSearchIndex = buildThresholdSearchIndex(currentTree);
 
         // Build LCA
         respond({ type: 'PROGRESS', jobId, phase: 'lca', percent: 50 });
         currentLca = buildLcaIndex(currentTree);
+
+        let maxRootDepth = 0;
+        for (let i = 0; i < currentTree.leafCount; i++) {
+          const nodeIdx = currentTree.leafNodeIndex[i];
+          const depth = currentTree.rootDepth[nodeIdx];
+          if (depth > maxRootDepth) {
+            maxRootDepth = depth;
+          }
+        }
 
         respond({
           type: 'TREE_READY',
@@ -461,6 +740,7 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           leafCount: currentTree.leafCount,
           nodeCount: currentTree.nodeCount,
           leafNames: currentTree.leafNames,
+          maxRootDepth,
         });
         break;
       }
@@ -468,7 +748,7 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
       case 'BUILD_EDGES': {
         const { jobId, threshold, maxEdges, batchSize } = data;
 
-        if (!currentTree || !currentLca) {
+        if (!currentTree || !currentLca || !currentThresholdSearchIndex) {
           respond({ type: 'ERROR', jobId, message: 'No tree initialized. Call INIT_TREE first.' });
           return;
         }
@@ -481,7 +761,7 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
         respond({ type: 'PROGRESS', jobId, phase: 'pairs', percent: 0 });
         generateThresholdedEdges(
           currentTree,
-          currentLca,
+          currentThresholdSearchIndex,
           threshold,
           jobId,
           batchSize ?? 10000,

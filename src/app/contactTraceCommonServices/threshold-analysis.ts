@@ -128,6 +128,18 @@ function getNumericMetricValue(link: ThresholdAnalysisLinkLike, metric: string):
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  if (metric !== 'distance' && link?.hasDistance) {
+    const fallback = link?.distance;
+    if (typeof fallback === 'number') {
+      return Number.isFinite(fallback) ? fallback : null;
+    }
+
+    if (typeof fallback === 'string' && fallback.trim().length > 0) {
+      const parsedFallback = Number(fallback);
+      return Number.isFinite(parsedFallback) ? parsedFallback : null;
+    }
+  }
+
   return null;
 }
 

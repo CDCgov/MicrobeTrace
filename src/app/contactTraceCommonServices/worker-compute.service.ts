@@ -6,10 +6,76 @@ import type {
   PatristicWorkerRequest,
   PatristicWorkerResponse,
   PatristicEdgeBatchResponse,
+  PatristicEdgeBuildStats,
   PatristicTreeReadyResponse,
   PatristicProgressResponse,
-  PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
+
+export const PATRISTIC_DENSE_EDGE_WARNING_THRESHOLD = 10000;
+
+export interface PatristicEdgeDensityWarning {
+  leafCount: number;
+  potentialEdgeCount: number;
+  threshold: number;
+  treeDiameterUpperBound: number;
+  displayEdgeLimit: number;
+  message: string;
+}
+
+type PatristicComputeOptions = {
+  origin?: string[];
+  distanceOrigin?: string;
+  check?: boolean;
+  maxEdges?: number;
+  session?: any;
+  onProgress?: (progress: PatristicProgressResponse) => void;
+  onGuardrail?: (warning: PatristicEdgeDensityWarning) => void;
+};
+
+const formatGuardrailValue = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return Number.isInteger(value)
+    ? value.toLocaleString()
+    : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+};
+
+export const buildPatristicEdgeDensityWarning = (
+  leafCount: number,
+  maxRootDepth: number,
+  threshold: number,
+  displayEdgeLimit: number = PATRISTIC_DENSE_EDGE_WARNING_THRESHOLD,
+): PatristicEdgeDensityWarning | null => {
+  if (!Number.isFinite(leafCount) || leafCount < 2 || !Number.isFinite(maxRootDepth) || !Number.isFinite(threshold)) {
+    return null;
+  }
+
+  const potentialEdgeCount = (leafCount * (leafCount - 1)) / 2;
+  if (potentialEdgeCount < PATRISTIC_DENSE_EDGE_WARNING_THRESHOLD) {
+    return null;
+  }
+
+  const treeDiameterUpperBound = maxRootDepth * 2;
+  const comparisonEpsilon = Math.max(1e-9, Math.abs(treeDiameterUpperBound) * 1e-9);
+  if (!Number.isFinite(treeDiameterUpperBound) || threshold + comparisonEpsilon < treeDiameterUpperBound) {
+    return null;
+  }
+
+  return {
+    leafCount,
+    potentialEdgeCount,
+    threshold,
+    treeDiameterUpperBound,
+    displayEdgeLimit,
+    message:
+      `Warning: threshold ${formatGuardrailValue(threshold)} is at or above the tree diameter upper bound ` +
+      `${formatGuardrailValue(treeDiameterUpperBound)}. Up to ${potentialEdgeCount.toLocaleString()} ` +
+      `patristic edges may be materialized for ${leafCount.toLocaleString()} taxa. ` +
+      `Only the first ${displayEdgeLimit.toLocaleString()} qualifying patristic edges will be displayed to keep 2D rendering responsive.`,
+  };
+};
 
 /**
  * This service delegates all Worker-based computations.
@@ -323,17 +389,20 @@ export class WorkerComputeService {
   }
 
   /**
-   * Rebuild old getDM logic. 
-   * If session.data['newick'], parse. Otherwise build matrix from session.temp.matrix.
+   * Rebuild old getDM logic.
+   * If a Newick string is present, parse it locally. Otherwise build matrix from session.temp.matrix.
    */
   public getDM(session: any): Promise<any> {
     return new Promise(resolve => {
       const start = Date.now();
       let dm: any;
+      const newickString = typeof session?.data?.newickString === 'string' && session.data.newickString.trim()
+        ? session.data.newickString.trim()
+        : (typeof session?.data?.['newick'] === 'string' ? session.data['newick'].trim() : '');
 
-      if (session.data['newick']) {
-        const treeObj = patristic.parseNewick(session.data['newick']);
-        dm = treeObj.toMatrix();
+      if (newickString) {
+        const treeObj = patristic.parseNewick(newickString);
+        dm = treeObj.toMatrix().matrix;
       } else {
         let labels = session.data.nodes.map((d: any) => d._id).sort();
         const metric = session.style.widgets['link-sort-variable'];
@@ -380,9 +449,15 @@ export class WorkerComputeService {
       if (session.temp.treeObj) {
         // If we already have a treeObj, just use it
         return resolve(session.temp.treeObj.toNewick());
-      } else if (session.data['newick']) {
+      }
+
+      const newickString = typeof session?.data?.newickString === 'string' && session.data.newickString.trim()
+        ? session.data.newickString.trim()
+        : (typeof session?.data?.['newick'] === 'string' ? session.data['newick'].trim() : '');
+
+      if (newickString) {
         // If we already have a newick string
-        return resolve(session.data['newick']);
+        return resolve(newickString);
       } else {
         // Otherwise, build from DM
         this.getDM(session).then(dm => {
@@ -556,6 +631,22 @@ export class WorkerComputeService {
   private patristicJobId = 0;
   /** Leaf names from the last initialized tree (set by TREE_READY). */
   private patristicLeafNames: string[] = [];
+  /** Cache key for the last successfully initialized Newick string. */
+  private patristicCachedNewick: string | null = null;
+  /** Cached TREE_READY payload for the active Newick tree. */
+  private patristicCachedTreeReady: PatristicTreeReadyResponse | null = null;
+  /** Final stats from the most recent thresholded patristic edge build. */
+  private lastPatristicBuildStats: PatristicEdgeBuildStats | null = null;
+
+  private emitPatristicProgress(
+    msg: PatristicWorkerResponse,
+    onProgress?: (progress: PatristicProgressResponse) => void,
+  ): void {
+    if (typeof onProgress !== 'function' || msg.type !== 'PROGRESS') {
+      return;
+    }
+    onProgress(msg);
+  }
 
   /**
    * Initialize the patristic engine with a Newick string.
@@ -564,8 +655,18 @@ export class WorkerComputeService {
    *
    * @returns Promise that resolves with tree metadata when ready.
    */
-  public initPatristicTree(newickString: string): Promise<PatristicTreeReadyResponse> {
+  public initPatristicTree(
+    newickString: string,
+    onProgress?: (progress: PatristicProgressResponse) => void,
+  ): Promise<PatristicTreeReadyResponse> {
     return new Promise((resolve, reject) => {
+      const normalizedNewick = typeof newickString === 'string' ? newickString.trim() : '';
+
+      if (!normalizedNewick) {
+        reject(new Error('Empty Newick input.'));
+        return;
+      }
+
       const worker = this.computer.getPatristicWorker();
       const jobId = ++this.patristicJobId;
 
@@ -573,9 +674,14 @@ export class WorkerComputeService {
         const msg = event.data;
         if (msg.jobId !== jobId) return;
 
-        switch (msg.type) {
+      switch (msg.type) {
+          case 'PROGRESS':
+            this.emitPatristicProgress(msg, onProgress);
+            break;
           case 'TREE_READY':
             this.patristicLeafNames = msg.leafNames;
+            this.patristicCachedNewick = normalizedNewick;
+            this.patristicCachedTreeReady = msg;
             worker.removeEventListener('message', handler);
             resolve(msg);
             break;
@@ -591,7 +697,7 @@ export class WorkerComputeService {
       worker.postMessage({
         type: 'INIT_TREE',
         jobId,
-        newickString,
+        newickString: normalizedNewick,
       } as PatristicWorkerRequest);
     });
   }
@@ -616,11 +722,13 @@ export class WorkerComputeService {
   public buildPatristicEdges(
     threshold: number,
     maxEdges?: number,
-    batchSize?: number
+    batchSize?: number,
+    onProgress?: (progress: PatristicProgressResponse) => void,
   ): Observable<PatristicEdgeBatchResponse> {
     const subject = new Subject<PatristicEdgeBatchResponse>();
     const worker = this.computer.getPatristicWorker();
     const jobId = ++this.patristicJobId;
+    this.lastPatristicBuildStats = null;
 
     const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
       const msg = event.data;
@@ -628,11 +736,17 @@ export class WorkerComputeService {
 
       switch (msg.type) {
         case 'EDGE_BATCH':
+          if (msg.buildStats) {
+            this.lastPatristicBuildStats = msg.buildStats;
+          }
           subject.next(msg);
           if (msg.done) {
             worker.removeEventListener('message', handler);
             subject.complete();
           }
+          break;
+        case 'PROGRESS':
+          this.emitPatristicProgress(msg, onProgress);
           break;
         case 'ERROR':
           worker.removeEventListener('message', handler);
@@ -655,6 +769,68 @@ export class WorkerComputeService {
   }
 
   /**
+   * Export a full patristic distance matrix without materializing every edge in session state.
+   */
+  public async exportPatristicDistanceMatrix(
+    newickString: string,
+    onProgress?: (progress: PatristicProgressResponse) => void,
+  ): Promise<{
+    dm: number[][];
+    labels: string[];
+    maxRootDepth: number;
+  }> {
+    const normalizedNewick = typeof newickString === 'string' ? newickString.trim() : '';
+    const shouldInitialize =
+      this.patristicCachedNewick !== normalizedNewick || this.patristicCachedTreeReady === null;
+
+    const treeReady = shouldInitialize
+      ? await this.initPatristicTree(normalizedNewick, onProgress)
+      : this.patristicCachedTreeReady;
+
+    if (!treeReady) {
+      throw new Error('Patristic tree cache is unavailable. Reinitialize the tree and try again.');
+    }
+
+    return new Promise((resolve, reject) => {
+      const dm = new Array<number[]>(treeReady.leafCount);
+      const worker = this.computer.getPatristicWorker();
+      const jobId = ++this.patristicJobId;
+
+      const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+        const msg = event.data;
+        if (msg.jobId !== jobId) return;
+
+        switch (msg.type) {
+          case 'MATRIX_CHUNK':
+            dm[msg.row] = Array.from(msg.values);
+            if (msg.done) {
+              worker.removeEventListener('message', handler);
+              resolve({
+                dm,
+                labels: [...treeReady.leafNames],
+                maxRootDepth: treeReady.maxRootDepth,
+              });
+            }
+            break;
+          case 'PROGRESS':
+            this.emitPatristicProgress(msg, onProgress);
+            break;
+          case 'ERROR':
+            worker.removeEventListener('message', handler);
+            reject(new Error(msg.message));
+            break;
+        }
+      };
+
+      worker.addEventListener('message', handler);
+      worker.postMessage({
+        type: 'EXPORT_MATRIX',
+        jobId,
+      } as PatristicWorkerRequest);
+    });
+  }
+
+  /**
    * Convenience method: Initialize tree and build edges in one call.
    * Returns all qualifying edges as flat arrays once complete.
    *
@@ -672,12 +848,36 @@ export class WorkerComputeService {
     threshold: number,
     addLink: (link: any, check: any) => number,
     filterXSS: (s: string) => string,
-    session?: any
-  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] }> {
+    options: PatristicComputeOptions = {}
+  ): Promise<{
+    newLinks: number;
+    totalLinks: number;
+    leafNames: string[];
+    maxRootDepth: number;
+    buildStats: PatristicEdgeBuildStats | null;
+  }> {
+    const {
+      session,
+      origin = ['Newick Tree'],
+      distanceOrigin = 'Newick Tree',
+      check = false,
+      maxEdges,
+      onProgress,
+      onGuardrail,
+    } = options;
+    const normalizedNewick = typeof newickString === 'string' ? newickString.trim() : '';
     const start = Date.now();
+    const shouldInitialize =
+      this.patristicCachedNewick !== normalizedNewick || this.patristicCachedTreeReady === null;
 
     // Step 1: Initialize tree (flatten + LCA)
-    const treeReady = await this.initPatristicTree(newickString);
+    const treeReady = shouldInitialize
+      ? await this.initPatristicTree(normalizedNewick, onProgress)
+      : this.patristicCachedTreeReady;
+
+    if (!treeReady) {
+      throw new Error('Patristic tree cache is unavailable. Reinitialize the tree and try again.');
+    }
 
     if (session?.debugMode) {
       console.log(
@@ -688,6 +888,17 @@ export class WorkerComputeService {
       );
     }
 
+    const denseEdgeLimit = maxEdges ?? PATRISTIC_DENSE_EDGE_WARNING_THRESHOLD;
+    const densityWarning = buildPatristicEdgeDensityWarning(
+      treeReady.leafCount,
+      treeReady.maxRootDepth,
+      threshold,
+      denseEdgeLimit,
+    );
+    if (densityWarning && typeof onGuardrail === 'function') {
+      onGuardrail(densityWarning);
+    }
+
     const leafNames = treeReady.leafNames.map(filterXSS);
     const edgeStart = Date.now();
 
@@ -695,10 +906,18 @@ export class WorkerComputeService {
     return new Promise((resolve, reject) => {
       let newLinks = 0;
       let totalLinks = 0;
-      const check = false; // Fresh newick load, no need for duplicate checking
+      let buildStats: PatristicEdgeBuildStats | null = null;
 
-      this.buildPatristicEdges(threshold).subscribe({
+      this.buildPatristicEdges(
+        threshold,
+        densityWarning ? denseEdgeLimit : maxEdges,
+        undefined,
+        onProgress,
+      ).subscribe({
         next: (batch) => {
+          if (batch.buildStats) {
+            buildStats = batch.buildStats;
+          }
           const n = batch.sources.length;
           for (let k = 0; k < n; k++) {
             const sourceIdx = batch.sources[k];
@@ -707,9 +926,9 @@ export class WorkerComputeService {
               {
                 source: leafNames[sourceIdx],
                 target: leafNames[targetIdx],
-                origin: ['Newick Tree'],
+                origin,
                 distance: batch.distances[k],
-                distanceOrigin: 'Newick Tree',
+                distanceOrigin,
                 hasDistance: true,
               },
               check
@@ -727,7 +946,13 @@ export class WorkerComputeService {
               `(${totalLinks} edges below threshold ${threshold})`
             );
           }
-          resolve({ newLinks, totalLinks, leafNames });
+          resolve({
+            newLinks,
+            totalLinks,
+            leafNames,
+            maxRootDepth: treeReady.maxRootDepth,
+            buildStats,
+          });
         },
       });
     });
@@ -752,6 +977,10 @@ export class WorkerComputeService {
     return this.patristicLeafNames;
   }
 
+  public getLastPatristicBuildStats(): PatristicEdgeBuildStats | null {
+    return this.lastPatristicBuildStats;
+  }
+
   /**
    * Terminate the patristic worker entirely.
    * Call when loading a new session or cleaning up.
@@ -759,5 +988,8 @@ export class WorkerComputeService {
   public terminatePatristicWorker(): void {
     this.computer.terminatePatristicWorker();
     this.patristicLeafNames = [];
+    this.patristicCachedNewick = null;
+    this.patristicCachedTreeReady = null;
+    this.lastPatristicBuildStats = null;
   }
 }

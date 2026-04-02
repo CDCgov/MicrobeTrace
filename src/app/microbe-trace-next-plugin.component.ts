@@ -139,6 +139,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private subscription: Subscription;
     private networkRenderedSubscription: Subscription;
+    private startupDefaultViewRetryCount = 0;
     private loadingMessageUpdatedSubscription: Subscription;
     private destroy$ = new Subject<void>();
 
@@ -606,6 +607,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.session.network.isFullyLoaded = true;
             this.setActiveTabProperties();
 
+            const normalizedComponent = this.normalizeViewLabel(component);
+            const normalizedDefaultView = this.normalizeViewLabel(this.commonService.session.style.widgets['default-view']);
+            const defaultViewReady =
+                normalizedComponent === normalizedDefaultView &&
+                this.commonService.session.data.nodes.length > 0;
+
             // logpolygon color sh
             if(!this.store.settingsLoadedValue) {
                 console.log('--- GOLDEN LAYOUT COMPONENT filter settings');
@@ -614,6 +621,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                 console.log('--- polygon color show33: ', this.commonService.session.style.widgets['polygons-color-show']);
 
+            }
+
+            if (defaultViewReady) {
+                if (!this.store.settingsLoadedValue) {
+                    this.loadUISettings();
+                }
+
+                this.refreshActiveVisualizationIfReady();
             }
         });
 
@@ -1168,9 +1183,50 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
      public continueClicked() : void {
         // this._removeGlView('Files');
-        $('#overlay').fadeOut("slow");
+        $('#overlay').fadeOut("slow", () => {
+            this.refreshActiveVisualizationIfReady();
+        });
         $('.ui-tabview-nav').fadeTo("slow", 1);
         $('.m-portlet').fadeTo("slow", 1);
+    }
+
+    private normalizeViewLabel(view?: string | null): string | undefined {
+        if (!view) {
+            return undefined;
+        }
+
+        let normalizedView = view.replace("_", " ");
+
+        if (normalizedView === "2d network") {
+            normalizedView = "2D Network";
+        }
+
+        return normalizedView;
+    }
+
+    private refreshActiveVisualizationIfReady(): void {
+        if (!this.commonService.session.network.launched || !this.commonService.session.data.nodes.length) {
+            return;
+        }
+
+        const activeTabLabel =
+            this.homepageTabs.find(tab => tab.isActive)?.label ??
+            this.commonService.activeTab ??
+            this.normalizeViewLabel(this.commonService.session.style.widgets['default-view']);
+
+        this.commonService.activeTab = activeTabLabel;
+
+        if (activeTabLabel !== '2D Network') {
+            return;
+        }
+
+        setTimeout(() => {
+            this.publishLoadNewData();
+            this.publishFilterDataChange();
+
+            const twoD = this.commonService.visuals?.twoD as { fit?: () => void } | undefined;
+            twoD?.fit?.();
+        }, 0);
     }
 
     /**
@@ -2454,6 +2510,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.setLinkVisibility(false, false);
 
             console.log('tagClusters called link threshold change');
+            const isPatristicTreeDataset = this.commonService.hasPatristicTreeLinks();
+
+            if (isPatristicTreeDataset && Number.isFinite(parsedThreshold)) {
+                void this.commonService
+                    .recomputePatristicLinksForThreshold(parsedThreshold)
+                    .then(() => {
+                        this.commonService.updateNetworkVisuals();
+                    })
+                    .catch((error) => {
+                        console.error(
+                            'Failed to recompute patristic links after threshold change',
+                            error
+                        );
+                        this.commonService.updateNetworkVisuals();
+                    });
+
+                return;
+            }
 
             // Now schedule the heavy update (tag clusters, update visibilities, stats) using debouncing
             this.commonService.updateNetworkVisuals();
@@ -2630,19 +2704,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           }
 
         // Subscribe to the files view to see when its time to load the visualization
-        this.subscription = this.homepageTabs[0].componentRef.instance.LoadDefaultVisualizationEvent.subscribe((v) => {
+        const initialFilesInstance = this.homepageTabs[0]?.componentRef?.instance;
+        this.subscription = initialFilesInstance?.LoadDefaultVisualizationEvent?.subscribe((v) => {
             // if(this.commonService.debugMode) {
             //     console.log('--- INIT Homepage [0] LoadDefaultloading default: ', this.homepageTabs[0].componentRef.instance, v);
             // }
 
             if(this.commonService.debugMode) {
-                console.log('init Files Load Default subscription-: ', this.homepageTabs[0].componentRef.instance);
+                console.log('init Files Load Default subscription-: ', initialFilesInstance);
             }
 
             this.loadDefaultVisualization(v);
             this.publishLoadNewData();
             this.getGlobalSettingsData();
         });
+
+        this.ensureStartupDefaultViewLoaded();
 
         this._goldenLayoutHostComponent.TabRemovedEvent.subscribe((v) => {
             // this.loadSettings();
@@ -2780,11 +2857,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         console.log('--- Load Default Visualization called - reset layout ', e);
 
-        e = e.replace("_", " ");
-
-        if (e === "2d network"){
-            e = "2D Network";
-        }
+        e = this.normalizeViewLabel(e);
 
         if (!this.auspiceUrlVal) this.resetLayout();
 
@@ -2796,6 +2869,47 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         // }, 500);
         
+    }
+
+    private ensureStartupDefaultViewLoaded(): void {
+        const defaultView = this.normalizeViewLabel(this.commonService.session.style.widgets['default-view']);
+        const activeTabLabel = this.homepageTabs.find(tab => tab.isActive)?.label;
+        const hasDefaultViewTab = this.homepageTabs.some(tab => tab.label === defaultView);
+        const canBootstrapDefaultView =
+            this.commonService.session.network.launched &&
+            this.commonService.session.data.nodes.length > 0;
+
+        if (!defaultView || defaultView === 'Files') {
+            return;
+        }
+
+        if (hasDefaultViewTab) {
+            if (canBootstrapDefaultView && !this.store.settingsLoadedValue) {
+                this.loadUISettings();
+            }
+
+            if (activeTabLabel !== defaultView) {
+                this.loadDefaultVisualization(defaultView);
+            }
+            this.refreshActiveVisualizationIfReady();
+            return;
+        }
+
+        if (!canBootstrapDefaultView) {
+            if (this.startupDefaultViewRetryCount >= 80) {
+                return;
+            }
+
+            this.startupDefaultViewRetryCount += 1;
+            setTimeout(() => this.ensureStartupDefaultViewLoaded(), 250);
+            return;
+        }
+
+        this.loadDefaultVisualization(defaultView);
+        this.publishLoadNewData();
+        this.getGlobalSettingsData();
+        this.refreshActiveVisualizationIfReady();
+        setTimeout(() => this.ensureStartupDefaultViewLoaded(), 250);
     }
 
     public resetLayout() {
@@ -2835,8 +2949,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             if (x.label === "Files") {
                 if (x.componentRef != null) {
                     // Unsubscribe from previous files view subscription in get file contents
-                    this.subscription.unsubscribe();
-                    this.subscription = this.homepageTabs[0].componentRef.instance.LoadDefaultVisualizationEvent.subscribe((v) => {
+                    this.subscription?.unsubscribe();
+                    const filesInstance = this.homepageTabs[0]?.componentRef?.instance;
+                    this.subscription = filesInstance?.LoadDefaultVisualizationEvent?.subscribe((v) => {
                         console.log('--- Files loading default from subscription: ');
 
                         // this.loadSettings();
@@ -2954,7 +3069,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
-    DisplayStashDialog(saveStash: string) {
+    async DisplayStashDialog(saveStash: string) {
         switch (saveStash) {
             case "Save": {
 
@@ -3070,11 +3185,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                           saveAs(content, `${that.saveFileName}.zip`);
                       });
                 } else {
-                    this.commonService.session.files.forEach(file => {
+                    await this.commonService.hydrateSessionFilesFromStorage(this.commonService.session);
+                    for (const file of this.commonService.session.files) {
                         if (file.extension == 'xlsx' || file.extension == 'xls') {
-                            this.convertFileToCSV(file);
+                            await this.convertFileToCSV(file);
                         }
-                    });
+                    }
 
                     const stash: StashObjects = {
                         session: this.commonService.session,
@@ -3118,10 +3234,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Converts an excel file array buffer to a CSV string use when exporting
      * @param file excel file in commonService.session.files
      */
-    convertFileToCSV(file) { 
+    async convertFileToCSV(file) { 
         if (file.extension == 'xlsx' || file.extension == 'xls') {
+            const contents = await this.commonService.loadSessionFileContents(file);
+            if (!contents) {
+                return;
+            }
 
-            let x = new Uint8Array(file.contents)
+            let x: Uint8Array;
+            if (contents instanceof ArrayBuffer) {
+                x = new Uint8Array(contents);
+            } else if (contents instanceof Uint8Array) {
+                x = contents;
+            } else {
+                return;
+            }
             let workbook = XLSX.read(x, { type: 'array' });
             let csvString = XLSX.utils.sheet_to_csv(workbook.Sheets[workbook.SheetNames[0]]);
 
@@ -3129,6 +3256,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             file.name = file.name.replace('.xlsx', '.csv').replace('.xls', '.csv');
             file.contents = csvString;
             file.type = "text/csv";
+            await this.commonService.persistSessionFileContents(file);
         }
     }
 
@@ -3145,12 +3273,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         case 'Open': {
           const auspiceUrl = this.auspiceUrlVal;
           this.commonService.openAuspiceUrl(auspiceUrl)
-          .then( (out) => {
+          .then( async (out) => {
             if (out['meta'] && out['tree']) {
               console.log(this);
               this.homepageTabs[0].componentRef.instance.removeAllFiles();
               this.commonService.clearData();
-              const auspiceFile = { contents: out, name: this.getAuspiceName(auspiceUrl), extension: 'json'};
+              const auspiceFile = { contents: out, name: this.getAuspiceName(auspiceUrl), extension: 'json', format: 'auspice'};
+              await this.commonService.persistSessionFileContents(auspiceFile);
               this.commonService.session.files.push(auspiceFile);
               this.homepageTabs[0].componentRef.instance.addToTable(auspiceFile);
             //   console.log(this.homepageTabs[0].componentRef);
@@ -3452,6 +3581,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         const activeComponentName: string = this.homepageTabs[tabNdx].label;
 
+        this.commonService.activeTab = activeComponentName;
+
 
         this.homepageTabs.forEach((item: HomePageTabItem) => {
             item.isActive = item.label === activeComponentName;
@@ -3545,20 +3676,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
 
-        if (!this.homepageTabs[tabNdx].componentRef) {
+        if (!this.homepageTabs[tabNdx]?.componentRef) {
             setTimeout(() => {
-
-                tabNdx = this.homepageTabs.findIndex(x => x.label == activeComponentName);
-                if (this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent) {
-                    this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
-                }
-
+                const refreshedTabIndex = this.homepageTabs.findIndex(x => x.label == activeComponentName);
+                const refreshedInstance = this.homepageTabs[refreshedTabIndex]?.componentRef?.instance;
+                refreshedInstance?.DisplayGlobalSettingsDialogEvent?.subscribe((v) => {
+                    this.DisplayGlobalSettingsDialog(v);
+                });
             });
         } else {
-          
-            if (this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent) {
-                this.homepageTabs[tabNdx].componentRef.instance.DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
-            }
+            const instance = this.homepageTabs[tabNdx]?.componentRef?.instance;
+            instance?.DisplayGlobalSettingsDialogEvent?.subscribe((v) => {
+                this.DisplayGlobalSettingsDialog(v);
+            });
         }
 
 
@@ -3630,7 +3760,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         //Filtering|Filtering Threshold
         console.log('--- loadSettings link-threshold changed: ', this.commonService.session.style.widgets["link-threshold"]);
         this.SelectedLinkThresholdVariable = this.commonService.session.style.widgets["link-threshold"];
-        this.onLinkThresholdChanged();
+        this.onLinkThresholdChanged(undefined, true);
 
     }
 
@@ -3692,6 +3822,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
  
          this.updateGlobalSettingsModel();
+         this.refreshActiveVisualizationIfReady();
 
     }
 
@@ -3702,8 +3833,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.homepageTabs.forEach(tab => {
             // componentRef.instance.onLoadNewData ?
             if (tab.componentRef &&
-                tab.componentRef.onLoadNewData) {
-                tab.componentRef.onLoadNewData();
+                tab.componentRef.instance?.onLoadNewData) {
+                tab.componentRef.instance.onLoadNewData();
             }
         })
     }
@@ -3713,7 +3844,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // this.goldenLayout.componentInstances[1].onFilterDataChange();
         this.homepageTabs.forEach(tab => {
             if (tab.componentRef &&
-                tab.componentRef.instance.onFilterDataChange) {
+                tab.componentRef.instance?.onFilterDataChange) {
                 tab.componentRef.instance.onFilterDataChange();
             }
         })

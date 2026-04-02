@@ -9,231 +9,72 @@
 
 3. **`src/app/workers/workModule.ts`** — Added `getPatristicWorker()` and `terminatePatristicWorker()`
 4. **`src/app/contactTraceCommonServices/worker-compute.service.ts`** — Added `computePatristicEdges()`, `initPatristicTree()`, `buildPatristicEdges()`, `cancelPatristicJob()`
+5. **`src/app/filesComponent/files-plugin.component.ts`** — Newick and Auspice now use the patristic worker for thresholded edges
+6. **`src/app/helperClasses/auspiceHandler.ts`** — Removed matrix-based link generation; returns `newickWithLabels` for worker-based edge generation
 
-## Remaining Integration: files-plugin.component.ts
+## Current Integration Status
 
-### What to change
+- **Newick ingest** in `files-plugin.component.ts` now calls:
+  - `WorkerComputeService.computePatristicEdges(file.contents, threshold, ...)`
+  - Adds leaf nodes from the worker leaf index
+  - Streams thresholded edges directly into `addLink`
+- **Auspice ingest** now uses `AuspiceHandler` output `newickWithLabels` and the same worker path to generate links.
+- **`PatristicTreeReadyResponse`** now includes `maxRootDepth`, used by Newick ingest for SNP heuristic:
+  - if `maxRootDepth * 2 > 1`, metric is switched to `snps`.
+- **`computePatristicEdges` options** now include:
+  - `origin`
+  - `distanceOrigin`
+  - `check`
+  - `session` (for debug logging)
+- **Session file content persistence path** now hydrates offloaded file contents before launch and table-read paths:
+  - files loaded into `commonService.session.files` can keep only `contentStorageKey` metadata in memory.
+  - table preview, launch parsing, and sequence reads call `commonService.loadSessionFileContents(...)` during processing.
 
-The newick loading block at **lines 1271-1318** needs to be replaced with an async worker call.
+### Known follow-up work
 
-### Current code (lines 1271-1318):
-
-```typescript
-} else { // if(file.format === 'newick'){
-
-  this.commonService.resetData();
-  let links = 0;
-  let newLinks = 0;
-  let newNodes = 0;
-  this.commonService.session.data.newickString = file.contents;
-  const tree = patristic.parseNewick(file.contents);                    // O(N)
-  let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(...); // O(N^2) ← PROBLEM
-  const maxRow = matrix.map(function(row){ return Math.max.apply(Math, row); });
-  const maxMax = Math.max.apply(null, maxRow);
-  if (maxMax > 1) {
-    // ... set distance metric to snps ...
-  }
-  for (let i = 0; i < n; i++) {                                        // O(N^2) ← PROBLEM
-    const source = labels[i];
-    newNodes += this.commonService.addNode({ _id: source, origin: origin }, check);
-    for (let j = 0; j < i; j++) {
-      newLinks += this.commonService.addLink({
-        source: source, target: labels[j], origin: origin,
-        distance: parseFloat(matrix[i][j]),
-        distanceOrigin: file.name, hasDistance: true
-      }, check);
-      links++;
-    }
-  }
-  console.log('Newick Tree Parse time:', ...);
-  this.showMessage(...);
-  this.showMessage(...);
-  if (fileNum === nFiles) this.processData();
-}
-```
-
-### Step 1: Add WorkerComputeService injection
-
-In the constructor (~line 102):
-
-```typescript
-constructor(
-  @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
-  elRef: ElementRef,
-  private eventEmitterService: EventEmitterService,
-  public commonService: CommonService,
-  private cdr: ChangeDetectorRef,
-  private store: CommonStoreService,
-  private embedHandoffService: EmbedHandoffService,
-  private ngZone: NgZone,
-  private workerCompute: WorkerComputeService  // ← ADD THIS
-) {
-```
-
-Add the import at the top of the file:
-
-```typescript
-import { WorkerComputeService } from '../contactTraceCommonServices/worker-compute.service';
-```
-
-### Step 2: Replace the newick block (lines 1271-1318)
-
-```typescript
-} else { // if(file.format === 'newick'){
-
-  this.commonService.resetData();
-  this.commonService.session.data.newickString = file.contents;
-
-  // Get threshold for the worker
-  const threshold = parseFloat(this.commonService.session.style.widgets['link-threshold'])
-    || Infinity; // Use Infinity if no threshold set, to get all edges
-
-  // Use the patristic engine worker instead of tree.toMatrix()
-  this.workerCompute.computePatristicEdges(
-    file.contents as string,
-    threshold,
-    this.commonService.addLink.bind(this.commonService),
-    this.commonService.filterXSS,
-    this.commonService.session
-  ).then(({ newLinks, totalLinks, leafNames }) => {
-    // Add nodes
-    let newNodes = 0;
-    for (let i = 0; i < leafNames.length; i++) {
-      newNodes += this.commonService.addNode({
-        _id: leafNames[i],
-        origin: origin,
-      }, check);
-    }
-
-    console.log('Newick Tree Parse time:', (Date.now() - start).toLocaleString(), 'ms');
-    this.showMessage(` - Parsed ${newNodes} New, ${leafNames.length} Total Nodes from Newick Tree.`);
-    this.showMessage(` - Parsed ${newLinks} New, ${totalLinks} Total Links from Newick Tree.`);
-    if (fileNum === nFiles) this.processData();
-
-  }).catch((err) => {
-    console.error('Patristic engine error:', err);
-    this.showMessage(` - Error processing Newick tree: ${err.message}`);
-  });
-}
-```
-
-### Important notes on the integration:
-
-1. **The `maxMax > 1` SNP detection is removed.** With the worker, we don't have the full matrix to check max values. Options:
-   - Have the worker report max distance in TREE_READY response (add `maxDistance` field)
-   - Or: check after edges arrive — if any `batch.distances[k] > 1`, switch to SNPs mode
-   - Simplest: add a max-distance field to TREE_READY. See below.
-
-2. **The `origin` variable** comes from `const origin = [file.name]` at line 732. The worker-compute service currently hardcodes `['Newick Tree']` — change this to pass `origin` as a parameter.
-
-3. **The `check` variable** comes from `const check = nFiles > 0` at line 721.
-
-4. **`processData()` call** — since the worker is async, `processData()` will now be called in the `.then()` callback rather than synchronously. This means other files in the sort order may process before the newick edges arrive. If newick is always first (it's second in hierarchy after auspice), this should be fine.
-
-### Step 3: Add maxDistance to worker (recommended)
-
-To preserve the SNP-detection heuristic (`maxMax > 1`), add this to the worker's TREE_READY response:
-
-In `patristic-engine.types.ts`, add to `PatristicTreeReadyResponse`:
-```typescript
-/** Maximum root-to-tip depth (useful for SNP vs. genetic distance detection). */
-maxRootDepth: number;
-```
-
-In `patristic-engine.worker.ts`, in the INIT_TREE handler:
-```typescript
-// Compute max root depth for SNP detection heuristic
-let maxDepth = 0;
-for (let i = 0; i < currentTree.leafCount; i++) {
-  const d = currentTree.rootDepth[currentTree.leafNodeIndex[i]];
-  if (d > maxDepth) maxDepth = d;
-}
-
-respond({
-  type: 'TREE_READY',
-  jobId,
-  leafCount: currentTree.leafCount,
-  nodeCount: currentTree.nodeCount,
-  leafNames: currentTree.leafNames,
-  maxRootDepth: maxDepth,
-});
-```
-
-Then in files-plugin.component.ts, check `treeReady.maxRootDepth * 2 > 1` to decide if distances are SNPs. (The maximum patristic distance between any two leaves is at most 2 * maxRootDepth.)
-
----
-
-## Remaining Integration: auspiceHandler.ts
-
-### Current code (lines 173-182):
-
-```typescript
-public run = (jsonObj) => {
-  const newickString = this.treeToNewick(jsonObj.tree, false, true);
-  const fullTree = this.parseAuspice(jsonObj);
-  const distanceMatrix = patristic.parseNewick(newickString).toMatrix();  // ← PROBLEM
-  const updatedTree = this.combineMutations(fullTree);
-  this.makeLinksFromMatrix(distanceMatrix);                                // ← PROBLEM
-  const bareNewickString = this.treeToNewick(jsonObj.tree, false, false);
-  this.nodeList = this.addLatLong(this.nodeList, jsonObj.meta);
-  return { nodes: this.nodeList, links: this.linkList, tree: updatedTree, newick: bareNewickString };
-}
-```
-
-### Recommended change:
-
-Stop computing the distance matrix in the auspice handler. Instead, return the newick string and let the same patristic worker handle edge generation:
-
-```typescript
-public run = (jsonObj) => {
-  const newickString = this.treeToNewick(jsonObj.tree, false, true);
-  const fullTree = this.parseAuspice(jsonObj);
-  const updatedTree = this.combineMutations(fullTree);
-  // Don't compute matrix here — let the patristic worker handle it
-  const bareNewickString = this.treeToNewick(jsonObj.tree, false, false);
-  this.nodeList = this.addLatLong(this.nodeList, jsonObj.meta);
-  return { nodes: this.nodeList, links: [], tree: updatedTree, newick: bareNewickString, newickWithLabels: newickString };
-}
-```
-
-Then in files-plugin.component.ts where auspice is processed (~line 733-796), after adding nodes, use the worker for edge generation:
-
-```typescript
-// After auspice processing adds nodes...
-await this.workerCompute.computePatristicEdges(
-  auspiceData.newickWithLabels,
-  threshold,
-  this.commonService.addLink.bind(this.commonService),
-  this.commonService.filterXSS,
-  this.commonService.session
-);
-```
-
----
+- Completed:
+- Added targeted unit test coverage for `WorkerComputeService.computePatristicEdges()` happy/error/cancel paths (`src/app/contactTraceCommonServices/worker-compute.service.spec.ts`).
+- Added subtree-pruned threshold traversal with cached descendant-depth metadata and final build stats in `src/app/workers/patristic-engine.worker.ts`.
+- Added export-only full-matrix streaming through `WorkerComputeService.exportPatristicDistanceMatrix()`, with `CommonService.getDM(true)` routing Heatmap CSV export through the worker instead of materializing all patristic links in session state.
+- Added dense-edge guardrails that warn during patristic launch and cap displayed patristic edges at 10,000 when the threshold spans the tree diameter bound, with Cypress coverage for capped dense-star launches.
+- Preserved launch-time threshold/metric settings across the Newick ingest `resetData()` path so dense guardrail launches honor the chosen threshold instead of falling back to the default TN93 `0.015`.
+- Added Cypress integration coverage for malformed Newick load and cancellation behavior (`cypress/e2e/journeys/flows/patristic-computation.cy.ts`).
+- Added dedicated Cypress coverage for subtree-pruning stats on the browser worker/service path (`cypress/e2e/journeys/flows/patristic-subtree-pruning.cy.ts`).
+- Added progress-report callback coverage on the patristic compute path through `WorkerComputeService` and unit coverage for parsed/build-progress propagation (`src/app/contactTraceCommonServices/worker-compute.service.ts`, `src/app/contactTraceCommonServices/worker-compute.service.spec.ts`).
+- Added synthetic Newick benchmark coverage for 500, 1000, and 2000 taxa in
+  `cypress/e2e/journeys/flows/patristic-computation.cy.ts` (runtime measured with a 2s/5s/15s soft target log strategy and a hard budget check).
+- Added Cytoscape materialization coverage for patristic paths to ensure invisible links are not rendered in `mapDataToCytoscapeElements` (`cypress/e2e/journeys/flows/patristic-computation.cy.ts`).
 
 ## Testing Checklist
 
 ### Unit tests for patristic-engine.worker.ts:
 
-- [ ] **Simple 3-leaf tree**: `((A:1,B:2):1,C:3);` — verify distances A-B=3, A-C=5, B-C=6
-- [ ] **Star topology**: `(A:1,B:1,C:1);` — all pairwise = 2
-- [ ] **Zero-length branches**: `((A:0,B:1):0,C:1);` — A-B=1, A-C=1, B-C=2
-- [ ] **Single leaf**: `(A:1);` — no edges, no crash
-- [ ] **Threshold filtering**: Tree with distances [1, 2, 5, 10], threshold=3 → only edges with d<=3
-- [ ] **Batch streaming**: 100-leaf tree, batchSize=10 → multiple batches, last has `done=true`
-- [ ] **Cancellation**: Start BUILD_EDGES, send CANCEL, verify no more batches
-- [ ] **Duplicate leaf names**: Should return ERROR
-- [ ] **Negative branch lengths**: Should return ERROR
-- [ ] **Empty newick string**: Should return ERROR
-- [ ] **Reroot invariance**: Same tree rerooted → identical pairwise distances
+- [x] **Simple 3-leaf tree**: `((A:1,B:2):1,C:3);` — verify distances A-B=3, A-C=5, B-C=6
+- [x] **Star topology**: `(A:1,B:1,C:1);` — all pairwise = 2
+- [x] **Zero-length branches**: `((A:0,B:1):0,C:1);` — A-B=1, A-C=1, B-C=2
+- [x] **Single leaf**: `(A:1);` — no edges, no crash
+- [x] **Reroot invariance**: Same topology rendered with different root ordering produces identical pairwise distances
+- [x] **Threshold filtering**: Tree with distances [1, 2, 5, 10], threshold=3 → only edges with d<=3
+- [x] **Subtree pruning**: Balanced tree with distant sibling subtrees prunes the cross-subtree search while preserving the exact qualifying edge set
+- [x] **Batch streaming**: 100-leaf tree, batchSize=10 → multiple batches, last has `done=true`
+- [x] **Cancellation**: Start BUILD_EDGES, send CANCEL, verify no more batches
+- [x] **Duplicate leaf names**: Should return ERROR
+- [x] **Empty newick string**: Should return ERROR
+- [x] **Negative branch lengths**: Should return ERROR
 
 ### Integration tests:
 
-- [ ] Load a newick file → correct number of nodes and links appear
-- [ ] Threshold slider change → re-queries worker, doesn't reparse tree
-- [ ] Load auspice file → correct patristic edges
-- [ ] Load newick then load different newick → old tree replaced
-- [ ] .microbetrace export/import round-trip preserves edges
+- [x] Load a newick file → correct number of nodes and links appear
+- [x] Invalid Newick inputs show an error and keep the app in a launched-complete state
+  - covered by `cypress/e2e/journeys/flows/patristic-computation.cy.ts` with malformed, duplicate-tip, negative-branch, and empty-tree fixtures
+- [x] Threshold slider change → re-queries worker, doesn't reparse tree
+  - covered by `cypress/e2e/journeys/flows/patristic-computation.cy.ts` asserting `BUILD_EDGES` posts on threshold updates and `INIT_TREE` does not.
+- [x] Load auspice file → correct patristic edges
+  - covered by `cypress/e2e/journeys/flows/patristic-computation.cy.ts` using `load-twod-auspice-patristic` fixture.
+- [x] Load newick then load different newick → old tree replaced
+  - covered by `cypress/e2e/journeys/flows/patristic-computation.cy.ts` using two deterministic tiny Newick fixtures.
+- [x] .microbetrace export/import round-trip preserves edges
+  - covered by `cypress/e2e/journeys/flows/session-roundtrip-uploaded.cy.ts` after adding Newick-derived session round-trip assertions.
 
 ### Benchmark targets:
 

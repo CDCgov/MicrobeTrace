@@ -51,6 +51,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         "#edeff3", "#fcff5d", "#632819", "#228c68",  "#277da7", "#37294f",
         "#991919", "#e68f66", "#c3a5b4", "#2f2aa0", "#c56133", "#5d4c86"]
     polygonPalette: string[] = ['#353cac', '#fdbe3d', '#41ba97', '#9e0f1e', '#303030', '#62a5e4', '#a13eda', '#f4e41c', '#75d054', '#f22020'] ;
+    private fileStorageKeyPrefix = 'microbetrace-session-file:';
+    private fileStorageSequence = 0;
 
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
@@ -546,6 +548,33 @@ export class CommonService extends AppComponentBase implements OnInit {
         return summary;
     }
 
+    private getEffectiveLinkMetricValue(link: any, metric: string): number | null {
+        const rawMetricValue = link?.[metric];
+        const parseMetricValue = (value: unknown): number | null => {
+            if (typeof value === 'number') {
+                return Number.isFinite(value) ? value : null;
+            }
+
+            if (typeof value === 'string' && value.trim().length > 0) {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : null;
+            }
+
+            return null;
+        };
+
+        const directMetricValue = parseMetricValue(rawMetricValue);
+        if (directMetricValue !== null) {
+            return directMetricValue;
+        }
+
+        if (metric !== 'distance' && link?.hasDistance) {
+            return parseMetricValue(link?.distance);
+        }
+
+        return null;
+    }
+
     private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
         const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
 
@@ -561,13 +590,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 return;
             }
 
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
+            const metricValue = this.getEffectiveLinkMetricValue(link, metric);
+            const hasNumericMetric = metricValue !== null;
             const distanceOrigins = this.getLinkDistanceOrigins(link);
             const origins = Array.isArray(link?.origin) ? link.origin : [];
             const hasNonDistanceOrigin = origins.some((originName: string) => {
@@ -601,13 +625,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         const excludedIndexes = new Set<number>();
 
         this.session.data.links.forEach((link, linkIndex) => {
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
+            const metricValue = this.getEffectiveLinkMetricValue(link, metric);
+            const hasNumericMetric = metricValue !== null;
             const isThresholdControlled = hasNumericMetric && link.hasDistance;
             const distanceOrigins = this.getLinkDistanceOrigins(link);
             const origins = Array.isArray(link?.origin) ? link.origin : [];
@@ -1157,10 +1176,145 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
+    private isPatristicTreeOrigin(originName: unknown): boolean {
+        if (typeof originName !== 'string') {
+            return false;
+        }
+
+        const normalized = originName.toLowerCase();
+        if (normalized === 'newick tree' || normalized === 'auspice') {
+            return true;
+        }
+
+        return normalized === 'newick tree data'
+            || normalized.endsWith('.nwk')
+            || normalized.endsWith('.newick')
+            || normalized.includes('newick');
+    }
+
+    private getLinkOrigins(link: any): string[] {
+        if (!link) {
+            return [];
+        }
+        if (Array.isArray(link.origin)) {
+            return link.origin.filter((value: unknown): value is string => typeof value === 'string');
+        }
+        if (typeof link.origin === 'string') {
+            return [link.origin];
+        }
+        return [];
+    }
+
+    private isPatristicThresholdTreeLink(link: any): boolean {
+        const origins = this.getLinkOrigins(link);
+        if (!origins.length) {
+            return false;
+        }
+
+        const hasPatristicOrigin = origins.some(origin => this.isPatristicTreeOrigin(origin));
+        const hasNonPatristicOrigin = origins.some(origin => !this.isPatristicTreeOrigin(origin));
+        return hasPatristicOrigin && !hasNonPatristicOrigin;
+    }
+
+    private getPatristicThresholdLinkMetadata(links: any[]): { origin: string[]; distanceOrigin: string } {
+        const defaultMetadata = { origin: ['Newick Tree'], distanceOrigin: 'Newick Tree' };
+        for (const link of links) {
+            const origins = this.getLinkOrigins(link);
+            const patristicOrigin = origins.find(origin => this.isPatristicTreeOrigin(origin));
+
+            if (patristicOrigin) {
+                const distanceOrigins = this.getLinkDistanceOrigins(link);
+                const patristicDistanceOrigin = distanceOrigins.find((origin) => this.isPatristicTreeOrigin(origin))
+                    || (typeof link.distanceOrigin === 'string' && link.distanceOrigin.length > 0
+                        ? link.distanceOrigin
+                        : patristicOrigin);
+
+                return { origin: [patristicOrigin], distanceOrigin: patristicDistanceOrigin };
+            }
+        }
+
+        return defaultMetadata;
+    }
+
+    private isPatristicOriginLink(link: any): boolean {
+        const origins = this.getLinkOrigins(link);
+        const distanceOrigins = this.getLinkDistanceOrigins(link);
+
+        return origins.some(origin => this.isPatristicTreeOrigin(origin))
+            || distanceOrigins.some(origin => this.isPatristicTreeOrigin(origin));
+    }
+
     private isDistanceBackedOrigin(originName: string, distanceOrigins: string[]): boolean {
         return distanceOrigins.some(distanceOrigin => {
             return Boolean(originName) && Boolean(distanceOrigin) && originName.includes(distanceOrigin);
         });
+    }
+
+    public hasPatristicTreeLinks(): boolean {
+        return this.session.data.links.some((link: any) => this.isPatristicOriginLink(link));
+    }
+
+    public async recomputePatristicLinksForThreshold(threshold: number): Promise<boolean> {
+        if (!Number.isFinite(threshold)) {
+            return false;
+        }
+
+        if (!this.hasPatristicTreeLinks()) {
+            return false;
+        }
+
+        const newickString = (this.session.data.newickString || '').trim();
+        if (!newickString) {
+            return false;
+        }
+
+        const currentLinks = this.session.data.links.slice();
+        if (!currentLinks.length) {
+            return false;
+        }
+
+        const metadata = this.getPatristicThresholdLinkMetadata(currentLinks);
+        const retainedLinks: any[] = [];
+        let removedPatristicLinkCount = 0;
+
+        currentLinks.forEach((link: any) => {
+            if (this.isPatristicThresholdTreeLink(link)) {
+                removedPatristicLinkCount += 1;
+            } else {
+                retainedLinks.push(link);
+            }
+        });
+
+        if (removedPatristicLinkCount === 0) {
+            return false;
+        }
+
+        this.session.data.links = retainedLinks;
+        this.rebuildLinkMatrix();
+        this.invalidateThresholdAnalysisCache();
+
+        try {
+            this.workerComputeService.cancelPatristicJob();
+
+            await this.workerComputeService.computePatristicEdges(
+                newickString,
+                threshold,
+                this.addLink.bind(this),
+                this.filterXSS,
+                {
+                    session: this.session,
+                    origin: metadata.origin,
+                    distanceOrigin: metadata.distanceOrigin,
+                    check: true,
+                }
+            );
+            return true;
+        } catch (error) {
+            this.session.data.links = currentLinks;
+            this.rebuildLinkMatrix();
+            this.invalidateThresholdAnalysisCache();
+            throw error;
+        }
     }
 
     private rebuildLinkMatrix(): void {
@@ -1388,7 +1542,7 @@ export class CommonService extends AppComponentBase implements OnInit {
      * @param json 
      * @param {string} extension file extension such as json, hivtrace, or microbetrace
      */
-    processJSON(json: any, extension: string) {
+    async processJSON(json: any, extension: string) {
         if(this.debugMode) {
             console.log("Trying to process JSON file");
         }
@@ -1425,6 +1579,84 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
     };
+
+    private buildFileStorageKey(file: any): string {
+        const name = typeof file?.name === 'string' ? file.name : 'session-file';
+        const safeName = encodeURIComponent(name.toLowerCase().replace(/\.[^.]+$/, ''));
+        this.fileStorageSequence += 1;
+        const nonce = Math.floor(Math.random() * 1_000_000).toString(36);
+        return `${this.fileStorageKeyPrefix}${Date.now()}-${this.fileStorageSequence}-${nonce}:${safeName}`;
+    }
+
+    async persistSessionFileContents(file: any): Promise<void> {
+        if (!file || !('contents' in file)) {
+            return;
+        }
+
+        if (file.contents === undefined) {
+            return;
+        }
+
+        const storageKey = file.contentStorageKey || this.buildFileStorageKey(file);
+        try {
+            await this.localStorageService.setItemAsync(storageKey, file.contents);
+            if (file.contentStorageKey && file.contentStorageKey !== storageKey) {
+                await this.localStorageService.removeItemAsync(file.contentStorageKey);
+            }
+            file.contentStorageKey = storageKey;
+            file.contents = undefined;
+        } catch (error) {
+            console.error('Failed to persist file contents to localforage:', error);
+        }
+    }
+
+    async loadSessionFileContents(file: any): Promise<any> {
+        if (!file) {
+            return undefined;
+        }
+
+        if (file.contents !== undefined) {
+            return file.contents;
+        }
+
+        if (!file.contentStorageKey) {
+            return undefined;
+        }
+
+        const loaded = await this.localStorageService.getItemAsync<any>(file.contentStorageKey);
+        if (loaded !== undefined) {
+            file.contents = loaded;
+        }
+        return loaded;
+    }
+
+    async clearSessionFileContents(file: any): Promise<void> {
+        if (!file?.contentStorageKey) {
+            return;
+        }
+
+        await this.localStorageService.removeItemAsync(file.contentStorageKey);
+        delete file.contentStorageKey;
+        file.contents = undefined;
+    }
+
+    async hydrateSessionFilesFromStorage(session: { files?: any[] }): Promise<void> {
+        const files = session?.files;
+        if (!Array.isArray(files) || files.length === 0) {
+            return;
+        }
+
+        await Promise.all(files.map(file => this.loadSessionFileContents(file)));
+    }
+
+    async offloadSessionFileContents(session: { files?: any[] }): Promise<void> {
+        const files = session?.files;
+        if (!Array.isArray(files) || files.length === 0) {
+            return;
+        }
+
+        await Promise.all(files.map(file => this.persistSessionFileContents(file)));
+    }
 
     /**
      * Updates commonService.session with information from stashObject. Variables updated include data, files, state, style, and layout.
@@ -1471,6 +1703,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.session.files = oldSession.files;
         this.session.state = oldSession.state;
         this.session.style = oldSession.style;
+        await this.offloadSessionFileContents(this.session);
 
         this.session.meta.startTime = Date.now();
 
@@ -1506,7 +1739,18 @@ export class CommonService extends AppComponentBase implements OnInit {
         // TODO: See about this process data functionality.  DO we need this?
         this.processData();
 
-        if (oldSession.network) this.session.network = oldSession.network;
+        this.session.network = {
+            ...this.session.network,
+            ...(oldSession.network || {}),
+            nodes: [],
+            timelineNodes: [],
+            initialLoad: false,
+            launched: n > 0,
+            isFullyLoaded: false,
+            rendered: false,
+            rendering: false,
+            settingsLoaded: false
+        };
 
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
@@ -2120,14 +2364,32 @@ align(params): Promise<any> {
         return false;
     }
 
-    getDM(): Promise<any> {
+    getDM(exportOnly = false): Promise<any> {
         const start = Date.now();
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             let labels = [];
             let dm : any = '';
+            const exportNewickString = typeof this.session.data.newickString === 'string' && this.session.data.newickString.trim()
+                ? this.session.data.newickString.trim()
+                : (typeof this.session.data['newick'] === 'string' ? this.session.data['newick'].trim() : '');
+
+            if (exportOnly && exportNewickString) {
+                this.workerComputeService.exportPatristicDistanceMatrix(exportNewickString)
+                    .then(({dm, labels}) => {
+                        if(this.debugMode) {
+                            console.log("DM Compute time: ", (Date.now() - start).toLocaleString(), "ms");
+                        }
+                        resolve({dm, labels});
+                    })
+                    .catch(reject);
+                return;
+            }
+
             if (this.session.data['newick']){
-                let treeObj = patristic.parseNewick(this.session.data['newick']);
-                dm = treeObj.toMatrix();
+                const treeObj = patristic.parseNewick(this.session.data['newick']);
+                const treeMatrix = treeObj.toMatrix();
+                dm = treeMatrix.matrix;
+                labels = treeMatrix.ids;
             } else {
                 labels = this.session.data.nodes.filter(this.hasSeq).map(d => d.id);
                 if (labels.length === 0) labels = this.session.data.nodes.filter(this.hasSeq).map(d => d._id);
@@ -2439,6 +2701,11 @@ align(params): Promise<any> {
     updateNetworkVisuals(silent: boolean = false) {
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+
+        // Re-evaluate raw link visibility before rebuilding clusters so reclustering
+        // always reflects the current metric/threshold state instead of a stale pass.
+        this.setLinkVisibility(true, false);
+
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -3152,6 +3419,8 @@ align(params): Promise<any> {
             let visible = true;
             let overrideNN = false;
             let originWasFiltered = false; // *** Step 2: Add flag ***
+            const metricValue = this.getEffectiveLinkMetricValue(link, metric);
+            const hasNumericMetric = metricValue !== null;
     
             // Add back the distance origin to the *copy* if it was removed (Safeguard)
             // Check against original link.origin, add to finalOrigins if needed
@@ -3166,7 +3435,7 @@ align(params): Promise<any> {
     
     
             // Visibility Logic based on metric/threshold/hasDistance
-            if (link[metric] == null) { // No distance value for the current metric
+            if (!hasNumericMetric) { // No distance value for the current metric
                  // Check for non-distance origins using the *copy*
                 if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
                     // Filter the *copy* for visibility check
@@ -3179,7 +3448,7 @@ align(params): Promise<any> {
                 }
             } else { // Has a distance value for the current metric
                 if (link.hasDistance) {
-                    visible = link[metric] <= threshold;
+                    visible = metricValue <= threshold;
                     if (!visible) {
                          // Distance is above threshold. Check for other origins using the *copy*.
                         if (finalOrigins.filter(fileName => {

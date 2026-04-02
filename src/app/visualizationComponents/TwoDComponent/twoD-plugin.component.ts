@@ -208,6 +208,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
 
     rerenderOnActive: boolean = false;
+    private rerenderOnViewInit = false;
+    private viewInitialized = false;
 
     SelectedNetworkExportFileTypeListVariable: string = "png";
     SelectedNetworkExportScaleVariable: any = 1;
@@ -335,8 +337,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {
             if(loaded && this.commonService.activeTab === '2D Network') {
-
-                 this._rerender();
+                if (this.viewInitialized && this.cyContainer?.nativeElement) {
+                    this._rerender();
+                } else {
+                    this.rerenderOnViewInit = true;
+                }
 
             }
         });
@@ -367,16 +372,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ngAfterViewInit(): void {
         console.log('--- TwoD ngAfterViewInit called');
-      
+        this.viewInitialized = true;
+
+        const shouldRenderInitialNetwork =
+            !this.cy &&
+            this.store.settingsLoadedValue &&
+            this.commonService.session.data.nodes.length > 0;
+
+        if (this.rerenderOnViewInit || shouldRenderInitialNetwork) {
+            this.rerenderOnViewInit = false;
+            setTimeout(() => this._rerender(), 0);
+        }
       }
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
 
     console.log('--- TwoD mapDataToCytoscapeElements called');
+    const visibleLinks = (data.links || []).filter((link: any) => {
+      return !('visible' in link) || Boolean(link.visible);
+    });
+
         // Create a set to track unique parent nodes
     const parentNodes = new Set();
 
-    const edges = data.links.flatMap((link: any) => {
+    const edges = visibleLinks.flatMap((link: any) => {
         if ((this.widgets['link-color-variable'] == 'Origin' || this.widgets['link-color-variable'] == 'origin') && link.origin.length > 1) {
             return link.origin.map((originItem: any, index) => ({
                 data: {
@@ -2971,6 +2990,26 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('--- TwoD DATA network rerender');
 
+        if (!this.cyContainer?.nativeElement) {
+            if (!this.viewInitialized) {
+                this.rerenderOnViewInit = true;
+            } else if (this.viewActive) {
+                setTimeout(() => {
+                    if (!this.cy && this.viewActive) {
+                        this._rerender(timelineTick);
+                    }
+                }, 50);
+            } else {
+                this.rerenderOnActive = true;
+            }
+
+            if (!timelineTick) {
+                this.commonService.session.network.rendering = false;
+            }
+
+            return;
+        }
+
         if (!timelineTick) {
             // If the network is in the middle of rendering, don't rerender
             if(this.commonService.session.network.rendering) return;
@@ -3135,6 +3174,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 console.warn("❌ Edge references invalid node:", edge.data);
               }
             });
+
+            if (!this.cyContainer?.nativeElement) {
+                this.commonService.session.network.rendering = false;
+                return;
+            }
             
             // 4) Actually create Cytoscape
             let startTime: number;
@@ -3768,11 +3812,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates link-length widget and link force distance
      */
     onLinkLengthChange(e) {
+        const nextLength = Number(
+            e?.target?.value ??
+            e?.value ??
+            this.SelectedLinkLengthVariable ??
+            this.widgets['link-length']
+        );
+
         if (this.commonService.session.network.allPinned) {
             // updating link length results in recaculcating node positions, if nodes are pinned prevent this
             this.SelectedLinkLengthVariable = this.widgets['link-length'];
             return;
         }
+
+        if (Number.isFinite(nextLength)) {
+            this.SelectedLinkLengthVariable = nextLength;
+        }
+
         this.widgets['link-length'] = this.SelectedLinkLengthVariable;
         this.updateLayout();
     }
@@ -4191,7 +4247,7 @@ private async _partialUpdate() {
             node.nodeSize = Number(this.cy.nodes().getElementById(node._id).data('nodeSize'));
         })
     }
-    const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
+    const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 120, false);
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
 
@@ -4336,9 +4392,9 @@ private async _partialUpdate() {
         this.destroy$.next();
         this.destroy$.complete();
 
-        this.styleFileSub.unsubscribe();
+        this.styleFileSub?.unsubscribe();
 
-        this.settingsLoadedSubscription.unsubscribe();
+        this.settingsLoadedSubscription?.unsubscribe();
 
         if (this.cy){
             this.cy.removeAllListeners();
@@ -4359,7 +4415,27 @@ private async _partialUpdate() {
         }
 
         console.log('onLoadNewData');
-        // this.debouncedRerender();
+
+        if (!this.commonService.session.data.nodes.length) {
+            return;
+        }
+
+        if (!this.viewActive) {
+            this.rerenderOnActive = true;
+            return;
+        }
+
+        if (!this.viewInitialized || !this.cyContainer?.nativeElement) {
+            this.rerenderOnViewInit = true;
+            setTimeout(() => {
+                if (!this.cy && this.viewActive) {
+                    this.onLoadNewData();
+                }
+            }, 50);
+            return;
+        }
+
+        this.debouncedRerender();
     }
 
     /**

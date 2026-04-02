@@ -1,4 +1,5 @@
 import { defineConfig } from "cypress";
+import * as fs from 'fs';
 import { registerOracleTasks } from "./cypress/oracle/task";
 
 export default defineConfig({
@@ -23,6 +24,25 @@ export default defineConfig({
       contractMode: 0,
     },
     setupNodeEvents(on, config) {
+      on('before:browser:launch', (browser, launchOptions) => {
+        const userDataDir = config.env.benchmarkChromeUserDataDir;
+        if (!userDataDir || browser.family !== 'chromium') {
+          return launchOptions;
+        }
+
+        fs.mkdirSync(userDataDir, { recursive: true });
+        launchOptions.args = (launchOptions.args || []).filter(
+          (arg) => !arg.startsWith('--user-data-dir='),
+        );
+        launchOptions.args.push(`--user-data-dir=${userDataDir}`);
+
+        if (!launchOptions.args.includes('--enable-precise-memory-info')) {
+          launchOptions.args.push('--enable-precise-memory-info');
+        }
+
+        return launchOptions;
+      });
+
       registerOracleTasks(on);
       return config;
     },

@@ -6,6 +6,8 @@
     "start": "ng serve -c development",
     "start:local-cypress": "ng serve -c development --host 127.0.0.1 --port 4210",
     "prebuild": "node scripts/update-version.js",
+    "generate:budget-fixtures": "node scripts/generate-network-budget-fixtures.js",
+    "benchmark:network-budget": "node scripts/run-network-budget-harness.js",
     "tomcat:setup": "bash scripts/tomcat/setup-local-tomcat.sh",
     "tomcat:deploy": "bash scripts/tomcat/deploy-war-local.sh",
     "tomcat:start": "bash scripts/tomcat/start-local-tomcat.sh",

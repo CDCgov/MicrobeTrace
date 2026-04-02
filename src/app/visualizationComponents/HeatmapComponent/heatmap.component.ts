@@ -381,14 +381,15 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   saveDistanceMatrix(): void {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
-    const labelArray = cloneDeep(this.heatmapLabels);
-    this.commonService.getDM().then(({dm, _}) => {
+    this.commonService.getDM(true).then(({dm, labels}) => {
+      const labelArray = cloneDeep(labels?.length ? labels : this.heatmapLabels);
+      const rowLabels = labels?.length ? labels : this.heatmapLabels;
       let csvContent = "data:text/csv;charset=utf-8,";
       if (this.heatmapShowLabels) {
         labelArray.unshift("");
         csvContent += labelArray.join(",") + "\n";
         for(let i=0; i<dm.length; i++) {
-          dm[i].unshift(this.heatmapLabels[i]);
+          dm[i].unshift(rowLabels[i]);
           csvContent += dm[i].join(",") + "\n";
         }
       } else {

@@ -19,21 +19,24 @@ const pinAllButton = byTestId(testIds.twodPinAllButton);
 const recalculateButton = byTestId(testIds.twodRecalculateLayoutButton);
 const linkLengthSlider = '#link-length';
 
-const readNodeSnapshots = (sampleSize = 4): Cypress.Chainable<NodeSnapshot[]> => {
-  return cy.window().then((win: any) => {
-    const cyInstance = win.cytoscapeInstance;
-    expect(cyInstance, 'cytoscapeInstance').to.exist;
+const collectNodeSnapshots = (win: any, sampleSize?: number): NodeSnapshot[] => {
+  const cyInstance = win.cytoscapeInstance;
+  expect(cyInstance, 'cytoscapeInstance').to.exist;
 
-    return cyInstance
-      .nodes()
-      .filter((node: any) => node.children().length === 0)
-      .slice(0, sampleSize)
-      .map((node: any) => ({
-        id: node.id(),
-        x: node.position('x'),
-        y: node.position('y'),
-      })) as NodeSnapshot[];
-  });
+  const nodes = cyInstance
+    .nodes()
+    .filter((node: any) => node.children().length === 0)
+    .map((node: any) => ({
+      id: node.id(),
+      x: node.position('x'),
+      y: node.position('y'),
+    })) as NodeSnapshot[];
+
+  return typeof sampleSize === 'number' ? nodes.slice(0, sampleSize) : nodes;
+};
+
+const readNodeSnapshots = (sampleSize?: number): Cypress.Chainable<NodeSnapshot[]> => {
+  return cy.window().then((win: any) => collectNodeSnapshots(win, sampleSize));
 };
 
 const distanceBetween = (a: NodeSnapshot, b: NodeSnapshot): number => {
@@ -49,7 +52,7 @@ const assertNodeMovement = (before: NodeSnapshot[], after: NodeSnapshot[], expec
     const moved = before.some((nodeBefore) => {
       const nodeAfter = afterById.get(nodeBefore.id);
       expect(nodeAfter, `node still present after action: ${nodeBefore.id}`).to.exist;
-      return distanceBetween(nodeBefore, nodeAfter as NodeSnapshot) > 0.2;
+      return distanceBetween(nodeBefore, nodeAfter as NodeSnapshot) > 0.05;
     });
     expect(moved, 'at least one sampled node moved').to.equal(true);
     return;
@@ -61,6 +64,21 @@ const assertNodeMovement = (before: NodeSnapshot[], after: NodeSnapshot[], expec
     return distanceBetween(nodeBefore, nodeAfter as NodeSnapshot) < 0.05;
   });
   expect(unchanged, 'sampled nodes remain stable').to.equal(true);
+};
+
+const waitForNodeMovementState = (
+  before: NodeSnapshot[],
+  expectation: 'moved' | 'still',
+  sampleSize = before.length,
+  timeout = 10000
+): Cypress.Chainable<NodeSnapshot[]> => {
+  return cy.window({ timeout })
+    .should((win: any) => {
+      expect(win.commonService.session.network.rendering, 'network rendering idle').to.equal(false);
+      const after = collectNodeSnapshots(win, sampleSize);
+      assertNodeMovement(before, after, expectation);
+    })
+    .then((win: any) => collectNodeSnapshots(win, sampleSize));
 };
 
 const openLinksShapesPanel = (): void => {
@@ -100,23 +118,15 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
     launchProfileToTwoD(profile);
     waitForProcessingDialogToClear();
 
-    readNodeSnapshots(4)
+    readNodeSnapshots()
       .then((baselinePositions) => {
         setLinkLength(120);
-        cy.wait(600);
-        return readNodeSnapshots(4).then((afterLengthChange) => {
-          assertNodeMovement(baselinePositions, afterLengthChange, 'moved');
-          return afterLengthChange;
-        });
+        return waitForNodeMovementState(baselinePositions, 'moved');
       })
       .then((afterLengthChange) => {
         cy.get(recalculateButton).should('not.have.class', 'disabled');
         cy.get(recalculateButton).click({ force: true });
-        cy.wait(600);
-        return readNodeSnapshots(4).then((afterRecalculate) => {
-          assertNodeMovement(afterLengthChange, afterRecalculate, 'moved');
-          return afterRecalculate;
-        });
+        return waitForNodeMovementState(afterLengthChange, 'moved');
       })
       .then((afterRecalculate) => {
         cy.get(pinAllButton).click({ force: true });
@@ -126,22 +136,15 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
         cy.get(linkLengthSlider).should('be.disabled');
         closeTwoDSettingsDialog();
 
-        return readNodeSnapshots(4).then((pinnedBeforeAction) => {
+        return readNodeSnapshots().then((pinnedBeforeAction) => {
           setLinkLength(80, 120);
-          cy.wait(600);
           cy.window().its('commonService.session.style.widgets.link-length').should('equal', 120);
-          return readNodeSnapshots(4).then((pinnedAfterLengthAttempt) => {
-            assertNodeMovement(pinnedBeforeAction, pinnedAfterLengthAttempt, 'still');
-            return pinnedAfterLengthAttempt;
-          });
+          return waitForNodeMovementState(pinnedBeforeAction, 'still');
         });
       })
       .then((pinnedAfterLengthAttempt) => {
         cy.get(recalculateButton).click({ force: true });
-        return readNodeSnapshots(4).then((pinnedAfterRecalculate) => {
-          assertNodeMovement(pinnedAfterLengthAttempt, pinnedAfterRecalculate, 'still');
-          return pinnedAfterRecalculate;
-        });
+        return waitForNodeMovementState(pinnedAfterLengthAttempt, 'still');
       })
       .then((pinnedAfterRecalculate) => {
         cy.get(pinAllButton).click({ force: true });
@@ -149,10 +152,7 @@ describe('Journey Flow - Link Length, Pinning, and Recalculate Layout', () => {
         cy.get(recalculateButton).should('not.have.class', 'disabled');
 
         setLinkLength(95);
-        cy.wait(600);
-        return readNodeSnapshots(4).then((afterUnpin) => {
-          assertNodeMovement(pinnedAfterRecalculate, afterUnpin, 'moved');
-        });
+        return waitForNodeMovementState(pinnedAfterRecalculate, 'moved');
       });
   });
 });

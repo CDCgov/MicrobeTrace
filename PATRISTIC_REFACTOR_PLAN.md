@@ -11,6 +11,8 @@ MicrobeTrace currently tops out at ~500 taxa for patristic distance computation.
 
 ### Current Hot Path (files-plugin.component.ts:1278-1313)
 
+*Status: replaced with worker-backed path in the current branch (historical context only).*
+
 ```typescript
 const tree = patristic.parseNewick(file.contents);          // O(N)
 let m = tree.toMatrix();                                      // O(N^2) — FULL matrix
@@ -25,11 +27,20 @@ for (let i = 0; i < n; i++) {
 }
 ```
 
-Same pattern in `auspiceHandler.ts:173-182`:
+Same historical pattern in `auspiceHandler.ts:173-182`:
 ```typescript
 const distanceMatrix = patristic.parseNewick(newickString).toMatrix();
 this.makeLinksFromMatrix(distanceMatrix);  // another full N^2 loop
 ```
+
+## Current Work Status (implemented)
+
+- [x] Added dedicated patristic worker protocol and message contracts (`patristic-engine.worker.ts`, `patristic-engine.types.ts`)
+- [x] Added `getPatristicWorker()` and termination hooks in `workModule.ts`
+- [x] Added `initPatristicTree()`, `buildPatristicEdges()`, `computePatristicEdges()` in `worker-compute.service.ts`
+- [x] Rewired newick and auspice imports in `files-plugin.component.ts` to worker path
+- [x] Updated `auspiceHandler.ts` to return labeled trees (`newickWithLabels`) and no matrix-based links
+- [x] Added post-load cached-tree threshold updates on the 2D threshold path (no `INIT_TREE` resend while varying threshold)
 
 ---
 
@@ -58,12 +69,14 @@ Services in `contactTraceCommonServices/`, trigger at file load, both 2D and Phy
 
 | File | Change |
 |------|--------|
-| `src/app/workers/compute-worker.types.ts` | Add `'patristic'` task type |
-| `src/app/workers/compute.worker.ts` | Add `handlePatristic()` handler |
 | `src/app/workers/workModule.ts` | Add `getPatristicWorker()` |
 | `src/app/contactTraceCommonServices/worker-compute.service.ts` | Add `computePatristicEdges()` method |
 | `src/app/filesComponent/files-plugin.component.ts` | Replace `toMatrix()` + addLink loop with worker call |
 | `src/app/helperClasses/auspiceHandler.ts` | Remove `makeLinksFromMatrix()`, return tree for worker processing |
+
+Additional optional entries from earlier plan are not required by the current implementation:
+
+- `src/app/workers/compute-worker.types.ts` / `src/app/workers/compute.worker.ts` task-routing for patristic has been superseded by the dedicated worker file (`src/app/workers/patristic-engine.worker.ts`).
 
 ### Algorithm: Flat Tree + Root Depths + LCA + Thresholded Emission
 
@@ -91,7 +104,7 @@ For N=2000, threshold=0.015:
 // Response
 { type: 'TREE_READY', jobId, leafCount, nodeCount }
 { type: 'PROGRESS', jobId, phase, percent }
-{ type: 'EDGE_BATCH', jobId, sources: Uint32Array, targets: Uint32Array, distances: Float32Array, labels: string[], done: boolean }
+{ type: 'EDGE_BATCH', jobId, sources: Uint32Array, targets: Uint32Array, distances: Float32Array, totalEmitted: number, done: boolean }
 { type: 'MATRIX_CHUNK', jobId, ... }
 { type: 'ERROR', jobId, message }
 ```
@@ -149,6 +162,10 @@ lb(A, B) = depth_min(A) + depth_min(B) - 2 * depth(parent_of_AB)
 ```
 If `lb > threshold`, skip all leaf pairs across those subtrees.
 
+Status:
+- Implemented in `patristic-engine.worker.ts` via cached sibling-subtree traversal with final build stats for pruned leaf-pair accounting.
+- Covered by worker unit assertions and dedicated Cypress worker/service coverage.
+
 ### 3b. Progressive loading
 
 Stream first batch of edges quickly for immediate render, then continue generating remaining edges in background.
@@ -200,28 +217,28 @@ Profile separately at 500, 1000, 2000, 5000 taxa:
 ## Implementation Order
 
 ### Sprint 1 (1-2 weeks): Worker + thresholded edge generation
-- [ ] Add `patristic-engine.types.ts`
-- [ ] Add `handlePatristic` to `compute.worker.ts` (flat tree + root depths + brute-force thresholded pairs)
-- [ ] Add `getPatristicWorker()` to `workModule.ts`
-- [ ] Add `computePatristicEdges()` to `worker-compute.service.ts`
-- [ ] Replace newick path in `files-plugin.component.ts` with worker call
-- [ ] Replace auspice path in `auspiceHandler.ts`
-- [ ] Benchmark at 500 and 1000 taxa
+- [x] Add `patristic-engine.types.ts`
+- [x] Add dedicated patristic worker (flat tree + LCA + thresholded edge streaming)
+- [x] Add `getPatristicWorker()` to `workModule.ts`
+- [x] Add `computePatristicEdges()` to `worker-compute.service.ts`
+- [x] Replace newick path in `files-plugin.component.ts` with worker call
+- [x] Replace auspice path in `auspiceHandler.ts`
+- [x] Benchmark at 500 and 1000 taxa
 
 ### Sprint 2 (1-2 weeks): LCA + caching
-- [ ] Add Euler tour + sparse table RMQ for O(1) LCA queries
-- [ ] Cache tree preprocessing across threshold changes
-- [ ] Add progress reporting from worker
-- [ ] Add cancellation support
-- [ ] Benchmark at 2000 taxa
+- [x] Add Euler tour + sparse table RMQ for O(1) LCA queries
+- [x] Cache tree preprocessing across threshold changes
+- [x] Add progress reporting from worker
+- [x] Add cancellation support
+- [x] Benchmark at 2000 taxa
 
 ### Sprint 3 (1 week): Memory reduction
-- [ ] Move `session.files[].contents` to localforage
-- [ ] Only create Cytoscape elements for threshold-passing edges
-- [ ] Test .microbetrace export round-trip
+- [x] Move `session.files[].contents` to localforage
+- [x] Only create Cytoscape elements for threshold-passing edges
+- [x] Test .microbetrace export round-trip
 
 ### Sprint 4 (1 week): Polish
-- [ ] Subtree pruning
-- [ ] Edge-density guardrails and user messaging
-- [ ] Export-only full matrix mode
-- [ ] Remove hard taxa cap, replace with edge-density warnings
+- [x] Subtree pruning
+- [x] Edge-density guardrails and user messaging
+- [x] Export-only full matrix mode
+- [x] Remove hard taxa cap, replace with edge-density warnings

@@ -43,4 +43,48 @@ export const NEWICK_PROFILES: DatasetProfile[] = [
       },
     },
   }),
+  P({
+    id: 'load-twod-newick-tiny-replace-source',
+    title: 'Load to 2D: tiny patristic source tree for replace-path testing',
+    tags: ['load-to-twod', 'newick', 'patristic', 'small'],
+    files: [
+      {
+        name: 'AngularTesting_tiny_newick_a.nwk',
+        datatype: 'newick',
+      },
+    ],
+    preLaunch: {
+      metric: 'tn93',
+      threshold: 0.015,
+      defaultView: '2D Network',
+    },
+    expectations: {
+      afterLaunch: {
+        nodes: 3,
+        visibleLinks: 3,
+      },
+    },
+  }),
+  P({
+    id: 'load-twod-newick-tiny-replace-target',
+    title: 'Load to 2D: tiny patristic replacement tree',
+    tags: ['load-to-twod', 'newick', 'patristic', 'small'],
+    files: [
+      {
+        name: 'AngularTesting_tiny_newick_b.nwk',
+        datatype: 'newick',
+      },
+    ],
+    preLaunch: {
+      metric: 'tn93',
+      threshold: 0.015,
+      defaultView: '2D Network',
+    },
+    expectations: {
+      afterLaunch: {
+        nodes: 2,
+        visibleLinks: 1,
+      },
+    },
+  }),
 ];

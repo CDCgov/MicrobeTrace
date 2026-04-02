@@ -6,7 +6,6 @@ import { saveAs } from 'file-saver';
 import * as fileto from 'fileto';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';
-import * as patristic from 'patristic';
 import * as _ from 'lodash';
 import JSZip from 'jszip';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
@@ -19,6 +18,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { relativeTimeThreshold } from 'moment';
 import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
 import { ImportedEmbedFile } from '@app/embed/embed-handoff.types';
+import { WorkerComputeService } from '../contactTraceCommonServices/worker-compute.service';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -107,7 +107,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private cdr: ChangeDetectorRef,
     private store: CommonStoreService,
     private embedHandoffService: EmbedHandoffService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    private workerCompute: WorkerComputeService
     ) {
 
     super(elRef.nativeElement);
@@ -121,6 +122,56 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.ngZone.run(() => {
       this.cdr.markForCheck();
     });
+  }
+
+  private async getFileContents(file: any): Promise<any> {
+    return this.commonService.loadSessionFileContents(file);
+  }
+
+  private async getFileContentsForProcessing(file: any): Promise<any> {
+    const contents = await this.getFileContents(file);
+    if (contents === undefined) {
+      return file?.contents;
+    }
+    return contents;
+  }
+
+  private async persistUploadedFile(file: any): Promise<void> {
+    await this.commonService.persistSessionFileContents(file);
+  }
+
+  private getDownloadableFileContents(contents: unknown): BlobPart {
+    if (typeof contents === 'string'
+      || contents instanceof ArrayBuffer
+      || ArrayBuffer.isView(contents)
+      || (typeof SharedArrayBuffer !== 'undefined' && contents instanceof SharedArrayBuffer)
+    ) {
+      return contents as BlobPart;
+    }
+
+    if (contents === undefined || contents === null) {
+      return '';
+    }
+
+    try {
+      return JSON.stringify(contents);
+    } catch {
+      return String(contents);
+    }
+  }
+
+  private describeLaunchError(err: unknown): string {
+    if (typeof err === 'string') return err;
+    return err && (err as any).message ? String((err as any).message) : String(err);
+  }
+
+  private toArrayBuffer(contents: unknown): ArrayBuffer | null {
+    if (contents instanceof ArrayBuffer) return contents;
+    if (contents instanceof Uint8Array) return contents.buffer.slice(
+      contents.byteOffset,
+      contents.byteOffset + contents.byteLength
+    ) as ArrayBuffer;
+    return null;
   }
 
   ngOnInit() {
@@ -465,10 +516,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.removeAllFiles();
-    result.files.forEach((file: ImportedEmbedFile) => {
+    for (const file of result.files) {
       this.commonService.session.files.push(file);
-      this.addToTable(file);
-    });
+      await this.addToTable(file);
+    }
 
     this.isLoadingFiles = false;
     this.commonService.session.network.initialLoad = true;
@@ -506,7 +557,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   /**
    * For each file in commonService.session.files, addToTable(file)
    */
-  public populateTable() {  
+  public async populateTable() {  
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
@@ -518,7 +569,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if(files && files.length > 0) {
       console.log('--- Populate for: ', files);
       for(let i = 0; i < files.length; i++) {
-        this.addToTable(files[i]);
+        await this.addToTable(files[i]);
       }
 
       console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
@@ -639,25 +690,43 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.cleanupData();
 
     this.commonService.updateLegacyNodeSymbols();
+    const fileSettingsPane = '#file-settings-pane';
+    const resolveLaunchSetting = (...candidates: any[]) =>
+      candidates.find((value) => value !== undefined && value !== null && value !== '');
     const thresholdOnLaunch = parseFloat(String(
-      $('#default-distance-threshold').val() ??
-      this.SelectedDefaultDistanceThresholdVariable ??
-      this.commonService.session.style.widgets["link-threshold"]
+      resolveLaunchSetting(
+        $(`${fileSettingsPane} #default-distance-threshold`).val(),
+        this.commonService.session.style.widgets["link-threshold"],
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable,
+        this.SelectedDefaultDistanceThresholdVariable,
+        $('#default-distance-threshold').val()
+      )
     ));
     const metricOnLaunch = String(
-      $('#default-distance-metric').val() ??
-      this.SelectedDefaultDistanceMetricVariable ??
-      this.commonService.session.style.widgets["default-distance-metric"]
+      resolveLaunchSetting(
+        $(`${fileSettingsPane} #default-distance-metric`).val(),
+        this.commonService.session.style.widgets["default-distance-metric"],
+        this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable,
+        this.SelectedDefaultDistanceMetricVariable,
+        $('#default-distance-metric').val()
+      )
     ).toLowerCase();
     const ambiguityOnLaunch = String(
-      $('#ambiguity-resolution-strategy').val() ??
-      this.SelectedAmbiguityResolutionStrategyVariable ??
-      this.commonService.session.style.widgets["ambiguity-resolution-strategy"]
+      resolveLaunchSetting(
+        $(`${fileSettingsPane} #ambiguity-resolution-strategy`).val(),
+        this.commonService.session.style.widgets["ambiguity-resolution-strategy"],
+        this.SelectedAmbiguityResolutionStrategyVariable,
+        $('#ambiguity-resolution-strategy').val()
+      )
     );
     const viewOnLaunch = String(
-      $('#default-view').val() ??
-      this.SelectedDefaultViewVariable ??
-      this.commonService.session.style.widgets["default-view"]
+      resolveLaunchSetting(
+        $(`${fileSettingsPane} #default-view`).val(),
+        this.commonService.session.style.widgets["default-view"],
+        this.commonService.GlobalSettingsModel.SelectedDefaultViewVariable,
+        this.SelectedDefaultViewVariable,
+        $('#default-view').val()
+      )
     );
 
 
@@ -681,6 +750,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.network.launched = true;
     }
 
+    this.SelectedDefaultDistanceThresholdVariable = thresholdOnLaunch;
+    this.SelectedDefaultDistanceMetricVariable = metricOnLaunch;
+    this.SelectedAmbiguityResolutionStrategyVariable = ambiguityOnLaunch;
+    this.SelectedDefaultViewVariable = viewOnLaunch;
     this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
@@ -688,7 +761,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = thresholdOnLaunch;
     this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = metricOnLaunch;
     this.store.setLinkThreshold(thresholdOnLaunch);
-    this.store.setMetricChanged(metricOnLaunch);
+    this.store.updatecurrentThresholdStepSize(metricOnLaunch);
 
     this.commonService.session.messages = [];
     this.messages = [];
@@ -709,16 +782,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Processes all files in following order (auspice, newick, matrix, link, node, fasta).
    * Adds/Updates nodes and links. After processing all files, calls processData.
    */
-  creatLaunchSequences() {
+  async creatLaunchSequences(): Promise<void> {
     this.commonService.session.meta.startTime = Date.now();
     $('#launch').prop('disabled', true);
+    const describeError = (err: unknown): string => {
+      return typeof err === 'string' ? err : (err && (err as any).message) ? (err as any).message : String(err);
+    };
 
     // $('#loading-information').html('');
     this.commonService.temp.messageTimeout = setTimeout(() => {
       $('#loadCancelButton').slideDown();
       // abp.notify.warn('If you stare long enough, you can reverse the DNA Molecule\'s spin direction');
     }, 20000);
-    const nFiles = this.commonService.session.files.length - 1;
+    const files = this.commonService.session.files;
+    await Promise.all(files.map(async file => {
+      const contents = await this.getFileContentsForProcessing(file);
+      if (contents !== undefined) {
+        file.contents = contents;
+      }
+    }));
+    const nFiles = files.length - 1;
     const check = nFiles > 0;
 
     // sorts files based on hierarchy
@@ -785,18 +868,35 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               });
             }
           });
-          let linkCount = 0;
-          auspiceData['links'].forEach(link => {
-            linkCount += this.commonService.addLink(link, true);
-          });
+          const threshold = parseFloat(String(this.commonService.session.style.widgets['link-threshold']));
+          const linkThreshold = Number.isFinite(threshold) ? threshold : Number.POSITIVE_INFINITY;
+          const newickWithLabels = auspiceData['newickWithLabels'] || auspiceData['newick'];
 
-          this.commonService.runHamsters();
-          this.showMessage(` - Parsed ${nodeCount} New Nodes and ${linkCount} new Links from Auspice file.`);
-          if (fileNum === nFiles) this.processData();
+          this.workerCompute.computePatristicEdges(
+            newickWithLabels,
+            linkThreshold,
+            this.commonService.addLink.bind(this.commonService),
+            this.commonService.filterXSS,
+            {
+              session: this.commonService.session,
+              origin,
+              distanceOrigin: 'Auspice',
+              check: true,
+              onGuardrail: (warning) => {
+                this.showMessage(` - ${warning.message}`);
+              },
+            }
+          ).then(({ newLinks, totalLinks }) => {
+            this.showMessage(` - Parsed ${nodeCount} New, ${this.commonService.session.data.nodes.length} Total Nodes from Auspice file.`);
+            this.showMessage(` - Parsed ${newLinks} New, ${totalLinks} Total Links from Auspice Tree.`);
+            if (fileNum === nFiles) this.processData();
+          }).catch((err) => {
+            console.error('Patristic engine error:', err);
+            this.showMessage(` - Error processing Auspice tree: ${describeError(err)}`);
+            if (fileNum === nFiles) this.processData();
+          });
           return nodeCount;
         });
-        this.commonService._debouncedUpdateNetworkVisuals();
-        this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
         }
@@ -1271,16 +1371,44 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       } else { // if(file.format === 'newick'){
 
+        const launchThreshold = this.commonService.session.style.widgets['link-threshold'];
+        const launchMetric = this.commonService.session.style.widgets['default-distance-metric'];
+        const launchAmbiguityStrategy = this.commonService.session.style.widgets['ambiguity-resolution-strategy'];
+        const launchDefaultView = this.commonService.session.style.widgets['default-view'];
         this.commonService.resetData();
-        let links = 0;
-        let newLinks = 0;
-        let newNodes = 0;
+        this.commonService.session.style.widgets['link-threshold'] = launchThreshold;
+        this.commonService.session.style.widgets['default-distance-metric'] = launchMetric;
+        this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = launchAmbiguityStrategy;
+        this.commonService.session.style.widgets['default-view'] = launchDefaultView;
         this.commonService.session.data.newickString = file.contents;
-        const tree = patristic.parseNewick(file.contents);
-        let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.commonService.filterXSS), n = labels.length;
-        const maxRow = matrix.map(function(row){ return Math.max.apply(Math, row); });
-        const maxMax = Math.max.apply(null, maxRow);
-        if (maxMax > 1) {
+        const threshold = parseFloat(String(this.commonService.session.style.widgets['link-threshold']));
+        const linkThreshold = Number.isFinite(threshold) ? threshold : Number.POSITIVE_INFINITY;
+
+        this.workerCompute.computePatristicEdges(
+          file.contents,
+          linkThreshold,
+          this.commonService.addLink.bind(this.commonService),
+          this.commonService.filterXSS,
+          {
+            session: this.commonService.session,
+            origin,
+            distanceOrigin: file.name,
+            check,
+            onGuardrail: (warning) => {
+              this.showMessage(` - ${warning.message}`);
+            },
+          }
+        ).then(({ leafNames, newLinks, totalLinks, maxRootDepth }) => {
+          let newNodes = 0;
+          const n = leafNames.length;
+          for (let i = 0; i < n; i++) {
+            newNodes += this.commonService.addNode({
+              _id: leafNames[i],
+              origin: origin
+            }, check);
+          }
+
+          if (maxRootDepth * 2 > 1) {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
             this.store.setMetricChanged('snps');
             this.SelectedDefaultDistanceMetricVariable = 'snps';
@@ -1292,30 +1420,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.SelectedDefaultDistanceThresholdVariable = '16';
             this.onLinkThresholdChange('16');
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
-          // set distance to snps
-        } 
-        for (let i = 0; i < n; i++) {
-          const source = labels[i];
-          newNodes += this.commonService.addNode({
-            _id: source,
-            origin: origin
-          }, check);
-          for (let j = 0; j < i; j++) {
-            newLinks += this.commonService.addLink({
-              source: source,
-              target: labels[j],
-              origin: origin,
-              distance: parseFloat(matrix[i][j]),
-              distanceOrigin: file.name,
-              hasDistance: true
-            }, check);
-            links++;
           }
-        }
-        console.log('Newick Tree Parse time:', (Date.now() - start).toLocaleString(), 'ms');
-        this.showMessage(` - Parsed ${newNodes} New, ${n} Total Nodes from Newick Tree.`);
-        this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
-        if (fileNum === nFiles) this.processData();
+
+          console.log('Newick Tree Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.showMessage(` - Parsed ${newNodes} New, ${n} Total Nodes from Newick Tree.`);
+          this.showMessage(` - Parsed ${newLinks} New, ${totalLinks} Total Links from Newick Tree.`);
+          if (fileNum === nFiles) this.processData();
+        }).catch((err) => {
+          console.error('Patristic engine error:', err);
+          this.showMessage(` - Error processing Newick tree: ${describeError(err)}`);
+          if (fileNum === nFiles) this.processData();
+        });
       }
     });
 
@@ -1554,14 +1669,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       await new Promise<void>((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = () => reject(reader.error);
-        reader.onloadend = (out) => {
+        reader.onloadend = async (out) => {
           try {
             const output = JSON.parse(out.target['result'] as string);
             console.log(output);
             if (output.meta && output.tree) {
               const auspiceFile = { contents: output, name: fileName, extension: extension};
               this.commonService.session.files.push(auspiceFile);
-              this.addToTable(auspiceFile);
+              await this.persistUploadedFile(auspiceFile);
+              await this.addToTable(auspiceFile);
             } else {
               this.commonService.processJSON(out.target, extension);
             }
@@ -1576,12 +1692,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       return;
     }
 
-    await fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(file => {
+      await fileto.promise(rawfile, (extension === 'xlsx' || extension === 'xls') ? 'ArrayBuffer' : 'Text').then(async (file) => {
       //debugger;
       file.name = this.commonService.filterXSS(file.name);
       file.extension = file.name.split('.').pop().toLowerCase();
       this.commonService.session.files.push(file);
-      this.addToTable(file);
+      await this.persistUploadedFile(file);
+      await this.addToTable(file);
       this.refreshTemplateState();
     });
   }
@@ -1594,7 +1711,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileTableRows = $(".file-table-row");
     fileTableRows.slideUp(() => fileTableRows.remove());
 
+    const files = [...this.commonService.session.files];
     this.commonService.session.files = [];
+    files.forEach(file => {
+      if (file) {
+        void this.commonService.clearSessionFileContents(file);
+      }
+    });
     this.nodeIds = [];
     this.edgeIds = [];
 
@@ -1605,10 +1728,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   /**
    * Gets information from file about extension, file type, and header and uses that information to addTableTile for file-table
    */
-  addToTable(file) {
+  async addToTable(file): Promise<void> {
     if(this.commonService.debugMode) {
       console.log('addToTable: ', file);
     }
+
+    const fileContents = await this.getFileContentsForProcessing(file);
 
     //debugger;
     const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
@@ -1616,11 +1741,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
-    const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
+    const jsonContentForAuspice = isJSON && typeof fileContents === 'string'
+      ? (() => {
+          try { return JSON.parse(fileContents) as any; } catch { return undefined; }
+        })()
+      : fileContents;
+    const isAuspice = isJSON && jsonContentForAuspice && typeof jsonContentForAuspice === 'object'
+      && Object.prototype.hasOwnProperty.call(jsonContentForAuspice, 'meta')
+      && Object.prototype.hasOwnProperty.call((jsonContentForAuspice as any), 'tree');
     const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
+    const downloadContents = this.getDownloadableFileContents(fileContents);
+    const hasContents = !this.isFileContentsEmpty(file, fileContents);
+    const getTableHeaders = (rawHeaders: any[]) => rawHeaders && rawHeaders.length ? rawHeaders.map(this.commonService.filterXSS) : [file.field1, file.field2, file.field3].filter((value) => value);
+    const safeHeaders = (rawHeaders: any[]) => getTableHeaders(rawHeaders.length ? rawHeaders : [file.field1, file.field2, file.field3]);
+
     if (isXL) {
       try {
-        const workbook = XLSX.read(file.contents, { type: 'array' });
+        const workbook = XLSX.read(fileContents, { type: 'array' });
         const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         const headers = [];
         data.forEach(row => {
@@ -1638,14 +1775,27 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     } else if (isJSON) {
         let data = [];
         console.log('This is a JSON file');
-        if ( (typeof file.contents) === 'string') {
-          data = JSON.parse(file.contents);
-        } else {
-          console.log(file);
-          data = [file.contents];
+        try {
+          if (typeof fileContents === 'string') {
+            data = fileContents ? JSON.parse(fileContents) : [];
+          } else if (typeof fileContents === 'object' && fileContents !== null) {
+            data = [fileContents];
+          } else {
+            data = [fileContents];
+          }
+        } catch (error) {
+          console.error('Unable to parse JSON file for table preview:', error);
+          data = [];
+        }
+        if (!Array.isArray(data) && typeof data === 'object' && data !== null) {
+          data = [data];
         }
 
-        addTableTile(Object.keys(data[0]).map(this.commonService.filterXSS), this);
+        if (data.length) {
+          addTableTile(Object.keys(data[0]).map(this.commonService.filterXSS), this);
+        } else {
+          addTableTile(safeHeaders([]), this);
+        }
 
         if (!isFasta && !isNewick && isNode) {
           this.loadNodes(file.name, data, true);
@@ -1658,13 +1808,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     } else if (isFasta) {
       //let that = this;
-      this.commonService.parseFASTA(file.contents).then((output) => {
+      this.commonService.parseFASTA(fileContents).then((output) => {
         addTableTile(["id", "seq"], this);
 
         this.nodeEdgeCheck();
         })
     } else {
-      Papa.parse(file.contents, {
+      Papa.parse(fileContents, {
         header: true,
         skipEmptyLines: true,
         complete: output => {
@@ -1706,18 +1856,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const fnamerow = $('<div class="row w-100"></div>');
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
-          parentContext.commonService.session.files.splice(parentContext.commonService.session.files.findIndex(f => f.name === file.name), 1);
-          parentContext.removeFile(file.name);
+          parentContext.removeFile(file.name, true, file);
           $('#launch').prop('disabled', false).focus();
           $('#launch').text('Update');
           root.slideUp(() => root.remove());
           parentContext.refreshTemplateState();
         }))
-        .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
-          if (parentContext.isFileContentsEmpty(file)) {
+        .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${hasContents ? 'title="Resave this file"' : 'style="color: gray" title="Unable to resave this file"' } ></a>`).on('click', () => {
+          if (!hasContents) {
             alert('Unable to resave this file.');
           } else {
-            saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+            saveAs(new Blob([downloadContents], { type: file.type || 'text' }), file.name);
           }
         }))
         .append('<span class="p-1">' + file.name + '</span>')
@@ -1836,19 +1985,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
   };
 
-  isFileContentsEmpty(file): boolean {
+  isFileContentsEmpty(file, contents?: any): boolean {
+    const value = contents !== undefined ? contents : file?.contents;
     try { // large link list csv (230K rows) throws error, with try-catch, able to load file
-      if (file.contents === null || file.contents === undefined) {
+      if (value === null || value === undefined) {
         return true;
-      } else if (file.contents instanceof ArrayBuffer && file.contents.byteLength > 0) {
-        return false;
-      } else if (Object.keys(file.contents).length === 0 || file.contents == '') {
+      } else if (value instanceof ArrayBuffer) {
+        return value.byteLength === 0;
+      } else if (ArrayBuffer.isView(value)) {
+        return value.byteLength === 0;
+      } else if (typeof value === 'string') {
+        return value === '';
+      } else if (typeof value === 'object' && Object.keys(value).length === 0) {
         return true;
-      } else {
-        return false;
       }
-    } catch {
       return false;
+    } catch {
+      return true;
     }
   }
 
@@ -1977,7 +2130,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Removes elements of this.nodeIds and this.edgeIds where the fileName == fileName and then calls nodeEdgeCheck to update uniqueEdgeNodes and uniqueNodes
    * @param fileName 
    */
-  removeFile(fileName, runNodeEdgeCheck=true) {
+  removeFile(fileName, runNodeEdgeCheck=true, file?) {
+    const fileToClear = file ?? this.commonService.session.files.find(item => item.name === fileName);
+    if (fileToClear) {
+      void this.commonService.clearSessionFileContents(fileToClear);
+    }
+
     this.nodeIds = this.nodeIds.filter(x => x.fileName != fileName);
     this.edgeIds = this.edgeIds.filter(x => x.fileName != fileName);
     if (runNodeEdgeCheck) this.nodeEdgeCheck();
@@ -1995,15 +2153,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     let data = [];
     for (let i = 0; i < fastas.length; i++) {
       let fasta = fastas[i];
-      let nodes = await this.commonService.parseFASTA(fasta.contents);
+      const fastaContents = await this.getFileContentsForProcessing(fasta);
+      if (fastaContents == null) {
+        continue;
+      }
+
+      let nodes = await this.commonService.parseFASTA(fastaContents);
       data = data.concat(nodes);
     }
     
     for(let j = 0; j < nodeFilesWithSeqs.length; j++){
+      const nodeFile = nodeFilesWithSeqs[j];
+      const nodeFileContents = await this.getFileContentsForProcessing(nodeFile);
+      if (nodeFileContents == null) {
+        continue;
+      }
       if (nodeFilesWithSeqs[j].extension == "csv") {
         const csv = nodeFilesWithSeqs[j];
         const seqLabel = csv['field2']
-          await Papa.parse(csv.contents, {
+          await new Promise<void>((resolve) => {
+            Papa.parse(nodeFileContents, {
             header: true,
             skipEmptyLines: true,
             complete: output => {
@@ -2014,13 +2183,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                     'seq': node[seqLabel]
                   })
                 }
-              })
-            }})
+              });
+              resolve();
+            }});
+          });
       // TODO: Cannot presently preview sequences in Node XLSX tables.
       } else {
         const file = nodeFilesWithSeqs[j]
         const seqLabel = file['field2']
-        const workbook = XLSX.read(file.contents, { type: 'array' });
+        const workbook = XLSX.read(nodeFileContents, { type: 'array' });
         const dataJSON = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         const headers = [];
         dataJSON.forEach(row => {
@@ -2068,7 +2239,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if(this.commonService.debugMode) {
       console.log('changing link threshold');
     }
-    const newValue = e.target?.value ?? e;
+    const newValue = e?.target?.value ?? e;
     const parsedValue = parseFloat(newValue);
 
     this.SelectedDefaultDistanceThresholdVariable = parsedValue;

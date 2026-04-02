@@ -10,6 +10,7 @@ import { NN_PROFILES } from './profiles/nn';
 import { STYLE_PROFILES } from './profiles/style';
 import { GROUPING_PROFILES } from './profiles/grouping';
 import { FILTERING_PROFILES } from './profiles/filtering';
+import { AUSPICE_PROFILES } from './profiles/auspice';
 import { NEWICK_PROFILES } from './profiles/newick';
 import { LOAD_PROFILES } from './profiles/load';
 import { LINK_PROFILES } from './profiles/links';
@@ -19,6 +20,7 @@ import { MAP_PROFILES } from './profiles/map';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
   ...LOAD_PROFILES,
+  ...AUSPICE_PROFILES,
   ...NN_PROFILES,
   ...STYLE_PROFILES,
   ...GROUPING_PROFILES,
