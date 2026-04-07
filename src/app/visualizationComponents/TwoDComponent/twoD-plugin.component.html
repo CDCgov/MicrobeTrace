@@ -117,42 +117,21 @@
                       </div>
                     </p-accordion-content>
                   </p-accordion-panel>
-                  <p-accordion-panel value="node-shapes" style="color:#495057">
-                    <p-accordion-header>Shapes and Sizes</p-accordion-header>
-                    <p-accordion-content><div #nodecontrolsshapes>
-                      <div class="form-group row" title="Which variable should determine the shape of the node?">
-                        <div class="col-4">
-                          <label for="node-symbol-variable">Shape By</label>
-                        </div>
+                    <p-accordion-panel value="node-shapes" style="color:#495057">
+                      <p-accordion-header>Shapes and Sizes</p-accordion-header>
+                      <p-accordion-content><div #nodecontrolsshapes>
+                      <div class="form-group row" title="Open the global styling settings to configure node shapes.">
+                        <div class="col-4"><label for="open-global-shape-settings">Shape</label></div>
                         <div class="col-8">
-                          <p-select id="node-symbol-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedNodeSymbolVariable" (ngModelChange)="onNodeSymbolVariableChange($event)"></p-select>
-                        </div>
-                      </div>
-                      <div id="node-symbol-table-row" [hidden]="!ShowNodeSymbolTable" class="form-group row" title="What shape should the nodes be?">
-                        <div class="col-4">Table</div>
-                        <div class="col-8">
-                          <p-selectButton [options]="TableTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkTableTypeVariable" (ngModelChange)="onNodeSymbolTableChange($event)"></p-selectButton>
-                        </div>
-                      </div>
-                      <div id="node-symbol-row" [hidden]="ShowNodeSymbolWrapper" class="form-group row" title="What shape should the nodes be?">
-                        <div class="col-4"><label for="node-symbol">Shape</label></div>
-                        <div class="col-8">
-                          <p-select [options]="symbolMapping" optionValue="key" class="width-percent-100" [(ngModel)]="selectedNodeShape" (ngModelChange)="onNodeShapeChange($event)">
-                            <ng-template let-symbol pTemplate="selectedItem">
-                              <div>
-                                <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
-                                {{ symbol.name}}
-                              </div>
-                            </ng-template>
-                            <ng-template pTemplate="item" let-symbol>
-                              @if (symbol) {
-                                <div>
-                                  <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
-                                  {{ symbol.name}}
-                                </div>
-                              }
-                            </ng-template>
-                          </p-select>
+                          <button
+                            pButton
+                            type="button"
+                            id="open-global-shape-settings"
+                            label="Show Shapes"
+                            class="ui-button-raised width-percent-100"
+                            (click)="showGlobalSettings()"
+                            [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}">
+                          </button>
                         </div>
                       </div>
                       <div class="form-group row" title="Which variable should determine the size of the node?">
@@ -413,82 +392,6 @@
 
 </div>
 
-<p-dialog id="node-symbol-table-wrapper"
-  [position]="NodeSymbolTableWrapperDialogSettings.shapeRight"
-  [(visible)]="NodeSymbolTableWrapperDialogSettings.isVisible"
-  [style]="{width: '50vw', maxWidth: '500px'}"
-  (onHide)="onNodeSymbolTableChange('Hide')"
-  (onShow)="onNodeSymbolTableChange('Show')"
-  >
-  <ng-template pTemplate="header">
-    <div style="display: flex; justify-content: space-between; width: 100%;">
-      <span>Node Symbol Table</span>
-      <span style="overflow: visible; position: relative;">
-        <button title="Settings" class="btn btn-sm btn-clean btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-shape')"><i class="pi pi-cog"></i></button>
-        <div id="nodeShapeTableSettings" class="dropdown-menu" style="display: none;" (mouseleave)="closeSettingsPane('nodeShapeTableSettings')">
-          <button id="nodeShapeCounts" class="dropdown-item" (click)="toggleTableColumns('node-shape', 'tableCounts')">
-            <span>Show Counts</span>
-            <i [className]="this.widgets['node-symbol-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
-          </button>
-          <button id="nodeShapeFrequencies" class="dropdown-item" (click)="toggleTableColumns('node-shape', 'tableFreq')">
-            <span>Show Frequencies</span>
-            <i [className]="this.widgets['node-symbol-table-frequencies'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
-          </button>
-        </div>
-      </span>
-    </div>
-  </ng-template>
-  <div class="col-12" style="width:100%;max-height:50vh;" title="Node Shapes and Size Selection.">
-    <table #nodeSymbolTable id="nodeSymbolTable" style="width:100%;height:100%;">
-      <tr>
-        <th class="table-header-row" contenteditable>
-          <div class="header-content sortable">Node {{ commonService.titleize(this.widgets['node-symbol-variable']) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
-        </th>
-        @if (widgets['node-symbol-table-counts']) {
-          <th class="table-header-row tableCount" contenteditable>
-            <div class="header-content sortable">Count<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
-          </th>
-        }
-        @if (widgets['node-symbol-table-frequencies']) {
-          <th class="table-header-row tableFrequency" contenteditable>
-            <div class="header-content sortable">Frequency<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
-          </th>
-        }
-        <th>Shape</th>
-      </tr>
-      @for (group of shapeAggregates; track group) {
-        <tr>
-          <td contenteditable>{{commonService.titleize(group.key)}}</td>
-          @if (widgets['node-symbol-table-counts']) {
-            <td class="tableCount">{{group.count}}</td>
-          }
-          @if (widgets['node-symbol-table-frequencies']) {
-            <td class="tableFrequency">{{group.frequency}}</td>
-          }
-          <td>
-            <p-select [options]="symbolMapping" optionValue="key" class="width-percent-100" [ngModel]="commonService.temp.style.nodeSymbolMap(group.key)" (ngModelChange)="onNodeShapeTableChange($event, group.key)" appendTo="body" styleClass="shapeDropdown">
-              <ng-template let-symbol pTemplate="selectedItem">
-                <div>
-                  <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
-                  {{ symbol.name}}
-                </div>
-              </ng-template>
-              <ng-template pTemplate="item" let-symbol>
-                @if (symbol) {
-                  <div>
-                    <a [ngClass]="{'rhombus': symbol.key === 'rhomboid', 'tag': symbol.key === 'tag', 'barrel': symbol.key === 'barrel'}" [ngStyle]="{'font-weight': symbol.key==='vee' ? 'bold': 'normal'}" style="color: black;">{{ symbol.value}}</a>
-                    {{ symbol.name}}
-                  </div>
-                }
-              </ng-template>
-            </p-select>
-          </td>
-        </tr>
-      }
-    </table>
-  </div>
-</p-dialog>
-
 <p-dialog id="polygon-color-table-wrapper"
   [position]="PolygonColorTableWrapperDialogSettings.polygonRight"
   [(visible)]="PolygonColorTableWrapperDialogSettings.isVisible"
@@ -548,15 +451,6 @@
 
 
 
-
-
-<div id="node-symbol-table-context" class="dropdown-menu">
-  <a href="#" id="node-symbol-table-move" class="dropdown-item">Pin</a>
-  <a href="#" id="node-symbol-table-context-hide" class="dropdown-item">Hide</a>
-  <a href="#" id="node-symbol-table-expand" class="dropdown-item">Expand</a>
-  <a href="#" id="node-symbol-table-counts" class="dropdown-item">Toggle Counts</a>
-  <a href="#" id="node-symbol-table-frequencies" class="dropdown-item">Toggle Frequencies</a>
-</div>
 
 
 <div id="polygon-color-table-context" class="dropdown-menu">

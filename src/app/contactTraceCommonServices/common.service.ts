@@ -80,6 +80,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
         SelectedColorLinksByVariable: 'None',
+        SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
         SelectedPruneWithTypesVariable: 'None',
@@ -90,6 +91,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedDistanceMetricVariable: 'tn93',
         SelectedLinkColorTableTypesVariable: 'Hide',
         SelectedNodeColorTableTypesVariable: 'Hide',
+        SelectedNodeShapeTableTypesVariable: 'Hide',
 
         SelectedColorVariable: '#ff8300',
         SelectedBackgroundColorVariable: '#ffffff',

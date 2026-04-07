@@ -1,12 +1,31 @@
+export type NodeShapeGroupKey = 'basic' | 'buildings' | 'people' | 'vectors' | 'animals' | 'other';
 
-export interface TwoDNodeIconSymbolOption {
+export const DEFAULT_NODE_SHAPE_KEY = 'ellipse';
+
+export const NODE_SHAPE_GROUPS: ReadonlyArray<{ key: NodeShapeGroupKey; label: string }> = [
+    { key: 'basic', label: 'Basic Shapes' },
+    { key: 'buildings', label: 'Buildings' },
+    { key: 'people', label: 'People' },
+    { key: 'vectors', label: 'Pathogens & Vectors' },
+    { key: 'animals', label: 'Animals' },
+    { key: 'other', label: 'Other' },
+];
+
+export interface NodeShapeOption {
     key: string;
     value: string;
     name: string;
+    groupKey: NodeShapeGroupKey;
 }
 
+type NodeShapePoint = [number, number];
 
-interface TwoDNodeIconDefinition extends TwoDNodeIconSymbolOption {
+const MAP_NODE_SHAPE_CANVAS_SIZE = 300;
+const MAP_NODE_SHAPE_CENTER = MAP_NODE_SHAPE_CANVAS_SIZE / 2;
+const MAP_NODE_SHAPE_RADIUS = 110;
+
+
+interface CustomNodeShapeDefinition extends NodeShapeOption {
     cytoscapeShape: string;
     width: number;
     height: number;
@@ -15,11 +34,28 @@ interface TwoDNodeIconDefinition extends TwoDNodeIconSymbolOption {
     fillPath?: string;
 }
 
-const TWO_D_NODE_ICON_DEFINITIONS: Record<string, TwoDNodeIconDefinition> = {
+export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
+    { key: 'ellipse', value: '\u2b24', name: ' (Circle) ', groupKey: 'basic' },
+    { key: 'triangle', value: '\u25b2', name: ' (Triangle)', groupKey: 'basic' },
+    { key: 'rectangle', value: '\u25fc', name: ' (Square)', groupKey: 'basic' },
+    { key: 'rhomboid', value: '\u25b0', name: ' (Rhombus)', groupKey: 'basic' },
+    { key: 'diamond', value: '\u25c6', name: ' (Diamond)', groupKey: 'basic' },
+    { key: 'heptagon', value: '\u2b23', name: ' (Heptagon)', groupKey: 'basic' },
+    { key: 'pentagon', value: '\u2b1f', name: ' (Pentagon)', groupKey: 'basic' },
+    { key: 'hexagon', value: '\u2b22', name: ' (Hexagon)', groupKey: 'basic' },
+    { key: 'barrel', value: '', name: ' (Barrel)', groupKey: 'basic' },
+    { key: 'octagon', value: '\u2bc3', name: ' (Octagon)', groupKey: 'basic' },
+    { key: 'star', value: '\u2605', name: ' (Star)', groupKey: 'basic' },
+    { key: 'tag', value: '\u2617', name: ' (Tag)', groupKey: 'basic' },
+    { key: 'vee', value: 'V', name: ' (Vee)', groupKey: 'basic' },
+];
+
+const CUSTOM_NODE_SHAPE_DEFINITIONS: Record<string, CustomNodeShapeDefinition> = {
     unknown: {
         key: 'unknown',
         value: '?',
         name: ' (Unknown)',
+        groupKey: 'other',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -30,6 +66,7 @@ const TWO_D_NODE_ICON_DEFINITIONS: Record<string, TwoDNodeIconDefinition> = {
         key: 'house',
         value: '',
         name: 'House',
+        groupKey: 'buildings',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -40,6 +77,7 @@ const TWO_D_NODE_ICON_DEFINITIONS: Record<string, TwoDNodeIconDefinition> = {
         key: 'clinic',
         value: '',
         name: 'Clinic',
+        groupKey: 'buildings',
         cytoscapeShape: 'round-rectangle',
         width: 337,
         height: 300,
@@ -50,6 +88,7 @@ const TWO_D_NODE_ICON_DEFINITIONS: Record<string, TwoDNodeIconDefinition> = {
         key: 'farm',
         value: '',
         name: 'Farm',
+        groupKey: 'buildings',
         cytoscapeShape: 'barrel',
         width: 337,
         height: 300,
@@ -60,6 +99,7 @@ const TWO_D_NODE_ICON_DEFINITIONS: Record<string, TwoDNodeIconDefinition> = {
         key: 'city',
         value: '',
         name: 'City',
+        groupKey: 'buildings',
         cytoscapeShape: 'barrel',
         width: 375,
         height: 300,
@@ -74,6 +114,7 @@ M338 63q0 -3 -2.5 -5t-5.5 -2h-23q-3 0 -5 2t-2 5v24q0 3 2 5t5 2h23q3 0 5.5 -2t2.5
         key: 'man',
         value: '',
         name: 'Man',
+        groupKey: 'people',
         cytoscapeShape: 'round-rectangle',
         width: 112,
         height: 300,
@@ -84,6 +125,7 @@ M338 63q0 -3 -2.5 -5t-5.5 -2h-23q-3 0 -5 2t-2 5v24q0 3 2 5t5 2h23q3 0 5.5 -2t2.5
         key: 'woman',
         value: '',
         name: 'Woman',
+        groupKey: 'people',
         cytoscapeShape: 'round-rectangle',
         width: 150,
         height: 300,
@@ -94,6 +136,7 @@ M338 63q0 -3 -2.5 -5t-5.5 -2h-23q-3 0 -5 2t-2 5v24q0 3 2 5t5 2h23q3 0 5.5 -2t2.5
         key: 'person',
         value: '',
         name: 'Person',
+        groupKey: 'people',
         cytoscapeShape: 'round-rectangle',
         width: 262,
         height: 300,
@@ -104,6 +147,7 @@ M338 63q0 -3 -2.5 -5t-5.5 -2h-23q-3 0 -5 2t-2 5v24q0 3 2 5t5 2h23q3 0 5.5 -2t2.5
         key: 'virus',
         value: '',
         name: 'Virus',
+        groupKey: 'vectors',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -114,6 +158,7 @@ M338 63q0 -3 -2.5 -5t-5.5 -2h-23q-3 0 -5 2t-2 5v24q0 3 2 5t5 2h23q3 0 5.5 -2t2.5
         key: 'bacteria',
         value: '',
         name: 'Bacteria',
+        groupKey: 'vectors',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -124,16 +169,18 @@ M338 63q0 -3 -2.5 -5t-5.5 -2h-23q-3 0 -5 2t-2 5v24q0 3 2 5t5 2h23q3 0 5.5 -2t2.5
         key: 'tick',
         value: '',
         name: 'Tick',
+        groupKey: 'vectors',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
         viewBox: '0 0 300 300',
         path: 'M225 160l1 1q19 6 31 23q4 6 2.5 17t-4.5 14v0q-1 1 -2.5 0t-1.5 -2q1 -13 -4 -24h-1q-12 -10 -25 -18v0q-2 1 -12.5 -1t-14.5 -2l6 -12q21 0 25 4zM220 184v1q10 5 16.5 14t9.5 20q0 1 -1 2v0q6 13 6 27q0 2 -2 3q0 14 -10 24v0q-1 1 -2 0t-1 -2l3 -22v-3q-3 -14 -8 -29 l-4 -1q-1 -1 -1 -3q-5 -11 -13 -21v0q-14 -6 -29 -10l8 -12q21 2 28 12zM213 106q4 -4 8 -7l7 -29q0 -2 1 -3v0q-2 -5 1 -17t6 -16q2 -2 4 -3v0q6 -10 26 -11q4 0 4 1v0q2 1 2 3q-6 5 -13 7t-10 8l-1 3q-3 8 -5 16v0q1 0 1 2q0 10 -5 26q-3 9 -7 17v0q0 2 -1 5 q-10 18 -25 32q5 -16 7 -33v-1zM278 77q1 2 1 4q-3 13 -10 24v1q0 14 -12 25q-8 6 -17 11v0q0 2 -3 4l-1 1q-16 11 -36 8l6 -13q13 -4 26 -9q13 -10 22 -23q1 -2 2 -3q7 -12 10 -25q-1 -3 1 -5q1 -7 10 -13t14 -6v0l1.5 1.5t-0.5 1.5zM79 171v0q-13 8 -25 18h-1q-5 12 -4 24 q0 2 -1.5 2.5t-2.5 -0.5v0q-3 -3 -4.5 -13.5t2.5 -17.5q12 -17 31 -23l1 -1q5 -4 25 -3l6 12q-13 2 -27 2zM87 194v0q-9 9 -13 21q0 2 -1 3l-4 1q-6 14 -8 29l-1 2l4 23q0 1 -1 2t-2 0v0q-10 -10 -11 -24q-1 -1 -1 -3q0 -14 6 -27v0q-1 -1 -1 -2q3 -11 9.5 -20t15.5 -14 l1 -1q7 -10 28 -12q5 9 7 12q-14 4 -28 10zM94 140q-16 -14 -25 -32q-1 -2 -2 -5q-3 -7 -6 -16q-6 -17 -5 -27q0 -1 1 -2v0l-6 -16v-2q-4 -6 -10.5 -8.5t-12.5 -7.5q-1 -2 1 -3h1h3q21 0 26 10v0q3 1 4 3q4 4 7 16t0 17v1q1 1 1 2l7 29q4 3 8 7v1q2 17 8 33zM64 147l-1 -1 q-3 -2 -4 -4v-1q-9 -4 -16 -10q-12 -11 -12 -25v-1q-7 -11 -10 -24q0 -2 1 -4q-8 -9 -14 -16q-1 -1 -0.5 -1.5l1.5 -1.5v0q5 0 14 5.5t10 13.5q2 2 1 5q3 13 10 25q1 1 2 3q9 13 22 23q12 5 26 9l5 13q-19 2 -35 -8zM119 181q-8 -12 -15 -27q-11 -26 -13 -48q-1 -12 3 -23 t12.5 -20t20 -14t23.5 -5v0q12 0 23.5 5t20 14t12 20.5t2.5 23.5q-2 32 -26 73l-1 2q1 3 0 7t-4 7q-2 19 -9 35q-3 6 -8 6t-7.5 -3t-2.5 -7l-1 -12v1v11q0 3 -2 6t-5.5 3.5t-6.5 -1t-4 -4.5q-8 -17 -9 -37v-1q-2 -2 -3 -5t0 -7zM177 115q-9 -11 -23 -11h-8q-14 0 -23.5 12 t-4.5 33q3 12 12 25q9 -3 20 -3v0q10 0 20 3q8 -12 12 -25q5 -21 -5 -34z'    
     },
-    mosiquito: {
-        key: 'mosiquito',
+    mosquito: {
+        key: 'mosquito',
         value: '',
         name: 'Mosquito',
+        groupKey: 'vectors',
         cytoscapeShape: 'round-rectangle',
         width: 344,
         height: 300,
@@ -155,6 +202,7 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         key: 'bat',
         value: '',
         name: 'Bat',
+        groupKey: 'animals',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -165,6 +213,7 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         key: 'rodent',
         value: '',
         name: 'Rodent',
+        groupKey: 'animals',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -175,6 +224,7 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         key: 'pig',
         value: '',
         name: 'Pig',
+        groupKey: 'animals',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -185,16 +235,18 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         key: 'chicken',
         value: '',
         name: 'Chicken',
+        groupKey: 'animals',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
         viewBox: '0 0 300 300',
-        path: 'M145 60q-8 0 -15 4.5t-12 11.5q-19 4 -34 16.5t-23 30.5v0q-5 1 -11 4q-8 3 -12 10q-2 4 -1 7.5t4 5.5q-10 5 -12 16q-2 8 5 10q-7 6 -9 15q0 4 1 8t5 5h1q-6 10 -3 21q1 4 3.5 6.5t5.5 0.5q-1 7 2 15.5t10 9.5q1 0 3 -1v0q0 11 9 17q4 3 7.5 2t4.5 -6v0q5 11 16 14 q2 1 5 0.5t3.5 -3.5t0.5 -7l-2 -6q-2 -26 8 -51q8 -6 17 -11q1 1 1.5 1h1.5l2 -1q14 -7 29 -6q15 9 32 14q3 5 9 18q11 20 17 28q11 14 24 18q-3 3 -2.5 8t3 7t4.5 -3v0v0l1 2l1 -3v0l1 2v-1v0.5v0.5l1 -3l3 4l2 -8l2 3v0l1 -4l1 2z'
+        path: `M 152.337 12.9568 C 155.282 13.5306 157.787 14.1108 160.292 14.6911 C 157.923 15.6649 155.63 16.9696 153.168 17.5307 C 149.94 18.2663 146.506 18.1323 143.305 18.9435 C 141.842 19.3143 139.708 20.9849 139.631 22.1786 C 139.334 26.8016 139.708 31.4717 139.935 36.1193 C 139.961 36.6481 140.527 37.309 141.023 37.6325 C 147.052 41.5658 153.114 45.4473 159.044 49.2623 C 162.594 47.6102 166.765 45.738 170.856 43.7045 C 171.633 43.3185 172.369 42.3873 172.652 41.5484 C 174.406 36.3584 176.301 31.186 177.521 25.8637 C 177.884 24.2776 176.542 21.9975 175.402 20.4653 C 174.481 19.2267 172.569 18.7744 171.34 17.695 C 170.733 17.1612 170.244 15.8331 170.499 15.1711 C 170.733 14.5632 172.397 13.8042 172.816 14.0725 C 181.185 19.4269 187.598 13.5315 194.496 10.4475 C 195.102 10.1765 195.738 9.72894 196.344 9.75281 C 197.499 9.79826 198.642 10.1251 199.791 10.3352 C 199.311 11.4273 199.079 12.7685 198.291 13.5495 C 197.271 14.5615 195.807 15.127 193.354 16.5874 C 197.555 16.5874 200.539 16.4007 203.479 16.6788 C 204.664 16.7908 205.752 17.921 206.884 18.5878 C 205.769 19.3675 204.733 20.6402 203.524 20.8352 C 199.75 21.4436 195.917 21.7369 192.095 21.9788 C 187.755 22.2536 185.115 24.2353 183.938 28.5726 C 182.505 33.851 180.65 39.0147 179.354 43.0566 C 182.62 48.4737 185.22 53.3768 188.42 57.8513 C 190.074 60.164 192.662 61.9008 195.051 63.5798 C 206.179 71.3989 218.513 77.9019 228.329 87.1023 C 249.635 107.073 255.867 133.083 253.433 161.444 C 252.124 176.695 250.092 191.883 248.496 207.111 C 248.207 209.867 248.455 212.679 248.455 216.102 C 252.819 212.223 257.154 211.497 261.575 215.071 C 267.016 219.47 268.448 225.029 265.548 233.02 C 271.463 231.739 276.468 230.655 281.996 229.457 C 282.379 235.914 278.446 239.997 274.02 243.703 C 277.39 249.675 276.487 259.124 272.008 263.19 C 271.24 263.887 269.462 263.473 267.693 263.608 C 267.51 264.791 267.418 266.438 266.968 267.981 C 266.577 269.318 265.781 270.536 264.834 272.484 C 263.184 270.527 262.065 269.2 260.79 267.688 C 259.59 270.526 258.584 273.339 257.202 275.953 C 256.667 276.965 255.279 277.527 254.281 278.294 C 253.568 277.274 252.66 276.336 252.194 275.214 C 251.648 273.898 251.486 272.422 251.124 270.868 C 247.391 274.705 243.953 278.239 240.515 281.772 C 239.909 281.422 239.302 281.071 238.695 280.72 C 239.059 277.774 239.423 274.827 239.837 271.478 C 237.26 272.832 234.961 274.292 232.477 275.291 C 227.766 277.185 225.665 275.911 224.803 270.98 C 223.628 264.257 225.662 259.983 232.2 256.219 C 214.188 248.075 207.483 231.398 200.033 215.232 C 197.047 208.753 193.92 202.306 190.351 196.137 C 181.409 180.682 167.427 174.229 149.868 177.316 C 144.661 178.232 139.429 179.382 134.439 181.095 C 115.201 187.697 105.017 201.873 103.342 221.61 C 102.463 231.965 103.94 242.522 104.399 252.986 C 104.501 255.309 104.955 257.622 104.972 259.941 C 105.035 268.559 100.471 271.989 92.8679 267.903 C 87.5465 265.043 83.3268 260.134 78.7643 256.266 C 75.0766 262.188 69.7119 263.256 64.0514 256.893 C 60.1231 252.477 57.8289 246.607 54.5628 240.97 C 49.7875 241.754 45.9623 240.467 43.6499 234.745 C 41.2142 228.717 40.1106 222.152 38.3072 215.379 C 33.1801 214.759 30.9078 212.433 29.9151 205.962 C 28.7769 198.543 29.2486 191.374 32.9188 184.668 C 22.9665 176.784 23.3631 170.417 34.7757 153.92 C 29.4842 149.984 28.149 147.034 31.0324 140.784 C 33.5176 135.397 37.4103 130.66 41.2073 124.826 C 36.7595 114.641 38.5047 109.472 49.9879 102.643 C 51.4111 101.797 52.8492 100.619 54.3958 100.396 C 62.9972 99.1579 66.5492 92.8988 70.4493 86.0937 C 81.8642 66.1766 98.715 52.9383 121.023 46.6369 C 124.218 45.7344 126.489 41.9282 129.647 40.4381 C 134.311 38.2369 132.81 34.516 132.898 31.0961 C 132.945 29.2665 132.715 27.4284 132.787 25.6011 C 132.974 20.8257 131.378 17.2897 126.76 15.1516 C 125.559 14.5953 125.056 12.5297 124.233 11.1574 C 125.731 11.1564 127.472 10.6565 128.682 11.246 C 132.628 13.1686 136.241 13.0439 140.026 10.8564 C 142.895 9.19857 145.899 7.70325 148.996 6.54635 C 150.218 6.08998 151.856 6.74788 153.304 6.8984 C 152.601 8.05681 152.043 9.34634 151.15 10.3326 C 150.423 11.1356 149.294 11.5755 147.099 12.9633 C 149.556 12.9633 150.726 12.9633 152.337 12.9568 Z`
     },
     pet: {
         key: 'pet',
         value: '',
         name: 'Pet',
+        groupKey: 'animals',
         cytoscapeShape: 'round-rectangle',
         width: 300,
         height: 300,
@@ -205,6 +257,7 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         key: 'food',
         value: '',
         name: 'Food',
+        groupKey: 'other',
         cytoscapeShape: 'square',
         width: 300,
         height: 300,
@@ -216,6 +269,7 @@ t-3.5 -10l-51 -51q-3 -3 -3 -7.5t3 -7t7 -2.5t7 2l51 52q4 4 9.5 2.5t7 -7t-2.5 -9.5
         key: 'apple',
         value: '',
         name: 'Apple',
+        groupKey: 'other',
         cytoscapeShape: 'round-rectangle',
         width: 262,
         height: 300,
@@ -227,6 +281,7 @@ q-8 -7 -21 -11q-10 -3 -21 -3l-9 1q-1 8 0 19q3 21 14 32q8 8 22 11q9 3 20 3l9 -1v-
         key: 'flask',
         value: '',
         name: 'Flask',
+        groupKey: 'other',
         cytoscapeShape: 'round-rectangle',
         width: 262,
         height: 300,
@@ -237,6 +292,7 @@ q-8 -7 -21 -11q-10 -3 -21 -3l-9 1q-1 8 0 19q3 21 14 32q8 8 22 11q9 3 20 3l9 -1v-
         key: 'syringe',
         value: '',
         name: 'Syringe',
+        groupKey: 'other',
         cytoscapeShape: 'square',
         width: 300,
         height: 300,
@@ -246,51 +302,319 @@ l-80 80zM299 252l-47 47q-1 1 -3 1t-3 -1l-7 -7q-1 -1 -1 -3t1 -4l17 -16l-27 -27l-4
     },
 };
 
-export const TWO_D_CUSTOM_NODE_SYMBOL_OPTIONS: TwoDNodeIconSymbolOption[] = Object.values(TWO_D_NODE_ICON_DEFINITIONS)
-    .map(({ key, value, name }) => ({ key, value, name }));
+export const CUSTOM_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = Object.values(CUSTOM_NODE_SHAPE_DEFINITIONS)
+    .map(({ key, value, name, groupKey }) => ({ key, value, name, groupKey }));
 
-export function normalizeCustomNodeIconShapeKey(shapeKey: string | null | undefined): string | null {
+export const NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
+    ...BASIC_NODE_SYMBOL_OPTIONS,
+    ...CUSTOM_NODE_SYMBOL_OPTIONS,
+];
+
+const SUPPORTED_NODE_SHAPE_KEYS = new Set(NODE_SYMBOL_OPTIONS.map(({ key }) => key));
+
+const LEGACY_NODE_SHAPE_KEY_MAP: Record<string, string> = {
+    symbolCircle: 'ellipse',
+    symbolTriangle: 'triangle',
+    symbolTriangleDown: 'triangle',
+    symbolSquare: 'rectangle',
+    square: 'rectangle',
+    symbolDiamond: 'rhomboid',
+    symbolDiamondAlt: 'rhomboid',
+    symbolDiamondSquare: 'diamond',
+    symbolOctagonAlt: 'heptagon',
+    symbolHexagonAlt: 'heptagon',
+    symbolPentagon: 'pentagon',
+    symbolHexagon: 'hexagon',
+    symbolCross: 'barrel',
+    symbolOctagon: 'octagon',
+    symbolStar: 'star',
+    symbolTriangleLeft: 'tag',
+    symbolTriangleRight: 'tag',
+    symbolX: 'vee',
+    symbolWye: 'vee',
+    mosiquito: 'mosquito',
+};
+
+interface NodeShapeStyleMapping {
+    nodeSymbolsTable?: Record<string, any>;
+    nodeSymbolsTableKeys?: Record<string, any>;
+}
+
+export function normalizeNodeShapeKey(shapeKey: string | null | undefined): string | null {
     if (!shapeKey) {
         return null;
     }
 
-    if (shapeKey in TWO_D_NODE_ICON_DEFINITIONS) {
+    if (SUPPORTED_NODE_SHAPE_KEYS.has(shapeKey)) {
         return shapeKey;
+    }
+
+    const legacyShapeKey = LEGACY_NODE_SHAPE_KEY_MAP[shapeKey];
+    if (legacyShapeKey && SUPPORTED_NODE_SHAPE_KEYS.has(legacyShapeKey)) {
+        return legacyShapeKey;
     }
 
     return null;
 }
 
-export function isCustomNodeIconShape(shapeKey: string | null | undefined): boolean {
-    return normalizeCustomNodeIconShapeKey(shapeKey) !== null;
+export function resolveNodeShapeKey(shapeKey: string | null | undefined, fallbackShapeKey: string = DEFAULT_NODE_SHAPE_KEY): string {
+    return normalizeNodeShapeKey(shapeKey) ?? fallbackShapeKey;
 }
 
-export function resolveCustomNodeIconCytoscapeShape(shapeKey: string): string {
-    const normalizedShapeKey = normalizeCustomNodeIconShapeKey(shapeKey);
-    if (!normalizedShapeKey) {
-        return shapeKey;
+export function resolveNodeShapeForNode(
+    node: any,
+    widgets: Record<string, any> | null | undefined,
+    style: NodeShapeStyleMapping | null | undefined,
+    nodeSymbolMap?: ((value: any) => string) | null
+): string {
+    const defaultShape = resolveNodeShapeKey(widgets?.['node-symbol']);
+    const symbolVariable = widgets?.['node-symbol-variable'];
+
+    if (!node || !symbolVariable || symbolVariable === 'None') {
+        return defaultShape;
     }
 
-    return TWO_D_NODE_ICON_DEFINITIONS[normalizedShapeKey].cytoscapeShape;
+    const nodeValue = node[symbolVariable];
+    const tableKeys = style?.nodeSymbolsTableKeys?.[symbolVariable];
+    const tableShapes = style?.nodeSymbolsTable?.[symbolVariable];
+
+    if (Array.isArray(tableKeys) && Array.isArray(tableShapes)) {
+        const tableIndex = tableKeys.findIndex(value => value === nodeValue || `${value}` === `${nodeValue}`);
+        if (tableIndex >= 0 && tableIndex < tableShapes.length) {
+            return resolveNodeShapeKey(tableShapes[tableIndex], defaultShape);
+        }
+    }
+
+    if (nodeSymbolMap) {
+        return resolveNodeShapeKey(nodeSymbolMap(nodeValue), defaultShape);
+    }
+
+    return defaultShape;
 }
 
-function buildNodeIconDataUri(definition: TwoDNodeIconDefinition, fillColor: string): string {
-    const safeStroke = (fillColor || '#000000').replace(/"/g, '&quot;');
-    const fillPath = `<path d="${definition.fillPath ?? definition.path}" fill="${safeStroke}" stroke="none"/>`;
-    const outlinePath = `<path d="${definition.path}" fill="none" stroke="${safeStroke}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" width="${definition.width}" height="${definition.height}" viewBox="${definition.viewBox}" aria-hidden="true"><g transform="translate(0,${definition.height}) scale(1,-1)">${fillPath}${outlinePath}</g></svg>`;
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+export function isCustomNodeShape(shapeKey: string | null | undefined): boolean {
+    const normalizedShapeKey = normalizeNodeShapeKey(shapeKey);
+    return normalizedShapeKey !== null && normalizedShapeKey in CUSTOM_NODE_SHAPE_DEFINITIONS;
+}
+
+export function resolveNodeShapeCytoscapeShape(shapeKey: string): string {
+    const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+    if (!isCustomNodeShape(normalizedShapeKey)) {
+        return normalizedShapeKey;
+    }
+
+    return CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey].cytoscapeShape;
+}
+
+function sanitizeSvgColor(color: string | null | undefined): string {
+    return (color || '#000000').replace(/"/g, '&quot;');
+}
+
+function buildPaddedViewBox(viewBox: string, padding: number): string {
+    const dimensions = viewBox.trim().split(/\s+/).map(value => Number(value));
+    if (dimensions.length !== 4 || dimensions.some(value => Number.isNaN(value))) {
+        return viewBox;
+    }
+
+    const [minX, minY, width, height] = dimensions;
+    return `${minX - padding} ${minY - padding} ${width + (padding * 2)} ${height + (padding * 2)}`;
+}
+
+function buildCustomNodeShapeDataUri(
+    definition: CustomNodeShapeDefinition,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    viewBoxPadding: number = 0
+): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const fillPath = `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" stroke="none"/>`;
+    const outlinePath = `<path d="${definition.path}" fill="none" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" width="${definition.width}" height="${definition.height}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" aria-hidden="true"><g transform="translate(0,${definition.height}) scale(1,-1)">${fillPath}${outlinePath}</g></svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function buildEllipseNodeShapeDataUri(fillColor: string, strokeColor: string, strokeWidth: number): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', Math.max(20, strokeWidth))}" aria-hidden="true"><circle cx="150" cy="150" r="110" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function roundSvgCoordinate(value: number): number {
+    return Number(value.toFixed(2));
+}
+
+function createNodeShapePoint(x: number, y: number): NodeShapePoint {
+    return [roundSvgCoordinate(x), roundSvgCoordinate(y)];
+}
+
+function buildClosedPath(points: NodeShapePoint[]): string {
+    if (!points.length) {
+        return '';
+    }
+
+    const [firstPoint, ...remainingPoints] = points;
+    const pathSegments = [`M ${firstPoint[0]} ${firstPoint[1]}`];
+    for (const [x, y] of remainingPoints) {
+        pathSegments.push(`L ${x} ${y}`);
+    }
+
+    pathSegments.push('Z');
+    return pathSegments.join(' ');
+}
+
+function buildRegularPolygonPath(sides: number, radius: number = MAP_NODE_SHAPE_RADIUS, rotationRadians: number = -Math.PI / 2): string {
+    const points: NodeShapePoint[] = [];
+    for (let index = 0; index < sides; index++) {
+        const angle = rotationRadians + ((Math.PI * 2 * index) / sides);
+        points.push(createNodeShapePoint(
+            MAP_NODE_SHAPE_CENTER + (radius * Math.cos(angle)),
+            MAP_NODE_SHAPE_CENTER + (radius * Math.sin(angle))
+        ));
+    }
+
+    return buildClosedPath(points);
+}
+
+function buildStarPath(points: number = 5, outerRadius: number = 112, innerRadius: number = 48, rotationRadians: number = -Math.PI / 2): string {
+    const starPoints: NodeShapePoint[] = [];
+    for (let index = 0; index < points * 2; index++) {
+        const angle = rotationRadians + ((Math.PI * index) / points);
+        const radius = index % 2 === 0 ? outerRadius : innerRadius;
+        starPoints.push(createNodeShapePoint(
+            MAP_NODE_SHAPE_CENTER + (radius * Math.cos(angle)),
+            MAP_NODE_SHAPE_CENTER + (radius * Math.sin(angle))
+        ));
+    }
+
+    return buildClosedPath(starPoints);
+}
+
+function buildBasicNodeShapePath(shapeKey: string): string | null {
+    switch (shapeKey) {
+        case 'triangle':
+            return buildClosedPath([
+                createNodeShapePoint(150, 35),
+                createNodeShapePoint(262, 245),
+                createNodeShapePoint(38, 245),
+            ]);
+        case 'rectangle':
+            return buildClosedPath([
+                createNodeShapePoint(50, 50),
+                createNodeShapePoint(250, 50),
+                createNodeShapePoint(250, 250),
+                createNodeShapePoint(50, 250),
+            ]);
+        case 'rhomboid':
+            return buildClosedPath([
+                createNodeShapePoint(92, 45),
+                createNodeShapePoint(255, 45),
+                createNodeShapePoint(208, 255),
+                createNodeShapePoint(45, 255),
+            ]);
+        case 'diamond':
+            return buildClosedPath([
+                createNodeShapePoint(150, 35),
+                createNodeShapePoint(265, 150),
+                createNodeShapePoint(150, 265),
+                createNodeShapePoint(35, 150),
+            ]);
+        case 'pentagon':
+            return buildRegularPolygonPath(5);
+        case 'hexagon':
+            return buildRegularPolygonPath(6);
+        case 'heptagon':
+            return buildRegularPolygonPath(7);
+        case 'octagon':
+            return buildRegularPolygonPath(8);
+        case 'star':
+            return buildStarPath();
+        case 'tag':
+            return buildClosedPath([
+                createNodeShapePoint(40, 65),
+                createNodeShapePoint(190, 65),
+                createNodeShapePoint(260, 150),
+                createNodeShapePoint(190, 235),
+                createNodeShapePoint(40, 235),
+            ]);
+        case 'vee':
+            return buildClosedPath([
+                createNodeShapePoint(42, 60),
+                createNodeShapePoint(105, 60),
+                createNodeShapePoint(150, 155),
+                createNodeShapePoint(195, 60),
+                createNodeShapePoint(258, 60),
+                createNodeShapePoint(173, 255),
+                createNodeShapePoint(127, 255),
+            ]);
+        default:
+            return null;
+    }
+}
+
+function buildBarrelNodeShapeDataUri(fillColor: string, strokeColor: string, strokeWidth: number): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const barrelPath = 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z';
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', Math.max(20, strokeWidth))}" aria-hidden="true"><path d="${barrelPath}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function buildBasicNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string | null {
+    if (shapeKey === 'ellipse') {
+        return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
+    }
+
+    if (shapeKey === 'barrel') {
+        return buildBarrelNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
+    }
+
+    const path = buildBasicNodeShapePath(shapeKey);
+    if (!path) {
+        return null;
+    }
+
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', Math.max(20, strokeWidth))}" aria-hidden="true"><path d="${path}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string {
+    const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+    if (isCustomNodeShape(normalizedShapeKey)) {
+        return buildCustomNodeShapeDataUri(
+            CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey],
+            fillColor,
+            strokeColor,
+            strokeWidth,
+            Math.max(20, strokeWidth)
+        );
+    }
+
+    const basicShapeDataUri = buildBasicNodeShapeDataUri(normalizedShapeKey, fillColor, strokeColor, strokeWidth);
+    if (basicShapeDataUri) {
+        return basicShapeDataUri;
+    }
+
+    return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
 }
 
 export function getCustomNodeShapeData(shapeKey: string, nodeColor: string): Record<string, string> {
-    const normalizedShapeKey = normalizeCustomNodeIconShapeKey(shapeKey);
+    const normalizedShapeKey = normalizeNodeShapeKey(shapeKey);
     if (!normalizedShapeKey) {
         return {};
     }
 
-    const definition = TWO_D_NODE_ICON_DEFINITIONS[normalizedShapeKey];
+    if (!isCustomNodeShape(normalizedShapeKey)) {
+        return {};
+    }
+
+    const definition = CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey];
     return {
         customIconKey: normalizedShapeKey,
-        iconBackgroundImage: buildNodeIconDataUri(definition, nodeColor)
+        iconBackgroundImage: buildCustomNodeShapeDataUri(definition, nodeColor, nodeColor, 4)
     };
 }

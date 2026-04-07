@@ -24,6 +24,7 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { getMapNodeShapeDataUri, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 
 declare var google: any;
 
@@ -225,6 +226,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     public isExporting: boolean = false;
     public isExportClosed: boolean = false;
     private exportTryCount: number = 0;
+    private readonly mapNodeIconSize: number = 24;
+    private mapNodeIconCache: Record<string, L.Icon> = {};
 
     public NodeMapSettingsExportDialogSettings: DialogSettings;
 
@@ -442,6 +445,34 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             fillColor: '#3c4b8d',
             radius: 5
         });
+    }
+
+    private getNodeShapeKey(node: any): string {
+        return resolveNodeShapeForNode(
+            node,
+            this.commonService.session.style.widgets,
+            this.commonService.session.style,
+            this.commonService.temp.style.nodeSymbolMap
+        );
+    }
+
+    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean): L.Icon {
+        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+        const safeFill = fillColor || '#000000';
+        const safeStroke = strokeColor || '#000000';
+        const strokeWidth = selected ? 36 : 16;
+        const cacheKey = `${normalizedShapeKey}|${safeFill}|${safeStroke}|${strokeWidth}`;
+
+        if (!this.mapNodeIconCache[cacheKey]) {
+            this.mapNodeIconCache[cacheKey] = icon({
+                iconUrl: getMapNodeShapeDataUri(normalizedShapeKey, safeFill, safeStroke, strokeWidth),
+                iconSize: [this.mapNodeIconSize, this.mapNodeIconSize],
+                iconAnchor: [this.mapNodeIconSize / 2, this.mapNodeIconSize / 2],
+                tooltipAnchor: [0, -this.mapNodeIconSize / 2]
+            });
+        }
+
+        return this.mapNodeIconCache[cacheKey];
     }
 
     /* Not sure goal of this at the moment
@@ -1269,24 +1300,25 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             var d = this.nodes[i];
             if (!d._jlat || !d._jlon || d.visible === false) continue;
 
-            let circleMarker: CircleWithData = L.circleMarker(L.latLng(d._jlat, d._jlon), {
-                weight: d.selected ? 3 : 1,
-                color: d.selected ? selectedColor : '#000000',
-                opacity: opacity,
-                fillColor: colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(d[colorVariable]),
-                fillOpacity: opacity,
-                radius: 10
+            const nodeFillColor = colorVariable == 'None'
+                ? fillcolor
+                : this.commonService.temp.style.nodeColorMap(d[colorVariable]);
+            const shapeKey = this.getNodeShapeKey(d);
+
+            let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
+                icon: this.getMapNodeIcon(shapeKey, nodeFillColor, d.selected ? selectedColor : '#000000', d.selected),
+                opacity: opacity
             });
 
-            circleMarker.data = d;
+            nodeMarker.data = d;
 
-            circleMarker
+            nodeMarker
                 .on('mouseover', (e) => this.showNodeTooltip(e))
                 .on('mouseout', (e) => this.hideTooltip())
                 .on('click', (e) => this.clickHandler(e));
 
 
-            features.push(circleMarker);
+            features.push(nodeMarker);
         }
 
         if (this.commonService.session.style.widgets['map-collapsing-on']) {
@@ -1614,6 +1646,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     updateNodeColors() {
+        this.drawNodes(false);
+        this.drawLinks();
+    }
+
+    updateNodeShapes() {
+        this.mapNodeIconCache = {};
         this.drawNodes(false);
         this.drawLinks();
     }
