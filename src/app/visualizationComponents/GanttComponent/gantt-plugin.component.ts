@@ -180,14 +180,20 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     const timeline = {};
 
     this.nodeIds.forEach( (element: string) => {
+      timeline[element] = [];
       const nodeData = this.visuals.gantt.commonService.session.data.nodes.filter(x => x._id == element)
+      if (!nodeData.length) {
+        return;
+      }
+
       const hasTimeZone: RegExp = /GMT.\d{4}/;
       const startDate = hasTimeZone.exec(nodeData[0][startVariable])? nodeData[0][startVariable].substring(4,15) : nodeData[0][startVariable];
       const endDate = hasTimeZone.exec(nodeData[0][endVariable])? nodeData[0][endVariable].substring(4,15) : nodeData[0][endVariable];
-      const regExp: RegExp = /^.*$/;
-      if (startDate && endDate && regExp.exec(startDate) && regExp.exec(endDate)) {
-        const entry = [{ from: startDate, to: endDate, info: dateName }]
-        timeline[element] = entry;
+      if (
+        this.commonService.hasValidTimelineDateValue(startDate) &&
+        this.commonService.hasValidTimelineDateValue(endDate)
+      ) {
+        timeline[element].push({ from: startDate, to: endDate, info: dateName });
       }
     })
 
