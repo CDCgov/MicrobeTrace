@@ -1,36 +1,36 @@
-<div class="global-color-tables-view">
-  <!--div class="global-color-tables-toolbar">
-    <div class="global-color-tables-copy">
-      <div class="global-color-tables-eyebrow">Shared Styling</div>
-      <h2>Global Color Tables</h2>
-      <p>Node and link color mappings used across the active network views.</p>
+<div class="key-tables-view">
+  <!--div class="key-tables-toolbar">
+    <div class="key-tables-copy">
+      <div class="key-tables-eyebrow">Shared Styling</div>
+      <h2>Docked Key Tables</h2>
+      <p>Docked node colors, link colors, and node shapes used across the active network views.</p>
     </div>
     <button type="button" class="btn btn-light btn-sm" (click)="openStylingSettings()">Open Styling</button>
   </div-->
 
-  <div class="global-color-tables-grid">
-    <section class="global-color-table-card" [class.global-color-table-card--collapsed]="nodeTableCollapsed">
-      <div class="global-color-table-card__header">
-        <h3>Node Colors</h3>
-        <div class="global-color-table-card__controls">
+  <div class="key-tables-grid">
+    <section class="key-table-card" [hidden]="!isTableDocked('node-color')" [class.key-table-card--collapsed]="nodeTableCollapsed">
+      <div class="key-table-card__header">
+        <h5>Node Colors</h5>
+        <div class="key-table-card__controls">
           <span>Global</span>
           <p-select
-            class="global-color-table-card__select"
+            class="key-table-card__select"
             [options]="nodeColorFieldOptions"
             appendTo="body"
             [ngModel]="selectedNodeColorBy"
             (onChange)="onNodeColorByChange($event.value)">
           </p-select>
-          <div class="global-color-table-card__menu-anchor">
+          <div class="key-table-card__menu-anchor">
             <button
               type="button"
               title="Settings"
-              class="btn btn-sm btn-clean btn-icon btn-icon-md global-color-table-card__settings-trigger"
+              class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
               (click)="toggleSettingsMenu('node-color', $event)">
               <i class="pi pi-cog"></i>
             </button>
             <div
-              class="dropdown-menu global-color-table-card__menu"
+              class="dropdown-menu key-table-card__menu"
               [class.show]="showNodeSettingsMenu"
               (click)="$event.stopPropagation()"
               (mouseleave)="hideSettingsMenu('node-color')">
@@ -46,43 +46,61 @@
           </div>
           <button
             type="button"
+            [title]="getTableDockButtonTitle('node-color')"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
+            (click)="toggleTableDocking('node-color', $event)">
+            <i class="pi pi-window-minimize"></i>
+          </button>
+          <button
+            type="button"
             [title]="nodeTableCollapsed ? 'Expand table' : 'Collapse table'"
-            class="btn btn-sm btn-clean btn-icon btn-icon-md global-color-table-card__collapse-trigger"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
             (click)="toggleTableCollapsed('node-color', $event)">
             <i [className]="nodeTableCollapsed ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"></i>
           </button>
         </div>
       </div>
-      <p class="global-color-table-card__empty" [hidden]="nodeTableCollapsed || hasNodeColorTable">
-        Choose a value for Color Nodes By in Global Settings to populate this table.
-      </p>
-      <div class="global-color-table-card__table" [hidden]="nodeTableCollapsed || !hasNodeColorTable">
-        <table id="global-color-tables-node-table"></table>
+      <div class="key-table-card__fallback" [hidden]="nodeTableCollapsed || hasNodeColorTable">
+        <label class="key-table-card__fallback-label" for="key-tables-node-default-color">Default Color</label>
+        <div class="key-table-card__fallback-color-row">
+          <input
+            id="key-tables-node-default-color"
+            type="color"
+            class="key-table-card__color-input"
+            [ngModel]="selectedNodeColorValue"
+            (ngModelChange)="onNodeColorValueChange($event)">
+        </div>
+        <p class="key-table-card__empty">
+          Choose a value for Color Nodes By to populate this table with per-group overrides.
+        </p>
+      </div>
+      <div class="key-table-card__table" [hidden]="nodeTableCollapsed || !hasNodeColorTable">
+        <table id="key-tables-node-table"></table>
       </div>
     </section>
 
-    <section class="global-color-table-card" [class.global-color-table-card--collapsed]="linkTableCollapsed">
-      <div class="global-color-table-card__header">
-        <h3>Link Colors</h3>
-        <div class="global-color-table-card__controls">
+    <section class="key-table-card" [hidden]="!isTableDocked('link-color')" [class.key-table-card--collapsed]="linkTableCollapsed">
+      <div class="key-table-card__header">
+        <h5>Link Colors</h5>
+        <div class="key-table-card__controls">
           <span>Global</span>
           <p-select
-            class="global-color-table-card__select"
+            class="key-table-card__select"
             [options]="linkColorFieldOptions"
             appendTo="body"
             [ngModel]="selectedLinkColorBy"
             (onChange)="onLinkColorByChange($event.value)">
           </p-select>
-          <div class="global-color-table-card__menu-anchor">
+          <div class="key-table-card__menu-anchor">
             <button
               type="button"
               title="Settings"
-              class="btn btn-sm btn-clean btn-icon btn-icon-md global-color-table-card__settings-trigger"
+              class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
               (click)="toggleSettingsMenu('link-color', $event)">
               <i class="pi pi-cog"></i>
             </button>
             <div
-              class="dropdown-menu global-color-table-card__menu"
+              class="dropdown-menu key-table-card__menu"
               [class.show]="showLinkSettingsMenu"
               (click)="$event.stopPropagation()"
               (mouseleave)="hideSettingsMenu('link-color')">
@@ -98,43 +116,61 @@
           </div>
           <button
             type="button"
+            [title]="getTableDockButtonTitle('link-color')"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
+            (click)="toggleTableDocking('link-color', $event)">
+            <i class="pi pi-window-minimize"></i>
+          </button>
+          <button
+            type="button"
             [title]="linkTableCollapsed ? 'Expand table' : 'Collapse table'"
-            class="btn btn-sm btn-clean btn-icon btn-icon-md global-color-table-card__collapse-trigger"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
             (click)="toggleTableCollapsed('link-color', $event)">
             <i [className]="linkTableCollapsed ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"></i>
           </button>
         </div>
       </div>
-      <p class="global-color-table-card__empty" [hidden]="linkTableCollapsed || hasLinkColorTable">
-        Choose a value for Color Links By in Global Settings to populate this table.
-      </p>
-      <div class="global-color-table-card__table" [hidden]="linkTableCollapsed || !hasLinkColorTable">
-        <table id="global-color-tables-link-table"></table>
+      <div class="key-table-card__fallback" [hidden]="linkTableCollapsed || hasLinkColorTable">
+        <label class="key-table-card__fallback-label" for="key-tables-link-default-color">Default Color</label>
+        <div class="key-table-card__fallback-color-row">
+          <input
+            id="key-tables-link-default-color"
+            type="color"
+            class="key-table-card__color-input"
+            [ngModel]="selectedLinkColorValue"
+            (ngModelChange)="onLinkColorValueChange($event)">
+        </div>
+        <p class="key-table-card__empty">
+          Choose a value for Color Links By to populate this table with per-group overrides.
+        </p>
+      </div>
+      <div class="key-table-card__table" [hidden]="linkTableCollapsed || !hasLinkColorTable">
+        <table id="key-tables-link-table"></table>
       </div>
     </section>
 
-    <section class="global-color-table-card" [class.global-color-table-card--collapsed]="nodeShapeTableCollapsed">
-      <div class="global-color-table-card__header">
-        <h3>Node Shapes</h3>
-        <div class="global-color-table-card__controls">
+    <section class="key-table-card" [hidden]="!isTableDocked('node-shape')" [class.key-table-card--collapsed]="nodeShapeTableCollapsed">
+      <div class="key-table-card__header">
+        <h5>Node Shapes</h5>
+        <div class="key-table-card__controls">
           <span>Global</span>
           <p-select
-            class="global-color-table-card__select"
+            class="key-table-card__select"
             [options]="nodeShapeFieldOptions"
             appendTo="body"
             [ngModel]="selectedNodeShapeBy"
             (onChange)="onNodeShapeByChange($event.value)">
           </p-select>
-          <div class="global-color-table-card__menu-anchor">
+          <div class="key-table-card__menu-anchor">
             <button
               type="button"
               title="Settings"
-              class="btn btn-sm btn-clean btn-icon btn-icon-md global-color-table-card__settings-trigger"
+              class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
               (click)="toggleSettingsMenu('node-shape', $event)">
               <i class="pi pi-cog"></i>
             </button>
             <div
-              class="dropdown-menu global-color-table-card__menu"
+              class="dropdown-menu key-table-card__menu"
               [class.show]="showNodeShapeSettingsMenu"
               (click)="$event.stopPropagation()"
               (mouseleave)="hideSettingsMenu('node-shape')">
@@ -150,15 +186,22 @@
           </div>
           <button
             type="button"
+            [title]="getTableDockButtonTitle('node-shape')"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
+            (click)="toggleTableDocking('node-shape', $event)">
+            <i class="pi pi-window-minimize"></i>
+          </button>
+          <button
+            type="button"
             [title]="nodeShapeTableCollapsed ? 'Expand table' : 'Collapse table'"
-            class="btn btn-sm btn-clean btn-icon btn-icon-md global-color-table-card__collapse-trigger"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
             (click)="toggleTableCollapsed('node-shape', $event)">
             <i [className]="nodeShapeTableCollapsed ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"></i>
           </button>
         </div>
       </div>
-      <div class="global-color-table-card__fallback" [hidden]="nodeShapeTableCollapsed || hasNodeShapeTable">
-        <label class="global-color-table-card__fallback-label">Default Shape</label>
+      <div class="key-table-card__fallback" [hidden]="nodeShapeTableCollapsed || hasNodeShapeTable">
+        <label class="key-table-card__fallback-label">Default Shape</label>
         <p-treeSelect
           [options]="symbolMappingTree"
           [panelStyle]="{ width: '23rem' }"
@@ -187,12 +230,12 @@
             </div>
           </ng-template>
         </p-treeSelect>
-        <p class="global-color-table-card__empty">
+        <p class="key-table-card__empty">
           Choose a value for Shape By to populate this table with per-group overrides.
         </p>
       </div>
-      <div class="global-color-table-card__table" [hidden]="nodeShapeTableCollapsed || !hasNodeShapeTable">
-        <table id="global-color-tables-node-shape-table">
+      <div class="key-table-card__table" [hidden]="nodeShapeTableCollapsed || !hasNodeShapeTable">
+        <table id="key-tables-node-shape-table">
           <tr>
             <th class="table-header-row" contenteditable>
               <div class="header-content sortable">Node {{ formatNodeShapeGroup(selectedNodeShapeBy) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>

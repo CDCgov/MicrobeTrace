@@ -1315,18 +1315,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
                 elementsToExport.push(this.networkStatisticsTable.nativeElement)
             }
-            this.exportService.requestSVGExport(elementsToExport, content, true, true); 
+            this.exportService.requestSVGExport(elementsToExport, content, true, true, true); 
 
         } else {
             // Request export
-            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement];
+            let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement];
             if (this.widgets["polygon-color-table-visible"]) {
                 elementsToExport.push(this.polygonColorTable.nativeElement);
             }
             if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
                 elementsToExport.push(this.networkStatisticsTable.nativeElement);
             }
-            this.exportService.requestExport(elementsToExport, true, true);
+            this.exportService.requestExport(elementsToExport, true, true, true);
         }
     
         // Optionally, close the export modal after initiating the export
@@ -3861,7 +3861,7 @@ scaleLinkWidth() {
      * On click of settings button, show/hide settings dialog
      */
     openSettings() {
-        //(this.Node2DNetworkExportDialogSettings.isVisible) ? this.Node2DNetworkExportDialogSettings.setVisibility(false) : this.Node2DNetworkExportDialogSettings.setVisibility(true);
+        (this.Node2DNetworkExportDialogSettings.isVisible) ? this.Node2DNetworkExportDialogSettings.setVisibility(false) : this.Node2DNetworkExportDialogSettings.setVisibility(true);
         this.ShowStatistics = !this.Show2DSettingsPane;
         this.updateLinkWidthRows(this.SelectedLinkWidthByVariable);
     }

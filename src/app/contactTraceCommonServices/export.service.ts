@@ -12,28 +12,34 @@ export interface ExportOptions {
   providedIn: 'root'
 })
 export class ExportService {
+  private textMeasureContext: CanvasRenderingContext2D | null = null;
+
   private exportRequestedSource = new Subject<{
-    element: HTMLDivElement[],
+    element: HTMLElement[],
     exportNodeTable: boolean,
-    exportLinkTable: boolean
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean
   }>();
   exportRequested$: Observable<{
-    element: HTMLDivElement[],
+    element: HTMLElement[],
     exportNodeTable: boolean,
-    exportLinkTable: boolean
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean
   }> = this.exportRequestedSource.asObservable();
 
   private exportSVGSource = new Subject<{
     element: HTMLTableElement[],
     mainSVGString: string,
     exportNodeTable: boolean,
-    exportLinkTable: boolean
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean
   }>();
   exportSVG$: Observable<{
     element: HTMLTableElement[],
     mainSVGString: string,
     exportNodeTable: boolean,
-    exportLinkTable: boolean
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean
   }> = this.exportSVGSource.asObservable();
 
   private exportOptions: ExportOptions = {
@@ -66,9 +72,15 @@ export class ExportService {
    * @param element The HTMLDivElement(s) to export.
    * @param exportNodeTable Flag for exporting the node table.
    * @param exportLinkTable Flag for exporting the link table.
+   * @param exportNodeShapeTable Flag for exporting the node shape table.
    */
-  requestExport(element: HTMLDivElement[], exportNodeTable: boolean, exportLinkTable: boolean): void {
-    this.exportRequestedSource.next({ element, exportNodeTable, exportLinkTable });
+  requestExport(
+    element: HTMLElement[],
+    exportNodeTable: boolean,
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean = false
+  ): void {
+    this.exportRequestedSource.next({ element, exportNodeTable, exportLinkTable, exportNodeShapeTable });
   }
 
   /**
@@ -77,9 +89,165 @@ export class ExportService {
    * @param mainSVGString The main SVG string.
    * @param exportNodeTable Flag for exporting the node table.
    * @param exportLinkTable Flag for exporting the link table.
+   * @param exportNodeShapeTable Flag for exporting the node shape table.
    */
-  requestSVGExport(element: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean, exportLinkTable: boolean): void {
-    this.exportSVGSource.next({ element, mainSVGString, exportNodeTable, exportLinkTable });
+  requestSVGExport(
+    element: HTMLTableElement[],
+    mainSVGString: string,
+    exportNodeTable: boolean,
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean = false
+  ): void {
+    this.exportSVGSource.next({ element, mainSVGString, exportNodeTable, exportLinkTable, exportNodeShapeTable });
+  }
+
+  private getTextMeasureContext(): CanvasRenderingContext2D | null {
+    if (this.textMeasureContext) {
+      return this.textMeasureContext;
+    }
+
+    const canvas = document.createElement('canvas');
+    this.textMeasureContext = canvas.getContext('2d');
+    return this.textMeasureContext;
+  }
+
+  private normalizeCellText(text: string): string {
+    return text
+      .replace(/\u21C5/g, '')
+      .replace(/â‡…|Ã¢â€¡â€¦/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private getShapeExportLabel(cellValue: string): string {
+    if (cellValue === 'shapeRhombus') {
+      return '(Rhombus)';
+    }
+    if (cellValue === 'shapeTag') {
+      return '(Tag)';
+    }
+    if (cellValue === 'shapeBarrel') {
+      return '(Barrel)';
+    }
+
+    return cellValue;
+  }
+
+  private measureTextWidth(text: string, fontWeight: 'normal' | 'bold' = 'normal'): number {
+    const context = this.getTextMeasureContext();
+    if (!context) {
+      return text.length * (fontWeight === 'bold' ? 10 : 9);
+    }
+
+    context.font = `${fontWeight === 'bold' ? '700' : '400'} 16px Roboto, "Helvetica Neue", sans-serif`;
+    return Math.ceil(context.measureText(text).width);
+  }
+
+  private getEstimatedCellWidth(cellValue: string, isHeaderCell: boolean): number {
+    if (this.isColorCellValue(cellValue)) {
+      return 40;
+    }
+
+    if (cellValue === 'shapeRhombus' || cellValue === 'shapeTag' || cellValue === 'shapeBarrel') {
+      return this.measureTextWidth(this.getShapeExportLabel(cellValue)) + 40;
+    }
+
+    return this.measureTextWidth(cellValue, isHeaderCell ? 'bold' : 'normal') + 16;
+  }
+
+  private getCellDimensions(cell: HTMLTableCellElement, cellValue: string, isHeaderCell: boolean): { width: number, height: number } {
+    const rect = cell.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(cell);
+    const paddingTop = parseFloat(computedStyle.paddingTop || '0');
+    const paddingBottom = parseFloat(computedStyle.paddingBottom || '0');
+    const estimatedWidth = this.getEstimatedCellWidth(cellValue, isHeaderCell);
+    const estimatedHeight = Math.ceil(Math.max(isHeaderCell ? 24 : 22, 16 + paddingTop + paddingBottom));
+
+    return {
+      width: Math.ceil(Math.max(rect.width, cell.offsetWidth, cell.scrollWidth, estimatedWidth)),
+      height: estimatedHeight
+    };
+  }
+
+  private escapeSVGText(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  private isColorCellValue(cellValue: string): boolean {
+    const [color] = cellValue.split(':');
+    return color.length === 7 && color[0] === '#';
+  }
+
+  private extractShapeCellValue(cell: HTMLTableCellElement): string | null {
+    const shapeSelector = cell.querySelector('p-dropdown, p-treeselect');
+    if (!shapeSelector) {
+      return null;
+    }
+
+    const shapeAnchor = shapeSelector.querySelector('a');
+    if (shapeAnchor?.classList.contains('rhombus')) {
+      return 'shapeRhombus';
+    }
+    if (shapeAnchor?.classList.contains('tag')) {
+      return 'shapeTag';
+    }
+    if (shapeAnchor?.classList.contains('barrel')) {
+      return 'shapeBarrel';
+    }
+
+    const textSource = shapeSelector.querySelector('.shape-tree-value, .p-dropdown-label, .p-treeselect-label') as HTMLElement | null;
+    const text = (textSource?.textContent ?? shapeSelector.textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return text.length > 0 ? text : null;
+  }
+
+  private getCellExportValue(cell: HTMLTableCellElement): string {
+    const shapeCellValue = this.extractShapeCellValue(cell);
+    if (shapeCellValue !== null) {
+      return shapeCellValue;
+    }
+
+    const colorInput = cell.querySelector('input[type="color"]') as HTMLInputElement | null;
+    if (colorInput) {
+      const opacity = colorInput.style.opacity || '1';
+      return `${colorInput.value}:${opacity}`;
+    }
+
+    return this.normalizeCellText(cell.innerText);
+  }
+
+  private buildShapeSVG(cellValue: string, x: number, baselineY: number): string {
+    const label = this.escapeSVGText(this.getShapeExportLabel(cellValue));
+    const iconTop = baselineY - 16;
+
+    if (cellValue === 'shapeRhombus') {
+      const diamondPoints = `${x + 6},${iconTop + 2} ${x + 12},${iconTop + 8} ${x + 6},${iconTop + 14} ${x},${iconTop + 8}`;
+      return `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+        <polygon points="${diamondPoints}" fill="none" stroke="black" stroke-width="1.5"></polygon>
+        <text x="${x + 18}" y="${baselineY}">${label}</text>
+      </g>`;
+    }
+
+    if (cellValue === 'shapeTag') {
+      const tagPoints = `${x},${iconTop + 4} ${x + 8},${iconTop + 4} ${x + 12},${iconTop + 8} ${x + 8},${iconTop + 12} ${x},${iconTop + 12}`;
+      return `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+        <polygon points="${tagPoints}" fill="none" stroke="black" stroke-width="1.5"></polygon>
+        <circle cx="${x + 3}" cy="${iconTop + 8}" r="1.2" fill="black"></circle>
+        <text x="${x + 18}" y="${baselineY}">${label}</text>
+      </g>`;
+    }
+
+    return `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+      <rect x="${x}" y="${iconTop + 2}" fill="black" width="12" height="12" rx="4" ry="4"></rect>
+      <text x="${x + 18}" y="${baselineY}">${label}</text>
+    </g>`;
   }
 
   /**
@@ -89,79 +257,68 @@ export class ExportService {
    */
   exportTableAsSVG(tableElement: HTMLTableElement, hasHeaderRow: boolean = false): { svg: string, width: number, height: number } {
     const rows = tableElement.rows;
-    let tableData: string[][] = [];
-    let widthOffsets: number[] = [10];
-    let heightOffsets: number[] = [15];
+    const tableData: string[][] = [];
+    const columnWidths: number[] = [];
+    const rowHeights: number[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       const cells = rows[i].cells;
       const rowData: string[] = [];
-      
-      for (let j = 0; j < cells.length; j++) {
-        if (i === 0) {
-          widthOffsets.push(widthOffsets[j] + cells[j].offsetWidth + 15);
-        }
-        if (j === 0) {
-          heightOffsets.push(heightOffsets[i] + cells[0].offsetHeight);
-        }
+      let rowHeight = 0;
+      let visibleColumnIndex = 0;
 
-        if (window.getComputedStyle(cells[j]).display === 'none') {
+      for (let j = 0; j < cells.length; j++) {
+        const computedStyle = window.getComputedStyle(cells[j]);
+        if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
           continue;
         }
-        if (cells[j].querySelector('p-dropdown')) {
-          if (cells[j].querySelector('p-dropdown div a').className == 'rhombus'){
-            rowData.push('shapeRhombus')
-          } else if (cells[j].querySelector('p-dropdown div a').className == 'tag'){
-            rowData.push('shapeTag')
-          } else if (cells[j].querySelector('p-dropdown div a').className == 'barrel'){
-            rowData.push('shapeBarrel')
-          } else {
-            rowData.push(cells[j].querySelector('p-dropdown div').innerHTML.replace(/&nbsp;/g, ' '));
-          }
-        } else if (cells[j].querySelector('input[type="color"]')) {
-          const input = (cells[j].querySelector('input[type="color"]') as HTMLInputElement)
-          let color = input.value;
-          let opacity = input.style['opacity'] || '1';
-          rowData.push(`${color}:${opacity}`);
-        } else {
-          rowData.push(cells[j].innerText.replace('⇅', ''));
-        }
+
+        const cellValue = this.getCellExportValue(cells[j]);
+        rowData.push(cellValue);
+
+        const dimensions = this.getCellDimensions(cells[j], cellValue, hasHeaderRow && i === 0);
+        columnWidths[visibleColumnIndex] = Math.max(columnWidths[visibleColumnIndex] || 0, dimensions.width);
+        rowHeight = Math.max(rowHeight, dimensions.height);
+        visibleColumnIndex++;
       }
-      tableData.push(rowData);
+
+      if (rowData.length > 0) {
+        tableData.push(rowData);
+        rowHeights.push(rowHeight || 24);
+      }
     }
 
-    let out = `<g><rect x="0" y="0" width="${widthOffsets[widthOffsets.length - 1] - 20}" height="${heightOffsets[heightOffsets.length - 1] - 10}" fill="#ffffff" stroke="black" stroke-width="1"></rect>`;
-    
+    const widthOffsets: number[] = [10];
+    columnWidths.forEach((columnWidth, index) => {
+      widthOffsets.push(widthOffsets[index] + columnWidth + 15);
+    });
+
+    const heightOffsets: number[] = [15];
+    rowHeights.forEach((rowHeight, index) => {
+      heightOffsets.push(heightOffsets[index] + rowHeight);
+    });
+
+    const tableWidth = Math.max(0, widthOffsets[widthOffsets.length - 1] - 20);
+    const tableHeight = Math.max(0, heightOffsets[heightOffsets.length - 1] - 10);
+    let out = `<g><rect x="0" y="0" width="${tableWidth}" height="${tableHeight}" fill="#ffffff" stroke="black" stroke-width="1"></rect>`;
+
     tableData.forEach((row, rowIndex) => {
       row.forEach((cell, colIndex) => {
-        if (cell.split(':')[0].length === 7 && cell[0] === '#') {
-          let data = cell.split(':');
+        if (this.isColorCellValue(cell)) {
+          const data = cell.split(':');
           out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex] - 12}" width="20" height="20" fill="${data[0]}" fill-opacity="${data[1]}"></rect>`;
-        } else if (cell === 'shapeRhombus') { 
-          out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
-            <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="80">▰</text>
-            <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Rhombus)</text>
-            </g>`;
-        } else if (cell === 'shapeTag') { 
-          out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
-            <text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" rotate="90">☗</text>
-            <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Tag)</text>
-            </g>`;
-        } else if (cell === 'shapeBarrel') { 
-          out += `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
-            <rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]-12}" fill="black" width="12" height="12" rx="4" ry="4"/>
-            <text x="${widthOffsets[colIndex]+15}" y="${heightOffsets[rowIndex]}">(Barrel)</text>
-            </g>`;
-        } else if (hasHeaderRow && rowIndex === 0) { 
-          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black" font-weight="bold">${cell}</text>`;
+        } else if (cell === 'shapeRhombus' || cell === 'shapeTag' || cell === 'shapeBarrel') {
+          out += this.buildShapeSVG(cell, widthOffsets[colIndex], heightOffsets[rowIndex]);
+        } else if (hasHeaderRow && rowIndex === 0) {
+          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black" font-weight="bold">${this.escapeSVGText(cell)}</text>`;
         } else {
-          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">${cell}</text>`;
+          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">${this.escapeSVGText(cell)}</text>`;
         }
       });
     });
 
     out += '</g>';
-    return { svg: out, width: widthOffsets[widthOffsets.length - 1] - 20, height: heightOffsets[heightOffsets.length - 1] - 10 };
+    return { svg: out, width: tableWidth, height: tableHeight };
   }
 
   /**
@@ -170,31 +327,31 @@ export class ExportService {
    * @returns A string containing the complete SVG code with CSS.
    */
   unparseSVG(svgNode: HTMLElement): string {
-    svgNode.setAttribute("xlink", "http://www.w3.org/1999/xlink");
+    svgNode.setAttribute('xlink', 'http://www.w3.org/1999/xlink');
     const selectorTextArr: string[] = [];
 
     // Add the parent element's ID and classes.
-    selectorTextArr.push("#" + svgNode.id);
+    selectorTextArr.push('#' + svgNode.id);
     const nClasses = svgNode.classList.length;
     for (let c = 0; c < nClasses; c++) {
-      const classSelector = "." + svgNode.classList[c];
+      const classSelector = '.' + svgNode.classList[c];
       if (!selectorTextArr.includes(classSelector)) {
         selectorTextArr.push(classSelector);
       }
     }
 
     // Add children element IDs and classes.
-    const nodes = svgNode.getElementsByTagName("*");
+    const nodes = svgNode.getElementsByTagName('*');
     const nNodes = nodes.length;
     for (let i = 0; i < nNodes; i++) {
       const child = nodes[i] as HTMLElement;
       const childId = child.id;
-      if (childId && !selectorTextArr.includes("#" + childId)) {
-        selectorTextArr.push("#" + childId);
+      if (childId && !selectorTextArr.includes('#' + childId)) {
+        selectorTextArr.push('#' + childId);
       }
       const classes = child.classList;
       for (let d = 0; d < classes.length; d++) {
-        const classSelector = "." + classes[d];
+        const classSelector = '.' + classes[d];
         if (!selectorTextArr.includes(classSelector)) {
           selectorTextArr.push(classSelector);
         }
@@ -202,14 +359,14 @@ export class ExportService {
     }
 
     // Extract CSS rules for the selectors.
-    let extractedCSSText = "";
+    let extractedCSSText = '';
     const nStylesheets = document.styleSheets.length;
     for (let j = 0; j < nStylesheets; j++) {
       const s = document.styleSheets[j] as CSSStyleSheet;
       try {
         if (!s.cssRules) continue;
       } catch (e) {
-        if ((e as Error).name !== "SecurityError") throw e;
+        if ((e as Error).name !== 'SecurityError') throw e;
         continue;
       }
       const cssRules = s.cssRules;
@@ -223,8 +380,8 @@ export class ExportService {
       }
     }
 
-    const styleElement = document.createElement("style");
-    styleElement.setAttribute("type", "text/css");
+    const styleElement = document.createElement('style');
+    styleElement.setAttribute('type', 'text/css');
     styleElement.innerHTML = extractedCSSText;
     const refNode = svgNode.hasChildNodes() ? svgNode.children[0] : null;
     svgNode.insertBefore(styleElement, refNode);
@@ -234,7 +391,7 @@ export class ExportService {
 
   /**
      * XXXXX TODO:: currently not in use - do we need? XXXXX
-     * @returns 
+     * @returns
      */
 //   exportHIVTRACE() {
 //     let links = this.session.data.links.filter(l => l.visible);

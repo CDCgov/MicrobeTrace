@@ -21,7 +21,8 @@ import { ExportService, ExportOptions } from './contactTraceCommonServices/expor
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
-import { GlobalColorTablesComponent } from './visualizationComponents/GlobalColorTablesComponent/global-color-tables.component';
+import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
+import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     NODE_SHAPE_GROUPS,
@@ -143,7 +144,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ExportDashboardFilename: string = '';
     ExportDashboardScale: number = 1;
     ExportDashboardResolution: { width: number, height:number, summary:string} = {width: 0, height: 0, summary: ''};
-    preferGlobalColorTablesView = false;
+    public readonly keyTablesController = new KeyTablesController();
 
     private thresholdDebouncer: Subject<number> = new Subject<number>();
 
@@ -403,11 +404,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         console.log('common serivceeeee: ', (window as any).commonService );
          // Subscribe to export requests
         this.exportService.exportRequested$.subscribe((info) => {
-            this.performExport(info.element, info.exportNodeTable, info.exportLinkTable);
+            this.performExport(info.element, info.exportNodeTable, info.exportLinkTable, info.exportNodeShapeTable);
         });
 
         this.exportService.exportSVG$.subscribe((info) => {
-            this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable);
+            this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable, info.exportNodeShapeTable);
         });
 
          // Add debounce subscription
@@ -666,10 +667,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.session.tabLoaded = false;
 
-        const openingFromGlobalColorTables =
-            this.commonService.activeTab === GlobalColorTablesComponent.componentTypeName;
+        const openingFromKeyTables =
+            this.commonService.activeTab === KeyTablesComponent.componentTypeName;
 
-        const goldenLayoutComponent = openingFromGlobalColorTables
+        const goldenLayoutComponent = openingFromKeyTables
             ? (this._goldenLayoutHostComponent.goldenLayout as any).newComponentAtLocation(
                 component,
                 undefined,
@@ -710,8 +711,72 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Performs the export of the visualization, including tables.
      */
-    private async performExport(elementsForExport: HTMLDivElement[] | HTMLTableElement[] = [this.visualWrapperRef.nativeElement], exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
-        if (!elementsForExport[0] && !exportNodeTable && !exportLinkTable) {
+    private getGlobalTableElement(table: 'node-color' | 'link-color' | 'node-shape'): HTMLTableElement | undefined {
+        if (this.isKeyTableDocked(table)) {
+            const dockedTableSelector = table === 'node-color'
+                ? '#key-tables-node-table'
+                : table === 'link-color'
+                    ? '#key-tables-link-table'
+                    : '#key-tables-node-shape-table';
+            const dockedTable = $(dockedTableSelector)[0] as HTMLTableElement | undefined;
+            if (dockedTable) {
+                return dockedTable;
+            }
+        }
+
+        const floatingTable = table === 'node-color'
+            ? this.nodeColorTable?.nativeElement
+            : table === 'link-color'
+                ? this.linkColorTable?.nativeElement
+                : this.nodeShapeTable?.nativeElement;
+
+        return floatingTable as HTMLTableElement | undefined;
+    }
+
+    private getGlobalTablesForExport(
+        exportNodeTable: boolean = false,
+        exportLinkTable: boolean = false,
+        exportNodeShapeTable: boolean = false
+    ): HTMLTableElement[] {
+        const tablesToExport: HTMLTableElement[] = [];
+
+        if (exportNodeTable
+            && this.commonService.session.style.widgets['node-color-variable'] !== 'None'
+            && this.SelectedNodeColorTableTypesVariable === 'Show') {
+            const nodeColorTable = this.getGlobalTableElement('node-color');
+            if (nodeColorTable) {
+                tablesToExport.push(nodeColorTable);
+            }
+        }
+
+        if (exportLinkTable
+            && this.commonService.session.style.widgets['link-color-variable'] !== 'None'
+            && this.SelectedLinkColorTableTypesVariable === 'Show') {
+            const linkColorTable = this.getGlobalTableElement('link-color');
+            if (linkColorTable) {
+                tablesToExport.push(linkColorTable);
+            }
+        }
+
+        if (exportNodeShapeTable
+            && this.commonService.session.style.widgets['node-symbol-variable'] !== 'None'
+            && this.SelectedNodeShapeTableTypesVariable === 'Show') {
+            const nodeShapeTable = this.getGlobalTableElement('node-shape');
+            if (nodeShapeTable) {
+                tablesToExport.push(nodeShapeTable);
+            }
+        }
+
+        return tablesToExport;
+    }
+
+    private async performExport(
+        elementsForExport: HTMLElement[] = [this.visualWrapperRef.nativeElement],
+        exportNodeTable: boolean = false,
+        exportLinkTable: boolean = false,
+        exportNodeShapeTable: boolean = false
+    ): Promise<void> {
+        if (!elementsForExport[0] && !exportNodeTable && !exportLinkTable && !exportNodeShapeTable) {
             console.error('Visual wrapper container not found');
             return;
         }
@@ -760,11 +825,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             // if pos == 0, exporting just tables and not a view
             let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
-            if (exportLinkTable && this.commonService.session.style.widgets['link-color-variable'] !== 'None' && this.SelectedLinkColorTableTypesVariable == 'Show') {  
-                elementsForExport.splice(pos, 0, this.linkColorTable.nativeElement);
-            }
-            if (exportNodeTable && this.commonService.session.style.widgets['node-color-variable'] !== 'None' && this.SelectedNodeColorTableTypesVariable == 'Show') {
-                elementsForExport.splice(pos, 0,this.nodeColorTable.nativeElement);
+            const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
+            elementsForExport.splice(pos, 0, ...globalTablesForExport);
+            if (elementsForExport.length === 0) {
+                console.error('No export elements found');
+                return;
             }
 
             Promise.all(
@@ -864,17 +929,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
     }
 
-    private async performExportSVG(elementsForExport: HTMLTableElement[], mainSVGString: string, exportNodeTable: boolean = false, exportLinkTable: boolean = false): Promise<void> {
+    private async performExportSVG(
+        elementsForExport: HTMLTableElement[],
+        mainSVGString: string,
+        exportNodeTable: boolean = false,
+        exportLinkTable: boolean = false,
+        exportNodeShapeTable: boolean = false
+    ): Promise<void> {
         console.log('Exporting SVG');
+        const hasMainVisual = mainSVGString !== '';
         if (mainSVGString == '') {
             mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>'
         }
 
-        if (exportLinkTable && this.SelectedLinkColorTableTypesVariable == 'Show') {
-            elementsForExport.unshift(this.linkColorTable.nativeElement);
-        }
-        if (exportNodeTable && this.SelectedNodeColorTableTypesVariable == 'Show') {
-            elementsForExport.unshift(this.nodeColorTable.nativeElement);
+        const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
+        elementsForExport.unshift(...globalTablesForExport);
+        if (elementsForExport.length === 0 && !hasMainVisual) {
+            console.error('No table elements found for SVG export');
+            return;
         }
 
         const options: ExportOptions = this.exportService.getExportOptions();
@@ -956,8 +1028,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * @param component name of the component to be removed
      */
     public removeComponent( component: string ) {
-        if (component === GlobalColorTablesComponent.componentTypeName) {
-            this.preferGlobalColorTablesView = false;
+        if (component === KeyTablesComponent.componentTypeName) {
+            this.keyTablesController.clearDocking();
+            setTimeout(() => this.syncFloatingKeyTableDialogs());
         }
 
         this.homepageTabs = this.homepageTabs.filter((tab) => {
@@ -1411,17 +1484,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.widgets['node-color-variable'] && this.widgets['node-color-variable'] !== 'None') {
             // Show table dialog
             this.SelectedNodeColorTableTypesVariable = 'Show';
-            this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+            if (!this.isKeyTableDocked('node-color') && this.canDisplayFloatingKeyTable('node-color')) {
+                this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+            }
         }
         // Show Link Color Table if link-color-variable != 'None'
         if (this.widgets['link-color-variable'] && this.widgets['link-color-variable'] !== 'None') {
             this.SelectedLinkColorTableTypesVariable = 'Show';
-            this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+            if (!this.isKeyTableDocked('link-color') && this.canDisplayFloatingKeyTable('link-color')) {
+                this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+            }
         }
 
         this.SelectedNodeSymbolVariable = this.commonService.session.style.widgets['node-symbol-variable'] ?? 'None';
         this.SelectedNodeShapeTableTypesVariable = this.commonService.session.style.widgets['node-symbol-table-visible'] ?? 'Hide';
-        this.onNodeShapeByChanged(true, this.SelectedNodeShapeTableTypesVariable === 'Show');
+        this.onNodeShapeByChanged(true, this.SelectedNodeSymbolVariable !== 'None');
     }
 
     onEpsilonValueChange() {
@@ -1531,20 +1608,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
       // This is the method that actually toggles the link-color dialog & table
-  onLinkColorTableChanged(silent: boolean = false) {
+    onLinkColorTableChanged(silent: boolean = false) {
     console.log('DEBUG: onLinkColorTableChanged fired. value=', this.SelectedLinkColorTableTypesVariable, 'silent=', silent);
-
-    if (this.SelectedLinkColorTableTypesVariable !== 'Hide') {
-      this.preferGlobalColorTablesView = false;
-    }
 
     // Keep your GlobalSettingsModel in sync
     this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable = this.SelectedLinkColorTableTypesVariable;
 
-    if (this.SelectedLinkColorTableTypesVariable === 'Hide') {
+    if (this.SelectedLinkColorTableTypesVariable === 'Hide'
+        || this.isKeyTableDocked('link-color')
+        || !this.canDisplayFloatingKeyTable('link-color')) {
       console.log('DEBUG: Hiding link color dialog and clearing table');
       this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-      $('#link-color-table').empty();
+      if (this.SelectedLinkColorTableTypesVariable === 'Hide' || this.isKeyTableDocked('link-color')) {
+        $('#link-color-table').empty();
+      }
     } else {
       console.log('DEBUG: Showing link color dialog & building table');
       this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
@@ -1567,7 +1644,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       // this.cdref.detectChanges();
     }
 
-    this.refreshGlobalColorTablesView();
+    this.refreshKeyTablesView();
   }
 
     /**
@@ -1575,10 +1652,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * then hides the node color table or calls onColorNodesByChanged
      */
     onNodeColorTableChanged(silent: boolean = false) {
-        if (this.SelectedNodeColorTableTypesVariable !== 'Hide') {
-            this.preferGlobalColorTablesView = false;
-        }
-
         if(this.commonService.debugMode) {
             console.log('node color changed: ', this.SelectedNodeColorTableTypesVariable);
         }
@@ -1592,7 +1665,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.onColorNodesByChanged(silent);         
         }
 
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
     }
 
     onShowStatisticsChanged() {
@@ -1690,7 +1763,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.generateNodeShapeSelectionTable(this.SelectedNodeSymbolVariable);
         }
 
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
     }
 
     mapPreviousShapeNameToCurrent(name: string): string {
@@ -1857,7 +1930,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.publishUpdateNodeShapes();
         }
 
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
         this.cdref.markForCheck();
     }
 
@@ -1901,7 +1974,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.publishUpdateNodeShapes();
         }
 
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
         this.cdref.markForCheck();
     }
 
@@ -1950,15 +2023,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.publishUpdateNodeShapes();
             }
 
-            this.refreshGlobalColorTablesView();
+            this.refreshKeyTablesView();
             this.cdref.markForCheck();
             return;
         }
 
         this.generateNodeShapeSelectionTable(this.SelectedNodeSymbolVariable);
 
-        if (setVisibility) {
-            this.SelectedNodeShapeTableTypesVariable = this.shouldUseGlobalColorTablesView() ? 'Hide' : 'Show';
+        if (setVisibility || this.SelectedNodeSymbolVariable !== 'None') {
+            this.SelectedNodeShapeTableTypesVariable = 'Show';
         }
 
         this.onNodeShapeTableVisibilityChanged(true);
@@ -1967,7 +2040,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.publishUpdateNodeShapes();
         }
 
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
         this.cdref.markForCheck();
     }
 
@@ -1975,18 +2048,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['node-symbol-table-visible'] = this.SelectedNodeShapeTableTypesVariable;
 
-        if (this.SelectedNodeShapeTableTypesVariable !== 'Hide') {
-            this.preferGlobalColorTablesView = false;
-        }
-
-        if (this.SelectedNodeShapeTableTypesVariable === 'Hide' || this.SelectedNodeSymbolVariable === 'None' || this.shouldUseGlobalColorTablesView()) {
+        if (this.SelectedNodeShapeTableTypesVariable === 'Hide'
+            || this.SelectedNodeSymbolVariable === 'None'
+            || this.isKeyTableDocked('node-shape')
+            || !this.canDisplayFloatingKeyTable('node-shape')) {
             this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
         } else {
             this.GlobalSettingsNodeShapeDialogSettings.setVisibility(true);
             this.generateNodeShapeSelectionTable(this.SelectedNodeSymbolVariable);
         }
 
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
 
         if (!silent) {
             this.cdref.markForCheck();
@@ -1994,12 +2066,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     showNodeShapeTable() {
-        if (this.shouldUseGlobalColorTablesView()) {
+        if (this.isKeyTableDocked('node-shape')) {
             this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
             return;
         }
-
-        this.preferGlobalColorTablesView = false;
         if (this.SelectedNodeShapeTableTypesVariable !== 'Show') {
             this.SelectedNodeShapeTableTypesVariable = 'Show';
             this.onNodeShapeTableVisibilityChanged();
@@ -2012,6 +2082,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     hideNodeShapeTable() {
+        if (this.isKeyTableDocked('node-shape') || !this.canDisplayFloatingKeyTable('node-shape')) {
+            return;
+        }
+
         if (this.SelectedNodeShapeTableTypesVariable !== 'Hide') {
             this.SelectedNodeShapeTableTypesVariable = 'Hide';
             this.onNodeShapeTableVisibilityChanged();
@@ -2036,21 +2110,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         console.log('DEBUG: onColorLinksByChanged fired. variable =', this.SelectedColorLinksByVariable, 'silent=', silent);
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
         this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
-        const useGlobalColorTablesView = this.shouldUseGlobalColorTablesView();
     
         if (this.SelectedColorLinksByVariable !== 'None') {
           console.log('DEBUG: onColorLinksByChanged => user picked something, updating table visibility');
-          this.SelectedLinkColorTableTypesVariable = useGlobalColorTablesView ? 'Hide' : 'Show';
+          this.SelectedLinkColorTableTypesVariable = 'Show';
         } else {
           console.log('DEBUG: onColorLinksByChanged => user picked None, setting table to Hide');
           this.SelectedLinkColorTableTypesVariable = 'Hide';
         }
     
         this.onLinkColorTableChanged(silent);
-        if (useGlobalColorTablesView) {
+        if (this.isKeyTableDocked('link-color')) {
           this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
           $('#link-color-table').empty();
-          this.refreshGlobalColorTablesView();
+          this.refreshKeyTablesView();
         }
         if (!silent) {
           console.log('DEBUG: onColorLinksByChanged => publishing link-color updates to views');
@@ -2508,19 +2581,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     showNodeColorTable() {
-        if (this.shouldUseGlobalColorTablesView()) {
+        if (this.isKeyTableDocked('node-color')) {
             this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
             return;
         }
-
-        this.preferGlobalColorTablesView = false;
-        if (this.SelectedNodeColorTableTypesVariable !=' Show') {
+        if (this.SelectedNodeColorTableTypesVariable != 'Show') {
             this.SelectedNodeColorTableTypesVariable='Show';
             this.onNodeColorTableChanged();
         };
     }
 
     hideNodeColorTable() {
+        if (this.isKeyTableDocked('node-color') || !this.canDisplayFloatingKeyTable('node-color')) {
+            return;
+        }
+
         if (this.SelectedNodeColorTableTypesVariable != 'Hide') {
            this.SelectedNodeColorTableTypesVariable='Hide';
            this.onNodeColorTableChanged()
@@ -2529,25 +2604,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     showLinkColorTable() {
         console.log('onLinkColorTableChanged - show');
-        if (this.shouldUseGlobalColorTablesView()) {
+        if (this.isKeyTableDocked('link-color')) {
             this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
             return;
         }
 
-        this.preferGlobalColorTablesView = false;
-
-        if (this.SelectedLinkColorTableTypesVariable !=' Show') {
+        if (this.SelectedLinkColorTableTypesVariable != 'Show') {
             this.SelectedLinkColorTableTypesVariable='Show';
             this.onLinkColorTableChanged();
+            return;
+        }
+
+        if (this.SelectedColorLinksByVariable !== 'None') {
+            this.generateNodeLinkTable('#link-color-table');
         }
     }
 
     hideLinkColorTable() {
-
-        if (this.ShowGlobalSettingsLinkColorTable) {
-            // This was just the initial load (or a code-based hide).
+        if (this.isKeyTableDocked('link-color') || !this.canDisplayFloatingKeyTable('link-color')) {
             return;
-          }
+        }
 
         if (this.SelectedLinkColorTableTypesVariable != 'Hide') {
            this.SelectedLinkColorTableTypesVariable='Hide';
@@ -2563,10 +2639,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         console.log('on color nodes by changed - visible: ', this.GlobalSettingsNodeColorDialogSettings.isVisible);
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
-        const useGlobalColorTablesView = this.shouldUseGlobalColorTablesView();
+        if (this.SelectedColorNodesByVariable !== 'None') {
+            this.SelectedNodeColorTableTypesVariable = 'Show';
+        }
+        const shouldFloatNodeColorTable =
+            !this.isKeyTableDocked('node-color') && this.canDisplayFloatingKeyTable('node-color');
 
 
-        if (!useGlobalColorTablesView && !this.GlobalSettingsNodeColorDialogSettings.isVisible) {
+        if (shouldFloatNodeColorTable && !this.GlobalSettingsNodeColorDialogSettings.isVisible) {
 
             console.log('on color nodes by changed - visible: ', this.SelectedColorNodesByVariable);
             // TODO::David you added  "&& this.checkActiveView('node')" below which makes it not dispaly in twoD network
@@ -2595,15 +2675,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         console.log('on color nodes by changed6 - visible: ', this.ShowGlobalSettingsNodeColorTable);
 
         if (this.SelectedColorNodesByVariable !== "None") {
-            if (useGlobalColorTablesView) {
-                this.SelectedNodeColorTableTypesVariable = 'Hide';
+            if (!shouldFloatNodeColorTable) {
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
                 $('#node-color-table').empty();
                 $('#node-color-value-row').slideUp();
                 $('#node-color-table-row').slideDown();
 
                 this.commonService.createNodeColorMap();
-                this.refreshGlobalColorTablesView();
+                this.refreshKeyTablesView();
 
                 if(!silent) {
                     this.publishUpdateNodeColors();
@@ -2641,7 +2720,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             $('#node-color-table-row').slideUp();
             this.SelectedNodeColorTableTypesVariable='Hide';
             this.onNodeColorTableChanged(silent);
-            this.refreshGlobalColorTablesView();
+            this.refreshKeyTablesView();
 
             if(!silent) {
                 this.publishUpdateNodeColors();
@@ -2851,7 +2930,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.updateCountFreqTable(table);
-        this.refreshGlobalColorTablesView();
+        this.refreshKeyTablesView();
     }
 
     /**
@@ -2874,15 +2953,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
         const countSelector = tableName == 'node-color'
-            ? '#global-settings-node-color-table .tableCount, #global-color-tables-node-table .tableCount'
+            ? '#global-settings-node-color-table .tableCount, #key-tables-node-table .tableCount'
             : tableName == 'link-color'
-                ? '#global-settings-link-color-table .tableCount, #global-color-tables-link-table .tableCount'
-                : '#global-settings-node-shape-table .tableCount, #global-color-tables-node-shape-table .tableCount, #node-symbol-table-wrapper .tableCount';
+                ? '#global-settings-link-color-table .tableCount, #key-tables-link-table .tableCount'
+                : '#global-settings-node-shape-table .tableCount, #key-tables-node-shape-table .tableCount, #node-symbol-table-wrapper .tableCount';
         const freqSelector = tableName == 'node-color'
-            ? '#global-settings-node-color-table .tableFrequency, #global-color-tables-node-table .tableFrequency'
+            ? '#global-settings-node-color-table .tableFrequency, #key-tables-node-table .tableFrequency'
             : tableName == 'link-color'
-                ? '#global-settings-link-color-table .tableFrequency, #global-color-tables-link-table .tableFrequency'
-                : '#global-settings-node-shape-table .tableFrequency, #global-color-tables-node-shape-table .tableFrequency, #node-symbol-table-wrapper .tableFrequency';
+                ? '#global-settings-link-color-table .tableFrequency, #key-tables-link-table .tableFrequency'
+                : '#global-settings-node-shape-table .tableFrequency, #key-tables-node-shape-table .tableFrequency, #node-symbol-table-wrapper .tableFrequency';
         const countColumn = $(countSelector);
         const freqColumn = $(freqSelector);
         (showCount) ? countColumn.slideDown() : countColumn.slideUp();
@@ -3153,6 +3232,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this._goldenLayoutHostComponent.TabChangedEvent.subscribe((v) => {
 
             this.commonService.activeTab = v;
+            this.keyTablesController.noteActiveTab(v);
 
             console.log('tab changed settigns viz: ', v);
 
@@ -3161,50 +3241,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 return;
             }
             
-            const useGlobalColorTablesView = this.shouldUseGlobalColorTablesView();
-
-            if (useGlobalColorTablesView || v === "Files" || v === "Epi Curve" || v === "Alignment View" || v === "Table" || v === "Crosstab" || v === "Aggregate" || v === "Heatmap" || v === "Gantt Chart" || v === "Waterfall" || v == "Sankey" || v === GlobalColorTablesComponent.componentTypeName) {
-                this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
-            } else {
-                if (this.SelectedColorNodesByVariable == 'None') {
-                    this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                } else {
-                    this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                    this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);  
-                }
-                if (this.SelectedColorLinksByVariable == 'None' || v === "Phylogenetic Tree" || v == 'Bubble') {
-                    this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-                } else {
-                    this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
-                }
-                if (this.SelectedNodeSymbolVariable == 'None' || this.SelectedNodeShapeTableTypesVariable == 'Hide' || (v !== '2D Network' && v !== 'Map')) {
-                    this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
-                } else {
-                    this.GlobalSettingsNodeShapeDialogSettings.setVisibility(true);
-                }
-            }
-            if (useGlobalColorTablesView) {
-                this.SelectedNodeColorTableTypesVariable = 'Hide';
-                this.SelectedLinkColorTableTypesVariable = 'Hide';
-                this.SelectedNodeShapeTableTypesVariable = 'Hide';
-            } else {
-                if (this.GlobalSettingsNodeColorDialogSettings.isVisible && this.SelectedNodeColorTableTypesVariable == 'Hide') {
-                    this.SelectedNodeColorTableTypesVariable = 'Show';
-                } else if (!this.GlobalSettingsNodeColorDialogSettings.isVisible && this.SelectedNodeColorTableTypesVariable == 'Show') {
-                    this.SelectedNodeColorTableTypesVariable = 'Hide';
-                }
-                if (this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedLinkColorTableTypesVariable == 'Hide') {
-                    this.SelectedLinkColorTableTypesVariable = 'Show';
-                } else if (!this.GlobalSettingsLinkColorDialogSettings.isVisible && this.SelectedLinkColorTableTypesVariable == 'Show') {
-                    this.SelectedLinkColorTableTypesVariable = 'Hide';
-                }
-                if (this.GlobalSettingsNodeShapeDialogSettings.isVisible && this.SelectedNodeShapeTableTypesVariable == 'Hide') {
-                    this.SelectedNodeShapeTableTypesVariable = 'Show';
-                } else if (!this.GlobalSettingsNodeShapeDialogSettings.isVisible && this.SelectedNodeShapeTableTypesVariable == 'Show') {
-                    this.SelectedNodeShapeTableTypesVariable = 'Hide';
-                }
+            this.syncFloatingKeyTableDialogs();
+            if (this.shouldUseKeyTablesView()) {
+                this.refreshKeyTablesView();
             }
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
@@ -3436,28 +3475,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         let elementsToExport: HTMLTableElement[] = [];
 
-        if (this.exportTables['node-symbol']) {
-            const dockedNodeShapeTable = $('#global-color-tables-node-shape-table')[0] as HTMLTableElement | undefined;
-            const globalNodeShapeTable = this.nodeShapeTable?.nativeElement as HTMLTableElement | undefined;
-            const nodeShapeTable = dockedNodeShapeTable ?? globalNodeShapeTable;
-            if (nodeShapeTable) {
-                elementsToExport.push(nodeShapeTable);
-                console.log(nodeShapeTable, elementsToExport);
-            }
-        }
         if (this.exportTables['polygon-color']) {
             let polygonTable = $('#polygon-color-table')[0]
             elementsToExport.push(polygonTable as HTMLTableElement)
         }
-        if (elementsToExport.length == 0 && this.exportTables['node-color'] == false && this.exportTables['link-color'] == false) {
+        if (elementsToExport.length == 0
+            && this.exportTables['node-color'] == false
+            && this.exportTables['link-color'] == false
+            && this.exportTables['node-symbol'] == false) {
             console.log('nothing to export');
              return; 
         }
 
         if (this.ExportTablesFileType == 'svg') {
-            this.performExportSVG(elementsToExport, '', this.exportTables['node-color'], this.exportTables['link-color']);
+            this.performExportSVG(elementsToExport, '', this.exportTables['node-color'], this.exportTables['link-color'], this.exportTables['node-symbol']);
         } else {
-            this.performExport(elementsToExport, this.exportTables['node-color'], this.exportTables['link-color']);
+            this.performExport(elementsToExport, this.exportTables['node-color'], this.exportTables['link-color'], this.exportTables['node-symbol']);
         }
     }
 
@@ -3721,6 +3754,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.homepageTabs = [home];
 
         this.commonService.activeTab = 'Files';
+        this.keyTablesController.reset('Files');
         this.activeTabIndex = 0;
     }
 
@@ -3975,6 +4009,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (tabNdx === -1) tabNdx = this.homepageTabs.findIndex(x => x.isActive == true);
 
         const activeComponentName: string = this.homepageTabs[tabNdx].label;
+        this.commonService.activeTab = activeComponentName;
+        this.keyTablesController.noteActiveTab(activeComponentName);
 
 
         this.homepageTabs.forEach((item: HomePageTabItem) => {
@@ -4033,11 +4069,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.showButtonGroup = true;
                 this.showSorting = true;
 
-                // this.GlobalSettingsDialogSettings.setVisibility(false);
-                this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
-
                 break;
             }
             case "Map": {
@@ -4062,14 +4093,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.showButtonGroup = false;
                 this.showSorting = false;
 
-                // this.GlobalSettingsDialogSettings.setVisibility(false);
-                this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
-
                 break;
             }
-            case GlobalColorTablesComponent.componentTypeName: {
+            case KeyTablesComponent.componentTypeName: {
 
                 this.showSettings = false;
                 this.showExport = false;
@@ -4078,10 +4104,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.showRefresh = false;
                 this.showButtonGroup = false;
                 this.showSorting = false;
-
-                this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
 
                 break;
             }
@@ -4105,6 +4127,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
 
+        this.syncFloatingKeyTableDialogs();
         this.previousTab = activeComponentName;
     }
 
@@ -4145,44 +4168,41 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const linkColorTable = $(tableId).empty();
     }
 
-    openGlobalColorTablesView() {
-        const viewName = GlobalColorTablesComponent.componentTypeName;
-        const existingTabIndex = this.homepageTabs.findIndex(tab => tab.label === viewName);
+    public isKeyTableDocked(table: KeyTableName): boolean {
+        return this.keyTablesController.isDocked(table);
+    }
 
-        this.preferGlobalColorTablesView = true;
-        this.SelectedNodeColorTableTypesVariable = 'Hide';
-        this.SelectedLinkColorTableTypesVariable = 'Hide';
-        this.SelectedNodeShapeTableTypesVariable = 'Hide';
-        this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Hide';
-        this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Hide';
-        this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-        this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-        this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
-        $('#node-color-table').empty();
-        $('#link-color-table').empty();
+    public getKeyTableDockButtonTitle(table: KeyTableName): string {
+        return this.keyTablesController.getDockButtonTitle(table);
+    }
 
-        const container = this._goldenLayoutHostComponent.dockComponentRight(viewName, viewName);
-        const componentRef = this._goldenLayoutHostComponent.getComponentRef(container);
+    public toggleKeyTableDocking(table: KeyTableName): void {
+        if (this.isKeyTableDocked(table)) {
+            this.keyTablesController.setDocked(table, false);
 
-        if (existingTabIndex === -1 && componentRef) {
-            this.addTab(viewName, viewName, this.homepageTabs.length, componentRef);
-
-            if ((componentRef.instance as any).DisplayGlobalSettingsDialogEvent) {
-                (componentRef.instance as any).DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
+            if (!this.keyTablesController.hasDockedTables()) {
+                this.closeKeyTablesView();
             }
+        } else {
+            this.markKeyTableVisible(table);
+            this.keyTablesController.setDocked(table, true);
+            this.ensureKeyTablesViewOpen(false);
         }
 
-        this._goldenLayoutHostComponent.focusComponent(viewName);
+        this.syncFloatingKeyTableDialogs();
+        this.refreshKeyTablesView();
+        this.cdref.markForCheck();
+    }
 
-        setTimeout(() => {
-            this._goldenLayoutHostComponent.resizeComponentWidth(viewName, 0.3);
-            this.refreshGlobalColorTablesView();
-
-            const tabIndex = this.homepageTabs.findIndex(tab => tab.label === viewName);
-            if (tabIndex !== -1) {
-                this.setActiveTabProperties(tabIndex);
-            }
+    openKeyTablesView() {
+        KEY_TABLE_NAMES.forEach(table => {
+            this.markKeyTableVisible(table);
         });
+        this.keyTablesController.dockAll();
+
+        this.ensureKeyTablesViewOpen(true);
+        this.syncFloatingKeyTableDialogs();
+        this.refreshKeyTablesView();
     }
 
     onReloadScreen() {
@@ -4260,7 +4280,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
          this.SelectedNodeSymbolVariable = this.commonService.session.style.widgets['node-symbol-variable'] ?? 'None';
          this.SelectedNodeShapeTableTypesVariable = this.commonService.session.style.widgets['node-symbol-table-visible'] ?? 'Hide';
-         this.onNodeShapeByChanged(true, this.SelectedNodeShapeTableTypesVariable === 'Show');
+         this.onNodeShapeByChanged(true, this.SelectedNodeSymbolVariable !== 'None');
 
          //Styling|Selected
          this.SelectedColorVariable = this.commonService.session.style.widgets['selected-color'];
@@ -4307,14 +4327,133 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         })
     }
 
-    private shouldUseGlobalColorTablesView(): boolean {
-        return this.homepageTabs.some(tab => tab.label === GlobalColorTablesComponent.componentTypeName);
+    private markKeyTableVisible(table: KeyTableName): void {
+        switch (table) {
+            case 'node-color':
+                if (this.SelectedColorNodesByVariable !== 'None') {
+                    this.SelectedNodeColorTableTypesVariable = 'Show';
+                    this.commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable = 'Show';
+                }
+                break;
+            case 'link-color':
+                if (this.SelectedColorLinksByVariable !== 'None') {
+                    this.SelectedLinkColorTableTypesVariable = 'Show';
+                    this.commonService.GlobalSettingsModel.SelectedLinkColorTableTypesVariable = 'Show';
+                }
+                break;
+            case 'node-shape':
+                if (this.SelectedNodeSymbolVariable !== 'None') {
+                    this.SelectedNodeShapeTableTypesVariable = 'Show';
+                    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Show';
+                    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Show';
+                }
+                break;
+        }
     }
 
-    private refreshGlobalColorTablesView(): void {
-        const globalColorTablesTab = this.homepageTabs.find(tab => tab.label === GlobalColorTablesComponent.componentTypeName);
-        if (globalColorTablesTab?.componentRef?.instance?.refreshTables) {
-            globalColorTablesTab.componentRef.instance.refreshTables();
+    private focusHomepageTab(viewName: string): boolean {
+        const tabIndex = this.homepageTabs.findIndex(tab => tab.label === viewName);
+        if (tabIndex === -1) {
+            return false;
+        }
+
+        this._goldenLayoutHostComponent.focusComponent(viewName);
+        this.setActiveTabProperties(tabIndex);
+        return true;
+    }
+
+    private canDisplayFloatingKeyTable(table: KeyTableName): boolean {
+        return this.keyTablesController.canDisplayFloatingTable(table, this.commonService.activeTab);
+    }
+
+    private shouldDisplayFloatingKeyTable(table: KeyTableName): boolean {
+        return this.keyTablesController.shouldDisplayFloatingTable(table, {
+            activeTab: this.commonService.activeTab,
+            selectedColorNodesBy: this.SelectedColorNodesByVariable,
+            selectedColorLinksBy: this.SelectedColorLinksByVariable,
+            selectedNodeSymbol: this.SelectedNodeSymbolVariable,
+            selectedNodeColorTableTypesVariable: this.SelectedNodeColorTableTypesVariable,
+            selectedLinkColorTableTypesVariable: this.SelectedLinkColorTableTypesVariable,
+            selectedNodeShapeTableTypesVariable: this.SelectedNodeShapeTableTypesVariable
+        });
+    }
+
+    private syncFloatingKeyTableDialogs(): void {
+        if (!this.GlobalSettingsNodeColorDialogSettings
+            || !this.GlobalSettingsLinkColorDialogSettings
+            || !this.GlobalSettingsNodeShapeDialogSettings) {
+            return;
+        }
+
+        if (this.shouldDisplayFloatingKeyTable('node-color')) {
+            this.GlobalSettingsNodeColorDialogSettings.setVisibility(true);
+            this.generateNodeColorTable('#node-color-table');
+        } else {
+            this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
+        }
+
+        if (this.shouldDisplayFloatingKeyTable('link-color')) {
+            this.GlobalSettingsLinkColorDialogSettings.setVisibility(true);
+            this.generateNodeLinkTable('#link-color-table');
+        } else {
+            this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
+        }
+
+        if (this.shouldDisplayFloatingKeyTable('node-shape')) {
+            this.GlobalSettingsNodeShapeDialogSettings.setVisibility(true);
+            this.generateNodeShapeSelectionTable(this.SelectedNodeSymbolVariable);
+        } else {
+            this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
+        }
+    }
+
+    private ensureKeyTablesViewOpen(focusView: boolean = true): void {
+        const viewName = KeyTablesComponent.componentTypeName;
+        const tabToKeepActive = focusView
+            ? undefined
+            : this.keyTablesController.getContextTab(this.commonService.activeTab);
+        const existingTabIndex = this.homepageTabs.findIndex(tab => tab.label === viewName);
+        const container = this._goldenLayoutHostComponent.dockComponentRight(viewName, viewName);
+        const componentRef = this._goldenLayoutHostComponent.getComponentRef(container);
+
+        if (existingTabIndex === -1 && componentRef) {
+            this.addTab(viewName, viewName, this.homepageTabs.length, componentRef);
+
+            if ((componentRef.instance as any).DisplayGlobalSettingsDialogEvent) {
+                (componentRef.instance as any).DisplayGlobalSettingsDialogEvent.subscribe((v) => { this.DisplayGlobalSettingsDialog(v) });
+            }
+        }
+
+        if (focusView) {
+            this.focusHomepageTab(viewName);
+        }
+
+        setTimeout(() => {
+            this._goldenLayoutHostComponent.resizeComponentWidth(viewName, 0.3);
+            this.refreshKeyTablesView();
+
+            if (focusView) {
+                this.focusHomepageTab(viewName);
+            } else if (tabToKeepActive) {
+                this.focusHomepageTab(tabToKeepActive);
+            }
+        });
+    }
+
+    private closeKeyTablesView(): void {
+        if (this.shouldUseKeyTablesView()) {
+            this._removeGlView(KeyTablesComponent.componentTypeName);
+        }
+    }
+
+    private shouldUseKeyTablesView(): boolean {
+        return this.homepageTabs.some(tab => tab.label === KeyTablesComponent.componentTypeName);
+    }
+
+    private refreshKeyTablesView(): void {
+        const keyTablesTab = this.homepageTabs.find(tab => tab.label === KeyTablesComponent.componentTypeName);
+        if (keyTablesTab?.componentRef?.instance?.refreshTables) {
+            keyTablesTab.componentRef.instance.refreshTables();
         }
     }
 

@@ -23,6 +23,7 @@ type NodeShapePoint = [number, number];
 const MAP_NODE_SHAPE_CANVAS_SIZE = 300;
 const MAP_NODE_SHAPE_CENTER = MAP_NODE_SHAPE_CANVAS_SIZE / 2;
 const MAP_NODE_SHAPE_RADIUS = 110;
+const TREE_BASIC_NODE_SHAPE_SCALE = MAP_NODE_SHAPE_CANVAS_SIZE / (MAP_NODE_SHAPE_RADIUS * 2);
 
 
 interface CustomNodeShapeDefinition extends NodeShapeOption {
@@ -49,6 +50,8 @@ export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
     { key: 'tag', value: '\u2617', name: ' (Tag)', groupKey: 'basic' },
     { key: 'vee', value: 'V', name: ' (Vee)', groupKey: 'basic' },
 ];
+
+const BASIC_NODE_SHAPE_KEYS = new Set(BASIC_NODE_SYMBOL_OPTIONS.map(({ key }) => key));
 
 const CUSTOM_NODE_SHAPE_DEFINITIONS: Record<string, CustomNodeShapeDefinition> = {
     unknown: {
@@ -84,6 +87,28 @@ const CUSTOM_NODE_SHAPE_DEFINITIONS: Record<string, CustomNodeShapeDefinition> =
         viewBox: '0 0 337 300',
         path: 'M169 233l-128 -113l-3 -2v-109q0 -4 2.5 -6.5t6.5 -2.5h244q4 0 6.5 2.5t2.5 6.5v109l-3 2zM225 80q0 -2 -1.5 -3.5t-3.5 -1.5h-32v-33q0 -2 -1.5 -3t-3.5 -1h-28q-2 0 -3.5 1t-1.5 3v33h-33q-2 0 -3 1.5t-2 3.5v28q1 2 2 3.5t3 1.5h33v32q0 2 1.5 3.5t3.5 1.5h28q2 0 3.5 -1.5t1.5 -3.5v-32h32q2 -1 3.5 -2t1.5 -3v-28zM334 162l-150 132q-6 6 -15 6t-16 -6l-150 -132q-3 -3 -3 -7t2 -7l13 -14q3 -3 6.5 -3t6.5 3l135 118q2 3 5.5 3t6.5 -3l134 -118q3 -3 7 -3t7 3l12 14q3 3 2.5 7t-3.5 7z'
     },
+    school: {
+        key: 'school',
+        value: '',
+        name: 'School',
+        groupKey: 'buildings',
+        cytoscapeShape: 'barrel',
+        width: 375,
+        height: 300,
+        viewBox: '0 0 375 300',
+        path: `M0 169v-160q0 -4 2.5 -6.5t6.5 -2.5h47v188h-37q-8 0 -13.5 -5.5t-5.5 -13.5zM211 197h-14v23q0 2 -1.5 3.5t-3.5 1.5h-9q-2 0 -3.5 -1.5t-1.5 -3.5v-37q0 -2 1.5 -3.5t3.5 -1.5h28q2 0 3.5 1.5t1.5 3.5v9q0 2 -1.5 3.5t-3.5 1.5zM292 234l-94 63q-5 3 -10.5 3t-10.5 -3l-94 -63q-8 -5 -8 -15v-219h75v84q0 4 2.5 7t6.5 3h57q4 0 6.5 -3t2.5 -7v-84h75v219q0 10 -8 15zM188 150q-20 0 -33.5 13.5t-13.5 33t13.5 33.5t33 14t33 -14t13.5 -33.5t-13.5 -33t-32.5 -13.5zM356 188h-37v-188h47q4 0 6.5 2.5t2.5 6.5v160q0 8 -5.5 13.5t-13.5 5.5z`
+    },
+    placeOfWorship: {
+        key: 'placeOfWorship',
+        value: '',
+        name: 'Place of Worship',
+        groupKey: 'buildings',
+        cytoscapeShape: 'barrel',
+        width: 375,
+        height: 300,
+        viewBox: '0 0 375 300',
+        path: `M364 85l-64 28v-113h66q4 0 6.5 2.5t2.5 6.5v59q0 6 -3 10.5t-8 6.5zM0 68v-59q0 -4 2.5 -6.5t6.5 -2.5h66v113l-64 -28q-5 -2 -8 -6.5t-3 -10.5zM272 155l-28 18v67q0 8 -6 13l-44 44q-3 3 -6.5 3t-6.5 -3l-44 -44q-6 -5 -6 -13v-67l-28 -18q-9 -5 -9 -16v-139h56v56q0 16 11 27t26.5 11t26.5 -11t11 -27v-56h56v139q0 11 -9 16z`
+        },
     farm: {
         key: 'farm',
         value: '',
@@ -231,6 +256,17 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         viewBox: '0 0 300 300',
         path: 'M23 183v2q-3 -4 -7.5 -4t-7 4t-0.5 7.5t7 3.5t8 -4q0 5 -3.5 8t0 2t4.5 -4t1 -5v-4l1 -2v1q3 6 8 10q23 22 54 23q61 5 120 -9q43 -12 59 -33q7 1 11 7q3 3 4 1.5t0.5 -4.5t-1.5 -5t-4 -4l4 3l4 5l2 1h1q2 -1 3 -4l-1 -4q-1 -4 -4 -7l-1 -1q-5 -5 -12 -8q-1 -8 2 -15 q5 -7 13 -11l1 1q1 0 2 -0.5t1 -2.5v-3q-1 -4 -2.5 -6t-3 -3.5t-3.5 -1.5h-14l-6 1q-29 -8 -57 0v0q-4 -18 -1 -36l4 -5l1 -2v-2.5t-2 -1.5l-2 -1l-6 1q-2 0 -3 1t-2 3l-1 2h-1q-2 2 -2 4v4q1 7 -4 14l-1 2q-1 -8 -1 -17q4 -4 6 -9q0 -2 -1.5 -2.5t-5 -0.5t-6 2t-3.5 5 q-3 1 -2 8q1 16 -5 30l-7 1q-46 -12 -93 0q-2 -7 -2 -14q2 -11 8 -21q2 -1 4 -3t1.5 -5t-8 -2t-8.5 4t-2 4l-4 3q-2 2 -2 4l-2 9q-2 8 -5 15q-4 -3 -7 -7l-1 -2q-2 -12 2 -23l6 -4l1 -3q1 -1 0 -2l-1 -1l-2 -1q-5 -1 -10 0q-1 1 -3 2l-1 1l-2 3v1q-2 -1 -4 3v0q-2 5 -1 10v0 v5.5t-1.5 5.5t-1.5 7v1q0 5 3 10l5 9v1q-1 5 -3 10v1q-4 7 -5 15q-2 5 -2 11t1 11zM21 188q-2 4 -6 5q-2 0 -3 -2t0.5 -4t4 -1.5t4.5 2.5z'    
     },
+    cow: {
+        key: 'cow',
+        value: '',
+        name: 'Cow',
+        groupKey: 'animals',
+        cytoscapeShape: 'round-rectangle',
+        width: 375,
+        height: 300,
+        viewBox: '0 0 375 300',
+        path: `M371 138l-5 8v45q0 5 -4.5 8t-9.5 0q-9 -4 -15 -13l-39 53q-8 11 -20 17t-25 6h-187q-22 1 -37 -14.5t-15 -36.5v-51q-14 -11 -14 -29v-18h5q15 0 26 10.5t11 26.5v61q0 7 4 13t11 9q-1 -4 -1 -8v-178q0 -4 3 -6.5t7 -2.5h37q4 0 7 2.5t3 6.5v66q7 -8 18 -13v-16 q0 -4 3 -6.5t7 -2.5t6.5 2.5t2.5 6.5v11l2 -1q7 -1 17 1v-11q0 -4 2.5 -6.5t6.5 -2.5t7 2.5t3 6.5v16q10 5 18 12v-65q0 -4 3 -6.5t7 -2.5h37q4 0 6.5 2.5t2.5 6.5v103l19 -19v-24q0 -11 7 -21l24 -36q8 -13 23 -13q10 1 17.5 7t9.5 16l13 63q1 8 -4 15zM221 202l-13 -13 q-20 -20 -49 -20v0q-28 0 -48 20l-13 13q-7 7 -2.5 15t15.5 8h97q11 0 15.5 -8t-2.5 -15zM338 94q-4 0 -7 2.5t-3 6.5t3 7t6.5 3t6.5 -3t3 -7t-3 -6.5t-6 -2.5z`
+    },
     chicken: {
         key: 'chicken',
         value: '',
@@ -241,6 +277,17 @@ l1 -1l-3 -4q-3 -5 -5 -11l-3 -15l-1 -1l-120 -22q-4 0 -8.5 -1.5t-8 -5.5t-3 -10t5 -
         height: 300,
         viewBox: '0 0 300 300',
         path: `M 152.337 12.9568 C 155.282 13.5306 157.787 14.1108 160.292 14.6911 C 157.923 15.6649 155.63 16.9696 153.168 17.5307 C 149.94 18.2663 146.506 18.1323 143.305 18.9435 C 141.842 19.3143 139.708 20.9849 139.631 22.1786 C 139.334 26.8016 139.708 31.4717 139.935 36.1193 C 139.961 36.6481 140.527 37.309 141.023 37.6325 C 147.052 41.5658 153.114 45.4473 159.044 49.2623 C 162.594 47.6102 166.765 45.738 170.856 43.7045 C 171.633 43.3185 172.369 42.3873 172.652 41.5484 C 174.406 36.3584 176.301 31.186 177.521 25.8637 C 177.884 24.2776 176.542 21.9975 175.402 20.4653 C 174.481 19.2267 172.569 18.7744 171.34 17.695 C 170.733 17.1612 170.244 15.8331 170.499 15.1711 C 170.733 14.5632 172.397 13.8042 172.816 14.0725 C 181.185 19.4269 187.598 13.5315 194.496 10.4475 C 195.102 10.1765 195.738 9.72894 196.344 9.75281 C 197.499 9.79826 198.642 10.1251 199.791 10.3352 C 199.311 11.4273 199.079 12.7685 198.291 13.5495 C 197.271 14.5615 195.807 15.127 193.354 16.5874 C 197.555 16.5874 200.539 16.4007 203.479 16.6788 C 204.664 16.7908 205.752 17.921 206.884 18.5878 C 205.769 19.3675 204.733 20.6402 203.524 20.8352 C 199.75 21.4436 195.917 21.7369 192.095 21.9788 C 187.755 22.2536 185.115 24.2353 183.938 28.5726 C 182.505 33.851 180.65 39.0147 179.354 43.0566 C 182.62 48.4737 185.22 53.3768 188.42 57.8513 C 190.074 60.164 192.662 61.9008 195.051 63.5798 C 206.179 71.3989 218.513 77.9019 228.329 87.1023 C 249.635 107.073 255.867 133.083 253.433 161.444 C 252.124 176.695 250.092 191.883 248.496 207.111 C 248.207 209.867 248.455 212.679 248.455 216.102 C 252.819 212.223 257.154 211.497 261.575 215.071 C 267.016 219.47 268.448 225.029 265.548 233.02 C 271.463 231.739 276.468 230.655 281.996 229.457 C 282.379 235.914 278.446 239.997 274.02 243.703 C 277.39 249.675 276.487 259.124 272.008 263.19 C 271.24 263.887 269.462 263.473 267.693 263.608 C 267.51 264.791 267.418 266.438 266.968 267.981 C 266.577 269.318 265.781 270.536 264.834 272.484 C 263.184 270.527 262.065 269.2 260.79 267.688 C 259.59 270.526 258.584 273.339 257.202 275.953 C 256.667 276.965 255.279 277.527 254.281 278.294 C 253.568 277.274 252.66 276.336 252.194 275.214 C 251.648 273.898 251.486 272.422 251.124 270.868 C 247.391 274.705 243.953 278.239 240.515 281.772 C 239.909 281.422 239.302 281.071 238.695 280.72 C 239.059 277.774 239.423 274.827 239.837 271.478 C 237.26 272.832 234.961 274.292 232.477 275.291 C 227.766 277.185 225.665 275.911 224.803 270.98 C 223.628 264.257 225.662 259.983 232.2 256.219 C 214.188 248.075 207.483 231.398 200.033 215.232 C 197.047 208.753 193.92 202.306 190.351 196.137 C 181.409 180.682 167.427 174.229 149.868 177.316 C 144.661 178.232 139.429 179.382 134.439 181.095 C 115.201 187.697 105.017 201.873 103.342 221.61 C 102.463 231.965 103.94 242.522 104.399 252.986 C 104.501 255.309 104.955 257.622 104.972 259.941 C 105.035 268.559 100.471 271.989 92.8679 267.903 C 87.5465 265.043 83.3268 260.134 78.7643 256.266 C 75.0766 262.188 69.7119 263.256 64.0514 256.893 C 60.1231 252.477 57.8289 246.607 54.5628 240.97 C 49.7875 241.754 45.9623 240.467 43.6499 234.745 C 41.2142 228.717 40.1106 222.152 38.3072 215.379 C 33.1801 214.759 30.9078 212.433 29.9151 205.962 C 28.7769 198.543 29.2486 191.374 32.9188 184.668 C 22.9665 176.784 23.3631 170.417 34.7757 153.92 C 29.4842 149.984 28.149 147.034 31.0324 140.784 C 33.5176 135.397 37.4103 130.66 41.2073 124.826 C 36.7595 114.641 38.5047 109.472 49.9879 102.643 C 51.4111 101.797 52.8492 100.619 54.3958 100.396 C 62.9972 99.1579 66.5492 92.8988 70.4493 86.0937 C 81.8642 66.1766 98.715 52.9383 121.023 46.6369 C 124.218 45.7344 126.489 41.9282 129.647 40.4381 C 134.311 38.2369 132.81 34.516 132.898 31.0961 C 132.945 29.2665 132.715 27.4284 132.787 25.6011 C 132.974 20.8257 131.378 17.2897 126.76 15.1516 C 125.559 14.5953 125.056 12.5297 124.233 11.1574 C 125.731 11.1564 127.472 10.6565 128.682 11.246 C 132.628 13.1686 136.241 13.0439 140.026 10.8564 C 142.895 9.19857 145.899 7.70325 148.996 6.54635 C 150.218 6.08998 151.856 6.74788 153.304 6.8984 C 152.601 8.05681 152.043 9.34634 151.15 10.3326 C 150.423 11.1356 149.294 11.5755 147.099 12.9633 C 149.556 12.9633 150.726 12.9633 152.337 12.9568 Z`
+    },
+    bird: {
+        key: 'bird',
+        value: '',
+        name: 'Bird',
+        groupKey: 'animals',
+        cytoscapeShape: 'round-rectangle',
+        width: 300,
+        height: 300,
+        viewBox: '0 0 300 300',
+        path: `M187 171q3 9 5.5 13.5t5.5 7.5l5 5q3 4 7 7l5 5q7 5 11.5 6t10 0.5t9.5 -3t7 -6t5 -3.5l6 -3q10 -5 14.5 -6t5.5 -2.5t-1.5 -2t-17.5 0.5l-14 2l-11 -3h-3q-8 -1 -13 -4l-5 -3q-4 -2 -5.5 -3.5t-2.5 -5t-1 -12.5l-1 -11q-1 -6 -3.5 -16t-5.5 -17.5t-9 -15.5t-13 -13q-13 -11 -29 -19q-21 -12 -31 -14q-5 -2 -14 -3l-9 -1l-4 -9q-2 -5 -8 -13l-11 -15l-1 -3q-4 -1 -5 -1l-1 1q-3 1 -3 2v10v3l3 3q10 12 12 14l3 4l-3 -1q-5 -1 -10 -1h-6q-10 1 -11 0l-6 -1l4 5l-1 1q-2 1 -3 2l-1 3l3 -1q3 -1 4.5 -0.5t2.5 1.5l1 1l-2 1q-3 1 -3.5 3t0.5 3v0l2 -1q2 -2 3 -2h2v3q1 3 4 6l5 6q7 7 11 13q12 16 22 23l12 6l5 3l-5 -2q-6 -1 -10 0q-8 0 -7 2l2 1h-4q-3 0 -3 1l6 10l-4 -1q-4 -1 -4 1v3l-2 1q-2 1 -2 2l1 3l-2 1l-2 1v4h-1h-1v2l-1 1q-1 0 -1 1l1 2l-1 1q-2 0 -2 1t1 1v1l-1 1q-1 2 -1 3l2 2l-1 1q-1 1 -1 2l2 2l-1 1l-1 2l2 4l-1 1q-1 0 -1 1l1 1l-2 1l-3 3t-1 2l1 1l-4 5v1h1l-5 7q-1 1 0 1h1l-3 5q-1 2 1 1h4l-3 3q-2 4 -1.5 4.5t2.5 -0.5l2 -1l-3 3q-2 3 -1.5 4t4.5 -1l4 -2l-3 4q-2 5 -1.5 5.5t4.5 -2.5l5 -3l-2 5q-2 6 -1 6.5t6 -6.5l3 -3l5 -5l-3 11l-1 5q1 1 2.5 -1t3.5 -8l2 -3l2 8q0 2 2 3.5t2 -1.5l-1 -4q0 -7 1 -10.5t3 -8.5l6 -11l1 5l1 2l-2 7q-1 2 -1 3.5t1 1.5l1 -1l-1 4q-1 4 -0.5 5t1.5 1v0v6q-1 5 -0.5 6t2.5 1l1 -1l-1 6q-1 6 1 6t4 -1l2 -1l-1 11q0 2 1 2.5t3 -0.5l4 -3v8q0 9 2.5 7t5.5 -5l3 -4v5q-1 4 0 7q1 11 4 7l2 -5l2 -2l3 -2l3 17q1 1 1 -1l2 -5q1 -4 1 -5l3 -2l1 7q2 6 4 6.5t3 -10.5l1 -4l3 8q3 7 4.5 6t1.5 -4t-1.5 -7t-2 -13t-0.5 -14t2 -18l1 -6q3 -17 2 -22q0 -2 1 -9t1 -11q-1 -9 0 -20l2 -13l4 3q4 4 5 7.5t3 6.5z`
     },
     pet: {
         key: 'pet',
@@ -425,20 +472,28 @@ function buildCustomNodeShapeDataUri(
     fillColor: string,
     strokeColor: string,
     strokeWidth: number,
-    viewBoxPadding: number = 0
+    viewBoxPadding: number = 0,
+    intrinsicCanvasSize?: { width: number; height: number }
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
+    const svgWidth = intrinsicCanvasSize?.width ?? definition.width;
+    const svgHeight = intrinsicCanvasSize?.height ?? definition.height;
     const fillPath = `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" stroke="none"/>`;
     const outlinePath = `<path d="${definition.path}" fill="none" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`;
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" width="${definition.width}" height="${definition.height}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" aria-hidden="true"><g transform="translate(0,${definition.height}) scale(1,-1)">${fillPath}${outlinePath}</g></svg>`;
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g transform="translate(0,${definition.height}) scale(1,-1)">${fillPath}${outlinePath}</g></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function buildEllipseNodeShapeDataUri(fillColor: string, strokeColor: string, strokeWidth: number): string {
+function buildEllipseNodeShapeDataUri(
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    viewBoxPadding: number = Math.max(20, strokeWidth)
+): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', Math.max(20, strokeWidth))}" aria-hidden="true"><circle cx="150" cy="150" r="110" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><circle cx="150" cy="150" r="110" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
@@ -554,21 +609,32 @@ function buildBasicNodeShapePath(shapeKey: string): string | null {
     }
 }
 
-function buildBarrelNodeShapeDataUri(fillColor: string, strokeColor: string, strokeWidth: number): string {
+function buildBarrelNodeShapeDataUri(
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    viewBoxPadding: number = Math.max(20, strokeWidth)
+): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
     const barrelPath = 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z';
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', Math.max(20, strokeWidth))}" aria-hidden="true"><path d="${barrelPath}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><path d="${barrelPath}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function buildBasicNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string | null {
+function buildBasicNodeShapeDataUri(
+    shapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    viewBoxPadding: number = Math.max(20, strokeWidth)
+): string | null {
     if (shapeKey === 'ellipse') {
-        return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
+        return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, viewBoxPadding);
     }
 
     if (shapeKey === 'barrel') {
-        return buildBarrelNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
+        return buildBarrelNodeShapeDataUri(fillColor, strokeColor, strokeWidth, viewBoxPadding);
     }
 
     const path = buildBasicNodeShapePath(shapeKey);
@@ -578,19 +644,26 @@ function buildBasicNodeShapeDataUri(shapeKey: string, fillColor: string, strokeC
 
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', Math.max(20, strokeWidth))}" aria-hidden="true"><path d="${path}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><path d="${path}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     if (isCustomNodeShape(normalizedShapeKey)) {
+        const definition = CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey];
+        const squareCanvasSize = Math.max(definition.width, definition.height);
+
+        // Leaflet map markers are rendered into square icon boxes. Keeping the
+        // intrinsic SVG canvas square prevents custom shapes from stretching in
+        // raster export paths that rely on the marker image dimensions.
         return buildCustomNodeShapeDataUri(
-            CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey],
+            definition,
             fillColor,
             strokeColor,
             strokeWidth,
-            Math.max(20, strokeWidth)
+            Math.max(20, strokeWidth),
+            { width: squareCanvasSize, height: squareCanvasSize }
         );
     }
 
@@ -600,6 +673,36 @@ export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, stro
     }
 
     return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
+}
+
+export function getTreeNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string {
+    const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+    if (isCustomNodeShape(normalizedShapeKey)) {
+        return buildCustomNodeShapeDataUri(
+            CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey],
+            fillColor,
+            strokeColor,
+            strokeWidth
+        );
+    }
+
+    const basicShapeDataUri = buildBasicNodeShapeDataUri(normalizedShapeKey, fillColor, strokeColor, strokeWidth, 0);
+    if (basicShapeDataUri) {
+        return basicShapeDataUri;
+    }
+
+    return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, 0);
+}
+
+export function getTreeNodeShapeScale(shapeKey: string): number {
+    const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+    if (BASIC_NODE_SHAPE_KEYS.has(normalizedShapeKey)) {
+        // Basic shapes are authored inside a ~220px footprint, so the tree overlay
+        // needs a compensating scale factor to match the native leaf-circle size.
+        return TREE_BASIC_NODE_SHAPE_SCALE;
+    }
+
+    return 1;
 }
 
 export function getCustomNodeShapeData(shapeKey: string, nodeColor: string): Record<string, string> {

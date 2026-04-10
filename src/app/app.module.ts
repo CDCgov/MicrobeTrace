@@ -82,7 +82,7 @@ import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/hea
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
-import { GlobalColorTablesComponent } from './visualizationComponents/GlobalColorTablesComponent/global-color-tables.component';
+import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 import { GlobalErrorHandler } from './runtime-security/global-error-handler';
@@ -130,7 +130,7 @@ export class TestedComponent {
         BubbleComponent,
         WaterfallComponent,
         SankeyComponent,
-        GlobalColorTablesComponent,
+        KeyTablesComponent,
     ],
     exports: [
         SelectButtonModule

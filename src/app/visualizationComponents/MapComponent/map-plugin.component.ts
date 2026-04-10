@@ -516,7 +516,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     centerMap() {
         if (this.lmap && this.layers.nodes().getLayers().length > 0) {
-            this.lmap.flyToBounds(this.layers.nodes().getBounds());
+            const nodeBounds = this.layers.nodes().getBounds();
+            if (!nodeBounds.isValid()) {
+                return;
+            }
+
+            const padding = this.commonService.session.style.widgets['map-collapsing-on'] ? 28 : 18;
+            this.lmap.fitBounds(nodeBounds, {
+                animate: false,
+                padding: [padding, padding]
+            });
         }
     }
 
@@ -861,8 +870,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 quality: this.SelectedNetworkExportQualityVariable,
             }
             this.exportService.setExportOptions(exportOptions);
-            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement]
-            this.exportService.requestExport(elementsToExport, true, true)
+            let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement]
+            this.exportService.requestExport(elementsToExport, true, true, true)
         }, 1000);
         new Promise(resolve => setTimeout(resolve, 2000)).then(() => this.lmap.addControl(this.lmap.zoomControl))
     }

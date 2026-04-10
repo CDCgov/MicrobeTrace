@@ -1,27 +1,18 @@
-import {
-    ChangeDetectorRef,
-    Component,
-    ElementRef,
-    EventEmitter,
-    HostListener,
-    Inject,
-    OnDestroy,
-    OnInit,
-    Output
-} from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output } from '@angular/core';
 import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
+import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controller';
 
 @Component({
-    selector: 'GlobalColorTablesComponent',
-    templateUrl: './global-color-tables.component.html',
-    styleUrls: ['./global-color-tables.component.less'],
+    selector: 'keyTablesComponent',
+    templateUrl: './key-tables.component.html',
+    styleUrls: ['./key-tables.component.less'],
     standalone: false
 })
-export class GlobalColorTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
-    static readonly componentTypeName = 'Global Color Tables';
+export class KeyTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
+    static readonly componentTypeName = DOCKED_KEY_TABLES_VIEW_NAME;
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<string>();
 
@@ -43,7 +34,7 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
         private visuals: MicrobeTraceNextVisuals
     ) {
         super(elRef.nativeElement);
-        this.visuals.globalColorTables = this;
+        this.visuals.keyTables = this;
     }
 
     ngOnInit(): void {
@@ -62,8 +53,8 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
     }
 
     ngOnDestroy(): void {
-        if (this.visuals.globalColorTables === this) {
-            this.visuals.globalColorTables = undefined;
+        if (this.visuals.keyTables === this) {
+            this.visuals.keyTables = undefined;
         }
     }
 
@@ -99,12 +90,28 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
         return this.visuals.microbeTrace?.SelectedNodeSymbolVariable ?? 'None';
     }
 
+    get selectedNodeColorValue(): string {
+        return this.visuals.microbeTrace?.SelectedNodeColorVariable
+            ?? this.visuals.microbeTrace?.commonService?.session?.style?.widgets?.['node-color']
+            ?? '#1f77b4';
+    }
+
+    get selectedLinkColorValue(): string {
+        return this.visuals.microbeTrace?.SelectedLinkColorVariable
+            ?? this.visuals.microbeTrace?.commonService?.session?.style?.widgets?.['link-color']
+            ?? '#a6cee3';
+    }
+
     get symbolMappingTree() {
         return this.visuals.microbeTrace?.symbolMappingTree ?? [];
     }
 
     get shapeAggregates() {
         return this.visuals.microbeTrace?.shapeAggregates ?? [];
+    }
+
+    private get dockController() {
+        return this.visuals.microbeTrace?.keyTablesController;
     }
 
     @HostListener('document:click', ['$event'])
@@ -121,20 +128,20 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
             return;
         }
 
-        this.hasNodeColorTable = microbeTrace.SelectedColorNodesByVariable !== 'None';
-        this.hasLinkColorTable = microbeTrace.SelectedColorLinksByVariable !== 'None';
-        this.hasNodeShapeTable = microbeTrace.SelectedNodeSymbolVariable !== 'None';
+        this.hasNodeColorTable = this.isTableDocked('node-color') && microbeTrace.SelectedColorNodesByVariable !== 'None';
+        this.hasLinkColorTable = this.isTableDocked('link-color') && microbeTrace.SelectedColorLinksByVariable !== 'None';
+        this.hasNodeShapeTable = this.isTableDocked('node-shape') && microbeTrace.SelectedNodeSymbolVariable !== 'None';
 
         if (this.hasNodeColorTable) {
-            microbeTrace.generateNodeColorTable('#global-color-tables-node-table');
+            microbeTrace.generateNodeColorTable('#key-tables-node-table');
         } else {
-            $('#global-color-tables-node-table').empty();
+            $('#key-tables-node-table').empty();
         }
 
         if (this.hasLinkColorTable) {
-            microbeTrace.generateNodeLinkTable('#global-color-tables-link-table');
+            microbeTrace.generateNodeLinkTable('#key-tables-link-table');
         } else {
-            $('#global-color-tables-link-table').empty();
+            $('#key-tables-link-table').empty();
         }
 
         if (this.hasNodeShapeTable) {
@@ -167,6 +174,28 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
         microbeTrace.onColorLinksByChanged();
     }
 
+    onNodeColorValueChange(value: string): void {
+        const microbeTrace = this.visuals.microbeTrace;
+        if (!microbeTrace || microbeTrace.SelectedNodeColorVariable === value) {
+            return;
+        }
+
+        microbeTrace.SelectedNodeColorVariable = value;
+        microbeTrace.onNodeColorChanged();
+        this.cdref.markForCheck();
+    }
+
+    onLinkColorValueChange(value: string): void {
+        const microbeTrace = this.visuals.microbeTrace;
+        if (!microbeTrace || microbeTrace.SelectedLinkColorVariable === value) {
+            return;
+        }
+
+        microbeTrace.SelectedLinkColorVariable = value;
+        microbeTrace.onLinkColorChanged();
+        this.cdref.markForCheck();
+    }
+
     onNodeShapeByChange(value: string): void {
         const microbeTrace = this.visuals.microbeTrace;
         if (!microbeTrace || microbeTrace.SelectedNodeSymbolVariable === value) {
@@ -177,7 +206,7 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
         microbeTrace.onNodeShapeByChanged(false, true, value);
     }
 
-    toggleSettingsMenu(table: 'node-color' | 'link-color' | 'node-shape', event?: Event): void {
+    toggleSettingsMenu(table: KeyTableName, event?: Event): void {
         event?.stopPropagation();
 
         if (table === 'node-color') {
@@ -197,7 +226,21 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
         this.cdref.markForCheck();
     }
 
-    hideSettingsMenu(table: 'node-color' | 'link-color' | 'node-shape'): void {
+    isTableDocked(table: KeyTableName): boolean {
+        return this.dockController?.isDocked(table) ?? false;
+    }
+
+    toggleTableDocking(table: KeyTableName, event?: Event): void {
+        event?.stopPropagation();
+        this.visuals.microbeTrace?.toggleKeyTableDocking(table);
+        this.cdref.markForCheck();
+    }
+
+    getTableDockButtonTitle(table: KeyTableName): string {
+        return this.dockController?.getDockButtonTitle(table) ?? 'Float table';
+    }
+
+    hideSettingsMenu(table: KeyTableName): void {
         if (table === 'node-color') {
             this.showNodeSettingsMenu = false;
         } else if (table === 'link-color') {
@@ -209,13 +252,13 @@ export class GlobalColorTablesComponent extends BaseComponentDirective implement
         this.cdref.markForCheck();
     }
 
-    toggleTableColumn(table: 'node-color' | 'link-color' | 'node-shape', column: 'tableCounts' | 'tableFreq', event?: Event): void {
+    toggleTableColumn(table: KeyTableName, column: 'tableCounts' | 'tableFreq', event?: Event): void {
         event?.stopPropagation();
         this.visuals.microbeTrace?.toggleColorTableColumns(table, column);
         this.hideSettingsMenu(table);
     }
 
-    toggleTableCollapsed(table: 'node-color' | 'link-color' | 'node-shape', event?: Event): void {
+    toggleTableCollapsed(table: KeyTableName, event?: Event): void {
         event?.stopPropagation();
 
         if (table === 'node-color') {

@@ -15,7 +15,7 @@ import { HeatmapComponent } from "./visualizationComponents/HeatmapComponent/hea
 import { BubbleComponent } from "./visualizationComponents/BubbleComponent/bubble.component";
 import { SankeyComponent } from "./visualizationComponents/SankeyComponent/sankey.component";
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
-import { GlobalColorTablesComponent } from "./visualizationComponents/GlobalColorTablesComponent/global-color-tables.component";
+import { KeyTablesComponent } from "./visualizationComponents/KeyTablesComponent/key-tables.component";
 
 @Injectable({
     providedIn: 'root',
@@ -36,5 +36,5 @@ export class MicrobeTraceNextVisuals {
     public bubble: BubbleComponent;
     public sankey: SankeyComponent;
     public waterfall: WaterfallComponent;
-    public globalColorTables?: GlobalColorTablesComponent;
+    public keyTables?: KeyTablesComponent;
 }

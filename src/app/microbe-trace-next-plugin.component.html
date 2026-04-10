@@ -100,6 +100,7 @@
             <span>Link Color Table</span>
             <span style="overflow: visible; position: relative;">
               <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('link-color')"><i class="pi pi-cog"></i></button>
+              <button [title]="getKeyTableDockButtonTitle('link-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('link-color')"><i [className]="isKeyTableDocked('link-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="linkColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="linkColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('link-color', 'tableCounts')">
                   <span>Show Counts</span>
@@ -130,6 +131,7 @@
             <span>Node Color Table</span>
             <span style="overflow: visible; position: relative;">
               <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-color')"><i class="pi pi-cog"></i></button>
+              <button [title]="getKeyTableDockButtonTitle('node-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('node-color')"><i [className]="isKeyTableDocked('node-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="nodeColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="nodeColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('node-color', 'tableCounts')">
                   <span>Show Counts</span>
@@ -160,6 +162,7 @@
             <span>Node Shape Table</span>
             <span style="overflow: visible; position: relative;">
               <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-shape')"><i class="pi pi-cog"></i></button>
+              <button [title]="getKeyTableDockButtonTitle('node-shape')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('node-shape')"><i [className]="isKeyTableDocked('node-shape') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="globalNodeShapeTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="nodeShapeCounts" class="dropdown-item" (click)="toggleColorTableColumns('node-shape', 'tableCounts')">
                   <span>Show Counts</span>
@@ -566,10 +569,10 @@
                     </div>
                   }
 
-                  <div class="form-group row" title="Open a docked view for the global node color, link color, and node shape tables.">
-                    <div class="col-5"><label for="open-global-color-tables-view">Style Tables View</label></div>
+                  <div class="form-group row" title="Open a docked view for the node color, link color, and node shape key tables.">
+                    <div class="col-5"><label for="open-key-tables-view">Docked Key Tables</label></div>
                     <div class="col-7">
-                      <button type="button" id="open-global-color-tables-view" class="btn btn-light btn-sm w-100" (click)="openGlobalColorTablesView()">Open Docked View</button>
+                      <button type="button" id="open-key-tables-view" class="btn btn-light btn-sm w-100" (click)="openKeyTablesView()">Open Docked View</button>
                     </div>
                   </div>
 
