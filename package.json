@@ -85,7 +85,7 @@
     "leaflet": "^1.9.3",
     "leaflet.markercluster": "^1.5.3",
     "localforage": "^1.10.0",
-    "lodash": "^4.17.21",
+    "lodash": "^4.18.1",
     "material-icons": "^1.13.14",
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.43",
