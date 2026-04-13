@@ -63,7 +63,7 @@
                       <div class="form-group row gantt-submit-row" style="overflow:visible">
                         <div class="col-4"></div>
                         <div class="col-8">
-                          <button type="button" class="btn btn-primary" (click)="createGanttEntry()">Create
+                          <button type="button" class="btn btn-primary" [disabled]="!canCreateGanttEntry()" (click)="createGanttEntry()">Create
                           Entry</button>
                         </div>
                       </div>

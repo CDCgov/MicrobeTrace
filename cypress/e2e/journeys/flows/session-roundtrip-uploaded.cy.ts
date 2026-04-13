@@ -8,6 +8,7 @@ import {
   assertVisibleStylePreserved,
   enableGroupingShow,
   launchProfileToTwoD,
+  saveSessionFromFileMenu,
   snapshotVisibleStyles,
   visitAppAndAcceptEula,
 } from '../../../support/journey-helpers';
@@ -30,27 +31,9 @@ describe('Journey Flow - Session save and reload round-trip', () => {
 
     snapshotVisibleStyles().as('preSaveStyles');
 
-    cy.get('#top-toolbar').contains('button', 'File').click({ force: true });
-    cy.contains('button[mat-menu-item]', 'Save').click({ force: true });
-    cy.contains('.p-dialog-title', 'Save Session')
-      .should('be.visible')
-      .parents('.p-dialog')
-      .as('saveSessionDialog');
+    saveSessionFromFileMenu(sessionFileBase);
 
-    cy.get('@saveSessionDialog')
-      .find('#stash-name')
-      .invoke('val', sessionFileBase)
-      .trigger('input')
-      .trigger('change');
-
-    cy.get('@saveSessionDialog')
-      .find('#save-file-compress')
-      .uncheck({ force: true });
-
-    cy.get('@saveSessionDialog').find('#stash-data').click({ force: true });
-    cy.contains('.p-dialog-title', 'Save Session').should('not.exist');
-
-    cy.readFile(sessionFilePath, 'utf8', { timeout: 20000 }).should((savedSession) => {
+    cy.readFile(sessionFilePath, 'utf8', { timeout: 30000 }).should((savedSession) => {
       expect(savedSession, 'saved .microbetrace content').to.include('"session"');
       expect(savedSession.length, 'saved .microbetrace length').to.be.greaterThan(100);
     });

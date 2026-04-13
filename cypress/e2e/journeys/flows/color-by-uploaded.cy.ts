@@ -159,7 +159,7 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     openGlobalStylingTab();
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'None');
-    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'origin');
+    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
 
     selectPrimeOption('#node-color-variable', 'Profession');
 

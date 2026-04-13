@@ -13,6 +13,15 @@ const SELECTORS = {
   exportBtn: '#tool-btn-container-phylo a[title="Export Screen"]',
 };
 
+type PhyloImageFileType = 'png' | 'jpeg' | 'svg';
+
+const normalizeNewickText = (value: string): string => value.replace(/\r\n/g, '\n').trim();
+
+const setExportFileType = (fileType: PhyloImageFileType): void => {
+  cy.get('#network-export-filetype').click({ force: true });
+  cy.contains('li[role="option"]', new RegExp(`^${fileType}$`, 'i')).click({ force: true });
+};
+
 const assertLeafLabelState = (visible: boolean): void => {
   cy.window()
     .its('commonService.visuals.phylogenetic.SelectedLeafLabelShowVariable')
@@ -52,23 +61,30 @@ describe('Journey Flow - Phylogenetic Tree Export (Newick file)', () => {
     });
 
     it('should change filename and export as png', () => {
+      const exportFileBase = `cypress_tree_test_${Date.now()}`;
+      const exportPath = `cypress/downloads/${exportFileBase}.png`;
+
       cy.get('#tree-image-filename')
-        .invoke('val', 'cypress_tree_test')
+        .invoke('val', exportFileBase)
         .trigger('input')
         .trigger('change');
 
       cy.window()
         .its('commonService.visuals.phylogenetic.SelectedTreeImageFilenameVariable')
-        .should('equal', 'cypress_tree_test');
+        .should('equal', exportFileBase);
 
       cy.get('#export-tree').click();
-      cy.wait(5000);
-      cy.readFile('cypress/downloads/cypress_tree_test.png').should('exist');
+      cy.readFile(exportPath, 'binary', { timeout: 30000 }).should((pngBinary) => {
+        expect(pngBinary.length, 'exported PNG byte length').to.be.greaterThan(1000);
+      });
     });
 
     it('should change filename and export as svg', () => {
+      const exportFileBase = `cypress_tree_test_${Date.now()}`;
+      const exportPath = `cypress/downloads/${exportFileBase}.svg`;
+
       cy.get('#tree-image-filename')
-        .invoke('val', 'cypress_tree_test')
+        .invoke('val', exportFileBase)
         .trigger('input')
         .trigger('change');
 
@@ -76,38 +92,65 @@ describe('Journey Flow - Phylogenetic Tree Export (Newick file)', () => {
         .its('commonService.visuals.phylogenetic.SelectedNetworkExportFileTypeListVariable')
         .should('equal', 'png');
 
-      cy.get('#network-export-filetype').click();
-      cy.contains('li[role="option"]', 'svg').click();
+      setExportFileType('svg');
 
       cy.window()
         .its('commonService.visuals.phylogenetic.SelectedNetworkExportFileTypeListVariable')
         .should('equal', 'svg');
 
       cy.get('#export-tree').click();
-      cy.wait(1000);
-      cy.readFile('cypress/downloads/cypress_tree_test.svg').should('exist');
+      cy.readFile(exportPath, 'utf8', { timeout: 30000 }).should((svgText) => {
+        expect(svgText, 'exported SVG contents').to.contain('<svg');
+      });
+    });
+
+    it('should change filename and export as jpeg', () => {
+      const exportFileBase = `cypress_tree_test_${Date.now()}`;
+      const exportPath = `cypress/downloads/${exportFileBase}.jpeg`;
+
+      cy.get('#tree-image-filename')
+        .invoke('val', exportFileBase)
+        .trigger('input')
+        .trigger('change');
+
+      setExportFileType('jpeg');
+
+      cy.window()
+        .its('commonService.visuals.phylogenetic.SelectedNetworkExportFileTypeListVariable')
+        .should('equal', 'jpeg');
+
+      cy.get('#export-tree').click();
+      cy.readFile(exportPath, 'binary', { timeout: 30000 }).should((jpegBinary) => {
+        expect(jpegBinary.length, 'exported JPEG byte length').to.be.greaterThan(1000);
+      });
     });
 
     it('should change filename and export newick string', () => {
+      const exportFileBase = `cypress_tree_test_nwk_${Date.now()}`;
+      const exportPath = `cypress/downloads/${exportFileBase}.txt`;
+
       cy.contains('.p-dialog-title', 'Export Phylogenetic Tree')
         .parents('.p-dialog')
         .contains('Newick')
         .click();
 
       cy.get('#newick-string-filename')
-        .invoke('val', 'cypress_tree_test_nwk')
+        .invoke('val', exportFileBase)
         .trigger('input')
         .trigger('change');
 
       cy.window()
         .its('commonService.visuals.phylogenetic.SelectedNewickStringFilenameVariable')
-        .should('equal', 'cypress_tree_test_nwk');
+        .should('equal', exportFileBase);
 
       cy.get('#export-newick').click();
-      cy.wait(1000);
 
-      cy.window().its('commonService.session.data.newickString').then((expectedString) => {
-        cy.readFile('cypress/downloads/cypress_tree_test_nwk.txt').should('equal', expectedString);
+      cy.window().its('commonService.visuals.phylogenetic.tree.data').then((treeData: any) => {
+        const expectedString = normalizeNewickText(treeData.toNewick(false));
+
+        cy.readFile(exportPath, 'utf8', { timeout: 30000 }).should((savedText) => {
+          expect(normalizeNewickText(savedText), 'saved Newick export').to.equal(expectedString);
+        });
       });
     });
   });

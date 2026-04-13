@@ -38,6 +38,19 @@ export class GanttChartService {
 
   constructor() { }
 
+  private setEmptyTimelineState(): void {
+    this.ganttMinDate = this.addDays(new Date(), 0);
+    this.ganttMaxDate = this.addDays(this.ganttMinDate, 7);
+    this.ganttDateRange = 7;
+    this.minX = 0;
+    this.maxX = 7;
+    this.height = this.ganttPhases.length * this.gridWidthY + this.yPadding * 3 + 20;
+
+    this.computeRectDimensions();
+    this.computeLegendDimensions();
+    this.computeLegend();
+  }
+
   computeRectDimensions() {
     this.rectWidth = this.gridWidthX * 8;
     this.rectHeight = this.ganttPhases.length * this.gridWidthY;
@@ -125,6 +138,11 @@ export class GanttChartService {
       }
     }
     this.ganttPhases = Array.from(phases);
+
+    if (froms.length === 0 || tos.length === 0) {
+      this.setEmptyTimelineState();
+      return;
+    }
 
     const minDate = froms.filter(x => x !== null && x!=="null").reduce((a, b) => new Date(a) < new Date(b) ? a : b );
     const maxDate = tos.filter(x=>x!==null && x!=="null").reduce((a, b) => new Date(a) > new Date(b) ? a : b );

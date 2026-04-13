@@ -181,6 +181,11 @@ export type JourneyExpectations = {
     };
   };
 
+  alignment?: {
+    visibleSequences: number;
+    excludedNodeIds?: string[];
+  };
+
 
 };
 

@@ -111,14 +111,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.viewHeight = 600;
     } 
     
-    this.selectedFieldList.push({ label: "None", value: "None"})
-    this.commonService.session.data['nodeFields'].map((d) => {
-      if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(d)) return;
-      this.selectedFieldList.push({
-        label: this.commonService.capitalize(d.replace("_", "")),
-        value: d
-      });
-    })
+    this.rebuildSelectedFieldList();
 
     this.setWidgets();
     this.updateAxisValues('X');
@@ -134,7 +127,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     })
     this.container.on('show', () => { 
         this.viewActive = true; 
-        this.setSelectedNodes(this);
+        this.syncFromSessionState();
         setTimeout(() => {
           this.goldenLayoutComponentResize();
         }, 5)
@@ -160,6 +153,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       }
     })
 
+    this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.syncFromSessionState();
+    });
+
+    this.store.networkUpdated$.pipe(takeUntil(this.destroy$)).subscribe((networkUpdated) => {
+      if (this.viewActive && networkUpdated) {
+        this.syncFromSessionState();
+        this.store.setNetworkUpdated(false);
+      }
+    });
+
     $( document ).on( "node-visibility", function( ) {
       //console.log('node visi event')
       that.updateVisibleNodes()
@@ -182,6 +186,55 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cyContainer = null;
   }
 
+  private rebuildSelectedFieldList() {
+    this.selectedFieldList = [{ label: "None", value: "None"}];
+
+    this.commonService.session.data['nodeFields'].forEach((field) => {
+      if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(field)) return;
+      this.selectedFieldList.push({
+        label: this.commonService.capitalize(field.replace("_", "")),
+        value: field
+      });
+    });
+  }
+
+  private hasCollapsedAggregates() {
+    return this.visibleData.some(node => String(node.id).startsWith('cNode'));
+  }
+
+  private refreshCollapsedData(sortData = false) {
+    const shouldInitializeCollapsedNodes = !this.hasCollapsedAggregates();
+
+    if (shouldInitializeCollapsedNodes) {
+      this.visibleData = [];
+    }
+
+    this.svgDefs = {};
+    this.getCollapsedData(sortData, shouldInitializeCollapsedNodes);
+  }
+
+  private syncFromSessionState() {
+    this.widgets = this.commonService.session.style.widgets;
+    this.rebuildSelectedFieldList();
+    this.setWidgets();
+    this.updateAxisValues('X');
+    this.updateAxisValues('Y');
+
+    if (!this.cy) {
+      return;
+    }
+
+    this.svgDefs = {};
+    this.getData();
+
+    if (!this.SelectedNodeCollapsingTypeVariable) {
+      this.updateNodes();
+    }
+
+    this.onNodeSizeChange();
+    this.setSelectedNodes(this);
+  }
+
   setWidgets() {
     if (this.widgets['bubble-x'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-x']))) {
       this.xVariable = 'cluster';
@@ -191,8 +244,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
 
     if (this.widgets['bubble-y'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-y']))) {
-      this.xVariable = 'None';
-      this.widgets['bubble-y'] = this.xVariable;
+      this.yVariable = 'None';
+      this.widgets['bubble-y'] = this.yVariable;
     } else {
       this.yVariable = this.widgets['bubble-y']
     }
@@ -572,27 +625,20 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * updates values of visibleNodes based on SelectedNodeCollapsingTypeVariable and if timeline mode is active
    */
   updateVisibleNodes() {
-    // if no timeline and not collapsed
-    if (this.widgets["node-timeline-variable"] == 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
-      this.visibleData = this.allData;
-    // if timeline and not collapse
-    } else if (this.widgets["node-timeline-variable"] != 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
-      let visibleNodes = this.commonService.getVisibleNodes();
-      if (visibleNodes.length == this.visibleData.length) { return }
-      this.visibleData = [];
-      this.allData.forEach(node => {
-        if (visibleNodes.find(vNode => vNode._id == node.id)) {
-          this.visibleData.push(node);
-        }
-      })
+    if (this.SelectedNodeCollapsingTypeVariable == false) {
+      const visibleNodeIds = new Set(
+        this.commonService.getVisibleNodes().map(node => String(node._id ?? node.id))
+      );
+
+      this.visibleData = this.allData.filter(node => visibleNodeIds.has(String(node.id)));
     // if no timeline and collapse
     } else if (this.widgets["node-timeline-variable"] == 'None'){
       // console.log(this.commonService.getVisibleNodes().length, this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0))
-      this.getCollapsedData(false, false)
+      this.refreshCollapsedData(false)
     // if timeline and collapse
     } else {
       if (this.commonService.getVisibleNodes().length == this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0)) { return }
-      this.getCollapsedData(false, false);
+      this.refreshCollapsedData(false);
     } 
     
 
@@ -894,7 +940,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   onNodeCollapsingChange() {
     this.widgets['bubble-collapsed'] = this.SelectedNodeCollapsingTypeVariable;
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.getCollapsedData(true);
+      this.refreshCollapsedData(true);
     } else {
       this.cy.remove('node');
       this.getData();
@@ -970,11 +1016,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.updateAxisValues(axis)
     this.svgDefs = {};
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.getCollapsedData(true);
+      this.refreshCollapsedData(true);
     } else {
       this.getData();
+      this.updateNodes();
     }
-    this.updateNodes();
   }
 
   /**
@@ -1153,9 +1199,31 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   openRefreshScreen() {}
-  onRecallSession() {}
-  onLoadNewData() {}
-  onFilterDataChange() {}
+  onRecallSession() {
+    this.syncFromSessionState();
+  }
+  onLoadNewData() {
+    this.syncFromSessionState();
+  }
+  onFilterDataChange() {
+    this.widgets = this.commonService.session.style.widgets;
+    this.updateAxisValues('X');
+    this.updateAxisValues('Y');
+    this.svgDefs = {};
+    this.getData();
+
+    if (!this.SelectedNodeCollapsingTypeVariable) {
+      this.updateNodes();
+    }
+
+    this.setSelectedNodes(this);
+
+    if (this.viewActive) {
+      setTimeout(() => {
+        this.goldenLayoutComponentResize();
+      }, 5);
+    }
+  }
 
   /**
  * On click of center button, show centers the view

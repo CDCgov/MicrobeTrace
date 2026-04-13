@@ -52,6 +52,15 @@
   padding-right: 5px;
 }
 
+.alignment-empty-state {
+  margin: 0 0 12px 8px;
+  padding: 12px 16px;
+  border-left: 4px solid #d55e00;
+  background: #fff7eb;
+  color: #6b4b16;
+  font-size: 14px;
+}
+
 #msa-viewer {
   overflow-y: hidden;
   overflow-x: hidden;

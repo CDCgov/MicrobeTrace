@@ -93,6 +93,24 @@ export class ColorMappingService {
       updatedNodeColors = [...updatedColorsTable[nodeColorVariable]];
     }
 
+    const storedKeysForVariable = Array.isArray(updatedColorsTableKeys[nodeColorVariable])
+      ? updatedColorsTableKeys[nodeColorVariable]
+      : [];
+    updatedNodeColors = updatedNodeColors.map((candidateColor, index) => {
+      if (typeof candidateColor === 'string') {
+        return candidateColor;
+      }
+
+      const fallbackKey = String(storedKeysForVariable[index] ?? '');
+      const fallbackHistoryColor = updatedColorsTableHistory?.[fallbackKey];
+      if (typeof fallbackHistoryColor === 'string') {
+        return fallbackHistoryColor;
+      }
+
+      const paletteColor = nodeColors[index % Math.max(nodeColors.length, 1)];
+      return typeof paletteColor === 'string' ? paletteColor : '#1f77b4';
+    });
+
     // Compute aggregates by scanning all node values
     const aggregates: Record<string, number> = {};
     nodes.forEach(d => {
@@ -180,6 +198,7 @@ export class ColorMappingService {
     linkAlphas: number[],
     linkColorsTable: any,
     linkColorsTableKeys: any,
+    linkColorsTableHistory: any,
     debugMode: boolean
   ): {
     aggregates: Record<string, number>;
@@ -189,6 +208,7 @@ export class ColorMappingService {
     updatedLinkAlphas: number[];
     updatedLinkColorsTable: any;
     updatedLinkColorsTableKeys: any;
+    updatedLinkColorsTableHistory: any;
   } {
     
 
@@ -202,7 +222,8 @@ export class ColorMappingService {
         updatedLinkColors: linkColors,
         updatedLinkAlphas: linkAlphas,
         updatedLinkColorsTable: linkColorsTable,
-        updatedLinkColorsTableKeys: linkColorsTableKeys
+        updatedLinkColorsTableKeys: linkColorsTableKeys,
+        updatedLinkColorsTableHistory: linkColorsTableHistory
       };
     }
     
@@ -213,6 +234,7 @@ export class ColorMappingService {
 
     const updatedLinkColorsTable = linkColorsTable || {};
     const updatedLinkColorsTableKeys = linkColorsTableKeys || {};
+    let updatedLinkColorsTableHistory = linkColorsTableHistory || {};
     let updatedLinkColors = [...linkColors];
     let updatedLinkAlphas = [...linkAlphas];
 
@@ -222,6 +244,24 @@ export class ColorMappingService {
     } else {
       updatedLinkColors = [...updatedLinkColorsTable[linkColorVariable]];
     }
+
+    const storedKeysForVariable = Array.isArray(updatedLinkColorsTableKeys[linkColorVariable])
+      ? updatedLinkColorsTableKeys[linkColorVariable]
+      : [];
+    updatedLinkColors = updatedLinkColors.map((candidateColor, index) => {
+      if (typeof candidateColor === 'string') {
+        return candidateColor;
+      }
+
+      const fallbackKey = String(storedKeysForVariable[index] ?? '');
+      const fallbackHistoryColor = updatedLinkColorsTableHistory?.[fallbackKey];
+      if (typeof fallbackHistoryColor === 'string') {
+        return fallbackHistoryColor;
+      }
+
+      const paletteColor = linkColors[index % Math.max(linkColors.length, 1)];
+      return typeof paletteColor === 'string' ? paletteColor : '#a6cee3';
+    });
 
     let multiLinkCount = 0; // Initialize Multi-Link count
 
@@ -282,6 +322,16 @@ export class ColorMappingService {
       );
     }
 
+    const historyKeys = Object.keys(updatedLinkColorsTableHistory);
+    distinctValues.forEach((val, i) => {
+      const indexInHistory = historyKeys.indexOf(val);
+      if (indexInHistory !== -1 && typeof updatedLinkColorsTableHistory[val] === 'string') {
+        updatedLinkColors[i] = updatedLinkColorsTableHistory[val];
+      } else {
+        updatedLinkColorsTableHistory[val] = updatedLinkColors[i];
+      }
+    });
+
     updatedLinkColorsTableKeys[linkColorVariable] = distinctValues;
     updatedLinkColorsTable[linkColorVariable] = updatedLinkColors;
 
@@ -304,7 +354,8 @@ export class ColorMappingService {
       updatedLinkColors,
       updatedLinkAlphas,
       updatedLinkColorsTable,
-      updatedLinkColorsTableKeys
+      updatedLinkColorsTableKeys,
+      updatedLinkColorsTableHistory
     };
   }
 

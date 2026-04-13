@@ -191,7 +191,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorNodesByVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
-    SelectedColorLinksByVariable: string = 'origin';
+    SelectedColorLinksByVariable: string = 'None';
 
     SelectedTimelineVariable: string = 'None';
     timelineSpeedOptions: number[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
@@ -631,9 +631,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.exportService.getExportOptions();
-            let canvas: HTMLCanvasElement;
             let settings = {
-                scale: options.scale || 1,
+                scale: Number(options.scale) || 1,
                 useCORS: true, // Enable CORS if images are loaded from external sources,
                 allowTaint: true,
                 onclone: (clonedDoc) => {
@@ -679,98 +678,106 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 elementsForExport.splice(pos, 0,this.nodeColorTable.nativeElement);
             }
 
-            Promise.all(
+            const canvasArray = await Promise.all(
                 elementsForExport.map((input) => { 
                     // As of July 2025, a change in Chrome (and other browsers) slowed down this export dramatically (2+ mins for single image), a temp change is to
                     // update html2canvas.js (line 5626) file in node_modules as described here: https://github.com/niklasvh/html2canvas/pull/3252/commits/37b75f50d2550acf7d90630acdc29d346282d0a4;
                     // this is a temp fix, if unresolved (by html2canvas) consider switching to snapdom
                     return html2canvas(input, settings);
                 })
-            ).then((canvasArray) => {
-                canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
+            );
 
-                // Set the width and height of the combined canvas
-                let width = canvasArray[0].width;
-                let height = canvasArray[0].height;
-                let offsets = pos == 0 ? [[5,5]] : [[0,0]];
-                let previousColWidth, currentColWidth = 0;
-                for (let i = 1; i < canvasArray.length; i++) {
-                    if (i == 1) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            if (!context) {
+                console.error('Unable to create export canvas context.');
+                return;
+            }
+
+            // Set the width and height of the combined canvas
+            let width = canvasArray[0].width;
+            let height = canvasArray[0].height;
+            let offsets = pos == 0 ? [[5,5]] : [[0,0]];
+            let previousColWidth, currentColWidth = 0;
+            for (let i = 1; i < canvasArray.length; i++) {
+                if (i == 1) {
+                    width += canvasArray[i].width+5;
+                    height = Math.max(height, canvasArray[i].height+5);
+                    offsets.push([canvasArray[0].width+offsets[0][0], 5]);
+                    previousColWidth = canvasArray[0].width+offsets[0][0];
+                    currentColWidth = canvasArray[1].width;
+                } else {
+                    //if need to add a new column
+                    if (canvasArray[i].height+5 > height) {
                         width += canvasArray[i].width+5;
-                        height = Math.max(height, canvasArray[i].height+5);
-                        offsets.push([canvasArray[0].width+offsets[0][0], 5]);
-                        previousColWidth = canvasArray[0].width+offsets[0][0];
-                        currentColWidth = canvasArray[1].width;
-                    } else {
-                        //if need to add a new column
-                        if (canvasArray[i].height+5 > height) {
-                            width += canvasArray[i].width+5;
-                            height = canvasArray[i].height +5;
-                            offsets.push([offsets[i-1][0] + currentColWidth, 5]);
-                            
-                            previousColWidth = currentColWidth;
+                        height = canvasArray[i].height +5;
+                        offsets.push([offsets[i-1][0] + currentColWidth, 5]);
+
+                        previousColWidth = currentColWidth;
+                        currentColWidth = canvasArray[i].width+5;
+                    }
+                    // need to add a new column
+                    else if (offsets[i-1][1]+canvasArray[i-1].height + canvasArray[i].height + 5 > height) {
+                        width += canvasArray[i].width+5;
+                        offsets.push([offsets[i-1][0] + canvasArray[i-1].width, 5]);
+
+                        previousColWidth = currentColWidth;
+                        currentColWidth = canvasArray[i].width+5;
+                    } else { // don't need to add a new column
+                        offsets.push([offsets[i-1][0], offsets[i-1][1]+canvasArray[i-1].height+5]);
+                        if (canvasArray[i].width+5 > currentColWidth) {
+                            width += (canvasArray[i].width - currentColWidth +5);
                             currentColWidth = canvasArray[i].width+5;
-                        }
-                        // need to add a new column
-                        else if (offsets[i-1][1]+canvasArray[i-1].height + canvasArray[i].height + 5 > height) {
-                            width += canvasArray[i].width+5;
-                            offsets.push([offsets[i-1][0] + canvasArray[i-1].width, 5]);
-                            
-                            previousColWidth = currentColWidth;
-                            currentColWidth = canvasArray[i].width+5;
-                        } else { // don't need to add a new column
-                            offsets.push([offsets[i-1][0], offsets[i-1][1]+canvasArray[i-1].height+5]);
-                            if (canvasArray[i].width+5 > currentColWidth) {
-                                width += (canvasArray[i].width - currentColWidth +5);
-                                currentColWidth = canvasArray[i].width+5;
-                            }
                         }
                     }
                 }
-                canvas.width = width+10;
-                canvas.height = height+10;
+            }
+            canvas.width = width+10;
+            canvas.height = height+10;
 
-                context.fillStyle = '#ffffff';
-                context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
 
-                context.strokeStyle = '#000000'
+            context.strokeStyle = '#000000'
 
-                // Draw the canvases onto the combined canvas
-                for (let i = 0; i < canvasArray.length; i++) {
-                    context.drawImage(canvasArray[i], offsets[i][0], offsets[i][1]);
-                    if (i > 0 || pos==0) {
-                        // draw a rect around each additional drawImage element
-                        context.strokeRect(offsets[i][0], offsets[i][1], canvasArray[i].width, canvasArray[i].height);
-                    }
+            // Draw the canvases onto the combined canvas
+            for (let i = 0; i < canvasArray.length; i++) {
+                context.drawImage(canvasArray[i], offsets[i][0], offsets[i][1]);
+                if (i > 0 || pos==0) {
+                    // draw a rect around each additional drawImage element
+                    context.strokeRect(offsets[i][0], offsets[i][1], canvasArray[i].width, canvasArray[i].height);
                 }
-    
-            // Convert canvas to desired image format
-            let imgData: string;
+            }
+
             const filetype = options.filetype.toLowerCase();
             const filename = options.filename || 'network_export';
+            let mimeType = '';
+            let quality: number | undefined;
     
             if (filetype === 'png') {
-                imgData = canvas.toDataURL('image/png');
+                mimeType = 'image/png';
             } else if (filetype === 'jpeg' || filetype === 'jpg') {
-                imgData = canvas.toDataURL('image/jpeg', options.quality || 0.92);
+                mimeType = 'image/jpeg';
+                quality = options.quality || 0.92;
             } else if (filetype === 'webp') {
-                imgData = canvas.toDataURL('image/webp', options.quality || 0.92);
+                mimeType = 'image/webp';
+                quality = options.quality || 0.92;
             } else {
                 console.error('Unsupported file type:', filetype);
                 return;
             }
-    
-            // Trigger the download
-            const link = document.createElement('a');
-            link.href = imgData;
-            link.download = `${filename}.${filetype}`;
-            document.body.appendChild(link); // Append to body to make it clickable in Firefox
-            link.click();
-            document.body.removeChild(link); // Remove from body after clicking
+
+            const blob = await new Promise<Blob | null>((resolve) => {
+                canvas.toBlob((createdBlob) => resolve(createdBlob), mimeType, quality);
+            });
+            if (!blob) {
+                console.error('Unable to create export blob.');
+                return;
+            }
+
+            saveAs(blob, `${filename}.${filetype}`);
     
             console.log('Export completed successfully.');
-        })
         } catch (error) {
             console.error('Error during export:', error);
         }
@@ -1174,14 +1181,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     /**
-     * Updates background-color widget and then updates background color on twoD network (or any element with #network)
+     * Updates background widgets, applies the 2D canvas color immediately,
+     * and republishes visualization updates so active views restyle in place.
      */
     onBackgroundChanged() {
+        const contrast = this.commonService.contrastColor(this.SelectedBackgroundColorVariable);
+
         this.commonService.session.style.widgets['background-color'] = this.SelectedBackgroundColorVariable;
+        this.commonService.session.style.widgets['background-color-contrast'] = contrast;
 
         if ($('#cy') != undefined) {
             $('#cy').css('background-color', this.SelectedBackgroundColorVariable);
         }
+
+        this.publishUpdateVisualization();
     }
 
 
@@ -1579,11 +1592,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     public onLinkColorChanged(silent: boolean = false) : void {
-        if (this.SelectedLinkColorVariable != 'None') {
-            this.ShowGlobalSettingsLinkColorTable = true;
-        } else {
-            this.ShowGlobalSettingsLinkColorTable = false;
-        }
+        // The fixed link color picker should not keep the link color table in a shown state
+        // when Color Links By is still disabled.
+        this.ShowGlobalSettingsLinkColorTable = this.SelectedColorLinksByVariable !== 'None';
 
         this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
 
@@ -1667,21 +1678,31 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     e.currentTarget.attributes[1].value = e.target['value'];
                     e.currentTarget.style['opacity'] = this.commonService.temp.style.linkAlphaMap(value);
 
+                    const nextColor = e.target['value'];
+                    const selectedVariable = this.SelectedColorLinksByVariable;
+                    const linkColorKeys = this.commonService.session.style.linkColorsTableKeys?.[selectedVariable] || aggregateValues;
+                    const key = linkColorKeys.findIndex(k => k === value);
+                    const resolvedKey = key >= 0 ? key : i;
+                    const variableColors = this.commonService.session.style.linkColorsTable?.[selectedVariable] || [];
+
                     // Need to get value from id since "this" keyword is used by angular
                     // Update that value at the index in the color table
-                    (this.commonService.session.style.linkColors as any).splice(i, 1,e.target['value']);
+                    variableColors.splice(resolvedKey, 1, nextColor);
+                    this.commonService.session.style.linkColorsTable[selectedVariable] = variableColors;
+                    this.commonService.session.style.linkColorsTableHistory[value] = nextColor;
+                    (this.commonService.session.style.linkColors as any).splice(resolvedKey, 1, nextColor);
 
                     // Generate new color map with updated table
                     this.commonService.temp.style.linkColorMap = d3
-                        .scaleOrdinal(this.commonService.session.style.linkColors)
-                        .domain(aggregateValues);
+                        .scaleOrdinal(this.commonService.session.style.linkColorsTable[selectedVariable])
+                        .domain(linkColorKeys);
 
 
                     // Call the updateLinkColor method in all tabs
                     this.publishUpdateLinkColor()
 
                     if (this.SelectedColorLinksByVariable == 'origin') {
-                        this.updateDuoLinkCell(i, e.target['value'], e.currentTarget.style['opacity'])
+                        this.updateDuoLinkCell(i, nextColor, e.currentTarget.style['opacity'])
                     }
 
                 });
@@ -1823,6 +1844,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.setNodeVisibility(false);
             this.commonService.setLinkVisibility(false);
             this.commonService.updateStatistics();
+            this.store.setNetworkUpdated(true);
             }
         }
         this.commonService.session.style.widgets["node-timeline-variable"] = variable;
@@ -1839,6 +1861,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.setNodeVisibility(false);
             this.commonService.setLinkVisibility(false);
             this.commonService.updateStatistics();
+            this.store.setNetworkUpdated(true);
             return;
         }
 
@@ -2039,6 +2062,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     update(h) {
 
+        (this.commonService.session.state as any)['timelineTickUpdate'] =
+          this.commonService.session.style.widgets["timeline-date-field"] != 'None';
         this.handle.attr("cx", this.xAttribute(h));
         this.label
         .attr("x", this.xAttribute(h))
@@ -2047,6 +2072,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
         this.commonService.updateStatistics();
+        this.store.setNetworkUpdated(true);
   }
 
     step(that : any) { 
@@ -2215,18 +2241,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         console.log('color2: ',  this.commonService.session.style.nodeColorsTableKeys);                    
                     }
  
+                    const nextColor = e.target['value'];
                     let key = this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
-                    this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, e);
+                    this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, nextColor);
 
                     // Update history with new color
-                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = e.target['value'];
+                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
 
                   
 
                     //if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
                           // Update table with new alpha value
                         // Need to get value from id since "this" keyword is used by angular
-                        this.commonService.session.style.nodeColors.splice(i, 1, e.target['value']);
+                        this.commonService.session.style.nodeColors.splice(i, 1, nextColor);
                         this.commonService.temp.style.nodeColorMap = d3
                             .scaleOrdinal(this.commonService.session.style.nodeColors)
                             .domain(aggregateValues);
@@ -2456,7 +2483,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('tagClusters called link threshold change');
 
             // Now schedule the heavy update (tag clusters, update visibilities, stats) using debouncing
-            this.commonService.updateNetworkVisuals();
+            this.commonService.updateNetworkVisuals(false, true);
         }
 
     }
@@ -2786,6 +2813,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             e = "2D Network";
         }
 
+        // Keep the saved/default launch-view state aligned with the view we are
+        // actually opening during file or session load.
+        this.updateLaunchView(e);
+
         if (!this.auspiceUrlVal) this.resetLayout();
 
         // TODO:: see if timeout needed
@@ -2954,6 +2985,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
+    private saveGeneratedFile(content: Blob | string, filename: string) {
+        const browserWindow = window as Window & {
+            __mtTestSaveAs?: (content: Blob | string, filename: string) => void;
+        };
+
+        if (typeof browserWindow.__mtTestSaveAs === 'function') {
+            browserWindow.__mtTestSaveAs(content, filename);
+            return;
+        }
+
+        saveAs(content as any, filename);
+    }
+
     DisplayStashDialog(saveStash: string) {
         switch (saveStash) {
             case "Save": {
@@ -2961,7 +3005,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 if (this.selectedSaveFileType == 'style') {
                     const data = JSON.stringify(this.commonService.session.style);
                     const blob = new Blob([data], { type: "application/json;charset=utf-8" });
-                    saveAs(blob, this.saveFileName+'.style')
+                    this.saveGeneratedFile(blob, this.saveFileName+'.style')
+                    this.displayStashDialog = false;
                     return;
                 }
 
@@ -3067,7 +3112,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                       // generate zip repsetnation in memory
                       zip.generateAsync({type:"blob"}).then(function(content) {
                           // see FileSaver.js
-                          saveAs(content, `${that.saveFileName}.zip`);
+                          that.saveGeneratedFile(content, `${that.saveFileName}.zip`);
                       });
                 } else {
                     this.commonService.session.files.forEach(file => {
@@ -3093,10 +3138,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                                 level: 9
                             }
                         })
-                        .then(content => saveAs(content, `${that.saveFileName}.zip`));
+                        .then(content => that.saveGeneratedFile(content, `${that.saveFileName}.zip`));
                     } else {
                         const blob = new Blob([JSON.stringify(stash)], { type: "application/json;charset=utf-8" });
-                        saveAs(blob, `${this.saveFileName}.microbetrace`);
+                        this.saveGeneratedFile(blob, `${this.saveFileName}.microbetrace`);
                     }
     
                    
@@ -3229,7 +3274,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 break;
             }
             case "Save Session": {
-                this.DisplayStashDialog("Cancel");
+                this.saveFileName = '';
+                this.saveByCluster = false;
+                this.selectedSaveFileType = 'session';
+                this.displayStashDialog = true;
                 break;
             }
             case "Open URL": {
@@ -3337,8 +3385,27 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const container = this._goldenLayoutHostComponent.focusComponent(viewName);
 
             const instance = this._goldenLayoutHostComponent.getComponentRef(container).instance as any;
-
             console.log('--- viewClick exisitng view - load settings');
+
+            if (viewName === '2D Network' && !instance.cy) {
+                if (instance.onLoadNewData) {
+                    instance.onLoadNewData();
+                }
+
+                if (!instance.cy && instance._rerender) {
+                    void instance._rerender();
+                }
+            } else if (
+                ['Table', 'Crosstab', 'Aggregate'].includes(viewName) &&
+                instance.onLoadNewData
+            ) {
+                instance.onLoadNewData();
+            } else if (
+                viewName === 'Waterfall' &&
+                instance.onFilterDataChange
+            ) {
+                instance.onFilterDataChange();
+            }
 
              //Load global settings changes if changed in another view
             if (instance.loadSettings) {        
@@ -3348,6 +3415,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     this.commonService.session.style.widgets['link-threshold'] = parseInt(this.threshold);
                     this.onLinkThresholdChanged();
                 }
+            }
+
+            if (instance.goldenLayoutComponentResize) {
+                setTimeout(() => instance.goldenLayoutComponentResize(), 0);
             }
 
         }
@@ -3655,13 +3726,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
  
  
          //Styling|Color Links By
-         if (this.commonService.session.style.widgets['link-color-variable'] === "None") {
-             this.commonService.session.style.widgets['link-color-variable'] = "origin";
-         }
-
-        //  console.log('1this.ShowGlobalSettingsLinkColorTable: ', this.ShowGlobalSettingsLinkColorTable); 
-
- 
          this.SelectedColorLinksByVariable = this.commonService.session.style.widgets['link-color-variable'];
          console.log('oncolorLinksByChanged - loadUISettings - selected color links by variable: ', this.SelectedColorLinksByVariable);
          console.log('link colorTable - loadui1: ', $('#link-color-table'));
@@ -3702,8 +3766,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.homepageTabs.forEach(tab => {
             // componentRef.instance.onLoadNewData ?
             if (tab.componentRef &&
-                tab.componentRef.onLoadNewData) {
-                tab.componentRef.onLoadNewData();
+                tab.componentRef.instance?.onLoadNewData) {
+                tab.componentRef.instance.onLoadNewData();
             }
         })
     }

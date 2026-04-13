@@ -114,6 +114,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     networkUpdatedSubscription: any;
     private destroy$ = new Subject<void>()
+    private initialSettingsLoaded = false;
 
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -422,18 +423,36 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //get the leaflet map
         this.lmap = map;
         this.lmap.zoomControl.setPosition('bottomleft');
-
-
-        setTimeout(() => {
-            this.loadSettings();
-            //this.setDefaultAddressFields();
-            //this.setDateRangeFilterValues();
-            //this.onDataChange(undefined);
-        }, 600);
+        this.tryLoadInitialSettings();
     }
 
     onMarkerClusterReady(markerCluster: MarkerClusterGroup) {
         this.layers.markerClusterGroup = markerCluster;
+        this.tryLoadInitialSettings();
+    }
+
+    private tryLoadInitialSettings(): void {
+        if (this.initialSettingsLoaded || !this.lmap || !this.layers.markerClusterGroup) {
+            return;
+        }
+
+        this.initialSettingsLoaded = true;
+        window.setTimeout(() => {
+            this.loadSettings();
+            this.cdref.detectChanges();
+        }, 0);
+    }
+
+    private markMapRendered(): void {
+        if (!this.viewActive) {
+            return;
+        }
+
+        // Map can be the first launched view, so it must explicitly release
+        // the shared processing modal after its first draw cycle completes.
+        window.setTimeout(() => {
+            this.store.setNetworkRendered(true);
+        }, 0);
     }
 
     getMarker(latitude: number, longitude: number): Layer {
@@ -547,6 +566,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             that.drawLinks();
             that.resetStack();
             that.centerMap()
+            that.markMapRendered();
             }, false);
 
     }
@@ -1645,19 +1665,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     loadSettings() {
-        //Components|Online|Basemap
-        console.log('SelectedBasemapTypeVariable: ', this.SelectedBasemapTypeVariable);
-
+        // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
+        this.SelectedSatelliteTypeVariable = this.commonService.session.style.widgets['map-satellite-show'] ? 'Show' : 'Hide';
+        this.SelectedCountriesTypeVariable = this.commonService.session.style.widgets['map-countries-show'] ? 'Show' : 'Hide';
+        this.SelectedStatesTypeVariable = this.commonService.session.style.widgets['map-states-show'] ? 'Show' : 'Hide';
+        this.SelectedCountiesTypeVariable = this.commonService.session.style.widgets['map-counties-show'] ? 'Show' : 'Hide';
 
-        //Component for basemap
-        if (this.commonService.session.style.widgets['map-basemap-show']) {
-            this.onBasemapChange('Show');
-        } else if (this.commonService.session.style.widgets['map-satellite-show']) {
-            this.onSatelliteChange('Show');
-        } else {
-            this.onCountriesShowHidChange('Show');
-        }
+        // Apply the saved widget state without rewriting sibling layer preferences during reload.
+        this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
+        this.onSatelliteChange(this.SelectedSatelliteTypeVariable, true);
+        this.onCountriesShowHidChange(this.SelectedCountriesTypeVariable);
+        this.onStatesShowHideChange(this.SelectedStatesTypeVariable);
+        this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
 
         //Components|Network|Nodes
         this.SelectedNodesTypeVariable = this.commonService.session.style.widgets['map-node-show'] ? 'Show' : 'Hide';
@@ -1666,14 +1686,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Components|Network|Links
         this.SelectedLinksTypeVariable = this.commonService.session.style.widgets['map-link-show'] ? 'Show' : 'Hide';
         this.onMapLinksShowHideChange(this.SelectedLinksTypeVariable);
-
-        //Components|Offline|States
-        this.SelectedStatesTypeVariable = this.commonService.session.style.widgets['map-states-show'] ? 'Show' : 'Hide';
-        this.onStatesShowHideChange(this.SelectedStatesTypeVariable);
-
-        //Components|Offline|Counties
-        this.SelectedCountiesTypeVariable = this.commonService.session.style.widgets['map-counties-show'] ? 'Show' : 'Hide';
-        this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
 
         //Data|Geospatial
         //this.SelectedGeospatialTypeVariable = this.commonService.session.style.widgets['map-geospatial-type-on'] ? 'On' : 'Off';

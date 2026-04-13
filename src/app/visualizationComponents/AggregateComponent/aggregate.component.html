@@ -1,16 +1,18 @@
 <div class="aggregate-wrapper">
   <div id="tool-btn-container" class="m-portlet">
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Open Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+      <a title="Open Settings" data-testid="aggregate-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Export Crosstab Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+      <a title="Export Aggregate Data" data-testid="aggregate-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
     </span>
   </div>
   <div style="overflow-y: auto; padding: 0px 20px;" [style.height.px]="viewHeight" id="tablesContainer">
     @for (table of SelectedDataTables; track table; let i = $index) {
       <div class="row align-items-center" style="margin: 20px 0px; justify-content: center;">
         <p-table
+          data-testid="aggregate-table"
+          [attr.data-table-index]="i"
           [value]="table.data"
           [columns]="table.tableColumns"
           styleClass="p-datatable-sm p-datatable-gridlines"
@@ -42,13 +44,13 @@
   </div>
 
   @if (viewActive) {
-    <p-dialog [(visible)]="settingsOpen" header="Aggregate Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
+    <p-dialog id="aggregate-settings-pane" data-testid="aggregate-settings-dialog" [(visible)]="settingsOpen" header="Aggregate Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
       <p-orderList #orderList [value]="SelectedDataFields" [dragdrop]="true" (onReorder)="reordered($event)">
         <ng-template let-i="index" let-field pTemplate="item">
           <div style="display: flex; width: 100%;">
             <span class="col-3">Table {{i+1}}</span>
             <span class="col-7">
-              <p-select [options]="fieldOptions"  class="width-percent-100" [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
+              <p-select [attr.id]="'aggregate-field-select-' + i" [options]="fieldOptions"  class="width-percent-100" [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
                 <ng-template let-group pTemplate="group">
                   <span style="font-size: large; font-weight: bold;">{{ group.label }}</span>
                 </ng-template>
@@ -59,30 +61,30 @@
             </span>
             @if (SelectedDataFields.length > 1) {
               <span class="col-2">
-                <p-button icon="pi pi-times" class="deleteButton" (onClick)="deleteTable(i)"/>
+                <p-button [attr.id]="'aggregate-delete-table-' + i" icon="pi pi-times" class="deleteButton" (onClick)="deleteTable(i)"/>
               </span>
             }
           </div>
         </ng-template>
       </p-orderList>
       <div class="form-group row" style="justify-content: center;">
-        <p-button icon="pi pi-plus" label="Add Table" (onClick)="addTable()"/>
+        <p-button data-testid="aggregate-add-table-button" id="aggregate-add-table" icon="pi pi-plus" label="Add Table" (onClick)="addTable()"/>
       </div>
     </p-dialog>
   }
 
   @if (viewActive) {
-    <p-dialog [(visible)]="exportOpen" header="Aggregate Export" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
+    <p-dialog id="aggregate-export-pane" data-testid="aggregate-export-dialog" [(visible)]="exportOpen" header="Aggregate Export" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-body" style='width: 100%; height: 100%;'>
             <div class="form-group row">
               <div class="col-9">
-                <input type="text" style="height:42px" class="form-control form-control-sm"
+                <input id="aggregate-export-filename" type="text" style="height:42px" class="form-control form-control-sm"
                   placeholder="Filename" [(ngModel)]="SelectedAggregateExportFilename">
                 </div>
                 <div class="col-3">
-                  <p-select [options]="AggregateExportFileTypeList"
+                  <p-select id="aggregate-export-filetype" [options]="AggregateExportFileTypeList"
                   [(ngModel)]="SelectedAggregateExportFileType" appendTo="body"></p-select>
                 </div>
               </div>

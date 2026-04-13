@@ -4,6 +4,16 @@ on:
   push:
     paths:
       - docs/2d-network-cypress-bug-log.csv
+      - docs/map-view-cypress-bug-log.csv
+      - docs/epi-curve-cypress-bug-log.csv
+      - docs/gantt-chart-cypress-bug-log.csv
+      - docs/sankey-view-cypress-bug-log.csv
+      - docs/aggregate-view-cypress-bug-log.csv
+      - docs/bubble-view-cypress-bug-log.csv
+      - docs/waterfall-view-cypress-bug-log.csv
+      - docs/table-view-cypress-bug-log.csv
+      - docs/phylogenetic-view-cypress-bug-log.csv
+      - docs/dashboard-cypress-bug-log.csv
   workflow_dispatch:
 
 permissions:
@@ -13,6 +23,20 @@ permissions:
 jobs:
   sync-issues:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        csv_path:
+          - docs/2d-network-cypress-bug-log.csv
+          - docs/map-view-cypress-bug-log.csv
+          - docs/epi-curve-cypress-bug-log.csv
+          - docs/gantt-chart-cypress-bug-log.csv
+          - docs/sankey-view-cypress-bug-log.csv
+          - docs/aggregate-view-cypress-bug-log.csv
+          - docs/bubble-view-cypress-bug-log.csv
+          - docs/waterfall-view-cypress-bug-log.csv
+          - docs/table-view-cypress-bug-log.csv
+          - docs/phylogenetic-view-cypress-bug-log.csv
+          - docs/dashboard-cypress-bug-log.csv
     env:
       BUG_TRACKER_ASSIGNEE: ${{ vars.BUG_TRACKER_ASSIGNEE || github.actor }}
     steps:
@@ -24,7 +48,7 @@ jobs:
       - name: Build bug tracker issue payloads
         run: |
           python3 scripts/bug_tracker_issue_candidates.py \
-            --csv-path docs/2d-network-cypress-bug-log.csv \
+            --csv-path "${{ matrix.csv_path }}" \
             --before "${{ github.event.before }}" \
             --branch "${{ github.ref_name }}" \
             --commit-sha "${{ github.sha }}" \

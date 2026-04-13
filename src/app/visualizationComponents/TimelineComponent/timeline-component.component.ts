@@ -75,6 +75,16 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   private timeDomainStart;
   private timeDomainEnd;
 
+  private markEpiCurveRendered(): void {
+    if (!this.viewActive) return;
+
+    // Epi Curve can be the first rendered view on launch, so it must release
+    // the shared processing modal without depending on the 2D render path.
+    setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    });
+  }
+
   constructor(
     private commonService: CommonService,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
@@ -189,6 +199,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   // this.initializeD3Chart();
   this.setupEventListeners();
   this.refresh();
+  this.markEpiCurveRendered();
  }
   
 /**
@@ -198,11 +209,13 @@ public refresh(): void {
   if (this.selectedGraphType=='Multi: Overlay' || this.selectedGraphType=='Multi: Side by Side') {
     this.refreshMulti();
     return;
-  } else if (this.SelectedDateFieldVariable == 'None') {
-    return;
   }
 
   $('#epiCurveSVG').empty()
+
+  if (this.SelectedDateFieldVariable == 'None') {
+    return;
+  }
 
   this.updateSizes();
   if (this.height < 0) {
@@ -294,11 +307,13 @@ private refreshMulti(): void {
   if (this.selectedGraphType=='Single Date Field') {
     this.refresh();
     return;
-  } else if (this.SelectedDateFieldVariable == 'None' && this.SelectedDateFieldVariable2 == 'None' && this.SelectedDateFieldVariable3 == 'None') {
-    return;
   }
 
   $('#epiCurveSVG').empty()
+
+  if (this.SelectedDateFieldVariable == 'None' && this.SelectedDateFieldVariable2 == 'None' && this.SelectedDateFieldVariable3 == 'None') {
+    return;
+  }
 
   this.updateSizes();
   if (this.height < 0) {

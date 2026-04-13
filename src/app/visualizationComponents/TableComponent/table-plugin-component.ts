@@ -106,6 +106,20 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     private readonly _original_index_key = '_original_index';
   
     @ViewChild('dt') dataTable: Table;
+
+    private isAllRowsPaginatorSelected(): boolean {
+      return $('.p-paginator-rpp-dropdown .p-select-label').text().trim() === 'All';
+    }
+
+    private markTableRendered(): void {
+      if (!this.IsDataAvailable) return;
+
+      // Table does not participate in the 2D render callback path, so direct
+      // launches into Table must explicitly release the shared processing modal.
+      setTimeout(() => {
+        this.store.setNetworkRendered(true);
+      });
+    }
   
     constructor(
       injector: Injector,
@@ -144,6 +158,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
         if (!this.SelectedTableData || this.SelectedTableData.tableColumns.length == 0) {
           this.createTable(this.dataSetViewSelected);
         }
+        this.markTableRendered();
       }
   
       let that = this;
@@ -182,13 +197,24 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       });
       this.container.on('show', () => {
         this.viewActive = true;
+        this.createTable(this.dataSetViewSelected);
         this.setSelectedNodes();
+        this.markTableRendered();
         this.cdref.detectChanges();
       });
 
-    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
         this.createTable(this.dataSetViewSelected);
-    })
+      });
+
+      this.store.networkUpdated$.pipe(takeUntil(this.destroy$)).subscribe((networkUpdated) => {
+        if (this.viewActive && networkUpdated) {
+          this.createTable(this.dataSetViewSelected);
+          this.markTableRendered();
+          this.cdref.detectChanges();
+          this.store.setNetworkUpdated(false);
+        }
+      });
     }
   
     /**
@@ -202,23 +228,36 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       if (this.SelectedTableExportFileTypeListVariable == 'xlsx') {
         this.saveAsExcelFile();
       } else {
-        this.dataTable.exportFilename = this.SelectedTableExportFilenameVariable;
-  
-        if (this.exportAllColumns) {
-          let temp = this.SelectedTableData.tableColumns;
-          let temp2 = [];
-          this.SelectedTableData.availableColumns.forEach((column) =>
-            temp2.push(column.value)
-          );
-          this.dataTable.columns = temp2;
-          this.dataTable.exportCSV();
-          this.dataTable.columns = temp;
-        } else {
-          this.dataTable.exportCSV();
-        }
+        void this.saveAsCsvFile();
       }
   
       this.ShowTableExportPane = !this.ShowTableExportPane;
+    }
+
+    private buildExportRows(): any[] {
+      const rowData = this.dataTable.filteredValue || this.dataTable.value || [];
+      const columns = this.exportAllColumns
+        ? this.SelectedTableData.availableColumns.map((column) => column.value)
+        : this.SelectedTableData.tableColumns;
+
+      return rowData.map((row) => {
+        const output = {};
+        columns.forEach((column) => {
+          output[column.header] = row[column.field];
+        });
+        return output;
+      });
+    }
+
+    private async saveAsCsvFile(fileName?: string): Promise<void> {
+      const resolvedFileName = fileName ?? this.SelectedTableExportFilenameVariable;
+      const rows = this.buildExportRows();
+      const xlsx = await import('xlsx');
+      const worksheet = xlsx.utils.json_to_sheet(rows);
+      const csvText = xlsx.utils.sheet_to_csv(worksheet);
+      const csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
+
+      saveAs(csvBlob, `${resolvedFileName}.csv`);
     }
   
     /**
@@ -230,27 +269,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
         fileName = this.SelectedTableExportFilenameVariable;
       }
       import('xlsx').then((xlsx) => {
-        // if a filtered is applied use filteredValue else use all values
-        let rowData = this.dataTable.filteredValue || this.dataTable.value;
-        if (this.exportAllColumns) {
-          // change name of data fields to header to be consistent with the other exports on this component
-          rowData = rowData.map((row) => {
-            let output = {};
-            this.SelectedTableData.availableColumns.forEach(
-              (key) => (output[key.value.header] = row[key.value.field])
-            );
-            return output;
-          });
-        } else {
-          // gets only the current/visible columns for export and also changes data field name to the header name
-          rowData = rowData.map((row) => {
-            let output = {};
-            this.SelectedTableData.tableColumns.forEach(
-              (key) => (output[key.header] = row[key.field])
-            );
-            return output;
-          });
-        }
+        const rowData = this.buildExportRows();
   
         let worksheet = xlsx.utils.json_to_sheet(rowData);
         const workbook = { Sheets: { data: worksheet }, SheetNames: ['data'] };
@@ -304,7 +323,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       this.visuals.tableComp.SelectedTableData.filter = event.filters;
   
       // updates number of rows when filter is changed (without there is a visual bug when removing a filter)
-      if ($('.p-paginator-rpp-options span').text() == 'All') {
+      if (this.isAllRowsPaginatorSelected()) {
         this.selectedRows = event.filteredValue.length;
       }
     }
@@ -313,7 +332,39 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     onDataChange(event) {}
   
     onFilterDataChange() {
-      //Nothing to do here
+      this.createTable(this.dataSetViewSelected);
+      this.markTableRendered();
+      this.cdref.detectChanges();
+    }
+
+    private restoreSavedFilters(tableData: TableData): void {
+      if (!this.dataTable) return;
+
+      const activeFilters = tableData.tableColumns.filter(
+        (column) => column.filterValue !== undefined && column.filterValue !== null && column.filterValue !== ''
+      );
+
+      if (!activeFilters.length) return;
+
+      setTimeout(() => {
+        if (!this.dataTable || this.TableType !== tableData.tableType) return;
+
+        this.dataTable.filters = {};
+        this.dataTable.filteredValue = null;
+        this.dataTable.value = tableData.data;
+        activeFilters.forEach((column) => this.onTableFilter(column));
+
+        if (tableData.tableType === 'node') {
+          this.setSelectedNodes();
+        }
+
+        if (this.isAllRowsPaginatorSelected()) {
+          const filteredRows = this.dataTable.filteredValue || this.dataTable.value || [];
+          this.selectedRows = filteredRows.length;
+        }
+
+        this.cdref.detectChanges();
+      });
     }
   
     /**
@@ -360,6 +411,11 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     createTable(type: any = 'node') {
       type = type.toLowerCase();
       this.visuals.tableComp.TableType = type;
+      const sourceData = type === 'node'
+        ? this.visuals.tableComp.commonService.getVisibleNodes()
+        : type === 'link'
+          ? this.visuals.tableComp.commonService.session.data.links.filter((link) => link.visible)
+          : this.visuals.tableComp.commonService.session.data.clusters.filter((cluster) => cluster.visible);
   
       // checks if data for tableData exists in TableDatas, if not, creates a new TableData object and adds it to TableDatas
       let tableData: TableData | undefined = this.TableDatas.find(
@@ -386,7 +442,8 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   
       if (this.dataTable) {
         this.dataTable.reset();
-        this.dataTable.filters = tableData.filter;
+        this.dataTable.filters = {};
+        this.dataTable.filteredValue = null;
       }
   
       this.visuals.tableComp.commonService.session.data[type + 'Fields'].map(
@@ -394,10 +451,16 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
           if (this.visuals.tableComp.meta.includes(d)) return;
   
           let filterValue: string = '';
+          let filterType = 'contains';
           if (tableData.filter) {
             const foundFilterItem = tableData.filter[d];
             if (foundFilterItem) {
-              filterValue = foundFilterItem.value;
+              const filterMeta = Array.isArray(foundFilterItem)
+                ? foundFilterItem.find((item) => item?.value !== undefined)
+                : foundFilterItem;
+
+              filterValue = filterMeta?.value ?? '';
+              filterType = filterMeta?.matchMode ?? 'contains';
             }
           }
   
@@ -408,7 +471,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
                 ? 'Nearest Neighbor'
                 : this.visuals.tableComp.capitalize(d.replace('_', '')),
             filterValue: filterValue,
-            filterType: 'contains'
+            filterType: filterType
           };
   
           const foundAvailableColumn = tableData.availableColumns.find(
@@ -417,6 +480,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   
           if (foundAvailableColumn) {
             foundAvailableColumn.filterValue = column.filterValue;
+            foundAvailableColumn.value.filterType = column.filterType;
           } else {
             tableData.availableColumns.push({
               label: column.header,
@@ -436,13 +500,13 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       tableData.tableColumns.forEach((x) => {
         const c = tableData.availableColumns.find(
           (y) => y.value.header === x.header
-        ).value.filterValue;
-        x.filterValue = c;
+        ).value;
+        x.filterValue = c.filterValue;
+        x.filterType = c.filterType;
       });
   
       tableData.data = [];
-      let typeData = type + 's';
-      this.visuals.tableComp.commonService.session.data[typeData].map((d, i) => {
+      sourceData.map((d, i) => {
         if (this.visuals.tableComp.meta.includes(d)) return;
   
         let nrow: any = {};
@@ -475,7 +539,15 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   
       if (foundTableData) {
         this.SelectedTableData = foundTableData;
+
+        if (this.dataTable) {
+          this.dataTable.value = foundTableData.data;
+        }
       }
+
+      this.cdref.detectChanges();
+
+      this.restoreSavedFilters(tableData);
   
       //set selected nodes
       this.visuals.tableComp.setSelectedNodes();
@@ -609,13 +681,26 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     openSelectDataSetScreen(e: any) {
       this.visuals.tableComp.createTable(e.value);
       // after changing table type sometimes there is a visual bug that the following code fixes
-      if ($('.p-paginator-rpp-options span').text() == 'All') {
+      if (this.isAllRowsPaginatorSelected()) {
         this.selectedRows = this.SelectedTableData.data.length;
       }
     }
   
     onLoadNewData() {
+      this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
+
+      if (!this.dataSetViewSelected) {
+        this.dataSetViewSelected = 'Node';
+      }
+
+      if (!this.IsDataAvailable) {
+        this.cdref.detectChanges();
+        return;
+      }
+
       this.createTable(this.visuals.microbeTrace.dataSetViewSelected);
+      this.markTableRendered();
+      this.cdref.detectChanges();
     }
   
     updateNodeColors() {

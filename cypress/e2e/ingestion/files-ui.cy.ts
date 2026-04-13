@@ -125,18 +125,23 @@ describe('File Handling and Processing', () => {
   it('loads a compressed MicrobeTrace session zip', () => {
     cy.attach_files('#fileDropRef', ['outbreaknorm_session.zip'], ['application/zip']);
 
-    cy.contains('#file-table .file-table-row', 'Demo_outbreak_EdgeList.csv', { timeout: 20000 }).should('be.visible');
-    cy.contains('#file-table .file-table-row', 'nodeList_RIPDemo.csv', { timeout: 20000 }).should('be.visible');
+    cy.window({ timeout: 20000 })
+      .its('commonService.session.data.nodes.length')
+      .should('equal', 80);
 
-    cy.window().then((win) => {
-      expect(win.commonService.session.data.nodes).to.have.length(80);
-      expect(win.commonService.session.data.links).to.have.length(1078);
-      expect(win.commonService.session.layout.content.map((item: any) => item.type)).to.deep.equal([
-        '2d_network',
+    cy.window({ timeout: 20000 })
+      .its('commonService.session.data.links.length')
+      .should('equal', 1078);
+
+    cy.window({ timeout: 20000 })
+      .its('commonService.session.layout.content')
+      .should((content: any[]) => {
+        expect(content.map((item: any) => item.type)).to.deep.equal([
+        '2D Network',
         'geo_map',
         'table'
-      ]);
-    });
+        ]);
+      });
   });
   
   

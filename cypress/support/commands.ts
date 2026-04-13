@@ -86,6 +86,9 @@ Cypress.Commands.add('attach_files', (targetSelector, fixturePaths, mimeType) =>
 });
 
 Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
+  const getFileRow = (fileName: string): Cypress.Chainable<JQuery<HTMLElement>> =>
+    cy.contains('#file-table .file-table-row', fileName, { timeout: 20000 }).should('exist');
+
   const fileNames = opts.map((file) => file.name);
   const mimeTypes = fileNames.map(getMimeTypeFromFilename);
   cy.get('body').then(($body) => {
@@ -96,38 +99,36 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
   cy.get('#launch', { timeout: 20000 }).should('not.be.disabled');
 
   opts.forEach((file) => {
-    cy.contains('#file-table .file-table-row', file.name, { timeout: 20000 })
-      .should('exist')
-      .then(($fileRow) => {
-        const $row = cy.wrap($fileRow);
-        const activeType = $fileRow.find('label.active input').attr('data-type');
+    getFileRow(file.name).then(($fileRow) => {
+      const activeType = $fileRow.find('label.active input').attr('data-type');
 
-        if (activeType !== file.datatype) {
-          $row.find(`input[data-type="${file.datatype}"]`).click({ force: true });
-        }
+      if (activeType !== file.datatype) {
+        getFileRow(file.name)
+          .find(`input[data-type="${file.datatype}"]`)
+          .click({ force: true });
+      }
 
-        if (file.datatype === 'link' || file.datatype === 'node') {
-          const setField = (expectedValue: string, fieldNumber: number) => {
-            const selectId = `file-${file.name}-field-${fieldNumber}`;
+      if (file.datatype === 'link' || file.datatype === 'node') {
+        const setField = (expectedValue: string, fieldNumber: number) => {
+          const selectId = `file-${file.name}-field-${fieldNumber}`;
 
-            cy.wrap($fileRow)
-              .find(`select[id="${selectId}"]`)
-              .should('exist')
-              .then(($select) => {
-                const currentValue = String($select.val());
-                if (currentValue !== expectedValue) {
-                  cy.wrap($select).select(expectedValue, { force: true });
-                }
-              });
+          cy.get(`select[id="${selectId}"]`, { timeout: 20000 })
+            .should('exist')
+            .then(($select) => {
+              const currentValue = String($select.val());
+              if (currentValue !== expectedValue) {
+                cy.wrap($select).select(expectedValue, { force: true });
+              }
+            });
 
-            cy.get(`select[id="${selectId}"]`).should('have.value', expectedValue);
-          };
+          cy.get(`select[id="${selectId}"]`).should('have.value', expectedValue);
+        };
 
-          if (file.field1) setField(file.field1, 1);
-          if (file.field2) setField(file.field2, 2);
-          if (file.datatype === 'link' && file.field3) setField(file.field3, 3);
-        }
-      });
+        if (file.field1) setField(file.field1, 1);
+        if (file.field2) setField(file.field2, 2);
+        if (file.datatype === 'link' && file.field3) setField(file.field3, 3);
+      }
+    });
   });
 
   cy.get('#launch', { timeout: 20000 }).should('not.be.disabled');

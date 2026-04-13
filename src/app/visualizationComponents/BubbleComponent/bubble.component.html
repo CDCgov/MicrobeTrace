@@ -2,24 +2,24 @@
   <span #bubbleTooltip id="bubbleTooltip" style="background-color: white;"></span>
   <div id="tool-btn-container" class="m-portlet">
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Open Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+      <a title="Open Settings" data-testid="bubble-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Export Bubble Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+      <a title="Export Bubble Data" data-testid="bubble-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+      <a title="Center Screen" data-testid="bubble-center-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
     </span>
   </div>
 
-  <div #cyBubble id="cyBubble" [style.width.px]="viewWidth" [style.height.px]="viewHeight"></div>
+  <div #cyBubble id="cyBubble" data-testid="bubble-canvas" [style.width.px]="viewWidth" [style.height.px]="viewHeight"></div>
 
   @if (viewActive) {
-    <p-dialog [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '400px'}" appendTo="body">
+    <p-dialog id="bubble-settings-dialog" data-testid="bubble-settings-dialog" [(visible)]="settingsOpen" header="Bubble Settings" [contentStyle]="{'max-height': '70vh', 'width': '400px'}" appendTo="body">
       <div class="form-group row" title="">
         <div class="col-3"><a>X</a></div>
         <div class="col-7">
-          <p-select [options]="selectedFieldList" class="width-percent-100" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body"></p-select>
+          <p-select id="bubble-axis-x" [options]="selectedFieldList" class="width-percent-100" [(ngModel)]="xVariable" (ngModelChange)="onDataChange('X')" appendTo="body"></p-select>
         </div>
         <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
           <p-checkbox [(ngModel)]="xVarDate" (ngModelChange)="onDataChange('X')" binary="true" inputId="xVarDate"></p-checkbox>
@@ -29,7 +29,7 @@
       <div class="form-group row" title="">
         <div class="col-3"><a>Y</a></div>
         <div class="col-7">
-          <p-select class="width-percent-100" [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body"></p-select>
+          <p-select id="bubble-axis-y" class="width-percent-100" [options]="selectedFieldList" [(ngModel)]="yVariable" (ngModelChange)="onDataChange('Y')" appendTo="body"></p-select>
         </div>
         <div class="col-2" style="text-align: center;" title="Formats and sorts dates">
           <p-checkbox [(ngModel)]="yVarDate" (ngModelChange)="onDataChange('Y')" binary="true" inputId="yVarDate"></p-checkbox>
@@ -38,43 +38,43 @@
       </div>
       <div class="form-group row node-label-row" title="How big should the nodes be?">
         <div class="col-3"><label>Size</label></div>
-        <div class="col-7"><input type="range" class="custom-range" min="10" step="1" max="40" [(ngModel)]="nodeSize" (change)="onNodeSizeChange()"></div>
+        <div class="col-7"><input id="bubble-node-size" type="range" class="custom-range" min="10" step="1" max="40" [(ngModel)]="nodeSize" (change)="onNodeSizeChange()"></div>
       </div>
       <div class="form-group row node-label-row" title="How much space between nodes? This has no effect when nodes are collapsed.">
         <div class="col-3"><label>Spacing</label></div>
-        <div class="col-7"><input type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()" [disabled]="SelectedNodeCollapsingTypeVariable"></div>
+        <div class="col-7"><input id="bubble-node-spacing" type="range" class="custom-range" min=".01" step=".01" max=".15" [(ngModel)]="nodeSpacing" (change)="onNodeSpacingChange()" [disabled]="SelectedNodeCollapsingTypeVariable"></div>
       </div>
       <div class="form-group row node-label-row" title="Select a font Size for axis labels.">
         <div class="col-3 padding-right-5"><label>Label Size</label></div>
-        <div class="col-7"><input type="range" class="custom-range" min="10" step="2" max="40" [(ngModel)]="labelSize" (change)="onLabelSizeChange()"></div>
+        <div class="col-7"><input id="bubble-label-size" type="range" class="custom-range" min="10" step="2" max="40" [(ngModel)]="labelSize" (change)="onLabelSizeChange()"></div>
       </div>
       <div class="form-group row">
         <div class="col-3">Collapse</div>
         <div class="col-7">
-          <p-selectButton [options]="OnOffTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeCollapsingTypeVariable"
+          <p-selectButton id="bubble-node-collapsing" [options]="OnOffTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeCollapsingTypeVariable"
           (ngModelChange)="onNodeCollapsingChange()"></p-selectButton>
         </div>
       </div>
       <div class="form-group row" title="">
         <div class="col-3" style="padding-right: 0px;"><label>Node Color</label></div>
         <div class="col-7">
-          <button pButton type="button" label="Show Colors" class="ui-button-raised width-percent-100" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+          <button id="bubble-open-global-styling" pButton type="button" label="Show Colors" class="ui-button-raised width-percent-100" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
         </div>
       </div>
     </p-dialog>
   }
 
   @if (viewActive) {
-    <p-dialog [(visible)]="exportOpen" appendTo="body" header="Export Bubble View">
+    <p-dialog id="bubble-export-dialog" data-testid="bubble-export-dialog" [(visible)]="exportOpen" appendTo="body" header="Export Bubble View">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-body" style='min-width: 400px; height: 100%;'>
             <div class="form-group row">
               <div class="col-9">
-                <input type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="BubbleExportFileName">
+                <input id="bubble-export-filename" type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="BubbleExportFileName">
               </div>
               <div class="col-3">
-                <select [(ngModel)]="BubbleExportFileType" class="form-control form-control-sm">
+                <select id="bubble-export-filetype" [(ngModel)]="BubbleExportFileType" class="form-control form-control-sm">
                   <option>svg</option>
                   <option>png</option>
                 </select>
@@ -90,12 +90,12 @@
                         <label for="network-export-scale">Scale</label>
                       </div>
                       <div class="col-9">
-                        <input type="number" class="form-control form-control-sm" min="0" max="2" step="0.1" [(ngModel)]="SelectedBubbleExportScaleVariable" (ngModelChange)="updateCalculatedResolution()">
+                        <input id="bubble-export-scale" type="number" class="form-control form-control-sm" min="0" max="2" step="0.1" [(ngModel)]="SelectedBubbleExportScaleVariable" (ngModelChange)="updateCalculatedResolution()">
                       </div>
                     </div>
                     <div class="form-group row">
                       <div class="col-3">Resolution</div>
-                      <div id="network-export-dimensions" class="col-9 text-right">{{CalculatedResolution}}</div>
+                      <div id="bubble-export-dimensions" class="col-9 text-right">{{CalculatedResolution}}</div>
                     </div>
                   </div>
                 </p-accordion-content>
@@ -105,7 +105,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-error" (click)="exportOpen = false">Cancel</button>
-          <button type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
+          <button id="bubble-export-confirm" type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
         </div>
       </div><!-- /.modal-content -->
     </div><!-- /.modal-dialog -->

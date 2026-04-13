@@ -80,6 +80,16 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
   SelectedColorOption: "Source" | "Target" | "Uniform" = "Source"
   SelectedColorForUniform: string = "#aa002d"
 
+  private markSankeyRendered(): void {
+    if (this.commonService.session.data.nodes.length === 0) return;
+
+    // Sankey can be the first rendered view on launch, so it must release the
+    // shared processing modal without waiting for the 2D render callback path.
+    setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    });
+  }
+
   constructor(injector: Injector,
     private eventManager: EventManager,
     public commonService: CommonService,
@@ -96,6 +106,8 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
   }
 
   ngOnInit(): void {
+    this.commonService.visuals.sankey = this;
+
     this.commonService.session.data['nodeFields'].map((d, i) => {
       this.FieldList.push(
         {
@@ -126,6 +138,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     // remove this after initial
     //this.SankeyFieldNames = ['WHO_class', 'cluster', 'Lineage'] // can be pre-set when testing
     this.updateGraph();
+    this.markSankeyRendered();
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
       if (this.SankeyFieldNames.includes('cluster') && this.SankeyFieldNames.length > 1) {

@@ -6,7 +6,7 @@ export const NN_PROFILES: DatasetProfile[] = [
   P({
     id: 'nn-snps16-edgelist',
     title: 'NN: SNPs=16 via distance edgelist',
-    tags: ['nn', 'snps', 'edgelist', 'load-to-twod'],
+    tags: ['nn', 'snps', 'edgelist', 'load-to-twod', 'load-to-bubble'],
     files: [
       {
         name: 'COVID_Dummy_distance_edgelist_snp.csv',
@@ -39,7 +39,7 @@ export const NN_PROFILES: DatasetProfile[] = [
   P({
     id: 'nn-snps16-matrix',
     title: 'NN: SNPs=16 via distance matrix',
-    tags: ['nn', 'snps', 'matrix', 'load-to-twod'],
+    tags: ['nn', 'snps', 'matrix', 'load-to-twod', 'load-to-bubble'],
     files: [
       {
         name: 'AngularTesting_DistanceMatrix_TN93_BS.xlsx',
@@ -69,7 +69,7 @@ export const NN_PROFILES: DatasetProfile[] = [
   P({
     id: 'nn-snps16-fasta',
     title: 'NN: SNPs=16 via FASTA',
-    tags: ['nn', 'snps', 'fasta', 'load-to-twod'],
+    tags: ['nn', 'snps', 'fasta', 'load-to-twod', 'load-to-bubble'],
     files: [
       {
         name: 'SARSCoV2_Simulated_Sequences_snp.fas',

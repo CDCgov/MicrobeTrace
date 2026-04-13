@@ -5,7 +5,7 @@ export const COLOR_BY_PROFILES: DatasetProfile[] = [
   P({
     id: 'color-by-uploaded-categorical',
     title: 'Styling: uploaded categorical node and link color-by controls update Cytoscape and color tables',
-    tags: ['style', 'color-by', 'uploaded', 'node-link', 'load-to-twod'],
+    tags: ['style', 'color-by', 'uploaded', 'node-link', 'load-to-twod', 'load-to-bubble'],
     files: [
       { name: 'TestStyleNodelist_snp.csv', datatype: 'node' },
       { name: 'TestStyleEdgelist_snp.csv', datatype: 'link', field1: 'source', field2: 'target' },
