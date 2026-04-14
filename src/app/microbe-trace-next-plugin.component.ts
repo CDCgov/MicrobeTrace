@@ -1015,7 +1015,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (mainSVG.endsWith('/>')) {
             combinedSvgString = mainSVG.replace('/>', '>' + tableSVGStrings + '</svg>')
         } else {
-            combinedSvgString = mainSVG.replace('</svg>', tableSVGStrings + '</svg>')
+            const closingSvgIndex = mainSVG.lastIndexOf('</svg>');
+            if (closingSvgIndex >= 0) {
+                combinedSvgString =
+                    mainSVG.slice(0, closingSvgIndex)
+                    + tableSVGStrings
+                    + mainSVG.slice(closingSvgIndex);
+            } else {
+                combinedSvgString = mainSVG + tableSVGStrings;
+            }
         }
 
         let blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
@@ -1030,6 +1038,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public removeComponent( component: string ) {
         if (component === KeyTablesComponent.componentTypeName) {
             this.keyTablesController.clearDocking();
+            this.commonService.visuals.twoD?.handleKeyTablesViewClosed();
             setTimeout(() => this.syncFloatingKeyTableDialogs());
         }
 
@@ -4180,7 +4189,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.isKeyTableDocked(table)) {
             this.keyTablesController.setDocked(table, false);
 
-            if (!this.keyTablesController.hasDockedTables()) {
+            if (!this.hasAnyDockedKeyTablesContent()) {
                 this.closeKeyTablesView();
             }
         } else {
@@ -4194,6 +4203,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.cdref.markForCheck();
     }
 
+    public ensureDockedKeyTablesViewVisible(focusView: boolean = false): void {
+        this.ensureKeyTablesViewOpen(focusView);
+    }
+
+    public refreshDockedKeyTablesView(): void {
+        this.refreshKeyTablesView();
+    }
+
+    public closeDockedKeyTablesViewIfUnused(): void {
+        if (!this.hasAnyDockedKeyTablesContent()) {
+            this.closeKeyTablesView();
+        }
+    }
+
     openKeyTablesView() {
         KEY_TABLE_NAMES.forEach(table => {
             this.markKeyTableVisible(table);
@@ -4201,6 +4224,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.keyTablesController.dockAll();
 
         this.ensureKeyTablesViewOpen(true);
+        this.commonService.visuals.twoD?.dockPolygonColorTableIfVisible();
         this.syncFloatingKeyTableDialogs();
         this.refreshKeyTablesView();
     }
@@ -4405,6 +4429,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         } else {
             this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
         }
+    }
+
+    private hasAnyDockedKeyTablesContent(): boolean {
+        return this.keyTablesController.hasDockedTables()
+            || !!this.commonService.visuals.twoD?.isPolygonColorTableDocked;
     }
 
     private ensureKeyTablesViewOpen(focusView: boolean = true): void {

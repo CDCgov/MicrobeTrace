@@ -14,7 +14,7 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
-import { getCustomNodeShapeData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -23,6 +23,20 @@ import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
+
+interface CustomNodeSvgExportReplacement {
+    exportHeight: number;
+    exportWidth: number;
+    exportX: number;
+    exportY: number;
+    fillColor: string;
+    fillPath: string;
+    path: string;
+    strokeColor: string;
+    strokeWidth: number;
+    width: number;
+    height: number;
+}
 
 @Component({
     selector: 'TwoDComponent',
@@ -192,8 +206,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     public nodeBorderWidth = 2.0;
 
-    ShowPolygonColorTable: boolean = false;
     ShowAdvancedExport: boolean = true;
+    isPolygonColorTableDocked: boolean = false;
 
     PolygonColorTableWrapperDialogSettings: DialogSettings = new DialogSettings('#polygon-color-table-wrapper', false);
 
@@ -1278,6 +1292,223 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }, debounceDelay);
     }
 
+    private getCustomNodeSvgExportReplacementList(): CustomNodeSvgExportReplacement[] {
+        const replacements: CustomNodeSvgExportReplacement[] = [];
+        if (!this.cy) {
+            return replacements;
+        }
+
+        const graphBounds = this.cy.elements().boundingBox();
+        this.cy.nodes().forEach(node => {
+            const shapeKey = node.data('shapeKey');
+            if (!isCustomNodeIconShape(shapeKey)) {
+                return;
+            }
+
+            const vectorData = getCustomNodeShapeVectorData(shapeKey);
+            if (!vectorData) {
+                return;
+            }
+
+            const position = node.position();
+            const padding = Number(node.numericStyle('padding')) || 0;
+            const paddingX2 = padding * 2;
+            const nodeTotalWidth = node.width() + paddingX2;
+            const nodeTotalHeight = node.height() + paddingX2;
+            const containScale = Math.min(nodeTotalWidth / vectorData.width, nodeTotalHeight / vectorData.height);
+            const exportWidth = vectorData.width * containScale;
+            const exportHeight = vectorData.height * containScale;
+            const nodeColor = node.data('nodeColor') || this.getNodeColor(node.data())[0];
+            replacements.push({
+                exportHeight,
+                exportWidth,
+                exportX: (position.x - graphBounds.x1 - (nodeTotalWidth / 2)) + ((nodeTotalWidth - exportWidth) / 2),
+                exportY: (position.y - graphBounds.y1 - (nodeTotalHeight / 2)) + ((nodeTotalHeight - exportHeight) / 2),
+                fillColor: nodeColor,
+                fillPath: vectorData.fillPath,
+                path: vectorData.path,
+                strokeColor: nodeColor,
+                strokeWidth: 4,
+                width: vectorData.width,
+                height: vectorData.height
+            });
+        });
+
+        return replacements;
+    }
+
+    private getSvgLengthAttribute(element: Element, attributeName: string): number | null {
+        const attributeValue = element.getAttribute(attributeName);
+        if (!attributeValue) {
+            return null;
+        }
+
+        const numericValue = parseFloat(attributeValue);
+        return Number.isFinite(numericValue) ? numericValue : null;
+    }
+
+    private getSvgImageHref(image: Element): string | null {
+        const xlinkNamespace = 'http://www.w3.org/1999/xlink';
+        return image.getAttribute('href')
+            || image.getAttributeNS(xlinkNamespace, 'href')
+            || image.getAttribute('xlink:href');
+    }
+
+    private hasClipPathAncestor(element: Node | null): boolean {
+        let current: Node | null = element?.parentNode ?? null;
+        while (current) {
+            if (current.nodeType === Node.ELEMENT_NODE) {
+                const currentElement = current as Element;
+                if (currentElement.tagName.toLowerCase() === 'g' && !!currentElement.getAttribute('clip-path')) {
+                    return true;
+                }
+            }
+
+            current = current.parentNode;
+        }
+
+        return false;
+    }
+
+    private getSvgTranslateTransform(element: Element): { x: number; y: number } | null {
+        const transformValue = element.getAttribute('transform');
+        if (!transformValue) {
+            return null;
+        }
+
+        const translateMatch = transformValue.match(/translate\(\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*,?\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*\)/i);
+        if (!translateMatch) {
+            return null;
+        }
+
+        const x = parseFloat(translateMatch[1]);
+        const y = parseFloat(translateMatch[2]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return null;
+        }
+
+        return { x, y };
+    }
+
+    private findMatchingCustomNodeSvgExportReplacement(
+        image: Element,
+        replacements: CustomNodeSvgExportReplacement[],
+        usedReplacements: Set<CustomNodeSvgExportReplacement>
+    ): CustomNodeSvgExportReplacement | null {
+        const imageWidth = this.getSvgLengthAttribute(image, 'width');
+        const imageHeight = this.getSvgLengthAttribute(image, 'height');
+        const imageTranslate = this.getSvgTranslateTransform(image);
+        if (imageWidth === null || imageHeight === null || !imageTranslate) {
+            return null;
+        }
+
+        let bestMatch: CustomNodeSvgExportReplacement | null = null;
+        let bestScore = Number.POSITIVE_INFINITY;
+        for (const replacement of replacements) {
+            if (usedReplacements.has(replacement)) {
+                continue;
+            }
+
+            const score =
+                Math.abs(replacement.exportX - imageTranslate.x)
+                + Math.abs(replacement.exportY - imageTranslate.y)
+                + Math.abs(replacement.exportWidth - imageWidth)
+                + Math.abs(replacement.exportHeight - imageHeight);
+            if (score < bestScore) {
+                bestScore = score;
+                bestMatch = replacement;
+            }
+        }
+
+        return bestMatch;
+    }
+
+    private createCustomNodeVectorExportElement(
+        doc: XMLDocument,
+        sourceImage: SVGImageElement,
+        replacement: CustomNodeSvgExportReplacement
+    ): SVGGElement {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const vectorGroup = doc.createElementNS(svgNamespace, 'g');
+        const attributesToCopy = ['opacity', 'style', 'clip-path'];
+
+        for (const attributeName of attributesToCopy) {
+            const attributeValue = sourceImage.getAttribute(attributeName);
+            if (attributeValue) {
+                vectorGroup.setAttribute(attributeName, attributeValue);
+            }
+        }
+
+        const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
+        const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
+        const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
+        const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
+        const imageTransform = sourceImage.getAttribute('transform') || '';
+        const transforms: string[] = [];
+        if (imageX !== 0 || imageY !== 0) {
+            transforms.push(`translate(${imageX}, ${imageY})`);
+        }
+        if (imageTransform) {
+            transforms.push(imageTransform);
+        }
+        if (transforms.length) {
+            vectorGroup.setAttribute('transform', transforms.join(' '));
+        }
+        vectorGroup.setAttribute('aria-hidden', 'true');
+
+        const scaleGroup = doc.createElementNS(svgNamespace, 'g');
+        scaleGroup.setAttribute('transform', `scale(${imageWidth / replacement.width}, ${imageHeight / replacement.height})`);
+
+        const group = doc.createElementNS(svgNamespace, 'g');
+        group.setAttribute('transform', `translate(0, ${replacement.height}) scale(1,-1)`);
+
+        const fillPath = doc.createElementNS(svgNamespace, 'path');
+        fillPath.setAttribute('d', replacement.fillPath);
+        fillPath.setAttribute('fill', replacement.fillColor);
+        fillPath.setAttribute('stroke', 'none');
+        group.appendChild(fillPath);
+
+        const outlinePath = doc.createElementNS(svgNamespace, 'path');
+        outlinePath.setAttribute('d', replacement.path);
+        outlinePath.setAttribute('fill', 'none');
+        outlinePath.setAttribute('stroke', replacement.strokeColor);
+        outlinePath.setAttribute('stroke-width', `${replacement.strokeWidth}`);
+        outlinePath.setAttribute('stroke-linecap', 'round');
+        outlinePath.setAttribute('stroke-linejoin', 'round');
+        group.appendChild(outlinePath);
+
+        scaleGroup.appendChild(group);
+        vectorGroup.appendChild(scaleGroup);
+        return vectorGroup;
+    }
+
+    private replaceExportedCustomNodeImagesWithVectorShapes(doc: XMLDocument): void {
+        const replacementList = this.getCustomNodeSvgExportReplacementList();
+        if (replacementList.length === 0) {
+            return;
+        }
+
+        const images = Array.from(doc.getElementsByTagName('image'))
+            .filter(image => {
+                const href = this.getSvgImageHref(image);
+                return !!href
+                    && href.startsWith('data:image/png;base64,')
+                    && this.hasClipPathAncestor(image);
+            });
+        const usedReplacements = new Set<CustomNodeSvgExportReplacement>();
+
+        images.forEach(image => {
+            const replacement = this.findMatchingCustomNodeSvgExportReplacement(image, replacementList, usedReplacements);
+            if (!replacement || !image.parentNode) {
+                return;
+            }
+
+            usedReplacements.add(replacement);
+            const vectorElement = this.createCustomNodeVectorExportElement(doc, image as SVGImageElement, replacement);
+            image.parentNode.replaceChild(vectorElement, image);
+        });
+    }
+
     /**
      * Hides export pane, sets isExporting variable to true and calls exportWork2 to export the twoD network image
      */
@@ -1293,6 +1524,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         // Set export options in the service
         this.exportService.setExportOptions(exportOptions);
+        const polygonColorTableElement = this.getPolygonColorTableElementForExport();
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
 
@@ -1302,6 +1534,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Add 10px of padding around network
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
+            this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
             const svg1 = doc.documentElement;          
             svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
             svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
@@ -1309,8 +1542,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             content = svgString.replace('<g>', `<g transform="translate(10, 10)">`)
 
             let elementsToExport: HTMLTableElement[] = [];
-            if (this.widgets["polygon-color-table-visible"]) {
-                elementsToExport.push(this.polygonColorTable.nativeElement);
+            if (this.widgets["polygon-color-table-visible"] && polygonColorTableElement) {
+                elementsToExport.push(polygonColorTableElement);
             }
             if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
                 elementsToExport.push(this.networkStatisticsTable.nativeElement)
@@ -1320,8 +1553,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else {
             // Request export
             let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement];
-            if (this.widgets["polygon-color-table-visible"]) {
-                elementsToExport.push(this.polygonColorTable.nativeElement);
+            if (this.widgets["polygon-color-table-visible"] && polygonColorTableElement) {
+                elementsToExport.push(polygonColorTableElement);
             }
             if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
                 elementsToExport.push(this.networkStatisticsTable.nativeElement);
@@ -1390,9 +1623,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Generates Polygon Color Selection Table, updates polygonColorMap and polygonAlphaMap functions, and then calls render to show/update network
      * 
      */
-    updatePolygonColors() {
+    updatePolygonColors(tableSelector: string = this.getActivePolygonColorTableSelector()) {
 
-        let polygonColorTable = $("#polygon-color-table")
+        let polygonColorTable = $(tableSelector)
             .empty()
             .append(            
                 "<tr>" +
@@ -1505,7 +1738,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
         // The sorting functionality is added here
-        $('#polygon-color-table').off('click', 'th .sort-button').on('click', 'th .sort-button', function (e) {
+        $(tableSelector).off('click', 'th .sort-button').on('click', 'th .sort-button', function (e) {
             let isAscending: boolean;
             let index: number;
             if (e.currentTarget.classList.value.includes('sortName')) {
@@ -1539,6 +1772,170 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
+    private getDockedPolygonColorTableSelector(): string {
+        return '#key-tables-polygon-color-table';
+    }
+
+    private getActivePolygonColorTableSelector(): string {
+        return this.isPolygonColorTableDocked
+            ? this.getDockedPolygonColorTableSelector()
+            : '#polygon-color-table';
+    }
+
+    private clearPolygonColorTables(): void {
+        $('#polygon-color-table').empty();
+        $(this.getDockedPolygonColorTableSelector()).empty();
+    }
+
+    private getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
+        return this.isPolygonColorTableDocked
+            ? document.querySelector(this.getDockedPolygonColorTableSelector()) as HTMLTableElement | undefined
+            : this.polygonColorTable?.nativeElement;
+    }
+
+    private shouldDisplayPolygonColorTable(): boolean {
+        return !!this.widgets?.['polygons-show']
+            && !!this.widgets?.['polygons-color-show']
+            && !!this.widgets?.['polygon-color-table-visible'];
+    }
+
+    public hasVisibleDockedPolygonColorTable(): boolean {
+        return !!this.isPolygonColorTableDocked
+            && this.shouldDisplayPolygonColorTable();
+    }
+
+    public renderDockedPolygonColorTable(): void {
+        this.updatePolygonColors(this.getDockedPolygonColorTableSelector());
+        this.updateCountFreqTable('polygon-color');
+    }
+
+    public clearDockedPolygonColorTable(): void {
+        $(this.getDockedPolygonColorTableSelector()).empty();
+    }
+
+    public dockPolygonColorTableIfVisible(): boolean {
+        const isVisible = this.shouldDisplayPolygonColorTable();
+
+        if (!isVisible) {
+            return false;
+        }
+
+        if (!this.isPolygonColorTableDocked) {
+            this.isPolygonColorTableDocked = true;
+            this.closeSettingsPane('polygonColorTableSettings');
+        }
+
+        this.syncPolygonColorTableVisibility();
+        return true;
+    }
+
+    getPolygonColorTableDockButtonTitle(): string {
+        return this.isPolygonColorTableDocked ? 'Float table' : 'Dock table';
+    }
+
+    private resetPolygonColorTableFloatingPosition(): void {
+        const viewportMargin = 16;
+        const dialogWidth = Math.min(window.innerWidth * 0.45, 500);
+        const dialogHeight = Math.min(window.innerHeight * 0.5, 420);
+        const hostElement = this.exportContainer?.nativeElement as HTMLElement | undefined;
+        const hostRect = hostElement?.getBoundingClientRect?.();
+
+        let left = hostRect
+            ? hostRect.right - dialogWidth - 24
+            : window.innerWidth - dialogWidth - viewportMargin;
+        let top = hostRect ? hostRect.top + 72 : viewportMargin + 60;
+
+        left = Math.max(viewportMargin, Math.min(left, window.innerWidth - dialogWidth - viewportMargin));
+        top = Math.max(viewportMargin, Math.min(top, window.innerHeight - dialogHeight - viewportMargin));
+
+        if (hostRect) {
+            const minLeft = Math.max(viewportMargin, hostRect.left + 16);
+            const maxLeft = Math.max(minLeft, Math.min(window.innerWidth - dialogWidth - viewportMargin, hostRect.right - dialogWidth - 16));
+            const minTop = Math.max(viewportMargin, hostRect.top + 16);
+            const maxTop = Math.max(minTop, Math.min(window.innerHeight - dialogHeight - viewportMargin, hostRect.bottom - dialogHeight - 16));
+
+            left = Math.max(minLeft, Math.min(left, maxLeft));
+            top = Math.max(minTop, Math.min(top, maxTop));
+        }
+
+        this.PolygonColorTableWrapperDialogSettings.setPosition(Math.round(top), Math.round(left));
+    }
+
+    private syncPolygonColorTableVisibility(shouldRefresh: boolean = true): void {
+        const isVisible = this.shouldDisplayPolygonColorTable();
+        const shouldShowFloatingDialog = isVisible && !this.isPolygonColorTableDocked;
+
+        this.SelectedNetworkTableTypeVariable = isVisible ? 'Show' : 'Hide';
+
+        if (this.PolygonColorTableWrapperDialogSettings.isVisible !== shouldShowFloatingDialog) {
+            this.PolygonColorTableWrapperDialogSettings.setVisibility(shouldShowFloatingDialog);
+        }
+
+        this.cdref.markForCheck();
+
+        if (!isVisible) {
+            this.clearPolygonColorTables();
+            this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+            return;
+        }
+
+        if (this.isPolygonColorTableDocked) {
+            if (!shouldRefresh) {
+                this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+                return;
+            }
+
+            setTimeout(() => {
+                this.updateGroupNodeColors();
+                this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+            }, 0);
+            return;
+        }
+
+        this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+
+        if (!shouldRefresh) {
+            return;
+        }
+
+        setTimeout(() => {
+            this.updatePolygonColors();
+            this.updateGroupNodeColors();
+            this.updateCountFreqTable('polygon-color');
+        }, 0);
+    }
+
+    togglePolygonColorTableDocking(event?: Event): void {
+        event?.stopPropagation();
+        this.isPolygonColorTableDocked = !this.isPolygonColorTableDocked;
+        if (this.isPolygonColorTableDocked) {
+            this.commonService.visuals.microbeTrace?.ensureDockedKeyTablesViewVisible(false);
+        } else {
+            this.resetPolygonColorTableFloatingPosition();
+            this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
+        }
+        this.closeSettingsPane('polygonColorTableSettings');
+        this.syncPolygonColorTableVisibility();
+    }
+
+    onPolygonColorTableDialogHide(): void {
+        if (this.isPolygonColorTableDocked) {
+            return;
+        }
+
+        this.onPolygonColorTableChange(false);
+    }
+
+    public handleKeyTablesViewClosed(): void {
+        if (!this.isPolygonColorTableDocked) {
+            return;
+        }
+
+        this.isPolygonColorTableDocked = false;
+        this.resetPolygonColorTableFloatingPosition();
+        this.syncPolygonColorTableVisibility();
+    }
+
     /**
      * This function is called when polygon-show widget is updated from the template.
      * That widget controls whether polygons are shown or not
@@ -1560,10 +1957,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-value-row").slideUp();
             $("#polygon-color-table").empty();
-
-            this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
         }
 
+        this.syncPolygonColorTableVisibility();
     }
 
     /**
@@ -1703,7 +2099,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * This function is called when polygon-color-show widget is updated from the template.
      * This widget controls whether polygon should be colored the same or different.
      */
-    polygonColorsToggle(e) {
+    polygonColorsToggle(e, syncTableVisibility: boolean = true) {
 
         console.log('polygonColorsToggle: ', e);
 
@@ -1711,12 +2107,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['polygons-color-show'] = true;
             $("#polygon-color-value-row").slideUp();
             $("#polygon-color-table-row").slideDown();
-            this.PolygonColorTableWrapperDialogSettings.setVisibility(true);
-
-            //setTimeout(() => {
-                //this.updatePolygonColors();
-                //this.updateGroupNodeColors();
-            //}, 200);
+            if (syncTableVisibility) {
+                this.onPolygonColorTableChange(true);
+            } else {
+                this.syncPolygonColorTableVisibility(false);
+            }
 
         }
         else {
@@ -1724,7 +2119,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $("#polygon-color-value-row").slideDown();
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-table").empty();
-            this.PolygonColorTableWrapperDialogSettings.setVisibility(false);
+            this.onPolygonColorTableChange(false);
             setTimeout(() => {
                 // first removes polygons, if needed second call add them back
                 this.updateNodeGrouping(false);
@@ -1756,8 +2151,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('polygonColorsTableToggle: ', e);
 
-        this.SelectedNetworkTableTypeVariable = e == true ? 'Show' : 'Hide';
-        this.PolygonColorTableWrapperDialogSettings.setVisibility(e);        
+        this.onPolygonColorTableChange(!!e);
     }
 
 
@@ -2421,17 +2815,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onPolygonColorTableChange(e) {
         console.log('onPolygonColorTableChange: ', e);
 
-        this.widgets["polygon-color-table-visible"] = e;
-
-        if (e) {
-            this.SelectedNetworkTableTypeVariable = 'Show';
-            setTimeout(() => {
-                this.updatePolygonColors();
-                this.updateGroupNodeColors()
-            }, 0);
-         } else {
-            this.SelectedNetworkTableTypeVariable = 'Hide';
-        }
+        this.widgets["polygon-color-table-visible"] = !!e;
+        this.syncPolygonColorTableVisibility();
     }
 
 
@@ -3187,8 +3572,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 console.log('twod 11 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
 
                 if (this.commonService.session.style.widgets['polygons-color-show']) {
-                    this.commonService.session.style.widgets['polygon-color-table-visible'] = true;
-                    this.onPolygonColorTableChange(true);
+                    this.onPolygonColorTableChange(this.commonService.session.style.widgets['polygon-color-table-visible']);
+                    this.updateGroupNodeColors();
                     // this.polygonColorsToggle(this.widgets['polygon-color-table-visible'])
                     // this.updateGroupNodeColors();
                     console.log('twod 2polygons show: ', this.commonService.session.style.widgets['polygon-color-table-visible']);
@@ -3280,14 +3665,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param tableName 'polygon-color'
      */
     updateCountFreqTable(tableName) {
-        let tableReferenceName, showCount, showFreq;
+        let showCount, showFreq;
         if (tableName == 'polygon-color') {
-            tableReferenceName = '#polygon-color-table-wrapper';
             showCount = this.widgets['polygon-color-table-counts'];
             showFreq = this.widgets['polygon-color-table-frequencies'];
         }
-        const countColumn = $(tableReferenceName + ' .tableCount');
-        const freqColumn = $(tableReferenceName + ' .tableFrequency');
+        const tableSelector = tableName == 'polygon-color'
+            ? this.getActivePolygonColorTableSelector()
+            : '#polygon-color-table';
+        const countColumn = $(tableSelector + ' .tableCount');
+        const freqColumn = $(tableSelector + ' .tableFrequency');
         console.log(showCount, showFreq, countColumn, freqColumn);
         (showCount) ? countColumn.slideDown() : countColumn.slideUp();
         (showFreq) ? freqColumn.slideDown() : freqColumn.slideUp();
@@ -4160,8 +4547,9 @@ private async _partialUpdate() {
 
         this.polygonsToggle(this.widgets['polygons-show']);
         if (this.commonService.session.style.widgets['polygons-show']) {
+            this.polygonColorsToggle(this.commonService.session.style.widgets['polygons-color-show'], false);
+            this.onPolygonColorTableChange(this.commonService.session.style.widgets['polygon-color-table-visible']);
             this.updatePolygonColors();
-            this.polygonColorsToggle(this.commonService.session.style.widgets['polygon-color-table-visible'])
             this.updateGroupNodeColors();
         }
 

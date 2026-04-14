@@ -296,5 +296,59 @@
         </table>
       </div>
     </section>
+
+    <section class="key-table-card" [hidden]="!showPolygonColorTableCard" [class.key-table-card--collapsed]="polygonTableCollapsed">
+      <div class="key-table-card__header">
+        <h5>2D Group Colors</h5>
+        <div class="key-table-card__controls">
+          <span>2D Network</span>
+          <div class="key-table-card__menu-anchor">
+            <button
+              type="button"
+              title="Settings"
+              class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
+              (click)="togglePolygonSettingsMenu($event)">
+              <i class="pi pi-cog"></i>
+            </button>
+            <div
+              class="dropdown-menu key-table-card__menu"
+              [class.show]="showPolygonSettingsMenu"
+              (click)="$event.stopPropagation()"
+              (mouseleave)="hidePolygonSettingsMenu()">
+              <button class="dropdown-item" (click)="togglePolygonTableColumn('tableCounts', $event)">
+                <span>Show Counts</span>
+                <i [className]="widgets['polygon-color-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
+              </button>
+              <button class="dropdown-item" (click)="togglePolygonTableColumn('tableFreq', $event)">
+                <span>Show Frequencies</span>
+                <i [className]="widgets['polygon-color-table-frequencies'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            [title]="getPolygonColorTableDockButtonTitle()"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
+            (click)="togglePolygonColorTableDocking($event)">
+            <i class="pi pi-window-minimize"></i>
+          </button>
+          <button
+            type="button"
+            [title]="polygonTableCollapsed ? 'Expand table' : 'Collapse table'"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__collapse-trigger"
+            (click)="togglePolygonTableCollapsed($event)">
+            <i [className]="polygonTableCollapsed ? 'pi pi-chevron-down' : 'pi pi-chevron-up'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="key-table-card__fallback" [hidden]="polygonTableCollapsed || hasPolygonColorTable">
+        <p class="key-table-card__empty">
+          Group color table visibility is controlled from the 2D Network settings.
+        </p>
+      </div>
+      <div class="key-table-card__table" [hidden]="polygonTableCollapsed || !hasPolygonColorTable">
+        <table id="key-tables-polygon-color-table"></table>
+      </div>
+    </section>
   </div>
 </div>

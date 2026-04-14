@@ -20,12 +20,16 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
     hasNodeColorTable = false;
     hasLinkColorTable = false;
     hasNodeShapeTable = false;
+    hasPolygonColorTable = false;
+    showPolygonColorTableCard = false;
     showNodeSettingsMenu = false;
     showLinkSettingsMenu = false;
     showNodeShapeSettingsMenu = false;
+    showPolygonSettingsMenu = false;
     nodeTableCollapsed = false;
     linkTableCollapsed = false;
     nodeShapeTableCollapsed = false;
+    polygonTableCollapsed = false;
 
     constructor(
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
@@ -131,6 +135,8 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         this.hasNodeColorTable = this.isTableDocked('node-color') && microbeTrace.SelectedColorNodesByVariable !== 'None';
         this.hasLinkColorTable = this.isTableDocked('link-color') && microbeTrace.SelectedColorLinksByVariable !== 'None';
         this.hasNodeShapeTable = this.isTableDocked('node-shape') && microbeTrace.SelectedNodeSymbolVariable !== 'None';
+        this.showPolygonColorTableCard = !!this.visuals.twoD?.isPolygonColorTableDocked;
+        this.hasPolygonColorTable = !!this.visuals.twoD?.hasVisibleDockedPolygonColorTable();
 
         if (this.hasNodeColorTable) {
             microbeTrace.generateNodeColorTable('#key-tables-node-table');
@@ -146,6 +152,12 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
         if (this.hasNodeShapeTable) {
             microbeTrace.generateNodeShapeSelectionTable(microbeTrace.SelectedNodeSymbolVariable);
+        }
+
+        if (this.hasPolygonColorTable) {
+            this.visuals.twoD?.renderDockedPolygonColorTable();
+        } else {
+            this.visuals.twoD?.clearDockedPolygonColorTable();
         }
 
         microbeTrace.updateCountFreqTable('node-color');
@@ -240,6 +252,10 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         return this.dockController?.getDockButtonTitle(table) ?? 'Float table';
     }
 
+    getPolygonColorTableDockButtonTitle(): string {
+        return this.visuals.twoD?.getPolygonColorTableDockButtonTitle() ?? 'Float table';
+    }
+
     hideSettingsMenu(table: KeyTableName): void {
         if (table === 'node-color') {
             this.showNodeSettingsMenu = false;
@@ -249,6 +265,20 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
             this.showNodeShapeSettingsMenu = false;
         }
 
+        this.cdref.markForCheck();
+    }
+
+    togglePolygonSettingsMenu(event?: Event): void {
+        event?.stopPropagation();
+        this.showPolygonSettingsMenu = !this.showPolygonSettingsMenu;
+        this.showNodeSettingsMenu = false;
+        this.showLinkSettingsMenu = false;
+        this.showNodeShapeSettingsMenu = false;
+        this.cdref.markForCheck();
+    }
+
+    hidePolygonSettingsMenu(): void {
+        this.showPolygonSettingsMenu = false;
         this.cdref.markForCheck();
     }
 
@@ -269,6 +299,25 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
             this.nodeShapeTableCollapsed = !this.nodeShapeTableCollapsed;
         }
 
+        this.cdref.markForCheck();
+    }
+
+    togglePolygonColorTableDocking(event?: Event): void {
+        event?.stopPropagation();
+        this.visuals.twoD?.togglePolygonColorTableDocking(event);
+        this.cdref.markForCheck();
+    }
+
+    togglePolygonTableColumn(column: 'tableCounts' | 'tableFreq', event?: Event): void {
+        event?.stopPropagation();
+        this.visuals.twoD?.toggleTableColumns('polygon-color', column);
+        this.hidePolygonSettingsMenu();
+        this.refreshTables();
+    }
+
+    togglePolygonTableCollapsed(event?: Event): void {
+        event?.stopPropagation();
+        this.polygonTableCollapsed = !this.polygonTableCollapsed;
         this.cdref.markForCheck();
     }
 
@@ -315,6 +364,7 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         this.showNodeSettingsMenu = false;
         this.showLinkSettingsMenu = false;
         this.showNodeShapeSettingsMenu = false;
+        this.showPolygonSettingsMenu = false;
         this.cdref.markForCheck();
     }
 

@@ -35,6 +35,13 @@ interface CustomNodeShapeDefinition extends NodeShapeOption {
     fillPath?: string;
 }
 
+export interface CustomNodeShapeVectorData {
+    width: number;
+    height: number;
+    path: string;
+    fillPath: string;
+}
+
 export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
     { key: 'ellipse', value: '\u2b24', name: ' (Circle) ', groupKey: 'basic' },
     { key: 'triangle', value: '\u25b2', name: ' (Triangle)', groupKey: 'basic' },
@@ -703,6 +710,21 @@ export function getTreeNodeShapeScale(shapeKey: string): number {
     }
 
     return 1;
+}
+
+export function getCustomNodeShapeVectorData(shapeKey: string): CustomNodeShapeVectorData | null {
+    const normalizedShapeKey = normalizeNodeShapeKey(shapeKey);
+    if (!normalizedShapeKey || !isCustomNodeShape(normalizedShapeKey)) {
+        return null;
+    }
+
+    const definition = CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey];
+    return {
+        width: definition.width,
+        height: definition.height,
+        path: definition.path,
+        fillPath: definition.fillPath ?? definition.path
+    };
 }
 
 export function getCustomNodeShapeData(shapeKey: string, nodeColor: string): Record<string, string> {
