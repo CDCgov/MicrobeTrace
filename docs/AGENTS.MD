@@ -113,7 +113,17 @@ When a test fails, do not immediately weaken the test. First identify which laye
 * For suspected app bugs, document divergence explicitly
 
   * Example: widget changed but SVG did not update, or Cytoscape moved but `session.data.nodes[*].x/y` stayed stale.
-  * Record it in `docs/2d-network-cypress-bug-log.csv` with the fixture, observed behavior, intended behavior if known, the regression spec path, and fill in `cause_summary` / `fix_summary` before closing the bug row.
+  * Record it in the matching Cypress bug log:
+    * `docs/2d-network-cypress-bug-log.csv` for 2D Network issues
+    * `docs/map-view-cypress-bug-log.csv` for Map issues
+    * `docs/epi-curve-cypress-bug-log.csv` for Epi Curve issues
+    * `docs/crosstab-view-cypress-bug-log.csv` for Crosstab issues
+    * `docs/aggregate-view-cypress-bug-log.csv` for Aggregate issues
+    * `docs/bubble-view-cypress-bug-log.csv` for Bubble issues
+    * `docs/table-view-cypress-bug-log.csv` for Table issues
+    * `docs/waterfall-view-cypress-bug-log.csv` for Waterfall issues
+    * `docs/phylogenetic-view-cypress-bug-log.csv` for Phylogenetic Tree issues
+  * Include the fixture, observed behavior, intended behavior if known, the regression spec path, and fill in `cause_summary` / `fix_summary` before closing the bug row.
 
 Tip: keep diagnostic logs inside the spec while debugging, but remove noisy logging before committing.
 
@@ -129,10 +139,14 @@ Tip: keep diagnostic logs inside the spec while debugging, but remove noisy logg
 
   * Wait for `.mapStyle` to be visible.
   * Avoid relying on online tiles for correctness assertions (see Map caveats).
+* Bubble
+
+  * Wait for `#cyBubble` or `[data-testid="bubble-canvas"]` to be visible.
+  * Confirm `window.commonService.visuals.bubble.cy` exists before asserting rendered Bubble node state.
 
 ## 2D Network (Cytoscape) rules
 
-Only the 2D Network view uses Cytoscape. These rules do not apply to other views.
+The 2D Network and Bubble views use Cytoscape. The rules below focus on the exposed 2D singleton unless a Bubble-specific note says otherwise.
 
 The 2D Network has 3 state layers that must stay consistent:
 

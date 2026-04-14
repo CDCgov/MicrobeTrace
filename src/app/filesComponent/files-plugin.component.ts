@@ -97,6 +97,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   public id: string;
 
   private destroy$ = new Subject<void>();
+  private loadViewSubscription?: Subscription;
 
   
 
@@ -134,7 +135,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.SelectedDefaultDistanceThresholdVariable = this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
     this.SelectedDefaultDistanceMetricVariable = this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable;
-    this.commonService.LoadViewEvent.subscribe((v) => { this.loadDefaultVisualization(v); });
+    this.loadViewSubscription = this.commonService.LoadViewEvent.subscribe((v) => { this.loadDefaultVisualization(v); });
     this.commonService.session.data.reference = this.commonService.HXB2.substr(2000, 2100);
 
     if (this.eventEmitterService.subsVar==undefined) {    
@@ -499,7 +500,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.store.setNewSession(false);
     this.store.setStyleFileApplied();  
     this.store.setFP_removeFiles(false);
-    this.commonService.LoadViewEvent.unsubscribe();
+    this.loadViewSubscription?.unsubscribe();
 
   }
 
@@ -1271,7 +1272,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       } else { // if(file.format === 'newick'){
 
-        this.commonService.resetData();
         let links = 0;
         let newLinks = 0;
         let newNodes = 0;
@@ -1791,7 +1791,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         });
       }
 
-      root.appendTo('#file-table');
+      const fileTable = document.getElementById('file-table');
+      if (!fileTable) {
+        console.log('Skipping file table row render because the Files view is no longer mounted.', file.name);
+        return;
+      }
+
+      root.appendTo(fileTable);
       matchHeaders($(`[name="options-${file.name}"]:checked`).data('type'));
 
       function refit(e: any = null) {
@@ -1818,7 +1824,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#launch').prop('disabled', false).focus();
       };
 
-      const fileTable = document.getElementById('file-table');
       const selectElements = fileTable.querySelectorAll('select');
 
       for (let i = 0; i < selectElements.length; i++) {

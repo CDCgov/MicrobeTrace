@@ -89,7 +89,13 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   startPos = 1;
   endPos = 3000;
   //rulerMinorInterval: number = 20; replaced with this.widgets['alignView-rulerMinorInterval']
-  rulerIntervalOptions = [0, 10, 20, 25, 50]
+  rulerIntervalOptions: SelectItem[] = [
+    { label: '0', value: 0 },
+    { label: '10', value: 10 },
+    { label: '20', value: 20 },
+    { label: '25', value: 25 },
+    { label: '50', value: 50 },
+  ];
   translationSetting = 'Maintain Codons'
 
   // Sizing
@@ -227,6 +233,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
+      this.syncLayoutAfterRender(this.isDirectLaunchAlignmentView());
     })
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
@@ -242,6 +249,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   ngAfterViewInit(): void {
     this.highlightRows();
+    this.syncLayoutAfterRender(this.isDirectLaunchAlignmentView());
   }
 
   ngOnDestroy(): void {
@@ -252,13 +260,21 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   // General
 
   isSeq(seq: string) {
-    if (seq === null || seq === "" || seq === "null") {
-      return false;
-    } else if (/[^-\s]/.test(seq)) { // test if seq contains chars other than dash (-) or space
-      return true;
-    } else {
+    if (seq === null || seq === undefined) {
       return false;
     }
+
+    const compact = String(seq).trim().replace(/\s+/g, '').toUpperCase();
+    if (compact === '' || compact === 'NULL') {
+      return false;
+    }
+
+    // Treat only sufficiently long IUPAC nucleotide / amino-acid-like strings as sequences.
+    return (
+      compact.length >= 10 &&
+      /[ACDEFGHIKLMNPQRSTVWYBXZURYSWKMBDHVN*]/.test(compact) &&
+      /^[ACDEFGHIKLMNPQRSTVWYBXZURYSWKMBDHVN*\-]+$/.test(compact)
+    );
   }
 
   /**
@@ -382,9 +398,26 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   updateAlignment() {
     generateCanvas(this.seqArray, {width: this.spanWidth, height: this.spanHeight, charSetting: this.widgets['alignView-charSetting'], fontSize: this.fontSize, colors: this.colorScheme}).then(function(canvas: HTMLCanvasElement) {
       $('#msa-viewer .canvasHolder').empty().append(canvas)
-    })
+    }).then(() => {
+      this.syncLayoutAfterRender(this.isDirectLaunchAlignmentView());
+    });
     
     this.updateViewHeights();
+  }
+
+  private isDirectLaunchAlignmentView(): boolean {
+    return this.widgets['default-view'] === AlignmentViewComponent.componentTypeName;
+  }
+
+  private syncLayoutAfterRender(releaseProcessingModal = false): void {
+    setTimeout(() => {
+      this.goldenLayoutComponentResize();
+      this.cdref.detectChanges();
+
+      if (releaseProcessingModal && this.commonService.session.data.nodes.length > 0) {
+        this.store.setNetworkRendered(true);
+      }
+    }, 50);
   }
 
   // Mini Map
@@ -1093,7 +1126,9 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
    * @returns the height needed to for all the elements on the right half of msa-viewer. If this height > available space, then scrolling will be used
    */
   calculateRightHeight(): number {
-    let miniMapHeight = (this.widgets['alignView-showMiniMap']) ? $('#miniMapHolder').height()+16 : 0;
+    const miniMapHeight = this.widgets['alignView-showMiniMap']
+      ? (Number($('#miniMapHolder').height()) || 0) + 16
+      : 0;
     // 170 alignmentTop, 17 bottomScrollBar, height of canvas
     return 170+25+this.nodesWithSeq.length*this.spanHeight+ miniMapHeight;
   }
@@ -1102,15 +1137,19 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
    * @returns the height for msa-viewer element based on the minimum of the available space for the view and the height needed for the elements
    */
   calculateViewHeight(): number {
-    return Math.min($(".msa-viewer-container").parent().height()-50, this.rightViewHeight)
+    const availableHeight = Math.max(0, (Number($(".msa-viewer-container").parent().height()) || 0) - 50);
+    return Math.min(availableHeight, this.rightViewHeight || 0)
   }
 
   /**
    * @returns the height for the canvasHolder element and then subsequently the canvasLabels element. Not the height of the canvas itself
    */
   calculateCanvasViewHeight(): number {
-    let miniMapHeight = (this.widgets['alignView-showMiniMap']) ? $('#miniMapHolder').outerHeight() : 0;
-    return Math.min(this.alignmentViewHeight - 170 - miniMapHeight, this.nodesWithSeq.length*this.spanHeight+25)
+    const miniMapHeight = this.widgets['alignView-showMiniMap']
+      ? Number($('#miniMapHolder').outerHeight()) || 0
+      : 0;
+    const availableHeight = Math.max(0, (this.alignmentViewHeight || 0) - 170 - miniMapHeight);
+    return Math.min(availableHeight, this.nodesWithSeq.length*this.spanHeight+25)
   }
 
   /**
@@ -1118,7 +1157,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
    */
   calculateRightWidth(): number {
     // 7: gap between left and right (5) + 2
-    return $("#msa-viewer").width() - this.leftWidth - 7;
+    return Math.max(0, (Number($("#msa-viewer").width()) || 0) - this.leftWidth - 7);
   }
 
 
@@ -1893,4 +1932,3 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 export namespace AlignmentViewComponent {
   export const componentTypeName = 'Alignment View';
 }
-

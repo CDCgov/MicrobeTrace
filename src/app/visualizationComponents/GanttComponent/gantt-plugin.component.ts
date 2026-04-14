@@ -16,6 +16,7 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 
 @Component({
@@ -79,6 +80,16 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   GanttSettingsDialogSettings: DialogSettings = new DialogSettings('#gantt-settings-pane', false);
   isExportClosed: boolean;
 
+  private markGanttRendered(): void {
+    if (this.nodeIds.length === 0) return;
+
+    // Gantt can be the first rendered view on launch, so it must release the
+    // shared processing modal without waiting for the 2D network render path.
+    setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    });
+  }
+
   constructor(injector: Injector,
               private eventManager: EventManager,
               public commonService: CommonService,
@@ -88,7 +99,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
               ganttChartService: GanttChartService,
               private cdref: ChangeDetectorRef,
               private gtmService: GoogleTagManagerService,
-              private exportService: ExportService) {
+              private exportService: ExportService,
+              private store: CommonStoreService) {
 
     super(elRef.nativeElement);
 
@@ -145,6 +157,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     // this.createGanttEntry();
     this.ganttChartData = [];
     this.openSettings();
+    this.markGanttRendered();
     
     // this.ganttChartData = [this.makeGanttEntry("_blank", "Ipstart", "Ipend", "#2ca02c")];
     this.goldenLayoutComponentResize();
@@ -176,6 +189,29 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     $('.gantt-plugin').width($('ganttcomponent').width()-1)
   }
 
+  private getRawGanttFieldValue(nodeData: any, field: string): string | null {
+    const rawDateValues = nodeData?._rawDateValues;
+    const rawValue = rawDateValues && Object.prototype.hasOwnProperty.call(rawDateValues, field)
+      ? rawDateValues[field]
+      : nodeData?.[field];
+
+    if (rawValue == null) {
+      return null;
+    }
+
+    const normalizedValue = String(rawValue).trim();
+    return normalizedValue.length > 0 && normalizedValue !== 'null' ? normalizedValue : null;
+  }
+
+  private normalizeGanttDateValue(dateValue: string | null): string | null {
+    if (!dateValue) {
+      return null;
+    }
+
+    const hasTimeZone: RegExp = /GMT.\d{4}/;
+    return hasTimeZone.test(dateValue) ? dateValue.substring(4, 15) : dateValue;
+  }
+
   makeGanttEntry(dateName: string, startVariable: string, endVariable: string, entryColor: string): object {
     const timeline = {};
 
@@ -201,7 +237,15 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     return ganttEntry;
   }
 
+  canCreateGanttEntry(): boolean {
+    return Boolean(this.GanttStartVariable);
+  }
+
   createGanttEntry(): void {
+    if (!this.canCreateGanttEntry()) {
+      return;
+    }
+
     if (!this.GanttEntryName) this.GanttEntryName = `Entry ${this.ganttEntryCount + 1}`
     this.ganttEntryCount += 1;
     if (!this.GanttEndVariable) {
@@ -249,13 +293,20 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   updateEntryColor(entryName: string, event: Event): void {
     const color = (event.target as HTMLInputElement).value;
     const startingData = cloneDeep(this.ganttChartData);
+    const updatedEntries = cloneDeep(this.ganttEntries);
     for (let i=0; i<startingData.length; i++){
       if (startingData[i]["name"] === entryName){
         startingData[i]["color"] = color;
       }
     }
+    for (let i=0; i<updatedEntries.length; i++){
+      if (updatedEntries[i]["entryName"] === entryName){
+        updatedEntries[i]["color"] = color;
+      }
+    }
+    this.ganttEntries = updatedEntries;
     this.ganttChartData = startingData;
-
+    this.cdref.detectChanges();
   }
 
   openOpacityBar(e, entryName = '') {
@@ -342,6 +393,17 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   listGanttEntries(): object[] {
     return this.ganttEntries;
   }
+
+  private closeExportPane(): void {
+    this.ShowGanttExportPane = false;
+    this.isExportClosed = true;
+    this.cdref.detectChanges();
+  }
+
+  onCloseExport() {
+    this.isExportClosed = true;
+  }
+
   saveImage(event): void {
     const fileName = this.SelectedGanttChartImageFilenameVariable;
     const domId = 'gantt';
@@ -351,11 +413,13 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
       domToImage.toPng(content).then(
         dataUrl => {
           saveAs(dataUrl, fileName);
+          this.closeExportPane();
       });
     } else if (exportImageType === 'jpeg') {
         domToImage.toJpeg(content, { quality: 0.85 }).then(
           dataUrl => {
             saveAs(dataUrl, fileName);
+            this.closeExportPane();
           });
     } else if (exportImageType === 'svg') {
         // The tooltips were being displayed as black bars, so I add a rule to hide them.
@@ -371,6 +435,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
         svgContent = serializer.serializeToString(deserialized);
         const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
         saveAs(blob, fileName);
+        this.closeExportPane();
     }
 
   }

@@ -1,6 +1,6 @@
 # Cypress Architecture
 
-Current on `cypressTesting` as of 2026-03-20.
+Current on `cypressTesting` as of 2026-04-04.
 
 This is the maintained Cypress structure for MicrobeTrace. It exists to keep uploaded-data end-to-end coverage, pure view-mechanics coverage, contract-mode intended-behavior checks, and retired legacy specs clearly separated.
 
@@ -73,6 +73,7 @@ Use this layer for:
 - styling behavior
 - grouping behavior
 - cross-feature combinations
+- dashboard cross-view propagation and isolation once the views are already open
 - uploaded-data-specific behavior where file origin, merge semantics, or prelaunch configuration can change outcomes
 
 Avoid redundant duplication:
@@ -99,6 +100,7 @@ Use this layer for:
 
 - view open/close and per-view settings mechanics that should be stable regardless of upload path
 - layout, drag, tooltip, and toggle behavior for the specific view under test
+- Golden Layout dashboard mechanics such as splitter drag, close/reopen, and hide/show/resize lifecycle when sample or seeded session state is enough
 - per-view rendering mechanics that do not require uploaded-data permutations
 
 ### 4. Legacy-Disabled Specs
@@ -124,6 +126,12 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
   - shared helpers for launching profiles, opening settings panes, asserting DOM stats, and comparing the rendered 2D graph against oracle snapshots
 - `cypress/support/commands.ts`
   - shared Cypress commands for file loading, global settings access, and generic interaction helpers
+- `cypress/support/sankey-helpers.ts`, `cypress/support/sankey-ui-helpers.ts`
+  - shared helpers for Sankey field selection, expected render counts, and stable Sankey UI interactions
+- `cypress/support/table-helpers.ts`
+  - shared helpers for Table dataset switching, filter targeting, settings, and export dialogs
+- `cypress/support/dashboard-helpers.ts`
+  - shared helpers for opening dashboard views, loading saved dashboard fixtures, focusing tabs, dragging Golden Layout splitters, and asserting cross-view pane readiness
 - `cypress/support/selectors.ts`
   - shared `data-testid` selectors for stable Cypress targeting
 - `cypress/oracle/`
@@ -133,8 +141,59 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
   - `types.ts`: shared manifest, step, snapshot, and debug types
 - `cypress/fixtures/OracleSynthetic_*.csv`
   - small synthetic fixtures used only for oracle contract coverage
-- `docs/2d-network-cypress-bug-log.csv`
-  - bug and deviation log for product behavior that Cypress exposes
+- `cypress/fixtures/dashboard-*.microbetrace`
+  - saved dashboard sessions used by dashboard `view-state` coverage so Golden Layout mechanics stay deterministic
+- `docs/2d-network-cypress-checklist.md`, `docs/2d-network-cypress-qa-tracker.csv`, `docs/2d-network-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the 2D Network surface
+- `docs/map-view-cypress-checklist.md`, `docs/map-view-cypress-qa-tracker.csv`, `docs/map-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Map surface
+- `docs/epi-curve-cypress-checklist.md`, `docs/epi-curve-cypress-qa-tracker.csv`, `docs/epi-curve-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Epi Curve surface
+- `docs/gantt-chart-cypress-checklist.md`, `docs/gantt-chart-cypress-qa-tracker.csv`, `docs/gantt-chart-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Gantt surface
+- `docs/sankey-view-cypress-checklist.md`, `docs/sankey-view-cypress-qa-tracker.csv`, `docs/sankey-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Sankey surface
+- `docs/crosstab-view-cypress-checklist.md`, `docs/crosstab-view-cypress-qa-tracker.csv`, `docs/crosstab-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Crosstab surface
+- `docs/aggregate-view-cypress-checklist.md`, `docs/aggregate-view-cypress-qa-tracker.csv`, `docs/aggregate-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Aggregate surface
+- `docs/alignment-view-cypress-checklist.md`, `docs/alignment-view-cypress-qa-tracker.csv`, `docs/alignment-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Alignment surface
+- `docs/bubble-view-cypress-checklist.md`, `docs/bubble-view-cypress-qa-tracker.csv`, `docs/bubble-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Bubble surface
+- `docs/table-view-cypress-checklist.md`, `docs/table-view-cypress-qa-tracker.csv`, `docs/table-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Table surface
+- `docs/waterfall-view-cypress-checklist.md`, `docs/waterfall-view-cypress-qa-tracker.csv`, `docs/waterfall-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Waterfall surface
+- `docs/phylogenetic-view-cypress-checklist.md`, `docs/phylogenetic-view-cypress-qa-tracker.csv`, `docs/phylogenetic-view-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Phylogenetic Tree surface
+- `docs/dashboard-cypress-checklist.md`, `docs/dashboard-cypress-qa-tracker.csv`, `docs/dashboard-cypress-bug-log.csv`
+  - maintained coverage checklist, QA tracker, and bug log for the Golden Layout dashboard surface
+
+## Dashboard Surface
+
+Dashboard coverage is a cross-view surface rather than a single visualization.
+
+- Use `cypress/e2e/view-state/dashboard-*.cy.ts` for saved-session Golden Layout mechanics:
+  - splitter drag
+  - pane resize / hide / show
+  - tab close and reopen
+  - multi-pane readiness after saved layout load
+- Use `cypress/e2e/journeys/flows/dashboard-*.cy.ts` for uploaded-data propagation and isolation:
+  - global styling propagation
+  - global filtering propagation
+  - timeline isolation between target and non-target views
+
+The first dashboard tranche covers `2D Network`, `Map`, `Bubble`, `Table`, `Aggregate`, `Crosstab`, and `Waterfall`.
+
+## Local Run Stability
+
+- `npm run start:local-cypress` intentionally starts Angular with `--watch=false --live-reload=false`.
+- Reason:
+  - Cypress writes screenshots and other artifacts into the workspace during long local runs.
+  - A watching dev server can treat those writes as project changes and rebuild or reload the app mid-run.
+  - Those rebuilds create false negatives such as `cy.visit()` socket timeouts or unexpected page reloads unrelated to the feature under test.
+- Use the non-watching local Cypress server as the default verification path unless you are explicitly debugging dev-server reload behavior.
 
 ## Filtering Oracle
 
@@ -174,6 +233,8 @@ Current supported step kinds:
 - `set-nearest-neighbor`
 - `set-epsilon`
 - `set-distance-metric`
+- `set-timeline-field`
+- `set-timeline-date`
 - `reveal-everything`
 
 Current output model:
@@ -212,12 +273,12 @@ Current oracle scope:
   - epsilon progression
   - mixed-origin preservation
   - post-launch metric switching
+  - timeline/date filtering
   - reveal behavior on the mixed-origin filtering path
 - Intentionally out of scope in v1:
   - styling
   - layout
   - grouping polygons
-  - timeline/date filtering
   - minimum cluster size
 
 Important detail:
@@ -239,17 +300,29 @@ Usage rule:
 - Compute the oracle once per scenario.
 - Reuse snapshot IDs across UI steps in the same test instead of recomputing after every click.
 
-Current oracle-backed filtering coverage:
+Current oracle-backed filtering and timeline coverage:
 
 - `cypress/e2e/journeys/flows/change-link-threshold.cy.ts`
 - `cypress/e2e/journeys/flows/nearest-neighbor.cy.ts`
 - `cypress/e2e/journeys/flows/nearest-neighbor-epsilon.cy.ts`
 - `cypress/e2e/journeys/flows/mixed-origin-threshold-nn-reveal.cy.ts`
 - `cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts`
+- `cypress/e2e/journeys/flows/timeline-oracle.cy.ts`
+- `cypress/e2e/journeys/flows/bubble-timeline-oracle-uploaded.cy.ts`
+- `cypress/e2e/journeys/flows/map-timeline-oracle.cy.ts`
 - `cypress/e2e/journeys/flows/behavior-contracts.cy.ts`
 - `cypress/e2e/journeys/flows/filtering-newick.contract.cy.ts`
 - `cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts`
 - `cypress/e2e/journeys/flows/filtering-oracle.contract.cy.ts`
+
+Exact timeline playback mechanics such as play/pause behavior, slider-click behavior, and style persistence after timeline teardown remain covered in view-specific uploaded-data control specs layered on top of the oracle-backed exact-checkpoint baseline.
+
+Timeline-driven dataset mutation is intentionally limited to `2D Network`, `Bubble`, and `Map`.
+
+Non-target data views such as `Aggregate`, `Crosstab`, and `Waterfall` should stay on the non-timeline filtered dataset even while timeline changes dashboard counts and the timeline-visible graph. Maintained coverage for that contract lives in:
+
+- `cypress/e2e/journeys/flows/timeline-non-target-view-isolation-uploaded.cy.ts`
+- `cypress/e2e/journeys/flows/waterfall-refresh-uploaded.cy.ts`
 
 The dedicated oracle contract spec covers:
 
@@ -279,8 +352,8 @@ The dedicated oracle contract spec covers:
 - Avoid redundant duplicate coverage across `view-state` and `journeys/flows` when expected outcomes are the same. Duplicate only when the uploaded-data path is expected to produce a different or higher-risk outcome.
 - In smoke specs, keep `observed` expectations only where a known product deviation still exists and the smoke suite must remain green.
 - In contract specs, prefer `intended` behavior and exact membership assertions.
-- When a maintained journey exposes a product bug, record it in `docs/2d-network-cypress-bug-log.csv` with the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
-- New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. When a row moves to `Closed`, `Fixed`, or `Resolved`, the workflow comments on the matching issue with the recorded root cause and fix summary, then closes it. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor.
+- When a maintained journey exposes a product bug, record it in the matching surface bug log: `docs/2d-network-cypress-bug-log.csv` for 2D, `docs/map-view-cypress-bug-log.csv` for Map, `docs/epi-curve-cypress-bug-log.csv` for Epi Curve, `docs/gantt-chart-cypress-bug-log.csv` for Gantt, `docs/sankey-view-cypress-bug-log.csv` for Sankey, `docs/crosstab-view-cypress-bug-log.csv` for Crosstab, `docs/aggregate-view-cypress-bug-log.csv` for Aggregate, `docs/alignment-view-cypress-bug-log.csv` for Alignment, `docs/bubble-view-cypress-bug-log.csv` for Bubble, `docs/table-view-cypress-bug-log.csv` for Table, `docs/waterfall-view-cypress-bug-log.csv` for Waterfall, or `docs/phylogenetic-view-cypress-bug-log.csv` for Phylogenetic Tree. Include the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
+- New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. When a row moves to `Closed`, `Fixed`, or `Resolved`, the workflow comments on the matching issue with the recorded root cause and fix summary, then closes it. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor. Aggregate bug rows use `ABG###` IDs, Epi Curve bug rows use `EBG###` IDs, Map bug rows use `MBG###` IDs, Gantt bug rows use `GBG###` IDs, Sankey bug rows use `SBG###` IDs, Crosstab bug rows use `CTBG###` IDs, Bubble bug rows use `BBG###` IDs, Table bug rows use `TBG###` IDs, Waterfall bug rows use `WBG###` IDs, and tree bug rows use `PBG###` IDs so they do not collide with 2D `BG###` issue titles.
 
 ## Maintained Commands
 
@@ -312,15 +385,15 @@ Raw command equivalents:
   - `npx cypress run --headless --browser electron --spec cypress/e2e/ingestion/files-ui.cy.ts`
 - Maintained journeys:
   - `npx cypress run --headless --browser electron --spec cypress/e2e/ingestion/files-ui.cy.ts,cypress/e2e/journeys/flows/*.cy.ts`
-- Maintained 2D view-state:
-  - `npx cypress run --headless --browser electron --spec cypress/e2e/view-state/twod-view.cy.ts`
+- Maintained 2D + Crosstab view-state:
+  - `npx cypress run --headless --browser electron --spec "cypress/e2e/view-state/twod-view.cy.ts,cypress/e2e/view-state/crosstab-view.cy.ts,cypress/e2e/view-state/crosstab-export.cy.ts,cypress/e2e/view-state/aggregate-view.cy.ts"`
 - Contracts:
   - `npx cypress run --headless --browser electron --env contractMode=1 --spec "cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/filtering-newick.contract.cy.ts,cypress/e2e/journeys/flows/filtering-oracle.contract.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts,cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts"`
 
 Local default equivalents:
 
 - `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec cypress/e2e/ingestion/files-ui.cy.ts,cypress/e2e/journeys/flows/*.cy.ts`
-- `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec cypress/e2e/view-state/twod-view.cy.ts`
+- `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --spec "cypress/e2e/view-state/twod-view.cy.ts,cypress/e2e/view-state/crosstab-view.cy.ts,cypress/e2e/view-state/crosstab-export.cy.ts,cypress/e2e/view-state/aggregate-view.cy.ts"`
 - `npx cypress run --headless --browser electron --config baseUrl=http://127.0.0.1:4210 --env contractMode=1 --spec "cypress/e2e/journeys/flows/behavior-contracts.cy.ts,cypress/e2e/journeys/flows/filtering-newick.contract.cy.ts,cypress/e2e/journeys/flows/filtering-oracle.contract.cy.ts,cypress/e2e/journeys/flows/nearest-neighbor-angulartesting.contract.cy.ts,cypress/e2e/journeys/flows/post-launch-distance-metric-switch.cy.ts"`
 
 ## Migration Rules
@@ -333,9 +406,54 @@ When adding new coverage:
 4. For filtering behavior that changes visible node or link membership, add an oracle manifest and assert exact IDs plus counts unless the behavior is explicitly outside the oracle scope.
 5. Keep `cypress/e2e/journeys/datasets/` as the only fixture registry; do not create a separate oracle fixture registry.
 6. Add or update `data-testid` hooks before leaning on brittle text selectors.
-7. Update:
-   - `docs/2d-network-cypress-checklist.md`
-   - `docs/2d-network-cypress-qa-tracker.csv`
-   - `docs/2d-network-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+7. Update the docs for the surface you changed:
+   - 2D Network:
+     - `docs/2d-network-cypress-checklist.md`
+     - `docs/2d-network-cypress-qa-tracker.csv`
+     - `docs/2d-network-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Map:
+     - `docs/map-view-cypress-checklist.md`
+     - `docs/map-view-cypress-qa-tracker.csv`
+     - `docs/map-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Epi Curve:
+     - `docs/epi-curve-cypress-checklist.md`
+     - `docs/epi-curve-cypress-qa-tracker.csv`
+     - `docs/epi-curve-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Gantt:
+     - `docs/gantt-chart-cypress-checklist.md`
+     - `docs/gantt-chart-cypress-qa-tracker.csv`
+     - `docs/gantt-chart-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Sankey:
+     - `docs/sankey-view-cypress-checklist.md`
+     - `docs/sankey-view-cypress-qa-tracker.csv`
+     - `docs/sankey-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Crosstab:
+     - `docs/crosstab-view-cypress-checklist.md`
+     - `docs/crosstab-view-cypress-qa-tracker.csv`
+     - `docs/crosstab-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Aggregate:
+     - `docs/aggregate-view-cypress-checklist.md`
+     - `docs/aggregate-view-cypress-qa-tracker.csv`
+     - `docs/aggregate-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Alignment:
+     - `docs/alignment-view-cypress-checklist.md`
+     - `docs/alignment-view-cypress-qa-tracker.csv`
+     - `docs/alignment-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Bubble:
+     - `docs/bubble-view-cypress-checklist.md`
+     - `docs/bubble-view-cypress-qa-tracker.csv`
+     - `docs/bubble-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Table:
+     - `docs/table-view-cypress-checklist.md`
+     - `docs/table-view-cypress-qa-tracker.csv`
+     - `docs/table-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Waterfall:
+     - `docs/waterfall-view-cypress-checklist.md`
+     - `docs/waterfall-view-cypress-qa-tracker.csv`
+     - `docs/waterfall-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
+   - Phylogenetic Tree:
+     - `docs/phylogenetic-view-cypress-checklist.md`
+     - `docs/phylogenetic-view-cypress-qa-tracker.csv`
+     - `docs/phylogenetic-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
 8. If the new behavior belongs in the oracle, keep the oracle implementation UI-independent. Do not import `CommonService`, dialog state, or current rendering helpers into `cypress/oracle/`.
 9. If a legacy spec is being replaced, move it to `legacy-disabled` or delete it if git history is enough and no quarantine value remains.

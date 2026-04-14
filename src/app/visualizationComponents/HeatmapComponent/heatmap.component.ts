@@ -1,5 +1,5 @@
 import { Injector, Component, Output, EventEmitter, 
-  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, ViewContainerRef,
+  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy, ViewContainerRef,
   ViewChild} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -15,6 +15,8 @@ import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { Subject, takeUntil } from 'rxjs';
 //import * as plotlyjs from 'plotly.js-dist-min';
 
 
@@ -24,7 +26,7 @@ import { ExportService } from '@app/contactTraceCommonServices/export.service';
     styleUrls: ['./heatmap.component.scss'],
     standalone: false
 })
-export class HeatmapComponent extends BaseComponentDirective implements OnInit {
+export class HeatmapComponent extends BaseComponentDirective implements OnInit, OnDestroy {
 
   @ViewChild('heatmapContainer', { read: ElementRef }) heatmapContainerRef: ElementRef;  
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
@@ -66,6 +68,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   SelectedDistanceMatrixFilenameVariable: string = "distance_matrix.csv";
   heatmapLabels: string[];
   heatmapMetric: string;
+  private destroy$ = new Subject<void>();
     
   constructor(injector: Injector,
         private eventManager: EventManager,
@@ -77,6 +80,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         private renderer: Renderer2,
         private exportService: ExportService,
         private plotlyModule: PlotlyModule,
+        private store: CommonStoreService,
       ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
@@ -149,7 +153,17 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
+      this.redrawHeatmap();
     })
+
+    this.store.networkUpdated$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((networkUpdated) => {
+        if (this.viewActive && networkUpdated) {
+          this.redrawHeatmap();
+          this.store.setNetworkUpdated(false);
+        }
+      });
 
     this.redrawHeatmap();
   }
@@ -202,7 +216,13 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
       //  this.Plotly.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
 
-      this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+      const plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+      this.plot = plot;
+
+      Promise.resolve(plot).then(() => {
+        this.setBackground();
+        this.store.setNetworkRendered(true);
+      });
     });
   }
 
@@ -275,7 +295,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.drawHeatmap(config);
-    this.setBackground();
   }
 
   setBackground(): void {
@@ -346,6 +365,16 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     this.redrawHeatmap();
   }
 
+  updateShowLabels(showLabels: boolean): void {
+    this.heatmapShowLabels = showLabels;
+    this.commonService.session.style.widgets["heatmap-axislabels-show"] = this.heatmapShowLabels;
+    this.redrawHeatmap();
+  }
+
+  updateVisualization(): void {
+    this.redrawHeatmap();
+  }
+
   saveImage(): void {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
@@ -373,7 +402,15 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   fixGradient(el: HTMLElement): HTMLElement {
     const insertionPoint = el.getElementsByClassName("gradient_filled");
+    if (!insertionPoint.length) {
+      return el;
+    }
+
     const startingUrl = insertionPoint[0]["style"]["fill"];
+    if (!startingUrl || !startingUrl.includes("#")) {
+      return el;
+    }
+
     const idVal = startingUrl.substring(startingUrl.indexOf("#"));
     insertionPoint[0]["style"]["fill"] = 'url("'+idVal;
     return el;
@@ -381,23 +418,40 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   saveDistanceMatrix(): void {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
-    const labelArray = cloneDeep(this.heatmapLabels);
-    this.commonService.getDM().then(({dm, _}) => {
-      let csvContent = "data:text/csv;charset=utf-8,";
+    this.commonService.getDM().then(({dm, labels}) => {
+      const xLabels = (labels || []).map((label) => String(label));
+      const yLabels = cloneDeep(xLabels);
+      let matrix = cloneDeep(dm);
+
+      if (this.invertX) {
+        matrix = matrix.map((row) => Array.isArray(row) ? [...row].reverse() : row);
+        xLabels.reverse();
+      }
+
+      if (this.invertY) {
+        matrix = [...matrix].reverse();
+        yLabels.reverse();
+      }
+
+      let csvContent = "";
       if (this.heatmapShowLabels) {
-        labelArray.unshift("");
-        csvContent += labelArray.join(",") + "\n";
-        for(let i=0; i<dm.length; i++) {
-          dm[i].unshift(this.heatmapLabels[i]);
-          csvContent += dm[i].join(",") + "\n";
+        csvContent += ["", ...xLabels].join(",") + "\n";
+        for (let i = 0; i < matrix.length; i++) {
+          csvContent += [yLabels[i], ...matrix[i]].join(",") + "\n";
         }
       } else {
-        csvContent += dm.map(e => e.join(",")).join("\n");
+        csvContent += matrix.map((row) => row.join(",")).join("\n");
       }
-      saveAs(csvContent, fileName);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      saveAs(blob, fileName);
     });
     
-  } 
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

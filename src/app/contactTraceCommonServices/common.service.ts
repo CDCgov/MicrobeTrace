@@ -421,6 +421,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 },
                 nodeColorsTableKeys: {},
                 linkColorsTable: {},
+                linkColorsTableHistory: {},
                 linkColorsTableKeys: {},
                 nodeSymbols: [
                     'ellipse',
@@ -1592,6 +1593,15 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         })
 
+        if (!this.session.style.linkColorsTableHistory) {
+            this.session.style.linkColorsTableHistory = {};
+        }
+        Object.keys(this.session.style.linkColorsTableHistory).forEach(key => {
+            if (typeof this.session.style.linkColorsTableHistory[key] == 'object') {
+                this.session.style.linkColorsTableHistory[key] = "#000000";
+            }
+        })
+
         this.applyStyle(this.session.style);
 
         console.log('applySession end');
@@ -2470,9 +2480,18 @@ align(params): Promise<any> {
     };
 
 
-    updateNetworkVisuals(silent: boolean = false) {
+    updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+        const getVisibleLinkKey = (link: any): string => String(
+          link.id ?? link.index ?? [link.source, link.target, link.distance].join('|')
+        );
+        const prevVisibleLinkKeys = new Set(
+          this.session.data.links
+            .filter(link => link.visible)
+            .map(link => getVisibleLinkKey(link))
+        );
+
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -2481,7 +2500,21 @@ align(params): Promise<any> {
           if (!silent) this.store.setNetworkUpdated(true);
           let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
           let updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
-          if (!silent && (prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters || prevVisNodeCount != updatedVisNodeCount)) {
+          const updatedVisibleLinkKeys = new Set(
+            this.session.data.links
+              .filter(link => link.visible)
+              .map(link => getVisibleLinkKey(link))
+          );
+          const visibleLinksChanged =
+            prevVisibleLinkKeys.size !== updatedVisibleLinkKeys.size ||
+            Array.from(prevVisibleLinkKeys).some((key) => !updatedVisibleLinkKeys.has(key));
+
+          if (!silent && (
+            prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters ||
+            prevVisNodeCount != updatedVisNodeCount ||
+            visibleLinksChanged ||
+            forceClusterUpdate
+          )) {
             console.log('Triggering cluster count update')
             this.store.triggerClusterUpdate();
           }
@@ -2524,6 +2557,56 @@ align(params): Promise<any> {
         return out;
     };
 
+    private buildNonTimelineVisibleClusterSummary() {
+        const nodes = this.session.data.nodeFilteredValues || [];
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const minClusterSize = Number(this.session.style.widgets["cluster-minimum-size"] ?? 1);
+        const summary = buildVisibleClusterSummary(
+            nodes,
+            this.getVisibleLinksIgnoringTimeline(),
+            metric
+        );
+
+        summary.clusters.forEach(cluster => {
+            cluster.visible = cluster.nodes >= minClusterSize;
+        });
+
+        return summary;
+    };
+
+    /**
+     * Gets nodes that remain available to non-target data views when Timeline is active.
+     * This preserves the current non-timeline filtering state (for example cluster visibility)
+     * while ignoring the timeline-specific node visibility gate.
+     */
+    getVisibleNodesIgnoringTimeline(copy: any = false) {
+        const nodes = this.session.data.nodeFilteredValues || [];
+        const summary = this.buildNonTimelineVisibleClusterSummary();
+        const out = [];
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const clusterId = summary.nodeClusterByIndex[i];
+            const cluster = summary.clusters[clusterId];
+            const visibleIgnoringTimeline = !cluster || cluster.visible;
+
+            if (!visibleIgnoringTimeline) {
+                continue;
+            }
+
+            const normalizedNode = {
+                ...node,
+                cluster: clusterId,
+                degree: summary.degrees[i] ?? 0,
+                visible: true,
+            };
+
+            out.push(copy ? JSON.parse(JSON.stringify(normalizedNode)) : normalizedNode);
+        }
+
+        return out;
+    };
+
     /**
      * Gets a list of all visible links objects; Similar to twoD.getVlinks(), and twoD.getLLinks()
      * 
@@ -2553,6 +2636,31 @@ align(params): Promise<any> {
             console.log('get visible links: ', _.cloneDeep(out));
         }
         return out;
+    };
+
+    /**
+     * Gets links for non-target data views while preserving all non-timeline filters.
+     * Link visibility is currently computed independently of the timeline node gate, so the
+     * existing visible-link contract is already the correct non-timeline dataset source.
+     */
+    getVisibleLinksIgnoringTimeline(copy: any = false) {
+        return this.getVisibleLinks(copy);
+    };
+
+    /**
+     * Gets visible clusters for non-target data views while ignoring the timeline-specific node gate.
+     * Cluster visibility is recomputed from the current non-timeline visible graph so hidden tabs and
+     * non-target data views do not depend on mutable session cluster state.
+     */
+    getVisibleClustersIgnoringTimeline(copy: any = false) {
+        const visibleClusters = this.buildNonTimelineVisibleClusterSummary().clusters
+            .filter(cluster => cluster.visible);
+
+        if (!copy) {
+            return visibleClusters;
+        }
+
+        return visibleClusters.map(cluster => JSON.parse(JSON.stringify(cluster)));
     };
 
     /**
@@ -2713,6 +2821,7 @@ align(params): Promise<any> {
         const linkAlphas = this.session.style.linkAlphas;       // e.g. [1, 1, ...]
         const linkColorsTable = this.session.style.linkColorsTable;
         const linkColorsTableKeys = this.session.style.linkColorsTableKeys;
+        const linkColorsTableHistory = this.session.style.linkColorsTableHistory;
         
         // 2) Delegate to colorMappingService
         const result = this.colorMappingService.createLinkColorMap(
@@ -2722,6 +2831,7 @@ align(params): Promise<any> {
           linkAlphas,
           linkColorsTable,
           linkColorsTableKeys,
+          linkColorsTableHistory,
           this.debugMode
         );
 
@@ -2735,6 +2845,7 @@ align(params): Promise<any> {
         this.session.style.linkAlphas       = result.updatedLinkAlphas;
         this.session.style.linkColorsTable  = result.updatedLinkColorsTable;
         this.session.style.linkColorsTableKeys = result.updatedLinkColorsTableKeys;
+        this.session.style.linkColorsTableHistory = result.updatedLinkColorsTableHistory;
       
         console.log('create link color map 1: ', this.session.style.linkColorsTable);
         console.log('create link color map 2: ', this.session.style.linkColorsTableKeys);

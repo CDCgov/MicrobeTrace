@@ -295,6 +295,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
+            const timelineTickUpdate = Boolean((this.commonService.session.state as any)['timelineTickUpdate']);
+            if (timelineTickUpdate && this.viewActive && this.commonService.activeTab === '2D Network') {
+                (this.commonService.session.state as any)['timelineTickUpdate'] = false;
+                this.store.setNetworkUpdated(false);
+                return;
+            }
+
+            if (timelineTickUpdate) {
+                (this.commonService.session.state as any)['timelineTickUpdate'] = false;
+            }
+
             if (this.data && this.store.settingsLoadedValue && newPruned) {
                 console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
                 if (this.viewActive){
@@ -334,7 +345,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ngAfterViewInit(): void {
         console.log('--- TwoD ngAfterViewInit called');
-      
+
+        if (this.commonService.session.data.nodes.length > 0 && !this.cy) {
+            this.onLoadNewData();
+        }
       }
 
   mapDataToCytoscapeElements(data: any, timelineTick=false): cytoscape.ElementsDefinition {
@@ -4512,7 +4526,24 @@ private async _partialUpdate() {
         }
 
         console.log('onLoadNewData');
-        // this.debouncedRerender();
+        this.widgets = this.commonService.session.style.widgets;
+        this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
+
+        if (!this.IsDataAvailable) {
+            return;
+        }
+
+        if (!this.cyContainer?.nativeElement) {
+            setTimeout(() => this.onLoadNewData(), 0);
+            return;
+        }
+
+        if (this.cy) {
+            this.debouncedRerender();
+            return;
+        }
+
+        void this._rerender();
     }
 
     /**
@@ -4674,7 +4705,7 @@ private async _partialUpdate() {
             link.data('lineColor', color);
             link.data('lineOpacity', opacity); // Ensure transparency is explicitly set
           });
-        // this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        this.cy.style().update();
     }
 
     /**

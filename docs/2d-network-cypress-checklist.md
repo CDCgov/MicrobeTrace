@@ -1,6 +1,6 @@
 # 2D Network Cypress E2E Checklist
 
-Current on `cypressTesting` as of 2026-03-20.
+Current on `cypressTesting` as of 2026-04-09.
 
 Companion QA tracker: `docs/2d-network-cypress-qa-tracker.csv`
 
@@ -69,6 +69,14 @@ Maintained suite structure:
 - [x] Threshold stability panel can surface suggested stable thresholds and apply one back into filtering.
 - [x] Filtering still works correctly after loading multiple file origins that merge onto the same links.
 - [x] Contract coverage exists for any known observed-vs-intended filtering deviations.
+
+## 2A. General Settings: Timeline
+
+- [x] Oracle-backed exact timeline checkpoints exist for uploaded node + link and mixed-origin 2D launches.
+- [x] Timeline play/pause progression can be asserted on uploaded 2D data.
+- [x] Manual timeline slider checkpoints can be asserted on uploaded 2D data with oracle-backed exact membership.
+- [x] Uploaded 2D node color edits persist after timeline mode is turned off.
+- [x] Uploaded 2D link color edits persist after timeline mode is turned off.
 
 ## 3. General Settings: Styling
 

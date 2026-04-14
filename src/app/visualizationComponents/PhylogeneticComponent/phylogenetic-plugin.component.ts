@@ -178,6 +178,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.visuals.phylogenetic = this;
   }
 
+  private markTreeRendered(): void {
+    window.requestAnimationFrame(() => {
+      this.store.setNetworkRendered(true);
+      this.store.setNetworkUpdated(false);
+      this.commonService.session.network.rendering = false;
+      this.commonService.demoNetworkRendered = true;
+    });
+  }
+
   openTree = async () => {
     /*
     if (this.visuals.phylogenetic.commonService.session.data.newickString) {
@@ -218,6 +227,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       //});
     }
     this.hasNewickFile = this.commonService.session.files.some(file => file.format == 'newick');
+    this.markTreeRendered();
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 

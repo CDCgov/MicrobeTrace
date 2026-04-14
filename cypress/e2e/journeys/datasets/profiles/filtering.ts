@@ -53,7 +53,7 @@ export const FILTERING_PROFILES: DatasetProfile[] = [
   P({
     id: 'filtering-mixed-origin-nearest-neighbor',
     title: 'Filtering: mixed-origin nearest neighbor confirms before pruning and preserves epi-backed links',
-    tags: ['filtering', 'mixed-origin', 'nn-mixed-origin', 'tn93', 'load-to-twod'],
+    tags: ['filtering', 'mixed-origin', 'nn-mixed-origin', 'tn93', 'load-to-twod', 'load-to-bubble'],
     files: [
       {
         name: 'AngularTesting_nodelist_withseqs_TN93_BS.csv',
@@ -116,7 +116,7 @@ export const FILTERING_PROFILES: DatasetProfile[] = [
   P({
     id: 'filtering-metric-switch-sequence-node-list',
     title: 'Filtering: post-launch metric switch on sequence node list updates threshold and visible links',
-    tags: ['filtering', 'metric-switch', 'sequence', 'tn93', 'snps', 'load-to-twod'],
+    tags: ['filtering', 'metric-switch', 'sequence', 'tn93', 'snps', 'load-to-twod', 'load-to-bubble'],
     files: [
       {
         name: 'AngularTesting_nodelist_withseqs_TN93_BS.csv',
