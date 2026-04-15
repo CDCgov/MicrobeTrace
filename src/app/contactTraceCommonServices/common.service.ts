@@ -246,6 +246,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-bidirectional': false,
             'link-label-variable': 'None',
             'link-label-decimal-length' : 3,
+            'link-label-size': 16,
             'link-length': 50,
             'link-opacity': 0,
             'link-show-nn': false,

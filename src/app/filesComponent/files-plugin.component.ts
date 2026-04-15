@@ -682,6 +682,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.network.launched = true;
     }
 
+    this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
+    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Hide';
+    this.commonService.session.style.widgets['node-symbol-variable'] = 'None';
+    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Hide';
+    this.commonService.visuals.microbeTrace?.resetNodeShapeSelectionForNewDataset();
+
     this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;

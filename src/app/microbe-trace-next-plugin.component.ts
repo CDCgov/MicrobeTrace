@@ -2066,6 +2066,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.cdref.markForCheck();
     }
 
+    public resetNodeShapeSelectionForNewDataset(): void {
+        this.commonService.session.style.nodeSymbolsTable = {};
+        this.commonService.session.style.nodeSymbolsTableKeys = {};
+        this.onNodeShapeByChanged(true, false, 'None');
+    }
+
     onNodeShapeTableVisibilityChanged(silent: boolean = false) {
         this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['node-symbol-table-visible'] = this.SelectedNodeShapeTableTypesVariable;
