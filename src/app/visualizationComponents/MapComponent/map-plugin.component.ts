@@ -24,6 +24,7 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { getMapNodeShapeDataUri, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 
 declare var google: any;
 
@@ -114,6 +115,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     networkUpdatedSubscription: any;
     private destroy$ = new Subject<void>()
+    private initialSettingsLoaded = false;
 
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -225,6 +227,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     public isExporting: boolean = false;
     public isExportClosed: boolean = false;
     private exportTryCount: number = 0;
+    private readonly mapNodeIconSize: number = 24;
+    private mapNodeIconCache: Record<string, L.Icon> = {};
 
     public NodeMapSettingsExportDialogSettings: DialogSettings;
 
@@ -422,18 +426,36 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //get the leaflet map
         this.lmap = map;
         this.lmap.zoomControl.setPosition('bottomleft');
-
-
-        setTimeout(() => {
-            this.loadSettings();
-            //this.setDefaultAddressFields();
-            //this.setDateRangeFilterValues();
-            //this.onDataChange(undefined);
-        }, 600);
+        this.tryLoadInitialSettings();
     }
 
     onMarkerClusterReady(markerCluster: MarkerClusterGroup) {
         this.layers.markerClusterGroup = markerCluster;
+        this.tryLoadInitialSettings();
+    }
+
+    private tryLoadInitialSettings(): void {
+        if (this.initialSettingsLoaded || !this.lmap || !this.layers.markerClusterGroup) {
+            return;
+        }
+
+        this.initialSettingsLoaded = true;
+        window.setTimeout(() => {
+            this.loadSettings();
+            this.cdref.detectChanges();
+        }, 0);
+    }
+
+    private markMapRendered(): void {
+        if (!this.viewActive) {
+            return;
+        }
+
+        // Map can be the first launched view, so it must explicitly release
+        // the shared processing modal after its first draw cycle completes.
+        window.setTimeout(() => {
+            this.store.setNetworkRendered(true);
+        }, 0);
     }
 
     getMarker(latitude: number, longitude: number): Layer {
@@ -442,6 +464,34 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             fillColor: '#3c4b8d',
             radius: 5
         });
+    }
+
+    private getNodeShapeKey(node: any): string {
+        return resolveNodeShapeForNode(
+            node,
+            this.commonService.session.style.widgets,
+            this.commonService.session.style,
+            this.commonService.temp.style.nodeSymbolMap
+        );
+    }
+
+    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean): L.Icon {
+        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+        const safeFill = fillColor || '#000000';
+        const safeStroke = strokeColor || '#000000';
+        const strokeWidth = selected ? 36 : 16;
+        const cacheKey = `${normalizedShapeKey}|${safeFill}|${safeStroke}|${strokeWidth}`;
+
+        if (!this.mapNodeIconCache[cacheKey]) {
+            this.mapNodeIconCache[cacheKey] = icon({
+                iconUrl: getMapNodeShapeDataUri(normalizedShapeKey, safeFill, safeStroke, strokeWidth),
+                iconSize: [this.mapNodeIconSize, this.mapNodeIconSize],
+                iconAnchor: [this.mapNodeIconSize / 2, this.mapNodeIconSize / 2],
+                tooltipAnchor: [0, -this.mapNodeIconSize / 2]
+            });
+        }
+
+        return this.mapNodeIconCache[cacheKey];
     }
 
     /* Not sure goal of this at the moment
@@ -485,7 +535,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     centerMap() {
         if (this.lmap && this.layers.nodes().getLayers().length > 0) {
-            this.lmap.flyToBounds(this.layers.nodes().getBounds());
+            const nodeBounds = this.layers.nodes().getBounds();
+            if (!nodeBounds.isValid()) {
+                return;
+            }
+
+            const padding = this.commonService.session.style.widgets['map-collapsing-on'] ? 28 : 18;
+            this.lmap.fitBounds(nodeBounds, {
+                animate: false,
+                padding: [padding, padding]
+            });
         }
     }
 
@@ -547,6 +606,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             that.drawLinks();
             that.resetStack();
             that.centerMap()
+            that.markMapRendered();
             }, false);
 
     }
@@ -830,8 +890,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 quality: this.SelectedNetworkExportQualityVariable,
             }
             this.exportService.setExportOptions(exportOptions);
-            let elementsToExport: HTMLDivElement[] = [this.exportContainer.nativeElement]
-            this.exportService.requestExport(elementsToExport, true, true)
+            let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement]
+            this.exportService.requestExport(elementsToExport, true, true, true)
         }, 1000);
         new Promise(resolve => setTimeout(resolve, 2000)).then(() => this.lmap.addControl(this.lmap.zoomControl))
     }
@@ -1269,24 +1329,25 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             var d = this.nodes[i];
             if (!d._jlat || !d._jlon || d.visible === false) continue;
 
-            let circleMarker: CircleWithData = L.circleMarker(L.latLng(d._jlat, d._jlon), {
-                weight: d.selected ? 3 : 1,
-                color: d.selected ? selectedColor : '#000000',
-                opacity: opacity,
-                fillColor: colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(d[colorVariable]),
-                fillOpacity: opacity,
-                radius: 10
+            const nodeFillColor = colorVariable == 'None'
+                ? fillcolor
+                : this.commonService.temp.style.nodeColorMap(d[colorVariable]);
+            const shapeKey = this.getNodeShapeKey(d);
+
+            let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
+                icon: this.getMapNodeIcon(shapeKey, nodeFillColor, d.selected ? selectedColor : '#000000', d.selected),
+                opacity: opacity
             });
 
-            circleMarker.data = d;
+            nodeMarker.data = d;
 
-            circleMarker
+            nodeMarker
                 .on('mouseover', (e) => this.showNodeTooltip(e))
                 .on('mouseout', (e) => this.hideTooltip())
                 .on('click', (e) => this.clickHandler(e));
 
 
-            features.push(circleMarker);
+            features.push(nodeMarker);
         }
 
         if (this.commonService.session.style.widgets['map-collapsing-on']) {
@@ -1618,6 +1679,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.drawLinks();
     }
 
+    updateNodeShapes() {
+        this.mapNodeIconCache = {};
+        this.drawNodes(false);
+        this.drawLinks();
+    }
+
     updateVisualization() {
         this.drawNodes(false);
         this.drawLinks();
@@ -1645,19 +1712,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     loadSettings() {
-        //Components|Online|Basemap
-        console.log('SelectedBasemapTypeVariable: ', this.SelectedBasemapTypeVariable);
-
+        // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
+        this.SelectedSatelliteTypeVariable = this.commonService.session.style.widgets['map-satellite-show'] ? 'Show' : 'Hide';
+        this.SelectedCountriesTypeVariable = this.commonService.session.style.widgets['map-countries-show'] ? 'Show' : 'Hide';
+        this.SelectedStatesTypeVariable = this.commonService.session.style.widgets['map-states-show'] ? 'Show' : 'Hide';
+        this.SelectedCountiesTypeVariable = this.commonService.session.style.widgets['map-counties-show'] ? 'Show' : 'Hide';
 
-        //Component for basemap
-        if (this.commonService.session.style.widgets['map-basemap-show']) {
-            this.onBasemapChange('Show');
-        } else if (this.commonService.session.style.widgets['map-satellite-show']) {
-            this.onSatelliteChange('Show');
-        } else {
-            this.onCountriesShowHidChange('Show');
-        }
+        // Apply the saved widget state without rewriting sibling layer preferences during reload.
+        this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
+        this.onSatelliteChange(this.SelectedSatelliteTypeVariable, true);
+        this.onCountriesShowHidChange(this.SelectedCountriesTypeVariable);
+        this.onStatesShowHideChange(this.SelectedStatesTypeVariable);
+        this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
 
         //Components|Network|Nodes
         this.SelectedNodesTypeVariable = this.commonService.session.style.widgets['map-node-show'] ? 'Show' : 'Hide';
@@ -1666,14 +1733,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Components|Network|Links
         this.SelectedLinksTypeVariable = this.commonService.session.style.widgets['map-link-show'] ? 'Show' : 'Hide';
         this.onMapLinksShowHideChange(this.SelectedLinksTypeVariable);
-
-        //Components|Offline|States
-        this.SelectedStatesTypeVariable = this.commonService.session.style.widgets['map-states-show'] ? 'Show' : 'Hide';
-        this.onStatesShowHideChange(this.SelectedStatesTypeVariable);
-
-        //Components|Offline|Counties
-        this.SelectedCountiesTypeVariable = this.commonService.session.style.widgets['map-counties-show'] ? 'Show' : 'Hide';
-        this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
 
         //Data|Geospatial
         //this.SelectedGeospatialTypeVariable = this.commonService.session.style.widgets['map-geospatial-type-on'] ? 'On' : 'Off';

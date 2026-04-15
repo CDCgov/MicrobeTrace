@@ -80,7 +80,7 @@
                   <div class="form-group row label-visible-row" title="Should Labels be Displayed?" style="overflow:visible">
                     <div class="col-6"><label for="show-labels">Show Labels</label></div>
                     <div class="col-6">
-                      <p-selectButton id="show-labels" [options]="invertOptions" fluid [(ngModel)]="heatmapShowLabels" (ngModelChange)="redrawHeatmap()"></p-selectButton>
+                      <p-selectButton id="show-labels" [options]="invertOptions" fluid [(ngModel)]="heatmapShowLabels" (ngModelChange)="updateShowLabels($event)"></p-selectButton>
                     </div>
                   </div>
                 </div>

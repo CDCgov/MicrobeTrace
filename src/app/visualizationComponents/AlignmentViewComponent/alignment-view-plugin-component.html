@@ -1,4 +1,9 @@
 <div class="msa-viewer-container">
+  @if (nodesWithSeq.length === 0) {
+    <div id="alignment-empty-state" class="alignment-empty-state">
+      No sequence-bearing nodes are available for Alignment View for the current dataset.
+    </div>
+  }
   <div id="msa-viewer" [style.height.px]="alignmentViewHeight">
     <div class="left">
       <div style="text-align: center;" [style.width.px]="leftWidth">
@@ -245,20 +250,26 @@
 
 <div id="tool-btn-container" class="m-portlet">
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    <a data-testid="alignment-settings-button" title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+    <a data-testid="alignment-export-button" title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Nodes without Sequence Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutSeq.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutSeq.length }}</a>
+    <a data-testid="alignment-excluded-nodes-button" title="Nodes without Sequence Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutSeq.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutSeq.length }}</a>
   </span>
-  <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Position: {{ startPos }}-{{ endPos }}</span>
+  <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">
+    @if (nodesWithSeq.length === 0) {
+      <span>No sequence data</span>
+    } @else {
+      <span>Position: {{ startPos }}-{{ endPos }}</span>
+    }
+  </span>
 </div>
 
 <div class="view-controls">
   @if (viewActive) {
-    <p-dialog id="alignment-settings-pane" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
+    <p-dialog id="alignment-settings-pane" data-testid="alignment-settings-dialog" [(visible)]="alignmentDialogSettings.isVisible" appendTo="body" header="Alignment View Settings" >
       <p-accordion [value]="null" [multiple]="true">
         <p-accordion-panel value="align-data" style="color:#495057">
           <p-accordion-header>Data</p-accordion-header>
@@ -266,24 +277,24 @@
             <div class="form-group row" title="Set a predefined size">
               <div class="col-2"><label>Sequence</label></div>
               <div class="col-10" style="display: flex; justify-content: flex-end;">
-                <p-selectButton [options]="seqTypeOptions" [allowEmpty]="false" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
+              <p-selectButton id="alignment-seq-type" [options]="seqTypeOptions" [allowEmpty]="false" [(ngModel)]="selectedSeqType" (onChange)="onSeqTypeChange()"></p-selectButton>
               </div>
             </div>
             <div class="form-group row node-label-row" title="Set start position (nucleotide-based, not amino-acid), 1-indexed inclusive">
               <div class="col-5"><label>Start Position</label></div>
               <div class="col-7">
-                <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="startPos" (ngModelChange)="onSeqTypeChange()">
+                <input id="alignment-start-position" type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="startPos" (ngModelChange)="onSeqTypeChange()">
               </div>
             </div>
             <div class="form-group row node-label-row" title="Set end position (nucleotide-based, not amino-acid), 1-indexed inclusive.">
               <div class="col-5"><label>End Position</label></div>
               <div class="col-7">
-                <input type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="endPos" (ngModelChange)="onSeqTypeChange()">
+                <input id="alignment-end-position" type="number" class="form-control form-control-sm" min='1' step="1" [(ngModel)]="endPos" (ngModelChange)="onSeqTypeChange()">
               </div>
             </div>
             <div class="form-group row node-label-row">
               <div class="col-5"><label>Length</label></div>
-              <div class="col-7"><span>{{ lengthString }}</span></div>
+              <div class="col-7"><span id="alignment-length-string">{{ lengthString }}</span></div>
             </div>
             @if (selectedSeqType == 'aa') {
 <div class="form-group row" title="Maintain Reading Frame will ignore NT gaps when converting NTs to AAs, but will try to guess where AA gaps are. 
@@ -292,7 +303,7 @@ Given sequence ('CT-T...'), Maintain Reading Frame will convert codon CCT to L.
 Maintain Codon will convert codon CT- to X (Unknown).">
                 <div class="col-5"><label>Translation Settings</label></div>
                 <div class="col-7">
-                  <p-select [options]="['Maintain Codons', 'Maintain Reading Frame']" class="width-percent-100" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
+                  <p-select id="alignment-translation-setting" [options]="['Maintain Codons', 'Maintain Reading Frame']" class="width-percent-100" appendTo="body" [(ngModel)]="translationSetting" (ngModelChange)="onSeqTypeChange()"></p-select>
                 </div>
               </div>
             }
@@ -305,27 +316,27 @@ Maintain Codon will convert codon CT- to X (Unknown).">
           <div class="form-group row" title="Show or Hide the Mini Map">
             <div class="col-5"><label>Show Mini-Map</label></div>
             <div class="col-7">
-              <p-selectButton [options]="showHideOptions" fluid [(ngModel)]="this.widgets['alignView-showMiniMap']" (onChange)="updateMiniMapVisibility()"></p-selectButton>
+              <p-selectButton id="alignment-show-minimap" [options]="showHideOptions" fluid [(ngModel)]="this.widgets['alignView-showMiniMap']" (onChange)="updateMiniMapVisibility()"></p-selectButton>
             </div>
           </div>
           <div class="form-group row" title="Switch between a Bar Plot representation or a Logo representation of the nucleotides present at each position">
             <div class="col-5"><label>Show Logo/Bar Plot</label></div>
             <div class="col-7">
-              <p-selectButton [options]="alignmentTopDisplayOptions" fluid
+              <p-selectButton id="alignment-top-display" [options]="alignmentTopDisplayOptions" fluid
               [(ngModel)]="this.widgets['alignView-topDisplay']" (onChange)="onAlignmentTopChange()"></p-selectButton>
             </div>
           </div>
           <div class="form-group row" title="Set the minor interval for the ruler. Set to 0 to remove minor interval.">
             <div class="col-5"><label>Ruler Minor Interval</label></div>
             <div class="col-7">
-              <p-select [options]="rulerIntervalOptions" class="width-percent-100" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
+              <p-select id="alignment-ruler-minor-interval" [options]="rulerIntervalOptions" optionLabel="label" optionValue="value" class="width-percent-100" appendTo="body" [(ngModel)]="this.widgets['alignView-rulerMinorInterval']"></p-select>
             </div>
           </div>
           <div class="form-group row"
             title="Select how you want NTs/AAs to be shown in the viewer. Show: Shows both the color and letter for each character. Minimum: Shows the color for each character and the letter for any that are different than the top sequence. Hide: Only shows the color for each character.">
             <div class="col-4"><label>Show Characters</label></div>
             <div class="col-8">
-              <p-selectButton [options]="charSettingOptions" fluid
+              <p-selectButton id="alignment-show-characters" [options]="charSettingOptions" fluid
               [(ngModel)]="this.widgets['alignView-charSetting']" (onChange)="updateAlignment()"></p-selectButton>
             </div>
           </div>
@@ -338,13 +349,13 @@ Maintain Codon will convert codon CT- to X (Unknown).">
         <div class="form-group row" title="">
           <div class="col-4"><label>Labels</label></div>
           <div class="col-8">
-            <p-select appendTo="body" [options]="labelFieldList" class="width-percent-100" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
+            <p-select id="alignment-label-field" appendTo="body" [options]="labelFieldList" class="width-percent-100" [(ngModel)]="this.widgets['alignView-labelField']" (onChange)="onLabelFieldChange()"></p-select>
           </div>
         </div>
         <div class="form-group row" title="">
           <div class="col-4"><label>Sort By</label></div>
           <div class="col-8">
-            <p-select appendTo="body" [options]="labelFieldList" class="width-percent-100" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
+            <p-select id="alignment-sort-field" appendTo="body" [options]="labelFieldList" class="width-percent-100" [(ngModel)]="this.widgets['alignView-sortField']" (onChange)="onSortFieldChange()"></p-select>
           </div>
         </div>
       </div>
@@ -356,19 +367,19 @@ Maintain Codon will convert codon CT- to X (Unknown).">
       <div class="form-group row" title="Set a predefined size">
         <div class="col-2"><label>Size</label></div>
         <div class="col-10">
-          <p-selectButton [options]="sizes" fluid [(ngModel)]="this.widgets['alignView-selectedSize']" (onChange)="onSelectedSizeChanged()"></p-selectButton>
+          <p-selectButton id="alignment-size-preset" [options]="sizes" fluid [(ngModel)]="this.widgets['alignView-selectedSize']" (onChange)="onSelectedSizeChanged()"></p-selectButton>
         </div>
       </div>
       <div class="form-group row node-label-row" title="Set a custom height. Updating sets size to custom">
         <div class="col-3"><label>Height</label></div>
         <div class="col-8">
-          <input type="number" class="form-control form-control-sm" min="10" step="1" max="20" [(ngModel)]="spanHeight" (ngModelChange)="onSpanHeightChange($event)">
+          <input id="alignment-custom-height" type="number" class="form-control form-control-sm" min="10" step="1" max="20" [(ngModel)]="spanHeight" (ngModelChange)="onSpanHeightChange($event)">
         </div>
       </div>
       <div class="form-group row node-label-row" title="Set a custom width. Updating sets size to custom">
         <div class="col-3"><label>Width</label></div>
         <div class="col-8">
-          <input type="number" class="form-control form-control-sm" min="1" step="1" max="15" [(ngModel)]="spanWidth" (ngModelChange)="onSpanWidthChange($event)">
+          <input id="alignment-custom-width" type="number" class="form-control form-control-sm" min="1" step="1" max="15" [(ngModel)]="spanWidth" (ngModelChange)="onSpanWidthChange($event)">
         </div>
       </div>
     </div>
@@ -380,7 +391,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
     <div class="form-group row" title="Select a color scheme">
       <div class="col-3"><label>Color Scheme</label></div>
       <div class="col-9">
-        <p-selectButton [disabled]="selectedSeqType=='aa'" [options]="colorSchemeOptions" fluid [(ngModel)]="this.widgets['alignView-colorSchemeName']"
+        <p-selectButton id="alignment-color-scheme" [disabled]="selectedSeqType=='aa'" [options]="colorSchemeOptions" fluid [(ngModel)]="this.widgets['alignView-colorSchemeName']"
         (onChange)="onSelectedColorChanged()"></p-selectButton>
       </div>
     </div>
@@ -388,21 +399,21 @@ Maintain Codon will convert codon CT- to X (Unknown).">
       <div class="customColorSchemeSelection">
         <div class="form-group row node-label-row" title="Select a custom color for each NT">
           <label>A:
-            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['A']" (change)="updateColorScheme('A', $event)">
+            <input id="alignment-custom-color-a" type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['A']" (change)="updateColorScheme('A', $event)">
           </label>
           <label>C:
-            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['C']" (change)="updateColorScheme('C', $event)">
+            <input id="alignment-custom-color-c" type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['C']" (change)="updateColorScheme('C', $event)">
           </label>
           <label>G:
-            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['G']" (change)="updateColorScheme('G', $event)">
+            <input id="alignment-custom-color-g" type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['G']" (change)="updateColorScheme('G', $event)">
           </label>
           <label>T:
-            <input type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['T']" (change)="updateColorScheme('T', $event)">
+            <input id="alignment-custom-color-t" type="color" class="form-control form-control-sm" [ngModel]="this.widgets['alignView-customColorScheme']['T']" (change)="updateColorScheme('T', $event)">
           </label>
         </div>
         <div class="form-group row node-label-row" title="Select a custom color for each NT">
           <label style="display: flex; align-items: center; gap:10px;">Ambiguities/Other:
-            <input type="color" [ngModel]="this.widgets['alignView-customColorScheme']['ambig']" (change)="updateColorScheme('ambig', $event)">
+            <input id="alignment-custom-color-ambig" type="color" [ngModel]="this.widgets['alignView-customColorScheme']['ambig']" (change)="updateColorScheme('ambig', $event)">
           </label>
         </div>
       </div>
@@ -416,7 +427,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
 </div>
 
 @if (viewActive) {
-  <p-dialog id="alignment-export-modal" [(visible)]="ShowAlignExportPane" appendTo="body" header="Export Alignment View">
+  <p-dialog id="alignment-export-modal" data-testid="alignment-export-dialog" [(visible)]="ShowAlignExportPane" appendTo="body" header="Export Alignment View">
     <tabset class="tab-container tabbable-line">
       <tab heading="{{'Images' | localize}}" [active]="true" customClass="m-tabs__item">
         <div class="modal-dialog" role="document">
@@ -424,11 +435,11 @@ Maintain Codon will convert codon CT- to X (Unknown).">
             <div class="modal-body" style='min-width: 400px; height: 100%;'>
               <div class="form-group row">
                 <div class="col-9">
-                  <input type="text" class="form-control form-control-sm"
+                  <input id="alignment-export-visual-filename" type="text" class="form-control form-control-sm"
                     placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
                   </div>
                   <div class="col-3">
-                    <select [(ngModel)]="AlignmentExportFileTypeVis" class="form-control form-control-sm">
+                    <select id="alignment-export-visual-filetype" [(ngModel)]="AlignmentExportFileTypeVis" class="form-control form-control-sm">
                       <option>svg</option>
                       <option>png</option>
                     </select>
@@ -437,7 +448,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                 @if (AlignmentExportFileTypeVis=='png') {
                   <div class="form-group row">
                     <div class="col-4" style="text-align: center;">Resolution</div>
-                    <div class="col-8" style="text-align: center;">
+                    <div id="alignment-export-visual-resolution" class="col-8" style="text-align: center;">
                       {{ spanWidth * longestSeqLength }} x {{ spanHeight * nodesWithSeq.length +140 }} px
                     </div>
                     <div style="width: 100%; text-align: center; margin-top: 5px;"> Adjust Height and Width in settings to change export dimensions </div>
@@ -447,7 +458,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
               <div class="modal-footer">
                 <button type="button" class="btn btn-error"
                 (click)="ShowAlignExportPane = false">Cancel</button>
-                <button type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
+                <button id="alignment-export-visual" type="button" class="btn btn-primary" (click)="exportVisualization()">Export</button>
               </div>
             </div><!-- /.modal-content -->
           </div><!-- /.modal-dialog -->
@@ -458,11 +469,11 @@ Maintain Codon will convert codon CT- to X (Unknown).">
               <div class="modal-body" style='min-width: 400px; height: 100%;'>
                 <div class="form-group row">
                   <div class="col-9">
-                    <input type="text" class="form-control form-control-sm"
+                    <input id="alignment-export-data-filename" type="text" class="form-control form-control-sm"
                       placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
                     </div>
                     <div class="col-3">
-                      <select [(ngModel)]="AlignmentExportFileTypeData" class="form-control form-control-sm">
+                      <select id="alignment-export-data-filetype" [(ngModel)]="AlignmentExportFileTypeData" class="form-control form-control-sm">
                         <option>fasta</option>
                         <option>mega</option>
                       </select>
@@ -471,8 +482,8 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                   <div class="form-group row">
                     <div class="col">
                       <div class="form-check form-check-inline" title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
-                        <input class="form-check-input" type="checkbox" id="include-consensus" #includeConsensus>
-                        <label class="form-check-label" for="include-consensus">Include Consensus?</label>
+                        <input class="form-check-input" type="checkbox" id="alignment-export-data-include-consensus" #includeConsensus>
+                        <label class="form-check-label" for="alignment-export-data-include-consensus">Include Consensus?</label>
                       </div>
                     </div>
                   </div>
@@ -480,7 +491,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                 <div class="modal-footer">
                   <button type="button" class="btn btn-error"
                   (click)="ShowAlignExportPane = false">Cancel</button>
-                  <button type="button" class="btn btn-primary" (click)="exportData(includeConsensus.checked)">Export</button>
+                  <button id="alignment-export-data" type="button" class="btn btn-primary" (click)="exportData(includeConsensus.checked)">Export</button>
                 </div>
               </div><!-- /.modal-content -->
             </div><!-- /.modal-dialog -->
@@ -491,15 +502,15 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                 <div class="modal-body" style='min-width: 400px; height: 100%;'>
                   <div class="form-group row">
                     <div class="col-9">
-                      <input type="text" class="form-control form-control-sm"
+                      <input id="alignment-export-table-filename" type="text" class="form-control form-control-sm"
                         placeholder="Filename" [(ngModel)]="AlignmentExportFileName">
                       </div>
                     </div>
                     <div class="form-group row">
                       <div class="col">
                         <div class="form-check form-check-inline">
-                          <input class="form-check-input" type="checkbox" id="include-consensus" #includeConsensus2 title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
-                          <label class="form-check-label" for="include-consensus">Include Consensus?</label>
+                          <input class="form-check-input" type="checkbox" id="alignment-export-table-include-consensus" #includeConsensus2 title="Include consensus sequence based on most common NT at each position including gaps. Excludes ambiguous NTs">
+                          <label class="form-check-label" for="alignment-export-table-include-consensus">Include Consensus?</label>
                         </div>
                       </div>
                     </div>
@@ -507,7 +518,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
                   <div class="modal-footer">
                     <button type="button" class="btn btn-error"
                     (click)="ShowAlignExportPane = false">Cancel</button>
-                    <button type="button" class="btn btn-primary" (click)="exportDataTable('advanced', includeConsensus2.checked)">Export</button>
+                    <button id="alignment-export-table" type="button" class="btn btn-primary" (click)="exportDataTable('advanced', includeConsensus2.checked)">Export</button>
                   </div>
                 </div><!-- /.modal-content -->
               </div><!-- /.modal-dialog -->
@@ -517,7 +528,7 @@ Maintain Codon will convert codon CT- to X (Unknown).">
         }<!-- /.modal -->
 
         @if (viewActive) {
-          <p-dialog header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
+          <p-dialog data-testid="alignment-excluded-nodes-dialog" header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ width: '35rem' }">
             <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain a sequence and were omitted from Alignment View.</span>
             <ol>
               @for (node of nodesWithoutSeq; track node) {

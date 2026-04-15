@@ -17,6 +17,11 @@ import { byTestId, testIds } from './selectors';
 type WinWithMT = Window & {
   commonService: any;
   cytoscapeInstance?: Core;
+  __mtCapturedDownloads?: Array<{
+    dataUrl: string;
+    fileName: string;
+  }>;
+  __mtTestSaveAs?: (content: Blob | string, fileName: string) => void;
 };
 
 type JourneyVisitOptions = {
@@ -24,6 +29,15 @@ type JourneyVisitOptions = {
   skipDemoSession?: boolean;
   skipEula?: boolean;
 };
+
+type SaveSessionOptions = {
+  byCluster?: boolean;
+  compress?: boolean;
+};
+
+function escapeForRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function buildJourneyUrl(options: JourneyVisitOptions = {}): string {
   const params = new URLSearchParams();
@@ -78,11 +92,117 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   }
 
   cy.get('body').then(($body) => {
-    const continueButton = $body.find(byTestId(testIds.appSampleDatasetButton));
+    const continueButton = $body.find(`${byTestId(testIds.appSampleDatasetButton)}:visible`);
     if (!continueButton.length) return;
 
     cy.get(byTestId(testIds.appSampleDatasetButton)).click({ force: true });
     cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
+  });
+}
+
+export function saveSessionFromFileMenu(
+  sessionFileBase: string,
+  options: SaveSessionOptions = {},
+): void {
+  const compress = options.compress ?? false;
+  const byCluster = options.byCluster ?? false;
+
+  cy.get('#top-toolbar').contains('button', 'File').click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Save').click({ force: true });
+  cy.contains('.p-dialog-title', 'Save Session')
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('saveSessionDialog');
+
+  cy.get('@saveSessionDialog')
+    .find('#stash-name')
+    .should('be.visible')
+    .clear({ force: true })
+    .type(sessionFileBase, { delay: 0, force: true })
+    .should('have.value', sessionFileBase);
+
+  cy.get('@saveSessionDialog')
+    .find('#save-file-cluster')
+    .should('exist')
+    .then(($checkbox) => {
+      const checked = Boolean($checkbox.prop('checked'));
+      if (checked !== byCluster) {
+        cy.wrap($checkbox).click({ force: true });
+      }
+    });
+
+  cy.get('@saveSessionDialog')
+    .find('#save-file-cluster')
+    .should(byCluster ? 'be.checked' : 'not.be.checked');
+
+  cy.get('@saveSessionDialog')
+    .find('#save-file-compress')
+    .should('exist')
+    .then(($checkbox) => {
+      const checked = Boolean($checkbox.prop('checked'));
+      if (checked !== compress) {
+        cy.wrap($checkbox).click({ force: true });
+      }
+    });
+
+  cy.get('@saveSessionDialog')
+    .find('#save-file-compress')
+    .should(compress ? 'be.checked' : 'not.be.checked');
+
+  cy.get('@saveSessionDialog')
+    .find('#stash-data')
+    .should('not.be.disabled')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Save Session').should('not.exist');
+}
+
+export function installSaveAsCaptureHook(): void {
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    w.__mtCapturedDownloads = [];
+    w.__mtTestSaveAs = (content: Blob | string, fileName: string) => {
+      const persistBlob = (blob: Blob) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          w.__mtCapturedDownloads?.push({
+            dataUrl: String(reader.result || ''),
+            fileName,
+          });
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      if (content instanceof Blob) {
+        persistBlob(content);
+        return;
+      }
+
+      persistBlob(new Blob([content], { type: 'application/octet-stream' }));
+    };
+  });
+}
+
+export function writeCapturedDownloadToDisk(expectedFileName: string, filePath: string): void {
+  cy.window({ timeout: 30000 }).should((win: unknown) => {
+    const w = win as WinWithMT;
+    const captured = (w.__mtCapturedDownloads || []).filter(
+      (download) => download.fileName === expectedFileName && download.dataUrl,
+    );
+
+    expect(captured.length, `captured download count for ${expectedFileName}`).to.be.greaterThan(0);
+  });
+
+  cy.window().then((win: unknown) => {
+    const w = win as WinWithMT;
+    const captured = [...(w.__mtCapturedDownloads || [])]
+      .reverse()
+      .find((download) => download.fileName === expectedFileName);
+
+    expect(captured, `captured download for ${expectedFileName}`).to.exist;
+
+    const base64 = String(captured?.dataUrl || '').split(',').pop() || '';
+    cy.writeFile(filePath, base64, 'base64');
   });
 }
 
@@ -457,12 +577,24 @@ export function expandAccordionTabByHeader(containerAlias: string, headerText: s
   }
   
 export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
+  const getFileSettingsDialog = (): Cypress.Chainable<JQuery<HTMLElement>> =>
+    cy.get('body', { timeout: 15000 }).then(($body) => {
+      const dialog = $body
+        .find('.p-dialog:visible')
+        .toArray()
+        .find((candidate) =>
+          Cypress.$(candidate)
+            .find('.p-dialog-title')
+            .toArray()
+            .some((title) => String(title.textContent || '').trim() === 'File Settings'));
+
+      expect(dialog, 'visible File Settings dialog').to.exist;
+      return cy.wrap(dialog as HTMLElement);
+    });
+
   cy.get(byTestId(testIds.filesSettingsButton), { timeout: 15000 }).click({ force: true });
 
-  cy.get(byTestId(testIds.filesSettingsDialog), { timeout: 15000 }).should('exist').as('fileSettings');
-  cy.get('@fileSettings').contains('.p-dialog-title', 'File Settings').should('exist');
-
-  cy.get('@fileSettings')
+  getFileSettingsDialog()
     .find('#default-distance-metric')
     .should('be.visible')
     .then(($select) => {
@@ -472,11 +604,11 @@ export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-  cy.get('@fileSettings')
+  getFileSettingsDialog()
     .find('#default-distance-metric')
     .should('have.value', profile.preLaunch.metric);
 
-  cy.get('@fileSettings')
+  getFileSettingsDialog()
     .find('#default-distance-threshold')
     .should('be.visible')
     .then(($input) => {
@@ -487,26 +619,37 @@ export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
       input.dispatchEvent(new Event('blur', { bubbles: true }));
     });
 
-  cy.get('@fileSettings')
+  getFileSettingsDialog()
     .find('#default-distance-threshold')
     .should('have.value', String(profile.preLaunch.threshold));
 
   if (profile.preLaunch.defaultView) {
-    cy.get('@fileSettings')
+    getFileSettingsDialog()
       .find('#default-view')
       .should('be.visible')
       .select(profile.preLaunch.defaultView);
 
-    cy.get('@fileSettings')
+    getFileSettingsDialog()
       .find('#default-view')
       .should('have.value', profile.preLaunch.defaultView);
   }
 
-  cy.get('@fileSettings')
+  getFileSettingsDialog()
     .find('button.p-dialog-close-button')
     .click({ force: true });
 
-  cy.contains('.p-dialog-title', 'File Settings').should('not.exist');
+  cy.get('body').should(($body) => {
+    const stillVisible = $body
+      .find('.p-dialog:visible')
+      .toArray()
+      .some((candidate) =>
+        Cypress.$(candidate)
+          .find('.p-dialog-title')
+          .toArray()
+          .some((title) => String(title.textContent || '').trim() === 'File Settings'));
+
+    expect(stillVisible, 'File Settings dialog closed').to.equal(false);
+  });
 }
 
 export function launchAndWaitForProcessing(timeout = 60000): void {
@@ -532,12 +675,97 @@ export function assertTwoDNetworkReady(timeout = 30000): void {
 
 export function assertPhyloTreeReady(timeout = 30000): void {
   cy.get('#phylocanvas', { timeout }).should('be.visible');
+  cy.get('#phylocanvas svg', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.phylogenetic.tree')
+    .should('exist');
 }
 
 export function assertMapReady(timeout = 30000): void {
   cy.get('.mapStyle', { timeout }).should('be.visible');
   cy.window({ timeout })
     .its('commonService.visuals.gisMap')
+    .should('exist');
+}
+
+export function assertBubbleReady(timeout = 30000): void {
+  cy.get(byTestId(testIds.bubbleCanvas), { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.bubble')
+    .should('exist');
+  cy.window({ timeout })
+    .its('commonService.visuals.bubble.cy')
+    .should('exist');
+}
+
+export function assertGanttReady(timeout = 30000): void {
+  cy.get('ganttcomponent #gantt', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.gantt')
+    .should('exist');
+}
+
+export function assertSankeyReady(timeout = 30000): void {
+  cy.get('#sankey-container', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.sankey')
+    .should('exist');
+}
+
+export function assertAlignmentReady(timeout = 30000): void {
+  cy.get('.msa-viewer-container', { timeout }).should('be.visible');
+  cy.get('#msa-viewer', { timeout }).should('be.visible');
+  cy.get('#alignmentTop svg', { timeout }).should('be.visible');
+  cy.get('.canvasHolder canvas', { timeout }).should(($canvas) => {
+    expect($canvas.length, 'alignment canvas rendered').to.be.greaterThan(0);
+    const canvas = $canvas.get(0) as HTMLCanvasElement;
+    expect(canvas.width, 'alignment canvas width').to.be.greaterThan(0);
+    expect(canvas.height, 'alignment canvas height').to.be.greaterThan(0);
+  });
+  cy.window({ timeout })
+    .its('commonService.visuals.alignment')
+    .should('exist');
+}
+
+export function assertTableReady(timeout = 30000): void {
+  cy.get('.table-wrapper', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.tableComp')
+    .should('exist');
+  cy.window({ timeout })
+    .its('commonService.visuals.tableComp.SelectedTableData.data.length')
+    .should('be.greaterThan', 0);
+}
+
+export function assertCrosstabReady(timeout = 30000): void {
+  cy.get('.crosstab-wrapper', { timeout }).should('be.visible');
+  cy.get(byTestId(testIds.crosstabTable), { timeout }).should('exist');
+  cy.window({ timeout })
+    .its('commonService.visuals.crossTab')
+    .should('exist');
+}
+
+export function assertEpiCurveReady(timeout = 30000): void {
+  cy.get('#epiCurve', { timeout }).should('be.visible');
+  cy.get('#epiCurveSVG', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.epiCurve')
+    .should('exist');
+}
+
+export function assertWaterfallReady(timeout = 30000): void {
+  cy.get('#waterfall-view', { timeout }).should('be.visible');
+  cy.get('#waterfall-cluster-table-container', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.waterfall')
+    .should('exist');
+}
+
+export function assertHeatmapReady(timeout = 30000): void {
+  cy.get('#heatmap', { timeout }).should('be.visible');
+  cy.get('#heatmap svg.main-svg', { timeout }).should('exist');
+  cy.window({ timeout })
+    .its('commonService.visuals.heatmap')
     .should('exist');
 }
 
@@ -553,6 +781,76 @@ export function goToMapView(): void {
   cy.contains('button[mat-menu-item]', 'Map', { timeout: 15000 }).click({ force: true });
 
   assertMapReady();
+}
+
+export function goToBubbleView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuBubble), { timeout: 15000 }).click({ force: true });
+
+  assertBubbleReady();
+}
+
+export function goToGanttView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Gantt Chart', { timeout: 15000 }).click({ force: true });
+
+  assertGanttReady();
+}
+
+export function goToSankeyView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuSankey), { timeout: 15000 }).click({ force: true });
+
+  assertSankeyReady();
+}
+
+export function goToAlignmentView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuAlignment), { timeout: 15000 }).click({ force: true });
+
+  assertAlignmentReady();
+}
+
+export function goToAggregateView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuAggregate), { timeout: 15000 }).click({ force: true });
+
+  assertAggregateReady();
+}
+
+export function goToTableView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Table', { timeout: 15000 }).click({ force: true });
+
+  assertTableReady();
+}
+
+export function goToCrosstabView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuCrosstab), { timeout: 15000 }).click({ force: true });
+
+  assertCrosstabReady();
+}
+
+export function goToEpiCurveView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Epi Curve', { timeout: 15000 }).click({ force: true });
+
+  assertEpiCurveReady();
+}
+
+export function goToWaterfallView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Waterfall', { timeout: 15000 }).click({ force: true });
+
+  assertWaterfallReady();
+}
+
+export function goToHeatmapView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.contains('button[mat-menu-item]', 'Heatmap', { timeout: 15000 }).click({ force: true });
+
+  assertHeatmapReady();
 }
 
 export function launchProfileToPhyloTree(profile: DatasetProfile): void {
@@ -575,14 +873,123 @@ export function ensureMapView(): void {
   });
 }
 
+export function ensureBubbleView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find(`${byTestId(testIds.bubbleCanvas)}:visible`).length) {
+      assertBubbleReady();
+      return;
+    }
+
+    goToBubbleView();
+  });
+}
+
+export function ensureSankeyView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('#sankey-container:visible').length) {
+      assertSankeyReady();
+      return;
+    }
+
+    goToSankeyView();
+  });
+}
+
+export function assertAggregateReady(timeout = 30000): void {
+  cy.get('#tablesContainer', { timeout }).should('be.visible');
+  cy.get(byTestId(testIds.aggregateTable), { timeout }).should(($tables) => {
+    expect($tables.length, 'aggregate table count').to.be.greaterThan(0);
+  });
+  cy.window({ timeout })
+    .its('commonService.visuals.aggregate')
+    .should('exist');
+}
+
+export function ensureAggregateView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('#tablesContainer:visible').length) {
+      assertAggregateReady();
+      return;
+    }
+
+    goToAggregateView();
+  });
+}
+
+export function ensureTableView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('.table-wrapper:visible').length) {
+      assertTableReady();
+      return;
+    }
+
+    goToTableView();
+  });
+}
+
+export function ensureCrosstabView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('.crosstab-wrapper:visible').length) {
+      assertCrosstabReady();
+      return;
+    }
+
+    goToCrosstabView();
+  });
+}
+
 export function ensureTwoDNetworkView(): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
-    if ($body.find('#cy').length) {
+    if ($body.find('#cy:visible').length) {
       assertTwoDNetworkReady();
       return;
     }
 
     goTo2DNetworkView();
+  });
+}
+
+export function ensureWaterfallView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('#waterfall-view:visible').length) {
+      assertWaterfallReady();
+      return;
+    }
+
+    goToWaterfallView();
+  });
+}
+
+export function ensureHeatmapView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('#heatmap svg.main-svg').length) {
+      assertHeatmapReady();
+      return;
+    }
+
+    goToHeatmapView();
+  });
+}
+
+export function ensureGanttView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('ganttcomponent #gantt:visible').length) {
+      assertGanttReady();
+      return;
+    }
+
+    goToGanttView();
+  });
+}
+
+export function ensureAlignmentView(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    if ($body.find('#msa-viewer:visible').length) {
+      assertAlignmentReady();
+      return;
+    }
+
+    goToAlignmentView();
   });
 }
 
@@ -593,6 +1000,60 @@ export function launchProfileToTwoD(profile: DatasetProfile): void {
   ensurePreLaunchProfileSynced(profile);
   launchAndWaitForProcessing(60000);
   ensureTwoDNetworkView();
+}
+
+export function launchProfileToEpiCurve(profile: DatasetProfile): void {
+  visitAppAndAcceptEula();
+  cy.loadFiles(profile.files);
+  applyPreLaunchFileSettings(profile);
+  ensurePreLaunchProfileSynced(profile);
+  launchAndWaitForProcessing(60000);
+  goToEpiCurveView();
+}
+
+export function openBubbleSettingsDialog(): void {
+  cy.get(byTestId(testIds.bubbleSettingsButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.bubbleSettingsDialog), { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title', 'Bubble Settings', { timeout: 15000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('bubbleSettings');
+}
+
+export function launchProfileToWaterfall(profile: DatasetProfile): void {
+  launchProfileToTwoD(profile);
+  ensureWaterfallView();
+}
+
+export function launchProfileToHeatmap(profile: DatasetProfile): void {
+  launchProfileToTwoD(profile);
+  ensureHeatmapView();
+}
+
+export function launchProfileToAlignment(profile: DatasetProfile): void {
+  visitAppAndAcceptEula();
+  cy.loadFiles(profile.files);
+  applyPreLaunchFileSettings(profile);
+  ensurePreLaunchProfileSynced(profile);
+  launchAndWaitForProcessing(60000);
+  ensureAlignmentView();
+}
+
+export function launchProfileToCrosstab(profile: DatasetProfile): void {
+  const crosstabProfile: DatasetProfile = {
+    ...profile,
+    preLaunch: {
+      ...profile.preLaunch,
+      defaultView: 'Crosstab',
+    },
+  };
+
+  visitAppAndAcceptEula();
+  cy.loadFiles(crosstabProfile.files);
+  applyPreLaunchFileSettings(crosstabProfile);
+  ensurePreLaunchProfileSynced(crosstabProfile);
+  launchAndWaitForProcessing(60000);
+  ensureCrosstabView();
 }
 
 export function assertMetricCount(selector: string, expected: number, timeout = 20000): void {
@@ -852,6 +1313,11 @@ function nodeMatchesMapLocationFilter(node: any, locationFilter: MapLocationFilt
     hasMapLocationValue(node?.[locationFilter.longitudeField]);
 }
 
+function cloneHeatmapMatrix(matrix: any): any[] {
+  if (!Array.isArray(matrix)) return [];
+  return matrix.map((row) => (Array.isArray(row) ? [...row] : row));
+}
+
 export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
   return cy.window().then((win: unknown) => {
     const w = win as WinWithMT;
@@ -928,6 +1394,67 @@ export function assertAfterLaunchCounts(profile: DatasetProfile, mode: 'observed
   if (expected.singletons !== undefined) {
     assertMetricCount('#numberOfSingletonNodes', expected.singletons);
   }
+}
+
+export function assertSessionAfterLaunchCounts(
+  profile: DatasetProfile,
+  mode: 'observed' | 'intended' = 'observed',
+): void {
+  const expected = resolveExpected(profile.expectations.afterLaunch, mode);
+  if (!expected) return;
+
+  cy.window().should((win: any) => {
+    const commonService = win.commonService;
+    const nodes = commonService.session.data.nodes || [];
+    const links = commonService.session.data.links || [];
+    const clusters = commonService.session.data.clusters || [];
+
+    const visibleNodes = nodes.filter((node: any) => node.visible !== false);
+    const visibleLinks = links.filter((link: any) => link.visible);
+    const visibleClusters = clusters.filter((cluster: any) => cluster.visible);
+    const nonSingletonClusters = visibleClusters.filter((cluster: any) => Number(cluster.nodes ?? 0) > 1);
+    const singletons = visibleNodes.filter((node: any) => Number(node.degree ?? 0) === 0);
+
+    if (expected.nodes !== undefined) {
+      expect(visibleNodes.length, 'visible node count').to.equal(expected.nodes);
+    }
+    if (expected.visibleLinks !== undefined) {
+      expect(visibleLinks.length, 'visible link count').to.equal(expected.visibleLinks);
+    }
+    if (expected.clusters !== undefined) {
+      expect(nonSingletonClusters.length, 'visible cluster count').to.equal(expected.clusters);
+    }
+    if (expected.singletons !== undefined) {
+      expect(singletons.length, 'visible singleton count').to.equal(expected.singletons);
+    }
+  });
+}
+
+export function assertAlignmentState(profile: DatasetProfile): void {
+  const alignment = profile.expectations.alignment;
+  if (!alignment) return;
+
+  assertAlignmentReady();
+
+  cy.get('.canvasLabels > div').should('have.length', alignment.visibleSequences);
+  cy.get(byTestId(testIds.alignmentExcludedNodesButton))
+    .should('contain.text', String(alignment.excludedNodeIds?.length ?? 0));
+
+  if (!alignment.excludedNodeIds?.length) {
+    return;
+  }
+
+  cy.get(byTestId(testIds.alignmentExcludedNodesButton)).click({ force: true });
+  cy.contains('.p-dialog-title', 'Excluded Nodes', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('alignmentExcludedNodesDialog');
+
+  alignment.excludedNodeIds.forEach((nodeId) => {
+    cy.get('@alignmentExcludedNodesDialog').should('contain.text', `ID: ${nodeId}`);
+  });
+
+  cy.closeSettingsPane('Excluded Nodes');
 }
 
 export function readMetricCount(selector: string): Cypress.Chainable<number> {
@@ -1062,6 +1589,202 @@ export function openMapSettingsDialog(): void {
     .as('mapSettings');
 }
 
+export function openHeatmapSettingsDialog(): void {
+  cy.get('heatmapcomponent #tool-btn-container a[title="Settings"]:visible', { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Heatmap Settings', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('heatmapSettings');
+}
+
+export function openAlignmentSettingsDialog(): void {
+  cy.get(byTestId(testIds.alignmentSettingsButton), { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Alignment View Settings', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('alignmentSettings');
+}
+
+export function openAlignmentExportDialog(): void {
+  cy.get(byTestId(testIds.alignmentExportButton), { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Export Alignment View', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('alignmentExportDialog');
+}
+
+export function openGanttSettingsDialog(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    const visibleDialog = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Gantt Settings'))
+      .length > 0;
+
+    if (!visibleDialog) {
+      cy.get('ganttcomponent #tool-btn-container a[title="Settings"]:visible', { timeout: 15000 })
+        .should('exist')
+        .click({ force: true });
+    }
+    
+    cy.get('.runtime-error-banner').should('not.exist');
+
+    cy.contains('.p-dialog-title', 'Gantt Settings', { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('ganttSettings');
+  });
+}
+
+export function openCrosstabSettingsDialog(): void {
+  cy.get(byTestId(testIds.crosstabSettingsButton), { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Crosstab Settings', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('crosstabSettings');
+}
+
+export function openCrosstabExportDialog(): void {
+  cy.get(byTestId(testIds.crosstabExportButton), { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Export Crosstab', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('crosstabExport');
+}
+
+export function openAggregateSettingsDialog(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    const visibleDialog = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Aggregate Settings'))
+      .length > 0;
+
+    if (!visibleDialog) {
+      cy.get(byTestId(testIds.aggregateSettingsButton), { timeout: 15000 })
+        .should('exist')
+        .click({ force: true });
+    }
+
+    cy.contains('.p-dialog-title', 'Aggregate Settings', { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('aggregateSettings');
+  });
+}
+
+export function openAggregateExportDialog(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    const visibleDialog = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Aggregate Export'))
+      .length > 0;
+
+    if (!visibleDialog) {
+      cy.get(byTestId(testIds.aggregateExportButton), { timeout: 15000 })
+        .should('exist')
+        .click({ force: true });
+    }
+
+    cy.contains('.p-dialog-title', 'Aggregate Export', { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('aggregateExport');
+  });
+}
+
+export function openSankeySettingsDialog(): void {
+  cy.get('body').then(($body) => {
+    const hasVisibleDialog = $body
+      .find('.p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Sankey Chart Settings'))
+      .length > 0;
+
+    if (hasVisibleDialog) {
+      cy.contains('.p-dialog-title', 'Sankey Chart Settings', { timeout: 10000 })
+        .should('be.visible')
+        .parents('.p-dialog')
+        .as('sankeySettings');
+      return;
+    }
+
+    cy.get(byTestId(testIds.sankeySettingsButton), { timeout: 15000 })
+      .should('exist')
+      .click({ force: true });
+
+    cy.contains('.p-dialog-title', 'Sankey Chart Settings', { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('sankeySettings');
+  });
+}
+
+export function openSankeyExportDialog(): void {
+  cy.get(byTestId(testIds.sankeyExportButton), { timeout: 15000 })
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Export Sankey Chart', { timeout: 10000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('sankeyExport');
+}
+
+export function openEpiCurveSettingsDialog(): void {
+  cy.get('body', { timeout: 15000 }).then(($body) => {
+    const hasVisibleDialog = $body
+      .find('.p-dialog:visible')
+      .toArray()
+      .some((candidate) =>
+        Cypress.$(candidate)
+          .find('.p-dialog-title')
+          .toArray()
+          .some((title) => String(title.textContent || '').trim() === 'Epi Curve Settings'));
+
+    if (!hasVisibleDialog) {
+      cy.get('#tool-btn-container-epi a[title="Settings"]', { timeout: 15000 })
+        .should('exist')
+        .click({ force: true });
+    }
+  });
+
+  cy.get('.p-dialog:visible', { timeout: 10000 })
+    .should(($dialogs) => {
+      const dialog = $dialogs.toArray().find((candidate) =>
+        Cypress.$(candidate)
+          .find('.p-dialog-title')
+          .toArray()
+          .some((title) => String(title.textContent || '').trim() === 'Epi Curve Settings'));
+
+      expect(dialog, 'visible Epi Curve Settings dialog').to.exist;
+    })
+    .then(($dialogs) => {
+      const dialog = $dialogs.toArray().find((candidate) =>
+        Cypress.$(candidate)
+          .find('.p-dialog-title')
+          .toArray()
+          .some((title) => String(title.textContent || '').trim() === 'Epi Curve Settings'));
+
+      cy.wrap(dialog as HTMLElement).as('epiCurveSettings');
+    });
+
+  cy.contains('.p-dialog:visible .form-group.row label', 'Date Field', { timeout: 10000 })
+    .should('be.visible');
+}
+
 export function selectMapField(
   selectId: string,
   optionLabel: string,
@@ -1078,6 +1801,89 @@ export function selectMapField(
   cy.window()
     .its(`commonService.session.style.widgets.${expectedWidgetKey}`)
     .should('equal', expectedWidgetValue);
+}
+
+export function selectGanttField(
+  selectId: 'gantt-start' | 'gantt-end',
+  optionText: string,
+  expectedProperty: 'GanttStartVariable' | 'GanttEndVariable',
+): void {
+  cy.get('@ganttSettings')
+    .find(`#${selectId}`)
+    .should('be.visible')
+    .click({ force: true });
+
+  cy.contains(
+    'li[role="option"]',
+    new RegExp(`^${escapeForRegex(optionText)}$`, 'i'),
+    { timeout: 15000 },
+  ).click({ force: true });
+
+  cy.window()
+    .its(`commonService.visuals.gantt.${expectedProperty}`)
+    .should('equal', optionText);
+}
+
+export function createGanttEntry(options: {
+  name?: string;
+  startField: string;
+  endField?: string;
+  color?: string;
+  expectedEntries?: number;
+}): void {
+  const expectedEntries = options.expectedEntries ?? 1;
+
+  openGanttSettingsDialog();
+
+  if (options.name) {
+    cy.get('@ganttSettings')
+      .find('#entry-name')
+      .then(($input) => {
+        const input = $input.get(0) as HTMLInputElement;
+        input.value = options.name as string;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('blur', { bubbles: true }));
+      });
+
+    cy.get('@ganttSettings')
+      .find('#entry-name')
+      .should('have.value', options.name);
+
+    cy.window()
+      .its('commonService.visuals.gantt.GanttEntryName')
+      .should('equal', options.name);
+  }
+
+  selectGanttField('gantt-start', options.startField, 'GanttStartVariable');
+
+  if (options.endField) {
+    selectGanttField('gantt-end', options.endField, 'GanttEndVariable');
+  }
+
+  if (options.color) {
+    cy.get('@ganttSettings')
+      .find('#gantt-color')
+      .invoke('val', options.color)
+      .trigger('input')
+      .trigger('change');
+
+    cy.window()
+      .its('commonService.visuals.gantt.GanttEntryColor')
+      .should('equal', options.color);
+  }
+
+  cy.get('@ganttSettings')
+    .contains('button', 'Create Entry')
+    .click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Gantt Settings').should('not.exist');
+
+  cy.window()
+    .its('commonService.visuals.gantt.ganttEntries')
+    .should((entries: any[]) => {
+      expect(entries.length, 'gantt entry count').to.equal(expectedEntries);
+    });
 }
 
 export function setMapNodeCollapsing(value: 'On' | 'Off'): void {
@@ -1194,6 +2000,74 @@ export function assertMapMatchesOracleSnapshot(
 
     expect(renderedNodeIds, 'rendered map node ids').to.deep.equal(expectedMapNodeIds);
     expect(renderedLinkIds, 'rendered map logical link ids').to.deep.equal(expectedMapLinkIds);
+  });
+}
+
+export function assertHeatmapMatchesBackingMatrix(options: {
+  invertX?: boolean;
+  invertY?: boolean;
+  labelsVisible?: boolean;
+  metric?: DistanceMetric;
+  colors?: {
+    low: string;
+    medium: string;
+    high: string;
+  };
+} = {}): void {
+  cy.window({ timeout: 20000 }).then((win: unknown) => {
+    const w = win as WinWithMT;
+    const heatmapView = w.commonService.visuals.heatmap;
+
+    expect(heatmapView, 'heatmap visual').to.exist;
+
+    return w.commonService.getDM().then(({ dm, labels }: { dm: any[]; labels: string[] }) => {
+      const baseLabels = (labels || []).map((label) => String(label));
+      const expectedX = options.invertX ? [...baseLabels].reverse() : [...baseLabels];
+      const expectedY = options.invertY ? [...baseLabels].reverse() : [...baseLabels];
+
+      let expectedZ = cloneHeatmapMatrix(dm);
+      if (options.invertX) {
+        expectedZ = expectedZ.map((row) => (Array.isArray(row) ? [...row].reverse() : row));
+      }
+      if (options.invertY) {
+        expectedZ = [...expectedZ].reverse();
+      }
+
+      const expectedLabelsVisible = options.labelsVisible ??
+        Boolean(w.commonService.session.style.widgets['heatmap-axislabels-show']);
+      const expectedMetric = (options.metric ??
+        w.commonService.session.style.widgets['default-distance-metric']).toUpperCase();
+      const expectedColors = options.colors ?? {
+        low: String(w.commonService.session.style.widgets['heatmap-color-low']),
+        medium: String(w.commonService.session.style.widgets['heatmap-color-medium']),
+        high: String(w.commonService.session.style.widgets['heatmap-color-high']),
+      };
+
+      expect(heatmapView.heatmapMetric, 'heatmap metric label').to.equal(expectedMetric);
+      expect(heatmapView.heatmapData, 'heatmap traces').to.have.length(1);
+
+      const trace = heatmapView.heatmapData[0];
+      expect(trace.type, 'heatmap trace type').to.equal('heatmap');
+      expect(trace.z.length, 'heatmap matrix row count').to.be.greaterThan(0);
+      expect(trace.x, 'heatmap x labels').to.deep.equal(expectedX);
+      expect(trace.y, 'heatmap y labels').to.deep.equal(expectedY);
+      expect(trace.z, 'heatmap matrix values').to.deep.equal(expectedZ);
+      expect(trace.colorscale, 'heatmap colorscale').to.deep.equal([
+        [0, expectedColors.low],
+        [0.5, expectedColors.medium],
+        [1, expectedColors.high],
+      ]);
+
+      expect(heatmapView.heatmapLayout?.xaxis?.showticklabels, 'heatmap x-axis labels visible')
+        .to.equal(expectedLabelsVisible);
+      expect(heatmapView.heatmapLayout?.yaxis?.showticklabels, 'heatmap y-axis labels visible')
+        .to.equal(expectedLabelsVisible);
+
+      if (!expectedLabelsVisible) {
+        expect(heatmapView.heatmapLayout?.xaxis?.ticks, 'heatmap x-axis ticks hidden').to.equal('');
+        expect(heatmapView.heatmapLayout?.yaxis?.ticks, 'heatmap y-axis ticks hidden').to.equal('');
+      }
+    });
   });
 }
 

@@ -80,6 +80,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
         SelectedColorLinksByVariable: 'None',
+        SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
         SelectedPruneWithTypesVariable: 'None',
@@ -90,6 +91,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedDistanceMetricVariable: 'tn93',
         SelectedLinkColorTableTypesVariable: 'Hide',
         SelectedNodeColorTableTypesVariable: 'Hide',
+        SelectedNodeShapeTableTypesVariable: 'Hide',
 
         SelectedColorVariable: '#ff8300',
         SelectedBackgroundColorVariable: '#ffffff',
@@ -350,6 +352,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-labels-show': false,
             'tree-leaf-label-show': false,
             'tree-leaf-label-size': 12,
+            'tree-leaf-node-use-global-shapes': false,
             'tree-leaf-node-radius-variable': 'None',
             'tree-leaf-node-show': true,
             'tree-leaf-node-size': 5,
@@ -418,6 +421,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 },
                 nodeColorsTableKeys: {},
                 linkColorsTable: {},
+                linkColorsTableHistory: {},
                 linkColorsTableKeys: {},
                 nodeSymbols: [
                     'ellipse',
@@ -436,6 +440,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                     'unknown',
                     'house',
                     'clinic',
+                    'school',
+                    'placeOfWorship',
                     'farm',
                     'city',
                     'man',
@@ -448,7 +454,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                     'bat',
                     'rodent',
                     'pig',
+                    'cow',
                     'chicken',
+                    'bird',
                     'pet',
                     'food', 
                     'apple', 
@@ -698,6 +706,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         return s.charAt(0).toUpperCase() + s.slice(1)
     }
 
+    hasValidTimelineDateValue(value: any): boolean {
+        if (value == null) {
+            return false;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+                return false;
+            }
+        }
+
+        return moment(value).isValid();
+    }
+
 
     /**
      * Set commonService.session and commonService.temp back to default values
@@ -727,6 +750,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'unknown',
             'house',
             'clinic',
+            'school',
+            'placeOfWorship',
             'farm',
             'city',
             'man',
@@ -739,7 +764,9 @@ export class CommonService extends AppComponentBase implements OnInit {
             'bat',
             'rodent',
             'pig',
+            'cow',
             'chicken',
+            'bird',
             'pet',
             'food', 
             'apple', 
@@ -1566,6 +1593,15 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         })
 
+        if (!this.session.style.linkColorsTableHistory) {
+            this.session.style.linkColorsTableHistory = {};
+        }
+        Object.keys(this.session.style.linkColorsTableHistory).forEach(key => {
+            if (typeof this.session.style.linkColorsTableHistory[key] == 'object') {
+                this.session.style.linkColorsTableHistory[key] = "#000000";
+            }
+        })
+
         this.applyStyle(this.session.style);
 
         console.log('applySession end');
@@ -2311,9 +2347,11 @@ align(params): Promise<any> {
     };
 
     /**
-     * Sets node/link values to null when they aren't present. Check each field in nodeField and linkFields, and if the key includes 'date', sets any null or empty string
-     * value to the min date value found. Populates options for #search-field, #link-sort-variable, #node-color-variable, #link-color-variable, set value for #default-distance-metric.
-     * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility, setLinkVisibilty, setNodeVisibility functions. Updates network statistic table.
+     * Sets node/link values to null when they aren't present. Populates options for
+     * #search-field, #link-sort-variable, #node-color-variable, #link-color-variable,
+     * and sets the value for #default-distance-metric.
+     * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility,
+     * setLinkVisibilty, and setNodeVisibility. Updates network statistic table.
      * Launches default view.
      */
     async finishUp() {
@@ -2336,42 +2374,6 @@ align(params): Promise<any> {
                 });
             }
         });
-
-        console.log('----- finishUp -- patch missing date fields');
-
-         // patch missing date fields to earliest date in the the data
-        let fields = this.session.data["nodeFields"];
-        let nodeSkeleton = this.dataSkeleton();
-        let fieldsToCheck = fields.filter(f => !nodeSkeleton.nodeFields.includes(f) && f != '_ambiguity' && f != '_diff'); 
-        let n = this.session.data.nodes.length;
-        let k = fieldsToCheck.length;
-        // for each field in fieldsToCheck (fieldsToCheck are nodeFields that are not default from dataSkeleton() and also not '_ambiguity' and not '_diff' )
-        for (let j = 0; j < k; j++) {
-            const field = fieldsToCheck[j];
-            const times = [];
-            // for each node check if node[field] is valid time and if so push to times []
-            for (let i = 0; i < n; i++) {
-                let node = this.session.data.nodes[i];
-                if (node[field] != null) {
-                    const time = moment(node[field]); 
-                    if (time.isValid() && isNaN(node[field])) //#315
-                        times.push(time.toDate());
-                }
-            }
-
-            // If column has the word date in it, date expected to be in column 
-            if (field.toLowerCase().includes("date")){
-        
-                const minTime = Math.min(...times);
-                const minTimeString = new Date(minTime).toString();
-                // for each node d, if d[field] == null or empty string ("", " ", "  " ...) set d[field] to minTimeString
-                this.session.data.nodes.forEach(d => {
-                    if (d[field] == null || (d[field] && String(d[field]).trim() == "") || d[field] == 'null')  {
-                        d[field] = minTimeString;
-                    } 
-                });
-            }
-        };
 
         // TODO:: See if this is needed
         // this.foldMultiSelect();
@@ -2478,9 +2480,18 @@ align(params): Promise<any> {
     };
 
 
-    updateNetworkVisuals(silent: boolean = false) {
+    updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+        const getVisibleLinkKey = (link: any): string => String(
+          link.id ?? link.index ?? [link.source, link.target, link.distance].join('|')
+        );
+        const prevVisibleLinkKeys = new Set(
+          this.session.data.links
+            .filter(link => link.visible)
+            .map(link => getVisibleLinkKey(link))
+        );
+
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -2489,7 +2500,21 @@ align(params): Promise<any> {
           if (!silent) this.store.setNetworkUpdated(true);
           let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
           let updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
-          if (!silent && (prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters || prevVisNodeCount != updatedVisNodeCount)) {
+          const updatedVisibleLinkKeys = new Set(
+            this.session.data.links
+              .filter(link => link.visible)
+              .map(link => getVisibleLinkKey(link))
+          );
+          const visibleLinksChanged =
+            prevVisibleLinkKeys.size !== updatedVisibleLinkKeys.size ||
+            Array.from(prevVisibleLinkKeys).some((key) => !updatedVisibleLinkKeys.has(key));
+
+          if (!silent && (
+            prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters ||
+            prevVisNodeCount != updatedVisNodeCount ||
+            visibleLinksChanged ||
+            forceClusterUpdate
+          )) {
             console.log('Triggering cluster count update')
             this.store.triggerClusterUpdate();
           }
@@ -2532,6 +2557,56 @@ align(params): Promise<any> {
         return out;
     };
 
+    private buildNonTimelineVisibleClusterSummary() {
+        const nodes = this.session.data.nodeFilteredValues || [];
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const minClusterSize = Number(this.session.style.widgets["cluster-minimum-size"] ?? 1);
+        const summary = buildVisibleClusterSummary(
+            nodes,
+            this.getVisibleLinksIgnoringTimeline(),
+            metric
+        );
+
+        summary.clusters.forEach(cluster => {
+            cluster.visible = cluster.nodes >= minClusterSize;
+        });
+
+        return summary;
+    };
+
+    /**
+     * Gets nodes that remain available to non-target data views when Timeline is active.
+     * This preserves the current non-timeline filtering state (for example cluster visibility)
+     * while ignoring the timeline-specific node visibility gate.
+     */
+    getVisibleNodesIgnoringTimeline(copy: any = false) {
+        const nodes = this.session.data.nodeFilteredValues || [];
+        const summary = this.buildNonTimelineVisibleClusterSummary();
+        const out = [];
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const clusterId = summary.nodeClusterByIndex[i];
+            const cluster = summary.clusters[clusterId];
+            const visibleIgnoringTimeline = !cluster || cluster.visible;
+
+            if (!visibleIgnoringTimeline) {
+                continue;
+            }
+
+            const normalizedNode = {
+                ...node,
+                cluster: clusterId,
+                degree: summary.degrees[i] ?? 0,
+                visible: true,
+            };
+
+            out.push(copy ? JSON.parse(JSON.stringify(normalizedNode)) : normalizedNode);
+        }
+
+        return out;
+    };
+
     /**
      * Gets a list of all visible links objects; Similar to twoD.getVlinks(), and twoD.getLLinks()
      * 
@@ -2561,6 +2636,31 @@ align(params): Promise<any> {
             console.log('get visible links: ', _.cloneDeep(out));
         }
         return out;
+    };
+
+    /**
+     * Gets links for non-target data views while preserving all non-timeline filters.
+     * Link visibility is currently computed independently of the timeline node gate, so the
+     * existing visible-link contract is already the correct non-timeline dataset source.
+     */
+    getVisibleLinksIgnoringTimeline(copy: any = false) {
+        return this.getVisibleLinks(copy);
+    };
+
+    /**
+     * Gets visible clusters for non-target data views while ignoring the timeline-specific node gate.
+     * Cluster visibility is recomputed from the current non-timeline visible graph so hidden tabs and
+     * non-target data views do not depend on mutable session cluster state.
+     */
+    getVisibleClustersIgnoringTimeline(copy: any = false) {
+        const visibleClusters = this.buildNonTimelineVisibleClusterSummary().clusters
+            .filter(cluster => cluster.visible);
+
+        if (!copy) {
+            return visibleClusters;
+        }
+
+        return visibleClusters.map(cluster => JSON.parse(JSON.stringify(cluster)));
     };
 
     /**
@@ -2721,6 +2821,7 @@ align(params): Promise<any> {
         const linkAlphas = this.session.style.linkAlphas;       // e.g. [1, 1, ...]
         const linkColorsTable = this.session.style.linkColorsTable;
         const linkColorsTableKeys = this.session.style.linkColorsTableKeys;
+        const linkColorsTableHistory = this.session.style.linkColorsTableHistory;
         
         // 2) Delegate to colorMappingService
         const result = this.colorMappingService.createLinkColorMap(
@@ -2730,6 +2831,7 @@ align(params): Promise<any> {
           linkAlphas,
           linkColorsTable,
           linkColorsTableKeys,
+          linkColorsTableHistory,
           this.debugMode
         );
 
@@ -2743,6 +2845,7 @@ align(params): Promise<any> {
         this.session.style.linkAlphas       = result.updatedLinkAlphas;
         this.session.style.linkColorsTable  = result.updatedLinkColorsTable;
         this.session.style.linkColorsTableKeys = result.updatedLinkColorsTableKeys;
+        this.session.style.linkColorsTableHistory = result.updatedLinkColorsTableHistory;
       
         console.log('create link color map 1: ', this.session.style.linkColorsTable);
         console.log('create link color map 2: ', this.session.style.linkColorsTableKeys);
@@ -3139,7 +3242,12 @@ align(params): Promise<any> {
                 node.visible = node.visible && cluster.visible;
             }
             if (dateField != "None") {
-                node.visible = node.visible && (moment(this.session.state.timeEnd).toDate() >= moment(node[dateField]).toDate() || node[dateField] == null);
+                const rawDateValue = node[dateField];
+                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                    node.visible =
+                        node.visible &&
+                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                }
             }
 
             // if (node._id === "NIMR_NG894803") {
