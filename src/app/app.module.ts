@@ -30,6 +30,7 @@ import { PaginatorModule } from 'primeng/paginator';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
+import { TreeSelectModule } from 'primeng/treeselect';
 import { AccordionModule } from 'primeng/accordion';
 import { DrawerModule } from 'primeng/drawer';
 import { MultiSelectModule } from 'primeng/multiselect';
@@ -81,6 +82,7 @@ import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/hea
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
+import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 import { GlobalErrorHandler } from './runtime-security/global-error-handler';
@@ -128,6 +130,7 @@ export class TestedComponent {
         BubbleComponent,
         WaterfallComponent,
         SankeyComponent,
+        KeyTablesComponent,
     ],
     exports: [
         SelectButtonModule
@@ -161,6 +164,7 @@ export class TestedComponent {
         CoreModule,
         ConfirmDialogModule,
         SelectModule,
+        TreeSelectModule,
         PrimeTabsModule,
         SelectButtonModule,
         TreeModule,

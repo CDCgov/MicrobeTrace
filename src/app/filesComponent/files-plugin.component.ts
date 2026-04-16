@@ -682,6 +682,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.network.launched = true;
     }
 
+    this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
+    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Hide';
+    this.commonService.session.style.widgets['node-symbol-variable'] = 'None';
+    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Hide';
+    this.commonService.visuals.microbeTrace?.resetNodeShapeSelectionForNewDataset();
+
     this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
@@ -899,8 +905,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
-          const workbook = XLSX.read(file.contents, { type: 'array' });
-          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+          const workbook = XLSX.read(file.contents, { type: 'array' , cellDates: true, dateNF: 'mm/dd/yyyy'});
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {dateNF: 'mm/dd/yyyy', raw: false});
           data.map(forEachLink);
           this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link Excel Table.`);
           let n = 0, t = 0;
@@ -1034,8 +1040,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
-          const workbook = XLSX.read(file.contents, { type: 'array' });
-          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false, dateNF: 'yyyy-mm-dd'});
+          const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false, dateNF: 'mm/dd/yyyy'});
           data.forEach(node => {
             let safeNode = {
               _id: this.commonService.filterXSS('' + node[file.field1]),
@@ -1132,8 +1138,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
-          const workbook = XLSX.read(file.contents, { type: 'array' });
-          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+          const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {dateNF: 'mm/dd/yyyy', header: 1, raw: false});
           let nodeIDs = [], nn = 0, nl = 0;
           data.forEach((row: any, i) => {
             if (i === 0) {
@@ -1620,8 +1626,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
     if (isXL) {
       try {
-        const workbook = XLSX.read(file.contents, { type: 'array' });
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {dateNF: 'mm/dd/yyyy', raw: false});
         const headers = [];
         data.forEach(row => {
           Object.keys(row).forEach(key => {
@@ -2025,8 +2031,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       } else {
         const file = nodeFilesWithSeqs[j]
         const seqLabel = file['field2']
-        const workbook = XLSX.read(file.contents, { type: 'array' });
-        const dataJSON = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
+        const dataJSON = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {dateNF: 'mm/dd/yyyy', raw: false});
         const headers = [];
         dataJSON.forEach(row => {
           Object.keys(row).forEach(key => {

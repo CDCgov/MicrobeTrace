@@ -11,6 +11,7 @@ export class GanttChartService {
   ganttTeams: Array<any>;
   ganttPhases: Array<any>;
   phaseTimelines;
+  hasRenderableDateRange: boolean = false;
   legend;
   ganttMinDate;
   ganttMaxDate;
@@ -22,6 +23,8 @@ export class GanttChartService {
 
   gridWidthY: number;
   gridWidthX: number;
+  gridPrecisionX: number;
+  gridColumnCount: number;
   rectWidth: number;
   rectHeight: number;
   legendWidth: number;
@@ -38,25 +41,44 @@ export class GanttChartService {
 
   constructor() { }
 
-  private setEmptyTimelineState(): void {
-    this.ganttMinDate = this.addDays(new Date(), 0);
-    this.ganttMaxDate = this.addDays(this.ganttMinDate, 7);
-    this.ganttDateRange = 7;
-    this.minX = 0;
-    this.maxX = 7;
-    this.height = this.ganttPhases.length * this.gridWidthY + this.yPadding * 3 + 20;
+  private isValidGanttDate(value: any): boolean {
+    if (value == null) {
+      return false;
+    }
 
-    this.computeRectDimensions();
-    this.computeLegendDimensions();
-    this.computeLegend();
+    if (typeof value === 'string') {
+      const trimmed = value.trim().toLowerCase();
+      if (trimmed === '' || trimmed === 'null') {
+        return false;
+      }
+    }
+
+    return !Number.isNaN(new Date(value).getTime());
+  }
+
+  private applyFallbackDateRange(): void {
+    const today = new Date();
+    this.ganttMinDate = this.addDays(today, 0);
+    this.ganttDateRange = 28;
+    this.gridPrecisionX = 7;
+    this.gridColumnCount = 4;
+    this.minX = 0;
+    this.maxX = this.ganttDateRange;
+    this.ganttMaxDate = this.addDays(today, this.ganttDateRange);
   }
 
   computeRectDimensions() {
-    this.rectWidth = this.gridWidthX * 8;
+    this.rectWidth = this.gridWidthX * Math.max(1, this.gridColumnCount || 8);
     this.rectHeight = this.ganttPhases.length * this.gridWidthY;
   }
 
   computeLegendDimensions() {
+    if (!this.hasRenderableDateRange) {
+      this.legendWidth = 0;
+      this.legendHeight = 0;
+      return;
+    }
+
     const noOfLines = Math.ceil(this.data.length / 3);
     if (noOfLines == 1) {
       this.legendWidth = this.rectWidth * this.data.length / 3
@@ -71,6 +93,11 @@ export class GanttChartService {
   }
 
   computeLegend() {
+    if (!this.hasRenderableDateRange) {
+      this.legend = [];
+      return;
+    }
+
     const noOfLines = Math.ceil(this.data.length / 3);
     this.legend = [];
     let cnt = 0;
@@ -117,9 +144,10 @@ export class GanttChartService {
     this.width = width;
     this.xPadding = xPadding;
     this.yPadding = yPadding;
-    this.data = data;
+    this.data = Array.isArray(data) ? data : [];
     this.gridWidthY = gridWidthY
     this.gridWidthX = gridWidthX
+    this.hasRenderableDateRange = false;
     const froms: any = [];
     const tos: any = [];
     const phases = new Set();
@@ -138,19 +166,26 @@ export class GanttChartService {
       }
     }
     this.ganttPhases = Array.from(phases);
+    const noOfLines = Math.ceil(this.data.length / 3);
+    this.height = this.ganttPhases.length * this.gridWidthY + this.yPadding * 3 + 20 + 30 * noOfLines;
 
-    if (froms.length === 0 || tos.length === 0) {
-      this.setEmptyTimelineState();
+    const validFroms = froms.filter(x => this.isValidGanttDate(x));
+    const validTos = tos.filter(x => this.isValidGanttDate(x));
+
+    if (validFroms.length === 0 || validTos.length === 0) {
+      this.applyFallbackDateRange();
+      this.height = this.ganttPhases.length * this.gridWidthY + this.yPadding * 3 + 20;
+      this.computeRectDimensions();
+      this.computeLegendDimensions();
+      this.computeLegend();
       return;
     }
 
-    const minDate = froms.filter(x => x !== null && x!=="null").reduce((a, b) => new Date(a) < new Date(b) ? a : b );
-    const maxDate = tos.filter(x=>x!==null && x!=="null").reduce((a, b) => new Date(a) > new Date(b) ? a : b );
+    const minDate = validFroms.reduce((a, b) => new Date(a) < new Date(b) ? a : b );
+    const maxDate = validTos.reduce((a, b) => new Date(a) > new Date(b) ? a : b );
 
     this.ganttMinDate = minDate;
     this.ganttMaxDate = maxDate;
-    const noOfLines = Math.ceil(this.data.length / 3);
-    this.height = this.ganttPhases.length * this.gridWidthY + this.yPadding * 3 + 20 + 30 * noOfLines;
 
     const oneDay = 24 * 60 * 60 * 1000;
     this.ganttDateRange = Math.round(Math.abs(
@@ -168,8 +203,11 @@ export class GanttChartService {
       } else { qts = qts + 1; }
     }
 
-    this.maxX = this.closestMultipleMoreThanEqualTo(7 * qts, this.ganttDateRange);
+    this.gridPrecisionX = 7 * qts;
+    this.maxX = this.closestMultipleMoreThanEqualTo(this.gridPrecisionX, this.ganttDateRange);
     this.ganttMaxDate = this.addDays(this.ganttMinDate, this.maxX);
+    this.gridColumnCount = Math.max(1, Math.round(this.maxX / this.gridPrecisionX));
+    this.hasRenderableDateRange = true;
 
     this.computeRectDimensions();
     this.computeLegendDimensions();

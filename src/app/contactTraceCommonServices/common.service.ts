@@ -81,6 +81,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
         SelectedColorLinksByVariable: 'None',
+        SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
         SelectedPruneWithTypesVariable: 'None',
@@ -91,6 +92,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedDistanceMetricVariable: 'tn93',
         SelectedLinkColorTableTypesVariable: 'Hide',
         SelectedNodeColorTableTypesVariable: 'Hide',
+        SelectedNodeShapeTableTypesVariable: 'Hide',
 
         SelectedColorVariable: '#ff8300',
         SelectedBackgroundColorVariable: '#ffffff',
@@ -245,6 +247,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-bidirectional': false,
             'link-label-variable': 'None',
             'link-label-decimal-length' : 3,
+            'link-label-size': 16,
             'link-length': 50,
             'link-opacity': 0,
             'link-show-nn': false,
@@ -351,6 +354,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-labels-show': false,
             'tree-leaf-label-show': false,
             'tree-leaf-label-size': 12,
+            'tree-leaf-node-use-global-shapes': false,
             'tree-leaf-node-radius-variable': 'None',
             'tree-leaf-node-show': true,
             'tree-leaf-node-size': 5,
@@ -438,6 +442,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                     'unknown',
                     'house',
                     'clinic',
+                    'school',
+                    'placeOfWorship',
                     'farm',
                     'city',
                     'man',
@@ -450,7 +456,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                     'bat',
                     'rodent',
                     'pig',
+                    'cow',
                     'chicken',
+                    'bird',
                     'pet',
                     'food', 
                     'apple', 
@@ -700,6 +708,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         return s.charAt(0).toUpperCase() + s.slice(1)
     }
 
+    hasValidTimelineDateValue(value: any): boolean {
+        if (value == null) {
+            return false;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+                return false;
+            }
+        }
+
+        return moment(value).isValid();
+    }
+
 
     /**
      * Set commonService.session and commonService.temp back to default values
@@ -729,6 +752,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'unknown',
             'house',
             'clinic',
+            'school',
+            'placeOfWorship',
             'farm',
             'city',
             'man',
@@ -741,7 +766,9 @@ export class CommonService extends AppComponentBase implements OnInit {
             'bat',
             'rodent',
             'pig',
+            'cow',
             'chicken',
+            'bird',
             'pet',
             'food', 
             'apple', 
@@ -2332,9 +2359,11 @@ align(params): Promise<any> {
     };
 
     /**
-     * Sets node/link values to null when they aren't present. Check each field in nodeField and linkFields, and if the key includes 'date', sets any null or empty string
-     * value to the min date value found. Populates options for #search-field, #link-sort-variable, #node-color-variable, #link-color-variable, set value for #default-distance-metric.
-     * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility, setLinkVisibilty, setNodeVisibility functions. Updates network statistic table.
+     * Sets node/link values to null when they aren't present. Populates options for
+     * #search-field, #link-sort-variable, #node-color-variable, #link-color-variable,
+     * and sets the value for #default-distance-metric.
+     * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility,
+     * setLinkVisibilty, and setNodeVisibility. Updates network statistic table.
      * Launches default view.
      */
     async finishUp() {
@@ -2357,48 +2386,6 @@ align(params): Promise<any> {
                 });
             }
         });
-
-        console.log('----- finishUp -- patch missing date fields');
-
-         // patch missing date fields to earliest date in the the data
-        let fields = this.session.data["nodeFields"];
-        let nodeSkeleton = this.dataSkeleton();
-        let fieldsToCheck = fields.filter(f => !nodeSkeleton.nodeFields.includes(f) && f != '_ambiguity' && f != '_diff'); 
-        let n = this.session.data.nodes.length;
-        let k = fieldsToCheck.length;
-        // for each field in fieldsToCheck (fieldsToCheck are nodeFields that are not default from dataSkeleton() and also not '_ambiguity' and not '_diff' )
-        for (let j = 0; j < k; j++) {
-            const field = fieldsToCheck[j];
-            const times = [];
-            // for each node check if node[field] is valid time and if so push to times []
-            for (let i = 0; i < n; i++) {
-                let node = this.session.data.nodes[i];
-                if (node[field] != null) {
-                    const time = moment(node[field]); 
-                    if (time.isValid() && isNaN(node[field])) //#315
-                        times.push(time.toDate());
-                }
-            }
-
-            // If column has the word date in it, date expected to be in column 
-            if (field.toLowerCase().includes("date")){
-        
-                const minTime = Math.min(...times);
-                const minTimeString = new Date(minTime).toString();
-                // for each node d, if d[field] == null or empty string ("", " ", "  " ...) set d[field] to minTimeString
-                this.session.data.nodes.forEach(d => {
-                    if (!Object.prototype.hasOwnProperty.call(d, '_rawDateValues') || d['_rawDateValues'] == null) {
-                        d['_rawDateValues'] = {};
-                    }
-                    if (!Object.prototype.hasOwnProperty.call(d['_rawDateValues'], field)) {
-                        d['_rawDateValues'][field] = d[field];
-                    }
-                    if (d[field] == null || (d[field] && String(d[field]).trim() == "") || d[field] == 'null')  {
-                        d[field] = minTimeString;
-                    } 
-                });
-            }
-        };
 
         // TODO:: See if this is needed
         // this.foldMultiSelect();
@@ -3267,7 +3254,12 @@ align(params): Promise<any> {
                 node.visible = node.visible && cluster.visible;
             }
             if (dateField != "None") {
-                node.visible = node.visible && (moment(this.session.state.timeEnd).toDate() >= moment(node[dateField]).toDate() || node[dateField] == null);
+                const rawDateValue = node[dateField];
+                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                    node.visible =
+                        node.visible &&
+                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                }
             }
 
             // if (node._id === "NIMR_NG894803") {

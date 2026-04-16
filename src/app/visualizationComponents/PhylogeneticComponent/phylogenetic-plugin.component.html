@@ -130,7 +130,7 @@
     </p-accordion-content>
   </p-accordion-panel>
   <p-accordion-panel value="tree-leafsize" style="color:#495057">
-    <p-accordion-header>Leaf Size</p-accordion-header>
+    <p-accordion-header>Leaf Size and Shape</p-accordion-header>
     <p-accordion-content><div #leafcontrolslabels>
       <div class="form-group row " title="Show leaf nodes?">
         <div class="col-5">Show Leaf Nodes</div>
@@ -138,6 +138,14 @@
           <p-selectButton [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
         </div>
       </div>
+      @if (SelectedLeafNodeShowVariable) {
+        <div class="form-group row" title="Use the global node shape settings for tree leaf nodes?">
+          <div class="col-5"><label>Use Global Shapes</label></div>
+          <div class="col-7">
+            <p-selectButton [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeUseGlobalShapesVariable" (ngModelChange)="onLeafNodeUseGlobalShapesChange($event)"></p-selectButton>
+          </div>
+        </div>
+      }
       <!--<div class="form-group row leaf-shape-row" title="What shape should leaves be?">
       <div class="col-4"><label for="leaf-shape-variable">Leaf Shape</label></div>
       <p-select id="leaf-shape-variable" [options]="LeafShapes" appendTo="body" [(ngModel)]="SelectedLeafShapeVariable" (ngModelChange)="onLeafShapeVariableChange($event)"></p-select>

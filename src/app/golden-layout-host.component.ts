@@ -1,6 +1,7 @@
 import { ApplicationRef, Component, ComponentRef, ElementRef, EmbeddedViewRef, EventEmitter, OnDestroy, Output, ViewChild, ViewContainerRef } from '@angular/core';
 import {
   ComponentContainer, GoldenLayout,
+  ItemConfig,
   LogicalZIndex,
   ResolvedComponentItemConfig
 } from "golden-layout";
@@ -20,6 +21,7 @@ import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/hea
 import { BubbleComponent } from './visualizationComponents/BubbleComponent/bubble.component';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
+import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 
 @Component({
     selector: 'app-golden-layout-host',
@@ -80,6 +82,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
     this.goldenLayoutComponentService.registerComponentType(BubbleComponent.componentTypeName, BubbleComponent);
     this.goldenLayoutComponentService.registerComponentType(SankeyComponent.componentTypeName, SankeyComponent);
     this.goldenLayoutComponentService.registerComponentType(WaterfallComponent.componentTypeName, WaterfallComponent);
+    this.goldenLayoutComponentService.registerComponentType(KeyTablesComponent.componentTypeName, KeyTablesComponent);
   }
 
   ngOnDestroy() {
@@ -126,6 +129,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
   }
 
   setSize(width: number, height: number) {
+    //@ts-ignore
     this._goldenLayout.setSize(width, height)
   }
 
@@ -133,11 +137,13 @@ export class GoldenLayoutHostComponent implements OnDestroy {
     return this._componentRefMap.get(container);
   }
 
-  public focusComponent(componentId: string) : ComponentContainer {
+  getComponentRefByType(componentId: string) {
+    const container = this.findContainer(componentId);
+    return container ? this._componentRefMap.get(container) : undefined;
+  }
 
-    const container = Array.from(this._componentRefMap.keys()).find(
-      (container) => container.componentType?.toString() === componentId
-    ) as ComponentContainer;
+  public focusComponent(componentId: string) : ComponentContainer {
+    const container = this.findContainer(componentId) as ComponentContainer;
   
     if (container) {
       const componentItem = container.parent;
@@ -146,6 +152,54 @@ export class GoldenLayoutHostComponent implements OnDestroy {
 
     return container;
 
+  }
+
+  public dockComponentRight(componentId: string, title?: string): ComponentContainer {
+    const existingContainer = this.findContainer(componentId);
+    if (existingContainer) {
+      return existingContainer;
+    }
+
+    const layoutManager = this._goldenLayout as any;
+    const groundItem = (this._goldenLayout.rootItem?.parent ?? layoutManager._groundItem) as any;
+
+    if (!groundItem) {
+      throw new Error('Unable to resolve Golden Layout root container');
+    }
+
+    const itemConfig = {
+      type: 'stack',
+      content: [{
+        type: 'component',
+        componentType: componentId,
+        title: title ?? componentId
+      }]
+    };
+
+    const resolvedConfig = (ItemConfig as any).resolve(itemConfig as any, false);
+    const contentItem = layoutManager.createAndInitContentItem(resolvedConfig, groundItem);
+    groundItem.onDrop(contentItem, { side: 'x1' });
+
+    const createdContainer = this.findContainer(componentId);
+    if (!createdContainer) {
+      throw new Error(`Unable to dock Golden Layout component: ${componentId}`);
+    }
+
+    return createdContainer;
+  }
+
+  public resizeComponentWidth(componentId: string, widthRatio: number): boolean {
+    const container = this.findContainer(componentId);
+    const rootItem = this._goldenLayout.rootItem;
+
+    if (!container || !rootItem) {
+      return false;
+    }
+
+    const clampedRatio = Math.min(Math.max(widthRatio, 0.05), 0.95);
+    const targetWidth = Math.round(rootItem.element.clientWidth * clampedRatio);
+
+    return (container as any).setSize(targetWidth, container.height || rootItem.element.clientHeight);
   }
 
   private handleBindComponentEvent(container: ComponentContainer, itemConfig: ResolvedComponentItemConfig): ComponentContainer.BindableComponent {
@@ -233,9 +287,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
   }
 
   public removeComponent(componentId: string) {
-    const container = Array.from(this._componentRefMap.keys()).find(
-      (container) => container.componentType?.toString() === componentId
-    ) as ComponentContainer;
+    const container = this.findContainer(componentId) as ComponentContainer;
   
     if (container) {
       const componentItem = container.parent;
@@ -291,6 +343,12 @@ export class GoldenLayoutHostComponent implements OnDestroy {
   private handleActiveTabChange(contentItem: any) {
     console.log('handleActiveTabChange: ', contentItem);
     this.TabChangedEvent.emit(contentItem._title);
+  }
+
+  private findContainer(componentId: string): ComponentContainer | undefined {
+    return Array.from(this._componentRefMap.keys()).find(
+      (container) => container.componentType?.toString() === componentId
+    );
   }
 }
 
