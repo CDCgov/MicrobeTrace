@@ -59,6 +59,7 @@ type DashboardApp = {
   _goldenLayoutHostComponent: {
     goldenLayout: {
       loadLayout: (layout: any) => void;
+      saveLayout: () => any;
     };
     _componentRefMap: Map<any, any>;
     focusComponent: (componentId: string) => any;
@@ -84,6 +85,23 @@ type DashboardOpenEntry = {
   tabTitle: string;
   componentRef: any;
   container: any;
+};
+
+type DashboardPaneRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+const dashboardPaneSelectors: Record<string, string> = {
+  '2D Network': '#cy',
+  Map: '.mapStyle',
+  Bubble: byTestId(testIds.bubbleCanvas),
+  Table: '.table-wrapper',
+  Aggregate: '#tablesContainer',
+  Crosstab: '.crosstab-wrapper',
+  Waterfall: '#waterfall-view',
 };
 
 const toErrorMessage = (error: unknown): string => {
@@ -243,6 +261,99 @@ const buildTabStackLayout = (viewNames: string[]): any => {
       })),
     },
   };
+};
+
+const buildSinglePaneStack = (viewName: string, size?: string): any => ({
+  type: 'stack',
+  ...(size ? { size } : {}),
+  activeItemIndex: 0,
+  content: [{
+    type: 'component',
+    componentType: viewName,
+    title: viewName,
+  }],
+});
+
+const buildDeterministicSplitLayout = (viewNames: string[]): any => {
+  const normalizedNames = viewNames.map((viewName) => normalizeViewName(viewName));
+  const requestedViews = new Set(normalizedNames);
+
+  if (
+    ['2D Network', 'Map', 'Bubble', 'Table', 'Aggregate', 'Crosstab', 'Waterfall']
+      .every((viewName) => requestedViews.has(viewName))
+  ) {
+    return {
+      root: {
+        type: 'row',
+        content: [
+          {
+            type: 'column',
+            size: '34%',
+            content: [
+              buildSinglePaneStack('2D Network', '55%'),
+              buildSinglePaneStack('Table', '45%'),
+            ],
+          },
+          {
+            type: 'column',
+            size: '33%',
+            content: [
+              buildSinglePaneStack('Map', '55%'),
+              buildSinglePaneStack('Bubble', '45%'),
+            ],
+          },
+          {
+            type: 'column',
+            size: '33%',
+            content: [
+              buildSinglePaneStack('Aggregate', '34%'),
+              buildSinglePaneStack('Crosstab', '33%'),
+              buildSinglePaneStack('Waterfall', '33%'),
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  if (
+    normalizedNames.length === 4 &&
+    ['2D Network', 'Map', 'Bubble', 'Table'].every((viewName) => requestedViews.has(viewName))
+  ) {
+    return {
+      root: {
+        type: 'column',
+        content: [
+          {
+            type: 'row',
+            size: '50%',
+            content: [
+              buildSinglePaneStack('2D Network', '50%'),
+              buildSinglePaneStack('Map', '50%'),
+            ],
+          },
+          {
+            type: 'row',
+            size: '50%',
+            content: [
+              buildSinglePaneStack('Bubble', '50%'),
+              buildSinglePaneStack('Table', '50%'),
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  return buildTabStackLayout(normalizedNames);
+};
+
+const getDashboardPaneSelector = (viewName: string): string => {
+  const selector = dashboardPaneSelectors[normalizeViewName(viewName)];
+
+  expect(selector, `dashboard selector for ${viewName}`).to.exist;
+
+  return selector;
 };
 
 const assertNoRuntimeBanner = (): void => {
@@ -456,6 +567,17 @@ export function openDashboardViews(viewNames: string[]): void {
   });
 }
 
+export function applyDeterministicDashboardSplitLayout(viewNames: string[], activeLabel?: string): void {
+  const normalizedNames = viewNames.map((viewName) => normalizeViewName(viewName));
+  const resolvedActiveLabel = normalizeViewName(activeLabel ?? normalizedNames[0] ?? '');
+
+  applyDashboardLayout(
+    buildDeterministicSplitLayout(normalizedNames),
+    normalizedNames,
+    resolvedActiveLabel,
+  );
+}
+
 export function assertOpenDashboardTabs(expectedTitles: string[]): void {
   const normalizedTitles = expectedTitles.map((title) => normalizeViewName(title)).sort();
 
@@ -464,6 +586,71 @@ export function assertOpenDashboardTabs(expectedTitles: string[]): void {
     const actualTitles = app.homepageTabs.map((tab) => normalizeViewName(tab.label)).sort();
 
     expect(actualTitles, 'open dashboard tabs').to.deep.equal(normalizedTitles);
+  });
+}
+
+export function assertActiveDashboardTab(expectedTitle: string): void {
+  const normalizedTitle = normalizeViewName(expectedTitle);
+
+  cy.window().should((win: unknown) => {
+    const app = getDashboardApp(win as DashboardWindow);
+    const activeTitle = normalizeViewName(app.homepageTabs.find((tab) => tab.isActive)?.label ?? '');
+
+    expect(activeTitle, 'active dashboard tab').to.equal(normalizedTitle);
+  });
+}
+
+export function assertDashboardOpenComponentCount(expectedCount: number): void {
+  cy.window().should((win: unknown) => {
+    const app = getDashboardApp(win as DashboardWindow);
+    expect(getOpenDashboardEntries(app), 'open dashboard component count').to.have.length(expectedCount);
+  });
+}
+
+export function captureDashboardPaneRects(viewNames: string[], alias = 'dashboardPaneRects'): void {
+  const paneRects: Record<string, DashboardPaneRect> = {};
+
+  viewNames.forEach((viewName) => {
+    const normalizedViewName = normalizeViewName(viewName);
+    const selector = getDashboardPaneSelector(normalizedViewName);
+
+    cy.get(selector, { timeout: 15000 })
+      .should('be.visible')
+      .then(($element) => {
+        const rect = $element.get(0)?.getBoundingClientRect();
+
+        expect(rect, `pane rect for ${normalizedViewName}`).to.exist;
+
+        paneRects[normalizedViewName] = {
+          x: Number(rect?.left || 0),
+          y: Number(rect?.top || 0),
+          width: Number(rect?.width || 0),
+          height: Number(rect?.height || 0),
+        };
+      });
+  });
+
+  cy.then(() => {
+    cy.wrap(paneRects, { log: false }).as(alias);
+  });
+}
+
+export function assertDistinctDashboardPaneRects(alias = 'dashboardPaneRects', minimumDistinctOrigins = 2): void {
+  cy.get<Record<string, DashboardPaneRect>>(`@${alias}`).then((paneRects) => {
+    const rects = Object.values(paneRects);
+
+    expect(rects.length, 'captured dashboard pane count').to.be.greaterThan(0);
+
+    rects.forEach((rect) => {
+      expect(rect.width, 'captured pane width').to.be.greaterThan(0);
+      expect(rect.height, 'captured pane height').to.be.greaterThan(0);
+    });
+
+    const distinctOrigins = new Set(
+      rects.map((rect) => `${Math.round(rect.x / 10) * 10}:${Math.round(rect.y / 10) * 10}`),
+    );
+
+    expect(distinctOrigins.size, 'distinct dashboard pane origins').to.be.at.least(minimumDistinctOrigins);
   });
 }
 
@@ -610,4 +797,59 @@ export function configureDashboardMapZipcode(collapse: 'On' | 'Off' = 'Off'): vo
   setMapNodeCollapsing(collapse);
   cy.closeSettingsPane('Geospatial Settings');
   assertDashboardViewReady('Map');
+}
+
+export function openDashboardExportDialog(): void {
+  cy.get(byTestId(testIds.appFileMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appFileMenuExportDashboard), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.dashboardExportDialog), { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title', 'Export Dashboard', { timeout: 15000 }).should('be.visible');
+}
+
+export function assertDashboardExportDialogControls(): void {
+  cy.contains('.p-dialog-title', 'Export Dashboard', { timeout: 15000 })
+    .parents('.p-dialog')
+    .as('dashboardExportDialog');
+
+  cy.get('@dashboardExportDialog').find(byTestId(testIds.dashboardExportFilename)).should('be.visible');
+  cy.get('@dashboardExportDialog').find(byTestId(testIds.dashboardExportScale)).should('exist');
+  cy.get('@dashboardExportDialog').find(byTestId(testIds.dashboardExportDimensions))
+    .invoke('text')
+    .should((text) => {
+      expect(String(text).trim(), 'dashboard export resolution summary').to.match(/^\d+\s+x\s+\d+$/);
+    });
+  cy.get('@dashboardExportDialog').find(byTestId(testIds.dashboardExportConfirm)).should('be.visible');
+}
+
+export function readDashboardExportResolutionSummary(alias = 'dashboardExportResolution'): void {
+  cy.get(byTestId(testIds.dashboardExportDimensions), { timeout: 15000 })
+    .invoke('text')
+    .then((text) => {
+      cy.wrap(String(text).trim(), { log: false }).as(alias);
+    });
+}
+
+export function setDashboardExportFilename(fileBase: string): void {
+  cy.get(byTestId(testIds.dashboardExportFilename), { timeout: 15000 })
+    .invoke('val', fileBase)
+    .trigger('input')
+    .trigger('change')
+    .should('have.value', fileBase);
+
+  cy.window()
+    .its('commonService.visuals.microbeTrace.ExportDashboardFilename')
+    .should('equal', fileBase);
+}
+
+export function setDashboardExportScale(scale: string): void {
+  cy.get(byTestId(testIds.dashboardExportScale), { timeout: 15000 })
+    .clear()
+    .type(scale)
+    .trigger('input')
+    .trigger('change')
+    .should('have.value', scale);
+
+  cy.window()
+    .its('commonService.visuals.microbeTrace.ExportDashboardScale')
+    .should('equal', Number(scale));
 }

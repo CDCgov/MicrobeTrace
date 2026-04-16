@@ -1,4 +1,6 @@
 export const testIds = {
+  appFileMenuButton: 'app-file-menu-button',
+  appFileMenuExportDashboard: 'app-file-menu-export-dashboard',
   appGlobalSettingsButton: 'app-global-settings-button',
   appGlobalSettingsDialog: 'app-global-settings-dialog',
   appViewMenuButton: 'app-view-menu-button',
@@ -44,6 +46,11 @@ export const testIds = {
   bubbleExportButton: 'bubble-export-button',
   bubbleExportDialog: 'bubble-export-dialog',
   bubbleCenterButton: 'bubble-center-button',
+  dashboardExportDialog: 'dashboard-export-dialog',
+  dashboardExportFilename: 'dashboard-export-filename',
+  dashboardExportScale: 'dashboard-export-scale',
+  dashboardExportDimensions: 'dashboard-export-dimensions',
+  dashboardExportConfirm: 'dashboard-export-confirm',
   alignmentSettingsButton: 'alignment-settings-button',
   alignmentSettingsDialog: 'alignment-settings-dialog',
   alignmentExportButton: 'alignment-export-button',

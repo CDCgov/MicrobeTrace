@@ -1,3 +1,3 @@
 export const version = '2.1.0';
-export const buildDate = '2026-03-10T14:16:40.018Z';
-export const commitHash = '079fca7';
+export const buildDate = '2026-04-14T17:49:17.042Z';
+export const commitHash = '3e9a9b15';

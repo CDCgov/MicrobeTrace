@@ -9,7 +9,7 @@ import { WorkerModule } from '../workers/workModule';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
 import AuspiceHandler from '@app/helperClasses/auspiceHandler';
 import { AppComponentBase } from '@shared/common/app-component-base';
-import { StashObjects, StashObject } from '../helperClasses/interfaces';
+import { DashboardRestoreState, StashObjects, StashObject } from '../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { HttpClient } from '@angular/common/http';
 import { GraphData } from '@app/visualizationComponents/TwoDComponent/data';
@@ -43,6 +43,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     computer: WorkerModule;
 
     activeTab: string = 'Files';
+    pendingDashboardRestore: DashboardRestoreState | null = null;
 
     thirtyColorPalette: string[] = [
         "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
@@ -1507,6 +1508,16 @@ export class CommonService extends AppComponentBase implements OnInit {
                 session: stashObject
             }
         }
+
+        const savedDashboardLayout = stashObject.dashboardLayout ?? stashObject.session?.dashboardLayout;
+        const savedTabs = Array.isArray(stashObject.tabs) ? stashObject.tabs : [];
+
+        this.pendingDashboardRestore = savedDashboardLayout?.root
+            ? {
+                dashboardLayout: savedDashboardLayout,
+                tabs: savedTabs,
+            }
+            : null;
 
         const oldSession = stashObject.session;
         console.log('this.temp: ', this.temp);

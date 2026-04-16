@@ -45,6 +45,12 @@ type ThresholdStabilityRegion = {
     isCurrent: boolean;
 };
 
+type DashboardOpenEntry = {
+    label: string;
+    tabTitle: string;
+    componentRef: any;
+};
+
 
 @Component({
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -141,6 +147,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private networkRenderedSubscription: Subscription;
     private loadingMessageUpdatedSubscription: Subscription;
     private destroy$ = new Subject<void>();
+    private applyingPendingDashboardRestore = false;
 
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
@@ -400,6 +407,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
           this.cdref.detectChanges();
 
+          if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
+              setTimeout(() => this.restorePendingDashboardSession(), 0);
+          }
+
           console.log('DEBUG: #link-color-table rowcount AFTER  = ', $('#link-color-table').find('tr').length);
 
         } else if (!rendered && this.commonService.demoNetworkRendered &&
@@ -619,6 +630,151 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
+    private normalizeDashboardLabel(value: string): string {
+        if (String(value).trim().toLowerCase() === '2d network') {
+            return '2D Network';
+        }
+
+        return String(value).trim();
+    }
+
+    private getDashboardLayoutComponentCount(item: any): number {
+        if (!item) return 0;
+        if (item.type === 'component') return 1;
+
+        const content = Array.isArray(item.content) ? item.content : [];
+        return content.reduce((sum, child) => sum + this.getDashboardLayoutComponentCount(child), 0);
+    }
+
+    private getOpenDashboardEntries(): DashboardOpenEntry[] {
+        const componentMap = (this._goldenLayoutHostComponent as any)?._componentRefMap as Map<any, any> | undefined;
+
+        if (!componentMap) {
+            return [];
+        }
+
+        return Array.from(componentMap.entries()).map(([container, componentRef]) => ({
+            label: this.normalizeDashboardLabel(String(container?.componentType ?? container?.title ?? '')),
+            tabTitle: String(container?.title ?? container?.componentType ?? ''),
+            componentRef,
+        }));
+    }
+
+    private syncHomepageTabsFromDashboardLayout(orderedLabels: string[] = [], activeLabel?: string): void {
+        const normalizedOrder = orderedLabels.map((label) => this.normalizeDashboardLabel(label));
+        const orderIndex = new Map(normalizedOrder.map((label, index) => [label, index]));
+        const entries = [...this.getOpenDashboardEntries()].sort((a, b) => {
+            const aIndex = orderIndex.get(a.label);
+            const bIndex = orderIndex.get(b.label);
+
+            if (aIndex === undefined && bIndex === undefined) {
+                return a.label.localeCompare(b.label);
+            }
+
+            if (aIndex === undefined) return 1;
+            if (bIndex === undefined) return -1;
+
+            return aIndex - bIndex;
+        });
+
+        const nextActiveLabel = this.normalizeDashboardLabel(activeLabel ?? normalizedOrder[0] ?? entries[0]?.label ?? '');
+        const activeIndex = entries.findIndex((entry) => entry.label === nextActiveLabel);
+        const resolvedActiveIndex = activeIndex >= 0 ? activeIndex : 0;
+
+        this.homepageTabs = entries.map((entry, index) => ({
+            label: entry.label,
+            tabTitle: entry.tabTitle || entry.label,
+            isActive: index === resolvedActiveIndex,
+            componentRef: entry.componentRef,
+            templateRef: null,
+        }));
+
+        if (!this.homepageTabs.length) {
+            this.activeTabIndex = 0;
+            return;
+        }
+
+        this.activeTabIndex = resolvedActiveIndex;
+        this.commonService.activeTab = this.homepageTabs[resolvedActiveIndex].label;
+        this._goldenLayoutHostComponent.focusComponent(this.homepageTabs[resolvedActiveIndex].label);
+        this.setActiveTabProperties(resolvedActiveIndex);
+    }
+
+    private buildDashboardTabStackLayout(tabLabels: string[]): any {
+        return {
+            root: {
+                type: 'stack',
+                activeItemIndex: 0,
+                content: tabLabels.map((label) => ({
+                    type: 'component',
+                    componentType: this.normalizeDashboardLabel(label),
+                    title: this.normalizeDashboardLabel(label),
+                })),
+            },
+        };
+    }
+
+    private waitForDashboardRestoreSync(expectedComponentCount: number, orderedLabels: string[], activeLabel?: string, attempt: number = 0): void {
+        const openEntries = this.getOpenDashboardEntries();
+
+        if (expectedComponentCount === 0 || openEntries.length >= expectedComponentCount || attempt >= 20) {
+            this.syncHomepageTabsFromDashboardLayout(orderedLabels, activeLabel);
+            this.publishLoadNewData();
+            this.cdref.detectChanges();
+            this.applyingPendingDashboardRestore = false;
+            return;
+        }
+
+        setTimeout(() => {
+            this.waitForDashboardRestoreSync(expectedComponentCount, orderedLabels, activeLabel, attempt + 1);
+        }, 50);
+    }
+
+    private restorePendingDashboardSession(): void {
+        const pendingRestore = this.commonService.pendingDashboardRestore;
+
+        if (this.applyingPendingDashboardRestore || !pendingRestore?.dashboardLayout?.root) {
+            return;
+        }
+
+        this.commonService.pendingDashboardRestore = null;
+        this.applyingPendingDashboardRestore = true;
+
+        const orderedLabels = (pendingRestore.tabs || [])
+            .map((tab) => this.normalizeDashboardLabel(tab.label))
+            .filter((label) => label !== 'Files');
+        const activeLabel = pendingRestore.tabs?.find((tab) => tab.isActive)?.label;
+        const layoutToLoad = pendingRestore.dashboardLayout?.root
+            ? pendingRestore.dashboardLayout
+            : this.buildDashboardTabStackLayout(orderedLabels);
+        const expectedComponentCount = this.getDashboardLayoutComponentCount(layoutToLoad?.root);
+
+        try {
+            this._goldenLayoutHostComponent.goldenLayout.loadLayout(layoutToLoad);
+        } catch (error) {
+            console.error('Unable to restore the saved dashboard layout.', error);
+            this.applyingPendingDashboardRestore = false;
+            return;
+        }
+
+        setTimeout(() => {
+            this.waitForDashboardRestoreSync(expectedComponentCount, orderedLabels, activeLabel);
+        }, 0);
+    }
+
+    private getSerializableDashboardLayout(): any | undefined {
+        const savedLayout = this._goldenLayoutHostComponent?.goldenLayout?.saveLayout?.();
+        const componentCount = this.getOpenDashboardEntries()
+            .filter((entry) => entry.label !== 'Files')
+            .length;
+
+        if (!savedLayout?.root || componentCount <= 1) {
+            return undefined;
+        }
+
+        return savedLayout;
+    }
+
     /**
      * Performs the export of the visualization, including tables.
      */
@@ -775,7 +931,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 return;
             }
 
-            saveAs(blob, `${filename}.${filetype}`);
+            this.saveGeneratedFile(blob, `${filename}.${filetype}`);
     
             console.log('Export completed successfully.');
         } catch (error) {
@@ -867,7 +1023,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         let blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
         
-        saveAs(blob, `${options.filename}.svg`);
+        this.saveGeneratedFile(blob, `${options.filename}.svg`);
     }
 
     /**
@@ -3121,10 +3277,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         }
                     });
 
+                    const dashboardLayout = this.getSerializableDashboardLayout();
                     const stash: StashObjects = {
                         session: this.commonService.session,
                         tabs: lightTabs
                     };
+
+                    if (dashboardLayout) {
+                        stash.dashboardLayout = dashboardLayout;
+                    }
 
                     const that = this;
 
