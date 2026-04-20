@@ -41,7 +41,7 @@ const selectPrimeOption = (selector: string, label: string): void => {
       .contains('li[role="option"]', label, { timeout: 15000 })
       .scrollIntoView()
       .click({ force: true });
-  });
+  }).wait(50);
 };
 
 const getNodeId = (data: any): string => String(data?._id ?? data?.ID ?? data?.id ?? '');

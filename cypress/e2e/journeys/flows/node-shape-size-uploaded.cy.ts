@@ -21,9 +21,6 @@ const openNodeShapesPanel = (): void => {
 
 const openGlobalShapeSettingsFromTwoD = (): void => {
   cy.get('@nodesTab').find('#open-global-shape-settings').click({ force: true });
-  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
-    .should('be.visible');
-
   closeTwoDSettingsDialog();
 
   cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })

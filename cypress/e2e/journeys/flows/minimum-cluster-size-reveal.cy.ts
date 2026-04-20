@@ -40,6 +40,7 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
     openGlobalFilteringTab();
     cy.get(byTestId(testIds.filterMinimumClusterSize))
       .clear()
+      .wait(200)
       .type(String(minimumClusterSize!.to))
       .blur();
 
@@ -126,7 +127,7 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
     });
 
     openGlobalFilteringTab();
-    cy.get('#link-threshold').clear().type('0.01').blur();
+    cy.get('#link-threshold').clear().wait(200).type('0.01').blur();
     cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', 0.01);
     waitForProcessingDialogToClear();
     cy.closeGlobalSettings();

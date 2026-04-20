@@ -54,6 +54,7 @@ const setBubbleAxis = (
 ): void => {
   cy.get('@bubbleSettings').find(selector).find('.p-select-dropdown').click({ force: true });
   clickVisiblePrimeOption(label);
+  cy.wait(100)
   cy.get('@bubbleSettings').find(selector).find('.p-select-label').should('contain', label);
   cy.window().its(`commonService.session.style.widgets.${expectedWidget}`).should('equal', expectedValue);
 };
@@ -78,6 +79,37 @@ const formatBubbleDateLabel = (value: string): string =>
     month: '2-digit',
     day: '2-digit',
   });
+
+const getBubbleDateBucketKey = (value: unknown): string => {
+  if (value === null) return '__null__';
+  if (value === undefined) return '__undefined__';
+  return `${typeof value}:${String(value)}`;
+};
+
+const isBubbleDateValueValid = (value: unknown): boolean => !Number.isNaN(Date.parse(value as any));
+
+const getBubbleDateAxisExpectations = (rows: any[], field: string) => {
+  const validDatesByKey = new Map<string, string>();
+  const unknownDateKeys = new Set<string>();
+
+  rows.forEach((row) => {
+    const rawValue = row?.[field];
+    const bucketKey = getBubbleDateBucketKey(rawValue);
+
+    if (!isBubbleDateValueValid(rawValue)) {
+      unknownDateKeys.add(bucketKey);
+      return;
+    }
+
+    validDatesByKey.set(bucketKey, String(rawValue));
+  });
+
+  return {
+    validDates: Array.from(validDatesByKey.values())
+      .sort((left, right) => Date.parse(left) - Date.parse(right)),
+    unknownBucketCount: unknownDateKeys.size,
+  };
+};
 
 describe('Journey Flow - Bubble uploaded controls', () => {
   const profile = getProfile('color-by-uploaded-categorical');
@@ -310,14 +342,14 @@ describe('Journey Flow - Bubble uploaded controls', () => {
       const typedWindow = win as WinWithBubble;
       const bubble = typedWindow.commonService.visuals.bubble;
       const visibleNodes = typedWindow.commonService.getVisibleNodes();
-      const expectedChronologicalDates = Array.from(new Set(
-        visibleNodes
-          .map((node: any) => String(node.Collection_Date || ''))
-          .filter((value: string) => value),
-      )).sort((left, right) => new Date(left).getTime() - new Date(right).getTime());
+      const {
+        validDates: expectedChronologicalDates,
+        unknownBucketCount,
+      } = getBubbleDateAxisExpectations(visibleNodes, 'Collection_Date');
 
       const sortedBubbleDates = bubble.X_categories
-        .filter((value: string | undefined) => Boolean(value));
+        .filter((value: unknown) => isBubbleDateValueValid(value))
+        .map((value: string) => String(value));
 
       expect(sortedBubbleDates, 'Bubble nonblank X categories sort chronologically')
         .to.deep.equal(expectedChronologicalDates);
@@ -326,10 +358,13 @@ describe('Journey Flow - Bubble uploaded controls', () => {
         .filter((node: any) => node.id() !== 'x_axis_Label')
         .sort((left: any, right: any) => left.position('x') - right.position('x'))
         .map((node: any) => String(node.data('label')));
+      const unknownAxisLabels = axisLabels.filter((label: string) => label === 'Unknown');
       const nonUnknownAxisLabels = axisLabels.filter((label: string) => label !== 'Unknown');
 
       expect(nonUnknownAxisLabels, 'Bubble X-axis renders formatted chronological date labels')
         .to.deep.equal(expectedChronologicalDates.map(formatBubbleDateLabel));
+      expect(unknownAxisLabels.length, 'Bubble X-axis renders Unknown labels for missing or invalid uploaded dates')
+        .to.equal(unknownBucketCount);
 
       Object.entries(representativeDates).forEach(([nodeId, expectedDate]) => {
         const aggregateNode = bubble.visibleData.find((node: any) => node.id === nodeId);
@@ -369,14 +404,14 @@ describe('Journey Flow - Bubble uploaded controls', () => {
       const typedWindow = win as WinWithBubble;
       const bubble = typedWindow.commonService.visuals.bubble;
       const visibleNodes = typedWindow.commonService.getVisibleNodes();
-      const expectedChronologicalDates = Array.from(new Set(
-        visibleNodes
-          .map((node: any) => String(node.Collection_Date || ''))
-          .filter((value: string) => value),
-      )).sort((left, right) => new Date(left).getTime() - new Date(right).getTime());
+      const {
+        validDates: expectedChronologicalDates,
+        unknownBucketCount,
+      } = getBubbleDateAxisExpectations(visibleNodes, 'Collection_Date');
 
       const sortedBubbleDates = bubble.Y_categories
-        .filter((value: string | undefined) => Boolean(value));
+        .filter((value: unknown) => isBubbleDateValueValid(value))
+        .map((value: string) => String(value));
 
       expect(sortedBubbleDates, 'Bubble nonblank Y categories sort chronologically')
         .to.deep.equal(expectedChronologicalDates);
@@ -385,10 +420,13 @@ describe('Journey Flow - Bubble uploaded controls', () => {
         .filter((node: any) => node.id() !== 'y_axis_Label')
         .sort((left: any, right: any) => left.position('y') - right.position('y'))
         .map((node: any) => String(node.data('label')));
+      const unknownAxisLabels = axisLabels.filter((label: string) => label === 'Unknown');
       const nonUnknownAxisLabels = axisLabels.filter((label: string) => label !== 'Unknown');
 
       expect(nonUnknownAxisLabels, 'Bubble Y-axis renders formatted chronological date labels')
         .to.deep.equal(expectedChronologicalDates.map(formatBubbleDateLabel));
+      expect(unknownAxisLabels.length, 'Bubble Y-axis renders Unknown labels for missing or invalid uploaded dates')
+        .to.equal(unknownBucketCount);
 
       Object.entries(representativeDates).forEach(([nodeId, expectedDate]) => {
         const aggregateNode = bubble.visibleData.find((node: any) => node.id === nodeId);
@@ -406,7 +444,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
     });
   });
 
-  it('maps invalid uploaded collection dates into a single Unknown Bubble date bucket', () => {
+  it('maps invalid and missing uploaded collection dates into Unknown Bubble date buckets', () => {
     const invalidNodeIds = ['797703', '797748'];
     const invalidDateValue = 'not-a-date';
 
@@ -435,11 +473,10 @@ describe('Journey Flow - Bubble uploaded controls', () => {
       const typedWindow = win as WinWithBubble;
       const bubble = typedWindow.commonService.visuals.bubble;
       const visibleNodes = typedWindow.commonService.getVisibleNodes();
-      const expectedChronologicalDates = Array.from(new Set(
-        visibleNodes
-          .map((node: any) => String(node.Collection_Date || ''))
-          .filter((value: string) => value && value !== invalidDateValue),
-      )).sort((left, right) => new Date(left).getTime() - new Date(right).getTime());
+      const {
+        validDates: expectedChronologicalDates,
+        unknownBucketCount,
+      } = getBubbleDateAxisExpectations(visibleNodes, 'Collection_Date');
 
       const axisNodes = bubble.cy.nodes('.X_axis')
         .filter((node: any) => node.id() !== 'x_axis_Label')
@@ -451,7 +488,8 @@ describe('Journey Flow - Bubble uploaded controls', () => {
 
       expect(nonUnknownAxisLabels, 'Bubble valid X-axis date labels stay chronological with invalid dates present')
         .to.deep.equal(expectedChronologicalDates.map(formatBubbleDateLabel));
-      expect(unknownLabels.length, 'Bubble invalid uploaded dates collapse into one Unknown axis label').to.equal(1);
+      expect(unknownLabels.length, 'Bubble missing and invalid uploaded dates render as Unknown axis labels')
+        .to.equal(unknownBucketCount);
       expect(invalidBucketIndex, 'Bubble raw invalid-date category index').to.be.greaterThan(-1);
 
       invalidNodeIds.forEach((nodeId) => {

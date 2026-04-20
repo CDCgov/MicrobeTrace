@@ -35,6 +35,7 @@ const setBubbleAxis = (
 ): void => {
   cy.get('@bubbleSettings').find(selector).find('.p-select-dropdown').click({ force: true });
   clickVisiblePrimeOption(label);
+  cy.wait(50)
   cy.get('@bubbleSettings').find(selector).find('.p-select-label').should('contain', label);
   cy.window().its(`commonService.session.style.widgets.${expectedWidget}`).should('equal', expectedValue);
 };

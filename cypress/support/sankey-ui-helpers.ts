@@ -18,11 +18,54 @@ export type ResolvedSankeySelection = {
   expected: SankeyGraphExpectation;
 };
 
+const VISIBLE_SELECT_OVERLAY_SELECTOR = '.p-select-overlay:visible';
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function resolveFieldLabels(fieldList: Array<{ label?: string; value?: string }>, fields: string[]): string[] {
   return fields.map((field) => {
     const entry = fieldList.find((item) => item.value === field);
     return entry?.label || field;
   });
+}
+
+function openPrimeSelect(dialogAlias: string, selector: string): void {
+  cy.get(dialogAlias)
+    .find(selector)
+    .should('be.visible')
+    .scrollIntoView()
+    .then(($host) => {
+      const trigger =
+        $host.find('.p-select-dropdown').get(0) ||
+        $host.find('.p-select').get(0) ||
+        $host.get(0);
+
+      cy.wrap(trigger).click({ force: true });
+    });
+
+  cy.get(VISIBLE_SELECT_OVERLAY_SELECTOR, { timeout: 15000 })
+    .should('have.length.greaterThan', 0);
+}
+
+function selectVisiblePrimeOption(label: string): void {
+  cy.get(VISIBLE_SELECT_OVERLAY_SELECTOR, { timeout: 15000 })
+    .should('have.length.greaterThan', 0)
+    .last()
+    .within(() => {
+      cy.contains(
+        'li[role="option"]',
+        new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`),
+        { timeout: 15000 },
+      )
+        .scrollIntoView()
+        .click({ force: true });
+    });
+
+  cy.get('body', { timeout: 10000 })
+    .find(VISIBLE_SELECT_OVERLAY_SELECTOR)
+    .should('have.length', 0);
 }
 
 export function aliasSankeySelection(
@@ -67,15 +110,15 @@ export function aliasSankeySelection(
 export function addSankeyFields(selectionAlias = '@sankeySelection'): void {
   cy.get(selectionAlias).then((selection) => {
     const resolved = selection as unknown as ResolvedSankeySelection;
-    openSankeySettingsDialog();
 
     resolved.fields.forEach((field, index) => {
-      cy.get('@sankeySettings')
-        .find('#sankey-variable-name')
-        .should('be.visible')
-        .click({ force: true });
+      openSankeySettingsDialog();
+      openPrimeSelect('@sankeySettings', '#sankey-variable-name');
+      selectVisiblePrimeOption(resolved.labels[index]);
 
-      cy.contains('li[role="option"]', resolved.labels[index], { timeout: 15000 }).click({ force: true });
+      cy.window()
+        .its('commonService.visuals.sankey.SelectedFieldName')
+        .should('equal', field);
 
       cy.get('@sankeySettings')
         .find('#sankey-add-variable')
@@ -132,8 +175,8 @@ export function selectSankeyPrimeOption(
   selector: string,
   label: string,
 ): void {
-  cy.get(dialogAlias).find(selector).should('be.visible').click({ force: true });
-  cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
+  openPrimeSelect(dialogAlias, selector);
+  selectVisiblePrimeOption(label);
 }
 
 export function setSankeyLinkColorMode(mode: 'Source' | 'Target' | 'Uniform'): void {

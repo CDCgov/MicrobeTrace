@@ -100,6 +100,7 @@ const applyMinimumClusterSize = (size: number): void => {
   cy.get(byTestId(testIds.filterMinimumClusterSize))
     .should('not.be.disabled')
     .clear()
+    .wait(50)
     .type(String(size))
     .blur();
 

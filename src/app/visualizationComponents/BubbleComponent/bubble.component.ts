@@ -167,12 +167,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     $( document ).on( "node-visibility", function( ) {
       //console.log('node visi event')
       that.updateVisibleNodes()
-      that.updateNodes();
+      if (!that.SelectedNodeCollapsingTypeVariable) {
+        that.updateNodes();
+      }
     });
   }
 
   ngAfterViewInit(): void {
     this.generateCytoscape();
+    if (this.SelectedNodeCollapsingTypeVariable) {
+      this.refreshCollapsedData();
+    }
   }
 
   ngOnDestroy(): void {
@@ -198,19 +203,32 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     });
   }
 
-  private hasCollapsedAggregates() {
-    return this.visibleData.some(node => String(node.id).startsWith('cNode'));
+  private refreshCollapsedData(sortData = false) {
+    this.visibleData = [];
+    this.svgDefs = {};
+    this.getCollapsedData(sortData, true);
   }
 
-  private refreshCollapsedData(sortData = false) {
-    const shouldInitializeCollapsedNodes = !this.hasCollapsedAggregates();
+  private compareDateCategories(left: unknown, right: unknown): number {
+    const leftTime = Date.parse(left as string);
+    const rightTime = Date.parse(right as string);
+    const leftValid = !Number.isNaN(leftTime);
+    const rightValid = !Number.isNaN(rightTime);
 
-    if (shouldInitializeCollapsedNodes) {
-      this.visibleData = [];
+    if (leftValid && rightValid) {
+      return leftTime - rightTime;
     }
 
-    this.svgDefs = {};
-    this.getCollapsedData(sortData, shouldInitializeCollapsedNodes);
+    if (leftValid) {
+      return -1;
+    }
+
+    if (rightValid) {
+      return 1;
+    }
+
+    // Preserve insertion order between invalid/missing buckets.
+    return 0;
   }
 
   private syncFromSessionState() {
@@ -597,12 +615,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         strokeColor: node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000',
         totalCount: 1
       }
-      if (this.xVariable != undefined || this.xVariable != 'None') {
+      if (this.xVariable != undefined && this.xVariable != 'None') {
         let nodeX = node[this.xVariable];
         let locX = this.X_categories.indexOf(nodeX);
         nodeDR.Xgroup = locX;
       }
-      if (this.yVariable != undefined || this.yVariable != 'None') {
+      if (this.yVariable != undefined && this.yVariable != 'None') {
         let nodeY = node[this.yVariable];
         let locY = this.Y_categories.indexOf(nodeY);
         nodeDR.Ygroup = locY;
@@ -637,7 +655,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.refreshCollapsedData(false)
     // if timeline and collapse
     } else {
-      if (this.commonService.getVisibleNodes().length == this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0)) { return }
       this.refreshCollapsedData(false);
     } 
     
@@ -669,7 +686,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         })
 
         if (this.xVarDate) {
-          this.X_categories.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+          this.X_categories.sort((a, b) => this.compareDateCategories(a, b))
         }
       }
     } else { // axis == 'Y'
@@ -690,7 +707,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         })
 
         if (this.yVarDate) {
-          this.Y_categories.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())                   
+          this.Y_categories.sort((a, b) => this.compareDateCategories(a, b))
         }
       }
     }
@@ -730,11 +747,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.allData.forEach(node => {
         let X_group = 0, Y_group = 0;
         let currentFullNode = fullNodes.find(fNode => fNode.index == node.index)
-        if (this.xVariable != undefined || this.xVariable != 'None') {
+        if (!currentFullNode) {
+          return;
+        }
+        if (this.xVariable != undefined && this.xVariable != 'None') {
           let nodeX = currentFullNode[this.xVariable];
           X_group = this.X_categories.indexOf(nodeX);
         }
-        if (this.yVariable != undefined || this.yVariable != 'None') {
+        if (this.yVariable != undefined && this.yVariable != 'None') {
           let nodeY = currentFullNode[this.yVariable];
           Y_group = this.Y_categories.indexOf(nodeY);
         }
@@ -762,6 +782,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     let changedVisibleNodes = this.generateCollapsedCounts();
     this.generatePieChartsSVGDefs(changedVisibleNodes);
+
+    // Bubble can load in collapsed mode before Cytoscape is initialized.
+    // Build the aggregate state now and apply the pie styling once `cy` exists.
+    if (!this.cy) {
+      return;
+    }
 
     this.cy.remove('node');
     this.updateNodes();
@@ -898,6 +924,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     this.allData.forEach(node => {
       let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
+      if (!currentFullNode) {
+        return;
+      }
       node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
     })
 
@@ -905,6 +934,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.cy.nodes().forEach(node => {
         if (node.classes().length > 0) return;
         let currentNode = this.allData.find(dataNode => dataNode.id == node.id());
+        if (!currentNode) return;
         node.data('nodeColor', currentNode.color);
       });
       this.cy.style().update(); // Refresh Cytoscape styles to apply changes
@@ -1139,6 +1169,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   
       this.allData.forEach(node => {
         let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
+        if (!currentFullNode) {
+          return;
+        }
         node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
       })
     } else {
