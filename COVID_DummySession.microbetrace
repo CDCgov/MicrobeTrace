@@ -11113,6 +11113,7 @@
             "link-bidirected": false,
             "link-label-variable": "None",
             "link-length": 0.125,
+            "link-label-size": 16,
             "link-opacity": 0,
             "link-show-nn": false,
             "link-sort-variable": "distance",
