@@ -4,11 +4,11 @@ Current on `cypressTesting` as of 2026-04-09.
 
 Companion QA tracker: `docs/2d-network-cypress-qa-tracker.csv`
 
-Companion bug log: `docs/2d-network-cypress-bug-log.csv`
+App-wide bug log: `docs/app-wide-cypress-bug-log.csv`
 
 Architecture reference: `docs/cypress-architecture.md`
 
-Update this checklist, the QA tracker, and the bug log together when coverage or known product behavior changes.
+Update this checklist, the QA tracker, and the app-wide bug log together when coverage or known product behavior changes.
 
 ## Purpose
 

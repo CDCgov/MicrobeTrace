@@ -1,7 +1,5 @@
 /// <reference types="cypress" />
 
-import * as L from 'leaflet';
-
 import { getProfile } from '../datasets/profile';
 import {
   applyStyleFromProfile,
@@ -12,6 +10,7 @@ import {
   openMapSettingsDialog,
   selectMapField,
 } from '../../../support/journey-helpers';
+import { getRenderedMapNodeContainerPoint, readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -84,7 +83,7 @@ describe('Journey Flow - Uploaded style file reflected on Map', () => {
       expect(mapView.lmap.hasLayer(mapView.layers.basemap), 'style-enabled basemap layer attached').to.equal(true);
       expect(mapView.lmap.hasLayer(mapView.layers.countries), 'style-disabled countries layer detached').to.equal(false);
       expect(educationNode, 'education node rendered on map').to.exist;
-      expect(normalizeColor(educationNode.options.fillColor), 'education node fill color from style file')
+      expect(readRenderedMapNodeStyle(educationNode).fillColor, 'education node fill color from style file')
         .to.equal(normalizeColor('#f22020'));
       expect(sportsTeamLinks.length, 'sports team links rendered on map').to.be.greaterThan(0);
       expect(classroomLinks.length, 'classroom links rendered on map').to.be.greaterThan(0);
@@ -116,11 +115,11 @@ describe('Journey Flow - Uploaded style file reflected on Map', () => {
 
       expect(nodeLayer, 'rendered map node 375596').to.exist;
 
-      const point = nodeLayer._point;
+      const containerPoint = getRenderedMapNodeContainerPoint(lmap, nodeLayer);
       const container = lmap.getContainer() as HTMLElement;
       const rect = container.getBoundingClientRect();
-      const clientX = Math.round(rect.left + point.x);
-      const clientY = Math.round(rect.top + point.y);
+      const clientX = Math.round(rect.left + containerPoint.x);
+      const clientY = Math.round(rect.top + containerPoint.y);
       const eventInit = {
         bubbles: true,
         cancelable: true,
@@ -132,7 +131,6 @@ describe('Journey Flow - Uploaded style file reflected on Map', () => {
         pageY: clientY,
       };
       const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
-      const containerPoint = L.point(point.x, point.y);
       const latlng = lmap.containerPointToLatLng(containerPoint);
 
       nodeLayer.fire('mouseover', { latlng, layer: nodeLayer, containerPoint, originalEvent: fakeOriginalEvent });

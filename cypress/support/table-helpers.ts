@@ -175,6 +175,24 @@ export function assertTableVisibleRowCount(expectedRows: number): void {
     .should('have.length', expectedRows);
 }
 
+export function assertTableAllRowsState(expectedRows: number): void {
+  cy.window()
+    .its('commonService.visuals.tableComp.SelectedTableData.data.length')
+    .should('equal', expectedRows);
+
+  cy.window()
+    .its('commonService.visuals.tableComp.selectedRows')
+    .should('equal', expectedRows);
+
+  cy.get(`${TABLE_ROOT} .p-paginator-rpp-dropdown .p-select-label`, { timeout: 15000 })
+    .should(($label) => {
+      expect(normalizeText($label.text()), 'rows-per-page label').to.equal('All');
+    });
+
+  cy.contains(`${TABLE_ROOT} .p-paginator-current`, '1 of 1', { timeout: 15000 })
+    .should('be.visible');
+}
+
 export function assertSingleVisibleRowValue(headerText: string, expectedValue: string): void {
   getTableColumnIndex(headerText).then((index) => {
     cy.get(`${TABLE_ROOT} .p-datatable-tbody > tr`, { timeout: 15000 })

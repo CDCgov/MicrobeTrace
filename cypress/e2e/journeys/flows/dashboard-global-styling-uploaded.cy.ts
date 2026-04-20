@@ -3,6 +3,7 @@
 import { getProfile } from '../datasets/profile';
 import { readRenderedAggregateRows } from '../../../support/aggregate-helpers';
 import { readRenderedCrosstab } from '../../../support/crosstab-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 import {
   assertAfterLaunchCounts,
   launchProfileToTwoD,
@@ -229,7 +230,7 @@ const assertAllRenderedMapNodeColors = (expectedHex: string): void => {
     expect(layers.length, 'rendered Map nodes').to.be.greaterThan(0);
     layers.forEach((layer: any) => {
       expect(
-        matchesExpectedColor(String(layer.options.fillColor || ''), expectedHex),
+        matchesExpectedColor(readRenderedMapNodeStyle(layer).fillColor, expectedHex),
         `Map node color for ${String(layer?.data?._id || '')}`,
       ).to.equal(true);
     });
@@ -367,14 +368,14 @@ const readNodeCategoryColorState = (
       map.layers.featureGroup
         .getLayers()
         .filter((layer: any) => String(layer?.data?.[field]) === controlValue)
-        .map((layer: any) => String(layer.options.fillColor || '')),
+        .map((layer: any) => readRenderedMapNodeStyle(layer).fillColor),
       `Map node ${field} ${controlValue}`,
     );
     readUniformColor(
       map.layers.featureGroup
         .getLayers()
         .filter((layer: any) => String(layer?.data?.[field]) === targetValue)
-        .map((layer: any) => String(layer.options.fillColor || '')),
+        .map((layer: any) => readRenderedMapNodeStyle(layer).fillColor),
       `Map node ${field} ${targetValue}`,
     );
 
@@ -440,14 +441,14 @@ const assertNodeCategoryColorUpdate = (
       map.layers.featureGroup
         .getLayers()
         .filter((layer: any) => String(layer?.data?.[field]) === targetValue)
-        .map((layer: any) => String(layer.options.fillColor || '')),
+        .map((layer: any) => readRenderedMapNodeStyle(layer).fillColor),
       `Map node ${field} ${targetValue} after edit`,
     );
     const controlColor = readUniformColor(
       map.layers.featureGroup
         .getLayers()
         .filter((layer: any) => String(layer?.data?.[field]) === controlValue)
-        .map((layer: any) => String(layer.options.fillColor || '')),
+        .map((layer: any) => readRenderedMapNodeStyle(layer).fillColor),
       `Map node ${field} ${controlValue} after edit`,
     );
 
@@ -635,6 +636,7 @@ describe('Journey Flow - Dashboard global styling propagation', () => {
       assertAllRenderedMapLinkColors(fixedLinkColor);
       assertBubbleNodeColorsStable(bubbleBaselineColors);
 
+      focusDashboardTab('2D Network');
       openGlobalStylingTab();
       selectPrimeOption('#link-tooltip-variable', 'Cluster');
       cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');

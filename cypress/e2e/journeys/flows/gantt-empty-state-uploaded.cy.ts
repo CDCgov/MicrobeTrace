@@ -13,7 +13,8 @@ import {
 
 type EmptyStateCase = {
   entryName: string;
-  expectedBars: number;
+  expectedRenderedBars: number;
+  expectedRenderedRows: number;
   profile: DatasetProfile;
   startField: string;
   title: string;
@@ -29,17 +30,19 @@ const EMPTY_STATE_CASES: EmptyStateCase[] = [
     profile: getProfile('gantt-covid-node-link'),
     title: 'keeps the uploaded node plus link Gantt empty state stable before the first entry is created',
     entryName: 'Symptom Window',
+    expectedRenderedBars: 30,
+    expectedRenderedRows: 33,
     startField: 'Date of symptom onset Date',
     endField: 'Date symptoms resolved',
-    expectedBars: 30,
   },
   {
     profile: getProfile('gantt-angulartesting-sequence-node'),
     title: 'keeps the uploaded sequence-node Gantt empty state stable before the first entry is created',
     entryName: 'Admission Range',
+    expectedRenderedBars: 14,
+    expectedRenderedRows: 14,
     startField: 'ipstart',
     endField: 'ipend',
-    expectedBars: 14,
   },
 ];
 
@@ -67,7 +70,8 @@ function assertEmptyGanttState(): void {
 }
 
 describe('Journey Flow - Gantt empty-state behavior on uploaded data', () => {
-  EMPTY_STATE_CASES.forEach(({ profile, title, entryName, startField, endField, expectedBars }) => {
+  EMPTY_STATE_CASES.forEach(
+    ({ profile, title, entryName, startField, endField, expectedRenderedBars, expectedRenderedRows }) => {
     it(title, () => {
       launchToUploadedGantt(profile);
       assertEmptyGanttState();
@@ -84,13 +88,15 @@ describe('Journey Flow - Gantt empty-state behavior on uploaded data', () => {
         endField,
       });
 
-      cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', expectedBars);
-      cy.get('ganttcomponent #gantt .y-axis-text').should('have.length', expectedBars);
+      cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', expectedRenderedBars);
+      cy.get('ganttcomponent #gantt .y-axis-text').should('have.length', expectedRenderedRows);
     });
-  });
+    },
+  );
 
   it('blocks creating an uploaded Gantt entry until a start date field is selected', () => {
     const profile = getProfile('gantt-covid-node-link');
+    const expectedRenderedRows = 30;
 
     launchToUploadedGantt(profile);
     openGanttSettingsDialog();
@@ -115,7 +121,7 @@ describe('Journey Flow - Gantt empty-state behavior on uploaded data', () => {
     cy.get('@createEntryButton').click({ force: true });
 
     cy.contains('.p-dialog-title', 'Gantt Settings').should('not.exist');
-    cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', 30);
+    cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', expectedRenderedRows);
 
     cy.window().should((win: unknown) => {
       const gantt = (win as WinWithGantt).commonService.visuals.gantt;

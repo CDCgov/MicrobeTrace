@@ -12,6 +12,7 @@ import {
   setTimelineDate,
   setTimelineField,
 } from '../../../support/journey-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -34,7 +35,7 @@ const assertRenderedNodeColor = (nodeId: string, expectedColor: string): void =>
       .find((candidate: any) => getNodeId(candidate?.data) === nodeId);
 
     expect(layer, `rendered Map node layer ${nodeId}`).to.exist;
-    expect(normalizeColor(layer.options.fillColor), `Map node color for ${nodeId}`).to.equal(expectedColor);
+    expect(readRenderedMapNodeStyle(layer).fillColor, `Map node color for ${nodeId}`).to.equal(expectedColor);
   });
 };
 
@@ -117,7 +118,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
         .getLayers()
         .find((candidate: any) => {
           const nodeId = getNodeId(candidate?.data);
-          return Boolean(nodeId) && normalizeColor(candidate?.options?.fillColor) === expectedNodeColor;
+          return Boolean(nodeId) && readRenderedMapNodeStyle(candidate).fillColor === expectedNodeColor;
         });
 
       expect(nodeLayer, 'rendered Map node recolored during timeline mode').to.exist;
@@ -138,7 +139,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
         .getLayers()
         .find((candidate: any) => {
           const nodeId = getNodeId(candidate?.data);
-          return Boolean(nodeId) && normalizeColor(candidate?.options?.fillColor) === expectedNodeColor;
+          return Boolean(nodeId) && readRenderedMapNodeStyle(candidate).fillColor === expectedNodeColor;
         });
 
       expect(nodeLayer, 'recolored uploaded Map node to persist after teardown').to.exist;

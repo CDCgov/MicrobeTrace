@@ -10,6 +10,7 @@ import {
 
 describe('Journey Flow - Apply Style in 2D Network', () => {
   const profile = getProfile('style-apply-cypress-test-style');
+  const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
 
   it(profile.title, () => {
     launchProfileToTwoD(profile);
@@ -45,13 +46,13 @@ describe('Journey Flow - Apply Style in 2D Network', () => {
       expect(personNodes.length, 'person nodes present').to.be.greaterThan(0);
       expect(facilityNodes.length, 'facility nodes present').to.be.greaterThan(0);
 
-      const personShape = personNodes[0].style('shape');
-      const facilityShape = facilityNodes[0].style('shape');
+      const personShape = getRenderedShapeKey(personNodes[0]);
+      const facilityShape = getRenderedShapeKey(facilityNodes[0]);
       personNodes.forEach((node: any) => {
-        expect(node.style('shape')).to.equal(personShape);
+        expect(getRenderedShapeKey(node)).to.equal(personShape);
       });
       facilityNodes.forEach((node: any) => {
-        expect(node.style('shape')).to.equal(facilityShape);
+        expect(getRenderedShapeKey(node)).to.equal(facilityShape);
       });
       expect(personShape, 'different node types render different shapes').not.to.equal(facilityShape);
 

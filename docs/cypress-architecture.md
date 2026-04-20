@@ -143,32 +143,34 @@ Do not leave broken legacy specs under active `*.cy.ts` paths.
   - small synthetic fixtures used only for oracle contract coverage
 - `cypress/fixtures/dashboard-*.microbetrace`
   - saved dashboard sessions used by dashboard `view-state` coverage so Golden Layout mechanics stay deterministic
+- `docs/app-wide-cypress-bug-log.csv`
+  - app-wide bug log for new Cypress-discovered product bugs; keep older surface bug logs as historical references
 - `docs/2d-network-cypress-checklist.md`, `docs/2d-network-cypress-qa-tracker.csv`, `docs/2d-network-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the 2D Network surface
+  - maintained coverage checklist and QA tracker for the 2D Network surface; the surface bug log is historical
 - `docs/map-view-cypress-checklist.md`, `docs/map-view-cypress-qa-tracker.csv`, `docs/map-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Map surface
+  - maintained coverage checklist and QA tracker for the Map surface; the surface bug log is historical
 - `docs/epi-curve-cypress-checklist.md`, `docs/epi-curve-cypress-qa-tracker.csv`, `docs/epi-curve-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Epi Curve surface
+  - maintained coverage checklist and QA tracker for the Epi Curve surface; the surface bug log is historical
 - `docs/gantt-chart-cypress-checklist.md`, `docs/gantt-chart-cypress-qa-tracker.csv`, `docs/gantt-chart-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Gantt surface
+  - maintained coverage checklist and QA tracker for the Gantt surface; the surface bug log is historical
 - `docs/sankey-view-cypress-checklist.md`, `docs/sankey-view-cypress-qa-tracker.csv`, `docs/sankey-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Sankey surface
+  - maintained coverage checklist and QA tracker for the Sankey surface; the surface bug log is historical
 - `docs/crosstab-view-cypress-checklist.md`, `docs/crosstab-view-cypress-qa-tracker.csv`, `docs/crosstab-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Crosstab surface
+  - maintained coverage checklist and QA tracker for the Crosstab surface; the surface bug log is historical
 - `docs/aggregate-view-cypress-checklist.md`, `docs/aggregate-view-cypress-qa-tracker.csv`, `docs/aggregate-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Aggregate surface
+  - maintained coverage checklist and QA tracker for the Aggregate surface; the surface bug log is historical
 - `docs/alignment-view-cypress-checklist.md`, `docs/alignment-view-cypress-qa-tracker.csv`, `docs/alignment-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Alignment surface
+  - maintained coverage checklist and QA tracker for the Alignment surface; the surface bug log is historical
 - `docs/bubble-view-cypress-checklist.md`, `docs/bubble-view-cypress-qa-tracker.csv`, `docs/bubble-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Bubble surface
+  - maintained coverage checklist and QA tracker for the Bubble surface; the surface bug log is historical
 - `docs/table-view-cypress-checklist.md`, `docs/table-view-cypress-qa-tracker.csv`, `docs/table-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Table surface
+  - maintained coverage checklist and QA tracker for the Table surface; the surface bug log is historical
 - `docs/waterfall-view-cypress-checklist.md`, `docs/waterfall-view-cypress-qa-tracker.csv`, `docs/waterfall-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Waterfall surface
+  - maintained coverage checklist and QA tracker for the Waterfall surface; the surface bug log is historical
 - `docs/phylogenetic-view-cypress-checklist.md`, `docs/phylogenetic-view-cypress-qa-tracker.csv`, `docs/phylogenetic-view-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Phylogenetic Tree surface
+  - maintained coverage checklist and QA tracker for the Phylogenetic Tree surface; the surface bug log is historical
 - `docs/dashboard-cypress-checklist.md`, `docs/dashboard-cypress-qa-tracker.csv`, `docs/dashboard-cypress-bug-log.csv`
-  - maintained coverage checklist, QA tracker, and bug log for the Golden Layout dashboard surface
+  - maintained coverage checklist and QA tracker for the Golden Layout dashboard surface; the surface bug log is historical
 
 ## Dashboard Surface
 
@@ -352,8 +354,8 @@ The dedicated oracle contract spec covers:
 - Avoid redundant duplicate coverage across `view-state` and `journeys/flows` when expected outcomes are the same. Duplicate only when the uploaded-data path is expected to produce a different or higher-risk outcome.
 - In smoke specs, keep `observed` expectations only where a known product deviation still exists and the smoke suite must remain green.
 - In contract specs, prefer `intended` behavior and exact membership assertions.
-- When a maintained journey exposes a product bug, record it in the matching surface bug log: `docs/2d-network-cypress-bug-log.csv` for 2D, `docs/map-view-cypress-bug-log.csv` for Map, `docs/epi-curve-cypress-bug-log.csv` for Epi Curve, `docs/gantt-chart-cypress-bug-log.csv` for Gantt, `docs/sankey-view-cypress-bug-log.csv` for Sankey, `docs/crosstab-view-cypress-bug-log.csv` for Crosstab, `docs/aggregate-view-cypress-bug-log.csv` for Aggregate, `docs/alignment-view-cypress-bug-log.csv` for Alignment, `docs/bubble-view-cypress-bug-log.csv` for Bubble, `docs/table-view-cypress-bug-log.csv` for Table, `docs/waterfall-view-cypress-bug-log.csv` for Waterfall, or `docs/phylogenetic-view-cypress-bug-log.csv` for Phylogenetic Tree. Include the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
-- New bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. When a row moves to `Closed`, `Fixed`, or `Resolved`, the workflow comments on the matching issue with the recorded root cause and fix summary, then closes it. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor. Aggregate bug rows use `ABG###` IDs, Epi Curve bug rows use `EBG###` IDs, Map bug rows use `MBG###` IDs, Gantt bug rows use `GBG###` IDs, Sankey bug rows use `SBG###` IDs, Crosstab bug rows use `CTBG###` IDs, Bubble bug rows use `BBG###` IDs, Table bug rows use `TBG###` IDs, Waterfall bug rows use `WBG###` IDs, and tree bug rows use `PBG###` IDs so they do not collide with 2D `BG###` issue titles.
+- When a maintained journey exposes a product bug, record it in `docs/app-wide-cypress-bug-log.csv`. Include the affected view or views in `view_scope`, the observed behavior, intended behavior if known, the spec that caught it, the regression specs that must stay green after a fix, and explicit `cause_summary` / `fix_summary` fields once the bug is understood.
+- New app-wide bug-log rows pushed to GitHub automatically open GitHub issues through `.github/workflows/bug-tracker-issues.yml`. When a row moves to `Closed`, `Fixed`, or `Resolved`, the workflow comments on the matching issue with the recorded root cause and fix summary, then closes it. Set the repository variable `BUG_TRACKER_ASSIGNEE` to force assignment to a specific GitHub login; otherwise the workflow assigns the issue to the push actor. Use `MTBG###` IDs for new app-wide rows. Older surface-specific bug-log IDs remain in place only for historical references.
 
 ## Maintained Commands
 
@@ -407,53 +409,43 @@ When adding new coverage:
 5. Keep `cypress/e2e/journeys/datasets/` as the only fixture registry; do not create a separate oracle fixture registry.
 6. Add or update `data-testid` hooks before leaning on brittle text selectors.
 7. Update the docs for the surface you changed:
+   - Any product bug surfaced or fixed by the change:
+     - `docs/app-wide-cypress-bug-log.csv`
    - 2D Network:
      - `docs/2d-network-cypress-checklist.md`
      - `docs/2d-network-cypress-qa-tracker.csv`
-     - `docs/2d-network-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Map:
      - `docs/map-view-cypress-checklist.md`
      - `docs/map-view-cypress-qa-tracker.csv`
-     - `docs/map-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Epi Curve:
      - `docs/epi-curve-cypress-checklist.md`
      - `docs/epi-curve-cypress-qa-tracker.csv`
-     - `docs/epi-curve-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Gantt:
      - `docs/gantt-chart-cypress-checklist.md`
      - `docs/gantt-chart-cypress-qa-tracker.csv`
-     - `docs/gantt-chart-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Sankey:
      - `docs/sankey-view-cypress-checklist.md`
      - `docs/sankey-view-cypress-qa-tracker.csv`
-     - `docs/sankey-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Crosstab:
      - `docs/crosstab-view-cypress-checklist.md`
      - `docs/crosstab-view-cypress-qa-tracker.csv`
-     - `docs/crosstab-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Aggregate:
      - `docs/aggregate-view-cypress-checklist.md`
      - `docs/aggregate-view-cypress-qa-tracker.csv`
-     - `docs/aggregate-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Alignment:
      - `docs/alignment-view-cypress-checklist.md`
      - `docs/alignment-view-cypress-qa-tracker.csv`
-     - `docs/alignment-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Bubble:
      - `docs/bubble-view-cypress-checklist.md`
      - `docs/bubble-view-cypress-qa-tracker.csv`
-     - `docs/bubble-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Table:
      - `docs/table-view-cypress-checklist.md`
      - `docs/table-view-cypress-qa-tracker.csv`
-     - `docs/table-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Waterfall:
      - `docs/waterfall-view-cypress-checklist.md`
      - `docs/waterfall-view-cypress-qa-tracker.csv`
-     - `docs/waterfall-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
    - Phylogenetic Tree:
      - `docs/phylogenetic-view-cypress-checklist.md`
      - `docs/phylogenetic-view-cypress-qa-tracker.csv`
-     - `docs/phylogenetic-view-cypress-bug-log.csv` if the new flow surfaces or fixes a product bug
 8. If the new behavior belongs in the oracle, keep the oracle implementation UI-independent. Do not import `CommonService`, dialog state, or current rendering helpers into `cypress/oracle/`.
 9. If a legacy spec is being replaced, move it to `legacy-disabled` or delete it if git history is enough and no quarantine value remains.

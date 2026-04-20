@@ -3,6 +3,7 @@ name: Bug Tracker Issues
 on:
   push:
     paths:
+      - docs/app-wide-cypress-bug-log.csv
       - docs/2d-network-cypress-bug-log.csv
       - docs/map-view-cypress-bug-log.csv
       - docs/epi-curve-cypress-bug-log.csv
@@ -26,6 +27,7 @@ jobs:
     strategy:
       matrix:
         csv_path:
+          - docs/app-wide-cypress-bug-log.csv
           - docs/2d-network-cypress-bug-log.csv
           - docs/map-view-cypress-bug-log.csv
           - docs/epi-curve-cypress-bug-log.csv

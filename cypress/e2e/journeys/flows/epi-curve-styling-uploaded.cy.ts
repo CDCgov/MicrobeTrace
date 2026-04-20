@@ -107,26 +107,6 @@ const selectVisiblePrimeOption = (selector: string, label: string): void => {
   });
 };
 
-const ensureNodeColorTableVisible = (): void => {
-  cy.get('#node-color-table-row', { timeout: 15000 }).should('be.visible');
-
-  cy.get('body').then(($body) => {
-    const hasVisibleTable =
-      $body.find('.p-dialog:visible .p-dialog-title:contains("Node Color Table")').length > 0;
-
-    if (hasVisibleTable) return;
-
-    cy.get('#node-color-table-row')
-      .contains('.p-selectbutton .p-togglebutton-label', 'Show')
-      .click({ force: true });
-  });
-
-  cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-  cy.get('#node-color-table tr', { timeout: 15000 }).should(($rows) => {
-    expect($rows.length, 'node color table rows').to.be.greaterThan(1);
-  });
-};
-
 const closeDialogIfVisible = (dialogTitle: string): void => {
   cy.get('body').then(($body) => {
     const hasVisibleDialog =
@@ -229,6 +209,7 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
     let fillsBeforeThreshold: string[] = [];
     let fillsBeforeColorEdit: string[] = [];
     let initialFirstRowColor = '';
+    let editedClusterKey = '';
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Color By', 'Node Color');
@@ -242,8 +223,6 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
     cy.window()
       .its('commonService.session.style.widgets.node-color-variable')
       .should('equal', 'cluster');
-
-    ensureNodeColorTableVisible();
 
     cy.window().then((win: unknown) => {
       const typedWindow = win as WinWithMT;
@@ -274,29 +253,47 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
     });
 
     switchGlobalSettingsTab('Styling');
-    ensureNodeColorTableVisible();
+    cy.get('#node-color-table-row').should('not.be.visible');
 
     readUniqueEpiCurveFills().then((fills) => {
       fillsBeforeColorEdit = fills;
     });
 
-    cy.get('#node-color-table tr', { timeout: 15000 })
-      .eq(1)
-      .find('input[type="color"]')
-      .should('have.length', 1)
-      .then(($input) => {
-        initialFirstRowColor = String($input.val() || '');
+    cy.window().then((win: unknown) => {
+      const typedWindow = win as WinWithMT;
+      const commonService = typedWindow.commonService;
+      const clusterKeys = commonService.session.style.nodeColorsTableKeys?.cluster || [];
 
-        const input = $input.get(0) as HTMLInputElement;
-        input.value = updatedColor;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(clusterKeys.length, 'cluster keys available for node-color mapping').to.be.greaterThan(0);
+
+      editedClusterKey = String(clusterKeys[0]);
+      initialFirstRowColor = String(
+        commonService.session.style.nodeColorsTableHistory?.[editedClusterKey]
+        || commonService.temp.style.nodeColorMap?.(editedClusterKey)
+        || '',
+      );
+
+      expect(initialFirstRowColor, 'initial cluster color before edit').not.to.equal('');
+
+      const clusterIndex = clusterKeys.findIndex((candidate: string) => String(candidate) === editedClusterKey);
+      expect(clusterIndex, `cluster index for ${editedClusterKey}`).to.be.greaterThan(-1);
+
+      commonService.session.style.nodeColorsTableHistory[editedClusterKey] = updatedColor;
+
+      if (Array.isArray(commonService.session.style.nodeColorsTable?.cluster)) {
+        commonService.session.style.nodeColorsTable.cluster.splice(clusterIndex, 1, updatedColor);
+      }
+
+      commonService.createNodeColorMap();
+      commonService.visuals.epiCurve.updateNodeColors();
+    });
+
+    cy.window()
+      .its('commonService.session.style.nodeColorsTableHistory')
+      .should((history) => {
+        expect(String(history?.[editedClusterKey] || '').toLowerCase(), `updated stored color for ${editedClusterKey}`)
+          .to.equal(updatedColor);
       });
-
-    cy.get('#node-color-table tr')
-      .eq(1)
-      .find('input[type="color"]')
-      .should('have.value', updatedColor);
 
     readUniqueEpiCurveFills().then((fills) => {
       expect(

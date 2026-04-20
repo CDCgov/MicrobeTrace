@@ -11,6 +11,7 @@ import {
   selectMapField,
   setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -60,15 +61,15 @@ const assertMapNodeCategoryColors = (field: string, firstValue: string, secondVa
     expect(firstNodes.length, `${firstValue} map nodes present`).to.be.greaterThan(0);
     expect(secondNodes.length, `${secondValue} map nodes present`).to.be.greaterThan(0);
 
-    const firstColor = normalizeColor(firstNodes[0].options.fillColor);
-    const secondColor = normalizeColor(secondNodes[0].options.fillColor);
+    const firstColor = readRenderedMapNodeStyle(firstNodes[0]).fillColor;
+    const secondColor = readRenderedMapNodeStyle(secondNodes[0]).fillColor;
 
     firstNodes.forEach((node: any) => {
-      expect(normalizeColor(node.options.fillColor), `${firstValue} map node color`).to.equal(firstColor);
+      expect(readRenderedMapNodeStyle(node).fillColor, `${firstValue} map node color`).to.equal(firstColor);
     });
 
     secondNodes.forEach((node: any) => {
-      expect(normalizeColor(node.options.fillColor), `${secondValue} map node color`).to.equal(secondColor);
+      expect(readRenderedMapNodeStyle(node).fillColor, `${secondValue} map node color`).to.equal(secondColor);
     });
 
     expect(firstColor, 'distinct node categories render different map colors').not.to.equal(secondColor);
@@ -149,7 +150,7 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
       expect(educationNodes.length, 'education map nodes present').to.be.greaterThan(0);
       expect(classroomLinks.length, 'classroom map links present').to.be.greaterThan(0);
 
-      educationBaseline = normalizeColor(educationNodes[0].options.fillColor);
+      educationBaseline = readRenderedMapNodeStyle(educationNodes[0]).fillColor;
       classroomBaseline = normalizeColor(classroomLinks[0].options.color);
     });
 
@@ -169,11 +170,11 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
       expect(classroomLinks.length, 'classroom map links present').to.be.greaterThan(0);
 
       healthcareNodes.forEach((node: any) => {
-        expect(normalizeColor(node.options.fillColor), 'updated healthcare map color').to.equal(expectedHealthcareColor);
+        expect(readRenderedMapNodeStyle(node).fillColor, 'updated healthcare map color').to.equal(expectedHealthcareColor);
       });
 
       educationNodes.forEach((node: any) => {
-        expect(normalizeColor(node.options.fillColor), 'unchanged education map color').to.equal(educationBaseline);
+        expect(readRenderedMapNodeStyle(node).fillColor, 'unchanged education map color').to.equal(educationBaseline);
       });
 
       sportsTeamLinks.forEach((link: any) => {

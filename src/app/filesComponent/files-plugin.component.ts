@@ -1139,7 +1139,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         if (file.extension === 'xls' || file.extension === 'xlsx') {
 
           const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
-          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {dateNF: 'mm/dd/yyyy', header: 1, raw: false});
+          // Preserve full matrix precision so TN93 thresholding matches the source workbook values.
+          const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {dateNF: 'mm/dd/yyyy', header: 1, raw: true});
           let nodeIDs = [], nn = 0, nl = 0;
           data.forEach((row: any, i) => {
             if (i === 0) {

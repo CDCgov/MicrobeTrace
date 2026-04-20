@@ -17,7 +17,8 @@ type GanttDirectLaunchCase = {
   entryName: string;
   startField: string;
   endField: string;
-  expectedBars: number;
+  expectedRenderedBars: number;
+  expectedRenderedRows: number;
 };
 
 const GANTT_DIRECT_LAUNCH_CASES: GanttDirectLaunchCase[] = [
@@ -27,7 +28,8 @@ const GANTT_DIRECT_LAUNCH_CASES: GanttDirectLaunchCase[] = [
     entryName: 'Symptom Window',
     startField: 'Date of symptom onset Date',
     endField: 'Date symptoms resolved',
-    expectedBars: 30,
+    expectedRenderedBars: 30,
+    expectedRenderedRows: 33,
   },
   {
     profileId: 'gantt-angulartesting-sequence-node',
@@ -35,7 +37,8 @@ const GANTT_DIRECT_LAUNCH_CASES: GanttDirectLaunchCase[] = [
     entryName: 'Infectious Period',
     startField: 'ipstart',
     endField: 'ipend',
-    expectedBars: 14,
+    expectedRenderedBars: 14,
+    expectedRenderedRows: 14,
   },
 ];
 
@@ -72,34 +75,36 @@ const assertDirectLaunchSessionCounts = (profile: DatasetProfile): void => {
 };
 
 describe('Journey Flow - Gantt direct launch on uploaded data', () => {
-  GANTT_DIRECT_LAUNCH_CASES.forEach(({ profileId, title, entryName, startField, endField, expectedBars }) => {
-    const profile = asDirectGanttProfile(getProfile(profileId));
+  GANTT_DIRECT_LAUNCH_CASES.forEach(
+    ({ profileId, title, entryName, startField, endField, expectedRenderedBars, expectedRenderedRows }) => {
+      const profile = asDirectGanttProfile(getProfile(profileId));
 
-    it(title, () => {
-      launchProfileDirectToGantt(profile);
-      assertDirectLaunchSessionCounts(profile);
+      it(title, () => {
+        launchProfileDirectToGantt(profile);
+        assertDirectLaunchSessionCounts(profile);
 
-      cy.window()
-        .its('commonService.session.style.widgets.default-view')
-        .should('equal', 'Gantt Chart');
+        cy.window()
+          .its('commonService.session.style.widgets.default-view')
+          .should('equal', 'Gantt Chart');
 
-      createGanttEntry({
-        name: entryName,
-        startField,
-        endField,
+        createGanttEntry({
+          name: entryName,
+          startField,
+          endField,
+        });
+
+        cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', expectedRenderedBars);
+        cy.get('ganttcomponent #gantt .y-axis-text').should('have.length', expectedRenderedRows);
+
+        cy.window().then((win: any) => {
+          const gantt = win.commonService.visuals.gantt;
+
+          expect(gantt.ganttEntries, 'gantt entry table').to.have.length(1);
+          expect(gantt.ganttEntries[0].entryName, 'entry name').to.equal(entryName);
+          expect(gantt.ganttEntries[0].startDate, 'entry start field').to.equal(startField);
+          expect(gantt.ganttEntries[0].endDate, 'entry end field').to.equal(endField);
+        });
       });
-
-      cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', expectedBars);
-      cy.get('ganttcomponent #gantt .y-axis-text').should('have.length', expectedBars);
-
-      cy.window().then((win: any) => {
-        const gantt = win.commonService.visuals.gantt;
-
-        expect(gantt.ganttEntries, 'gantt entry table').to.have.length(1);
-        expect(gantt.ganttEntries[0].entryName, 'entry name').to.equal(entryName);
-        expect(gantt.ganttEntries[0].startDate, 'entry start field').to.equal(startField);
-        expect(gantt.ganttEntries[0].endDate, 'entry end field').to.equal(endField);
-      });
-    });
-  });
+    },
+  );
 });

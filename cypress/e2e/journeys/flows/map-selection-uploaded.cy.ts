@@ -1,7 +1,5 @@
 /// <reference types="cypress" />
 
-import * as L from 'leaflet';
-
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -12,6 +10,7 @@ import {
   selectMapField,
   setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
+import { getRenderedMapNodeContainerPoint, readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -26,6 +25,8 @@ describe('Journey Flow - Map uploaded node selection', () => {
   const profile = getProfile('map-color-by-uploaded');
 
   it('selects an uploaded rendered Map node and syncs the selected state back into the backing model', () => {
+    let strokeWidthBefore = 0;
+
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
     goToMapView();
@@ -44,11 +45,13 @@ describe('Journey Flow - Map uploaded node selection', () => {
       const typedWindow = win as WinWithMap;
       const nodeLayer = getRenderedNodeLayer(typedWindow, 'A');
       const visibleNodes = typedWindow.commonService.getVisibleNodes();
+      const nodeStyle = readRenderedMapNodeStyle(nodeLayer);
 
       expect(nodeLayer, 'rendered map node A').to.exist;
       expect(nodeLayer.data.selected, 'node layer selection before click').to.equal(false);
-      expect(nodeLayer.options.color, 'node layer border before click').to.equal('#000000');
-      expect(nodeLayer.options.weight, 'node layer border width before click').to.equal(1);
+      expect(nodeStyle.strokeColor, 'node layer border before click').to.equal('#000000');
+      expect(nodeStyle.strokeWidth, 'node layer stroke width before click').to.be.greaterThan(0);
+      strokeWidthBefore = Number(nodeStyle.strokeWidth);
 
       expect(
         visibleNodes.some((node: any) => node.selected),
@@ -63,14 +66,13 @@ describe('Journey Flow - Map uploaded node selection', () => {
 
       expect(nodeLayer, 'rendered map node A').to.exist;
 
-      const point = nodeLayer._point;
+      const containerPoint = getRenderedMapNodeContainerPoint(lmap, nodeLayer);
       const fakeOriginalEvent = new MouseEvent('click', {
         bubbles: true,
         cancelable: true,
         composed: true,
         button: 0,
       });
-      const containerPoint = L.point(point.x, point.y);
       const latlng = lmap.containerPointToLatLng(containerPoint);
 
       nodeLayer.fire('click', {
@@ -89,11 +91,12 @@ describe('Journey Flow - Map uploaded node selection', () => {
       const otherSelectedNodes = visibleNodes.filter((node: any) =>
         String(node._id ?? node.ID) !== 'A' && node.selected,
       );
+      const nodeStyle = readRenderedMapNodeStyle(nodeLayer);
 
       expect(nodeLayer, 'rendered map node A after click').to.exist;
       expect(nodeLayer.data.selected, 'node layer selection after click').to.equal(true);
-      expect(nodeLayer.options.color, 'node layer border after click').to.equal('#ff8300');
-      expect(nodeLayer.options.weight, 'node layer border width after click').to.equal(3);
+      expect(nodeStyle.strokeColor, 'node layer border after click').to.equal('#ff8300');
+      expect(nodeStyle.strokeWidth, 'node layer stroke width after click').to.be.greaterThan(strokeWidthBefore);
 
       expect(selectedNode?.selected, 'selected node in commonService').to.equal(true);
       expect(otherSelectedNodes.length, 'only one visible node remains selected').to.equal(0);

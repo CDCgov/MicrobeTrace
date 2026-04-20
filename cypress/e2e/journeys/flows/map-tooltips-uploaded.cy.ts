@@ -1,7 +1,5 @@
 /// <reference types="cypress" />
 
-import * as L from 'leaflet';
-
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -12,6 +10,10 @@ import {
   selectMapField,
   setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
+import {
+  getRenderedMapLinkContainerPoint,
+  getRenderedMapNodeContainerPoint,
+} from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -68,11 +70,11 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
 
       expect(nodeLayer, 'rendered map node A').to.exist;
 
-      const point = nodeLayer._point;
+      const containerPoint = getRenderedMapNodeContainerPoint(lmap, nodeLayer);
       const container = lmap.getContainer() as HTMLElement;
       const rect = container.getBoundingClientRect();
-      const clientX = Math.round(rect.left + point.x);
-      const clientY = Math.round(rect.top + point.y);
+      const clientX = Math.round(rect.left + containerPoint.x);
+      const clientY = Math.round(rect.top + containerPoint.y);
       const eventInit = {
         bubbles: true,
         cancelable: true,
@@ -84,7 +86,6 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
         pageY: clientY,
       };
       const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
-      const containerPoint = L.point(point.x, point.y);
       const latlng = lmap.containerPointToLatLng(containerPoint);
 
       nodeLayer.fire('mouseover', { latlng, layer: nodeLayer, containerPoint, originalEvent: fakeOriginalEvent });
@@ -107,13 +108,10 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
 
       expect(linkLayer, 'rendered map link A-C').to.exist;
 
-      const midpoint = {
-        x: (linkLayer._rawPxBounds.min.x + linkLayer._rawPxBounds.max.x) / 2,
-        y: (linkLayer._rawPxBounds.min.y + linkLayer._rawPxBounds.max.y) / 2,
-      };
+      const containerPoint = getRenderedMapLinkContainerPoint(lmap, linkLayer);
       const rect = (lmap.getContainer() as HTMLElement).getBoundingClientRect();
-      const clientX = rect.left + midpoint.x;
-      const clientY = rect.top + midpoint.y;
+      const clientX = rect.left + containerPoint.x;
+      const clientY = rect.top + containerPoint.y;
       const eventInit = {
         bubbles: true,
         cancelable: true,
@@ -125,7 +123,6 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
         pageY: clientY,
       };
       const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
-      const containerPoint = L.point(midpoint.x, midpoint.y);
       const latlng = lmap.containerPointToLatLng(containerPoint);
 
       linkLayer.fire('mouseover', { latlng, layer: linkLayer, containerPoint, originalEvent: fakeOriginalEvent });

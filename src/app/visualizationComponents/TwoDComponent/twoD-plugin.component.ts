@@ -4627,6 +4627,7 @@ private async _partialUpdate() {
 
         //Nodes|Shape
         this.widgets['node-symbol'] = this.mapPreviousShapeNameToCurrent(this.widgets['node-symbol']);
+        this.updateNodeShapes();
 
         //Nodes|Size By
         this.SelectedNodeRadiusVariable = this.widgets['node-radius-variable'];

@@ -10,6 +10,7 @@ import {
   selectMapField,
   setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -109,8 +110,9 @@ const assertExpandedNodeOpacity = (expectedOpacity: number): void => {
 
     expect(layers.length, 'expanded node layers present').to.be.greaterThan(0);
     layers.forEach((layer: any) => {
-      expect(layer.options.opacity, 'map node stroke opacity').to.equal(expectedOpacity);
-      expect(layer.options.fillOpacity, 'map node fill opacity').to.equal(expectedOpacity);
+      const style = readRenderedMapNodeStyle(layer);
+      expect(style.opacity, 'map node stroke opacity').to.equal(expectedOpacity);
+      expect(style.fillOpacity, 'map node fill opacity').to.equal(expectedOpacity);
     });
   });
 };

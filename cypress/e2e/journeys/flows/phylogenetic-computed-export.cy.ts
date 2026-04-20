@@ -13,7 +13,24 @@ const SELECTORS = {
   exportButton: '#tool-btn-container-phylo a[title="Export Screen"]',
 };
 
+type PhyloImageFileType = 'png' | 'svg';
+
 const normalizeNewickText = (value: string): string => value.replace(/\r\n/g, '\n').trim();
+
+const openPhyloExportDialog = (): void => {
+  cy.get(SELECTORS.exportButton).click({ force: true });
+  cy.contains('.p-dialog-title', 'Export Phylogenetic Tree').should('be.visible');
+};
+
+const setExportFileType = (fileType: PhyloImageFileType): void => {
+  cy.get('#network-export-filetype').click({ force: true });
+  cy.contains('li[role="option"]', new RegExp(`^${fileType}$`, 'i')).click({ force: true });
+};
+
+const openNewickExportTab = (): void => {
+  cy.contains('.p-dialog:visible .nav-link', /^Newick$/).click({ force: true });
+  cy.get('#newick-string-filename').should('be.visible');
+};
 
 describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newick data', () => {
   const profiles: DatasetProfile[] = [
@@ -37,48 +54,39 @@ describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newic
       goToPhyloTreeView();
       assertPhyloTreeReady();
 
-      cy.get(SELECTORS.exportButton).click({ force: true });
-      cy.contains('.p-dialog-title', 'Export Phylogenetic Tree')
-        .should('be.visible')
-        .parents('.p-dialog')
-        .as('phyloExportDialog');
-
-      cy.get('@phyloExportDialog')
-        .find('#tree-image-filename')
+      openPhyloExportDialog();
+      setExportFileType('png');
+      cy.get('#tree-image-filename')
         .invoke('val', pngFileBase)
         .trigger('input')
         .trigger('change');
 
-      cy.get('@phyloExportDialog').find('#export-tree').click({ force: true });
+      cy.get('#export-tree').click({ force: true });
       cy.readFile(pngPath, 'binary', { timeout: 30000 }).should((pngBinary) => {
         expect(pngBinary.length, `PNG byte length for ${profile.id}`).to.be.greaterThan(1000);
       });
 
-      cy.get('@phyloExportDialog')
-        .find('#tree-image-filename')
+      openPhyloExportDialog();
+      cy.get('#tree-image-filename')
         .invoke('val', svgFileBase)
         .trigger('input')
         .trigger('change');
 
-      cy.get('@phyloExportDialog').find('#network-export-filetype').click();
-      cy.contains('li[role="option"]', 'svg').click();
-      cy.get('@phyloExportDialog').find('#export-tree').click({ force: true });
+      setExportFileType('svg');
+      cy.get('#export-tree').click({ force: true });
       cy.readFile(svgPath, 'utf8', { timeout: 30000 }).should((svgText) => {
         expect(svgText, `SVG export contents for ${profile.id}`).to.contain('<svg');
       });
 
-      cy.contains('.p-dialog-title', 'Export Phylogenetic Tree')
-        .parents('.p-dialog')
-        .contains('Newick')
-        .click();
+      openPhyloExportDialog();
+      openNewickExportTab();
 
-      cy.get('@phyloExportDialog')
-        .find('#newick-string-filename')
+      cy.get('#newick-string-filename')
         .invoke('val', newickFileBase)
         .trigger('input')
         .trigger('change');
 
-      cy.get('@phyloExportDialog').find('#export-newick').click({ force: true });
+      cy.get('#export-newick').click({ force: true });
 
       cy.window().its('commonService.visuals.phylogenetic.tree.data').then((treeData: any) => {
         const expectedNewick = normalizeNewickText(treeData.toNewick(false));
@@ -87,8 +95,6 @@ describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newic
           expect(normalizeNewickText(savedText), `Newick export contents for ${profile.id}`).to.equal(expectedNewick);
         });
       });
-
-      cy.closeSettingsPane('Export Phylogenetic Tree');
     });
   });
 });

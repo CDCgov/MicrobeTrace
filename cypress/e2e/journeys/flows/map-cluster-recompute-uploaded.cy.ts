@@ -14,6 +14,7 @@ import {
   setGlobalLinkThreshold,
   setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -83,7 +84,7 @@ const readRenderedNodeSnapshot = (win: WinWithMap): NodeSnapshot =>
 
       acc[nodeId] = {
         cluster: String(layer?.data?.cluster),
-        color: normalizeColor(layer?.options?.fillColor),
+        color: readRenderedMapNodeStyle(layer).fillColor,
       };
 
       return acc;

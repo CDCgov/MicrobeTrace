@@ -15,8 +15,9 @@ type WinWithGantt = Window & {
 
 describe('Journey Flow - Gantt uploaded data-mapping edge cases', () => {
   const profile = getProfile('gantt-cypress-edge-case-node-link');
+  const expectedRenderedRows = profile.expectations.afterLaunch?.nodes ?? 4;
 
-  it('skips sparse rows that do not have both start and end dates', () => {
+  it('keeps sparse rows visible while only complete date ranges render bars', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
     goToGanttView();
@@ -28,20 +29,20 @@ describe('Journey Flow - Gantt uploaded data-mapping edge cases', () => {
     });
 
     cy.get('ganttcomponent #gantt .gantt-entry').should('have.length', 2);
-    cy.get('ganttcomponent #gantt .y-axis-text').should('have.length', 2);
+    cy.get('ganttcomponent #gantt .y-axis-text').should('have.length', expectedRenderedRows);
 
     cy.window().should((win: unknown) => {
       const gantt = (win as WinWithGantt).commonService.visuals.gantt;
       const timelines = gantt.ganttChartData[0].timelines;
       const keys = Object.keys(timelines);
 
-      expect(keys, 'nodes with complete sparse dates').to.have.members(['A', 'D']);
-      expect(keys, 'sparse timeline key count').to.have.length(2);
+      expect(keys, 'sparse timeline keys').to.have.members(['A', 'B', 'C', 'D']);
+      expect(keys, 'sparse timeline key count').to.have.length(expectedRenderedRows);
       expect(timelines.A[0].from, 'A sparse start').to.equal('2024-07-01');
       expect(timelines.A[0].to, 'A sparse end').to.equal('2024-07-05');
       expect(timelines.D[0].from, 'D sparse start').to.equal('2024-07-04');
       expect(timelines.D[0].to, 'D sparse end').to.equal('2024-07-04');
-      expect(gantt.ganttChartService.ganttPhases, 'rendered sparse rows').to.have.length(2);
+      expect(gantt.ganttChartService.ganttPhases, 'rendered sparse row labels').to.have.length(expectedRenderedRows);
     });
 
     openGanttSettingsDialog();

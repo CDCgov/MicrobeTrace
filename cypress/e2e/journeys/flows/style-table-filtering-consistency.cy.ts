@@ -29,6 +29,8 @@ type SymbolTableRow = {
   shapeKey: string;
 };
 
+const nodeShapeTableSelector = '#node-shape-table, #key-tables-node-shape-table, #nodeSymbolTable';
+
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
 
 const hexToRgbString = (hex: string): string => {
@@ -69,6 +71,28 @@ const closeGlobalSettingsIfVisible = (): void => {
       cy.closeGlobalSettings();
     }
   });
+};
+
+const openGlobalShapeSettingsFromTwoD = (): void => {
+  openTwoDSettingsDialog();
+  cy.get('@twoDSettings').contains('.nav-link', 'Nodes').click({ force: true });
+  cy.get('@twoDSettings')
+    .find('.tab-pane:visible', { timeout: 15000 })
+    .should('exist')
+    .as('nodesTab');
+
+  expandAccordionTabByHeader('@nodesTab', 'Shapes and Sizes');
+  cy.get('@nodesTab').find('#open-global-shape-settings').click({ force: true });
+
+  closeTwoDSettingsDialog();
+
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('globalSettings');
+
+  cy.get('@globalSettings').contains('.nav-link', 'Styling').click({ force: true });
+  cy.get('@globalSettings').find('#node-symbol-variable', { timeout: 15000 }).should('exist');
 };
 
 const applyMinimumClusterSize = (size: number): void => {
@@ -227,8 +251,11 @@ const extractNodeSymbolTableRows = ($table: JQuery<HTMLElement>): SymbolTableRow
 
     const countText = String($row.find('td.tableCount').first().text() || '').trim();
     const count = parseInt(countText.replace(/,/g, ''), 10);
-    const selectedText = String($row.find('.p-select-label').first().text() || '').trim();
-    const symbol = symbolTextToShapeKey.find((entry) => selectedText.includes(entry.marker));
+    const rowText = normalizeSymbolCategoryValue($row.text());
+    const selectedText = String($row.find('.p-select-label, .p-dropdown-label').first().text() || '').trim();
+    const symbol = symbolTextToShapeKey.find((entry) =>
+      selectedText.includes(entry.marker) || rowText.includes(entry.marker)
+    );
 
     expect(symbol, `node symbol table shape for ${value}`).to.exist;
 
@@ -249,7 +276,7 @@ const assertNodeSymbolTableMatchesVisibleNodes = (field: string): void => {
 
     expect(cyInstance, 'cytoscapeInstance').to.exist;
 
-    cy.get('#nodeSymbolTable', { timeout: 15000 }).should(($table) => {
+    cy.get(nodeShapeTableSelector, { timeout: 15000 }).filter(':visible').first().should(($table) => {
       const rows = extractNodeSymbolTableRows($table);
       const visibleByValue: Record<string, { count: number; shapes: string[] }> = {};
       cyInstance
@@ -262,7 +289,7 @@ const assertNodeSymbolTableMatchesVisibleNodes = (field: string): void => {
           }
 
           visibleByValue[value].count += 1;
-          visibleByValue[value].shapes.push(String(node.style('shape') || '').trim());
+          visibleByValue[value].shapes.push(String(node.data('shapeKey') || node.style('shape') || '').trim());
         });
 
       expect(Object.keys(visibleByValue).sort(), 'visible symbol categories')
@@ -352,21 +379,14 @@ describe('Journey Flow - Filtering keeps style tables coherent', () => {
       launchNodeCount = count;
     });
 
-    openTwoDSettingsDialog();
-    cy.get('@twoDSettings').contains('.nav-link', 'Nodes').click({ force: true });
-    cy.get('@twoDSettings')
-      .find('.tab-pane:visible', { timeout: 15000 })
-      .should('exist')
-      .as('nodesTab');
-
-    expandAccordionTabByHeader('@nodesTab', 'Shapes and Sizes');
-    cy.get('@nodesTab').find('#node-symbol-variable').click({ force: true });
+    openGlobalShapeSettingsFromTwoD();
+    cy.get('@globalSettings').find('#node-symbol-variable').click({ force: true });
     cy.contains('li[role="option"]', 'Node type').click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
-    cy.get('#nodeSymbolTable', { timeout: 15000 }).should('exist');
-    closeTwoDSettingsDialog();
+    cy.get(nodeShapeTableSelector, { timeout: 15000 }).should('exist');
+    cy.closeGlobalSettings();
 
     assertNodeSymbolTableMatchesVisibleNodes('Node type');
 
@@ -376,7 +396,7 @@ describe('Journey Flow - Filtering keeps style tables coherent', () => {
       expect(count, 'nodes reduced after symbol filtering').to.be.lessThan(launchNodeCount);
     });
 
-    cy.get('#nodeSymbolTable', { timeout: 15000 }).should('exist');
+    cy.get(nodeShapeTableSelector, { timeout: 15000 }).should('exist');
     assertNodeSymbolTableMatchesVisibleNodes('Node type');
   });
 });

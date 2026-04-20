@@ -8,6 +8,7 @@ import {
 
 describe('Journey Flow - Show Node Symbols', () => {
   const profile = getProfile('style-apply-cypress-test-style');
+  const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
 
   it(profile.title, () => {
     launchProfileToTwoD(profile);
@@ -23,7 +24,7 @@ describe('Journey Flow - Show Node Symbols', () => {
       const shapes = new Set(
         cyInstance.nodes()
           .filter((node: any) => !node.hasClass('parent'))
-          .map((node: any) => node.style('shape'))
+          .map((node: any) => getRenderedShapeKey(node))
       );
 
       expect(shapes.size, 'multiple node shapes rendered').to.be.greaterThan(1);

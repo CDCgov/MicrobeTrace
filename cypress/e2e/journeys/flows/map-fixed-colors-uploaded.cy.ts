@@ -11,6 +11,7 @@ import {
   selectMapField,
   setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
@@ -47,7 +48,7 @@ const assertCollapsedLeafNodeColor = (expectedColor: string): void => {
 
     expect(leafLayers.length, 'collapsed visible leaf markers').to.be.greaterThan(0);
     leafLayers.forEach((layer: any) => {
-      expect(normalizeColor(layer.options.fillColor), 'collapsed map node color')
+      expect(readRenderedMapNodeStyle(layer).fillColor, 'collapsed map node color')
         .to.equal(expectedColor);
     });
   });
@@ -60,7 +61,7 @@ const assertExpandedNodeColor = (expectedColor: string): void => {
 
     expect(layers.length, 'expanded map nodes').to.equal(30);
     layers.forEach((layer: any) => {
-      expect(normalizeColor(layer.options.fillColor), 'expanded map node color')
+      expect(readRenderedMapNodeStyle(layer).fillColor, 'expanded map node color')
         .to.equal(expectedColor);
     });
   });

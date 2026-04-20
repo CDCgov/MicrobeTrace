@@ -11,6 +11,7 @@ import {
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 import {
+  assertTableAllRowsState,
   assertFirstVisibleRowValue,
   assertTableRowValueByMatch,
   assertTableVisibleRowCount,
@@ -68,7 +69,7 @@ describe('Journey Flow - Table uploaded refresh and sync', () => {
     cy.window()
       .its('commonService.session.data.nodes')
       .then((nodes: any[]) => {
-        assertTableVisibleRowCount(nodes.length);
+        assertTableAllRowsState(nodes.length);
         cy.wrap(getNodeId(nodes[0]), { log: false }).as('tableAllFilterNodeId');
       });
 
@@ -85,27 +86,32 @@ describe('Journey Flow - Table uploaded refresh and sync', () => {
     cy.window()
       .its('commonService.session.data.nodes')
       .then((nodes: any[]) => {
-        assertTableVisibleRowCount(nodes.length);
+        assertTableAllRowsState(nodes.length);
         cy.window()
           .its('commonService.visuals.tableComp.selectedRows')
           .should('equal', nodes.length);
       });
 
     selectTableDataset('Link');
-    cy.window()
-      .its('commonService.session.data.links')
-      .then((links: any[]) => {
-        assertTableVisibleRowCount(links.length);
-        cy.window()
-          .its('commonService.visuals.tableComp.selectedRows')
-          .should('equal', links.length);
-      });
+    cy.window().then((rawWin: unknown) => {
+      const win = rawWin as WinWithMT;
+      const visibleLinks = win.commonService.session.data.links.filter((link: any) => link.visible);
+
+      assertTableAllRowsState(visibleLinks.length);
+      cy.wrap(visibleLinks.length, { log: false }).as('tableVisibleLinkCount');
+    });
+
+    cy.get<number>('@tableVisibleLinkCount').then((visibleLinkCount) => {
+      cy.window()
+        .its('commonService.visuals.tableComp.selectedRows')
+        .should('equal', visibleLinkCount);
+    });
 
     selectTableDataset('Node');
     cy.window()
       .its('commonService.session.data.nodes')
       .then((nodes: any[]) => {
-        assertTableVisibleRowCount(nodes.length);
+        assertTableAllRowsState(nodes.length);
       });
   });
 

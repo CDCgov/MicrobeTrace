@@ -31,6 +31,7 @@
           [rowsPerPageOptions]="[10,25,50,75,100, { showAll: 'All' }]"
           [loading]="loading"
           [paginator]="true"
+          (onPage)="onPage($event)"
           [filterDelay]="1000"
           (onFilter)="onFilter($event)"
           selectionMode="{{TableType === 'node' ? 'multiple' : null}}"

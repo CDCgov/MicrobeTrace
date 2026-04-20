@@ -19,6 +19,22 @@ const openNodeShapesPanel = (): void => {
   expandAccordionTabByHeader('@nodesTab', 'Shapes and Sizes');
 };
 
+const openGlobalShapeSettingsFromTwoD = (): void => {
+  cy.get('@nodesTab').find('#open-global-shape-settings').click({ force: true });
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .should('be.visible');
+
+  closeTwoDSettingsDialog();
+
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('globalSettings');
+
+  cy.get('@globalSettings').contains('.nav-link', 'Styling').click({ force: true });
+  cy.get('@globalSettings').find('#node-symbol-variable', { timeout: 15000 }).should('exist');
+};
+
 const closeTwoDSettingsDialog = (): void => {
   cy.get('@twoDSettings')
     .find('button.p-dialog-close-button')
@@ -27,15 +43,38 @@ const closeTwoDSettingsDialog = (): void => {
   cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
 };
 
+const nodeShapeTableSelector = '#node-shape-table, #key-tables-node-shape-table, #nodeSymbolTable';
+
 const assertNodeSymbolTableVisibility = (shouldBeVisible: boolean): void => {
   if (shouldBeVisible) {
-    cy.get('#nodeSymbolTable', { timeout: 15000 }).should('exist');
+    cy.get(nodeShapeTableSelector, { timeout: 15000 }).should(($tables) => {
+      const hasDisplayedTable = [...$tables].some((table) => {
+        const element = table as HTMLElement;
+        const computed = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return computed.display !== 'none'
+          && computed.visibility !== 'hidden'
+          && rect.width > 0
+          && rect.height > 0;
+      });
+
+      expect(hasDisplayedTable, 'node shape table displayed').to.equal(true);
+    });
     return;
   }
 
-  cy.get('body').then(($body) => {
-    if (!$body.find('#nodeSymbolTable').length) return;
-    cy.get('#nodeSymbolTable').should('not.be.visible');
+  cy.get('body').should(($body) => {
+    const visibleTables = [...$body.find(nodeShapeTableSelector)].filter((table) => {
+      const element = table as HTMLElement;
+      const computed = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return computed.display !== 'none'
+        && computed.visibility !== 'hidden'
+        && rect.width > 0
+        && rect.height > 0;
+    });
+
+    expect(visibleTables.length, 'visible node shape tables').to.equal(0);
   });
 };
 
@@ -52,12 +91,14 @@ const getVisibleLeafNodeWidths = (): Cypress.Chainable<number[]> => {
   });
 };
 
+const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
+
 const renderedNodeWidthFromWidgetSize = (widgetSize: number): number => 10 + widgetSize * 0.4;
 
 describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
   const profile = getProfile('style-apply-cypress-test-style');
 
-  it('sets node shape by variable and toggles the node symbol table from the 2D settings pane', () => {
+  it('routes node shape settings into Global Settings and toggles the node symbol table', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
@@ -65,7 +106,9 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'None');
 
-    cy.get('@nodesTab').find('#node-symbol-variable').click({ force: true });
+    openGlobalShapeSettingsFromTwoD();
+
+    cy.get('@globalSettings').find('#node-symbol-variable').click({ force: true });
     cy.contains('li[role="option"]', 'Node type').click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
@@ -84,31 +127,31 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
       expect(personNodes.length, 'person nodes with uploaded data').to.be.greaterThan(0);
       expect(facilityNodes.length, 'facility nodes with uploaded data').to.be.greaterThan(0);
 
-      const personShape = String(personNodes[0].style('shape'));
-      const facilityShape = String(facilityNodes[0].style('shape'));
+      const personShape = getRenderedShapeKey(personNodes[0]);
+      const facilityShape = getRenderedShapeKey(facilityNodes[0]);
 
       expect(personShape, 'person shape').not.to.equal(facilityShape);
     });
 
-    cy.get('@nodesTab')
-      .find('#node-symbol-table-row')
+    cy.get('@globalSettings')
+      .find('#node-shape-table-row', { timeout: 15000 })
+      .scrollIntoView()
       .contains('Hide')
       .click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Hide');
     assertNodeSymbolTableVisibility(false);
 
-    cy.get('@nodesTab')
-      .find('#node-symbol-table-row')
+    cy.get('@globalSettings')
+      .find('#node-shape-table-row', { timeout: 15000 })
+      .scrollIntoView()
       .contains('Show')
       .click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
     assertNodeSymbolTableVisibility(true);
 
-    cy.get('body').type('{esc}');
-    assertNodeSymbolTableVisibility(false);
-    closeTwoDSettingsDialog();
+    cy.closeGlobalSettings();
   });
 
   it('applies node sizing by variable and respects min and max size controls on uploaded data', () => {

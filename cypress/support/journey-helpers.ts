@@ -1326,12 +1326,10 @@ export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
     expect(cyInstance, 'cytoscapeInstance').to.exist;
 
     const visibleNodes = cyInstance
-      .nodes()
-      .filter((node) => !node.hasClass('parent') && node.visible());
+      .nodes(':visible')
+      .filter((node) => !node.hasClass('parent'));
 
-    const visibleEdges = cyInstance
-      .edges()
-      .filter((edge) => edge.visible());
+    const visibleEdges = cyInstance.edges(':visible');
 
     return {
       nodes: visibleNodes.reduce((acc: Record<string, string>, node) => {
@@ -1339,7 +1337,7 @@ export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
         return acc;
       }, {}),
       nodeShapes: visibleNodes.reduce((acc: Record<string, string>, node) => {
-        acc[node.id()] = String(node.style('shape') || '').trim();
+        acc[node.id()] = String(node.data('shapeKey') || node.style('shape') || '').trim();
         return acc;
       }, {}),
       nodeWidths: visibleNodes.reduce((acc: Record<string, string>, node) => {
@@ -1506,7 +1504,19 @@ export function assertStyleTablesFromProfile(profile: DatasetProfile): void {
 
   const assertTableVisibility = (selector: string, shouldBeVisible: boolean) => {
     if (shouldBeVisible) {
-      cy.get(selector, { timeout: 15000 }).should('be.visible');
+      cy.get(selector, { timeout: 15000 }).should(($tables) => {
+        const hasDisplayedTable = [...$tables].some((table) => {
+          const element = table as HTMLElement;
+          const computed = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return computed.display !== 'none'
+            && computed.visibility !== 'hidden'
+            && rect.width > 0
+            && rect.height > 0;
+        });
+
+        expect(hasDisplayedTable, `${selector} displayed`).to.equal(true);
+      });
       return;
     }
 
@@ -1518,7 +1528,7 @@ export function assertStyleTablesFromProfile(profile: DatasetProfile): void {
 
   assertTableVisibility('#node-color-table', style.expectTables.nodeColorTable);
   assertTableVisibility('#link-color-table', style.expectTables.linkColorTable);
-  assertTableVisibility('#nodeSymbolTable', style.expectTables.nodeSymbolTable);
+  assertTableVisibility('#node-shape-table, #key-tables-node-shape-table, #nodeSymbolTable', style.expectTables.nodeSymbolTable);
 
   cy.window()
     .its('commonService.session.style.widgets.node-symbol-table-visible')

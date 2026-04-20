@@ -96,6 +96,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     scrollHeight: string;
     tableStyle;
     selectedRows = 10;
+    private allRowsPaginatorSelected = false;
   
     private visuals: MicrobeTraceNextVisuals;
   
@@ -109,6 +110,19 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 
     private isAllRowsPaginatorSelected(): boolean {
       return $('.p-paginator-rpp-dropdown .p-select-label').text().trim() === 'All';
+    }
+
+    private shouldTreatPaginatorAsAllRows(): boolean {
+      return this.allRowsPaginatorSelected || this.isAllRowsPaginatorSelected();
+    }
+
+    private applySelectedRowsToTable(): void {
+      if (this.dataTable) {
+        this.dataTable.rows = this.selectedRows;
+        this.dataTable.first = 0;
+      }
+
+      this.cdref.detectChanges();
     }
 
     private markTableRendered(): void {
@@ -322,10 +336,28 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   
       this.visuals.tableComp.SelectedTableData.filter = event.filters;
   
-      // updates number of rows when filter is changed (without there is a visual bug when removing a filter)
-      if (this.isAllRowsPaginatorSelected()) {
+      // Keep "All" behavior across filter changes, even though PrimeNG reduces
+      // the numeric row count to the current filtered length.
+      if (this.shouldTreatPaginatorAsAllRows()) {
+        this.allRowsPaginatorSelected = true;
         this.selectedRows = event.filteredValue.length;
+        this.applySelectedRowsToTable();
       }
+    }
+
+    onPage(event) {
+      this.selectedRows = event.rows;
+
+      setTimeout(() => {
+        this.allRowsPaginatorSelected = this.isAllRowsPaginatorSelected();
+
+        if (this.allRowsPaginatorSelected) {
+          const filteredRows = this.dataTable?.filteredValue || this.SelectedTableData?.data || [];
+          this.selectedRows = filteredRows.length;
+        }
+
+        this.applySelectedRowsToTable();
+      });
     }
   
     // XXXXX changing font size in settings pane currently calls this function
@@ -358,12 +390,12 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
           this.setSelectedNodes();
         }
 
-        if (this.isAllRowsPaginatorSelected()) {
+        if (this.shouldTreatPaginatorAsAllRows()) {
+          this.allRowsPaginatorSelected = true;
           const filteredRows = this.dataTable.filteredValue || this.dataTable.value || [];
           this.selectedRows = filteredRows.length;
+          this.applySelectedRowsToTable();
         }
-
-        this.cdref.detectChanges();
       });
     }
   
@@ -548,6 +580,11 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       this.cdref.detectChanges();
 
       this.restoreSavedFilters(tableData);
+
+      if (this.allRowsPaginatorSelected) {
+        this.selectedRows = tableData.data.length;
+        this.applySelectedRowsToTable();
+      }
   
       //set selected nodes
       this.visuals.tableComp.setSelectedNodes();
@@ -681,8 +718,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     openSelectDataSetScreen(e: any) {
       this.visuals.tableComp.createTable(e.value);
       // after changing table type sometimes there is a visual bug that the following code fixes
-      if (this.isAllRowsPaginatorSelected()) {
+      if (this.shouldTreatPaginatorAsAllRows()) {
+        this.allRowsPaginatorSelected = true;
         this.selectedRows = this.SelectedTableData.data.length;
+        this.applySelectedRowsToTable();
       }
     }
   
@@ -699,6 +738,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       }
 
       this.createTable(this.visuals.microbeTrace.dataSetViewSelected);
+      if (this.allRowsPaginatorSelected) {
+        this.selectedRows = this.SelectedTableData.data.length;
+        this.applySelectedRowsToTable();
+      }
       this.markTableRendered();
       this.cdref.detectChanges();
     }

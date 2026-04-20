@@ -10,7 +10,9 @@ import {
   assertVisibleStylePreserved,
   launchProfileToTwoD,
   openGlobalFilteringTab,
+  setGlobalLinkThreshold,
   snapshotVisibleStyles,
+  waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 import type { StyleSnapshot } from '../../../support/journey-helpers';
 
@@ -52,13 +54,9 @@ describe('Journey Flow - Style survives threshold filtering', () => {
     snapshotVisibleStyles().as('preThresholdStyles');
 
     openGlobalFilteringTab();
-    cy.get('#link-threshold').clear().type(String(filteredThreshold)).blur();
-    cy.window()
-      .its('commonService.session.style.widgets.link-threshold')
-      .should((value) => {
-        expect(Number(value)).to.equal(filteredThreshold);
-      });
+    setGlobalLinkThreshold(filteredThreshold);
     cy.closeGlobalSettings();
+    waitForProcessingDialogToClear();
 
     assertMetricCount('#numberOfVisibleLinks', expectedVisibleLinksAfterThreshold);
     assertStyleWidgetsFromProfile(profile);
