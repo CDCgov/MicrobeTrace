@@ -111,3 +111,30 @@ npm run e2e
 ## Practical Rule
 
 Start with the smallest spec that directly covers the change. If the edit touched shared infrastructure or changed behavior used by more than one view, widen the run before merging.
+
+## Codex Prompt For Targeted Test Selection
+
+Use this when you want Codex to inspect the current local changes and tell you which targeted command to run.
+
+```text
+Review the current local changes in this MicrobeTrace checkout and recommend the smallest meaningful test run.
+
+Please:
+1. Inspect the changed files and diffs.
+2. Map the changes to the most relevant existing tests in this repo.
+3. Prefer maintained Cypress specs under `cypress/e2e/ingestion/`, `cypress/e2e/journeys/flows/`, and `cypress/e2e/view-state/`, plus any directly relevant Angular unit specs.
+4. If the change is isolated, output one exact runnable command, preferably:
+   `npm run e2e:journeys:spec:local -- --spec "..."`
+5. If multiple specs are needed, combine them into one `--spec` argument when reasonable.
+6. If the change is broad or shared, say that the narrow slice is not enough and give the next wider command to run instead.
+7. Keep the answer short:
+   - `Why these tests`
+   - `Command to run`
+   - `Optional wider follow-up`
+```
+
+Example of the kind of output to ask for:
+
+```bash
+npm run e2e:journeys:spec:local -- --spec "cypress/e2e/journeys/flows/map-navigation-uploaded.cy.ts,cypress/e2e/journeys/flows/map-export-uploaded.cy.ts"
+```
