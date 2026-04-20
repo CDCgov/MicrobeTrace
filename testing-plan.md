@@ -6,6 +6,8 @@ The older generic plan was retired because it no longer matched the codebase or 
 
 ## Active Testing Docs
 
+- `docs/test-runner-quick-reference.md`
+  - Quick commands for targeted unit and Cypress runs, plus guidance on when to run a narrow slice versus the broader suites.
 - `docs/cypress-architecture.md`
   - Current maintained Cypress structure, selector rules, and migration rules.
 - `docs/2d-network-cypress-checklist.md`
@@ -79,11 +81,13 @@ The older generic plan was retired because it no longer matched the codebase or 
 
 - Unit and integration tests
   - Angular component and service tests run through the existing test setup.
+  - Targeted unit runs are supported with Angular's `--include` flag.
 - End-to-end tests
   - Cypress is the active E2E framework.
   - File-ingestion coverage lives under `cypress/e2e/ingestion/`.
   - Uploaded-data journeys live under `cypress/e2e/journeys/flows/`.
   - Pure 2D view-state checks live under `cypress/e2e/view-state/`.
+  - Targeted Cypress runs are supported through the local pass-through script plus `--spec`.
   - `npm run start:local-cypress` is the stable local app server for Cypress work and disables Angular file watching and live reload so Cypress artifact writes do not trigger rebuilds mid-run.
 - Legacy-disabled specs
   - Retired or fixture-broken Cypress specs live under `cypress/e2e/legacy-disabled/` and are excluded from the maintained suite.
