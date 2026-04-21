@@ -145,6 +145,20 @@ jobs:
               return `${nextBlock || nextBody}\n\n${currentBody}`;
             }
 
+            function trackerKeyFromBody(body) {
+              const markerMatch = (body || '').match(/<!--\s*user-story-key:\s*([^>]+?)\s*-->/);
+              if (markerMatch) {
+                return markerMatch[1].trim();
+              }
+
+              const storyKeyMatch = (body || '').match(/Story Key:\s*`([^`]+)`/);
+              if (storyKeyMatch) {
+                return storyKeyMatch[1].trim();
+              }
+
+              return null;
+            }
+
             async function ensureLabel(labelName) {
               const definition = labelDefinitions[labelName] || {
                 color: 'ededed',
@@ -172,21 +186,36 @@ jobs:
               }
             }
 
-            async function findMatchingIssue(issue) {
-              const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue "${issue.tracker_key}"`;
-              const candidates = await github.paginate(
-                github.rest.search.issuesAndPullRequests,
+            async function loadExistingIssueIndex() {
+              const repositoryIssues = await github.paginate(
+                github.rest.issues.listForRepo,
                 {
-                  q: query,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all',
                   per_page: 100,
                 }
               );
 
-              return candidates.find((candidate) => {
-                const body = candidate.body || '';
-                return body.includes(`user-story-key: ${issue.tracker_key}`) ||
-                  body.includes(`Story Key: \`${issue.tracker_key}\``);
-              });
+              const issueIndex = new Map();
+              let indexedCount = 0;
+
+              for (const repositoryIssue of repositoryIssues) {
+                if (repositoryIssue.pull_request) {
+                  continue;
+                }
+
+                const trackerKey = trackerKeyFromBody(repositoryIssue.body || '');
+                if (!trackerKey || issueIndex.has(trackerKey)) {
+                  continue;
+                }
+
+                issueIndex.set(trackerKey, repositoryIssue);
+                indexedCount += 1;
+              }
+
+              core.info(`Indexed ${indexedCount} existing user story issue(s) without using GitHub Search.`);
+              return issueIndex;
             }
 
             let projectCache = null;
@@ -257,23 +286,51 @@ jobs:
               return projectCache;
             }
 
-            async function syncProjectItem(issueNodeId) {
-              const project = await loadProject();
-              const addResult = await github.graphql(
-                `mutation($projectId: ID!, $contentId: ID!) {
-                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
-                    item {
-                      id
+            async function findProjectItemId(projectId, issueNodeId) {
+              const result = await github.graphql(
+                `query($issueNodeId: ID!) {
+                  node(id: $issueNodeId) {
+                    ... on Issue {
+                      projectItems(first: 50) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
                     }
                   }
                 }`,
-                {
-                  projectId: project.id,
-                  contentId: issueNodeId,
-                }
+                { issueNodeId }
               );
 
-              const itemId = addResult.addProjectV2ItemById.item.id;
+              const projectItems = (result.node && result.node.projectItems && result.node.projectItems.nodes) || [];
+              const existingItem = projectItems.find((item) => item.project && item.project.id === projectId);
+              return existingItem ? existingItem.id : null;
+            }
+
+            async function syncProjectItem(issueNodeId) {
+              const project = await loadProject();
+              let itemId = await findProjectItemId(project.id, issueNodeId);
+
+              if (!itemId) {
+                const addResult = await github.graphql(
+                  `mutation($projectId: ID!, $contentId: ID!) {
+                    addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                      item {
+                        id
+                      }
+                    }
+                  }`,
+                  {
+                    projectId: project.id,
+                    contentId: issueNodeId,
+                  }
+                );
+
+                itemId = addResult.addProjectV2ItemById.item.id;
+              }
 
               await github.graphql(
                 `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
@@ -310,8 +367,10 @@ jobs:
               await ensureLabel(label);
             }
 
+            const existingIssueIndex = await loadExistingIssueIndex();
+
             for (const issue of issues) {
-              let current = await findMatchingIssue(issue);
+              let current = existingIssueIndex.get(issue.tracker_key);
 
               if (!current) {
                 try {
@@ -324,6 +383,7 @@ jobs:
                     assignees: assignees.length ? assignees : undefined,
                   });
                   current = created.data;
+                  existingIssueIndex.set(issue.tracker_key, current);
                   core.info(`Created ${issue.tracker_key}: ${current.html_url}`);
                 } catch (error) {
                   if (!assignees.length) {
@@ -339,6 +399,7 @@ jobs:
                     labels: issue.labels,
                   });
                   current = created.data;
+                  existingIssueIndex.set(issue.tracker_key, current);
                   core.info(`Created ${issue.tracker_key}: ${current.html_url}`);
                 }
               } else {
