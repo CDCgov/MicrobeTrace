@@ -290,7 +290,7 @@ def build_issue(row, repository: str, branch: str, commit_sha: str, actor: str):
         "generated_end": GENERATED_END,
         "labels": [
             "[issue-type] user story",
-            "source:qa-tracker",
+            "source-qa-tracker",
             "needs-review",
         ],
         "epic": epic,

@@ -97,7 +97,7 @@ jobs:
                 color: '0e8a16',
                 description: 'Expected behavior user story',
               },
-              'source:qa-tracker': {
+              'source-qa-tracker': {
                 color: '1d76db',
                 description: 'Generated from MicrobeTrace QA tracker CSVs',
               },
