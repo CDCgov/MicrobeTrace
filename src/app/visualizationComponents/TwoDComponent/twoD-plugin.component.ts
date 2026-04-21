@@ -2524,8 +2524,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // } else if (varName == 'target_index') {
             //     return data['target'].index
             } else if (varName == 'distance') {
-                if (data.hasDistance && data.distanceOrigin.includes(data.origin)) return data['distance']
-                else return 'N/A'
+                if (data.hasDistance && data.distanceOrigin.includes(data.origin)) {
+                    return this.formatLinkDistanceForDisplay(data['distance']);
+                } else {
+                    return 'N/A';
+                }
             } else {
                 return data[varName];
             }
@@ -2972,6 +2975,34 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
+    private formatLinkDistanceForDisplay(value: any, decimalLength?: number): string {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return `${value ?? ''}`;
+        }
+
+        if (String(this.widgets['default-distance-metric'] || '').toLowerCase() === 'snps') {
+            return `${Math.round(numericValue)}`;
+        }
+
+        const usePercentageDisplay =
+            String(this.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93'
+            && String(this.widgets['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage';
+
+        const displayedValue = usePercentageDisplay ? numericValue * 100 : numericValue;
+
+        if (decimalLength === undefined || decimalLength === null || Number.isNaN(Number(decimalLength))) {
+            const formattedValue = displayedValue.toFixed(3).replace(/\.?0+$/, '');
+            return usePercentageDisplay ? `${formattedValue}%` : formattedValue;
+        }
+
+        const decimals = Math.max(0, Math.floor(Number(decimalLength)));
+        const formattedValue = displayedValue.toFixed(decimals);
+
+        return usePercentageDisplay ? `${formattedValue}%` : formattedValue;
+    }
+
     /**
      * Gets the label for a link based on link label variable
      * @param link the link we retrieve to get the value of the variable
@@ -3011,11 +3042,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
-                // console.log('is number');
-                if (this.widgets['default-distance-metric'] == 'snps') {
-                    return { text: Math.round(parseFloat(labelValue)) };
+                if (String(this.widgets['default-distance-metric'] || '').toLowerCase() === 'snps') {
+                    return { text: this.formatLinkDistanceForDisplay(labelValue) };
                 } else {
-                    return (labelValue != 0) ? { text: parseFloat(labelValue).toFixed(this.widgets['link-label-decimal-length']) } : { text: '' };
+                    return (labelValue != 0)
+                        ? { text: this.formatLinkDistanceForDisplay(labelValue, this.widgets['link-label-decimal-length']) }
+                        : { text: '' };
                 }
             } else {
 

@@ -319,6 +319,23 @@
                     </select>
                   </div>
                 </div>
+                @if (isTN93Selected()) {
+                  <div class="form-group row" title="Choose how TN93 distance values are shown throughout the app. Decimal uses raw values like 0.015. Percentage uses values like 1.5%.">
+                    <div class="col-4">
+                      <label for="tn93-distance-display-format">Distance Format</label>
+                    </div>
+                    <div class="col-8">
+                      <p-selectButton
+                        [options]="TN93DistanceDisplayFormatOptions"
+                        [allowEmpty]="false"
+                        fluid
+                        id="tn93-distance-display-format"
+                        [(ngModel)]="SelectedTN93DistanceDisplayFormatVariable"
+                        (ngModelChange)="onTN93DistanceDisplayFormatChanged($event)">
+                      </p-selectButton>
+                    </div>
+                  </div>
+                }
                 <div class="form-group row" title="By what algorithm would you like to prune links from the network?">
                   <div class="col-4">Prune With
                     <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>

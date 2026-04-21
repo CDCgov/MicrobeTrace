@@ -226,7 +226,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedClusterMinimumSizeVariable: any = 0;
     SelectedLinkSortVariable: string = 'Distance';
     SelectedLinkThresholdVariable: any = parseFloat(this.threshold);
+    SelectedLinkThresholdDisplayVariable: any = parseFloat(this.threshold);
     SelectedDistanceMetricVariable = this.metric;
+    SelectedTN93DistanceDisplayFormatVariable: string = 'decimal';
+    TN93DistanceDisplayFormatOptions = [
+        { label: 'Decimal', value: 'decimal' },
+        { label: 'Percentage', value: 'percentage' }
+    ];
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
     thresholdStabilityExpanded: boolean = false;
@@ -3233,6 +3239,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
     }
+
+    onTN93DistanceDisplayFormatChanged() {
+        this.commonService.session.style.widgets['tn93-distance-display-format'] = this.SelectedTN93DistanceDisplayFormatVariable || 'decimal';
+        this.publishUpdateVisualization();
+    }
         
 
     revealClicked() : void {
@@ -4722,6 +4733,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     getCurrentThresholdStepSize() {
         return this.store.currentThresholdStepSizeValue;
+    }
+
+    isTN93Selected() {
+        return String(this.SelectedDistanceMetricVariable || this.commonService.session.style.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93';
     }
 
     /**
