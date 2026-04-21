@@ -1,0 +1,374 @@
+name: User Story Issues
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log intended changes without creating or updating issues.
+        required: true
+        type: boolean
+        default: true
+      sync_project:
+        description: Add synced issues to the configured GitHub Project and set Status.
+        required: true
+        type: boolean
+        default: true
+      publish_all:
+        description: Publish every QA tracker row, ignoring story_sync. Use for the full review batch.
+        required: true
+        type: boolean
+        default: false
+      csv_path:
+        description: Space-separated CSV path or glob to sync.
+        required: true
+        type: string
+        default: docs/*qa-tracker.csv
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-user-stories:
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      SYNC_PROJECT: ${{ inputs.sync_project }}
+      PUBLISH_ALL: ${{ inputs.publish_all }}
+      PROJECT_TOKEN_CONFIGURED: ${{ secrets.USER_STORY_PROJECT_TOKEN != '' }}
+      USER_STORY_ASSIGNEES: ${{ vars.USER_STORY_ASSIGNEES }}
+      USER_STORY_PROJECT_OWNER: ${{ vars.USER_STORY_PROJECT_OWNER }}
+      USER_STORY_PROJECT_OWNER_TYPE: ${{ vars.USER_STORY_PROJECT_OWNER_TYPE || 'organization' }}
+      USER_STORY_PROJECT_NUMBER: ${{ vars.USER_STORY_PROJECT_NUMBER }}
+      USER_STORY_PROJECT_STATUS: ${{ vars.USER_STORY_PROJECT_STATUS || 'User Stories' }}
+      USER_STORY_PROJECT_STATUS_FIELD: ${{ vars.USER_STORY_PROJECT_STATUS_FIELD || 'Status' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build user story issue payloads
+        run: |
+          PUBLISH_ALL_FLAG=""
+          if [ "${PUBLISH_ALL}" = "true" ]; then
+            PUBLISH_ALL_FLAG="--publish-all"
+          fi
+
+          python3 scripts/user_story_issue_candidates.py \
+            --csv-path ${{ inputs.csv_path }} \
+            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" \
+            --actor "${{ github.actor }}" \
+            --repository "${{ github.repository }}" \
+            ${PUBLISH_ALL_FLAG} \
+            --output "${RUNNER_TEMP}/user-story-issues.json"
+
+      - name: Sync user story issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.USER_STORY_PROJECT_TOKEN || github.token }}
+          script: |
+            const fs = require('fs');
+
+            const issueFile = `${process.env.RUNNER_TEMP}/user-story-issues.json`;
+            const payload = JSON.parse(fs.readFileSync(issueFile, 'utf8'));
+            const issues = payload.issues || [];
+            const dryRun = process.env.DRY_RUN === 'true';
+            const syncProject = process.env.SYNC_PROJECT === 'true';
+
+            if (!issues.length) {
+              core.info('No QA tracker rows selected. Set story_sync=true in the CSV or run with publish_all=true.');
+              return;
+            }
+
+            if (syncProject && !dryRun) {
+              const missing = [];
+              if (process.env.PROJECT_TOKEN_CONFIGURED !== 'true') missing.push('secret USER_STORY_PROJECT_TOKEN');
+              if (!process.env.USER_STORY_PROJECT_OWNER) missing.push('variable USER_STORY_PROJECT_OWNER');
+              if (!process.env.USER_STORY_PROJECT_NUMBER) missing.push('variable USER_STORY_PROJECT_NUMBER');
+              if (missing.length) {
+                throw new Error(`Project sync is enabled but missing ${missing.join(', ')}.`);
+              }
+            }
+
+            const labelDefinitions = {
+              '[issue-type] user story': {
+                color: '0e8a16',
+                description: 'Expected behavior user story',
+              },
+              'source:qa-tracker': {
+                color: '1d76db',
+                description: 'Generated from MicrobeTrace QA tracker CSVs',
+              },
+              'needs-review': {
+                color: 'fbca04',
+                description: 'Needs product or QA review',
+              },
+            };
+
+            const assignees = (process.env.USER_STORY_ASSIGNEES || '')
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean);
+
+            function generatedBlock(body) {
+              const startMarker = '<!-- user-story-generated:start -->';
+              const endMarker = '<!-- user-story-generated:end -->';
+              const start = body.indexOf(startMarker);
+              const end = body.indexOf(endMarker);
+              if (start === -1 || end === -1 || end < start) {
+                return null;
+              }
+              return body.slice(start, end + endMarker.length);
+            }
+
+            function mergeBody(currentBody, nextBody) {
+              if (!currentBody) {
+                return nextBody;
+              }
+
+              const currentStartMarker = '<!-- user-story-generated:start -->';
+              const currentEndMarker = '<!-- user-story-generated:end -->';
+              const currentStart = currentBody.indexOf(currentStartMarker);
+              const currentEnd = currentBody.indexOf(currentEndMarker);
+              const nextBlock = generatedBlock(nextBody);
+
+              if (currentStart !== -1 && currentEnd !== -1 && currentEnd >= currentStart && nextBlock) {
+                return [
+                  currentBody.slice(0, currentStart),
+                  nextBlock,
+                  currentBody.slice(currentEnd + currentEndMarker.length),
+                ].join('');
+              }
+
+              return `${nextBlock || nextBody}\n\n${currentBody}`;
+            }
+
+            async function ensureLabel(labelName) {
+              const definition = labelDefinitions[labelName] || {
+                color: 'ededed',
+                description: 'User story sync label',
+              };
+
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                  color: definition.color,
+                  description: definition.description,
+                });
+              }
+            }
+
+            async function findMatchingIssue(issue) {
+              const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue "${issue.tracker_key}"`;
+              const candidates = await github.paginate(
+                github.rest.search.issuesAndPullRequests,
+                {
+                  q: query,
+                  per_page: 100,
+                }
+              );
+
+              return candidates.find((candidate) => {
+                const body = candidate.body || '';
+                return body.includes(`user-story-key: ${issue.tracker_key}`) ||
+                  body.includes(`Story Key: \`${issue.tracker_key}\``);
+              });
+            }
+
+            let projectCache = null;
+
+            async function loadProject() {
+              if (projectCache) {
+                return projectCache;
+              }
+
+              const owner = process.env.USER_STORY_PROJECT_OWNER;
+              const ownerType = (process.env.USER_STORY_PROJECT_OWNER_TYPE || 'organization').toLowerCase();
+              const number = Number(process.env.USER_STORY_PROJECT_NUMBER);
+              const statusFieldName = process.env.USER_STORY_PROJECT_STATUS_FIELD || 'Status';
+              const statusValue = process.env.USER_STORY_PROJECT_STATUS || 'User Stories';
+
+              const fieldFragment = `
+                id
+                fields(first: 100) {
+                  nodes {
+                    ... on ProjectV2Field {
+                      id
+                      name
+                    }
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                      options {
+                        id
+                        name
+                      }
+                    }
+                    ... on ProjectV2IterationField {
+                      id
+                      name
+                    }
+                  }
+                }
+              `;
+
+              const query = ownerType === 'user'
+                ? `query($owner: String!, $number: Int!) { user(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`
+                : `query($owner: String!, $number: Int!) { organization(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`;
+
+              const result = await github.graphql(query, { owner, number });
+              const project = ownerType === 'user'
+                ? result.user && result.user.projectV2
+                : result.organization && result.organization.projectV2;
+
+              if (!project) {
+                throw new Error(`Could not find ${ownerType} project ${owner}/${number}.`);
+              }
+
+              const statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
+              if (!statusField || !statusField.options) {
+                throw new Error(`Could not find single-select project field ${statusFieldName}.`);
+              }
+
+              const statusOption = statusField.options.find((option) => option.name === statusValue);
+              if (!statusOption) {
+                throw new Error(`Could not find project status option ${statusValue}.`);
+              }
+
+              projectCache = {
+                id: project.id,
+                statusFieldId: statusField.id,
+                statusOptionId: statusOption.id,
+              };
+              return projectCache;
+            }
+
+            async function syncProjectItem(issueNodeId) {
+              const project = await loadProject();
+              const addResult = await github.graphql(
+                `mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                    item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId: project.id,
+                  contentId: issueNodeId,
+                }
+              );
+
+              const itemId = addResult.addProjectV2ItemById.item.id;
+
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId: project.id,
+                  itemId,
+                  fieldId: project.statusFieldId,
+                  optionId: project.statusOptionId,
+                }
+              );
+            }
+
+            if (dryRun) {
+              for (const issue of issues) {
+                core.info(`[dry-run] Would sync ${issue.tracker_key}: ${issue.title}`);
+              }
+              core.info(`[dry-run] ${issues.length} user story issue(s) ready to sync.`);
+              return;
+            }
+
+            const allLabels = [...new Set(issues.flatMap((issue) => issue.labels || []))];
+            for (const label of allLabels) {
+              await ensureLabel(label);
+            }
+
+            for (const issue of issues) {
+              let current = await findMatchingIssue(issue);
+
+              if (!current) {
+                try {
+                  const created = await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: issue.title,
+                    body: issue.body,
+                    labels: issue.labels,
+                    assignees: assignees.length ? assignees : undefined,
+                  });
+                  current = created.data;
+                  core.info(`Created ${issue.tracker_key}: ${current.html_url}`);
+                } catch (error) {
+                  if (!assignees.length) {
+                    throw error;
+                  }
+
+                  core.warning(`Could not assign ${issue.tracker_key}: ${error.message}`);
+                  const created = await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: issue.title,
+                    body: issue.body,
+                    labels: issue.labels,
+                  });
+                  current = created.data;
+                  core.info(`Created ${issue.tracker_key}: ${current.html_url}`);
+                }
+              } else {
+                const nextBody = mergeBody(current.body || '', issue.body);
+                const currentLabels = new Set((current.labels || []).map((label) => label.name || label));
+                const mergedLabels = [...new Set([...(issue.labels || []), ...currentLabels])];
+
+                const needsUpdate =
+                  current.title !== issue.title ||
+                  (current.body || '') !== nextBody ||
+                  mergedLabels.some((label) => !currentLabels.has(label));
+
+                if (needsUpdate) {
+                  const updated = await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: current.number,
+                    title: issue.title,
+                    body: nextBody,
+                    labels: mergedLabels,
+                  });
+                  current = updated.data;
+                  core.info(`Updated ${issue.tracker_key}: ${current.html_url}`);
+                } else {
+                  core.info(`Already synced ${issue.tracker_key}: ${current.html_url}`);
+                }
+              }
+
+              if (syncProject) {
+                await syncProjectItem(current.node_id);
+                core.info(`Synced ${issue.tracker_key} to project status ${process.env.USER_STORY_PROJECT_STATUS || 'User Stories'}.`);
+              }
+            }
