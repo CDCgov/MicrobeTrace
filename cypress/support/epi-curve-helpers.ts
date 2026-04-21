@@ -44,8 +44,16 @@ function getEpiCurveSettingsDialog(): Cypress.Chainable<JQuery<HTMLElement>> {
     });
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function getEpiCurveRowByLabel(label: string): Cypress.Chainable<JQuery<HTMLElement>> {
-  return cy.contains('.p-dialog:visible .form-group.row label', label, { timeout: 10000 })
+  return cy.contains(
+    '.p-dialog:visible .form-group.row label',
+    new RegExp(`^${escapeRegExp(label)}$`),
+    { timeout: 10000 },
+  )
     .should('exist')
     .parents('.form-group.row')
     .first();
@@ -72,34 +80,26 @@ const widgetPathByField: Record<EpiCurveFieldLabel, string> = {
 };
 
 export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string): void {
-  const visibleOverlaySelector = '.p-select-overlay:visible, .p-connected-overlay:visible, .p-overlay:visible';
+  const visibleOverlaySelector = '.p-select-overlay:visible';
 
   getEpiCurveRowByLabel(field)
-    .find('p-select')
+    .scrollIntoView()
+    .find('.p-select')
+    .should('exist')
     .click({ force: true });
 
-  cy.get('body').then(($body) => {
-    const overlay = $body.find(visibleOverlaySelector).last();
-    expect(overlay.length, 'visible Epi Curve select overlay').to.be.greaterThan(0);
-
-    const option = overlay
-      .find('li[role="option"]')
-      .toArray()
-      .find((candidate) => String(candidate.textContent || '').trim() === value);
-
-    expect(option, `visible Epi Curve option "${value}"`).to.exist;
-
-    cy.wrap(option as HTMLElement)
-      .scrollIntoView()
-      .click({ force: true });
-  });
-
-  getEpiCurveRowByLabel(field)
-    .find('.p-select-label')
-    .should(($label) => {
-      expect(normalizeValue($label.text()), `${field} select label`)
-        .to.equal(normalizeValue(value));
+  cy.get(visibleOverlaySelector, { timeout: 10000 })
+    .should('have.length.greaterThan', 0)
+    .last()
+    .within(() => {
+      cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(value)}$`), { timeout: 10000 })
+        .scrollIntoView()
+        .click({ force: true });
     });
+
+  cy.get('body', { timeout: 10000 })
+    .find(visibleOverlaySelector)
+    .should('have.length', 0);
 
   cy.window().should((win) => {
     const widgetValue = Cypress._.get(win, widgetPathByField[field]);
@@ -109,6 +109,13 @@ export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string)
     expect(normalizeValue(String(widgetValue)), `${field} widget value`)
       .to.equal(normalizeValue(value));
   });
+
+  getEpiCurveRowByLabel(field)
+    .find('.p-select-label')
+    .should(($label) => {
+      expect(normalizeValue($label.text()), `${field} select label`)
+        .to.equal(normalizeValue(value));
+    });
 }
 
 export function setEpiCurveColor(index: 0 | 1 | 2, color: string): void {

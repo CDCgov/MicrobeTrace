@@ -184,12 +184,14 @@
     "nodeSymbolsTableKeys": {
         "Node type": [
             "Person",
-            "Facility"
+            "Facility",
+            "null"
         ]
     },
     "originalNodeSymbolValues": [
         "Person",
-        "Facility"
+        "Facility",
+        "null"
     ],
     "nodeSymbol": {},
     "nodeValueNames": {},

@@ -53,7 +53,8 @@ const getRenderedMapLinkLayersByValue = (win: WinWithMap, field: string, value: 
     .filter((layer: any) => layer?.data?.[field] === value);
 
 const assertMapNodeCategoryColors = (field: string, firstValue: string, secondValue: string): void => {
-  cy.window().should((win: unknown) => {
+  cy.wait(100)
+  cy.window().then((win: unknown) => {
     const typedWindow = win as WinWithMap;
     const firstNodes = getRenderedMapNodeLayersByValue(typedWindow, field, firstValue);
     const secondNodes = getRenderedMapNodeLayersByValue(typedWindow, field, secondValue);
