@@ -371,6 +371,9 @@
                     <div class="col-4">
                       <label for="link-threshold">
                         Filtering Threshold
+                        @if (usesPercentageThresholdDisplay()) {
+                          <span>(%)</span>
+                        }
                         <i
                           class="pi pi-info-circle threshold-help-icon"
                           title="Black bars show how many links fall into each distance bin. The orange line shows how the number of multi-node clusters changes as the threshold increases."></i>
@@ -378,7 +381,7 @@
                     </div>
                     <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
                     <div class="col-8  offset-4">
-                      <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getCurrentThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="updateThreshold($event)">
+                      <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getDisplayedThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdDisplayVariable" (ngModelChange)="updateThreshold($event)">
                     </div>
                     <div class="col-8 offset-4 threshold-sparkline-readout" id="threshold-sparkline-readout">
                       Hover chart for cluster count

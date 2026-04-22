@@ -3240,8 +3240,51 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
+    private getThresholdFieldName(): string {
+        return this.SelectedLinkSortVariable || this.commonService.session.style.widgets['link-sort-variable'] || 'distance';
+    }
+
+    usesPercentageThresholdDisplay() {
+        return this.commonService.tn93PercentageDisplayEnabled(this.getThresholdFieldName());
+    }
+
+    getDisplayedThresholdStepSize() {
+        const step = Number(this.getCurrentThresholdStepSize());
+
+        if (!Number.isFinite(step)) {
+            return 1;
+        }
+
+        return this.commonService.toDisplayedDistanceValue(step, this.getThresholdFieldName());
+    }
+
+    public syncThresholdDisplayFromStoredValue(): void {
+        const storedThreshold = Number(this.commonService.session.style.widgets["link-threshold"]);
+
+        if (!Number.isFinite(storedThreshold)) {
+            return;
+        }
+
+        this.SelectedLinkThresholdVariable = storedThreshold;
+        this.threshold = String(storedThreshold);
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = storedThreshold;
+        this.SelectedLinkThresholdDisplayVariable = this.commonService.toDisplayedDistanceValue(
+            storedThreshold,
+            this.getThresholdFieldName()
+        );
+        this.cdref.markForCheck();
+    }
+
     onTN93DistanceDisplayFormatChanged() {
         this.commonService.session.style.widgets['tn93-distance-display-format'] = this.SelectedTN93DistanceDisplayFormatVariable || 'decimal';
+        this.syncThresholdDisplayFromStoredValue();
+        this.commonService.updateStatistics();
+
+        if (this.linkThresholdSparkline?.nativeElement) {
+            this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+        }
+
+        this.refreshThresholdStabilityPanel(false);
         this.publishUpdateVisualization();
     }
         
@@ -4975,15 +5018,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     formatThresholdStabilityValue(value: number | null | undefined): string {
-        if (value === null || value === undefined || !Number.isFinite(value)) {
-            return 'N/A';
-        }
-
-        if (Math.abs(value - Math.round(value)) < 1e-9) {
-            return Math.round(value).toLocaleString();
-        }
-
-        return value.toFixed(3).replace(/\.?0+$/, '');
+        return this.commonService.formatDisplayedDistanceValue(value, this.getThresholdFieldName());
     }
 }
 
