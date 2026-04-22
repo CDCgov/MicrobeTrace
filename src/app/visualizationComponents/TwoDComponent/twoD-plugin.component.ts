@@ -4036,7 +4036,7 @@ private updateArrowStyles(): void {
         },
         'target-arrow-color': 'data(lineColor)',
         'source-arrow-color': 'data(lineColor)',
-        'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
+        'curve-style': 'straight'
       })
       .update();
   }
