@@ -1235,7 +1235,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               });
               
 
-            if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
+            if (
+                this.commonService.session.files.length > 1 &&
+                (!this.widgets['link-color-variable'] || this.widgets['link-color-variable'] === 'None')
+            ) {
+                this.widgets['link-color-variable'] = 'origin';
+                this.commonService.session.style.widgets['link-color-variable'] = 'origin';
+                this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'origin';
+
+                if (this.commonService.visuals?.microbeTrace) {
+                    this.commonService.visuals.microbeTrace.SelectedColorLinksByVariable = 'origin';
+                }
+
+                this.commonService.createLinkColorMap();
+                this.updateLinkColor();
+            }
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
             
             console.log('--- TwoD InitView onStatisticsChanged');
