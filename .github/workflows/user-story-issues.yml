@@ -14,15 +14,29 @@ on:
         type: boolean
         default: true
       publish_all:
-        description: Publish every QA tracker row, ignoring story_sync. Use for the full review batch.
+        description: Publish every user story row, ignoring story_sync. Use for the full review batch.
         required: true
         type: boolean
         default: false
+      create_missing:
+        description: Create missing issues when no matching story-key issue exists. Disable for refresh-only updates.
+        required: true
+        type: boolean
+        default: true
+      project_status_update_scope:
+        description: When sync_project is enabled, set Project Status for all items, newly added project items only, or never.
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - new_items
+          - never
       csv_path:
         description: Space-separated CSV path or glob to sync.
         required: true
         type: string
-        default: docs/*qa-tracker.csv
+        default: docs/user-stories.csv
 
 permissions:
   contents: read
@@ -35,6 +49,8 @@ jobs:
       DRY_RUN: ${{ inputs.dry_run }}
       SYNC_PROJECT: ${{ inputs.sync_project }}
       PUBLISH_ALL: ${{ inputs.publish_all }}
+      CREATE_MISSING: ${{ inputs.create_missing }}
+      PROJECT_STATUS_UPDATE_SCOPE: ${{ inputs.project_status_update_scope }}
       PROJECT_TOKEN_CONFIGURED: ${{ secrets.USER_STORY_PROJECT_TOKEN != '' }}
       USER_STORY_ASSIGNEES: ${{ vars.USER_STORY_ASSIGNEES }}
       USER_STORY_PROJECT_OWNER: ${{ vars.USER_STORY_PROJECT_OWNER }}
@@ -76,10 +92,17 @@ jobs:
             const issues = payload.issues || [];
             const dryRun = process.env.DRY_RUN === 'true';
             const syncProject = process.env.SYNC_PROJECT === 'true';
+            const createMissing = process.env.CREATE_MISSING !== 'false';
+            const projectStatusUpdateScope = (process.env.PROJECT_STATUS_UPDATE_SCOPE || 'all').trim().toLowerCase();
+            const validProjectStatusScopes = new Set(['all', 'new_items', 'never']);
 
             if (!issues.length) {
-              core.info('No QA tracker rows selected. Set story_sync=true in the CSV or run with publish_all=true.');
+              core.info('No user story rows selected. Set story_sync=true in docs/user-stories.csv or run with publish_all=true.');
               return;
+            }
+
+            if (!validProjectStatusScopes.has(projectStatusUpdateScope)) {
+              throw new Error(`Unsupported project_status_update_scope ${projectStatusUpdateScope}. Use all, new_items, or never.`);
             }
 
             if (syncProject && !dryRun) {
@@ -99,7 +122,11 @@ jobs:
               },
               'source-qa-tracker': {
                 color: '1d76db',
-                description: 'Generated from MicrobeTrace QA tracker CSVs',
+                description: 'Generated from MicrobeTrace QA tracker evidence',
+              },
+              'source-user-stories': {
+                color: '5319e7',
+                description: 'Generated from docs/user-stories.csv',
               },
               'needs-review': {
                 color: 'fbca04',
@@ -143,6 +170,23 @@ jobs:
               }
 
               return `${nextBlock || nextBody}\n\n${currentBody}`;
+            }
+
+            function planIssueUpdate(current, issue) {
+              const nextBody = mergeBody(current.body || '', issue.body);
+              const currentLabels = new Set((current.labels || []).map((label) => label.name || label));
+              const mergedLabels = [...new Set([...(issue.labels || []), ...currentLabels])];
+              const needsUpdate =
+                current.title !== issue.title ||
+                (current.body || '') !== nextBody ||
+                mergedLabels.some((label) => !currentLabels.has(label));
+
+              return {
+                nextBody,
+                currentLabels,
+                mergedLabels,
+                needsUpdate,
+              };
             }
 
             function trackerKeyFromBody(body) {
@@ -230,6 +274,7 @@ jobs:
               const number = Number(process.env.USER_STORY_PROJECT_NUMBER);
               const statusFieldName = process.env.USER_STORY_PROJECT_STATUS_FIELD || 'Status';
               const statusValue = process.env.USER_STORY_PROJECT_STATUS || 'User Stories';
+              const needsStatusField = projectStatusUpdateScope !== 'never';
 
               const fieldFragment = `
                 id
@@ -268,20 +313,25 @@ jobs:
                 throw new Error(`Could not find ${ownerType} project ${owner}/${number}.`);
               }
 
-              const statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
-              if (!statusField || !statusField.options) {
-                throw new Error(`Could not find single-select project field ${statusFieldName}.`);
-              }
+              let statusField = null;
+              let statusOption = null;
 
-              const statusOption = statusField.options.find((option) => option.name === statusValue);
-              if (!statusOption) {
-                throw new Error(`Could not find project status option ${statusValue}.`);
+              if (needsStatusField) {
+                statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
+                if (!statusField || !statusField.options) {
+                  throw new Error(`Could not find single-select project field ${statusFieldName}.`);
+                }
+
+                statusOption = statusField.options.find((option) => option.name === statusValue);
+                if (!statusOption) {
+                  throw new Error(`Could not find project status option ${statusValue}.`);
+                }
               }
 
               projectCache = {
                 id: project.id,
-                statusFieldId: statusField.id,
-                statusOptionId: statusOption.id,
+                statusFieldId: statusField ? statusField.id : null,
+                statusOptionId: statusOption ? statusOption.id : null,
               };
               return projectCache;
             }
@@ -313,6 +363,7 @@ jobs:
             async function syncProjectItem(issueNodeId) {
               const project = await loadProject();
               let itemId = await findProjectItemId(project.id, issueNodeId);
+              let addedToProject = false;
 
               if (!itemId) {
                 const addResult = await github.graphql(
@@ -330,6 +381,18 @@ jobs:
                 );
 
                 itemId = addResult.addProjectV2ItemById.item.id;
+                addedToProject = true;
+              }
+
+              const shouldUpdateStatus =
+                projectStatusUpdateScope === 'all' ||
+                (projectStatusUpdateScope === 'new_items' && addedToProject);
+
+              if (!shouldUpdateStatus) {
+                return {
+                  addedToProject,
+                  statusUpdated: false,
+                };
               }
 
               await github.graphql(
@@ -352,13 +415,45 @@ jobs:
                   optionId: project.statusOptionId,
                 }
               );
+
+              return {
+                addedToProject,
+                statusUpdated: true,
+              };
             }
 
+            const existingIssueIndex = await loadExistingIssueIndex();
+
             if (dryRun) {
+              let createCount = 0;
+              let updateCount = 0;
+              let unchangedCount = 0;
+              let skippedCount = 0;
+
               for (const issue of issues) {
-                core.info(`[dry-run] Would sync ${issue.tracker_key}: ${issue.title}`);
+                const current = existingIssueIndex.get(issue.tracker_key);
+
+                if (!current) {
+                  if (createMissing) {
+                    createCount += 1;
+                    core.info(`[dry-run] Would create ${issue.tracker_key}: ${issue.title}`);
+                  } else {
+                    skippedCount += 1;
+                    core.info(`[dry-run] Would skip missing ${issue.tracker_key}: create_missing=false`);
+                  }
+                  continue;
+                }
+
+                const planned = planIssueUpdate(current, issue);
+                if (planned.needsUpdate) {
+                  updateCount += 1;
+                  core.info(`[dry-run] Would update ${issue.tracker_key}: ${current.html_url}`);
+                } else {
+                  unchangedCount += 1;
+                  core.info(`[dry-run] Already current ${issue.tracker_key}: ${current.html_url}`);
+                }
               }
-              core.info(`[dry-run] ${issues.length} user story issue(s) ready to sync.`);
+              core.info(`[dry-run] ${issues.length} user story issue(s) selected: ${createCount} create, ${updateCount} update, ${unchangedCount} unchanged, ${skippedCount} skipped.`);
               return;
             }
 
@@ -367,12 +462,15 @@ jobs:
               await ensureLabel(label);
             }
 
-            const existingIssueIndex = await loadExistingIssueIndex();
-
             for (const issue of issues) {
               let current = existingIssueIndex.get(issue.tracker_key);
 
               if (!current) {
+                if (!createMissing) {
+                  core.info(`Skipped missing ${issue.tracker_key}: create_missing=false.`);
+                  continue;
+                }
+
                 try {
                   const created = await github.rest.issues.create({
                     owner: context.repo.owner,
@@ -403,23 +501,16 @@ jobs:
                   core.info(`Created ${issue.tracker_key}: ${current.html_url}`);
                 }
               } else {
-                const nextBody = mergeBody(current.body || '', issue.body);
-                const currentLabels = new Set((current.labels || []).map((label) => label.name || label));
-                const mergedLabels = [...new Set([...(issue.labels || []), ...currentLabels])];
+                const planned = planIssueUpdate(current, issue);
 
-                const needsUpdate =
-                  current.title !== issue.title ||
-                  (current.body || '') !== nextBody ||
-                  mergedLabels.some((label) => !currentLabels.has(label));
-
-                if (needsUpdate) {
+                if (planned.needsUpdate) {
                   const updated = await github.rest.issues.update({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     issue_number: current.number,
                     title: issue.title,
-                    body: nextBody,
-                    labels: mergedLabels,
+                    body: planned.nextBody,
+                    labels: planned.mergedLabels,
                   });
                   current = updated.data;
                   core.info(`Updated ${issue.tracker_key}: ${current.html_url}`);
@@ -429,7 +520,13 @@ jobs:
               }
 
               if (syncProject) {
-                await syncProjectItem(current.node_id);
-                core.info(`Synced ${issue.tracker_key} to project status ${process.env.USER_STORY_PROJECT_STATUS || 'User Stories'}.`);
+                const projectResult = await syncProjectItem(current.node_id);
+                if (projectResult.statusUpdated) {
+                  core.info(`Synced ${issue.tracker_key} to project status ${process.env.USER_STORY_PROJECT_STATUS || 'User Stories'}.`);
+                } else if (projectResult.addedToProject) {
+                  core.info(`Added ${issue.tracker_key} to project without changing project status.`);
+                } else {
+                  core.info(`Left existing project status unchanged for ${issue.tracker_key}.`);
+                }
               }
             }
