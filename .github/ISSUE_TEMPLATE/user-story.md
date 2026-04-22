@@ -1,27 +1,57 @@
 ---
 name: User Story
-about: Description for the expected behavior of a feature
+about: Define expected MicrobeTrace behavior for development, QA, and documentation.
 title: ''
 labels: "[issue-type] user story"
 assignees: billswitzer2, ells, ikb6, mossy426, roxycintron
 
 ---
 
-##**User Story**
+## User Story
 
-**As a** User
+As a MicrobeTrace user, I want [capability], so that [analysis or workflow benefit].
 
-**I want to** perform some task
+## Epic / Feature Group
 
-**so that I  can** achieve some goal
+Examples: 2D Network, Map, Dashboard, Data Import, Global Settings, Session/Export
 
-##**Acceptance Criteria**
+## Story Type
 
-**Given** some context
+Examples: User Workflow, Visualization Behavior, Data Processing, Settings/Controls, Export, Session Persistence
 
-**When** some action is carried out
+## Workflow / Use Case
 
-**Then** the following outcomes should occur:
-- Outcome 1
-- Outcome 2
-- Etc.
+Describe the user-facing workflow this story supports.
+
+## Expected Behavior
+
+Describe the intended behavior the app should preserve.
+
+## Acceptance Criteria
+
+- Given...
+- When...
+- Then...
+
+## Tested Against
+
+**Fixtures**
+-
+
+**Cypress Specs**
+-
+
+**Coverage Notes**
+
+## Source References
+
+- QA tracker row:
+- Code:
+- Docs/manual:
+
+## Definition of Done
+
+- Acceptance criteria are satisfied.
+- Relevant Cypress coverage exists or the coverage gap is documented.
+- Expected behavior is distinguishable from bugs and enhancements.
+- Tested fixtures and specs are current.

@@ -1,0 +1,164 @@
+name: Delete Generated User Story Issues
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List matching old generated user-story issues without deleting them.
+        required: true
+        type: boolean
+        default: true
+      confirm_delete:
+        description: Type DELETE_OLD_USER_STORIES to allow deletion when dry_run=false.
+        required: true
+        type: string
+        default: ""
+      include_closed:
+        description: Also delete matching closed issues.
+        required: true
+        type: boolean
+        default: false
+      max_delete:
+        description: Maximum issues to delete in one real run. Use 0 for no explicit cap.
+        required: true
+        type: number
+        default: 500
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  delete-old-generated-user-stories:
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      CONFIRM_DELETE: ${{ inputs.confirm_delete }}
+      INCLUDE_CLOSED: ${{ inputs.include_closed }}
+      MAX_DELETE: ${{ inputs.max_delete }}
+      PROJECT_TOKEN_CONFIGURED: ${{ secrets.USER_STORY_PROJECT_TOKEN != '' }}
+    steps:
+      - name: Delete old generated user story issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.USER_STORY_PROJECT_TOKEN || github.token }}
+          script: |
+            const dryRun = process.env.DRY_RUN === 'true';
+            const includeClosed = process.env.INCLUDE_CLOSED === 'true';
+            const confirmDelete = process.env.CONFIRM_DELETE || '';
+            const maxDelete = Number(process.env.MAX_DELETE || 0);
+
+            if (!dryRun && confirmDelete !== 'DELETE_OLD_USER_STORIES') {
+              throw new Error('Refusing to delete issues. Set confirm_delete to DELETE_OLD_USER_STORIES.');
+            }
+
+            if (!dryRun && process.env.PROJECT_TOKEN_CONFIGURED !== 'true') {
+              core.warning('USER_STORY_PROJECT_TOKEN is not configured. Deletion will use GITHUB_TOKEN and may fail if it lacks admin/delete permissions.');
+            }
+
+            function labelNames(issue) {
+              return new Set((issue.labels || []).map((label) => label.name || label));
+            }
+
+            function trackerKeyFromBody(body) {
+              const markerMatch = (body || '').match(/<!--\s*user-story-key:\s*([^>]+?)\s*-->/);
+              if (markerMatch) {
+                return markerMatch[1].trim();
+              }
+
+              const storyKeyMatch = (body || '').match(/Story Key:\s*`([^`]+)`/);
+              if (storyKeyMatch) {
+                return storyKeyMatch[1].trim();
+              }
+
+              return null;
+            }
+
+            function isOldPerQaRowKey(key) {
+              if (!key || !key.includes(':')) {
+                return false;
+              }
+
+              const [source, id] = key.split(':');
+              if (!source || !id) {
+                return false;
+              }
+
+              // Old row-level keys end in QA tracker row IDs such as L001,
+              // M003, CT021, AG014, LNK009, NET003, or TL005.
+              // New grouped keys are slugs such as 2d-network:load-supported-data.
+              return /^[A-Z]+[0-9]{3}$/.test(id);
+            }
+
+            function shouldDelete(issue) {
+              if (issue.pull_request) {
+                return false;
+              }
+
+              if (!includeClosed && issue.state !== 'open') {
+                return false;
+              }
+
+              const labels = labelNames(issue);
+              if (!labels.has('[issue-type] user story')) {
+                return false;
+              }
+
+              if (!labels.has('source-qa-tracker')) {
+                return false;
+              }
+
+              if (labels.has('source-user-stories')) {
+                return false;
+              }
+
+              const trackerKey = trackerKeyFromBody(issue.body || '');
+              return isOldPerQaRowKey(trackerKey);
+            }
+
+            const repositoryIssues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: includeClosed ? 'all' : 'open',
+                per_page: 100,
+              }
+            );
+
+            const candidates = repositoryIssues.filter(shouldDelete);
+            candidates.sort((left, right) => left.number - right.number);
+
+            core.info(`Found ${candidates.length} old generated user-story issue(s) eligible for deletion.`);
+
+            for (const issue of candidates) {
+              const trackerKey = trackerKeyFromBody(issue.body || '');
+              core.info(`${dryRun ? '[dry-run] Would delete' : 'Deleting'} #${issue.number}: ${issue.title} (${trackerKey})`);
+            }
+
+            if (dryRun) {
+              core.info('Dry run only. No issues were deleted.');
+              return;
+            }
+
+            if (maxDelete > 0 && candidates.length > maxDelete) {
+              throw new Error(`Refusing to delete ${candidates.length} issues because max_delete is ${maxDelete}. Increase max_delete or use 0 for no explicit cap.`);
+            }
+
+            let deletedCount = 0;
+            for (const issue of candidates) {
+              await github.graphql(
+                `mutation($issueId: ID!) {
+                  deleteIssue(input: { issueId: $issueId }) {
+                    repository {
+                      id
+                    }
+                  }
+                }`,
+                { issueId: issue.node_id }
+              );
+              deletedCount += 1;
+              core.info(`Deleted #${issue.number}: ${issue.title}`);
+            }
+
+            core.info(`Deleted ${deletedCount} old generated user-story issue(s).`);
