@@ -1480,18 +1480,30 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
-        this.threshold = newThreshold;
-        
+        const thresholdField =
+            this.SelectedLinkSortVariable ||
+            this.commonService.session.style.widgets['link-sort-variable'] ||
+            'distance';
+
+        const rawThreshold = this.commonService.fromDisplayedDistanceValue(
+            parsedThreshold,
+            thresholdField
+        );
+
+        const formattedThreshold = String(rawThreshold);
+
+        this.threshold = formattedThreshold;
+
         if(this.commonService.debugMode) {
             console.log('threshold: ', this.threshold);
         }
         
         // Update UI immediately
-        this.SelectedLinkThresholdVariable = newThreshold;
+        this.SelectedLinkThresholdVariable = formattedThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         
         // Emit the new threshold value to the debouncer for actual threshold change
-        this.thresholdDebouncer.next(parsedThreshold);
+        this.thresholdDebouncer.next(rawThreshold);
     }
 
 
@@ -1602,14 +1614,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.session.style.widgets["link-sort-variable"] = this.SelectedLinkSortVariable;
         // this.commonService.updateThresholdHistogram();
 
-       // 1) Parse the threshold value to a number
-       const linkThresholdValue = parseFloat(String(this.commonService.session.style.widgets["link-threshold"]));
+        // 1) Parse the threshold value to a number
+        const linkThresholdValue = parseFloat(String(this.commonService.session.style.widgets["link-threshold"]));
 
-    // 2) Now you can safely call toFixed on a numeric value
-    const decimals = (this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
-    const fixedThresholdValue = linkThresholdValue.toFixed(decimals);
+        // 2) Now you can safely call toFixed on a numeric value
+        const decimals = (this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+        const fixedThresholdValue = linkThresholdValue.toFixed(decimals);
 
-    // 3) If you want to store it back as a number (not a string), parseFloat again:
+        // 3) If you want to store it back as a number (not a string), parseFloat again:
         this.SelectedLinkThresholdVariable = parseFloat(fixedThresholdValue);
 
         // If not loading all settings at once, update link threshold
