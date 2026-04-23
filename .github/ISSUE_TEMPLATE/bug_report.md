@@ -1,32 +1,57 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report behavior that differs from expected MicrobeTrace functionality.
 title: ''
 labels: "[issue-type] bug"
 assignees: mossy426
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Summary
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+Briefly describe what is wrong.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Feature Area / View
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.  Try to include the console log by right clicking page, select inspect, and at the top of the panel on the right hand side, select console (or from the ">>" dropdown.
+Examples: Data Import, 2D Network, Map, Dashboard, Global Settings, Session/Export
 
-**Desktop (please complete the following information):**
- - OS: [e.g. PC/Mac]
- - Browser [Chrome]
- - Version [0.6.2]
+## Observed Behavior
 
-**Additional context**
-Add any other context about the problem here.
+What happened?
+
+## Expected Behavior
+
+What should have happened? Link a user story or QA tracker row if one exists.
+
+## Steps To Reproduce
+
+1.
+2.
+3.
+
+## Data / Fixtures
+
+- File type(s):
+- Fixture or uploaded file(s):
+- Required columns / data shape:
+
+## Browser / Runtime
+
+- OS:
+- Browser:
+- MicrobeTrace version or deployment URL:
+
+## Screenshots / Console Logs
+
+Attach screenshots if useful. Include browser console errors when present.
+
+## Related Coverage
+
+- Cypress spec:
+- QA tracker row:
+- Bug-log row:
+
+## Triage Notes
+
+- Does current state differ from documented expected behavior?
+- Is this likely a bug, enhancement, test issue, or unclear?
