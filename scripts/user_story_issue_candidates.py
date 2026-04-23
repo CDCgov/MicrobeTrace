@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 STORY_COLUMNS = [
-    "story_sync",
+    "story_key",
     "story_title",
     "epic",
     "story_type",
@@ -15,31 +15,20 @@ STORY_COLUMNS = [
     "workflow_use_case",
     "expected_behavior",
     "acceptance_criteria",
+    "story_sync",
+    "source_confidence",
+    "priority",
+    "status",
+    "linked_qa_tracker_ids",
     "tested_fixtures",
     "tested_specs",
     "test_coverage_notes",
-    "source_confidence",
-]
-
-REQUIRED_TRACKER_COLUMNS = [
-    "id",
-    "area",
-    "subarea",
-    "priority",
-    "status",
-    "category",
-    "scope",
-    "file_types",
-    "fixtures",
-    "current_spec",
-    "description",
-    "primary_assertions",
-    "fixture_gap",
     "notes",
     "last_reviewed",
 ]
 
 REQUIRED_SYNC_COLUMNS = [
+    "story_key",
     "story_title",
     "epic",
     "story_type",
@@ -47,6 +36,7 @@ REQUIRED_SYNC_COLUMNS = [
     "workflow_use_case",
     "expected_behavior",
     "acceptance_criteria",
+    "linked_qa_tracker_ids",
     "tested_fixtures",
     "tested_specs",
     "test_coverage_notes",
@@ -82,6 +72,12 @@ def render_bullets(items):
     return "\n".join(f"- {item}" for item in items)
 
 
+def render_inline_code_bullets(items):
+    if not items:
+        return "- None recorded"
+    return "\n".join(f"- `{item}`" for item in items)
+
+
 def render_acceptance_criteria(value: str):
     items = as_list(value)
     if not items:
@@ -93,26 +89,14 @@ def is_truthy(value: str):
     return (value or "").strip().lower() in {"1", "true", "yes", "y"}
 
 
-def source_key_for(csv_path: str):
-    name = Path(csv_path).name
-    suffix = "-cypress-qa-tracker.csv"
-    if name.endswith(suffix):
-        return name[: -len(suffix)]
-    return Path(csv_path).stem
-
-
-def tracker_url_for(repository: str, commit_sha: str, csv_path: str, line_number: int):
+def source_url_for(repository: str, commit_sha: str, csv_path: str, line_number: int):
     if repository and commit_sha:
         return f"https://github.com/{repository}/blob/{commit_sha}/{csv_path}#L{line_number}"
     return f"{csv_path}#L{line_number}"
 
 
 def validate_columns(path: Path, fieldnames):
-    missing = [
-        column
-        for column in [*REQUIRED_TRACKER_COLUMNS, *STORY_COLUMNS]
-        if column not in fieldnames
-    ]
+    missing = [column for column in STORY_COLUMNS if column not in fieldnames]
     if missing:
         raise ValueError(f"{path} is missing required columns: {', '.join(missing)}")
 
@@ -121,8 +105,8 @@ def validate_sync_row(row, path: Path, line_number: int):
     missing = [column for column in REQUIRED_SYNC_COLUMNS if not (row.get(column) or "").strip()]
     if missing:
         raise ValueError(
-            f"{path}:{line_number} has story_sync=true but is missing required "
-            f"user story fields: {', '.join(missing)}"
+            f"{path}:{line_number} has story_sync=true or publish_all=true but is missing "
+            f"required user story fields: {', '.join(missing)}"
         )
 
     story_type = (row.get("story_type") or "").strip()
@@ -159,14 +143,13 @@ def read_rows_from_path(path: Path, publish_all: bool):
                     f"{path}:{line_number} has unexpected extra columns: {extras}"
                 )
 
-            story_id = (row.get("id") or "").strip()
-            if not story_id:
+            story_key = (row.get("story_key") or "").strip()
+            if not story_key:
                 continue
 
             row["_line_number"] = line_number
             row["_csv_path"] = path.as_posix()
-            row["_source_key"] = source_key_for(path.as_posix())
-            row["_tracker_key"] = f"{row['_source_key']}:{story_id}"
+            row["_tracker_key"] = story_key
 
             if publish_all or is_truthy(row.get("story_sync") or ""):
                 validate_sync_row(row, path, line_number)
@@ -176,37 +159,27 @@ def read_rows_from_path(path: Path, publish_all: bool):
 
 
 def build_issue(row, repository: str, branch: str, commit_sha: str, actor: str):
-    story_id = row["id"].strip()
     csv_path = row["_csv_path"]
     tracker_key = row["_tracker_key"]
     line_number = row["_line_number"]
-    tracker_url = tracker_url_for(repository, commit_sha, csv_path, line_number)
+    source_url = source_url_for(repository, commit_sha, csv_path, line_number)
 
     story_title = row["story_title"].strip()
     epic = row["epic"].strip()
     story_type = row["story_type"].strip()
     priority = (row.get("priority") or "").strip()
-    coverage_status = (row.get("status") or "").strip()
+    status = (row.get("status") or "").strip()
     source_confidence = row["source_confidence"].strip()
-    area = (row.get("area") or "").strip()
-    subarea = (row.get("subarea") or "").strip()
-    category = (row.get("category") or "").strip()
-    scope = (row.get("scope") or "").strip()
-    file_types = (row.get("file_types") or "").strip()
-    description = (row.get("description") or "").strip()
-    assertions = (row.get("primary_assertions") or "").strip()
-    fixture_gap = (row.get("fixture_gap") or "").strip()
     notes = (row.get("notes") or "").strip()
     reviewed = (row.get("last_reviewed") or "").strip()
+    linked_qa_tracker_ids = as_list(row["linked_qa_tracker_ids"])
 
     generated_body = "\n".join(
         [
             GENERATED_START,
             f"<!-- user-story-key: {tracker_key} -->",
-            f"<!-- user-story-id: {story_id} -->",
             "",
             f"Story Key: `{tracker_key}`",
-            f"Tracker ID: `{story_id}`",
             "",
             "## User Story",
             row["user_story"].strip(),
@@ -220,6 +193,9 @@ def build_issue(row, repository: str, branch: str, commit_sha: str, actor: str):
             "## Acceptance Criteria",
             render_acceptance_criteria(row["acceptance_criteria"]),
             "",
+            "## QA Tracker Evidence",
+            render_inline_code_bullets(linked_qa_tracker_ids),
+            "",
             "## Tested Against",
             "**Fixtures**",
             render_bullets(as_list(row["tested_fixtures"])),
@@ -231,39 +207,25 @@ def build_issue(row, repository: str, branch: str, commit_sha: str, actor: str):
             row["test_coverage_notes"].strip(),
             "",
             "## Source References",
-            f"- Tracker row: [{csv_path}#L{line_number}]({tracker_url})",
+            f"- User story row: [{csv_path}#L{line_number}]({source_url})",
             f"- Branch: `{branch}`",
             f"- Commit: `{commit_sha}`",
             f"- Generated by: `{actor}`",
             f"- Epic / Feature Group: `{epic}`",
             f"- Story Type: `{story_type}`",
             f"- Priority: `{priority or 'Unspecified'}`",
-            f"- QA Coverage Status: `{coverage_status or 'Unspecified'}`",
+            f"- Story Review Status: `{status or 'Unspecified'}`",
             f"- Source Confidence: `{source_confidence}`",
             f"- Last reviewed: `{reviewed or 'Unspecified'}`",
-            f"- Area: `{area or 'Unspecified'}`",
-            f"- Subarea: `{subarea or 'Unspecified'}`",
-            f"- Category: `{category or 'Unspecified'}`",
-            f"- Scope: `{scope or 'Unspecified'}`",
-            f"- File types: `{file_types or 'Unspecified'}`",
             "",
-            "**Original QA Description**",
-            description or "Not recorded",
-            "",
-            "**Original Primary Assertions**",
-            assertions or "Not recorded",
-            "",
-            "**Fixture Gap**",
-            fixture_gap or "None recorded",
-            "",
-            "**Tracker Notes**",
+            "## Story Notes",
             notes or "None recorded",
             "",
             "## Definition of Done",
             "- Acceptance criteria are satisfied.",
+            "- Linked QA tracker evidence remains current.",
             "- Relevant Cypress coverage remains passing or any coverage gap is documented.",
             "- Expected behavior remains distinguishable from bug or enhancement requests.",
-            "- Tested fixtures and specs stay current when coverage changes.",
             GENERATED_END,
         ]
     )
@@ -278,7 +240,7 @@ def build_issue(row, repository: str, branch: str, commit_sha: str, actor: str):
     )
 
     return {
-        "id": story_id,
+        "id": tracker_key,
         "csv_path": csv_path,
         "tracker_key": tracker_key,
         "title": story_title,
@@ -287,6 +249,7 @@ def build_issue(row, repository: str, branch: str, commit_sha: str, actor: str):
         "generated_end": GENERATED_END,
         "labels": [
             "[issue-type] user story",
+            "source-user-stories",
             "source-qa-tracker",
             "needs-review",
         ],
@@ -308,7 +271,7 @@ def main():
     parser.add_argument(
         "--publish-all",
         action="store_true",
-        help="Emit every QA tracker row, ignoring story_sync. Intended for full GitHub review batches.",
+        help="Emit every user story CSV row, ignoring story_sync.",
     )
     args = parser.parse_args()
 
@@ -320,7 +283,7 @@ def main():
         for row in rows:
             tracker_key = row["_tracker_key"]
             if tracker_key in seen_tracker_keys:
-                raise ValueError(f"Duplicate user story tracker key: {tracker_key}")
+                raise ValueError(f"Duplicate user story key: {tracker_key}")
             seen_tracker_keys.add(tracker_key)
             issues.append(
                 build_issue(
