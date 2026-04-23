@@ -1,6 +1,7 @@
 /// <reference types="cypress" />
 
 import { getProfile } from '../datasets/profile';
+import { getTreeNodeShapeDataUri } from '../../../../src/app/contactTraceCommonServices/node-shapes';
 import {
   applyStyleFromProfile,
   assertPhyloTreeReady,
@@ -55,6 +56,13 @@ const selectPrimeOption = (selector: string, label: string): void => {
   cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
 };
 
+const getMicrobeTraceApp = (win: WinWithMT) => {
+  const app = win.commonService?.visuals?.microbeTrace;
+
+  expect(app, 'microbeTrace app').to.exist;
+  return app;
+};
+
 const setColorInputValue = (selector: string, value: string): void => {
   cy.get(selector)
     .should('be.visible')
@@ -79,6 +87,43 @@ const changeColorTableEntry = (tableSelector: string, value: string, nextColor: 
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });
+};
+
+const applyCustomShapesByVariable = (
+  variable: string,
+  mappings: Array<{ value: string; shapeKey: string }>,
+): void => {
+  openGlobalStylingTab();
+
+  cy.window().then((win: unknown) => {
+    const typedWindow = win as WinWithMT;
+    const app = getMicrobeTraceApp(typedWindow);
+
+    app.SelectedColorNodesByVariable = 'None';
+    app.onColorNodesByChanged(true);
+    app.onNodeShapeByChanged(true, true, variable);
+  });
+
+  cy.window()
+    .its('commonService.session.style.widgets')
+    .should((widgets) => {
+      expect(widgets['node-color-variable']).to.equal('None');
+      expect(widgets['node-symbol-variable']).to.equal(variable);
+    });
+
+  cy.window().then((win: unknown) => {
+    const typedWindow = win as WinWithMT;
+    const app = getMicrobeTraceApp(typedWindow);
+
+    mappings.forEach(({ value, shapeKey }) => {
+      const selectedNode = app.getNodeShapeTreeSelection(shapeKey);
+
+      expect(selectedNode, `shape selection for ${shapeKey}`).to.exist;
+      app.onNodeShapeTableTreeChange(selectedNode, value);
+    });
+  });
+
+  cy.closeGlobalSettings();
 };
 
 const openPhyloSettingsDialog = (): void => {
@@ -132,6 +177,9 @@ const getLeafGroupById = (nodeId: string): Cypress.Chainable<JQuery<HTMLElement>
 
 const getLeafNodeById = (nodeId: string): Cypress.Chainable<JQuery<HTMLElement>> =>
   getLeafGroupById(nodeId).find('circle');
+
+const getLeafShapeOverlayById = (nodeId: string): Cypress.Chainable<JQuery<HTMLElement>> =>
+  getLeafGroupById(nodeId).find('image.tidytree-node-shape-overlay');
 
 const getLeafLabelById = (nodeId: string): Cypress.Chainable<JQuery<HTMLElement>> =>
   getLeafGroupById(nodeId).find('text');
@@ -204,6 +252,12 @@ const assertLeafSnapshotMatchesTable = (snapshot: LeafSnapshot, table: ColorTabl
     expect(table[state.cluster], `${label} tree color table entry for cluster ${state.cluster}`).to.exist;
     expect(state.color, `${label} rendered tree leaf color for ${nodeId}`).to.equal(table[state.cluster]);
   });
+};
+
+const getTreeLeafShapeStrokeWidth = (leafSize: number, isSelected: boolean = false): number => {
+  const diameter = Math.max(leafSize * 2, 1);
+  const scaledStrokeWidth = Math.round(((isSelected ? 2.5 : 1.1) * 300) / diameter);
+  return Math.max(isSelected ? 14 : 6, Math.min(isSelected ? 48 : 24, scaledStrokeWidth));
 };
 
 describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
@@ -287,6 +341,74 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
         expect(normalizeColor(getComputedStyle(path).stroke), 'fixed branch stroke color')
           .to.equal(expectedBranchColor);
       });
+    });
+  });
+
+  it('renders custom global node shapes on tree leaves when Use Global Shapes is enabled', () => {
+    const healthcareShapeKey = 'virus';
+    const educationShapeKey = 'house';
+
+    applyCustomShapesByVariable('Profession', [
+      { value: 'Healthcare', shapeKey: healthcareShapeKey },
+      { value: 'Education', shapeKey: educationShapeKey },
+    ]);
+
+    openPhyloSettingsDialog();
+    openPhyloSettingsTab('Leaves');
+    openPhyloAccordion('Leaf Size and Shape');
+
+    cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeShowVariable').should('equal', true);
+
+    cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeUseGlobalShapesVariable').then((enabled) => {
+      if (Boolean(enabled)) return;
+
+      cy.get('@phyloSettings')
+        .contains('.form-group.row', 'Use Global Shapes')
+        .find('p-selectbutton')
+        .contains('Enable')
+        .click({ force: true });
+    });
+
+    cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeUseGlobalShapesVariable').should('equal', true);
+    cy.closeSettingsPane('Phylogenetic Tree Settings');
+    cy.wait(300);
+
+    cy.window().then((win: unknown) => {
+      const typedWindow = win as WinWithMT;
+      const phylo = typedWindow.commonService.visuals.phylogenetic;
+      const leafSize = Number(phylo.SelectedLeafNodeSize || 5);
+      const nodeColor = String(typedWindow.commonService.session.style.widgets['node-color'] || '');
+      const strokeWidth = getTreeLeafShapeStrokeWidth(leafSize, false);
+
+      cy.wrap({
+        healthcareNodeId: HEALTHCARE_NODE_ID,
+        educationNodeId: EDUCATION_NODE_ID,
+        expectedHealthcareOverlay: getTreeNodeShapeDataUri(healthcareShapeKey, nodeColor, '#000000', strokeWidth),
+        expectedEducationOverlay: getTreeNodeShapeDataUri(educationShapeKey, nodeColor, '#000000', strokeWidth),
+      }).as('customTreeShapes');
+    });
+
+    cy.get('@customTreeShapes').then((shapeContext: any) => {
+      getLeafNodeById(shapeContext.healthcareNodeId)
+        .should('have.css', 'fill-opacity', '0');
+      getLeafShapeOverlayById(shapeContext.healthcareNodeId)
+        .should('have.length', 1)
+        .and(($overlay) => {
+          const href = String($overlay.attr('href') || $overlay.attr('xlink:href') || '');
+          expect(href, 'healthcare tree overlay image').to.equal(shapeContext.expectedHealthcareOverlay);
+        });
+
+      getLeafNodeById(shapeContext.educationNodeId)
+        .should('have.css', 'fill-opacity', '0');
+      getLeafShapeOverlayById(shapeContext.educationNodeId)
+        .should('have.length', 1)
+        .and(($overlay) => {
+          const href = String($overlay.attr('href') || $overlay.attr('xlink:href') || '');
+          expect(href, 'education tree overlay image').to.equal(shapeContext.expectedEducationOverlay);
+        });
+
+      expect(shapeContext.expectedHealthcareOverlay, 'distinct tree custom shape overlays')
+        .not.to.equal(shapeContext.expectedEducationOverlay);
     });
   });
 
