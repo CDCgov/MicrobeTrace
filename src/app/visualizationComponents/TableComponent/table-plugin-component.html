@@ -86,7 +86,7 @@
               <tr class="ui-selectable-row" [pSelectableRow]="datarow">
                 @for (col of SelectedTableData.tableColumns; track col) {
                   <td style="width: 150px" >
-                    {{datarow[col.field]}}
+                    {{formatCellValue(col.field, datarow[col.field])}}
                   </td>
                 }
               </tr>

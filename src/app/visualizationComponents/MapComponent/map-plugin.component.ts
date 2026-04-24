@@ -1471,8 +1471,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var d = e.target.data;
         var v = this.commonService.session.style.widgets['map-link-tooltip-variable'];
         if (v !== 'None' && (d[v] || d[v] == 0)) {
+            const formattedValue = v === 'distance'
+                ? this.commonService.formatDisplayedDistanceValue(d[v], 'distance')
+                : d[v];
             d3.select(this.mapTooltip)
-                .html(d[v])
+                .html(formattedValue)
                 .style('position', 'absolute')
                 .style('left', (e.containerPoint.x - 50) + 'px')
                 .style('top', (e.containerPoint.y - 50) + 'px')

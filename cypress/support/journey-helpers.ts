@@ -1133,6 +1133,18 @@ export function setGlobalDistanceMetric(metric: DistanceMetric): void {
     .should('equal', metric);
 }
 
+export function setTN93DistanceDisplayFormat(format: 'decimal' | 'percentage'): void {
+  const buttonLabel = format === 'percentage' ? 'Percentage' : 'Decimal';
+
+  cy.get('#tn93-distance-display-format')
+    .contains('span', buttonLabel)
+    .click({ force: true });
+
+  cy.window()
+    .its('commonService.session.style.widgets.tn93-distance-display-format')
+    .should('equal', format);
+}
+
 export function setGlobalLinkThreshold(threshold: number | string): void {
   const nextThreshold = String(threshold);
 

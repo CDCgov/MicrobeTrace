@@ -6,7 +6,9 @@ import {
   assertHeatmapMatchesBackingMatrix,
   goToHeatmapView,
   launchProfileToHeatmap,
+  openGlobalFilteringTab,
   openHeatmapSettingsDialog,
+  setTN93DistanceDisplayFormat,
 } from '../../../support/journey-helpers';
 
 type HeatmapAccordionPanel = 'heatmap-invert' | 'heatmap-labels' | 'heatmap-color';
@@ -76,13 +78,16 @@ function captureHeatmapDownloadBlobs(): void {
   });
 }
 
-function assertCapturedHeatmapCsvMatchesRendered(includeLabels: boolean): void {
+function assertCapturedHeatmapCsvMatchesRendered(includeLabels: boolean, useDisplayedValues = false): void {
   cy.window().then((win: any) => {
     const trace = win.commonService.visuals.heatmap.heatmapData[0];
     const csvBlob = win.__lastSavedBlob as Blob | null;
     const expectedX = (trace.x || []).map((value: unknown) => String(value));
     const expectedY = (trace.y || []).map((value: unknown) => String(value));
-    const expectedZ = (trace.z || []).map((row: unknown[]) => row.map((value) => String(value)));
+    const expectedSource = useDisplayedValues && Array.isArray(trace.customdata)
+      ? trace.customdata
+      : trace.z;
+    const expectedZ = (expectedSource || []).map((row: unknown[]) => row.map((value) => String(value)));
 
     expect(csvBlob, 'captured heatmap CSV blob').to.exist;
     expect(csvBlob?.type || '', 'captured heatmap CSV blob type').to.contain('text/csv');
@@ -311,6 +316,49 @@ describe('Journey Flow - Heatmap controls and export on uploaded data', () => {
       .should('equal', unlabeledMatrixFileName);
     cy.get('@heatmapExportDialog').find('#export-distance-matrix').click({ force: true });
     assertCapturedHeatmapCsvMatchesRendered(false);
+  });
+
+  it('keeps raw TN93 matrix data while showing percentage display labels and exports', () => {
+    const percentageMatrixFileName = `cypress_heatmap_matrix_percentage_${Date.now()}.csv`;
+
+    launchProfileToHeatmap(profile);
+    assertAfterLaunchCounts(profile);
+    captureHeatmapDownloadBlobs();
+
+    openGlobalFilteringTab();
+    setTN93DistanceDisplayFormat('percentage');
+    cy.closeGlobalSettings();
+
+    assertHeatmapMatchesBackingMatrix({
+      metric: profile.preLaunch.metric,
+      labelsVisible: false,
+    });
+
+    cy.window().then((win: any) => {
+      const trace = win.commonService.visuals.heatmap.heatmapData[0];
+      const flattenedZ = (trace.z || []).flat().map((value: unknown) => Number(value));
+      const formattedValues = (trace.customdata || []).flat().map((value: unknown) => String(value));
+      const rawContainsDecimalDistance = flattenedZ.some((value: number) => Math.abs(value - 0.015) < 1e-9);
+      const formattedSample = formattedValues.find((value: string) => value === '1.5%');
+
+      expect(rawContainsDecimalDistance, 'raw TN93 heatmap z keeps decimal values').to.equal(true);
+      expect(trace.hovertemplate, 'percentage hover template').to.contain('%{customdata}');
+      expect(formattedSample, 'formatted TN93 heatmap display sample').to.equal('1.5%');
+      expect(trace.colorbar?.ticktext, 'percentage heatmap colorbar labels')
+        .to.satisfy((ticktext: unknown) => Array.isArray(ticktext) && ticktext.every((value) => String(value).includes('%')));
+    });
+
+    openHeatmapExportDialog();
+    cy.get('@heatmapExportDialog')
+      .find('#distance-matrix-filename')
+      .invoke('val', percentageMatrixFileName)
+      .trigger('input')
+      .trigger('change');
+    cy.window()
+      .its('commonService.visuals.heatmap.SelectedDistanceMatrixFilenameVariable')
+      .should('equal', percentageMatrixFileName);
+    cy.get('@heatmapExportDialog').find('#export-distance-matrix').click({ force: true });
+    assertCapturedHeatmapCsvMatchesRendered(false, true);
   });
 
   it('reapplies persisted Heatmap settings after closing and reopening the tab', () => {
