@@ -101,8 +101,19 @@ export class CommonService extends AppComponentBase implements OnInit {
     };
 
     // Helper functions for TN93 distance display values
+    private normalizeDisplayedDistanceField(linkField: string = 'distance'): string {
+        return String(linkField || 'distance').toLowerCase();
+    }
+
+    private isTN93DisplayField(linkField: string = 'distance'): boolean {
+        const normalizedField = this.normalizeDisplayedDistanceField(linkField);
+        return normalizedField === 'distance'
+            || normalizedField === 'mean_genetic_distance'
+            || normalizedField === 'heatmap-distance';
+    }
+
     tn93PercentageDisplayEnabled(linkField: string = 'distance'): boolean {
-        return String(linkField).toLowerCase() === 'distance'
+        return this.isTN93DisplayField(linkField)
             && String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'tn93'
             && String(this.session?.style?.widgets?.['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage';
     }
@@ -131,7 +142,15 @@ export class CommonService extends AppComponentBase implements OnInit {
             : numericValue;
     }
 
-    formatDisplayedDistanceValue(value: number | null | undefined, linkField: string = 'distance'): string {
+    formatDisplayedDistanceValue(
+        value: number | null | undefined,
+        linkField: string = 'distance',
+        options: {
+            decimals?: number;
+            trimTrailingZeros?: boolean;
+            includeSuffix?: boolean;
+        } = {}
+    ): string {
         if (value === null || value === undefined) {
             return 'N/A';
         }
@@ -142,18 +161,31 @@ export class CommonService extends AppComponentBase implements OnInit {
             return 'N/A';
         }
 
+        const normalizedField = this.normalizeDisplayedDistanceField(linkField);
         const displayedValue = this.toDisplayedDistanceValue(numericValue, linkField);
-        const decimals = String(linkField).toLowerCase() === 'distance'
-            ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
-            : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
+        const usePercentageDisplay = this.tn93PercentageDisplayEnabled(linkField);
+        const includeSuffix = options.includeSuffix !== false;
+        const decimals = options.decimals !== undefined && Number.isFinite(Number(options.decimals))
+            ? Math.max(0, Math.floor(Number(options.decimals)))
+            : normalizedField === 'distance'
+                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
+                : this.isTN93DisplayField(linkField)
+                    ? 3
+                    : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
 
         if (decimals === 0) {
-            return Math.round(displayedValue).toLocaleString();
+            const formattedValue = Math.round(displayedValue).toLocaleString();
+            return usePercentageDisplay && includeSuffix
+                ? `${formattedValue}%`
+                : formattedValue;
         }
 
-        const formattedValue = displayedValue.toFixed(3).replace(/\.?0+$/, '');
+        let formattedValue = displayedValue.toFixed(decimals);
+        if (options.trimTrailingZeros !== false) {
+            formattedValue = formattedValue.replace(/\.?0+$/, '');
+        }
 
-        return this.tn93PercentageDisplayEnabled(linkField)
+        return usePercentageDisplay && includeSuffix
             ? `${formattedValue}%`
             : formattedValue;
     }

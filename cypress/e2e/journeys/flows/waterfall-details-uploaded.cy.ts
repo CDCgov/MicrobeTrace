@@ -66,9 +66,17 @@ function buildExpansionRows(commonService: any, source: Record<string, any>): Ex
       typeof source[key] === 'object'
     ))
     .map((key) => {
-      const rawValue = key === 'mean_genetic_distance' || key === 'links_per_node'
-        ? Number(source[key]).toFixed(3)
-        : String(source[key]);
+      let rawValue = String(source[key]);
+
+      if (key === 'mean_genetic_distance') {
+        rawValue = commonService.tn93PercentageDisplayEnabled('mean_genetic_distance')
+          ? commonService.formatDisplayedDistanceValue(source[key], 'mean_genetic_distance')
+          : Number(source[key]).toFixed(3);
+      } else if (key === 'links_per_node') {
+        rawValue = Number(source[key]).toFixed(3);
+      } else if (key === 'distance') {
+        rawValue = commonService.formatDisplayedDistanceValue(source[key], 'distance');
+      }
 
       return {
         key: String(commonService.titleize(key)),
@@ -266,8 +274,71 @@ describe('Journey Flow - Waterfall uploaded detail expansions and selection rese
       waterfallCase.expectedRows
         .filter((row) => PREFERRED_CLUSTER_ROWS.includes(row.key))
         .forEach((row) => {
-          expect(row.value, `${row.key} formatting`).to.match(/^-?\d+\.\d{3}$/);
+          expect(row.value, `${row.key} formatting`).to.match(
+            row.key === 'Mean Genetic Distance'
+              ? /^-?\d+(?:\.\d{3})?$/
+              : /^-?\d+\.\d{3}$/,
+          );
         });
+    });
+  });
+
+  it('renders TN93 distance values as percentages in the waterfall link table and expansions when enabled', () => {
+    launchProfileToWaterfall(clusterProfile);
+    assertAfterLaunchCounts(clusterProfile);
+
+    cy.openGlobalSettings();
+    cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
+    cy.get('#global-settings-modal #filtering-config', { timeout: 15000 }).should('exist');
+    cy.get('#tn93-distance-display-format').contains('span', 'Percentage').click({ force: true });
+    cy.window()
+      .its('commonService.session.style.widgets.tn93-distance-display-format')
+      .should('equal', 'percentage');
+    cy.closeGlobalSettings();
+
+    prepareClusterDetailCase('clusterDetailPercentageCase');
+
+    cy.get<ClusterDetailCase>('@clusterDetailPercentageCase').then((waterfallCase) => {
+      selectCluster(waterfallCase.clusterId);
+
+      assertExpandedRows(
+        'commonService.visuals.waterfall.expandedClusterRowData',
+        waterfallCase.expectedRows,
+      );
+      assertExpandedRowsVisible(testIds.waterfallClusterExpansion, waterfallCase.expectedRows);
+
+      const meanGeneticDistanceRow = waterfallCase.expectedRows.find((row) => row.key === 'Mean Genetic Distance');
+      expect(meanGeneticDistanceRow, 'formatted cluster mean genetic distance row').to.exist;
+      expect(meanGeneticDistanceRow?.value, 'cluster mean genetic distance percentage').to.match(/^-?\d+(?:\.\d+)?%$/);
+
+      cy.window().then((win: any) => {
+        const firstClusterNode = win.commonService.visuals.waterfall.nodeTableData?.[0];
+        expect(firstClusterNode, 'first node in selected waterfall cluster').to.exist;
+
+        selectNode(String(firstClusterNode.id));
+
+        cy.window().then((innerWin: any) => {
+          const firstVisibleLink = innerWin.commonService.visuals.waterfall.linkTableData?.[0];
+          expect(firstVisibleLink, 'first link in selected waterfall node').to.exist;
+
+          const expectedTableDistance = innerWin.commonService.formatDisplayedDistanceValue(firstVisibleLink.distance, 'distance');
+          cy.contains('#waterfall-link-table-container tbody tr.ui-selectable-row', String(firstVisibleLink.id))
+            .should('contain.text', expectedTableDistance)
+            .click();
+
+          const expectedExpandedLinkRows = buildExpansionRows(innerWin.commonService, firstVisibleLink);
+          const distanceRow = expectedExpandedLinkRows.find((row) => row.key === 'Distance');
+
+          expect(distanceRow, 'formatted expanded link distance row').to.exist;
+          expect(distanceRow?.value, 'expanded link TN93 distance percentage').to.match(/^-?\d+(?:\.\d+)?%$/);
+
+          assertExpandedRows(
+            'commonService.visuals.waterfall.expandedLinkRowData',
+            expectedExpandedLinkRows,
+          );
+          assertExpandedRowsVisible(testIds.waterfallLinkExpansion, expectedExpandedLinkRows);
+        });
+      });
     });
   });
 

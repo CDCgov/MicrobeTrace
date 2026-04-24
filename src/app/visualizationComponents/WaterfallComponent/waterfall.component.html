@@ -100,7 +100,7 @@
           <ng-template pTemplate="body" let-datarow>
             <tr class="ui-selectable-row" [pSelectableRow]="datarow">
               <td>{{datarow.id}}</td>
-              <td style="text-align: end">{{datarow.distance.toLocaleString()}}</td>
+              <td style="text-align: end">{{formatLinkTableDistance(datarow.distance)}}</td>
             </tr>
           </ng-template>
           <ng-template pTemplate="expandedrow" let-datarow>

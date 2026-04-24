@@ -6,9 +6,11 @@ import {
   assertMapRenderedCounts,
   goToMapView,
   launchProfileToTwoD,
+  openGlobalFilteringTab,
   openMapSettingsDialog,
   selectMapField,
   setMapNodeCollapsing,
+  setTN93DistanceDisplayFormat,
 } from '../../../support/journey-helpers';
 import {
   getRenderedMapLinkContainerPoint,
@@ -40,6 +42,7 @@ const getRenderedLinkLayer = (win: WinWithMap, source: string, target: string) =
 
 describe('Journey Flow - Map uploaded tooltip controls', () => {
   const profile = getProfile('map-color-by-uploaded');
+  const tn93Profile = getProfile('map-angulartesting-lat-long');
 
   it('shows uploaded node and link tooltip contents on the rendered map', () => {
     launchProfileToTwoD(profile);
@@ -137,5 +140,62 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
     });
 
     cy.get('#mapTooltip', { timeout: 5000 }).should('not.be.visible');
+  });
+
+  it('shows TN93 link distance tooltips as percentages when that display format is enabled', () => {
+    launchProfileToTwoD(tn93Profile);
+    assertAfterLaunchCounts(tn93Profile);
+    goToMapView();
+
+    openGlobalFilteringTab();
+    setTN93DistanceDisplayFormat('percentage');
+    cy.closeGlobalSettings();
+
+    openMapSettingsDialog();
+    selectMapField('map-field-lat', 'Lat', 'map-field-lat', 'lat');
+    selectMapField('map-field-lon', 'Long', 'map-field-lon', 'long');
+    setMapNodeCollapsing('Off');
+
+    cy.get('@mapSettings').contains('.nav-link', 'Links').click({ force: true });
+    selectPrimeOption('#map-link-tooltip-variable', 'Distance');
+
+    cy.closeSettingsPane('Geospatial Settings');
+
+    assertMapRenderedCounts({
+      nodes: 4,
+      links: 4,
+    });
+
+    cy.window().then((win: unknown) => {
+      const typedWindow = win as WinWithMap;
+      const lmap = typedWindow.commonService.visuals.gisMap.lmap;
+      const linkLayer = typedWindow.commonService.visuals.gisMap.layers.links.getLayers()[0];
+
+      expect(linkLayer, 'rendered TN93 map link').to.exist;
+
+      const expectedTooltipValue = typedWindow.commonService.formatDisplayedDistanceValue(linkLayer.data.distance, 'distance');
+      expect(expectedTooltipValue, 'formatted TN93 map tooltip value').to.match(/^-?\d+(?:\.\d+)?%$/);
+
+      const containerPoint = getRenderedMapLinkContainerPoint(lmap, linkLayer);
+      const rect = (lmap.getContainer() as HTMLElement).getBoundingClientRect();
+      const clientX = rect.left + containerPoint.x;
+      const clientY = rect.top + containerPoint.y;
+      const eventInit = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        button: 0,
+        x: clientX,
+        y: clientY,
+        pageX: clientX,
+        pageY: clientY,
+      };
+      const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
+      const latlng = lmap.containerPointToLatLng(containerPoint);
+
+      linkLayer.fire('mouseover', { latlng, layer: linkLayer, containerPoint, originalEvent: fakeOriginalEvent });
+
+      cy.get('#mapTooltip', { timeout: 5000 }).should('be.visible').and('contain', expectedTooltipValue);
+    });
   });
 });
