@@ -568,7 +568,7 @@
                   <div class="form-group row" title="By what variable should links be colored?">
                     <div class="col-5"><label for="link-color-variable">Color Links By</label></div>
                     <div class="col-7">
-                      <p-select id="link-color-variable" class="width-percent-100" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-select>
+                      <p-select id="link-tooltip-variable" class="width-percent-100" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedColorLinksByVariable" (onChange)="onColorLinksByChanged()"></p-select>
                     </div>
                   </div>
                   @if (SelectedColorLinksByVariable !== 'None') {
