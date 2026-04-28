@@ -199,6 +199,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private loadingMessageUpdatedSubscription: Subscription;
     private destroy$ = new Subject<void>();
     private applyingPendingDashboardRestore = false;
+    private duoLinkOrigins: string[] = [];
 
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
@@ -2332,6 +2333,35 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       }
 
 
+    private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
+        const visibleDuoLink = this.commonService.getVisibleLinks().find((link: any) =>
+            Array.isArray(link?.origin) && link.origin.length > 1,
+        );
+
+        const candidateOrigins = Array.isArray(visibleDuoLink?.origin) && visibleDuoLink.origin.length > 1
+            ? visibleDuoLink.origin
+            : (
+                Array.isArray(this.commonService.session?.style?.widgets?.['link-origin-array-order']) &&
+                this.commonService.session.style.widgets['link-origin-array-order'].length > 1
+            )
+                ? this.commonService.session.style.widgets['link-origin-array-order']
+                : fallbackOrigins.filter(origin => origin !== 'Duo-Link');
+
+        this.duoLinkOrigins = candidateOrigins
+            .filter((origin: any) => typeof origin === 'string' && origin.length > 0 && origin !== 'Duo-Link')
+            .slice(0, 2)
+            .map((origin: any) => String(origin));
+
+        while (this.duoLinkOrigins.length < 2) {
+            this.duoLinkOrigins.push('');
+        }
+
+        return this.duoLinkOrigins.map(origin => ({
+            color: origin ? this.commonService.temp.style.linkColorMap(origin) : '#f0f0f0',
+            opacity: origin ? this.commonService.temp.style.linkAlphaMap(origin) : 1,
+        }));
+    }
+
     // The actual function that builds your color table
   generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
     console.log('DEBUG: generateNodeLinkTable called. tableId=', tableId);
@@ -2362,7 +2392,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     console.log('DEBUG: aggregateValues =>', aggregateValues);
         const disabled: string = isEditable ? '' : 'disabled';
 
-        let duoColors = [];
+        const duoLinkSegments = this.SelectedColorLinksByVariable == 'origin'
+            ? this.getDuoLinkSwatchSegments(aggregateValues)
+            : [];
         aggregateValues.forEach((value, i) => {
             let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
             if (aggregates[value] == 0) {
@@ -2376,7 +2408,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             // Grab color of link from session
             const color = this.commonService.temp.style.linkColorMap(value);
-            if (this.SelectedColorLinksByVariable == 'origin') duoColors.push(color);
 
             // Create color input element with color value and assign id to retrieve new value on change
             const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.linkAlphaMap(value)}; border:none" ${disabled}>`)
@@ -2409,7 +2440,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     this.publishUpdateLinkColor()
 
                     if (this.SelectedColorLinksByVariable == 'origin') {
-                        this.updateDuoLinkCell(i, nextColor, e.currentTarget.style['opacity'])
+                        this.updateDuoLinkCell(value, nextColor, e.currentTarget.style['opacity'])
                     }
 
                 });
@@ -2440,7 +2471,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                             // this.goldenLayout.componentInstances[1].updateLinkColor();
 
                             if (this.SelectedColorLinksByVariable == 'origin') {
-                                this.updateDuoLinkCell(i, this.commonService.temp.style.linkColorMap(value), f.target['value'] as string)
+                                this.updateDuoLinkCell(value, this.commonService.temp.style.linkColorMap(value), f.target['value'] as string)
                             }
                         });
                 });
@@ -2462,8 +2493,28 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 $("<div></div>")
                     .css({  height: "25px", width: "50px", display: "flex", background: "#F0F0F0", padding: "4px"})
                     .append($("<div></div>").css({ border: "1px solid #777777", height: "17px", width: "42px", display: "inline-block" })
-                        .append($("<span id='duoColor0'></span>").css({ height: "100%", width: "50%", background: duoColors[0], 'vertical-align': "top", display: "inline-block" }))
-                        .append($("<span id='duoColor1'></span>").css({ height: "100%", width: "50%", background: duoColors[1], 'vertical-align': "top", display: "inline-block" })))
+                        .append($("<span></span>")
+                            .addClass("duo-link-color-segment")
+                            .attr("data-duo-index", "0")
+                            .css({
+                                height: "100%",
+                                width: "50%",
+                                background: duoLinkSegments[0]?.color ?? "#f0f0f0",
+                                opacity: duoLinkSegments[0]?.opacity ?? 1,
+                                'vertical-align': "top",
+                                display: "inline-block"
+                            }))
+                        .append($("<span></span>")
+                            .addClass("duo-link-color-segment")
+                            .attr("data-duo-index", "1")
+                            .css({
+                                height: "100%",
+                                width: "50%",
+                                background: duoLinkSegments[1]?.color ?? "#f0f0f0",
+                                opacity: duoLinkSegments[1]?.opacity ?? 1,
+                                'vertical-align': "top",
+                                display: "inline-block"
+                            })))
                 );
             }
             const nonEditCell = `<td style="background-color:${color}"></td>`;
@@ -2530,9 +2581,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }        
      }
 
-    updateDuoLinkCell(index:number, color:string, opacity: string) {
-        if (index != 0 && index != 1) return;
-        $(`#duoColor${index}`).css({background: color, opacity: opacity})
+    updateDuoLinkCell(originValue: string, color: string, opacity: string) {
+        const index = this.duoLinkOrigins.findIndex(origin => origin === originValue);
+        if (index !== 0 && index !== 1) return;
+        $(`.duo-link-color-segment[data-duo-index="${index}"]`).css({ background: color, opacity: opacity })
     }
 
     public onTimelineChanged(e) : void {

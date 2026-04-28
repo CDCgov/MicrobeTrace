@@ -2978,6 +2978,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
+    private shouldRenderSplitOriginLinks(): boolean {
+        const linkColorVariable = String(this.widgets?.['link-color-variable'] ?? 'None').toLowerCase();
+        if (linkColorVariable !== 'origin') {
+            return false;
+        }
+
+        return this.commonService.getVisibleLinks().some((link: any) =>
+            Array.isArray(link?.origin) && link.origin.length > 1,
+        );
+    }
+
+    private renderedHasSplitOriginLinks(): boolean {
+        if (!this.cy) {
+            return false;
+        }
+
+        return this.cy
+            .edges(':visible')
+            .toArray()
+            .some((edge: any) => Boolean(edge.data('secondLink')));
+    }
+
     /**
      * Gets the label for a node based on node label variable
      * @param node the node retrieve to get the value of the variable
@@ -4769,6 +4791,16 @@ private async _partialUpdate() {
     updateLinkColor() {
         console.log('----TWOD updateLinkColor called');
         if (!this.cy) return;
+        this.widgets = this.commonService.session.style.widgets;
+
+        // Origin coloring in 2D adds or removes duplicate dashed edges for
+        // mixed-origin links, so a recolor-only update is unsafe whenever the
+        // rendered topology no longer matches the active mode.
+        if (this.shouldRenderSplitOriginLinks() !== this.renderedHasSplitOriginLinks()) {
+            void this._rerender();
+            return;
+        }
+
         this.cy.edges().forEach(link => {
             const { color, opacity } = this.getLinkColor(link.data());
             link.data('lineColor', color);
