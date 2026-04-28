@@ -926,6 +926,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return tablesToExport;
     }
 
+    private getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
+        return this.commonService.visuals.twoD?.getPolygonColorTableElementForExport?.()
+            ?? (document.querySelector('#polygon-color-table') as HTMLTableElement | undefined);
+    }
+
     private async performExport(
         elementsForExport: HTMLElement[] = [this.visualWrapperRef.nativeElement],
         exportNodeTable: boolean = false,
@@ -3729,8 +3734,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         let elementsToExport: HTMLTableElement[] = [];
 
         if (this.exportTables['polygon-color']) {
-            let polygonTable = $('#polygon-color-table')[0]
-            elementsToExport.push(polygonTable as HTMLTableElement)
+            const polygonTable = this.getPolygonColorTableElementForExport();
+            if (polygonTable) {
+                elementsToExport.push(polygonTable);
+            }
         }
         if (elementsToExport.length == 0
             && this.exportTables['node-color'] == false
@@ -4512,7 +4519,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         });
         this.keyTablesController.dockAll();
 
-        this.ensureKeyTablesViewOpen(true);
+        this.ensureKeyTablesViewOpen(false);
         this.commonService.visuals.twoD?.dockPolygonColorTableIfVisible();
         this.syncFloatingKeyTableDialogs();
         this.refreshKeyTablesView();
@@ -4720,9 +4727,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private ensureKeyTablesViewOpen(focusView: boolean = true): void {
         const viewName = KeyTablesComponent.componentTypeName;
+        const contextTab = this.keyTablesController.getContextTab(this.commonService.activeTab);
         const tabToKeepActive = focusView
             ? undefined
-            : this.keyTablesController.getContextTab(this.commonService.activeTab);
+            : contextTab;
         const existingTabIndex = this.homepageTabs.findIndex(tab => tab.label === viewName);
         const container = this._goldenLayoutHostComponent.dockComponentRight(viewName, viewName);
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(container);
@@ -4748,7 +4756,40 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             } else if (tabToKeepActive) {
                 this.focusHomepageTab(tabToKeepActive);
             }
+
+            this.scheduleDockContextViewCenter(contextTab);
         });
+    }
+
+    private scheduleDockContextViewCenter(viewName?: string): void {
+        if (!viewName || viewName === KeyTablesComponent.componentTypeName) {
+            return;
+        }
+
+        setTimeout(() => {
+            const componentRef = this._goldenLayoutHostComponent.getComponentRefByType(viewName);
+            const instance = componentRef?.instance as any;
+
+            if (!instance) {
+                return;
+            }
+
+            if (instance.goldenLayoutComponentResize) {
+                instance.goldenLayoutComponentResize();
+            }
+
+            if (instance.lmap?.invalidateSize) {
+                instance.lmap.invalidateSize();
+            }
+
+            if (instance.openCenter) {
+                instance.openCenter();
+            } else if (instance.fit) {
+                instance.fit();
+            } else if (instance.centerMap) {
+                instance.centerMap();
+            }
+        }, 250);
     }
 
     private closeKeyTablesView(): void {

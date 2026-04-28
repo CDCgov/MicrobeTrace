@@ -1807,7 +1807,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         $(this.getDockedPolygonColorTableSelector()).empty();
     }
 
-    private getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
+    public getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
         return this.isPolygonColorTableDocked
             ? document.querySelector(this.getDockedPolygonColorTableSelector()) as HTMLTableElement | undefined
             : this.polygonColorTable?.nativeElement;
