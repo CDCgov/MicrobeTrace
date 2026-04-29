@@ -178,6 +178,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     ];
     SelectedNodeCollapsingTypeVariable: string = "On";
 
+    NodeAutoExpandTypes: any = [
+        { label: 'On', value: 'On' },
+        { label: 'Off', value: 'Off' }
+    ];
+    SelectedNodeAutoExpandTypeVariable: string = "On";
+
     // GeospatialTypes: any = [
     //     { label: 'On', value: 'On' },
     //     { label: 'Off', value: 'Off' }
@@ -229,6 +235,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private exportTryCount: number = 0;
     private readonly mapNodeIconSize: number = 24;
     private mapNodeIconCache: Record<string, L.Icon> = {};
+    private mapNodeMarkersById: Record<string, MarkerWithData> = Object.create(null);
 
     public NodeMapSettingsExportDialogSettings: DialogSettings;
 
@@ -325,6 +332,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         $( document ).on( "node-selected", function( ) {
             //update this?
             that.drawNodes(false);
+            that.autoExpandSelectedNode();
         });
 
          // Used for timeline mode, TODO: update to use an RxJS Observable
@@ -432,6 +440,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     onMarkerClusterReady(markerCluster: MarkerClusterGroup) {
         this.layers.markerClusterGroup = markerCluster;
         this.tryLoadInitialSettings();
+        this.autoExpandSelectedNode();
     }
 
     private tryLoadInitialSettings(): void {
@@ -492,6 +501,67 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         return this.mapNodeIconCache[cacheKey];
+    }
+
+    private ensureMapAutoExpandSelectedSetting(): void {
+        const widgets = this.commonService.session.style.widgets;
+        if (widgets['map-auto-expand-selected'] === undefined || widgets['map-auto-expand-selected'] === null) {
+            widgets['map-auto-expand-selected'] = true;
+        }
+    }
+
+    private canAutoExpandSelectedNode(): boolean {
+        this.ensureMapAutoExpandSelectedSetting();
+
+        return !!this.lmap
+            && !!this.layers.markerClusterGroup
+            && this.commonService.session.style.widgets['map-node-show'] === true
+            && this.commonService.session.style.widgets['map-collapsing-on'] === true
+            && this.commonService.session.style.widgets['map-auto-expand-selected'] === true;
+    }
+
+    private autoExpandSelectedNode(): void {
+        if (!this.canAutoExpandSelectedNode()) {
+            return;
+        }
+
+        const selectedNode = this.nodes.find(node =>
+            node.selected
+            && node.visible !== false
+            && node._jlat
+            && node._jlon
+            && node._id !== undefined
+            && this.mapNodeMarkersById[String(node._id)]
+        );
+
+        if (!selectedNode) {
+            return;
+        }
+
+        const selectedNodeId = String(selectedNode._id);
+        window.setTimeout(() => this.expandSelectedMapNodeCluster(selectedNodeId), 0);
+    }
+
+    private expandSelectedMapNodeCluster(nodeId: string): void {
+        if (!this.canAutoExpandSelectedNode()) {
+            return;
+        }
+
+        const marker = this.mapNodeMarkersById[nodeId];
+        if (!marker || !(this.layers.markerClusterGroup as any)._map || !this.layers.markerClusterGroup.hasLayer(marker)) {
+            return;
+        }
+
+        const visibleParent = this.layers.markerClusterGroup.getVisibleParent(marker);
+        const parentCluster = visibleParent !== marker && (visibleParent as any).spiderfy
+            ? visibleParent as any
+            : null;
+
+        if (!parentCluster) {
+            return;
+        }
+
+        parentCluster.spiderfy();
     }
 
     /* Not sure goal of this at the moment
@@ -606,6 +676,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             that.drawLinks();
             that.resetStack();
             that.centerMap()
+            that.autoExpandSelectedNode();
             that.markMapRendered();
             }, false);
 
@@ -792,10 +863,23 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (this.SelectedNodeCollapsingTypeVariable == "On") {
             this.commonService.session.style.widgets['map-collapsing-on'] = true;
             this.drawNodes(false);
+            this.autoExpandSelectedNode();
         }
         else {
             this.commonService.session.style.widgets['map-collapsing-on'] = false;
             this.drawNodes(false);
+        }
+    }
+
+    onNodeAutoExpandChange(e) {
+        if (e) {
+            this.SelectedNodeAutoExpandTypeVariable = e;
+        }
+
+        this.commonService.session.style.widgets['map-auto-expand-selected'] = this.SelectedNodeAutoExpandTypeVariable == "On";
+
+        if (this.commonService.session.style.widgets['map-auto-expand-selected']) {
+            this.autoExpandSelectedNode();
         }
     }
 
@@ -1274,6 +1358,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.layers.removeNodes();
         }
 
+        this.mapNodeMarkersById = Object.create(null);
+
         if (!this.commonService.session.style.widgets['map-node-show']) return;
 
         // if (this.SelectedGeospatialTypeVariable == 'On') {
@@ -1340,6 +1426,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             });
 
             nodeMarker.data = d;
+            if (d._id !== undefined) {
+                this.mapNodeMarkersById[String(d._id)] = nodeMarker;
+            }
 
             nodeMarker
                 .on('mouseover', (e) => this.showNodeTooltip(e))
@@ -1715,6 +1804,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     loadSettings() {
+        this.ensureMapAutoExpandSelectedSetting();
+
         // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
         this.SelectedSatelliteTypeVariable = this.commonService.session.style.widgets['map-satellite-show'] ? 'Show' : 'Hide';
@@ -1777,6 +1868,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Nodes|Collapsing
         this.SelectedNodeCollapsingTypeVariable = this.commonService.session.style.widgets['map-collapsing-on'] ? 'On' : 'Off';
         this.onNodeCollapsingChange(undefined);
+
+        //Nodes|Auto-Expand Selected
+        this.SelectedNodeAutoExpandTypeVariable = this.commonService.session.style.widgets['map-auto-expand-selected'] ? 'On' : 'Off';
+        this.onNodeAutoExpandChange(undefined);
 
         //Nodes|Transparency
         this.SelectedNodeTransparencyVariable = this.commonService.session.style.widgets['map-node-transparency'];
