@@ -1,0 +1,534 @@
+name: Epic Issues
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log intended changes without creating or updating issues.
+        required: true
+        type: boolean
+        default: true
+      sync_project:
+        description: Add synced epics to the configured GitHub Project and set Status.
+        required: true
+        type: boolean
+        default: true
+      publish_all:
+        description: Publish every epic row, ignoring epic_sync. Use for the full review batch.
+        required: true
+        type: boolean
+        default: false
+      create_missing:
+        description: Create missing issues when no matching epic-key issue exists. Disable for refresh-only updates.
+        required: true
+        type: boolean
+        default: true
+      project_status_update_scope:
+        description: When sync_project is enabled, set Project Status for all items, newly added project items only, or never.
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - new_items
+          - never
+      epic_csv_path:
+        description: Epic CSV path to sync.
+        required: true
+        type: string
+        default: docs/epics.csv
+      story_csv_path:
+        description: User story CSV path used to derive linked QA evidence, fixtures, and specs.
+        required: true
+        type: string
+        default: docs/user-stories.csv
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-epic-issues:
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      SYNC_PROJECT: ${{ inputs.sync_project }}
+      PUBLISH_ALL: ${{ inputs.publish_all }}
+      CREATE_MISSING: ${{ inputs.create_missing }}
+      PROJECT_STATUS_UPDATE_SCOPE: ${{ inputs.project_status_update_scope }}
+      PROJECT_TOKEN_CONFIGURED: ${{ secrets.EPIC_PROJECT_TOKEN != '' || secrets.USER_STORY_PROJECT_TOKEN != '' }}
+      EPIC_ASSIGNEES: ${{ vars.EPIC_ASSIGNEES || vars.USER_STORY_ASSIGNEES }}
+      EPIC_PROJECT_OWNER: ${{ vars.EPIC_PROJECT_OWNER || vars.USER_STORY_PROJECT_OWNER }}
+      EPIC_PROJECT_OWNER_TYPE: ${{ vars.EPIC_PROJECT_OWNER_TYPE || vars.USER_STORY_PROJECT_OWNER_TYPE || 'organization' }}
+      EPIC_PROJECT_NUMBER: ${{ vars.EPIC_PROJECT_NUMBER || vars.USER_STORY_PROJECT_NUMBER }}
+      EPIC_PROJECT_STATUS: ${{ vars.EPIC_PROJECT_STATUS || 'Epics' }}
+      EPIC_PROJECT_STATUS_FIELD: ${{ vars.EPIC_PROJECT_STATUS_FIELD || vars.USER_STORY_PROJECT_STATUS_FIELD || 'Status' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build epic issue payloads
+        run: |
+          PUBLISH_ALL_FLAG=""
+          if [ "${PUBLISH_ALL}" = "true" ]; then
+            PUBLISH_ALL_FLAG="--publish-all"
+          fi
+
+          python3 scripts/epic_issue_candidates.py \
+            --epic-csv-path "${{ inputs.epic_csv_path }}" \
+            --story-csv-path "${{ inputs.story_csv_path }}" \
+            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" \
+            --actor "${{ github.actor }}" \
+            --repository "${{ github.repository }}" \
+            ${PUBLISH_ALL_FLAG} \
+            --output "${RUNNER_TEMP}/epic-issues.json"
+
+      - name: Sync epic issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.EPIC_PROJECT_TOKEN || secrets.USER_STORY_PROJECT_TOKEN || github.token }}
+          script: |
+            const fs = require('fs');
+
+            const issueFile = `${process.env.RUNNER_TEMP}/epic-issues.json`;
+            const payload = JSON.parse(fs.readFileSync(issueFile, 'utf8'));
+            const issues = payload.issues || [];
+            const dryRun = process.env.DRY_RUN === 'true';
+            const syncProject = process.env.SYNC_PROJECT === 'true';
+            const createMissing = process.env.CREATE_MISSING !== 'false';
+            const projectStatusUpdateScope = (process.env.PROJECT_STATUS_UPDATE_SCOPE || 'all').trim().toLowerCase();
+            const validProjectStatusScopes = new Set(['all', 'new_items', 'never']);
+
+            if (!issues.length) {
+              core.info('No epic rows selected. Set epic_sync=true in docs/epics.csv or run with publish_all=true.');
+              return;
+            }
+
+            if (!validProjectStatusScopes.has(projectStatusUpdateScope)) {
+              throw new Error(`Unsupported project_status_update_scope ${projectStatusUpdateScope}. Use all, new_items, or never.`);
+            }
+
+            if (syncProject && !dryRun) {
+              const missing = [];
+              if (process.env.PROJECT_TOKEN_CONFIGURED !== 'true') missing.push('secret EPIC_PROJECT_TOKEN or USER_STORY_PROJECT_TOKEN');
+              if (!process.env.EPIC_PROJECT_OWNER) missing.push('variable EPIC_PROJECT_OWNER or USER_STORY_PROJECT_OWNER');
+              if (!process.env.EPIC_PROJECT_NUMBER) missing.push('variable EPIC_PROJECT_NUMBER or USER_STORY_PROJECT_NUMBER');
+              if (missing.length) {
+                throw new Error(`Project sync is enabled but missing ${missing.join(', ')}.`);
+              }
+            }
+
+            const labelDefinitions = {
+              '[issue-type] epic': {
+                color: '5319e7',
+                description: 'Multi-story epic scope',
+              },
+              'source-epics': {
+                color: '1d76db',
+                description: 'Generated from docs/epics.csv',
+              },
+              'needs-review': {
+                color: 'fbca04',
+                description: 'Needs product or QA review',
+              },
+            };
+
+            const assignees = (process.env.EPIC_ASSIGNEES || '')
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean);
+
+            function generatedBlock(body) {
+              const startMarker = '<!-- epic-generated:start -->';
+              const endMarker = '<!-- epic-generated:end -->';
+              const start = body.indexOf(startMarker);
+              const end = body.indexOf(endMarker);
+              if (start === -1 || end === -1 || end < start) {
+                return null;
+              }
+              return body.slice(start, end + endMarker.length);
+            }
+
+            function mergeBody(currentBody, nextBody) {
+              if (!currentBody) {
+                return nextBody;
+              }
+
+              const currentStartMarker = '<!-- epic-generated:start -->';
+              const currentEndMarker = '<!-- epic-generated:end -->';
+              const currentStart = currentBody.indexOf(currentStartMarker);
+              const currentEnd = currentBody.indexOf(currentEndMarker);
+              const nextBlock = generatedBlock(nextBody);
+
+              if (currentStart !== -1 && currentEnd !== -1 && currentEnd >= currentStart && nextBlock) {
+                return [
+                  currentBody.slice(0, currentStart),
+                  nextBlock,
+                  currentBody.slice(currentEnd + currentEndMarker.length),
+                ].join('');
+              }
+
+              return `${nextBlock || nextBody}\n\n${currentBody}`;
+            }
+
+            function planIssueUpdate(current, issue) {
+              const nextBody = mergeBody(current.body || '', issue.body);
+              const currentLabels = new Set((current.labels || []).map((label) => label.name || label));
+              const mergedLabels = [...new Set([...(issue.labels || []), ...currentLabels])];
+              const needsUpdate =
+                current.title !== issue.title ||
+                (current.body || '') !== nextBody ||
+                mergedLabels.some((label) => !currentLabels.has(label));
+
+              return {
+                nextBody,
+                currentLabels,
+                mergedLabels,
+                needsUpdate,
+              };
+            }
+
+            function epicKeyFromBody(body) {
+              const markerMatch = (body || '').match(/<!--\s*epic-key:\s*([^>]+?)\s*-->/);
+              if (markerMatch) {
+                return markerMatch[1].trim();
+              }
+
+              const epicKeyMatch = (body || '').match(/Epic Key:\s*`([^`]+)`/);
+              if (epicKeyMatch) {
+                return epicKeyMatch[1].trim();
+              }
+
+              return null;
+            }
+
+            async function ensureLabel(labelName) {
+              const definition = labelDefinitions[labelName] || {
+                color: 'ededed',
+                description: 'Epic sync label',
+              };
+
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: labelName,
+                  color: definition.color,
+                  description: definition.description,
+                });
+              }
+            }
+
+            async function loadExistingIssueIndex() {
+              const repositoryIssues = await github.paginate(
+                github.rest.issues.listForRepo,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'all',
+                  per_page: 100,
+                }
+              );
+
+              const issueIndex = new Map();
+              let indexedCount = 0;
+
+              for (const repositoryIssue of repositoryIssues) {
+                if (repositoryIssue.pull_request) {
+                  continue;
+                }
+
+                const epicKey = epicKeyFromBody(repositoryIssue.body || '');
+                if (!epicKey || issueIndex.has(epicKey)) {
+                  continue;
+                }
+
+                issueIndex.set(epicKey, repositoryIssue);
+                indexedCount += 1;
+              }
+
+              core.info(`Indexed ${indexedCount} existing epic issue(s) without using GitHub Search.`);
+              return issueIndex;
+            }
+
+            let projectCache = null;
+
+            async function loadProject() {
+              if (projectCache) {
+                return projectCache;
+              }
+
+              const owner = process.env.EPIC_PROJECT_OWNER;
+              const ownerType = (process.env.EPIC_PROJECT_OWNER_TYPE || 'organization').toLowerCase();
+              const number = Number(process.env.EPIC_PROJECT_NUMBER);
+              const statusFieldName = process.env.EPIC_PROJECT_STATUS_FIELD || 'Status';
+              const statusValue = process.env.EPIC_PROJECT_STATUS || 'Epics';
+              const needsStatusField = projectStatusUpdateScope !== 'never';
+
+              const fieldFragment = `
+                id
+                fields(first: 100) {
+                  nodes {
+                    ... on ProjectV2Field {
+                      id
+                      name
+                    }
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                      options {
+                        id
+                        name
+                      }
+                    }
+                    ... on ProjectV2IterationField {
+                      id
+                      name
+                    }
+                  }
+                }
+              `;
+
+              const query = ownerType === 'user'
+                ? `query($owner: String!, $number: Int!) { user(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`
+                : `query($owner: String!, $number: Int!) { organization(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`;
+
+              const result = await github.graphql(query, { owner, number });
+              const project = ownerType === 'user'
+                ? result.user && result.user.projectV2
+                : result.organization && result.organization.projectV2;
+
+              if (!project) {
+                throw new Error(`Could not find ${ownerType} project ${owner}/${number}.`);
+              }
+
+              let statusField = null;
+              let statusOption = null;
+
+              if (needsStatusField) {
+                statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
+                if (!statusField || !statusField.options) {
+                  throw new Error(`Could not find single-select project field ${statusFieldName}.`);
+                }
+
+                statusOption = statusField.options.find((option) => option.name === statusValue);
+                if (!statusOption) {
+                  throw new Error(`Could not find project status option ${statusValue}.`);
+                }
+              }
+
+              projectCache = {
+                id: project.id,
+                statusFieldId: statusField ? statusField.id : null,
+                statusOptionId: statusOption ? statusOption.id : null,
+              };
+              return projectCache;
+            }
+
+            async function findProjectItemId(projectId, issueNodeId) {
+              const result = await github.graphql(
+                `query($issueNodeId: ID!) {
+                  node(id: $issueNodeId) {
+                    ... on Issue {
+                      projectItems(first: 50) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { issueNodeId }
+              );
+
+              const projectItems = (result.node && result.node.projectItems && result.node.projectItems.nodes) || [];
+              const existingItem = projectItems.find((item) => item.project && item.project.id === projectId);
+              return existingItem ? existingItem.id : null;
+            }
+
+            async function syncProjectItem(issueNodeId) {
+              const project = await loadProject();
+              let itemId = await findProjectItemId(project.id, issueNodeId);
+              let addedToProject = false;
+
+              if (!itemId) {
+                const addResult = await github.graphql(
+                  `mutation($projectId: ID!, $contentId: ID!) {
+                    addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                      item {
+                        id
+                      }
+                    }
+                  }`,
+                  {
+                    projectId: project.id,
+                    contentId: issueNodeId,
+                  }
+                );
+
+                itemId = addResult.addProjectV2ItemById.item.id;
+                addedToProject = true;
+              }
+
+              const shouldUpdateStatus =
+                projectStatusUpdateScope === 'all' ||
+                (projectStatusUpdateScope === 'new_items' && addedToProject);
+
+              if (!shouldUpdateStatus) {
+                return {
+                  addedToProject,
+                  statusUpdated: false,
+                };
+              }
+
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId: project.id,
+                  itemId,
+                  fieldId: project.statusFieldId,
+                  optionId: project.statusOptionId,
+                }
+              );
+
+              return {
+                addedToProject,
+                statusUpdated: true,
+              };
+            }
+
+            const existingIssueIndex = await loadExistingIssueIndex();
+
+            if (dryRun) {
+              let createCount = 0;
+              let updateCount = 0;
+              let unchangedCount = 0;
+              let skippedCount = 0;
+
+              for (const issue of issues) {
+                const current = existingIssueIndex.get(issue.epic_key);
+
+                if (!current) {
+                  if (createMissing) {
+                    createCount += 1;
+                    core.info(`[dry-run] Would create ${issue.epic_key}: ${issue.title}`);
+                  } else {
+                    skippedCount += 1;
+                    core.info(`[dry-run] Would skip missing ${issue.epic_key}: create_missing=false`);
+                  }
+                  continue;
+                }
+
+                const planned = planIssueUpdate(current, issue);
+                if (planned.needsUpdate) {
+                  updateCount += 1;
+                  core.info(`[dry-run] Would update ${issue.epic_key}: ${current.html_url}`);
+                } else {
+                  unchangedCount += 1;
+                  core.info(`[dry-run] Already current ${issue.epic_key}: ${current.html_url}`);
+                }
+              }
+              core.info(`[dry-run] ${issues.length} epic issue(s) selected: ${createCount} create, ${updateCount} update, ${unchangedCount} unchanged, ${skippedCount} skipped.`);
+              return;
+            }
+
+            const allLabels = [...new Set(issues.flatMap((issue) => issue.labels || []))];
+            for (const label of allLabels) {
+              await ensureLabel(label);
+            }
+
+            for (const issue of issues) {
+              let current = existingIssueIndex.get(issue.epic_key);
+
+              if (!current) {
+                if (!createMissing) {
+                  core.info(`Skipped missing ${issue.epic_key}: create_missing=false.`);
+                  continue;
+                }
+
+                try {
+                  const created = await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: issue.title,
+                    body: issue.body,
+                    labels: issue.labels,
+                    assignees: assignees.length ? assignees : undefined,
+                  });
+                  current = created.data;
+                  existingIssueIndex.set(issue.epic_key, current);
+                  core.info(`Created ${issue.epic_key}: ${current.html_url}`);
+                } catch (error) {
+                  if (!assignees.length) {
+                    throw error;
+                  }
+
+                  core.warning(`Could not assign ${issue.epic_key}: ${error.message}`);
+                  const created = await github.rest.issues.create({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    title: issue.title,
+                    body: issue.body,
+                    labels: issue.labels,
+                  });
+                  current = created.data;
+                  existingIssueIndex.set(issue.epic_key, current);
+                  core.info(`Created ${issue.epic_key}: ${current.html_url}`);
+                }
+              } else {
+                const planned = planIssueUpdate(current, issue);
+
+                if (planned.needsUpdate) {
+                  const updated = await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: current.number,
+                    title: issue.title,
+                    body: planned.nextBody,
+                    labels: planned.mergedLabels,
+                  });
+                  current = updated.data;
+                  core.info(`Updated ${issue.epic_key}: ${current.html_url}`);
+                } else {
+                  core.info(`Already synced ${issue.epic_key}: ${current.html_url}`);
+                }
+              }
+
+              if (syncProject) {
+                const projectResult = await syncProjectItem(current.node_id);
+                if (projectResult.statusUpdated) {
+                  core.info(`Synced ${issue.epic_key} to project status ${process.env.EPIC_PROJECT_STATUS || 'Epics'}.`);
+                } else if (projectResult.addedToProject) {
+                  core.info(`Added ${issue.epic_key} to project without changing project status.`);
+                } else {
+                  core.info(`Left existing project status unchanged for ${issue.epic_key}.`);
+                }
+              }
+            }

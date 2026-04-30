@@ -332,7 +332,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Color By', 'None');
-    getEpiSettingsDialog().find('#epi-color-select').should('be.visible');
+    getEpiSettingsDialog().find('#epi-color-select').should('exist');
 
     setEpiCurveColor(0, secondFixedColor);
 

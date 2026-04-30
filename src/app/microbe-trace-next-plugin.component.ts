@@ -2469,17 +2469,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     console.log('DEBUG: final rowcount in table:', finalCount);
 
         if (isEditable) {
+            if (!this.commonService.session.style.linkValueNames) {
+                this.commonService.session.style.linkValueNames = {};
+            }
+
             linkColorTable
-                .find("td")
+                .find("td[data-value]")
                 .on("dblclick", function () {
                     $(this).attr("contenteditable", "true").focus();
                 })
-                .on("focusout", () => {
-                    const $this = $(this);
-                    $this.attr("contenteditable", "false");
+                .on("focusout", (event) => {
+                    const $cell = $(event.currentTarget);
+                    const rawValue = $cell.data("value");
+                    $cell.attr("contenteditable", "false");
 
-                    this.commonService.session.style.linkValueNames[$this.data("value")] = $this.text();
+                    if (rawValue === undefined || rawValue === null) {
+                        return;
+                    }
 
+                    this.commonService.session.style.linkValueNames[String(rawValue)] = $cell.text();
+                    this.cdref.markForCheck();
                 });
         }
 
