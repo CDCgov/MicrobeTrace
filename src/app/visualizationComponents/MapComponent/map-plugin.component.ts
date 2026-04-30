@@ -116,6 +116,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     networkUpdatedSubscription: any;
     private destroy$ = new Subject<void>()
     private initialSettingsLoaded = false;
+    private initialSettingsLoadScheduled = false;
+    private applyingSettings = false;
 
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -435,14 +437,21 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private tryLoadInitialSettings(): void {
-        if (this.initialSettingsLoaded || !this.lmap || !this.layers.markerClusterGroup) {
+        if (this.initialSettingsLoaded || this.initialSettingsLoadScheduled || !this.lmap || !this.layers.markerClusterGroup) {
             return;
         }
 
-        this.initialSettingsLoaded = true;
+        this.initialSettingsLoadScheduled = true;
         window.setTimeout(() => {
-            this.loadSettings();
-            this.cdref.detectChanges();
+            try {
+                this.applyingSettings = true;
+                this.loadSettings();
+                this.initialSettingsLoaded = true;
+            } finally {
+                this.applyingSettings = false;
+                this.initialSettingsLoadScheduled = false;
+                this.cdref.detectChanges();
+            }
         }, 0);
     }
 
@@ -575,6 +584,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     onDataChange(event) {
+        if (!this.initialSettingsLoaded && !this.applyingSettings) {
+            return;
+        }
+
         this.commonService.session.style.widgets['map-field-lat'] = this.SelectedLatitude;
         this.commonService.session.style.widgets['map-field-lon'] = this.SelectedLongitude;
         this.commonService.session.style.widgets['map-field-tract'] = this.SelectedCensusTract;

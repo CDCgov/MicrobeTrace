@@ -61,6 +61,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     data;
     pendingPartialUpdate = false;
     rerenderTimeout: any;
+    private isDestroyed = false;
     layoutParallelNodesPerColumn = 4;
     debugMode = false;
     overideTransparency = false;
@@ -4365,11 +4366,26 @@ scaleLinkWidth() {
  * Synchronizes current Cytoscape instance with new data (adds/removes/updates
  * nodes and links) instead of completely rerendering.
  */
-private async _partialUpdate() {
+    private isCytoscapeUsable(cy: Core | null | undefined = this.cy): cy is Core {
+        if (!cy) return false;
+
+        try {
+            if (cy.destroyed()) return false;
+
+            return !!(cy as any).renderer?.();
+        } catch {
+            return false;
+        }
+    }
+
+    private async _partialUpdate() {
     console.log('--- TwoD _partialUpdate called');
-    if (!this.cy) {
+    const cy = this.cy;
+    if (!this.isCytoscapeUsable(cy)) {
       // Initial settings sync can request updates before Cytoscape is ready.
-      this.pendingPartialUpdate = true;
+      if (!this.isDestroyed) {
+        this.pendingPartialUpdate = true;
+      }
       return;
     }
 
@@ -4379,7 +4395,7 @@ private async _partialUpdate() {
     if (!this.nodePositions) {
         this.nodePositions = new Map<string, { x: number; y: number }>();
     }
-    this.cy.nodes().forEach(node => {
+    cy.nodes().forEach(node => {
         const currentPosition = node.position();
         if (!this.nodePositions.has(node.id())) {
             this.nodePositions.set(node.id(), currentPosition); // Cache position
@@ -4399,15 +4415,20 @@ private async _partialUpdate() {
         })
     } else {
         networkData.nodes.forEach(node => {
-            node.nodeSize = Number(this.cy.nodes().getElementById(node._id).data('nodeSize'));
+            node.nodeSize = Number(cy.nodes().getElementById(node._id).data('nodeSize'));
         })
     }
     const { nodes: laidOutNodes, links: laidOutLinks } = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
+
+    if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
+        return;
+    }
+
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
 
     // Use batch mode to disable auto-panning during updates
-    this.cy.batch(() => {
+    cy.batch(() => {
 
         networkData.nodes.forEach(node => {
             node.id = node._id.toString();
@@ -4449,7 +4470,7 @@ private async _partialUpdate() {
 
         let cyNodeCount = 0;
         // Update node visibility and restore positions
-        this.cy.nodes().forEach(node => {
+        cy.nodes().forEach(node => {
             if (!node.hasClass('parent')) { cyNodeCount += 1;}
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
                 // Hide node but keep its cached position
@@ -4472,10 +4493,10 @@ private async _partialUpdate() {
         if (cyNodeCount < newElements.nodes.length) {
             let countd = 0;
             newElements.nodes.forEach(n => {
-                const cyNode = this.cy.getElementById(n.data.id);
+                const cyNode = cy.getElementById(n.data.id);
                 if (!cyNode || !cyNode.length) {
                     countd += 1;
-                    this.cy.add(n); // Add node
+                    cy.add(n); // Add node
                 } else {
                     return
                 }
@@ -4484,9 +4505,9 @@ private async _partialUpdate() {
         }
 
         // Remove old edges
-        this.cy.edges().forEach(edge => {
+        cy.edges().forEach(edge => {
             if (!newLinkIds.has(edge.id())) {
-                this.cy.remove(edge);
+                cy.remove(edge);
             }
         });
 
@@ -4495,9 +4516,9 @@ private async _partialUpdate() {
 
         // Add/Update new edges
         newElements.edges.forEach(e => {
-            const cyEdge = this.cy.getElementById(e.data.id);
+            const cyEdge = cy.getElementById(e.data.id);
             if (!cyEdge || !cyEdge.length) {
-                this.cy.add(e); // Add edge
+                cy.add(e); // Add edge
             } else {
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
             }
@@ -4516,6 +4537,9 @@ private async _partialUpdate() {
 
     });
 
+        if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
+            return;
+        }
 
         // Restore positions for all visible nodes explicitly
         // this.cy.nodes(':visible').forEach(node => {
@@ -4544,6 +4568,8 @@ private async _partialUpdate() {
     ngOnDestroy(): void {
 
         console.log("calling destroy");
+        this.isDestroyed = true;
+        this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
 
@@ -4554,6 +4580,7 @@ private async _partialUpdate() {
         if (this.cy){
             this.cy.removeAllListeners();
             this.cy.destroy();
+            this.cy = null;
         }
         $('#cy').off('contextmenu.twod');
         this.cyContainer = null;
