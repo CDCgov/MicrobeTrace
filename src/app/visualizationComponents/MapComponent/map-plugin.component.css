@@ -75,3 +75,46 @@
   border: 1px solid #2196f3;
   color: white
 }
+
+:host ::ng-deep .map-admin-label {
+  background: transparent;
+  border: 0;
+  color: #202124;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  height: auto !important;
+  pointer-events: none;
+  text-align: center;
+  text-shadow:
+    -1px -1px 0 #ffffff,
+    1px -1px 0 #ffffff,
+    -1px 1px 0 #ffffff,
+    1px 1px 0 #ffffff;
+  white-space: nowrap;
+  width: auto !important;
+}
+
+:host ::ng-deep .map-admin-label span {
+  display: inline-block;
+  left: -50%;
+  position: relative;
+  top: -0.65em;
+}
+
+:host ::ng-deep .map-admin-label-countries {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+:host ::ng-deep .map-admin-label-states {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+:host ::ng-deep .map-admin-label-counties {
+  color: #3f3f3f;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0;
+}

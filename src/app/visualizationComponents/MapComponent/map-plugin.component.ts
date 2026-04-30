@@ -43,6 +43,8 @@ class LongLatClass implements LongLatInterface {
     Latitude: any;
 }
 
+type AdministrativeMapLayer = 'countries' | 'states' | 'counties';
+
 // interface gmapMarkerInterface {
 //     zip: string;
 //     marker: google.maps.Marker;
@@ -141,6 +143,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     CountriesTypes: any = [
         { label: 'Show', value: 'Show' },
+        { label: 'Borders Only', value: 'BordersOnly' },
         { label: 'Hide', value: 'Hide' }
     ];
     SelectedCountriesTypeVariable: string = "Show";
@@ -148,6 +151,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     StatesTypes: any = [
         { label: 'Show', value: 'Show' },
+        { label: 'Borders Only', value: 'BordersOnly' },
         { label: 'Hide', value: 'Hide' }
     ];
     SelectedStatesTypeVariable: string = "Show";
@@ -155,6 +159,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     CountiesTypes: any = [
         { label: 'Show', value: 'Show' },
+        { label: 'Borders Only', value: 'BordersOnly' },
         { label: 'Hide', value: 'Hide' }
     ];
     SelectedCountiesTypeVariable: string = "Hide";
@@ -222,6 +227,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     private lmap: Map;
     private mapTooltip: string = '#mapTooltip'
+    private readonly mapAdminLabelPaneName: string = 'map-admin-labels';
 
     nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
@@ -434,6 +440,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //get the leaflet map
         this.lmap = map;
         this.lmap.zoomControl.setPosition('bottomleft');
+        this.ensureAdminLabelPane();
         this.tryLoadInitialSettings();
     }
 
@@ -722,28 +729,31 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     onCountriesShowHidChange(e) {
         this.SelectedCountriesTypeVariable = e;
+        const showCountries = this.isAdminLayerVisible(e);
+        const showLabels = this.areAdminLabelsVisible(e);
+        this.commonService.session.style.widgets['map-countries-show'] = showCountries;
+        this.commonService.session.style.widgets['map-countries-labels-show'] = showLabels;
 
-        if (e == "Show") {
-
-            this.commonService.session.style.widgets['map-countries-show'] = true;
+        if (showCountries) {
             this.onSatelliteChange('Hide', true);
             this.onBasemapChange('Hide', true);
             if (this.layers.countries.getLayers().length > 0) {
                 this.layers.countries.addTo(this.lmap);
+                this.updateAdminLabelLayer('countries', showLabels);
                 this.resetStack();
             } else {
                 //this.commonService.getMapData('countries.json', () => $(this).trigger('click'));
                 this.getMapData('countries.json', () => {
                     this.layers.countries.addTo(this.lmap);
+                    this.updateAdminLabelLayer('countries', showLabels);
                     this.resetStack();
                 });
 
             }
         }
         else {
-
-            this.commonService.session.style.widgets['map-countries-show'] = false;
             this.layers.countries.remove();
+            this.updateAdminLabelLayer('countries', false);
 
         }
     }
@@ -751,46 +761,106 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     onStatesShowHideChange(e) {
         this.SelectedStatesTypeVariable = e;
+        const showStates = this.isAdminLayerVisible(e);
+        const showLabels = this.areAdminLabelsVisible(e);
+        this.commonService.session.style.widgets['map-states-show'] = showStates;
+        this.commonService.session.style.widgets['map-states-labels-show'] = showLabels;
 
-        if (e == "Show") {
-            this.commonService.session.style.widgets['map-states-show'] = true;
+        if (showStates) {
             if (this.layers.states.getLayers().length > 0) {
                 this.layers.states.addTo(this.lmap);
+                this.updateAdminLabelLayer('states', showLabels);
                 this.resetStack();
             } else {
                 this.getMapData('states.json', () => {
                     this.layers.states.addTo(this.lmap);
+                    this.updateAdminLabelLayer('states', showLabels);
                     this.resetStack();
                 });
             }
         }
         else {
-            this.commonService.session.style.widgets['map-states-show'] = false;
             this.layers.states.remove();
+            this.updateAdminLabelLayer('states', false);
         }
     }
 
 
     onCountiesShowHideChange(e) {
         this.SelectedCountiesTypeVariable = e;
+        const showCounties = this.isAdminLayerVisible(e);
+        const showLabels = this.areAdminLabelsVisible(e);
+        this.commonService.session.style.widgets['map-counties-show'] = showCounties;
+        this.commonService.session.style.widgets['map-counties-labels-show'] = showLabels;
 
-        if (e == "Show") {
-            this.commonService.session.style.widgets['map-counties-show'] = true;
-
+        if (showCounties) {
             if (this.layers.counties.getLayers().length > 0) {
                 this.layers.counties.addTo(this.lmap);
+                this.updateAdminLabelLayer('counties', showLabels);
                 this.resetStack();
             } else {
                 this.getMapData('counties.json', () => {
                     this.layers.counties.addTo(this.lmap);
+                    this.updateAdminLabelLayer('counties', showLabels);
                     this.resetStack();
                 });
             }
         }
         else {
-            this.commonService.session.style.widgets['map-counties-show'] = false;
             this.layers.counties.remove();
+            this.updateAdminLabelLayer('counties', false);
         }
+    }
+
+    private updateAdminLabelLayer(name: AdministrativeMapLayer, isVisible: boolean): void {
+        const widgetKey = this.getAdminLabelWidgetKey(name);
+        this.commonService.session.style.widgets[widgetKey] = isVisible;
+
+        if (!isVisible) {
+            this.getAdminLabelLayer(name).remove();
+            return;
+        }
+
+        this.ensureAdminLabelPane();
+        if (!this.lmap) return;
+
+        if (this.getAdminLabelLayer(name).getLayers().length > 0) {
+            this.getAdminLabelLayer(name).addTo(this.lmap);
+            this.resetStack();
+            return;
+        }
+
+        this.getMapData(`${name}.json`, () => {
+            if (this.commonService.session.style.widgets[widgetKey]) {
+                this.getAdminLabelLayer(name).addTo(this.lmap);
+                this.resetStack();
+            }
+        });
+    }
+
+    private isAdminLayerVisible(selection: string): boolean {
+        return selection === 'Show' || selection === 'BordersOnly' || selection === 'ShowLabels';
+    }
+
+    private areAdminLabelsVisible(selection: string): boolean {
+        return selection === 'Show' || selection === 'ShowLabels';
+    }
+
+    private getAdminLayerSelection(name: AdministrativeMapLayer): string {
+        if (!this.commonService.session.style.widgets[`map-${name}-show`]) {
+            return 'Hide';
+        }
+
+        return this.commonService.session.style.widgets[this.getAdminLabelWidgetKey(name)] ? 'Show' : 'BordersOnly';
+    }
+
+    private ensureAdminLabelWidgetDefaults(): void {
+        (['countries', 'states', 'counties'] as AdministrativeMapLayer[]).forEach(name => {
+            const widgetKey = this.getAdminLabelWidgetKey(name);
+            if (this.commonService.session.style.widgets[widgetKey] === undefined) {
+                this.commonService.session.style.widgets[widgetKey] = false;
+            }
+        });
     }
 
     onBasemapChange(e, isReload: boolean = false) {
@@ -816,8 +886,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             if (!isReload) {
                 if (this.SelectedSatelliteTypeVariable === 'Hide' && this.SelectedBasemapTypeVariable === 'Hide') {
-                    this.onCountriesShowHidChange('Show');
-                    this.onStatesShowHideChange('Show');
+                    this.onCountriesShowHidChange('BordersOnly');
+                    this.onStatesShowHideChange('BordersOnly');
                 }
             }
 
@@ -847,8 +917,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             if (!isReload) {
                 if (this.SelectedSatelliteTypeVariable === 'Hide' && this.SelectedBasemapTypeVariable === 'Hide') {
-                    this.onCountriesShowHidChange('Show');
-                    this.onStatesShowHideChange('Show');
+                    this.onCountriesShowHidChange('BordersOnly');
+                    this.onStatesShowHideChange('BordersOnly');
                 }
             }
 
@@ -1055,9 +1125,107 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                             fillOpacity: name == 'countries' ? 1 : 0
                         }
                     });
+
+                this.replaceAdminLabelLayer(name as AdministrativeMapLayer, this.createAdminLabelLayer(name as AdministrativeMapLayer, data));
             }
             if (callback) callback();
         })
+    }
+
+    private ensureAdminLabelPane(): void {
+        if (!this.lmap) return;
+
+        const pane = this.lmap.getPane(this.mapAdminLabelPaneName) || this.lmap.createPane(this.mapAdminLabelPaneName);
+        pane.style.zIndex = '475';
+        pane.style.pointerEvents = 'none';
+    }
+
+    private createAdminLabelLayer(name: AdministrativeMapLayer, data: any): FeatureGroup {
+        const labelMarkers: Marker[] = [];
+        const features = Array.isArray(data?.features) ? data.features : [];
+
+        features.forEach(feature => {
+            const labelMarker = this.createAdminLabelMarker(name, feature);
+            if (labelMarker) {
+                labelMarkers.push(labelMarker);
+            }
+        });
+
+        return featureGroup(labelMarkers);
+    }
+
+    private createAdminLabelMarker(name: AdministrativeMapLayer, feature: any): Marker | null {
+        const properties = feature?.properties || {};
+        const latitude = Number(properties._lat);
+        const longitude = Number(properties._lon);
+        const label = properties.name == null ? '' : String(properties.name);
+
+        if (!label || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return null;
+        }
+
+        return marker([latitude, longitude], {
+            interactive: false,
+            keyboard: false,
+            pane: this.mapAdminLabelPaneName,
+            icon: L.divIcon({
+                className: `map-admin-label map-admin-label-${name}`,
+                html: `<span>${this.escapeMapLabelHtml(label)}</span>`,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+            })
+        });
+    }
+
+    private replaceAdminLabelLayer(name: AdministrativeMapLayer, labelLayer: FeatureGroup): void {
+        const existingLayer = this.getAdminLabelLayer(name);
+        if (this.lmap && this.lmap.hasLayer(existingLayer)) {
+            existingLayer.remove();
+        }
+
+        this.setAdminLabelLayer(name, labelLayer);
+
+        if (this.lmap && this.commonService.session.style.widgets[this.getAdminLabelWidgetKey(name)]) {
+            labelLayer.addTo(this.lmap);
+        }
+    }
+
+    private getAdminLabelLayer(name: AdministrativeMapLayer): FeatureGroup {
+        switch (name) {
+            case 'countries':
+                return this.layers.countriesLabels;
+            case 'states':
+                return this.layers.statesLabels;
+            case 'counties':
+                return this.layers.countiesLabels;
+        }
+    }
+
+    private setAdminLabelLayer(name: AdministrativeMapLayer, layer: FeatureGroup): void {
+        switch (name) {
+            case 'countries':
+                this.layers.countriesLabels = layer;
+                break;
+            case 'states':
+                this.layers.statesLabels = layer;
+                break;
+            case 'counties':
+                this.layers.countiesLabels = layer;
+                break;
+        }
+    }
+
+    private getAdminLabelWidgetKey(name: AdministrativeMapLayer): string {
+        return `map-${name}-labels-show`;
+    }
+
+    private escapeMapLabelHtml(value: string): string {
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     matchCoordinates(callback, norefresh) {
@@ -1631,10 +1799,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (this.layers.countries && this.commonService.session.style.widgets['map-countries-show']) this.layers.countries.bringToFront();
         if (this.layers.states && this.commonService.session.style.widgets['map-states-show']) this.layers.states.bringToFront();
         if (this.layers.counties && this.commonService.session.style.widgets['map-counties-show']) this.layers.counties.bringToFront();
+        if (this.layers.countriesLabels && this.commonService.session.style.widgets['map-countries-labels-show']) this.layers.countriesLabels.bringToFront();
+        if (this.layers.statesLabels && this.commonService.session.style.widgets['map-states-labels-show']) this.layers.statesLabels.bringToFront();
+        if (this.layers.countiesLabels && this.commonService.session.style.widgets['map-counties-labels-show']) this.layers.countiesLabels.bringToFront();
 
         //User Layers:
         Object.keys(this.layers)
-            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'satellite', 'basemap', 'links', 'nodes'], l))
+            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'links', 'nodes'], l))
             .forEach(l => this.layers[l].bringToFront());
 
 
@@ -1805,13 +1976,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     loadSettings() {
         this.ensureMapAutoExpandSelectedSetting();
+        this.ensureAdminLabelWidgetDefaults();
 
         // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
         this.SelectedSatelliteTypeVariable = this.commonService.session.style.widgets['map-satellite-show'] ? 'Show' : 'Hide';
-        this.SelectedCountriesTypeVariable = this.commonService.session.style.widgets['map-countries-show'] ? 'Show' : 'Hide';
-        this.SelectedStatesTypeVariable = this.commonService.session.style.widgets['map-states-show'] ? 'Show' : 'Hide';
-        this.SelectedCountiesTypeVariable = this.commonService.session.style.widgets['map-counties-show'] ? 'Show' : 'Hide';
+        this.SelectedCountriesTypeVariable = this.getAdminLayerSelection('countries');
+        this.SelectedStatesTypeVariable = this.getAdminLayerSelection('states');
+        this.SelectedCountiesTypeVariable = this.getAdminLayerSelection('counties');
 
         // Apply the saved widget state without rewriting sibling layer preferences during reload.
         this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
@@ -1911,6 +2083,9 @@ class MapLayers {
     countries: L.GeoJSON<any> = geoJSON();
     states: L.GeoJSON<any> = geoJSON();
     counties: L.GeoJSON<any> = geoJSON();
+    countriesLabels: FeatureGroup = featureGroup();
+    statesLabels: FeatureGroup = featureGroup();
+    countiesLabels: FeatureGroup = featureGroup();
 
     public nodes(): FeatureGroup | MarkerClusterGroup {
         if (this.markerClusterGroup.getLayers().length) return this.markerClusterGroup;
