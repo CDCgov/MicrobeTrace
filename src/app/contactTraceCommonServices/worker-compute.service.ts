@@ -11,6 +11,14 @@ import type {
   PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
 
+interface ComputePatristicOptions {
+  origin?: string[];
+  distanceOrigin?: string;
+  check?: any;
+  maxEdges?: number;
+  batchSize?: number;
+}
+
 /**
  * This service delegates all Worker-based computations.
  * It expects a 'session' object with the same structure
@@ -556,6 +564,10 @@ export class WorkerComputeService {
   private patristicJobId = 0;
   /** Leaf names from the last initialized tree (set by TREE_READY). */
   private patristicLeafNames: string[] = [];
+  private patristicNewickString = '';
+  private patristicGeneratedMaxThreshold = -Infinity;
+  private patristicOrigin: string[] = ['Newick Tree'];
+  private patristicDistanceOrigin = 'Newick Tree';
 
   /**
    * Initialize the patristic engine with a Newick string.
@@ -576,6 +588,8 @@ export class WorkerComputeService {
         switch (msg.type) {
           case 'TREE_READY':
             this.patristicLeafNames = msg.leafNames;
+            this.patristicNewickString = newickString;
+            this.patristicGeneratedMaxThreshold = -Infinity;
             worker.removeEventListener('message', handler);
             resolve(msg);
             break;
@@ -654,6 +668,72 @@ export class WorkerComputeService {
     return subject.asObservable();
   }
 
+  public setPatristicMetadata(origin?: string[], distanceOrigin?: string): void {
+    if (origin?.length) {
+      this.patristicOrigin = [...origin];
+    }
+    if (distanceOrigin) {
+      this.patristicDistanceOrigin = distanceOrigin;
+    }
+  }
+
+  private async mergePatristicEdges(
+    threshold: number,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any,
+    options: ComputePatristicOptions = {}
+  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] }> {
+    const leafNames = this.patristicLeafNames.map(filterXSS);
+    const origin = options.origin?.length ? options.origin : this.patristicOrigin;
+    const distanceOrigin = options.distanceOrigin || this.patristicDistanceOrigin;
+    const check = options.check ?? true;
+    const edgeStart = Date.now();
+
+    return new Promise((resolve, reject) => {
+      let newLinks = 0;
+      let totalLinks = 0;
+
+      this.buildPatristicEdges(threshold, options.maxEdges, options.batchSize).subscribe({
+        next: (batch) => {
+          const n = batch.sources.length;
+          for (let k = 0; k < n; k++) {
+            const sourceIdx = batch.sources[k];
+            const targetIdx = batch.targets[k];
+            newLinks += addLink(
+              {
+                source: leafNames[sourceIdx],
+                target: leafNames[targetIdx],
+                origin: [...origin],
+                distance: batch.distances[k],
+                distanceOrigin,
+                hasDistance: true,
+              },
+              check
+            );
+            totalLinks++;
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => {
+          this.patristicGeneratedMaxThreshold = Math.max(
+            this.patristicGeneratedMaxThreshold,
+            threshold
+          );
+          if (session?.debugMode) {
+            console.log(
+              'Patristic edge generation + merge time:',
+              (Date.now() - edgeStart).toLocaleString(),
+              'ms',
+              `(${totalLinks} edges below threshold ${threshold})`
+            );
+          }
+          resolve({ newLinks, totalLinks, leafNames });
+        },
+      });
+    });
+  }
+
   /**
    * Convenience method: Initialize tree and build edges in one call.
    * Returns all qualifying edges as flat arrays once complete.
@@ -672,9 +752,11 @@ export class WorkerComputeService {
     threshold: number,
     addLink: (link: any, check: any) => number,
     filterXSS: (s: string) => string,
-    session?: any
-  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] }> {
+    session?: any,
+    options: ComputePatristicOptions = {}
+  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[]; treeReady: PatristicTreeReadyResponse }> {
     const start = Date.now();
+    this.setPatristicMetadata(options.origin, options.distanceOrigin);
 
     // Step 1: Initialize tree (flatten + LCA)
     const treeReady = await this.initPatristicTree(newickString);
@@ -688,49 +770,50 @@ export class WorkerComputeService {
       );
     }
 
-    const leafNames = treeReady.leafNames.map(filterXSS);
-    const edgeStart = Date.now();
-
     // Step 2: Stream thresholded edges
-    return new Promise((resolve, reject) => {
-      let newLinks = 0;
-      let totalLinks = 0;
-      const check = false; // Fresh newick load, no need for duplicate checking
+    const merged = await this.mergePatristicEdges(
+      threshold,
+      addLink,
+      filterXSS,
+      session,
+      { ...options, check: options.check ?? false }
+    );
+    return { ...merged, treeReady };
+  }
 
-      this.buildPatristicEdges(threshold).subscribe({
-        next: (batch) => {
-          const n = batch.sources.length;
-          for (let k = 0; k < n; k++) {
-            const sourceIdx = batch.sources[k];
-            const targetIdx = batch.targets[k];
-            newLinks += addLink(
-              {
-                source: leafNames[sourceIdx],
-                target: leafNames[targetIdx],
-                origin: ['Newick Tree'],
-                distance: batch.distances[k],
-                distanceOrigin: 'Newick Tree',
-                hasDistance: true,
-              },
-              check
-            );
-            totalLinks++;
-          }
-        },
-        error: (err) => reject(err),
-        complete: () => {
-          if (session?.debugMode) {
-            console.log(
-              'Patristic edge generation + merge time:',
-              (Date.now() - edgeStart).toLocaleString(),
-              'ms',
-              `(${totalLinks} edges below threshold ${threshold})`
-            );
-          }
-          resolve({ newLinks, totalLinks, leafNames });
-        },
-      });
-    });
+  public async ensurePatristicEdgesForThreshold(
+    threshold: number,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any,
+    options: ComputePatristicOptions & { newickString?: string } = {}
+  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] } | null> {
+    const newickString = options.newickString || this.patristicNewickString;
+    if (!newickString || !Number.isFinite(threshold) || threshold < 0) {
+      return null;
+    }
+
+    this.setPatristicMetadata(options.origin, options.distanceOrigin);
+
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      await this.initPatristicTree(newickString);
+    }
+
+    if (threshold <= this.patristicGeneratedMaxThreshold) {
+      return {
+        newLinks: 0,
+        totalLinks: 0,
+        leafNames: this.patristicLeafNames.map(filterXSS),
+      };
+    }
+
+    return this.mergePatristicEdges(
+      threshold,
+      addLink,
+      filterXSS,
+      session,
+      { ...options, check: options.check ?? true }
+    );
   }
 
   /**
@@ -759,5 +842,7 @@ export class WorkerComputeService {
   public terminatePatristicWorker(): void {
     this.computer.terminatePatristicWorker();
     this.patristicLeafNames = [];
+    this.patristicNewickString = '';
+    this.patristicGeneratedMaxThreshold = -Infinity;
   }
 }

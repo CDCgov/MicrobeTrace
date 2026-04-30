@@ -3232,13 +3232,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         console.log('onLinkThresholdChanged called 2');
 
         if(!silent) {
-            // Immediately hide links
-            this.commonService.setLinkVisibility(false, false);
+            const applyThresholdVisibility = () => {
+                this.commonService.setLinkVisibility(false, false);
 
-            console.log('tagClusters called link threshold change');
+                console.log('tagClusters called link threshold change');
 
-            // Now schedule the heavy update (tag clusters, update visibilities, stats) using debouncing
-            this.commonService.updateNetworkVisuals(false, true);
+                // Now schedule the heavy update (tag clusters, update visibilities, stats) using debouncing
+                this.commonService.updateNetworkVisuals(false, true);
+            };
+
+            this.commonService.ensurePatristicEdgesForThreshold(parsedThreshold)
+                .catch(error => {
+                    console.error('Patristic threshold re-query failed:', error);
+                })
+                .finally(applyThresholdVisibility);
         }
 
     }

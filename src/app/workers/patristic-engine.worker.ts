@@ -67,7 +67,7 @@ function flattenTree(root: any): FlatTree {
     const idx = nextIndex++;
 
     parent[idx] = parentIdx;
-    const bl = typeof node.length === 'number' && node.length >= 0 ? node.length : 0;
+    const bl = typeof node.length === 'number' ? node.length : 0;
     branchLength[idx] = bl;
     rootDepth[idx] = parentIdx >= 0 ? rootDepth[parentIdx] + bl : 0;
 
@@ -135,6 +135,51 @@ function validateTree(tree: FlatTree): string | null {
   }
 
   return null;
+}
+
+function calculateTreeMetrics(tree: FlatTree): { maxDistance: number; maxRootDepth: number } {
+  const children: number[][] = new Array(tree.nodeCount);
+  for (let i = 0; i < tree.nodeCount; i++) {
+    children[i] = [];
+  }
+  for (let i = 1; i < tree.nodeCount; i++) {
+    children[tree.parent[i]].push(i);
+  }
+
+  const bestDownToLeaf = new Float64Array(tree.nodeCount);
+  let maxDistance = 0;
+  let maxRootDepth = 0;
+
+  for (let i = 0; i < tree.leafCount; i++) {
+    const nodeIndex = tree.leafNodeIndex[i];
+    if (tree.rootDepth[nodeIndex] > maxRootDepth) {
+      maxRootDepth = tree.rootDepth[nodeIndex];
+    }
+  }
+
+  for (let nodeIndex = tree.nodeCount - 1; nodeIndex >= 0; nodeIndex--) {
+    if (tree.isLeaf[nodeIndex]) {
+      bestDownToLeaf[nodeIndex] = 0;
+      continue;
+    }
+
+    let best = 0;
+    let secondBest = 0;
+    for (const childIndex of children[nodeIndex]) {
+      const childDistance = tree.branchLength[childIndex] + bestDownToLeaf[childIndex];
+      if (childDistance >= best) {
+        secondBest = best;
+        best = childDistance;
+      } else if (childDistance > secondBest) {
+        secondBest = childDistance;
+      }
+    }
+
+    bestDownToLeaf[nodeIndex] = best;
+    maxDistance = Math.max(maxDistance, best + secondBest);
+  }
+
+  return { maxDistance, maxRootDepth };
 }
 
 // ─── LCA via Euler tour + Sparse Table RMQ ───────────────────────────────────
@@ -451,6 +496,8 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           return;
         }
 
+        const treeMetrics = calculateTreeMetrics(currentTree);
+
         // Build LCA
         respond({ type: 'PROGRESS', jobId, phase: 'lca', percent: 50 });
         currentLca = buildLcaIndex(currentTree);
@@ -461,6 +508,8 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           leafCount: currentTree.leafCount,
           nodeCount: currentTree.nodeCount,
           leafNames: currentTree.leafNames,
+          maxDistance: treeMetrics.maxDistance,
+          maxRootDepth: treeMetrics.maxRootDepth,
         });
         break;
       }

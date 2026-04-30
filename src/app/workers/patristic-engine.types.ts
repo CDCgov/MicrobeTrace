@@ -84,6 +84,8 @@ export interface PatristicTreeReadyResponse {
   leafCount: number;
   nodeCount: number;
   leafNames: string[];
+  maxDistance: number;
+  maxRootDepth: number;
 }
 
 export interface PatristicProgressResponse {

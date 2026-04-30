@@ -181,9 +181,11 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
       expect(Number(win.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable), 'global SNP threshold').to.equal(16);
     });
 
+    openGlobalFilteringTab();
     cy.get('#link-threshold').invoke('val').should((value) => {
       expect(Number(value), 'threshold input value').to.equal(16);
     });
+    cy.closeGlobalSettings();
     assertVisibleEdgesHaveNumericDistances();
   });
 

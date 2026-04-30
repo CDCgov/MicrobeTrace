@@ -63,6 +63,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     rerenderTimeout: any;
     layoutParallelNodesPerColumn = 4;
     debugMode = false;
+    private isDestroyed = false;
     overideTransparency = false;
     containerHeight = 800; // or any other number you want
     graphData: GraphData = {
@@ -3263,6 +3264,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return this.precomputePositionsWithD3(n, l, 5, false);
         });
 
+        if (this.isDestroyed || !this.cyContainer?.nativeElement) {
+            this.commonService.session.network.rendering = false;
+            return;
+        }
+
         console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
         
         // Update networkData with the precomputed positions
@@ -3361,7 +3367,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
             
             // 4) Actually create Cytoscape
-            let startTime: number;
+            let startTime: number = performance.now();
             console.log(this.cyContainer);
             this.cy = cytoscape({
               container: this.cyContainer.nativeElement,
@@ -3594,7 +3600,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               console.log(`🟢 Cytoscape layout started at: ${startTime.toFixed(2)}ms`);
             });
             
-            this.cy.one('layoutstop', () => {
+            let layoutFinished = false;
+            const finishLayout = () => {
+              if (layoutFinished || !this.cy) {
+                return;
+              }
+              layoutFinished = true;
               const endTime = performance.now();
               console.log(`✅ Cytoscape layout done in ${(endTime - startTime).toFixed(2)}ms`);
             
@@ -3625,11 +3636,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               if (this.pendingPartialUpdate) {
                 void this._partialUpdate();
               }
-            });
+            };
+
+            this.cy.one('layoutstop', finishLayout);
             
             // Run the layout
             // @ts-ignore
             this.cy.layout({ name: 'preset', animate: 'end' }).run();
+            setTimeout(finishLayout, 500);
             
 
          }
@@ -4522,6 +4536,7 @@ private async _partialUpdate() {
     ngOnDestroy(): void {
 
         console.log("calling destroy");
+        this.isDestroyed = true;
         this.destroy$.next();
         this.destroy$.complete();
 
@@ -4552,6 +4567,10 @@ private async _partialUpdate() {
         this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
 
         if (!this.IsDataAvailable) {
+            return;
+        }
+
+        if (this.isDestroyed) {
             return;
         }
 

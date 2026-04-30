@@ -1584,6 +1584,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             if (oldSession.data[v]) this.session.data[v] = this.uniq(this.session.data[v].concat(oldSession.data[v]));
         });
 
+        if (typeof oldSession.data?.newickString === 'string') {
+            this.session.data.newickString = oldSession.data.newickString;
+        }
+        if (oldSession.data?.tree) {
+            this.session.data.tree = oldSession.data.tree;
+        }
+
         // TODO: See about this process data functionality.  DO we need this?
         this.processData();
 
@@ -2339,6 +2346,32 @@ align(params): Promise<any> {
 
       computeNN(): Promise<void> {
         return this.workerComputeService.computeNN(this.session, this.temp);
+    }
+
+    ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
+        const newickString = this.session.data?.newickString;
+        if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+            return Promise.resolve(null);
+        }
+
+        const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
+        const distanceOrigin = firstDistanceLink?.distanceOrigin || this.session.files?.find(file => file?.format === 'newick')?.name || 'Newick Tree';
+        const origin = Array.isArray(firstDistanceLink?.origin) && firstDistanceLink.origin.length
+            ? firstDistanceLink.origin
+            : [distanceOrigin];
+
+        return this.workerComputeService.ensurePatristicEdgesForThreshold(
+            threshold,
+            this.addLink.bind(this),
+            this.filterXSS,
+            this.session,
+            {
+                origin,
+                distanceOrigin,
+                check: true,
+                newickString,
+            }
+        );
     }
 
     async runHamsters() {
