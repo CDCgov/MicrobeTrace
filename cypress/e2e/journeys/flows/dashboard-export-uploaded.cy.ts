@@ -25,6 +25,7 @@ import {
   setDashboardExportFilename,
   setDashboardExportScale,
 } from '../../../support/dashboard-helpers';
+import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 import { byTestId, testIds } from '../../../support/selectors';
 
 type DashboardWindow = Window & {
@@ -136,14 +137,15 @@ const assertDashboardFixedNodeColor = (expectedHex: string): void => {
   });
 
   focusDashboardTab('Map');
-  cy.window().should((win: unknown) => {
+  cy.window().then((win: unknown) => {
     const layers = (win as DashboardWindow).commonService.visuals.gisMap.layers.featureGroup.getLayers();
 
     expect(layers.length, 'Map rendered nodes').to.be.greaterThan(0);
     layers.forEach((layer: any) => {
+      const renderedStyle = readRenderedMapNodeStyle(layer);
       expect(
-        matchesExpectedColor(String(layer.options.fillColor || ''), expectedHex),
-        `Map node color for ${String(layer?.data?._id || '')}`,
+        matchesExpectedColor(renderedStyle.fillColor, expectedHex),
+        `Map node color for ${String(layer?.data?._id || '')} color: ${renderedStyle.fillColor} expected ${expectedHex}`,
       ).to.equal(true);
     });
   });
@@ -186,6 +188,8 @@ describe('Journey Flow - Dashboard export on uploaded data', () => {
         ).to.be.greaterThan(20);
       });
     });
+    cy.closeSettingsPane('Crosstab Settings')
+    cy.closeSettingsPane('Aggregate Settings')
 
     setFixedDashboardNodeColor(fixedNodeColor);
     assertDashboardFixedNodeColor(fixedNodeColor);

@@ -280,6 +280,41 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private destroy$ = new Subject<void>();
 
+    private isCytoscapeContainerReady(): boolean {
+        const element = this.cyContainer?.nativeElement as HTMLElement | undefined;
+        if (!element) return false;
+
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    }
+
+    private isTimelineFilteringActive(): boolean {
+        return this.commonService.session.style.widgets["timeline-date-field"] !== 'None';
+    }
+
+    private getLinkEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return String(endpoint._id ?? endpoint.id ?? '');
+        }
+
+        return String(endpoint ?? '');
+    }
+
+    private getVisibleNetworkDataForRender(filterLinksByVisibleNodes = this.isTimelineFilteringActive()) {
+        const nodes = this.commonService.getVisibleNodes();
+        let links = this.commonService.getVisibleLinks(true);
+
+        if (filterLinksByVisibleNodes) {
+            const visibleNodeIds = new Set(nodes.map(node => String(node._id ?? node.id ?? '')));
+            links = links.filter(link =>
+                visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
+                visibleNodeIds.has(this.getLinkEndpointId(link.target))
+            );
+        }
+
+        return { nodes, links };
+    }
+
 
     ngOnInit() {
         this.commonService.visuals.twoD = this;
@@ -2014,8 +2049,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
         let foci = this.commonService.session.style.widgets['polygons-foci'];
         cy.nodes().forEach(node => {
-            const group = node.data(foci);
-            if (group || group==0) {
+            if (node.hasClass('parent')) {
+                return;
+            }
+
+            const rawGroup = node.data(foci);
+            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
+            if (group !== undefined && group !== null && group !== 'None') {
                 if (!groupMap.has(group)) {
                     groupMap.set(group, []);
                 }
@@ -2032,7 +2072,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.temp.polygonGroups = polygonGroups;
 
         groupMap.forEach((nodesInGroup, group) => {
-            const parentId = `${group}`;
+            const parentId = `group-${group}`;
             if (cy.getElementById(parentId).length === 0) {
                 let color = this.commonService.session.style.widgets['polygons-color-show'] ? this.commonService.temp.style.polygonColorMap(group) : this.commonService.session.style.widgets['polygon-color'];
                 const alphaVal = this.commonService.temp.style.polygonAlphaMap(group) ?? 1;
@@ -2040,7 +2080,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     group: 'nodes',
                     data: { 
                         id: parentId, 
-                        label: parentId,
+                        label: `${group}`,
                         isParent: true, 
                         nodeColor: color,
                         borderWidth: 1,
@@ -2053,9 +2093,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         cy.nodes().forEach(node => {
-            const group = node.data(foci);
-            if (group || group==0) {
-                const parentId = `${group}`;
+            if (node.hasClass('parent')) {
+                return;
+            }
+
+            const rawGroup = node.data(foci);
+            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
+            if (group !== undefined && group !== null && group !== 'None') {
+                const parentId = `group-${group}`;
                 node.move({ parent: parentId });
             }
         });
@@ -3216,7 +3261,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     private async _rerender(timelineTick=false) {
 
+        if (this.isDestroyed) return;
+
         console.log('--- TwoD DATA network rerender');
+
+        if (!this.isCytoscapeContainerReady()) {
+            if (this.viewActive) {
+                setTimeout(() => void this._rerender(timelineTick), 50);
+            } else {
+                this.rerenderOnActive = true;
+            }
+            return;
+        }
 
         if (!timelineTick) {
             // If the network is in the middle of rendering, don't rerender
@@ -3229,38 +3285,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.store.setNetworkRendered(false);
         }
 
-        let networkData;
-        if (timelineTick) {
-
-            if (this.data === undefined) {
-                return;
-            }
-            let nodes = this.commonService.getVisibleNodes();
-            if (nodes.length == this.data.nodes.length) { 
-                return;
-            }
-            let links = this.commonService.getVisibleLinks(true);
-            let visLinks = [];
-            links.forEach((d) => {
-                if (!d.visible) return;
-                var source = nodes.find(node => node._id == d.source && node.visible);
-                var target = nodes.find(node => node._id == d.target && node.visible);
-        
-                if (source && target) {
-                    visLinks.push(d);
-                }
-            })
-            networkData = { 
-                nodes : nodes, 
-                links : visLinks
-            }
-        } else {
-            networkData = {
-                nodes: this.commonService.getVisibleNodes(),
-                links: this.commonService.getVisibleLinks(true)
-            };
-
-        }
+        let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
 
        
         // Need to convert source and target to string ids for cytoscape
@@ -3285,6 +3310,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300).then(({nodes: n, links: l}) => {
             return this.precomputePositionsWithD3(n, l, 5, false);
         });
+
+        if (this.isDestroyed) {
+            this.commonService.session.network.rendering = false;
+            return;
+        }
 
         console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
         
@@ -3400,6 +3430,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               panningEnabled: true,
               userPanningEnabled: true
             });
+            this.cy.resize();
             
             if ((window as any).Cypress) {
               (window as any).cytoscapeInstance = this.cy;
@@ -4288,7 +4319,10 @@ scaleLinkWidth() {
      * centers the view
      */
     fit() {
-        if (this.cy) this.cy.fit(this.cy.nodes(), 30);
+        if (this.cy) {
+            this.cy.resize();
+            this.cy.fit(this.cy.nodes(), 30);
+        }
     };
 
     /**
@@ -4335,9 +4369,7 @@ scaleLinkWidth() {
      * On click of center button, show centers the view
      */
     openCenter() {
-        if (this.cy) {
-            this.cy.fit(this.cy.nodes(), 30);
-        }
+        this.fit();
     }
 
     /**
@@ -4402,11 +4434,9 @@ scaleLinkWidth() {
         }
     });
 
-    // Retrieve fresh node/link data
-    const networkData = {
-        nodes: this.commonService.getVisibleNodes(),
-        links: this.commonService.getVisibleLinks(true)
-    };
+    // Retrieve fresh node/link data. Timeline renders only links whose
+    // endpoints are currently timeline-visible, matching the statistics panel.
+    const networkData = this.getVisibleNetworkDataForRender();
 
     // Add nodeSize to each node so that infomration can be used with calcuating node position
     if (this.SelectedNodeRadiusVariable == 'None') {
@@ -4572,6 +4602,7 @@ scaleLinkWidth() {
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
+        this.commonService.session.network.rendering = false;
 
         this.styleFileSub.unsubscribe();
 
@@ -4579,8 +4610,14 @@ scaleLinkWidth() {
 
         if (this.cy){
             this.cy.removeAllListeners();
+            if ((window as any).cytoscapeInstance === this.cy) {
+                delete (window as any).cytoscapeInstance;
+            }
             this.cy.destroy();
             this.cy = null;
+        }
+        if (this.commonService.visuals.twoD === this) {
+            (this.commonService.visuals as any).twoD = null;
         }
         $('#cy').off('contextmenu.twod');
         this.cyContainer = null;
@@ -4592,6 +4629,8 @@ scaleLinkWidth() {
      * renders the network
      */
     onLoadNewData() {
+        if (this.isDestroyed) return;
+
         if (this.debugMode) {
             console.log('render new data');
         }
@@ -4606,6 +4645,15 @@ scaleLinkWidth() {
 
         if (!this.cyContainer?.nativeElement) {
             setTimeout(() => this.onLoadNewData(), 0);
+            return;
+        }
+
+        if (!this.isCytoscapeContainerReady()) {
+            if (this.viewActive) {
+                setTimeout(() => this.onLoadNewData(), 50);
+            } else {
+                this.rerenderOnActive = true;
+            }
             return;
         }
 

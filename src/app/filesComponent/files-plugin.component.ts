@@ -183,20 +183,34 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }  
 
      // Subscribe to new session event
-     this.store.newSession$.subscribe(() => {
-      this.removeAllFiles();
-    });
+     this.store.newSession$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((isNewSession) => {
+        if (isNewSession) {
+          this.removeAllFiles();
+          this.store.setNewSession(false);
+        }
+      });
 
     // Subscribe to style file applied event
-    this.store.styleFileApplied$.subscribe(() => {
-      this.applyStyleFileSettings();
-    });
+    this.store.styleFileApplied$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.applyStyleFileSettings();
+      });
 
-    this.store.FP_removeFiles$.subscribe(() => {
-      this.commonService.session.files.forEach(file => {
-        this.removeFile(file.name, false);
-      })
-  });
+    this.store.FP_removeFiles$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((shouldRemoveFiles) => {
+        if (!shouldRemoveFiles) {
+          return;
+        }
+
+        this.commonService.session.files.forEach(file => {
+          this.removeFile(file.name, false);
+        });
+        this.store.setFP_removeFiles(false);
+      });
 
     // TODO: the rest of ngOnInit can be revised to take advantage of angular features
     $('.alignConfigRow').hide();
@@ -486,9 +500,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     }
 
-  //   setTimeout(() => {
-  //     this.populateTable();
-  // }, 2000);
+    setTimeout(() => {
+      if (this.commonService.session.files?.length) {
+        this.populateTable();
+      } else {
+        this.refreshTemplateState();
+      }
+    });
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
   }
@@ -558,8 +576,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * For each file in commonService.session.files, addToTable(file)
    */
   public populateTable() {  
-    const fileTableRows = $(".file-table-row");
-    fileTableRows.slideUp(() => fileTableRows.remove());
+    const fileTableRows = $(this.rootHtmlElement).find(".file-table-row");
+    fileTableRows.stop(true, true).remove();
 
     let files = cloneDeep(this.commonService.session.files);
     console.log('---  Populate TABLE Row Files 2: ', files);
@@ -1691,8 +1709,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Calls nodeEdgeCheck
    */
   removeAllFiles() {
-    const fileTableRows = $(".file-table-row");
-    fileTableRows.slideUp(() => fileTableRows.remove());
+    const fileTableRows = $(this.rootHtmlElement).find(".file-table-row");
+    fileTableRows.stop(true, true).remove();
 
     this.commonService.session.files = [];
     this.nodeIds = [];
@@ -1864,7 +1882,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       function matchHeaders(type) {
 
-        const these = $(`[data-file='${file.name}'] select`);
+        const these = root.find('select');
         const a = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'],
           b = type === 'node' ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq'] : ['TARGET', 'Target', 'target'],
           c = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
@@ -1891,18 +1909,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         });
       }
 
-      const fileTable = document.getElementById('file-table');
+      const fileTable = parentContext.rootHtmlElement.querySelector('#file-table');
       if (!fileTable) {
         console.log('Skipping file table row render because the Files view is no longer mounted.', file.name);
         return;
       }
 
       root.appendTo(fileTable);
-      matchHeaders($(`[name="options-${file.name}"]:checked`).data('type'));
+      matchHeaders(root.find('input[type="radio"]:checked').data('type'));
 
       function refit(e: any = null) {
-        const type = $(e ? e.target : `[name="options-${file.name}"]:checked`).data('type'),
-          these = $(`[data-file='${file.name}']`),
+        const type = $(e ? e.target : root.find('input[type="radio"]:checked')).data('type'),
+          these = root.find('[data-file]'),
           first = $(these.get(0)),
           second = $(these.get(1)),
           third = $(these.get(2));
@@ -1924,7 +1942,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#launch').prop('disabled', false).focus();
       };
 
-      const selectElements = fileTable.querySelectorAll('select');
+      const selectElements = root[0].querySelectorAll('select');
 
       for (let i = 0; i < selectElements.length; i++) {
         selectElements[i].addEventListener('change', (event) => {
@@ -1936,7 +1954,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('addTableTile end: ', headers);
 
 
-      $(`[name="options-${file.name}"]`).on("change", refit);
+      root.find('input[type="radio"]').on("change", refit);
       refit();
     }
   };
@@ -1961,14 +1979,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Updates commonService.session.files info, such as field1, field2 ...etc, based on value user selects
    */
   updateMetadata(file) {
-    $('#file-panel .file-table-row').each((i, el) => {
+    $(this.rootHtmlElement).find('.file-table-row').each((i, el) => {
       const $el = $(el);
       const fname = $el.data('filename');
       const selects = $el.find('select');
+      const checkedFormat = $el.find('input[type="radio"]:checked');
       const f = this.commonService.session.files.find(file => file.name === fname);
       console.log(f);
-      if (f) {
-        f.format = $el.find('input[type="radio"]:checked').data('type');
+      if (f && selects.length >= 3 && checkedFormat.length > 0) {
+        f.format = checkedFormat.data('type');
         f.field1 = selects.get(0).value;
         f.field2 = selects.get(1).value;
         f.field3 = selects.get(2).value;

@@ -854,7 +854,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
-        const twoDReady = !!this.commonService.visuals.twoD?.cy || !!(window as any).cytoscapeInstance;
+        const twoDInstance = this.commonService.visuals.twoD?.cy || (window as any).cytoscapeInstance;
+        const twoDReady = !!twoDInstance && !(
+            typeof twoDInstance.destroyed === 'function' &&
+            twoDInstance.destroyed()
+        );
         if (twoDReady || attempt >= 40) {
             this.restorePendingDashboardSession();
             return;
@@ -4754,7 +4758,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         componentRefs.forEach(componentRef => {
             if (componentRef.instance?.onLoadNewData) {
-                componentRef.instance.onLoadNewData();
+                try {
+                    componentRef.instance.onLoadNewData();
+                } catch (error) {
+                    const componentName = componentRef.instance?.constructor?.componentTypeName
+                        ?? componentRef.instance?.constructor?.name
+                        ?? 'dashboard component';
+                    console.error(`Unable to load new data for ${componentName}.`, error);
+                }
             }
         });
     }

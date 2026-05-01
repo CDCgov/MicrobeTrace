@@ -16,6 +16,24 @@ type DashboardPaneRects = Record<string, {
 }>;
 
 const fixtureName = 'dashboard-layout-2d-aggregate-bubble.microbetrace';
+const restoredFileMappings = [
+  {
+    name: 'Numbers_epi_arrows.csv',
+    format: 'link',
+    fields: ['Source', 'Target', 'None'],
+  },
+  {
+    name: 'Numbers_node 1.csv',
+    format: 'node',
+    fields: ['Accession ID', 'None', 'Transmission source'],
+  },
+  {
+    name: 'Numbers_fasta 1.fas',
+    format: 'fasta',
+    fields: ['id', 'seq', 'None'],
+  },
+];
+const restoredFileNames = restoredFileMappings.map((file) => file.name);
 
 const loadDashboardSessionFixture = () => {
   cy.get('#fileDropRef', { timeout: 15000 })
@@ -48,22 +66,105 @@ const assertNoDashboardRestoreErrors = () => {
   });
 };
 
+const focusDashboardTab = (title: string) => {
+  cy.contains('.lm_tab', title, { timeout: 15000 }).click({ force: true });
+};
+
+const assertRestoredFilesTabPopulated = () => {
+  focusDashboardTab('Files');
+
+  cy.get('#file-prompt').should('not.exist');
+  cy.get('#file-table .file-table-row', { timeout: 15000 })
+    .should('have.length', restoredFileNames.length);
+
+  restoredFileNames.forEach((fileName) => {
+    cy.contains('#file-table .file-name', fileName).should('be.visible');
+  });
+
+  restoredFileMappings.forEach((fileMapping) => {
+    cy.contains('#file-table .file-name', fileMapping.name)
+      .parents('.file-table-row')
+      .then(($row) => {
+        const selectedFields = $row.find('select').toArray().map((select) =>
+          (select as HTMLSelectElement).value
+        );
+
+        expect($row.find('input[type="radio"]:checked').data('type'), `${fileMapping.name} format`)
+          .to.equal(fileMapping.format);
+        expect(selectedFields, `${fileMapping.name} selected fields`).to.deep.equal(fileMapping.fields);
+      });
+  });
+
+  focusDashboardTab('2D Network');
+};
+
 const assertResolvedDashboardSessionLoaded = () => {
   cy.window({ timeout: 90000 }).should((win: any) => {
     const tabs = win.commonService.visuals.microbeTrace.homepageTabs.map((tab: any) => tab.label);
 
-    expect(tabs, 'restored tabs').to.include.members(['2D Network', 'Aggregate', 'Bubble']);
+    expect(tabs, 'restored tabs').to.include.members(['Files', '2D Network', 'Aggregate', 'Bubble']);
+    expect(
+      win.commonService.session.files.map((file: any) => file.name),
+      'restored session files',
+    ).to.deep.equal(restoredFileNames);
+    expect(
+      win.commonService.session.files.map((file: any) => ({
+        name: file.name,
+        format: file.format,
+        fields: [file.field1, file.field2, file.field3],
+      })),
+      'restored session file mappings',
+    ).to.deep.equal(restoredFileMappings);
     expect(win.commonService.session.data.nodes.length, 'session node count').to.equal(10);
     expect(win.commonService.session.data.links.length, 'session link count').to.equal(31);
   });
 
   assertNoDashboardRestoreErrors();
+  assertRestoredFilesTabPopulated();
 
   assertDashboardViewReady('2D Network');
   cy.window({ timeout: 30000 }).should((win: any) => {
     const cyInstance = win.commonService.visuals.twoD.cy || win.cytoscapeInstance;
+    const isDestroyed = typeof cyInstance.destroyed === 'function' && cyInstance.destroyed();
+
+    expect(isDestroyed, '2D Cytoscape instance should be live').to.equal(false);
+
+    const container = cyInstance.container();
+    const containerRect = container.getBoundingClientRect();
+    const renderedDataNodes = cyInstance.nodes(':visible').filter((node: any) =>
+      node.children().length === 0 &&
+      !node.hasClass('parent')
+    );
+    const pan = cyInstance.pan();
+    const zoom = cyInstance.zoom();
+    const nodesInViewport = renderedDataNodes.filter((node: any) => {
+      const position = node.position();
+      const size = parseFloat(node.style('width')) || 0;
+      const renderedX = position.x * zoom + pan.x;
+      const renderedY = position.y * zoom + pan.y;
+
+      return (
+        size > 0 &&
+        renderedX + size / 2 > 0 &&
+        renderedY + size / 2 > 0 &&
+        renderedX - size / 2 < containerRect.width &&
+        renderedY - size / 2 < containerRect.height
+      );
+    });
+    const visibleCanvas = Array.from(container.querySelectorAll<HTMLCanvasElement>('canvas')).some((canvas) =>
+      canvas.width > 0 &&
+      canvas.height > 0
+    );
 
     expect(cyInstance.nodes().length, 'rendered 2D node count').to.equal(10);
+    expect(containerRect.width, '2D Cytoscape container width').to.be.greaterThan(100);
+    expect(containerRect.height, '2D Cytoscape container height').to.be.greaterThan(100);
+    expect(visibleCanvas, '2D Cytoscape canvas has drawable dimensions').to.equal(true);
+    expect(nodesInViewport.length, '2D nodes rendered inside viewport').to.be.greaterThan(0);
+    expect(
+      parseFloat(nodesInViewport.first().style('background-opacity')),
+      '2D rendered node background opacity',
+    ).to.be.greaterThan(0);
   });
   assertDashboardViewReady('Aggregate');
   cy.window({ timeout: 30000 }).should((win: any) => {
