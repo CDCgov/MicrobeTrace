@@ -464,15 +464,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         })
 
          // Subscribe to network rendered
-         this.networkRenderedSubscription = this.store.networkRendered$
+        this.networkRenderedSubscription = this.store.networkRendered$
       .pipe(takeUntil(this.destroy$))
       .subscribe(rendered => {
         console.log('DEBUG: networkRenderedSubscription fired. rendered =', rendered);
         console.log('DEBUG: session.network.isFullyLoaded?', this.commonService.session.network.isFullyLoaded);
 
         if (rendered) {
-          this.displayloadingInformationModal = false;
-          this.messages = [];
+          this.clearLoadingInformationModal();
           console.log('DEBUG: Calling onLinkColorTableChanged from networkRenderedSubscription...');
           console.log('DEBUG: #link-color-table rowcount BEFORE = ', $('#link-color-table').find('tr').length);
 
@@ -504,6 +503,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .pipe(takeUntil(this.destroy$))
         .subscribe(message => {
             console.log('--- message updated: ', message);
+            if(this.commonService.session.network.isFullyLoaded) {
+                this.clearLoadingInformationModal();
+                this.cdref.detectChanges();
+                return;
+            }
+
             if(message) {
                 this.displayloadingInformationModal = true;
                 this.showMessage(message);
@@ -710,6 +715,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('--- GOLDEN LAYOUT COMPONENT LOADED');
             this.commonService.session.tabLoaded = true;
             this.commonService.session.network.isFullyLoaded = true;
+            this.clearLoadingInformationModal();
+            this.cdref.detectChanges();
             this.setActiveTabProperties();
 
             // logpolygon color sh
@@ -723,6 +730,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         });
 
+    }
+
+    private clearLoadingInformationModal(): void {
+        this.displayloadingInformationModal = false;
+        this.messages = [];
     }
 
     private normalizeDashboardLabel(value: string): string {

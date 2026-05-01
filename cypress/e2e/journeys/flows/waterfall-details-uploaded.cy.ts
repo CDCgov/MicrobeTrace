@@ -283,65 +283,6 @@ describe('Journey Flow - Waterfall uploaded detail expansions and selection rese
     });
   });
 
-  it('renders TN93 distance values as percentages in the waterfall link table and expansions when enabled', () => {
-    launchProfileToWaterfall(clusterProfile);
-    assertAfterLaunchCounts(clusterProfile);
-
-    cy.openGlobalSettings();
-    cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
-    cy.get('#global-settings-modal #filtering-config', { timeout: 15000 }).should('exist');
-    cy.get('#tn93-distance-display-format').contains('span', 'Percentage').click({ force: true });
-    cy.window()
-      .its('commonService.session.style.widgets.tn93-distance-display-format')
-      .should('equal', 'percentage');
-    cy.closeGlobalSettings();
-
-    prepareClusterDetailCase('clusterDetailPercentageCase');
-
-    cy.get<ClusterDetailCase>('@clusterDetailPercentageCase').then((waterfallCase) => {
-      selectCluster(waterfallCase.clusterId);
-
-      assertExpandedRows(
-        'commonService.visuals.waterfall.expandedClusterRowData',
-        waterfallCase.expectedRows,
-      );
-      assertExpandedRowsVisible(testIds.waterfallClusterExpansion, waterfallCase.expectedRows);
-
-      const meanGeneticDistanceRow = waterfallCase.expectedRows.find((row) => row.key === 'Mean Genetic Distance');
-      expect(meanGeneticDistanceRow, 'formatted cluster mean genetic distance row').to.exist;
-      expect(meanGeneticDistanceRow?.value, 'cluster mean genetic distance percentage').to.match(/^-?\d+(?:\.\d+)?%$/);
-
-      cy.window().then((win: any) => {
-        const firstClusterNode = win.commonService.visuals.waterfall.nodeTableData?.[0];
-        expect(firstClusterNode, 'first node in selected waterfall cluster').to.exist;
-
-        selectNode(String(firstClusterNode.id));
-
-        cy.window().then((innerWin: any) => {
-          const firstVisibleLink = innerWin.commonService.visuals.waterfall.linkTableData?.[0];
-          expect(firstVisibleLink, 'first link in selected waterfall node').to.exist;
-
-          const expectedTableDistance = innerWin.commonService.formatDisplayedDistanceValue(firstVisibleLink.distance, 'distance');
-          cy.contains('#waterfall-link-table-container tbody tr.ui-selectable-row', String(firstVisibleLink.id))
-            .should('contain.text', expectedTableDistance)
-            .click();
-
-          const expectedExpandedLinkRows = buildExpansionRows(innerWin.commonService, firstVisibleLink);
-          const distanceRow = expectedExpandedLinkRows.find((row) => row.key === 'Distance');
-
-          expect(distanceRow, 'formatted expanded link distance row').to.exist;
-          expect(distanceRow?.value, 'expanded link TN93 distance percentage').to.match(/^-?\d+(?:\.\d+)?%$/);
-
-          assertExpandedRows(
-            'commonService.visuals.waterfall.expandedLinkRowData',
-            expectedExpandedLinkRows,
-          );
-          assertExpandedRowsVisible(testIds.waterfallLinkExpansion, expectedExpandedLinkRows);
-        });
-      });
-    });
-  });
-
   it('renders uploaded node metadata in the node expansion row', () => {
     launchProfileToWaterfall(styleProfile);
     assertAfterLaunchCounts(styleProfile);

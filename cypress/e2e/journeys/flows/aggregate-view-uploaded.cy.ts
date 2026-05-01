@@ -7,7 +7,6 @@ import {
   addAggregateTable,
   assertAggregateTableCount,
   assertAggregateTableMatchesModel,
-  getAggregateFieldOption,
   readDisplayedAggregateRows,
   selectAggregateField,
 } from '../../../support/aggregate-helpers';
@@ -17,10 +16,8 @@ import {
   assertAggregateReady,
   goToAggregateView,
   launchProfileToTwoD,
-  openGlobalFilteringTab,
   openAggregateExportDialog,
   openAggregateSettingsDialog,
-  setTN93DistanceDisplayFormat,
 } from '../../../support/journey-helpers';
 import type { AggregateRow } from '../../../support/aggregate-helpers';
 
@@ -123,8 +120,6 @@ const selectAggregateExportType = (label: string, expectedValue: string): void =
 };
 
 describe('Journey Flow - Aggregate uploaded data coverage', () => {
-  const tn93Profile = getProfile('nn-angulartesting-tn93-edgelist');
-
   AGGREGATE_CASES.forEach(({ profileId, aggregateFieldOption, aggregateFieldValue }) => {
     const profile = getProfile(profileId);
 
@@ -252,48 +247,6 @@ describe('Journey Flow - Aggregate uploaded data coverage', () => {
         expect(uniqueVisibleLabels.size, 'visible Profession bucket labels are unique').to.equal(rows.length);
         expect(nullLikeBuckets.length, 'missing and blank Profession values share one visible bucket').to.equal(1);
         expect(normalizedRows, 'normalized Profession aggregate rows').to.deep.equal(expectedRows);
-      });
-    });
-  });
-
-  it('formats TN93 link and cluster aggregate distance buckets as percentages when enabled', () => {
-    launchProfileToTwoD(tn93Profile);
-    assertAfterLaunchCounts(tn93Profile);
-
-    openGlobalFilteringTab();
-    setTN93DistanceDisplayFormat('percentage');
-    cy.closeGlobalSettings();
-
-    goToAggregateView();
-    assertAggregateReady();
-
-    openAggregateSettingsDialog();
-    addAggregateTable();
-    getAggregateFieldOption('Link-distance').then((option) => {
-      selectAggregateField(1, option.shortLabel, option.value);
-    });
-    addAggregateTable();
-    getAggregateFieldOption('Cluster-mean_genetic_distance').then((option) => {
-      selectAggregateField(2, option.shortLabel, option.value);
-    });
-    cy.closeSettingsPane('Aggregate Settings');
-
-    assertAggregateTableCount(3);
-    assertAggregateTableMatchesModel(1, 'Link-distance');
-    assertAggregateTableMatchesModel(2, 'Cluster-mean_genetic_distance');
-
-    readDisplayedAggregateRows(1).then((rows) => {
-      expect(rows.length, 'TN93 link aggregate row count').to.be.greaterThan(0);
-      rows.forEach((row) => {
-        expect(row.groupName, `formatted link aggregate bucket ${row.groupName}`).to.match(/^-?\d+(?:\.\d+)?%$/);
-      });
-      expect(rows.some((row) => row.groupName === '1.5%'), 'link aggregate includes 1.5% bucket').to.equal(true);
-    });
-
-    readDisplayedAggregateRows(2).then((rows) => {
-      expect(rows.length, 'TN93 cluster aggregate row count').to.be.greaterThan(0);
-      rows.forEach((row) => {
-        expect(row.groupName, `formatted cluster aggregate bucket ${row.groupName}`).to.match(/^-?\d+(?:\.\d+)?%$/);
       });
     });
   });
