@@ -273,84 +273,46 @@
 <p-accordion-panel value="map-user-provided" style="color:#495057">
   <p-accordion-header>User Provided</p-accordion-header>
   <p-accordion-content>
-    <div class="form-group row" title="Load a custom GeoJSON layer.">
-      <div class="col-4">GeoJSON</div>
+    <div class="form-group row" title="Load a GeoJSON or image floorplan background.">
+      <div class="col-4">Background</div>
       <div class="col-8">
-        <input type="file" id="map-user-geojson-file" class="form-control form-control-sm"
-          accept=".geojson,.json,application/geo+json,application/json"
-          (change)="onUserGeoJSONFileSelected($event)">
+        <input type="file" id="map-floorplan-background-file" class="form-control form-control-sm"
+          accept=".geojson,.json,application/geo+json,application/json,image/*"
+          (change)="onFloorplanBackgroundFileSelected($event)">
       </div>
     </div>
-    <div class="form-group row" title="Would you like to show the custom GeoJSON layer?">
+    <div class="form-group row" title="Would you like to show the uploaded floorplan background?">
       <div class="col-4">Layer</div>
       <div class="col-8">
-        <p-selectButton [options]="UserGeoJSONTypes" [allowEmpty]="false" id="map-user-geojson-show-hide" fluid
-          [(ngModel)]="SelectedUserGeoJSONTypeVariable"
-          (ngModelChange)="onUserGeoJSONChange($event)"></p-selectButton>
+        <p-selectButton [options]="FloorplanBackgroundTypes" [allowEmpty]="false" id="map-floorplan-background-show-hide" fluid
+          [(ngModel)]="SelectedFloorplanBackgroundTypeVariable"
+          (ngModelChange)="onFloorplanBackgroundLayerChange($event)"></p-selectButton>
       </div>
     </div>
-    @if (userGeoJSONFileName) {
+    @if (floorplanBackgroundFileName) {
       <div class="form-group row">
         <div class="col-4">Loaded</div>
-        <div class="col-8 map-user-geojson-summary">{{ userGeoJSONFileName }} ({{ userGeoJSONFeatureCount }} features)</div>
+        <div class="col-8 map-user-geojson-summary">
+          {{ floorplanBackgroundFileName }}{{ floorplanBackgroundSummary ? ' (' + floorplanBackgroundSummary + ')' : '' }}
+        </div>
       </div>
     }
-    @if (userGeoJSONError) {
+    @if (floorplanBackgroundError) {
       <div class="form-group row">
         <div class="col-12">
-          <div class="alert alert-danger py-2 mb-0" role="alert">{{ userGeoJSONError }}</div>
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanBackgroundError }}</div>
         </div>
       </div>
     }
     <div class="form-group row">
       <div class="col-4"></div>
       <div class="col-4">
-        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!userGeoJSONFileName"
-          (click)="centerUserGeoJSON()">Center</button>
+        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!floorplanBackgroundFileName"
+          (click)="centerFloorplanBackground()">Center</button>
       </div>
       <div class="col-4">
-        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!userGeoJSONFileName"
-          (click)="clearUserGeoJSON()">Clear</button>
-      </div>
-    </div>
-    <div class="form-group row" title="Load an image to use as a floorplan background.">
-      <div class="col-4">Image</div>
-      <div class="col-8">
-        <input type="file" id="map-floorplan-image-file" class="form-control form-control-sm"
-          accept="image/*"
-          (change)="onFloorplanImageFileSelected($event)">
-      </div>
-    </div>
-    <div class="form-group row" title="Would you like to show the uploaded image background?">
-      <div class="col-4">Image Layer</div>
-      <div class="col-8">
-        <p-selectButton [options]="FloorplanImageTypes" [allowEmpty]="false" id="map-floorplan-image-show-hide" fluid
-          [(ngModel)]="SelectedFloorplanImageTypeVariable"
-          (ngModelChange)="onFloorplanImageChange($event)"></p-selectButton>
-      </div>
-    </div>
-    @if (floorplanImageFileName) {
-      <div class="form-group row">
-        <div class="col-4">Loaded</div>
-        <div class="col-8 map-user-geojson-summary">{{ floorplanImageFileName }}{{ floorplanImageInfo ? ' (' + floorplanImageInfo + ')' : '' }}</div>
-      </div>
-    }
-    @if (floorplanImageError) {
-      <div class="form-group row">
-        <div class="col-12">
-          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanImageError }}</div>
-        </div>
-      </div>
-    }
-    <div class="form-group row">
-      <div class="col-4"></div>
-      <div class="col-4">
-        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!floorplanImageFileName"
-          (click)="centerFloorplanImage()">Center</button>
-      </div>
-      <div class="col-4">
-        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!floorplanImageFileName"
-          (click)="clearFloorplanImage()">Clear</button>
+        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!floorplanBackgroundFileName"
+          (click)="clearFloorplanBackground()">Clear</button>
       </div>
     </div>
     <div class="form-group row">
