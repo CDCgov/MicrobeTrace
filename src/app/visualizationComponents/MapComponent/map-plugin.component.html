@@ -313,6 +313,62 @@
           (click)="clearUserGeoJSON()">Clear</button>
       </div>
     </div>
+    <div class="form-group row">
+      <div class="col-12 map-manual-position-heading">Manual Positions</div>
+    </div>
+    <div class="form-group row" title="Turn on manual x/y node placement for the visible custom GeoJSON floorplan.">
+      <div class="col-4">Positioning</div>
+      <div class="col-8">
+        <p-selectButton [options]="ManualPositionTypes" [allowEmpty]="false" id="map-manual-positioning" fluid
+          [disabled]="!userGeoJSONFileName || SelectedUserGeoJSONTypeVariable !== 'Show'"
+          [(ngModel)]="SelectedManualPositionTypeVariable"
+          (ngModelChange)="onManualPositioningChange($event)"></p-selectButton>
+      </div>
+    </div>
+    <div class="form-group row" title="Choose the visible node to place by clicking the floorplan.">
+      <div class="col-4"><label for="map-manual-position-node">Node</label></div>
+      <div class="col-8">
+        <p-select id="map-manual-position-node" [options]="manualPositionNodeList" appendTo="body"
+          class="width-percent-100" [disabled]="SelectedManualPositionTypeVariable !== 'On'"
+          [(ngModel)]="SelectedManualPositionNodeId"
+          (ngModelChange)="onManualPositionNodeChange($event)">
+        </p-select>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4">Status</div>
+      <div class="col-8 map-manual-position-summary">
+        {{ manualPositionPlacedCount }} placed / {{ manualPositionUnplacedCount }} unplaced
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On'"
+          (click)="selectNextUnplacedManualPositionNode()">Next Unplaced</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || SelectedManualPositionNodeId === 'None'"
+          (click)="clearSelectedManualPosition()">Clear Selected</button>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-8">
+        <button type="button" class="btn btn-sm btn-secondary w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || manualPositionPlacedCount === 0"
+          (click)="clearAllManualPositions()">Clear All</button>
+      </div>
+    </div>
+    @if (manualPositionMessage) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-info py-2 mb-0" role="status">{{ manualPositionMessage }}</div>
+        </div>
+      </div>
+    }
   </p-accordion-content>
 </p-accordion-panel>
 </p-accordion>

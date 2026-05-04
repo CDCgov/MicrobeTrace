@@ -185,6 +185,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     userGeoJSONFileName: string = "";
     userGeoJSONFeatureCount: number = 0;
     userGeoJSONError: string = "";
+    ManualPositionTypes: any = [
+        { label: 'On', value: 'On' },
+        { label: 'Off', value: 'Off' }
+    ];
+    SelectedManualPositionTypeVariable: string = "Off";
+    manualPositionNodeList: SelectItem[] = [{ label: "None", value: "None" }];
+    SelectedManualPositionNodeId: string = "None";
+    manualPositionPlacedCount: number = 0;
+    manualPositionUnplacedCount: number = 0;
+    manualPositionMessage: string = "";
 
     NodeCollapsingTypes: any = [
         { label: 'On', value: 'On' },
@@ -238,6 +248,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private mapTooltip: string = '#mapTooltip'
     private readonly mapAdminLabelPaneName: string = 'map-admin-labels';
     private readonly userGeoJSONLayerNameFallback: string = 'Custom GeoJSON';
+    private readonly manualFloorplanXField: string = 'map_floorplan_x';
+    private readonly manualFloorplanYField: string = 'map_floorplan_y';
+    private readonly noManualPositionNodeValue: string = 'None';
+    private readonly manualMapClickHandler = (event: L.LeafletMouseEvent) => this.onManualPositionMapClick(event);
 
     nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
@@ -308,6 +322,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.FieldList.push({ label: "None", value: "None" });
         this.commonService.session.data['nodeFields'].map((d, i) => {
+            if (d === this.manualFloorplanXField || d === this.manualFloorplanYField) return;
 
             this.FieldList.push(
                 {
@@ -347,6 +362,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         $( document ).on( "node-selected", function( ) {
             //update this?
+            that.refreshManualPositionControls();
             that.drawNodes(false);
             that.autoExpandSelectedNode();
         });
@@ -365,6 +381,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             that.drawNodes(false);
             that.drawLinks();
+            that.refreshManualPositionControls();
             //that.centerMap();
         });
         
@@ -373,6 +390,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             .subscribe(newPruned => {
                 console.log('--- Map updated', newPruned, this.viewActive);
                 if (this.viewActive && newPruned) {
+                    this.refreshManualPositionControls();
                     this.drawNodes(false)
                     this.drawLinks();
                     this.store.setNetworkUpdated(false); 
@@ -450,6 +468,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //get the leaflet map
         this.lmap = map;
         this.lmap.zoomControl.setPosition('bottomleft');
+        this.lmap.off('click', this.manualMapClickHandler);
+        this.lmap.on('click', this.manualMapClickHandler);
         this.ensureAdminLabelPane();
         this.tryLoadInitialSettings();
     }
@@ -534,7 +554,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             && !!this.layers.markerClusterGroup
             && this.commonService.session.style.widgets['map-node-show'] === true
             && this.commonService.session.style.widgets['map-collapsing-on'] === true
-            && this.commonService.session.style.widgets['map-auto-expand-selected'] === true;
+            && this.commonService.session.style.widgets['map-auto-expand-selected'] === true
+            && !this.isManualPositioningActive();
     }
 
     private autoExpandSelectedNode(): void {
@@ -545,8 +566,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const selectedNode = this.nodes.find(node =>
             node.selected
             && node.visible !== false
-            && node._jlat
-            && node._jlon
+            && this.isFiniteMapCoordinate(node._jlat)
+            && this.isFiniteMapCoordinate(node._jlon)
             && node._id !== undefined
             && this.mapNodeMarkersById[String(node._id)]
         );
@@ -666,6 +687,335 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         return Number.isFinite(Number(value));
     }
 
+    private shouldUseManualFloorplanPosition(): boolean {
+        const session = this.commonService.session;
+        return !!session.data.geoJSON
+            && session.style.widgets['map-user-geojson-show'] === true;
+    }
+
+    private isManualPositioningActive(): boolean {
+        return this.SelectedManualPositionTypeVariable === "On"
+            && this.shouldUseManualFloorplanPosition();
+    }
+
+    private hasManualFloorplanPosition(node: any): boolean {
+        return !!node
+            && this.isFiniteMapCoordinate(node[this.manualFloorplanXField])
+            && this.isFiniteMapCoordinate(node[this.manualFloorplanYField]);
+    }
+
+    private applyManualFloorplanPositions(): void {
+        if (!this.shouldUseManualFloorplanPosition()) {
+            return;
+        }
+
+        this.nodes.forEach(node => {
+            if (!this.hasManualFloorplanPosition(node)) {
+                return;
+            }
+
+            node._lon = Number(node[this.manualFloorplanXField]);
+            node._lat = Number(node[this.manualFloorplanYField]);
+        });
+    }
+
+    private useExactRenderedNodePosition(node: any): void {
+        node._jlon = Number(node._lon);
+        node._jlat = Number(node._lat);
+    }
+
+    private shouldDisableJitterForNode(node: any): boolean {
+        return this.shouldUseManualFloorplanPosition()
+            && this.hasManualFloorplanPosition(node);
+    }
+
+    private ensureManualFloorplanFields(): void {
+        if (!Array.isArray(this.commonService.session.data.nodeFields)) {
+            this.commonService.session.data.nodeFields = [];
+        }
+
+        [this.manualFloorplanXField, this.manualFloorplanYField].forEach(field => {
+            if (!this.commonService.session.data.nodeFields.includes(field)) {
+                this.commonService.session.data.nodeFields.push(field);
+            }
+        });
+    }
+
+    private getManualPositionNodes(): any[] {
+        return this.commonService.getVisibleNodes()
+            .filter(node => node && node.visible !== false && node._id !== undefined);
+    }
+
+    private getManualPositionNodeLabel(node: any): string {
+        const positionState = this.hasManualFloorplanPosition(node) ? "placed" : "unplaced";
+        return `${node._id} (${positionState})`;
+    }
+
+    private findManualPositionNodeById(nodeId: string): any {
+        if (!nodeId || nodeId === this.noManualPositionNodeValue) {
+            return undefined;
+        }
+
+        return this.getManualPositionNodes().find(node => String(node._id) === String(nodeId));
+    }
+
+    private updateMatchingNodeRecords(node: any, update: (candidate: any) => void): void {
+        if (!node || node._id === undefined) {
+            return;
+        }
+
+        const nodeId = String(node._id);
+        const updated: any[] = [];
+        const updateIfMatch = (candidate: any) => {
+            if (!candidate || String(candidate._id) !== nodeId || updated.includes(candidate)) {
+                return;
+            }
+
+            updated.push(candidate);
+            update(candidate);
+        };
+
+        [
+            this.commonService.session.data.nodes,
+            this.commonService.session.data.nodeFilteredValues,
+            this.nodes
+        ].forEach((collection: any[]) => {
+            if (Array.isArray(collection)) {
+                collection.forEach(updateIfMatch);
+            }
+        });
+    }
+
+    private persistManualFloorplanPosition(node: any, latlng: L.LatLng): void {
+        if (!node || !latlng) {
+            return;
+        }
+
+        const x = Number(latlng.lng);
+        const y = Number(latlng.lat);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return;
+        }
+
+        this.ensureManualFloorplanFields();
+        this.updateMatchingNodeRecords(node, candidate => {
+            candidate[this.manualFloorplanXField] = x;
+            candidate[this.manualFloorplanYField] = y;
+
+            if (this.shouldUseManualFloorplanPosition()) {
+                candidate._lon = x;
+                candidate._lat = y;
+                candidate._jlon = x;
+                candidate._jlat = y;
+            }
+        });
+    }
+
+    private clearManualFloorplanPosition(node: any): void {
+        this.updateMatchingNodeRecords(node, candidate => {
+            candidate[this.manualFloorplanXField] = null;
+            candidate[this.manualFloorplanYField] = null;
+        });
+    }
+
+    private refreshRenderedCoordinates(centerMap: boolean = false): void {
+        if (!this.lmap) {
+            this.refreshManualPositionControls();
+            return;
+        }
+
+        this.clearAllMarkers();
+        this.layers.removeLinks();
+        this.nodes = this.commonService.getVisibleNodes();
+
+        this.matchCoordinates(() => {
+            if (this.rerollCheck()) {
+                this.drawNodes();
+            } else {
+                this.jitter();
+                this.drawNodes(false);
+            }
+            this.drawLinks();
+            this.resetStack();
+            this.refreshManualPositionControls();
+            if (centerMap) {
+                this.centerMap();
+            }
+            this.autoExpandSelectedNode();
+        }, false);
+    }
+
+    refreshManualPositionControls(): void {
+        const manualNodes = this.getManualPositionNodes();
+        const placedNodes = manualNodes.filter(node => this.hasManualFloorplanPosition(node));
+
+        this.manualPositionPlacedCount = placedNodes.length;
+        this.manualPositionUnplacedCount = manualNodes.length - placedNodes.length;
+        this.manualPositionNodeList = [
+            { label: "None", value: this.noManualPositionNodeValue },
+            ...manualNodes.map(node => ({
+                label: this.getManualPositionNodeLabel(node),
+                value: String(node._id)
+            }))
+        ];
+
+        const selectedNode = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+        if (!selectedNode) {
+            const nextNode = manualNodes.find(node => !this.hasManualFloorplanPosition(node)) || manualNodes[0];
+            this.SelectedManualPositionNodeId = nextNode
+                ? String(nextNode._id)
+                : this.noManualPositionNodeValue;
+        }
+
+        if (!this.shouldUseManualFloorplanPosition() && this.SelectedManualPositionTypeVariable === "On") {
+            this.SelectedManualPositionTypeVariable = "Off";
+        }
+    }
+
+    onManualPositioningChange(e): void {
+        this.SelectedManualPositionTypeVariable = e || "Off";
+
+        if (this.SelectedManualPositionTypeVariable === "On") {
+            if (!this.shouldUseManualFloorplanPosition()) {
+                this.SelectedManualPositionTypeVariable = "Off";
+                this.manualPositionMessage = "Show a custom GeoJSON layer before positioning nodes.";
+            } else {
+                this.manualPositionMessage = "Select a node, then click the floorplan or drag its marker to set x/y.";
+            }
+        } else {
+            this.manualPositionMessage = "";
+        }
+
+        this.refreshManualPositionControls();
+        if (this.lmap) {
+            this.drawNodes(false);
+            this.drawLinks();
+            this.resetStack();
+        }
+    }
+
+    onManualPositionNodeChange(nodeId: string): void {
+        this.SelectedManualPositionNodeId = nodeId || this.noManualPositionNodeValue;
+        const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+
+        if (!node) {
+            this.manualPositionMessage = "";
+            return;
+        }
+
+        this.manualPositionMessage = this.hasManualFloorplanPosition(node)
+            ? `${node._id} has x/y. Click the floorplan or drag its marker to move it.`
+            : `${node._id} is unplaced. Click the floorplan to set x/y.`;
+    }
+
+    selectNextUnplacedManualPositionNode(): void {
+        const manualNodes = this.getManualPositionNodes();
+        if (manualNodes.length === 0) {
+            this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
+            this.manualPositionMessage = "No visible nodes are available for positioning.";
+            return;
+        }
+
+        const selectedIndex = manualNodes.findIndex(node => String(node._id) === String(this.SelectedManualPositionNodeId));
+        const startIndex = selectedIndex >= 0 ? selectedIndex + 1 : 0;
+        const orderedNodes = manualNodes.slice(startIndex).concat(manualNodes.slice(0, startIndex));
+        const nextNode = orderedNodes.find(node => !this.hasManualFloorplanPosition(node));
+
+        if (!nextNode) {
+            this.manualPositionMessage = "All visible nodes have x/y positions.";
+            return;
+        }
+
+        this.SelectedManualPositionNodeId = String(nextNode._id);
+        this.manualPositionMessage = `${nextNode._id} is unplaced. Click the floorplan to set x/y.`;
+    }
+
+    clearSelectedManualPosition(): void {
+        const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+        if (!node) {
+            this.manualPositionMessage = "Select a node before clearing x/y.";
+            return;
+        }
+
+        this.clearManualFloorplanPosition(node);
+        this.manualPositionMessage = `Cleared x/y for ${node._id}.`;
+        this.refreshRenderedCoordinates(false);
+    }
+
+    clearAllManualPositions(): void {
+        const positionedNodes = this.getManualPositionNodes()
+            .filter(node => this.hasManualFloorplanPosition(node));
+
+        positionedNodes.forEach(node => this.clearManualFloorplanPosition(node));
+        this.manualPositionMessage = `Cleared x/y for ${positionedNodes.length} visible node${positionedNodes.length === 1 ? "" : "s"}.`;
+        this.refreshRenderedCoordinates(false);
+    }
+
+    private selectManualPositionNode(node: any, showMessage: boolean = true): void {
+        if (!node || node._id === undefined) {
+            return;
+        }
+
+        this.SelectedManualPositionNodeId = String(node._id);
+        if (showMessage) {
+            this.manualPositionMessage = this.hasManualFloorplanPosition(node)
+                ? `${node._id} selected. Click the floorplan or drag its marker to move it.`
+                : `${node._id} selected. Click the floorplan to set x/y.`;
+        }
+    }
+
+    private onManualPositionMarkerClick(e): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const node = e.sourceTarget && e.sourceTarget.data
+            ? e.sourceTarget.data
+            : e.target && e.target.data;
+        this.selectManualPositionNode(node);
+    }
+
+    private onManualPositionMarkerDragEnd(e): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const marker = e.target as MarkerWithData;
+        if (!marker || !marker.data) {
+            return;
+        }
+
+        this.selectManualPositionNode(marker.data, false);
+        this.persistManualFloorplanPosition(marker.data, marker.getLatLng());
+        this.manualPositionMessage = `Updated x/y for ${marker.data._id}.`;
+        this.drawLinks();
+        this.refreshManualPositionControls();
+    }
+
+    private onManualPositionMapClick(e: L.LeafletMouseEvent): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const originalTarget = e.originalEvent ? e.originalEvent.target as HTMLElement : null;
+        if (originalTarget && originalTarget.closest && originalTarget.closest('.leaflet-marker-icon')) {
+            return;
+        }
+
+        const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+        if (!node) {
+            this.manualPositionMessage = "Select a node before clicking the floorplan.";
+            return;
+        }
+
+        this.persistManualFloorplanPosition(node, e.latlng);
+        this.manualPositionMessage = `Set x/y for ${node._id}.`;
+        this.drawNodes(false);
+        this.drawLinks();
+        this.resetStack();
+        this.refreshManualPositionControls();
+    }
+
     /**
      * Calls clearAllMarkers_Leftlet() which removes all nodes from map and remove _jlat and _jlon value for each node
      */
@@ -723,6 +1073,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             that.drawLinks();
             that.resetStack();
+            that.refreshManualPositionControls();
             that.centerMap()
             that.autoExpandSelectedNode();
             that.markMapRendered();
@@ -979,6 +1330,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 this.SelectedUserGeoJSONTypeVariable = "Hide";
                 this.userGeoJSONError = "Upload a GeoJSON file before showing this layer.";
                 this.removeUserGeoJSONLayer();
+                this.refreshManualPositionControls();
                 return;
             }
 
@@ -986,13 +1338,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.userGeoJSONError = "";
             this.hideOtherBackgroundLayersForUserGeoJSON();
             this.addUserGeoJSONLayerToMap();
-            this.resetStack();
-            this.centerMap();
+            this.refreshRenderedCoordinates(true);
         }
         else {
             this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+            this.SelectedManualPositionTypeVariable = "Off";
             this.removeUserGeoJSONLayer();
-            this.resetStack();
+            this.refreshRenderedCoordinates(false);
         }
     }
 
@@ -1031,11 +1383,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.commonService.session.data.geoJSONLayerName = "";
         this.commonService.session.style.widgets['map-user-geojson-show'] = false;
         this.SelectedUserGeoJSONTypeVariable = "Hide";
+        this.SelectedManualPositionTypeVariable = "Off";
         this.userGeoJSONFileName = "";
         this.userGeoJSONFeatureCount = 0;
         this.userGeoJSONError = "";
         this.removeUserGeoJSONLayer();
-        this.resetStack();
+        this.refreshRenderedCoordinates(false);
     }
 
     centerUserGeoJSON() {
@@ -1490,6 +1843,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     matchCoordinates(callback, norefresh) {
         if (!norefresh) this.nodes = this.commonService.getVisibleNodes();
+        this.nodes.forEach(n => {
+            n._lat = undefined;
+            n._lon = undefined;
+        });
         if (this.commonService.session.style.widgets['map-field-country'] !== 'None') {
             if (!this.commonService.temp.mapData.countries) {
                 this.getMapData('countries.json', () => this.matchCoordinates(callback, true));
@@ -1601,6 +1958,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 }
             });
         }
+
+        this.applyManualFloorplanPositions();
 
         this.nodesWithoutLoc = [];
         let nodeLocSet: boolean = false;
@@ -1837,6 +2196,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             opacity = 1 - this.commonService.session.style.widgets['map-node-transparency'];
 
         var features: Layer[] = [];
+        const manualPositioningActive = this.isManualPositioningActive();
 
         var n = this.nodes.length;
         for (var i = 0; i < n; i++) {
@@ -1850,7 +2210,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
                 icon: this.getMapNodeIcon(shapeKey, nodeFillColor, d.selected ? selectedColor : '#000000', d.selected),
-                opacity: opacity
+                opacity: opacity,
+                draggable: manualPositioningActive
             });
 
             nodeMarker.data = d;
@@ -1858,16 +2219,23 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 this.mapNodeMarkersById[String(d._id)] = nodeMarker;
             }
 
+            if (manualPositioningActive) {
+                nodeMarker.on('dragend', (e) => this.onManualPositionMarkerDragEnd(e));
+            }
+
             nodeMarker
                 .on('mouseover', (e) => this.showNodeTooltip(e))
                 .on('mouseout', (e) => this.hideTooltip())
-                .on('click', (e) => this.clickHandler(e));
+                .on('click', (e) => {
+                    this.onManualPositionMarkerClick(e);
+                    this.clickHandler(e);
+                });
 
 
             features.push(nodeMarker);
         }
 
-        if (this.commonService.session.style.widgets['map-collapsing-on']) {
+        if (this.commonService.session.style.widgets['map-collapsing-on'] && !manualPositioningActive) {
             this.layers.markerClusterGroup.addLayers(features);
         } else {
             this.layers.featureGroup = featureGroup(features);
@@ -2077,7 +2445,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Foreground Layers, in order:
         if (this.layers.links && this.commonService.session.style.widgets['map-link-show']) this.layers.links.bringToFront();
         if (this.layers.nodes() && this.commonService.session.style.widgets['map-node-show']) {
-            if (this.commonService.session.style.widgets['map-collapsing-on']) {
+            if (this.commonService.session.style.widgets['map-collapsing-on'] && !this.isManualPositioningActive()) {
                 this.drawNodes(false); //This did not work with clusters//this.layers.nodes().bringToFront();
             } else {
                 this.layers.nodes().bringToFront()
@@ -2096,6 +2464,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         node._theta = this.commonService.r01() * Math.PI * 2;
         node._j = this.commonService.r01();
 
+        if (this.shouldDisableJitterForNode(node)) {
+            this.useExactRenderedNodePosition(node);
+            return;
+        }
+
         var v = this.commonService.session.style.widgets['map-node-jitter'] == -2 ? 0 : Math.pow(2, this.commonService.session.style.widgets['map-node-jitter']);
         node._jlon = parseFloat(node._lon) + v * node._j * Math.cos(node._theta);
         node._jlat = parseFloat(node._lat) + v * node._j * Math.sin(node._theta);
@@ -2110,6 +2483,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var n = this.nodes.length;
         for (var i = 0; i < n; i++) {
             var node = this.nodes[i];
+            if (this.shouldDisableJitterForNode(node)) {
+                this.useExactRenderedNodePosition(node);
+                continue;
+            }
             this.nodes[i]._jlon = parseFloat(node._lon) + v * node._j * Math.cos(node._theta);
             this.nodes[i]._jlat = parseFloat(node._lat) + v * node._j * Math.sin(node._theta);
         }
@@ -2243,6 +2620,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.ensureMapAutoExpandSelectedSetting();
         this.ensureAdminLabelWidgetDefaults();
         this.ensureUserGeoJSONWidgetDefaults();
+        this.SelectedManualPositionTypeVariable = "Off";
+        this.manualPositionMessage = "";
 
         // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
@@ -2334,9 +2713,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Links|Tooltip
         this.SelectedLinkTooltipVariable = this.commonService.session.style.widgets['map-link-tooltip-variable'];
         this.onLinkToolTipChange(this.SelectedLinkTooltipVariable);
+
+        this.refreshManualPositionControls();
     }
 
     ngOnDestroy(): void {
+        if (this.lmap) {
+            this.lmap.off('click', this.manualMapClickHandler);
+        }
         this.destroy$.next();
         this.destroy$.complete();
     }
