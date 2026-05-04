@@ -13,7 +13,7 @@ import 'leaflet.markercluster';
 import * as MarkerCluster from 'leaflet.markercluster';
 import { SelectItem } from 'primeng/api';
 import { Observable, takeUntil, Subject } from 'rxjs';
-import { tileLayer, latLng, marker, icon, polyline, circle, polygon, Map, MapOptions, Layer, Marker, markerClusterGroup, MarkerClusterGroupOptions, MarkerClusterGroup, circleMarker, PathOptions, featureGroup, FeatureGroup, TileLayer, geoJSON } from 'leaflet';
+import { tileLayer, latLng, marker, icon, polyline, circle, polygon, Map, MapOptions, Layer, Marker, markerClusterGroup, MarkerClusterGroupOptions, MarkerClusterGroup, circleMarker, PathOptions, featureGroup, FeatureGroup, TileLayer, geoJSON, imageOverlay, ImageOverlay } from 'leaflet';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
@@ -185,6 +185,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     userGeoJSONFileName: string = "";
     userGeoJSONFeatureCount: number = 0;
     userGeoJSONError: string = "";
+    FloorplanImageTypes: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+    SelectedFloorplanImageTypeVariable: string = "Hide";
+    floorplanImageFileName: string = "";
+    floorplanImageInfo: string = "";
+    floorplanImageError: string = "";
     ManualPositionTypes: any = [
         { label: 'On', value: 'On' },
         { label: 'Off', value: 'Off' }
@@ -248,6 +256,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private mapTooltip: string = '#mapTooltip'
     private readonly mapAdminLabelPaneName: string = 'map-admin-labels';
     private readonly userGeoJSONLayerNameFallback: string = 'Custom GeoJSON';
+    private readonly floorplanImageLayerNameFallback: string = 'Floorplan Image';
+    private readonly floorplanImageMaxCoordinate: number = 80;
     private readonly manualFloorplanXField: string = 'map_floorplan_x';
     private readonly manualFloorplanYField: string = 'map_floorplan_y';
     private readonly noManualPositionNodeValue: string = 'None';
@@ -676,6 +686,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             extendBounds(this.layers.userGeoJSON.getBounds());
         }
 
+        if (this.isFloorplanImageLayerVisible() && this.layers.floorplanImage) {
+            extendBounds(this.layers.floorplanImage.getBounds());
+        }
+
         return bounds;
     }
 
@@ -689,8 +703,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     private shouldUseManualFloorplanPosition(): boolean {
         const session = this.commonService.session;
-        return !!session.data.geoJSON
-            && session.style.widgets['map-user-geojson-show'] === true;
+        return (!!session.data.geoJSON && session.style.widgets['map-user-geojson-show'] === true)
+            || (!!session.data.floorplanImage && session.style.widgets['map-floorplan-image-show'] === true);
+    }
+
+    hasFloorplanBackgroundForManualPositioning(): boolean {
+        return !!this.commonService.session.data.geoJSON || !!this.commonService.session.data.floorplanImage;
+    }
+
+    isFloorplanBackgroundShownForManualPositioning(): boolean {
+        return this.shouldUseManualFloorplanPosition();
     }
 
     private isManualPositioningActive(): boolean {
@@ -878,7 +900,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (this.SelectedManualPositionTypeVariable === "On") {
             if (!this.shouldUseManualFloorplanPosition()) {
                 this.SelectedManualPositionTypeVariable = "Off";
-                this.manualPositionMessage = "Show a custom GeoJSON layer before positioning nodes.";
+                this.manualPositionMessage = "Show a floorplan background before positioning nodes.";
             } else {
                 this.manualPositionMessage = "Select a node, then click the floorplan or drag its marker to set x/y.";
             }
@@ -1266,6 +1288,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             if (!isReload) {
                 this.onUserGeoJSONChange('Hide');
+                this.onFloorplanImageChange('Hide');
                 this.SelectedSatelliteTypeVariable = 'Hide';
                 this.onSatelliteChange('Hide');
                 this.onCountiesShowHideChange('Hide');
@@ -1299,6 +1322,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             if (!isReload) {
                 this.onUserGeoJSONChange('Hide');
+                this.onFloorplanImageChange('Hide');
                 this.SelectedBasemapTypeVariable = 'Hide';
                 this.onBasemapChange('Hide');
                 this.onCountiesShowHideChange('Hide');
@@ -1322,6 +1346,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     onUserGeoJSONChange(e) {
         this.ensureUserGeoJSONWidgetDefaults();
+        this.ensureFloorplanImageWidgetDefaults();
         this.SelectedUserGeoJSONTypeVariable = e;
 
         if (e == "Show") {
@@ -1336,7 +1361,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             this.commonService.session.style.widgets['map-user-geojson-show'] = true;
             this.userGeoJSONError = "";
-            this.hideOtherBackgroundLayersForUserGeoJSON();
+            this.hideFloorplanImageForSiblingBackground();
+            this.hideOtherBackgroundLayersForUserFloorplan();
             this.addUserGeoJSONLayerToMap();
             this.refreshRenderedCoordinates(true);
         }
@@ -1395,6 +1421,96 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.centerMap();
     }
 
+    onFloorplanImageChange(e) {
+        this.ensureFloorplanImageWidgetDefaults();
+        this.ensureUserGeoJSONWidgetDefaults();
+        this.SelectedFloorplanImageTypeVariable = e;
+
+        if (e == "Show") {
+            if (!this.commonService.session.data.floorplanImage) {
+                this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+                this.SelectedFloorplanImageTypeVariable = "Hide";
+                this.floorplanImageError = "Upload an image before showing this layer.";
+                this.removeFloorplanImageLayer();
+                this.refreshManualPositionControls();
+                return;
+            }
+
+            this.commonService.session.style.widgets['map-floorplan-image-show'] = true;
+            this.floorplanImageError = "";
+            this.hideUserGeoJSONForSiblingBackground();
+            this.hideOtherBackgroundLayersForUserFloorplan();
+            this.addFloorplanImageLayerToMap();
+            this.refreshRenderedCoordinates(true);
+        }
+        else {
+            this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+            this.SelectedManualPositionTypeVariable = "Off";
+            this.removeFloorplanImageLayer();
+            this.refreshRenderedCoordinates(false);
+        }
+    }
+
+    onFloorplanImageFileSelected(event: Event) {
+        const input = event.target as HTMLInputElement;
+        const file = input.files && input.files.length > 0 ? input.files[0] : null;
+        if (!file) {
+            return;
+        }
+
+        if (file.type && !file.type.startsWith('image/')) {
+            this.floorplanImageError = "Select an image file.";
+            input.value = "";
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.floorplanImageError = "Unable to read the selected image file.";
+            input.value = "";
+            this.cdref.detectChanges();
+        };
+        reader.onload = () => {
+            const dataUrl = String(reader.result || "");
+            const image = new Image();
+            image.onerror = () => {
+                this.floorplanImageError = "Unable to load the selected image file.";
+                input.value = "";
+                this.cdref.detectChanges();
+            };
+            image.onload = () => {
+                const width = image.naturalWidth || image.width;
+                const height = image.naturalHeight || image.height;
+                const bounds = this.createFloorplanImageBounds(width, height);
+                this.setFloorplanImage(dataUrl, this.commonService.filterXSS(file.name), bounds, width, height);
+                input.value = "";
+                this.cdref.detectChanges();
+            };
+            image.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    clearFloorplanImage() {
+        this.commonService.session.data.floorplanImage = null;
+        this.commonService.session.data.floorplanImageLayerName = "";
+        this.commonService.session.data.floorplanImageBounds = null;
+        this.commonService.session.data.floorplanImageWidth = null;
+        this.commonService.session.data.floorplanImageHeight = null;
+        this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+        this.SelectedFloorplanImageTypeVariable = "Hide";
+        this.SelectedManualPositionTypeVariable = "Off";
+        this.floorplanImageFileName = "";
+        this.floorplanImageInfo = "";
+        this.floorplanImageError = "";
+        this.removeFloorplanImageLayer();
+        this.refreshRenderedCoordinates(false);
+    }
+
+    centerFloorplanImage() {
+        this.centerMap();
+    }
+
     private setUserGeoJSON(data: any, fileName: string) {
         this.commonService.session.data.geoJSON = data;
         this.commonService.session.data.geoJSONLayerName = fileName || this.userGeoJSONLayerNameFallback;
@@ -1403,6 +1519,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.userGeoJSONError = "";
         this.rebuildUserGeoJSONLayer();
         this.onUserGeoJSONChange("Show");
+    }
+
+    private setFloorplanImage(dataUrl: string, fileName: string, bounds: [[number, number], [number, number]], width: number, height: number) {
+        this.commonService.session.data.floorplanImage = dataUrl;
+        this.commonService.session.data.floorplanImageLayerName = fileName || this.floorplanImageLayerNameFallback;
+        this.commonService.session.data.floorplanImageBounds = bounds;
+        this.commonService.session.data.floorplanImageWidth = width;
+        this.commonService.session.data.floorplanImageHeight = height;
+        this.floorplanImageFileName = this.commonService.session.data.floorplanImageLayerName;
+        this.floorplanImageInfo = this.formatFloorplanImageInfo(width, height, bounds);
+        this.floorplanImageError = "";
+        this.rebuildFloorplanImageLayer();
+        this.onFloorplanImageChange("Show");
     }
 
     private restoreUserGeoJSONLayer() {
@@ -1417,6 +1546,24 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         this.rebuildUserGeoJSONLayer();
+    }
+
+    private restoreFloorplanImageLayer() {
+        const data = this.commonService.session.data.floorplanImage;
+        this.floorplanImageFileName = this.commonService.session.data.floorplanImageLayerName || "";
+        this.floorplanImageInfo = this.formatFloorplanImageInfo(
+            this.commonService.session.data.floorplanImageWidth,
+            this.commonService.session.data.floorplanImageHeight,
+            this.getFloorplanImageBounds()
+        );
+        this.floorplanImageError = "";
+
+        if (!data) {
+            this.removeFloorplanImageLayer();
+            return;
+        }
+
+        this.rebuildFloorplanImageLayer();
     }
 
     private rebuildUserGeoJSONLayer() {
@@ -1468,9 +1615,43 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.layers.userGeoJSON.bringToBack();
     }
 
+    private rebuildFloorplanImageLayer() {
+        this.removeFloorplanImageLayer();
+        const data = this.commonService.session.data.floorplanImage;
+        this.layers.floorplanImage = data
+            ? imageOverlay(data, this.getFloorplanImageBounds(), {
+                opacity: 1,
+                interactive: false
+            })
+            : null;
+    }
+
+    private addFloorplanImageLayerToMap() {
+        if (!this.lmap || !this.commonService.session.data.floorplanImage) {
+            return;
+        }
+
+        if (!this.layers.floorplanImage) {
+            this.rebuildFloorplanImageLayer();
+        }
+
+        if (this.layers.floorplanImage && !this.lmap.hasLayer(this.layers.floorplanImage)) {
+            this.layers.floorplanImage.addTo(this.lmap);
+        }
+        if (this.layers.floorplanImage) {
+            this.layers.floorplanImage.bringToBack();
+        }
+    }
+
     private removeUserGeoJSONLayer() {
         if (this.layers.userGeoJSON) {
             this.layers.userGeoJSON.remove();
+        }
+    }
+
+    private removeFloorplanImageLayer() {
+        if (this.layers.floorplanImage) {
+            this.layers.floorplanImage.remove();
         }
     }
 
@@ -1478,7 +1659,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         return !!this.lmap && !!this.layers.userGeoJSON && this.lmap.hasLayer(this.layers.userGeoJSON);
     }
 
-    private hideOtherBackgroundLayersForUserGeoJSON() {
+    private isFloorplanImageLayerVisible(): boolean {
+        return !!this.lmap && !!this.layers.floorplanImage && this.lmap.hasLayer(this.layers.floorplanImage);
+    }
+
+    private hideOtherBackgroundLayersForUserFloorplan() {
         this.SelectedBasemapTypeVariable = "Hide";
         this.SelectedSatelliteTypeVariable = "Hide";
         this.SelectedCountriesTypeVariable = "Hide";
@@ -1492,6 +1677,18 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.onCountiesShowHideChange("Hide");
     }
 
+    private hideFloorplanImageForSiblingBackground() {
+        this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+        this.SelectedFloorplanImageTypeVariable = "Hide";
+        this.removeFloorplanImageLayer();
+    }
+
+    private hideUserGeoJSONForSiblingBackground() {
+        this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+        this.SelectedUserGeoJSONTypeVariable = "Hide";
+        this.removeUserGeoJSONLayer();
+    }
+
     private ensureUserGeoJSONWidgetDefaults(): void {
         const widgets = this.commonService.session.style.widgets;
         if (widgets['map-user-geojson-show'] === undefined || widgets['map-user-geojson-show'] === null) {
@@ -1503,6 +1700,71 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (this.commonService.session.data.geoJSONLayerName === undefined) {
             this.commonService.session.data.geoJSONLayerName = "";
         }
+    }
+
+    private ensureFloorplanImageWidgetDefaults(): void {
+        const widgets = this.commonService.session.style.widgets;
+        if (widgets['map-floorplan-image-show'] === undefined || widgets['map-floorplan-image-show'] === null) {
+            widgets['map-floorplan-image-show'] = false;
+        }
+        if (this.commonService.session.data.floorplanImage === undefined) {
+            this.commonService.session.data.floorplanImage = null;
+        }
+        if (this.commonService.session.data.floorplanImageLayerName === undefined) {
+            this.commonService.session.data.floorplanImageLayerName = "";
+        }
+        if (this.commonService.session.data.floorplanImageBounds === undefined) {
+            this.commonService.session.data.floorplanImageBounds = null;
+        }
+        if (this.commonService.session.data.floorplanImageWidth === undefined) {
+            this.commonService.session.data.floorplanImageWidth = null;
+        }
+        if (this.commonService.session.data.floorplanImageHeight === undefined) {
+            this.commonService.session.data.floorplanImageHeight = null;
+        }
+    }
+
+    private createFloorplanImageBounds(width: number, height: number): [[number, number], [number, number]] {
+        const safeWidth = Number(width) > 0 ? Number(width) : 1;
+        const safeHeight = Number(height) > 0 ? Number(height) : 1;
+        const scale = this.floorplanImageMaxCoordinate / Math.max(safeWidth, safeHeight);
+        const xMax = safeWidth * scale;
+        const yMax = safeHeight * scale;
+
+        return [[0, 0], [yMax, xMax]];
+    }
+
+    private getFloorplanImageBounds(): L.LatLngBoundsExpression {
+        const storedBounds = this.commonService.session.data.floorplanImageBounds;
+        if (Array.isArray(storedBounds)
+            && storedBounds.length === 2
+            && Array.isArray(storedBounds[0])
+            && Array.isArray(storedBounds[1])
+            && this.isFiniteMapCoordinate(storedBounds[0][0])
+            && this.isFiniteMapCoordinate(storedBounds[0][1])
+            && this.isFiniteMapCoordinate(storedBounds[1][0])
+            && this.isFiniteMapCoordinate(storedBounds[1][1])) {
+            return [
+                [Number(storedBounds[0][0]), Number(storedBounds[0][1])],
+                [Number(storedBounds[1][0]), Number(storedBounds[1][1])]
+            ];
+        }
+
+        return this.createFloorplanImageBounds(
+            this.commonService.session.data.floorplanImageWidth,
+            this.commonService.session.data.floorplanImageHeight
+        );
+    }
+
+    private formatFloorplanImageInfo(width: any, height: any, bounds: L.LatLngBoundsExpression): string {
+        if (!width || !height) {
+            return "";
+        }
+
+        const latLngBounds = L.latLngBounds(bounds as any);
+        const xMax = latLngBounds.getEast().toFixed(2);
+        const yMax = latLngBounds.getNorth().toFixed(2);
+        return `${width} x ${height}px, x 0-${xMax}, y 0-${yMax}`;
     }
 
     private validateUserGeoJSON(data: any) {
@@ -2427,6 +2689,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (this.layers.satellite && this.commonService.session.style.widgets['map-satellite-show']) this.layers.satellite.bringToBack();
         if (this.layers.basemap && this.commonService.session.style.widgets['map-basemap-show']) this.layers.basemap.bringToBack();
         if (this.layers.userGeoJSON && this.commonService.session.style.widgets['map-user-geojson-show']) this.layers.userGeoJSON.bringToBack();
+        if (this.layers.floorplanImage && this.commonService.session.style.widgets['map-floorplan-image-show']) this.layers.floorplanImage.bringToBack();
 
         //Background Layers, in order:
         if (this.layers.countries && this.commonService.session.style.widgets['map-countries-show']) this.layers.countries.bringToFront();
@@ -2438,7 +2701,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         //User Layers:
         Object.keys(this.layers)
-            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'userGeoJSON', 'links', 'nodes'], l))
+            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'userGeoJSON', 'floorplanImage', 'links', 'nodes'], l))
             .forEach(l => this.layers[l].bringToFront());
 
 
@@ -2620,6 +2883,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.ensureMapAutoExpandSelectedSetting();
         this.ensureAdminLabelWidgetDefaults();
         this.ensureUserGeoJSONWidgetDefaults();
+        this.ensureFloorplanImageWidgetDefaults();
         this.SelectedManualPositionTypeVariable = "Off";
         this.manualPositionMessage = "";
 
@@ -2630,6 +2894,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.SelectedStatesTypeVariable = this.getAdminLayerSelection('states');
         this.SelectedCountiesTypeVariable = this.getAdminLayerSelection('counties');
         this.SelectedUserGeoJSONTypeVariable = this.commonService.session.style.widgets['map-user-geojson-show'] ? 'Show' : 'Hide';
+        this.SelectedFloorplanImageTypeVariable = this.commonService.session.style.widgets['map-floorplan-image-show'] ? 'Show' : 'Hide';
 
         // Apply the saved widget state without rewriting sibling layer preferences during reload.
         this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
@@ -2639,6 +2904,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
         this.restoreUserGeoJSONLayer();
         this.onUserGeoJSONChange(this.SelectedUserGeoJSONTypeVariable);
+        this.restoreFloorplanImageLayer();
+        this.onFloorplanImageChange(this.SelectedFloorplanImageTypeVariable);
 
         //Components|Network|Nodes
         this.SelectedNodesTypeVariable = this.commonService.session.style.widgets['map-node-show'] ? 'Show' : 'Hide';
@@ -2737,6 +3004,7 @@ class MapLayers {
     states: L.GeoJSON<any> = geoJSON();
     counties: L.GeoJSON<any> = geoJSON();
     userGeoJSON: L.GeoJSON<any> = geoJSON();
+    floorplanImage: ImageOverlay | null = null;
     countriesLabels: FeatureGroup = featureGroup();
     statesLabels: FeatureGroup = featureGroup();
     countiesLabels: FeatureGroup = featureGroup();
