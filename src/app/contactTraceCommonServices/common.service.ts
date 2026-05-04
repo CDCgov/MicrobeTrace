@@ -243,6 +243,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeTableColumns: [],
             linkTableColumns: [],
             clusterTableColumns: [],
+            geoJSON: null,
+            geoJSONLayerName: '',
             tree: {},
             newickString: '',
             reference: REFERENCE
@@ -362,6 +364,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-county': 'None',
             'map-field-state': 'None',
             'map-field-country': 'None',
+            'map-user-geojson-show': false,
             'map-link-show': true,
             'map-link-tooltip-variable': 'None',
             'map-link-transparency': 0,
@@ -1683,7 +1686,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
 
-         if (oldSession.data.geoJSONLayerName !== "") {
+         if (oldSession.data.geoJSONLayerName) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
             this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
         }

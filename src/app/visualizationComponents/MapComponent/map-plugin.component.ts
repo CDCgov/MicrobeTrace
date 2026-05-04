@@ -177,6 +177,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     ];
     SelectedSatelliteTypeVariable: string = "Hide";
 
+    UserGeoJSONTypes: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+    SelectedUserGeoJSONTypeVariable: string = "Hide";
+    userGeoJSONFileName: string = "";
+    userGeoJSONFeatureCount: number = 0;
+    userGeoJSONError: string = "";
+
     NodeCollapsingTypes: any = [
         { label: 'On', value: 'On' },
         { label: 'Off', value: 'Off' }
@@ -228,6 +237,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private lmap: Map;
     private mapTooltip: string = '#mapTooltip'
     private readonly mapAdminLabelPaneName: string = 'map-admin-labels';
+    private readonly userGeoJSONLayerNameFallback: string = 'Custom GeoJSON';
 
     nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
@@ -611,18 +621,49 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     centerMap() {
-        if (this.lmap && this.layers.nodes().getLayers().length > 0) {
-            const nodeBounds = this.layers.nodes().getBounds();
-            if (!nodeBounds.isValid()) {
+        if (!this.lmap) {
+            return;
+        }
+
+        const bounds = this.getVisibleMapBounds();
+        if (!bounds || !bounds.isValid()) {
+            return;
+        }
+
+        const padding = this.commonService.session.style.widgets['map-collapsing-on'] ? 28 : 18;
+        this.lmap.fitBounds(bounds, {
+            animate: false,
+            padding: [padding, padding]
+        });
+    }
+
+    private getVisibleMapBounds(): L.LatLngBounds | null {
+        let bounds: L.LatLngBounds | null = null;
+        const extendBounds = (candidate?: L.LatLngBounds) => {
+            if (!candidate || !candidate.isValid()) {
                 return;
             }
 
-            const padding = this.commonService.session.style.widgets['map-collapsing-on'] ? 28 : 18;
-            this.lmap.fitBounds(nodeBounds, {
-                animate: false,
-                padding: [padding, padding]
-            });
+            bounds = bounds ? bounds.extend(candidate) : L.latLngBounds(candidate.getSouthWest(), candidate.getNorthEast());
+        };
+
+        if (this.layers.nodes().getLayers().length > 0) {
+            extendBounds(this.layers.nodes().getBounds());
         }
+
+        if (this.isUserGeoJSONLayerVisible() && this.layers.userGeoJSON.getLayers().length > 0) {
+            extendBounds(this.layers.userGeoJSON.getBounds());
+        }
+
+        return bounds;
+    }
+
+    private isFiniteMapCoordinate(value: any): boolean {
+        if (value === null || value === undefined || value === '') {
+            return false;
+        }
+
+        return Number.isFinite(Number(value));
     }
 
     /**
@@ -873,6 +914,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.layers.basemap.bringToFront();
 
             if (!isReload) {
+                this.onUserGeoJSONChange('Hide');
                 this.SelectedSatelliteTypeVariable = 'Hide';
                 this.onSatelliteChange('Hide');
                 this.onCountiesShowHideChange('Hide');
@@ -905,6 +947,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.layers.satellite.bringToFront();
 
             if (!isReload) {
+                this.onUserGeoJSONChange('Hide');
                 this.SelectedBasemapTypeVariable = 'Hide';
                 this.onBasemapChange('Hide');
                 this.onCountiesShowHideChange('Hide');
@@ -924,6 +967,223 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             this.layers.satellite.remove();
         }
+    }
+
+    onUserGeoJSONChange(e) {
+        this.ensureUserGeoJSONWidgetDefaults();
+        this.SelectedUserGeoJSONTypeVariable = e;
+
+        if (e == "Show") {
+            if (!this.commonService.session.data.geoJSON) {
+                this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+                this.SelectedUserGeoJSONTypeVariable = "Hide";
+                this.userGeoJSONError = "Upload a GeoJSON file before showing this layer.";
+                this.removeUserGeoJSONLayer();
+                return;
+            }
+
+            this.commonService.session.style.widgets['map-user-geojson-show'] = true;
+            this.userGeoJSONError = "";
+            this.hideOtherBackgroundLayersForUserGeoJSON();
+            this.addUserGeoJSONLayerToMap();
+            this.resetStack();
+            this.centerMap();
+        }
+        else {
+            this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+            this.removeUserGeoJSONLayer();
+            this.resetStack();
+        }
+    }
+
+    onUserGeoJSONFileSelected(event: Event) {
+        const input = event.target as HTMLInputElement;
+        const file = input.files && input.files.length > 0 ? input.files[0] : null;
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.userGeoJSONError = "Unable to read the selected GeoJSON file.";
+            input.value = "";
+            this.cdref.detectChanges();
+        };
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(String(reader.result || ""));
+                this.validateUserGeoJSON(parsed);
+                this.setUserGeoJSON(parsed, this.commonService.filterXSS(file.name));
+            } catch (error) {
+                this.userGeoJSONError = error instanceof Error
+                    ? error.message
+                    : "Unable to load GeoJSON file.";
+            } finally {
+                input.value = "";
+                this.cdref.detectChanges();
+            }
+        };
+        reader.readAsText(file, "UTF-8");
+    }
+
+    clearUserGeoJSON() {
+        this.commonService.session.data.geoJSON = null;
+        this.commonService.session.data.geoJSONLayerName = "";
+        this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+        this.SelectedUserGeoJSONTypeVariable = "Hide";
+        this.userGeoJSONFileName = "";
+        this.userGeoJSONFeatureCount = 0;
+        this.userGeoJSONError = "";
+        this.removeUserGeoJSONLayer();
+        this.resetStack();
+    }
+
+    centerUserGeoJSON() {
+        this.centerMap();
+    }
+
+    private setUserGeoJSON(data: any, fileName: string) {
+        this.commonService.session.data.geoJSON = data;
+        this.commonService.session.data.geoJSONLayerName = fileName || this.userGeoJSONLayerNameFallback;
+        this.userGeoJSONFileName = this.commonService.session.data.geoJSONLayerName;
+        this.userGeoJSONFeatureCount = this.countGeoJSONFeatures(data);
+        this.userGeoJSONError = "";
+        this.rebuildUserGeoJSONLayer();
+        this.onUserGeoJSONChange("Show");
+    }
+
+    private restoreUserGeoJSONLayer() {
+        const data = this.commonService.session.data.geoJSON;
+        this.userGeoJSONFileName = this.commonService.session.data.geoJSONLayerName || "";
+        this.userGeoJSONFeatureCount = data ? this.countGeoJSONFeatures(data) : 0;
+        this.userGeoJSONError = "";
+
+        if (!data) {
+            this.removeUserGeoJSONLayer();
+            return;
+        }
+
+        this.rebuildUserGeoJSONLayer();
+    }
+
+    private rebuildUserGeoJSONLayer() {
+        this.removeUserGeoJSONLayer();
+        const data = this.commonService.session.data.geoJSON;
+        this.layers.userGeoJSON = data
+            ? geoJSON(data, {
+                style: () => this.getUserGeoJSONPathStyle(),
+                pointToLayer: (_feature, latlng) => circleMarker(latlng, {
+                    radius: 4,
+                    color: '#555555',
+                    weight: 1,
+                    fillColor: '#d6dee2',
+                    fillOpacity: 0.8,
+                    interactive: false
+                } as any),
+                onEachFeature: (_feature, layer) => {
+                    if ((layer as any).options) {
+                        (layer as any).options.interactive = false;
+                    }
+                }
+            })
+            : geoJSON();
+    }
+
+    private getUserGeoJSONPathStyle(): any {
+        return {
+            color: '#555555',
+            weight: 1,
+            opacity: 0.95,
+            fillColor: '#eef2f3',
+            fillOpacity: 0.45,
+            interactive: false
+        };
+    }
+
+    private addUserGeoJSONLayerToMap() {
+        if (!this.lmap || !this.commonService.session.data.geoJSON) {
+            return;
+        }
+
+        if (!this.layers.userGeoJSON || this.layers.userGeoJSON.getLayers().length === 0) {
+            this.rebuildUserGeoJSONLayer();
+        }
+
+        if (!this.lmap.hasLayer(this.layers.userGeoJSON)) {
+            this.layers.userGeoJSON.addTo(this.lmap);
+        }
+        this.layers.userGeoJSON.bringToBack();
+    }
+
+    private removeUserGeoJSONLayer() {
+        if (this.layers.userGeoJSON) {
+            this.layers.userGeoJSON.remove();
+        }
+    }
+
+    private isUserGeoJSONLayerVisible(): boolean {
+        return !!this.lmap && !!this.layers.userGeoJSON && this.lmap.hasLayer(this.layers.userGeoJSON);
+    }
+
+    private hideOtherBackgroundLayersForUserGeoJSON() {
+        this.SelectedBasemapTypeVariable = "Hide";
+        this.SelectedSatelliteTypeVariable = "Hide";
+        this.SelectedCountriesTypeVariable = "Hide";
+        this.SelectedStatesTypeVariable = "Hide";
+        this.SelectedCountiesTypeVariable = "Hide";
+
+        this.onBasemapChange("Hide", true);
+        this.onSatelliteChange("Hide", true);
+        this.onCountriesShowHidChange("Hide");
+        this.onStatesShowHideChange("Hide");
+        this.onCountiesShowHideChange("Hide");
+    }
+
+    private ensureUserGeoJSONWidgetDefaults(): void {
+        const widgets = this.commonService.session.style.widgets;
+        if (widgets['map-user-geojson-show'] === undefined || widgets['map-user-geojson-show'] === null) {
+            widgets['map-user-geojson-show'] = false;
+        }
+        if (this.commonService.session.data.geoJSON === undefined) {
+            this.commonService.session.data.geoJSON = null;
+        }
+        if (this.commonService.session.data.geoJSONLayerName === undefined) {
+            this.commonService.session.data.geoJSONLayerName = "";
+        }
+    }
+
+    private validateUserGeoJSON(data: any) {
+        if (!data || typeof data !== 'object') {
+            throw new Error("GeoJSON file must contain a JSON object.");
+        }
+
+        const supportedTopLevelTypes = ['FeatureCollection', 'Feature', 'GeometryCollection', 'Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon'];
+        if (!supportedTopLevelTypes.includes(data.type)) {
+            throw new Error("GeoJSON file must be a FeatureCollection, Feature, or geometry object.");
+        }
+
+        if (data.type === 'FeatureCollection' && (!Array.isArray(data.features) || data.features.length === 0)) {
+            throw new Error("GeoJSON FeatureCollection does not contain any features.");
+        }
+
+        if (this.countGeoJSONFeatures(data) === 0) {
+            throw new Error("GeoJSON file does not contain any renderable features.");
+        }
+    }
+
+    private countGeoJSONFeatures(data: any): number {
+        if (!data || typeof data !== 'object') {
+            return 0;
+        }
+
+        if (data.type === 'FeatureCollection') {
+            return Array.isArray(data.features) ? data.features.length : 0;
+        }
+        if (data.type === 'GeometryCollection') {
+            return Array.isArray(data.geometries) ? data.geometries.length : 0;
+        }
+
+        return data.type ? 1 : 0;
     }
 
     /**
@@ -1345,10 +1605,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.nodesWithoutLoc = [];
         let nodeLocSet: boolean = false;
         this.nodes.forEach(n => {
-            if (!n._lat || !n._lon){
+            if (!this.isFiniteMapCoordinate(n._lat) || !this.isFiniteMapCoordinate(n._lon)){
                 this.nodesWithoutLoc.push({index: n.index, ID: n._id})
             }
-            if ( !nodeLocSet && n._lat && n._lon) nodeLocSet = true;
+            if (!nodeLocSet && this.isFiniteMapCoordinate(n._lat) && this.isFiniteMapCoordinate(n._lon)) nodeLocSet = true;
         })
 
         if (callback) callback();
@@ -1581,7 +1841,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var n = this.nodes.length;
         for (var i = 0; i < n; i++) {
             var d = this.nodes[i];
-            if (!d._jlat || !d._jlon || d.visible === false) continue;
+            if (!this.isFiniteMapCoordinate(d._jlat) || !this.isFiniteMapCoordinate(d._jlon) || d.visible === false) continue;
 
             const nodeFillColor = colorVariable == 'None'
                 ? fillcolor
@@ -1634,7 +1894,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             var source = this.nodes.find(node => node._id == d.source && node.visible);
             var target = this.nodes.find(node => node._id == d.target && node.visible);
     
-            if (source && target && source._jlat && source._jlon && target._jlat && target._jlon) {
+            if (source && target
+                && this.isFiniteMapCoordinate(source._jlat)
+                && this.isFiniteMapCoordinate(source._jlon)
+                && this.isFiniteMapCoordinate(target._jlat)
+                && this.isFiniteMapCoordinate(target._jlon)) {
                 // Handle multiple origins
                 if (lcv == 'origin' && d.origin && d.origin.length > 1) {
                     let color1 = this.commonService.temp.style.linkColorMap(d.origin[0]);
@@ -1794,6 +2058,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Tile Layers, in reverse order:
         if (this.layers.satellite && this.commonService.session.style.widgets['map-satellite-show']) this.layers.satellite.bringToBack();
         if (this.layers.basemap && this.commonService.session.style.widgets['map-basemap-show']) this.layers.basemap.bringToBack();
+        if (this.layers.userGeoJSON && this.commonService.session.style.widgets['map-user-geojson-show']) this.layers.userGeoJSON.bringToBack();
 
         //Background Layers, in order:
         if (this.layers.countries && this.commonService.session.style.widgets['map-countries-show']) this.layers.countries.bringToFront();
@@ -1805,7 +2070,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         //User Layers:
         Object.keys(this.layers)
-            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'links', 'nodes'], l))
+            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'userGeoJSON', 'links', 'nodes'], l))
             .forEach(l => this.layers[l].bringToFront());
 
 
@@ -1977,6 +2242,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     loadSettings() {
         this.ensureMapAutoExpandSelectedSetting();
         this.ensureAdminLabelWidgetDefaults();
+        this.ensureUserGeoJSONWidgetDefaults();
 
         // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
@@ -1984,6 +2250,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.SelectedCountriesTypeVariable = this.getAdminLayerSelection('countries');
         this.SelectedStatesTypeVariable = this.getAdminLayerSelection('states');
         this.SelectedCountiesTypeVariable = this.getAdminLayerSelection('counties');
+        this.SelectedUserGeoJSONTypeVariable = this.commonService.session.style.widgets['map-user-geojson-show'] ? 'Show' : 'Hide';
 
         // Apply the saved widget state without rewriting sibling layer preferences during reload.
         this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
@@ -1991,6 +2258,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.onCountriesShowHidChange(this.SelectedCountriesTypeVariable);
         this.onStatesShowHideChange(this.SelectedStatesTypeVariable);
         this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
+        this.restoreUserGeoJSONLayer();
+        this.onUserGeoJSONChange(this.SelectedUserGeoJSONTypeVariable);
 
         //Components|Network|Nodes
         this.SelectedNodesTypeVariable = this.commonService.session.style.widgets['map-node-show'] ? 'Show' : 'Hide';
@@ -2083,6 +2352,7 @@ class MapLayers {
     countries: L.GeoJSON<any> = geoJSON();
     states: L.GeoJSON<any> = geoJSON();
     counties: L.GeoJSON<any> = geoJSON();
+    userGeoJSON: L.GeoJSON<any> = geoJSON();
     countriesLabels: FeatureGroup = featureGroup();
     statesLabels: FeatureGroup = featureGroup();
     countiesLabels: FeatureGroup = featureGroup();

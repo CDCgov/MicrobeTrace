@@ -270,6 +270,51 @@
   </div>
 </p-accordion-content>
 </p-accordion-panel>
+<p-accordion-panel value="map-user-provided" style="color:#495057">
+  <p-accordion-header>User Provided</p-accordion-header>
+  <p-accordion-content>
+    <div class="form-group row" title="Load a custom GeoJSON layer.">
+      <div class="col-4">GeoJSON</div>
+      <div class="col-8">
+        <input type="file" id="map-user-geojson-file" class="form-control form-control-sm"
+          accept=".geojson,.json,application/geo+json,application/json"
+          (change)="onUserGeoJSONFileSelected($event)">
+      </div>
+    </div>
+    <div class="form-group row" title="Would you like to show the custom GeoJSON layer?">
+      <div class="col-4">Layer</div>
+      <div class="col-8">
+        <p-selectButton [options]="UserGeoJSONTypes" [allowEmpty]="false" id="map-user-geojson-show-hide" fluid
+          [(ngModel)]="SelectedUserGeoJSONTypeVariable"
+          (ngModelChange)="onUserGeoJSONChange($event)"></p-selectButton>
+      </div>
+    </div>
+    @if (userGeoJSONFileName) {
+      <div class="form-group row">
+        <div class="col-4">Loaded</div>
+        <div class="col-8 map-user-geojson-summary">{{ userGeoJSONFileName }} ({{ userGeoJSONFeatureCount }} features)</div>
+      </div>
+    }
+    @if (userGeoJSONError) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ userGeoJSONError }}</div>
+        </div>
+      </div>
+    }
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!userGeoJSONFileName"
+          (click)="centerUserGeoJSON()">Center</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!userGeoJSONFileName"
+          (click)="clearUserGeoJSON()">Clear</button>
+      </div>
+    </div>
+  </p-accordion-content>
+</p-accordion-panel>
 </p-accordion>
 </tab>
 <tab heading="{{'Nodes' | localize}}" customClass="m-tabs__item">
