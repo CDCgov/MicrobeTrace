@@ -245,6 +245,11 @@ export class CommonService extends AppComponentBase implements OnInit {
             clusterTableColumns: [],
             geoJSON: null,
             geoJSONLayerName: '',
+            floorplanImage: null,
+            floorplanImageLayerName: '',
+            floorplanImageBounds: null,
+            floorplanImageWidth: null,
+            floorplanImageHeight: null,
             tree: {},
             newickString: '',
             reference: REFERENCE
@@ -1689,6 +1694,14 @@ export class CommonService extends AppComponentBase implements OnInit {
          if (oldSession.data.geoJSONLayerName) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
             this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
+        }
+
+        if (oldSession.data.floorplanImageLayerName || oldSession.data.floorplanImage) {
+            this.session.data['floorplanImage'] = oldSession.data.floorplanImage;
+            this.session.data['floorplanImageLayerName'] = oldSession.data.floorplanImageLayerName || '';
+            this.session.data['floorplanImageBounds'] = oldSession.data.floorplanImageBounds || null;
+            this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
+            this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
         }
 
         // previous versions of MT had bug where nodeColorsTableHistory stored jQuery events instead of color string in session file, this section resolves that bug

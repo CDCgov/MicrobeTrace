@@ -313,14 +313,54 @@
           (click)="clearUserGeoJSON()">Clear</button>
       </div>
     </div>
+    <div class="form-group row" title="Load an image to use as a floorplan background.">
+      <div class="col-4">Image</div>
+      <div class="col-8">
+        <input type="file" id="map-floorplan-image-file" class="form-control form-control-sm"
+          accept="image/*"
+          (change)="onFloorplanImageFileSelected($event)">
+      </div>
+    </div>
+    <div class="form-group row" title="Would you like to show the uploaded image background?">
+      <div class="col-4">Image Layer</div>
+      <div class="col-8">
+        <p-selectButton [options]="FloorplanImageTypes" [allowEmpty]="false" id="map-floorplan-image-show-hide" fluid
+          [(ngModel)]="SelectedFloorplanImageTypeVariable"
+          (ngModelChange)="onFloorplanImageChange($event)"></p-selectButton>
+      </div>
+    </div>
+    @if (floorplanImageFileName) {
+      <div class="form-group row">
+        <div class="col-4">Loaded</div>
+        <div class="col-8 map-user-geojson-summary">{{ floorplanImageFileName }}{{ floorplanImageInfo ? ' (' + floorplanImageInfo + ')' : '' }}</div>
+      </div>
+    }
+    @if (floorplanImageError) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanImageError }}</div>
+        </div>
+      </div>
+    }
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!floorplanImageFileName"
+          (click)="centerFloorplanImage()">Center</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!floorplanImageFileName"
+          (click)="clearFloorplanImage()">Clear</button>
+      </div>
+    </div>
     <div class="form-group row">
       <div class="col-12 map-manual-position-heading">Manual Positions</div>
     </div>
-    <div class="form-group row" title="Turn on manual x/y node placement for the visible custom GeoJSON floorplan.">
+    <div class="form-group row" title="Turn on manual x/y node placement for the visible floorplan background.">
       <div class="col-4">Positioning</div>
       <div class="col-8">
         <p-selectButton [options]="ManualPositionTypes" [allowEmpty]="false" id="map-manual-positioning" fluid
-          [disabled]="!userGeoJSONFileName || SelectedUserGeoJSONTypeVariable !== 'Show'"
+          [disabled]="!hasFloorplanBackgroundForManualPositioning() || !isFloorplanBackgroundShownForManualPositioning()"
           [(ngModel)]="SelectedManualPositionTypeVariable"
           (ngModelChange)="onManualPositioningChange($event)"></p-selectButton>
       </div>
