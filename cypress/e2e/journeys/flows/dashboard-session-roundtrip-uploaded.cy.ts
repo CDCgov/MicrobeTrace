@@ -31,6 +31,12 @@ type DashboardPaneRects = Record<string, {
   height: number;
 }>;
 
+type TextFileSummary = {
+  length: number;
+  missing: string[];
+  meetsMinLength: boolean;
+};
+
 const DASHBOARD_TABS = ['2D Network', 'Map', 'Bubble', 'Table', 'Aggregate', 'Crosstab', 'Waterfall'];
 
 const closeDialogIfPresent = (title: string): void => {
@@ -89,6 +95,17 @@ const assertWaterfallInteractive = (): void => {
     .should('have.length.greaterThan', 0);
 };
 
+const assertSavedDashboardSessionFile = (sessionFilePath: string): void => {
+  cy.task<TextFileSummary>('file:textSummary', {
+    filePath: sessionFilePath,
+    contains: ['"session"', '"tabs"', '"dashboardLayout"'],
+    minLength: 100,
+  }).should((summary) => {
+    expect(summary.missing, 'missing saved dashboard session metadata').to.deep.equal([]);
+    expect(summary.meetsMinLength, 'saved .microbetrace length > 100').to.equal(true);
+  });
+};
+
 describe('Journey Flow - Dashboard session round-trip on uploaded data', () => {
   it('restores the same saved multi-pane dashboard after saving and re-uploading a .microbetrace session', () => {
     const sessionFileBase = `cypress_dashboard_session_roundtrip_${Date.now()}`;
@@ -111,16 +128,13 @@ describe('Journey Flow - Dashboard session round-trip on uploaded data', () => {
     assertWaterfallInteractive();
     focusDashboardTab('Table');
 
+    closeDialogIfPresent('Crosstab Settings');
+    closeDialogIfPresent('Aggregate Settings');
+
     installSaveAsCaptureHook();
     saveSessionFromFileMenu(sessionFileBase);
     writeCapturedDownloadToDisk(`${sessionFileBase}.microbetrace`, sessionFilePath);
-
-    cy.readFile(sessionFilePath, 'utf8', { timeout: 30000 }).should((savedSession) => {
-      expect(savedSession, 'saved .microbetrace content').to.include('"session"');
-      expect(savedSession, 'saved dashboard tabs metadata').to.include('"tabs"');
-      expect(savedSession, 'saved dashboard layout metadata').to.include('"dashboardLayout"');
-      expect(savedSession.length, 'saved .microbetrace length').to.be.greaterThan(100);
-    });
+    assertSavedDashboardSessionFile(sessionFilePath);
 
     visitAppAndAcceptEula();
     cy.get('#fileDropRef', { timeout: 15000 }).selectFile(sessionFilePath, { force: true });

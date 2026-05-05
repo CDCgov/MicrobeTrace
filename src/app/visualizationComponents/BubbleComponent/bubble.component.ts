@@ -178,6 +178,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.refreshCollapsedData();
     }
+    this.markBubbleRendered();
   }
 
   ngOnDestroy(): void {
@@ -209,6 +210,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.getCollapsedData(sortData, true);
   }
 
+  private markBubbleRendered(): void {
+    if (!this.viewActive) {
+      return;
+    }
+
+    // Bubble can be the first launched view, so it must explicitly release
+    // the shared processing modal after its first Cytoscape draw completes.
+    window.setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    }, 0);
+  }
+
   private compareDateCategories(left: unknown, right: unknown): number {
     const leftTime = Date.parse(left as string);
     const rightTime = Date.parse(right as string);
@@ -232,18 +245,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   private syncFromSessionState() {
+    this.visuals.bubble = this;
     this.widgets = this.commonService.session.style.widgets;
     this.rebuildSelectedFieldList();
     this.setWidgets();
     this.updateAxisValues('X');
     this.updateAxisValues('Y');
+    this.svgDefs = {};
+    this.getData();
 
     if (!this.cy) {
       return;
     }
-
-    this.svgDefs = {};
-    this.getData();
 
     if (!this.SelectedNodeCollapsingTypeVariable) {
       this.updateNodes();

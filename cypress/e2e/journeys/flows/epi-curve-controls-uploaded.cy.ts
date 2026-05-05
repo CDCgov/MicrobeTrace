@@ -8,6 +8,7 @@ import {
 } from '../../../support/journey-helpers';
 import {
   assertEpiCurveHasBars,
+  assertEpiCurveColorPickerVisible,
   readEpiCurveBars,
   readEpiCurveXAxisTickLabels,
   selectEpiCurveDropdown,
@@ -313,7 +314,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     const secondFixedColor = '#00aaff';
 
     ensureEpiSettingsDialogOpen();
-    getEpiSettingsDialog().find('#epi-color-select').should('be.visible');
+    assertEpiCurveColorPickerVisible(0);
 
     setEpiCurveColor(0, firstFixedColor);
 
@@ -332,7 +333,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Color By', 'None');
-    getEpiSettingsDialog().find('#epi-color-select').should('be.visible');
+    assertEpiCurveColorPickerVisible(0);
 
     setEpiCurveColor(0, secondFixedColor);
 

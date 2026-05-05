@@ -7,7 +7,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AppSessionService } from '@shared/common/session/app-session.service';
 import { DialogSettings } from './helperClasses/dialogSettings';
 import { saveAs } from 'file-saver';
-import { StashObjects, HomePageTabItem } from './helperClasses/interfaces';
+import { DashboardRestoreState, StashObjects, HomePageTabItem } from './helperClasses/interfaces';
 import { debounceTime, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 import moment from 'moment';
 import { Tabulator } from 'tabulator-tables';
@@ -485,7 +485,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           this.cdref.detectChanges();
 
           if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
-              setTimeout(() => this.restorePendingDashboardSession(), 0);
+              setTimeout(() => this.schedulePendingDashboardRestore(), 0);
           }
 
           console.log('DEBUG: #link-color-table rowcount AFTER  = ', $('#link-color-table').find('tr').length);
@@ -539,6 +539,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (!this.GlobalSettingsNodeShapeDialogSettings) {
             this.GlobalSettingsNodeShapeDialogSettings = new DialogSettings('#global-settings-node-shape-table', false);
         }
+
+        this.store.styleFileApplied$
+            .pipe(takeUntil(this.destroy$))
+            .subscribe(() => {
+                this.applySavedNodeShapeSettingsFromSession();
+            });
 
         // Subscribe to metric changes
         this.store.metricChanged$.subscribe((metric: string) => {
@@ -738,11 +744,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     private normalizeDashboardLabel(value: string): string {
-        if (String(value).trim().toLowerCase() === '2d network') {
-            return '2D Network';
-        }
-
-        return String(value).trim();
+        return this.commonService.normalizeViewName(value) ?? String(value).trim();
     }
 
     private getDashboardLayoutComponentCount(item: any): number {
@@ -751,6 +753,34 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         const content = Array.isArray(item.content) ? item.content : [];
         return content.reduce((sum, child) => sum + this.getDashboardLayoutComponentCount(child), 0);
+    }
+
+    private dashboardLayoutContainsComponent(item: any, componentType: string): boolean {
+        if (!item) return false;
+        if (item.type === 'component') {
+            return this.normalizeDashboardLabel(String(item.componentType ?? item.title ?? '')) === componentType;
+        }
+
+        const content = Array.isArray(item.content) ? item.content : [];
+        return content.some((child) => this.dashboardLayoutContainsComponent(child, componentType));
+    }
+
+    private restoreDashboardKeyTablesState(pendingRestore: DashboardRestoreState, layoutToLoad: any): void {
+        const dockedTables = pendingRestore.dashboardState?.keyTables?.dockedTables;
+
+        if (dockedTables) {
+            KEY_TABLE_NAMES.forEach((table) => {
+                this.keyTablesController.setDocked(table, !!dockedTables[table]);
+            });
+            return;
+        }
+
+        if (this.dashboardLayoutContainsComponent(layoutToLoad?.root, KeyTablesComponent.componentTypeName)) {
+            this.keyTablesController.dockAll();
+            return;
+        }
+
+        this.keyTablesController.clearDocking();
     }
 
     private getOpenDashboardEntries(): DashboardOpenEntry[] {
@@ -837,6 +867,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, 50);
     }
 
+    private schedulePendingDashboardRestore(attempt: number = 0): void {
+        if (!this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
+            return;
+        }
+
+        const twoDInstance = this.commonService.visuals.twoD?.cy || (window as any).cytoscapeInstance;
+        const twoDReady = !!twoDInstance && !(
+            typeof twoDInstance.destroyed === 'function' &&
+            twoDInstance.destroyed()
+        );
+        if (twoDReady || attempt >= 40) {
+            this.restorePendingDashboardSession();
+            return;
+        }
+
+        setTimeout(() => this.schedulePendingDashboardRestore(attempt + 1), 100);
+    }
+
     private restorePendingDashboardSession(): void {
         const pendingRestore = this.commonService.pendingDashboardRestore;
 
@@ -857,6 +905,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const expectedComponentCount = this.getDashboardLayoutComponentCount(layoutToLoad?.root);
 
         try {
+            this.restoreDashboardKeyTablesState(pendingRestore, layoutToLoad);
             this._goldenLayoutHostComponent.goldenLayout.loadLayout(layoutToLoad);
         } catch (error) {
             console.error('Unable to restore the saved dashboard layout.', error);
@@ -879,7 +928,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return undefined;
         }
 
-        return savedLayout;
+        return this.commonService.normalizeDashboardLayout(savedLayout) ?? undefined;
+    }
+
+    private getSerializableDashboardState(): any | undefined {
+        const dockedTables = KEY_TABLE_NAMES.reduce((state, table) => {
+            state[table] = this.keyTablesController.isDocked(table);
+            return state;
+        }, {} as Record<string, boolean>);
+
+        if (!KEY_TABLE_NAMES.some((table) => dockedTables[table])) {
+            return undefined;
+        }
+
+        return {
+            keyTables: {
+                dockedTables
+            }
+        };
     }
 
     /**
@@ -942,6 +1008,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         return tablesToExport;
+    }
+
+    private getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
+        return this.commonService.visuals.twoD?.getPolygonColorTableElementForExport?.()
+            ?? (document.querySelector('#polygon-color-table') as HTMLTableElement | undefined);
     }
 
     private async performExport(
@@ -1388,6 +1459,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         // this.commonService.resetData();
 
+        this.commonService.beginDataLoad();
+        this.commonService.session.network.initialLoad = true;
         this.store.setFP_removeFiles(true);
         this.commonService.session.files = [];
         if (!this.commonService.session.style.widgets) {
@@ -1704,9 +1777,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         }
 
-        this.SelectedNodeSymbolVariable = this.commonService.session.style.widgets['node-symbol-variable'] ?? 'None';
-        this.SelectedNodeShapeTableTypesVariable = this.commonService.session.style.widgets['node-symbol-table-visible'] ?? 'Hide';
-        this.onNodeShapeByChanged(true, this.SelectedNodeSymbolVariable !== 'None');
+        this.applySavedNodeShapeSettingsFromSession();
     }
 
     onEpsilonValueChange() {
@@ -2209,23 +2280,68 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return this.symbolMappingGroupLookup.get(this.mapPreviousShapeNameToCurrent(shapeKey)) ?? this.defaultShapePickerExpandedGroup;
     }
 
-    onNodeShapeByChanged(silent: boolean = false, setVisibility: boolean = true, selectedVariable?: string) {
-        const widgets = this.commonService.session.style.widgets;
-        if (selectedVariable !== undefined) {
-            this.SelectedNodeSymbolVariable = selectedVariable;
+    private normalizeNodeSymbolVariable(value: any): string {
+        if (value === null || value === undefined) {
+            return 'None';
         }
 
-        this.SelectedNodeSymbolVariable = this.SelectedNodeSymbolVariable ?? widgets['node-symbol-variable'] ?? 'None';
+        const normalizedValue = String(value).trim();
+        if (!normalizedValue || normalizedValue.toLowerCase() === 'none') {
+            return 'None';
+        }
+
+        return normalizedValue;
+    }
+
+    private syncNodeShapeTableStateWithSelection(source: 'component' | 'session' = 'component'): void {
+        const widgets = this.commonService.session.style.widgets;
+        const selectedNodeSymbol = source === 'session'
+            ? widgets['node-symbol-variable'] ?? this.SelectedNodeSymbolVariable
+            : this.SelectedNodeSymbolVariable ?? widgets['node-symbol-variable'];
+
+        this.SelectedNodeSymbolVariable = this.normalizeNodeSymbolVariable(
+            selectedNodeSymbol
+        );
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = this.SelectedNodeSymbolVariable;
         widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
         this.ShowGlobalSettingsNodeShapeTable = this.SelectedNodeSymbolVariable !== 'None';
 
+        if (source === 'session') {
+            this.SelectedNodeShapeTableTypesVariable = widgets['node-symbol-table-visible'] ?? this.SelectedNodeShapeTableTypesVariable ?? 'Hide';
+        }
+
+        if (this.SelectedNodeSymbolVariable === 'None') {
+            this.SelectedNodeShapeTableTypesVariable = 'Hide';
+            this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Hide';
+            widgets['node-symbol-table-visible'] = 'Hide';
+            this.GlobalSettingsNodeShapeDialogSettings?.setVisibility(false);
+            this.exportTables['node-symbol'] = false;
+        }
+    }
+
+    private applySavedNodeShapeSettingsFromSession(): void {
+        const widgets = this.commonService.session.style.widgets;
+        this.SelectedNodeSymbolVariable = widgets['node-symbol-variable'] ?? 'None';
+        this.SelectedNodeShapeTableTypesVariable = widgets['node-symbol-table-visible'] ?? 'Hide';
+        this.onNodeShapeByChanged(true, false, undefined, 'session');
+    }
+
+    onNodeShapeByChanged(silent: boolean = false, setVisibility: boolean = true, selectedVariable?: string, source: 'component' | 'session' = 'component') {
+        const widgets = this.commonService.session.style.widgets;
+        if (selectedVariable !== undefined) {
+            this.SelectedNodeSymbolVariable = selectedVariable;
+            source = 'component';
+        }
+
+        this.SelectedNodeSymbolVariable = this.normalizeNodeSymbolVariable(
+            this.SelectedNodeSymbolVariable ?? widgets['node-symbol-variable']
+        );
+        this.syncNodeShapeTableStateWithSelection(source);
+
         if (this.SelectedNodeSymbolVariable === 'None') {
             this.shapeAggregates = [];
             this.commonService.temp.style.nodeSymbolMap = () => this.getDefaultNodeShape();
-            this.SelectedNodeShapeTableTypesVariable = 'Hide';
             this.onNodeShapeTableVisibilityChanged(true);
-            this.exportTables['node-symbol'] = false;
 
             if (!silent) {
                 this.publishUpdateNodeShapes();
@@ -2238,8 +2354,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.generateNodeShapeSelectionTable(this.SelectedNodeSymbolVariable);
 
-        if (setVisibility || this.SelectedNodeSymbolVariable !== 'None') {
+        if (setVisibility) {
             this.SelectedNodeShapeTableTypesVariable = 'Show';
+        } else {
+            this.SelectedNodeShapeTableTypesVariable = widgets['node-symbol-table-visible'] ?? this.SelectedNodeShapeTableTypesVariable ?? 'Hide';
         }
 
         this.onNodeShapeTableVisibilityChanged(true);
@@ -2259,6 +2377,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     onNodeShapeTableVisibilityChanged(silent: boolean = false) {
+        this.syncNodeShapeTableStateWithSelection();
         this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['node-symbol-table-visible'] = this.SelectedNodeShapeTableTypesVariable;
 
@@ -2280,6 +2399,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     showNodeShapeTable() {
+        this.syncNodeShapeTableStateWithSelection();
+        if (this.SelectedNodeSymbolVariable === 'None') {
+            return;
+        }
+
         if (this.isKeyTableDocked('node-shape')) {
             this.GlobalSettingsNodeShapeDialogSettings.setVisibility(false);
             return;
@@ -2296,6 +2420,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     hideNodeShapeTable() {
+        this.syncNodeShapeTableStateWithSelection();
+        if (this.SelectedNodeSymbolVariable === 'None') {
+            return;
+        }
+
         if (this.isKeyTableDocked('node-shape') || !this.canDisplayFloatingKeyTable('node-shape')) {
             return;
         }
@@ -3394,6 +3523,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     updateGlobalSettingsModel() {
 
         this.commonService.GlobalSettingsModel.SelectedRevealTypesVariable = this.SelectedRevealTypesVariable;
+        this.syncNodeShapeTableStateWithSelection('session');
 
         // TODO: See if we need to flip these now since the service should override these local settings
         this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
@@ -3666,11 +3796,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         console.log('--- Load Default Visualization called - reset layout ', e);
 
-        e = e.replace("_", " ");
-
-        if (e === "2d network"){
-            e = "2D Network";
-        }
+        e = this.normalizeDashboardLabel(e);
 
         // Keep the saved/default launch-view state aligned with the view we are
         // actually opening during file or session load.
@@ -3683,6 +3809,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.homepageTabs.findIndex(x => x.label == e) === -1) {
             console.log('--- Load Default Visualization end - view click');
             this.Viewclick(e);
+        }
+
+        if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
+            setTimeout(() => this.schedulePendingDashboardRestore(), 0);
         }
         // }, 500);
         
@@ -3807,8 +3937,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         let elementsToExport: HTMLTableElement[] = [];
 
         if (this.exportTables['polygon-color']) {
-            let polygonTable = $('#polygon-color-table')[0]
-            elementsToExport.push(polygonTable as HTMLTableElement)
+            const polygonTable = this.getPolygonColorTableElementForExport();
+            if (polygonTable) {
+                elementsToExport.push(polygonTable);
+            }
         }
         if (elementsToExport.length == 0
             && this.exportTables['node-color'] == false
@@ -3979,6 +4111,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     });
 
                     const dashboardLayout = this.getSerializableDashboardLayout();
+                    const dashboardState = this.getSerializableDashboardState();
                     const stash: StashObjects = {
                         session: this.commonService.session,
                         tabs: lightTabs
@@ -3986,6 +4119,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                     if (dashboardLayout) {
                         stash.dashboardLayout = dashboardLayout;
+                    }
+
+                    if (dashboardState) {
+                        stash.dashboardState = dashboardState;
                     }
 
                     const that = this;
@@ -4217,6 +4354,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     //   });
 
     Viewclick(viewName: string) {
+        viewName = this.normalizeDashboardLabel(viewName);
+
         if(this.commonService.debugMode) {
             console.log('--- viewClick: ', viewName);
             console.log(this.commonService.session.style.widgets['link-threshold']);
@@ -4225,10 +4364,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         }
        
-
-        if (viewName == "2d network") {
-            viewName = "2D Network";
-        }
 
         const tabNdx = this.homepageTabs.findIndex(x => x.label == viewName);
 
@@ -4590,7 +4725,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         });
         this.keyTablesController.dockAll();
 
-        this.ensureKeyTablesViewOpen(true);
+        this.ensureKeyTablesViewOpen(false);
         this.commonService.visuals.twoD?.dockPolygonColorTableIfVisible();
         this.syncFloatingKeyTableDialogs();
         this.refreshKeyTablesView();
@@ -4662,9 +4797,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"];
          this.onLinkColorChanged(true);
 
-         this.SelectedNodeSymbolVariable = this.commonService.session.style.widgets['node-symbol-variable'] ?? 'None';
-         this.SelectedNodeShapeTableTypesVariable = this.commonService.session.style.widgets['node-symbol-table-visible'] ?? 'Hide';
-         this.onNodeShapeByChanged(true, this.SelectedNodeSymbolVariable !== 'None');
+         this.applySavedNodeShapeSettingsFromSession();
 
          //Styling|Selected
          this.SelectedColorVariable = this.commonService.session.style.widgets['selected-color'];
@@ -4690,14 +4823,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     publishLoadNewData() {
 
         console.log('--- publishLoadNewData called');
-        // this.goldenLayout.componentInstances[1].onLoadNewData();
+        const componentRefs = new Set<ComponentRef<any>>();
+
         this.homepageTabs.forEach(tab => {
-            // componentRef.instance.onLoadNewData ?
-            if (tab.componentRef &&
-                tab.componentRef.instance?.onLoadNewData) {
-                tab.componentRef.instance.onLoadNewData();
+            if (tab.componentRef) {
+                componentRefs.add(tab.componentRef);
             }
-        })
+        });
+
+        const componentMap = (this._goldenLayoutHostComponent as any)?._componentRefMap as Map<any, ComponentRef<any>> | undefined;
+        componentMap?.forEach(componentRef => componentRefs.add(componentRef));
+
+        componentRefs.forEach(componentRef => {
+            if (componentRef.instance?.onLoadNewData) {
+                try {
+                    componentRef.instance.onLoadNewData();
+                } catch (error) {
+                    const componentName = componentRef.instance?.constructor?.componentTypeName
+                        ?? componentRef.instance?.constructor?.name
+                        ?? 'dashboard component';
+                    console.error(`Unable to load new data for ${componentName}.`, error);
+                }
+            }
+        });
     }
 
     publishFilterDataChange() {
@@ -4798,9 +4946,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private ensureKeyTablesViewOpen(focusView: boolean = true): void {
         const viewName = KeyTablesComponent.componentTypeName;
+        const contextTab = this.keyTablesController.getContextTab(this.commonService.activeTab);
         const tabToKeepActive = focusView
             ? undefined
-            : this.keyTablesController.getContextTab(this.commonService.activeTab);
+            : contextTab;
         const existingTabIndex = this.homepageTabs.findIndex(tab => tab.label === viewName);
         const container = this._goldenLayoutHostComponent.dockComponentRight(viewName, viewName);
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(container);
@@ -4826,7 +4975,40 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             } else if (tabToKeepActive) {
                 this.focusHomepageTab(tabToKeepActive);
             }
+
+            this.scheduleDockContextViewCenter(contextTab);
         });
+    }
+
+    private scheduleDockContextViewCenter(viewName?: string): void {
+        if (!viewName || viewName === KeyTablesComponent.componentTypeName) {
+            return;
+        }
+
+        setTimeout(() => {
+            const componentRef = this._goldenLayoutHostComponent.getComponentRefByType(viewName);
+            const instance = componentRef?.instance as any;
+
+            if (!instance) {
+                return;
+            }
+
+            if (instance.goldenLayoutComponentResize) {
+                instance.goldenLayoutComponentResize();
+            }
+
+            if (instance.lmap?.invalidateSize) {
+                instance.lmap.invalidateSize();
+            }
+
+            if (instance.openCenter) {
+                instance.openCenter();
+            } else if (instance.fit) {
+                instance.fit();
+            } else if (instance.centerMap) {
+                instance.centerMap();
+            }
+        }, 250);
     }
 
     private closeKeyTablesView(): void {

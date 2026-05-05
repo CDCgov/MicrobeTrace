@@ -25,6 +25,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   private destroy$ = new Subject<void>();
+  private isDestroyed = false;
   @ViewChild('epiCurve') epiCurveElement: ElementRef;
   @ViewChild('epiCurveSVG') epiCurveSVGElement: ElementRef;
   viewActive: boolean = true;
@@ -102,6 +103,30 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
       this.setDefaultsWidgets();
 
   }
+
+  private updateFieldLists(): void {
+    this.FieldList = [];
+    this.FieldListStack = [];
+    this.FieldList.push({ label: "None", value: "None" });
+    this.FieldListStack.push({ label: "None", value: 'None'}, { label: "Node Color", value: "Node Color"});
+
+    const nodeFields = this.commonService.session.data['nodeFields'] || [];
+    nodeFields.forEach((d) => {
+        if (d != 'seq' && d != 'sequence') {
+            this.FieldList.push(
+                {
+                    label: this.commonService.capitalize(d.replace("_", "")),
+                    value: d
+                });
+            this.FieldListStack.push(
+                {
+                    label: this.commonService.capitalize(d.replace("_", "")),
+                    value: d
+                });
+        }
+    });
+  }
+
   ngOnInit() {
 
     this.gtmService.pushTag({
@@ -110,25 +135,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
             page_title: "Timeline View"
         });
     // populate this.twoD.FieldList with [None, ...nodeFields]
-    this.visuals.epiCurve.FieldList = [];
-    this.visuals.epiCurve.FieldListStack = [];
-    this.visuals.epiCurve.FieldList.push({ label: "None", value: "None" });
-    this.visuals.epiCurve.FieldListStack.push({ label: "None", value: 'None'}, { label: "Node Color", value: "Node Color"});
-    this.visuals.epiCurve.commonService.session.data['nodeFields'].map((d, i) => {
-        if (d != 'seq' && d != 'sequence') {
-            this.visuals.epiCurve.FieldList.push(
-                {
-                    label: this.visuals.epiCurve.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-              this.visuals.epiCurve.FieldListStack.push(
-                {
-                    label: this.visuals.epiCurve.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-        }
-
-    });
+    this.updateFieldLists();
 
     this.tickInterval = 1;
     this.updateSettingsRows();    
@@ -141,6 +148,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
  }
   
   ngOnDestroy(): void {
+    this.isDestroyed = true;
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -1125,10 +1133,30 @@ openRefreshScreen() {
 }
 
 onLoadNewData() {
-  throw new Error('Method not implemented.');
+  this.widgets = this.commonService.session.style.widgets;
+  this.setDefaultsWidgets();
+  this.updateFieldLists();
+  this.updateSettingsRows();
+
+  if (!this.epiCurveElement?.nativeElement || !this.epiCurveSVGElement?.nativeElement) {
+    setTimeout(() => {
+      if (!this.isDestroyed) {
+        this.onLoadNewData();
+      }
+    }, 0);
+    return;
+  }
+
+  this.refresh();
+  this.markEpiCurveRendered();
+  this.cdref.detectChanges();
 }
 onFilterDataChange() {
-  throw new Error('Method not implemented.');
+  if (!this.epiCurveElement?.nativeElement || !this.epiCurveSVGElement?.nativeElement) {
+    return;
+  }
+
+  this.refresh();
 }
 
 

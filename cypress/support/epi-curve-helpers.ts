@@ -138,6 +138,23 @@ export function setEpiCurveColor(index: 0 | 1 | 2, color: string): void {
     .should('equal', color);
 }
 
+export function assertEpiCurveColorPickerVisible(index: 0 | 1 | 2): void {
+  const inputId = index === 0
+    ? '#epi-color-select'
+    : `#epi-color-select-${index + 1}`;
+
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .should('have.length', 1)
+    .then(($input) => {
+      $input.get(0).scrollIntoView({ block: 'center', inline: 'nearest' });
+    });
+
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .should('be.visible');
+}
+
 export function setEpiCurveRange(label: EpiCurveRangeLabel, value: number): void {
   getEpiCurveRowByLabel(label)
     .find('input[type="range"]')
