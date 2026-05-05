@@ -5086,6 +5086,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.commonService.session.style.widgets["mst-computed"] = true;
     }
 
+    if (this.linkThresholdSparkline?.nativeElement) {
+      this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+    }
+
     this.refreshThresholdStabilityPanel();
   }
 
