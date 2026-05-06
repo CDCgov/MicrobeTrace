@@ -826,6 +826,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         node._jlat = Number(node._lat);
     }
 
+    private updateNodesWithoutLocation(): void {
+        this.nodesWithoutLoc = [];
+        this.nodes.forEach(n => {
+            if (!this.isFiniteMapCoordinate(n._lat) || !this.isFiniteMapCoordinate(n._lon)) {
+                this.nodesWithoutLoc.push({ index: n.index, ID: n._id });
+            }
+        });
+    }
+
     private shouldDisableJitterForNode(node: any): boolean {
         return this.shouldUseManualFloorplanPosition()
             && this.hasManualFloorplanPosition(node);
@@ -911,6 +920,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 candidate._jlat = y;
             }
         });
+        this.updateNodesWithoutLocation();
     }
 
     private clearManualFloorplanPosition(node: any): void {
@@ -2443,12 +2453,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.applyManualFloorplanPositions();
 
-        this.nodesWithoutLoc = [];
         let nodeLocSet: boolean = false;
+        this.updateNodesWithoutLocation();
         this.nodes.forEach(n => {
-            if (!this.isFiniteMapCoordinate(n._lat) || !this.isFiniteMapCoordinate(n._lon)){
-                this.nodesWithoutLoc.push({index: n.index, ID: n._id})
-            }
             if (!nodeLocSet && this.isFiniteMapCoordinate(n._lat) && this.isFiniteMapCoordinate(n._lon)) nodeLocSet = true;
         })
 

@@ -32,7 +32,7 @@ Only one user-provided floorplan background is active through this control. Load
 
 ## Manual Node Placement
 
-When a user-provided background is shown, open `Components > User Provided > Manual Positions` and turn `Positioning` on. Choose a visible node, then click the floorplan to assign its `x/y` position. Nodes that already have positions can be moved by dragging their markers.
+When a user-provided background is shown, open `Components > User Provided > Manual Positions` and turn `Positioning` on. Choose a visible node, then click the floorplan to assign its `x/y` position. Nodes that already have positions can be moved by dragging their markers. Choose `None` or click the selected marker again to stop assigning floorplan clicks to a node.
 
 Manual positions are saved on nodes as:
 
