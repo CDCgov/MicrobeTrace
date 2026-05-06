@@ -962,11 +962,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         ];
 
         const selectedNode = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
-        if (!selectedNode) {
-            const nextNode = manualNodes.find(node => !this.hasManualFloorplanPosition(node)) || manualNodes[0];
-            this.SelectedManualPositionNodeId = nextNode
-                ? String(nextNode._id)
-                : this.noManualPositionNodeValue;
+        const selectedNone = this.SelectedManualPositionNodeId === this.noManualPositionNodeValue;
+        if (!selectedNode && !selectedNone) {
+            this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
         }
 
         if (!this.shouldUseManualFloorplanPosition() && this.SelectedManualPositionTypeVariable === "On") {
@@ -1001,13 +999,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
 
         if (!node) {
-            this.manualPositionMessage = "";
+            this.manualPositionMessage = "No node selected. Choose a node before clicking the floorplan.";
+            this.redrawManualPositionMarkers();
             return;
         }
 
         this.manualPositionMessage = this.hasManualFloorplanPosition(node)
             ? `${node._id} has x/y. Click the floorplan or drag its marker to move it.`
             : `${node._id} is unplaced. Click the floorplan to set x/y.`;
+        this.redrawManualPositionMarkers();
     }
 
     selectNextUnplacedManualPositionNode(): void {
@@ -1030,6 +1030,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.SelectedManualPositionNodeId = String(nextNode._id);
         this.manualPositionMessage = `${nextNode._id} is unplaced. Click the floorplan to set x/y.`;
+        this.redrawManualPositionMarkers();
     }
 
     clearSelectedManualPosition(): void {
@@ -1066,6 +1067,21 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
     }
 
+    private clearManualPositionNodeSelection(message: string = ""): void {
+        this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
+        this.manualPositionMessage = message;
+    }
+
+    private redrawManualPositionMarkers(): void {
+        if (!this.lmap || !this.isManualPositioningActive()) {
+            return;
+        }
+
+        this.drawNodes(false);
+        this.drawLinks();
+        this.resetStack();
+    }
+
     private onManualPositionMarkerClick(e): void {
         if (!this.isManualPositioningActive()) {
             return;
@@ -1074,7 +1090,23 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const node = e.sourceTarget && e.sourceTarget.data
             ? e.sourceTarget.data
             : e.target && e.target.data;
+        if (!node || node._id === undefined) {
+            return;
+        }
+
+        if (e.originalEvent) {
+            e.originalEvent.preventDefault();
+            e.originalEvent.stopPropagation();
+        }
+
+        if (String(this.SelectedManualPositionNodeId) === String(node._id)) {
+            this.clearManualPositionNodeSelection(`${node._id} unselected. Choose a node before clicking the floorplan.`);
+            this.redrawManualPositionMarkers();
+            return;
+        }
+
         this.selectManualPositionNode(node);
+        this.redrawManualPositionMarkers();
     }
 
     private onManualPositionMarkerDragEnd(e): void {
@@ -2657,9 +2689,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 ? fillcolor
                 : this.commonService.temp.style.nodeColorMap(d[colorVariable]);
             const shapeKey = this.getNodeShapeKey(d);
+            const isManualPositionTarget = manualPositioningActive
+                && String(this.SelectedManualPositionNodeId) === String(d._id);
+            const isSelectedMarker = manualPositioningActive ? isManualPositionTarget : d.selected;
 
             let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
-                icon: this.getMapNodeIcon(shapeKey, nodeFillColor, d.selected ? selectedColor : '#000000', d.selected),
+                icon: this.getMapNodeIcon(shapeKey, nodeFillColor, isSelectedMarker ? selectedColor : '#000000', isSelectedMarker),
                 opacity: opacity,
                 draggable: manualPositioningActive
             });
@@ -2677,7 +2712,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 .on('mouseover', (e) => this.showNodeTooltip(e))
                 .on('mouseout', (e) => this.hideTooltip())
                 .on('click', (e) => {
-                    this.onManualPositionMarkerClick(e);
+                    if (manualPositioningActive) {
+                        this.onManualPositionMarkerClick(e);
+                        return;
+                    }
+
                     this.clickHandler(e);
                 });
 
