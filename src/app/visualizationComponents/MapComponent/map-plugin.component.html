@@ -285,6 +285,13 @@
       (ngModelChange)="onNodeCollapsingChange($event)"></p-selectButton>
     </div>
   </div>
+  <div class="form-group row" title="Automatically expand collapsed map nodes when a selected node is inside.">
+    <div class="col-4">Auto-Expand Selected</div>
+    <div class="col-8">
+      <p-selectButton [options]="NodeAutoExpandTypes" [(ngModel)]="SelectedNodeAutoExpandTypeVariable" id="map-node-auto-expand-selected" fluid
+      (ngModelChange)="onNodeAutoExpandChange($event)"></p-selectButton>
+    </div>
+  </div>
   <div class="form-group row" title="How transparent would you like the nodes to be?">
     <div class="col-4"><label for="map-node-transparency">Transparency</label></div>
     <div class="col-8"><input type="range" class="custom-range" id="map-node-transparency" min="0.00"

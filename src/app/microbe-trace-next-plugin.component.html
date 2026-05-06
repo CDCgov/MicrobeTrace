@@ -255,7 +255,7 @@
         <div id="welcome-description" class="bottom primary">The Visualization Multitool for Molecular Epidemiology and Bioinformatics</div>
       </div>
       <div id="add-data-container" class="add-data-container">
-        <a class="here-link primary" style="position: relative; z-index: 5; font-size: 20px;" appendTo="body" href="https://microbetrace.cdc.gov/MicrobeTraceClassic/" target="_blank" >Visit MicrobeTrace Classic</a>
+        <a class="here-link primary" appendTo="body" href="https://microbetrace.cdc.gov/MicrobeTraceClassic/" target="_blank" rel="noreferrer noopener">Visit MicrobeTrace Classic</a>
         <div class="files-msg">
           <span class="primary">Click </span>
           <a class="here-link primary" for="fileDropRef">here</a>
@@ -319,6 +319,23 @@
                     </select>
                   </div>
                 </div>
+                @if (isTN93Selected()) {
+                  <div class="form-group row" title="Choose how TN93 distance values are shown throughout the app. Decimal uses raw values like 0.015. Percentage uses values like 1.5%.">
+                    <div class="col-4">
+                      <label for="tn93-distance-display-format">Distance Format</label>
+                    </div>
+                    <div class="col-8">
+                      <p-selectButton
+                        [options]="TN93DistanceDisplayFormatOptions"
+                        [allowEmpty]="false"
+                        fluid
+                        id="tn93-distance-display-format"
+                        [(ngModel)]="SelectedTN93DistanceDisplayFormatVariable"
+                        (ngModelChange)="onTN93DistanceDisplayFormatChanged($event)">
+                      </p-selectButton>
+                    </div>
+                  </div>
+                }
                 <div class="form-group row" title="By what algorithm would you like to prune links from the network?">
                   <div class="col-4">Prune With
                     <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>
@@ -354,6 +371,9 @@
                     <div class="col-4">
                       <label for="link-threshold">
                         Filtering Threshold
+                        @if (usesPercentageThresholdDisplay()) {
+                          <span>(%)</span>
+                        }
                         <i
                           class="pi pi-info-circle threshold-help-icon"
                           title="Black bars show how many links fall into each distance bin. The orange line shows how the number of multi-node clusters changes as the threshold increases."></i>
@@ -361,7 +381,7 @@
                     </div>
                     <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
                     <div class="col-8  offset-4">
-                      <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getCurrentThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdVariable" (ngModelChange)="updateThreshold($event)">
+                      <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getDisplayedThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdDisplayVariable" (ngModelChange)="updateThreshold($event)">
                     </div>
                     <div class="col-8 offset-4 threshold-sparkline-readout" id="threshold-sparkline-readout">
                       Hover chart for cluster count

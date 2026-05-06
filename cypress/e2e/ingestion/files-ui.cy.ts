@@ -13,6 +13,31 @@ describe('File Handling and Processing', () => {
     cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
   });
 
+  it('keeps welcome overlay actions reachable on short screens', () => {
+    cy.viewport(320, 240);
+
+    cy.get('#add-data-container', { timeout: 10000 }).should(($container) => {
+      expect(Number($container.css('opacity'))).to.be.greaterThan(0.9);
+    });
+
+    cy.get('#overlay')
+      .should('be.visible')
+      .then(($overlay) => {
+        const overlay = $overlay[0] as HTMLElement;
+
+        expect(overlay.scrollHeight).to.be.greaterThan(overlay.clientHeight);
+      });
+
+    cy.get('#overlay')
+      .scrollTo('bottom')
+      .should(($overlay) => {
+        expect(($overlay[0] as HTMLElement).scrollTop).to.be.greaterThan(0);
+      });
+
+    cy.contains('a', 'Visit MicrobeTrace Classic').should('be.visible');
+    cy.get(byTestId(testIds.appSampleDatasetButton)).should('be.visible');
+  });
+
   it('uploads multiple files and then sets the datatype and the fields', () => {
     // mostly an example of this function
     cy.loadFiles([

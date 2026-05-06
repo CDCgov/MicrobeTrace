@@ -253,11 +253,12 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       const columns = this.exportAllColumns
         ? this.SelectedTableData.availableColumns.map((column) => column.value)
         : this.SelectedTableData.tableColumns;
+      const tableType = this.SelectedTableData?.tableType || this.TableType;
 
       return rowData.map((row) => {
         const output = {};
         columns.forEach((column) => {
-          output[column.header] = row[column.field];
+          output[column.header] = this.formatFieldValueForDisplay(tableType, column.field, row[column.field]);
         });
         return output;
       });
@@ -588,6 +589,36 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
   
       //set selected nodes
       this.visuals.tableComp.setSelectedNodes();
+    }
+
+    private shouldFormatFieldForDisplay(
+      tableType: 'node' | 'link' | 'cluster',
+      field: string
+    ): boolean {
+      const normalizedField = String(field || '').toLowerCase();
+      return (tableType === 'link' && normalizedField === 'distance')
+        || (tableType === 'cluster' && normalizedField === 'mean_genetic_distance');
+    }
+
+    private formatFieldValueForDisplay(
+      tableType: 'node' | 'link' | 'cluster',
+      field: string,
+      value: any
+    ): any {
+      if (value === undefined || value === null || value === '') {
+        return value;
+      }
+
+      if (!this.shouldFormatFieldForDisplay(tableType, field)) {
+        return value;
+      }
+
+      const displayField = tableType === 'cluster' ? 'mean_genetic_distance' : 'distance';
+      return this.commonService.formatDisplayedDistanceValue(Number(value), displayField);
+    }
+
+    formatCellValue(field: string, value: any): any {
+      return this.formatFieldValueForDisplay(this.TableType, field, value);
     }
   
     /**

@@ -147,6 +147,96 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedRevealTypesVariable: 'Everything'
     };
 
+    // Helper functions for TN93 distance display values
+    private normalizeDisplayedDistanceField(linkField: string = 'distance'): string {
+        return String(linkField || 'distance').toLowerCase();
+    }
+
+    private isTN93DisplayField(linkField: string = 'distance'): boolean {
+        const normalizedField = this.normalizeDisplayedDistanceField(linkField);
+        return normalizedField === 'distance'
+            || normalizedField === 'mean_genetic_distance'
+            || normalizedField === 'heatmap-distance';
+    }
+
+    tn93PercentageDisplayEnabled(linkField: string = 'distance'): boolean {
+        return this.isTN93DisplayField(linkField)
+            && String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'tn93'
+            && String(this.session?.style?.widgets?.['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage';
+    }
+
+    toDisplayedDistanceValue(value: number, linkField: string = 'distance'): number {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return numericValue;
+        }
+
+        return this.tn93PercentageDisplayEnabled(linkField)
+            ? Number((numericValue * 100).toFixed(3))
+            : numericValue;
+    }
+
+    fromDisplayedDistanceValue(value: number, linkField: string = 'distance'): number {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return numericValue;
+        }
+
+        return this.tn93PercentageDisplayEnabled(linkField)
+            ? numericValue / 100
+            : numericValue;
+    }
+
+    formatDisplayedDistanceValue(
+        value: number | null | undefined,
+        linkField: string = 'distance',
+        options: {
+            decimals?: number;
+            trimTrailingZeros?: boolean;
+            includeSuffix?: boolean;
+        } = {}
+    ): string {
+        if (value === null || value === undefined) {
+            return 'N/A';
+        }
+
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return 'N/A';
+        }
+
+        const normalizedField = this.normalizeDisplayedDistanceField(linkField);
+        const displayedValue = this.toDisplayedDistanceValue(numericValue, linkField);
+        const usePercentageDisplay = this.tn93PercentageDisplayEnabled(linkField);
+        const includeSuffix = options.includeSuffix !== false;
+        const decimals = options.decimals !== undefined && Number.isFinite(Number(options.decimals))
+            ? Math.max(0, Math.floor(Number(options.decimals)))
+            : normalizedField === 'distance'
+                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
+                : this.isTN93DisplayField(linkField)
+                    ? 3
+                    : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
+
+        if (decimals === 0) {
+            const formattedValue = Math.round(displayedValue).toLocaleString();
+            return usePercentageDisplay && includeSuffix
+                ? `${formattedValue}%`
+                : formattedValue;
+        }
+
+        let formattedValue = displayedValue.toFixed(decimals);
+        if (options.trimTrailingZeros !== false) {
+            formattedValue = formattedValue.replace(/\.?0+$/, '');
+        }
+
+        return usePercentageDisplay && includeSuffix
+            ? `${formattedValue}%`
+            : formattedValue;
+    }
+
     // check for not interfering with networks outside of inital demo
     demoNetworkRendered: boolean = false;
 
@@ -300,6 +390,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-show-nn': false,
             'link-sort-variable': 'distance',
             'link-threshold': 0.015,
+            'tn93-distance-display-format': 'decimal',
             'link-tooltip-variable': ['None'],
             'link-width': 3,
             "link-width-max":27,
@@ -3111,7 +3202,10 @@ align(params): Promise<any> {
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
-        $("#currentLinkThreshold").text(this.session.style.widgets['link-threshold'].toLocaleString());
+        $("#currentLinkThreshold").text(this.formatDisplayedDistanceValue(
+            Number(this.session.style.widgets['link-threshold']),
+            this.session.style.widgets['link-sort-variable']
+        ));
     };
 
    /**
@@ -3931,15 +4025,7 @@ align(params): Promise<any> {
             .domain([0, d3.max(bins, d => (d as any).length)])
             .range([height, 0]);
 
-        const decimalPlaces = (this.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
-        const formatThresholdValue = (value: number) => {
-            if (!Number.isFinite(value)) {
-                return 'N/A';
-            }
-            return decimalPlaces === 0
-                ? Math.round(value).toLocaleString()
-                : value.toFixed(decimalPlaces).replace(/\.?0+$/, '');
-        };
+        const formatThresholdValue = (value: number) => this.formatDisplayedDistanceValue(value, lsv);
         const formatClusterCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'cluster' : 'clusters'}`;
         const setDefaultReadout = () => {
             if (readout.length === 0) {
@@ -4029,7 +4115,16 @@ align(params): Promise<any> {
         function updateThreshold() {
             const hoveredThreshold = getHoveredThresholdValue();
             that.session.style.widgets["link-threshold"] = hoveredThreshold;
-            $("#link-threshold").val(parseFloat(that.session.style.widgets["link-threshold"].toFixed(decimalPlaces)));
+
+            if (
+                that.visuals &&
+                that.visuals.microbeTrace &&
+                typeof that.visuals.microbeTrace.syncThresholdDisplayFromStoredValue === 'function'
+            ) {
+                that.visuals.microbeTrace.syncThresholdDisplayFromStoredValue();
+            } else {
+                $("#link-threshold").val(that.toDisplayedDistanceValue(hoveredThreshold, lsv));
+            }
         }
 
         function updateHoverReadout() {

@@ -395,10 +395,22 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
       .filter(k => !(this.metaDataToSkip.includes(k) || k.charAt(0) == '_' || typeof source[k] == 'object'))
       .map(k => {
         const prop = this.commonService.titleize(k);
-        const shouldFormatClusterMetric = formatClusterSummary &&
-          (k == 'mean_genetic_distance' || k == 'links_per_node') &&
-          typeof source[k] == 'number';
-        const value = shouldFormatClusterMetric ? source[k].toFixed(3) : source[k];
+        const isNumericValue = typeof source[k] == 'number';
+        const shouldFormatClusterDistance = formatClusterSummary && k == 'mean_genetic_distance' && isNumericValue;
+        const shouldFormatLinksPerNode = formatClusterSummary && k == 'links_per_node' && isNumericValue;
+        const shouldFormatLinkDistance = k == 'distance' && isNumericValue;
+
+        let value = source[k];
+
+        if (shouldFormatClusterDistance) {
+          value = this.commonService.tn93PercentageDisplayEnabled('mean_genetic_distance')
+            ? this.commonService.formatDisplayedDistanceValue(source[k], 'mean_genetic_distance')
+            : Number(source[k]).toFixed(3);
+        } else if (shouldFormatLinksPerNode) {
+          value = Number(source[k]).toFixed(3);
+        } else if (shouldFormatLinkDistance) {
+          value = this.commonService.formatDisplayedDistanceValue(source[k], 'distance');
+        }
 
         return { 'key': prop, 'value': value };
       });
@@ -415,6 +427,10 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     });
 
     return links;
+  }
+
+  formatLinkTableDistance(value: any): string {
+    return this.commonService.formatDisplayedDistanceValue(value, 'distance');
   }
 
   onClusterRowSelect(e) {

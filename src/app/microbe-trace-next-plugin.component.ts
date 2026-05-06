@@ -227,7 +227,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedClusterMinimumSizeVariable: any = 0;
     SelectedLinkSortVariable: string = 'Distance';
     SelectedLinkThresholdVariable: any = parseFloat(this.threshold);
+    SelectedLinkThresholdDisplayVariable: any = parseFloat(this.threshold);
     SelectedDistanceMetricVariable = this.metric;
+    SelectedTN93DistanceDisplayFormatVariable: string = 'decimal';
+    TN93DistanceDisplayFormatOptions = [
+        { label: 'Decimal', value: 'decimal' },
+        { label: 'Percentage', value: 'percentage' }
+    ];
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
     thresholdStabilityExpanded: boolean = false;
@@ -458,15 +464,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         })
 
          // Subscribe to network rendered
-         this.networkRenderedSubscription = this.store.networkRendered$
+        this.networkRenderedSubscription = this.store.networkRendered$
       .pipe(takeUntil(this.destroy$))
       .subscribe(rendered => {
         console.log('DEBUG: networkRenderedSubscription fired. rendered =', rendered);
         console.log('DEBUG: session.network.isFullyLoaded?', this.commonService.session.network.isFullyLoaded);
 
         if (rendered) {
-          this.displayloadingInformationModal = false;
-          this.messages = [];
+          this.clearLoadingInformationModal();
           console.log('DEBUG: Calling onLinkColorTableChanged from networkRenderedSubscription...');
           console.log('DEBUG: #link-color-table rowcount BEFORE = ', $('#link-color-table').find('tr').length);
 
@@ -498,6 +503,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         .pipe(takeUntil(this.destroy$))
         .subscribe(message => {
             console.log('--- message updated: ', message);
+            if(this.commonService.session.network.isFullyLoaded) {
+                this.clearLoadingInformationModal();
+                this.cdref.detectChanges();
+                return;
+            }
+
             if(message) {
                 this.displayloadingInformationModal = true;
                 this.showMessage(message);
@@ -508,8 +519,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.thresholdSubscription = this.store.linkThreshold$.subscribe(
             (newThreshold: number) => {
                 // Only update local state if changed
-                if (this.SelectedLinkThresholdVariable !== newThreshold) {
+                if (Number(this.SelectedLinkThresholdVariable) !== Number(newThreshold)) {
                     this.onLinkThresholdChanged(newThreshold);
+                } else {
+                    this.syncThresholdDisplayFromStoredValue();
                 }
             }
         );
@@ -560,7 +573,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         this.SelectedLinkThresholdVariable = this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
         this.threshold = this.SelectedLinkThresholdVariable;
-        this.commonService.session.style.widgets['link-threshold'] = this.SelectedLinkThresholdVariable;
+        this.commonService.session.style.widgets['link-threshold'] = Number(this.SelectedLinkThresholdVariable);
+        this.syncThresholdDisplayFromStoredValue();
         this.SelectedRevealTypesVariable = this.commonService.GlobalSettingsModel.SelectedRevealTypesVariable;
         this.SelectedStatisticsTypesVariable = this.commonService.GlobalSettingsModel.SelectedStatisticsTypesVariable;
 
@@ -710,6 +724,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('--- GOLDEN LAYOUT COMPONENT LOADED');
             this.commonService.session.tabLoaded = true;
             this.commonService.session.network.isFullyLoaded = true;
+            this.clearLoadingInformationModal();
+            this.cdref.detectChanges();
             this.setActiveTabProperties();
 
             // logpolygon color sh
@@ -723,6 +739,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         });
 
+    }
+
+    private clearLoadingInformationModal(): void {
+        this.displayloadingInformationModal = false;
+        this.messages = [];
     }
 
     private normalizeDashboardLabel(value: string): string {
@@ -1548,18 +1569,30 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
-        this.threshold = newThreshold;
-        
+        const thresholdField =
+            this.SelectedLinkSortVariable ||
+            this.commonService.session.style.widgets['link-sort-variable'] ||
+            'distance';
+
+        const rawThreshold = this.commonService.fromDisplayedDistanceValue(
+            parsedThreshold,
+            thresholdField
+        );
+
+        const formattedThreshold = String(rawThreshold);
+
+        this.threshold = formattedThreshold;
+
         if(this.commonService.debugMode) {
             console.log('threshold: ', this.threshold);
         }
         
         // Update UI immediately
-        this.SelectedLinkThresholdVariable = newThreshold;
+        this.SelectedLinkThresholdVariable = formattedThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         
         // Emit the new threshold value to the debouncer for actual threshold change
-        this.thresholdDebouncer.next(parsedThreshold);
+        this.thresholdDebouncer.next(rawThreshold);
     }
 
 
@@ -1670,14 +1703,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.session.style.widgets["link-sort-variable"] = this.SelectedLinkSortVariable;
         // this.commonService.updateThresholdHistogram();
 
-       // 1) Parse the threshold value to a number
-       const linkThresholdValue = parseFloat(String(this.commonService.session.style.widgets["link-threshold"]));
+        // 1) Parse the threshold value to a number
+        const linkThresholdValue = parseFloat(String(this.commonService.session.style.widgets["link-threshold"]));
 
-    // 2) Now you can safely call toFixed on a numeric value
-    const decimals = (this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
-    const fixedThresholdValue = linkThresholdValue.toFixed(decimals);
+        // 2) Now you can safely call toFixed on a numeric value
+        const decimals = (this.commonService.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+        const fixedThresholdValue = linkThresholdValue.toFixed(decimals);
 
-    // 3) If you want to store it back as a number (not a string), parseFloat again:
+        // 3) If you want to store it back as a number (not a string), parseFloat again:
         this.SelectedLinkThresholdVariable = parseFloat(fixedThresholdValue);
 
         // If not loading all settings at once, update link threshold
@@ -3353,19 +3386,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onLinkThresholdChanged( newThreshold?: number, silent: boolean = false) {
 
-        if(this.commonService.session.data.nodes.length === 0) {
+        if(newThreshold !== undefined) {
+            this.commonService.session.style.widgets["link-threshold"] = Number(newThreshold);
+        }
+
+        const parsedThreshold = Number(this.commonService.session.style.widgets["link-threshold"]);
+
+        if (!Number.isFinite(parsedThreshold)) {
             return;
         }
 
-        if(newThreshold !== undefined) {
-            // Update the style widget
-            this.commonService.session.style.widgets["link-threshold"] = newThreshold;
-        }
+        this.syncThresholdDisplayFromStoredValue();
 
-        // Determine the new threshold
-        const parsedThreshold = newThreshold !== undefined 
-        ? parseFloat(newThreshold.toString()) 
-        : parseFloat(this.SelectedLinkThresholdVariable);
+        if(this.commonService.session.data.nodes.length === 0) {
+            return;
+        }
 
         // Only update if the threshold is different
         // if (parsedThreshold === this._lastLinkThreshold && this.commonService.session.network.isFullyLoaded) {
@@ -3374,15 +3409,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // }
         //debugger;
 
-        // If a new threshold is provided, update the SelectedLinkThresholdVariable
-        if (newThreshold) {
-            this.SelectedLinkThresholdVariable = newThreshold;
-        }
-
-        this._lastLinkThreshold = this.SelectedLinkThresholdVariable;
-        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
-        this.commonService.session.style.widgets["link-threshold"] = parseFloat(this.SelectedLinkThresholdVariable);
-        this.threshold = this.SelectedLinkThresholdVariable;
+        this._lastLinkThreshold = parsedThreshold;
+        this.commonService.session.style.widgets["link-threshold"] = parsedThreshold;
+        this.syncThresholdDisplayFromStoredValue();
 
         // const minClust = $("#cluster-minimum-size").val();
         
@@ -3413,6 +3442,56 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.commonService.updateNetworkVisuals(false, true);
         }
 
+    }
+
+    private getThresholdFieldName(): string {
+        return this.SelectedLinkSortVariable || this.commonService.session.style.widgets['link-sort-variable'] || 'distance';
+    }
+
+    usesPercentageThresholdDisplay() {
+        return this.commonService.tn93PercentageDisplayEnabled(this.getThresholdFieldName());
+    }
+
+    getDisplayedThresholdStepSize() {
+        const step = Number(this.getCurrentThresholdStepSize());
+
+        if (!Number.isFinite(step)) {
+            return 1;
+        }
+
+        return this.commonService.toDisplayedDistanceValue(step, this.getThresholdFieldName());
+    }
+
+    public syncThresholdDisplayFromStoredValue(): void {
+        const storedThreshold = Number(this.commonService.session.style.widgets["link-threshold"]);
+
+        if (!Number.isFinite(storedThreshold)) {
+            return;
+        }
+
+        this.SelectedLinkThresholdVariable = storedThreshold;
+        this.threshold = String(storedThreshold);
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = storedThreshold;
+        const displayedThreshold = this.commonService.toDisplayedDistanceValue(
+            storedThreshold,
+            this.getThresholdFieldName()
+        );
+        this.SelectedLinkThresholdDisplayVariable = displayedThreshold;
+        $("#link-threshold").val(displayedThreshold);
+        this.cdref.markForCheck();
+    }
+
+    onTN93DistanceDisplayFormatChanged() {
+        this.commonService.session.style.widgets['tn93-distance-display-format'] = this.SelectedTN93DistanceDisplayFormatVariable || 'decimal';
+        this.syncThresholdDisplayFromStoredValue();
+        this.commonService.updateStatistics();
+
+        if (this.linkThresholdSparkline?.nativeElement) {
+            this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+        }
+
+        this.refreshThresholdStabilityPanel(false);
+        this.publishUpdateVisualization();
     }
         
 
@@ -3450,6 +3529,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // TODO: See if we need to flip these now since the service should override these local settings
         this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
         this.SelectedLinkThresholdVariable = this.commonService.session.style.widgets['link-threshold'];
+        this.syncThresholdDisplayFromStoredValue();
         this.commonService.GlobalSettingsModel.SelectedNodeColorVariable = this.SelectedNodeColorVariable;
         this.commonService.session.style.widgets['node-color'] = this.SelectedNodeColorVariable;
         this.commonService.session.style.widgets['link-color'] = this.SelectedLinkColorVariable;
@@ -4354,6 +4434,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.GlobalSettingsDialogSettings.setVisibility(true);
         this.cachedGlobalSettingsVisibility = this.GlobalSettingsDialogSettings.isVisible;
+        this.syncThresholdDisplayFromStoredValue();
+        setTimeout(() => this.syncThresholdDisplayFromStoredValue(), 0);
         this.thresholdStabilityExpanded = false;
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
@@ -4958,29 +5040,39 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return this.store.currentThresholdStepSizeValue;
     }
 
+    isTN93Selected() {
+        return String(this.SelectedDistanceMetricVariable || this.commonService.session.style.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93';
+    }
+
     /**
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
      */
   onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
-    this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
+    const selectedMetric = String(this.SelectedDistanceMetricVariable).toLowerCase();
+    this.SelectedDistanceMetricVariable = selectedMetric;
+    this.metric = selectedMetric;
+    this.store.updatecurrentThresholdStepSize(selectedMetric);
     let didRecomputeSequenceLinks = false;
-    if (this.SelectedDistanceMetricVariable.toLowerCase() === 'snps') {
+    if (selectedMetric === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
         .val(16)
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.SelectedLinkThresholdVariable = '16';
+      this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
+      this.commonService.session.style.widgets["link-threshold"] = 16;
     } else {
       $('#default-distance-threshold')
         .attr('step', 0.001)
         .val(0.015)
         .trigger('change');
       this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
-      this.SelectedLinkThresholdVariable = '0.015';
+      this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
+      this.commonService.session.style.widgets["link-threshold"] = 0.015;
     }
+    this.syncThresholdDisplayFromStoredValue();
 
     didRecomputeSequenceLinks = await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
     if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
@@ -4992,6 +5084,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
       this.commonService.session.style.widgets["mst-computed"] = true;
+    }
+
+    if (this.linkThresholdSparkline?.nativeElement) {
+      this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
     }
 
     this.refreshThresholdStabilityPanel();
@@ -5194,15 +5290,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     formatThresholdStabilityValue(value: number | null | undefined): string {
-        if (value === null || value === undefined || !Number.isFinite(value)) {
-            return 'N/A';
-        }
-
-        if (Math.abs(value - Math.round(value)) < 1e-9) {
-            return Math.round(value).toLocaleString();
-        }
-
-        return value.toFixed(3).replace(/\.?0+$/, '');
+        return this.commonService.formatDisplayedDistanceValue(value, this.getThresholdFieldName());
     }
 }
 
