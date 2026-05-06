@@ -1232,6 +1232,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.selectManualPositionNode(marker.data, false);
         this.persistManualPosition(marker.data, marker.getLatLng());
         this.manualPositionMessage = `Updated ${this.getManualPositionCoordinateLabel()} for ${marker.data._id}.`;
+        if (this.commonService.session.style.widgets['map-collapsing-on']
+            && !this.commonService.session.style.widgets['map-link-show']) {
+            this.drawNodes(false);
+        }
         this.drawLinks();
         this.refreshManualPositionControls();
     }
@@ -2831,7 +2835,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             features.push(nodeMarker);
         }
 
-        if (this.commonService.session.style.widgets['map-collapsing-on'] && !manualPositioningActive) {
+        if (this.commonService.session.style.widgets['map-collapsing-on']) {
             this.layers.markerClusterGroup.addLayers(features);
         } else {
             this.layers.featureGroup = featureGroup(features);
@@ -3042,7 +3046,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Foreground Layers, in order:
         if (this.layers.links && this.commonService.session.style.widgets['map-link-show']) this.layers.links.bringToFront();
         if (this.layers.nodes() && this.commonService.session.style.widgets['map-node-show']) {
-            if (this.commonService.session.style.widgets['map-collapsing-on'] && !this.isManualPositioningActive()) {
+            if (this.commonService.session.style.widgets['map-collapsing-on']) {
                 this.drawNodes(false); //This did not work with clusters//this.layers.nodes().bringToFront();
             } else {
                 this.layers.nodes().bringToFront()
