@@ -32,14 +32,19 @@ Only one user-provided floorplan background is active through this control. Load
 
 ## Manual Node Placement
 
-When a user-provided background is shown, open `Components > User Provided > Manual Positions` and turn `Positioning` on. Choose a visible node, then click the floorplan to assign its `x/y` position. Nodes that already have positions can be moved by dragging their markers. Choose `None` or click the selected marker again to stop assigning floorplan clicks to a node.
+Open `Components > User Provided > Manual Positions` and turn `Positioning` on. Choose a visible node, then click the map to assign a manual location. When a user-provided floorplan background is shown, the click assigns floorplan `x/y`; otherwise it assigns regular map latitude/longitude. Nodes that already have manual positions can be moved by dragging their markers. Choose `None` or click the selected marker again to stop assigning map clicks to a node.
 
-Manual positions are saved on nodes as:
+Floorplan positions are saved on nodes as:
 
 - `map_floorplan_x`
 - `map_floorplan_y`
 
-These fields are only used while a user-provided floorplan background is shown. When the background is hidden, Map View returns to the normal selected geographic fields. Use `Next Unplaced` to step through nodes without manual positions, `Clear Selected` to remove one node position, or `Clear All` to remove positions for all currently visible nodes.
+Regular map positions are saved on nodes as:
+
+- `map_manual_latitude`
+- `map_manual_longitude`
+
+Floorplan fields are only used while a user-provided floorplan background is shown. Regular map manual fields are used when no floorplan background is shown and override the normal selected geographic fields for those nodes. Use `Next Unplaced` to step through nodes without manual positions for the current mode, `Clear Selected` to remove one node position, or `Clear All` to remove positions for all currently visible nodes in the current mode.
 
 ## Creating GeoJSON for Floorplans
 

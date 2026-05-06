@@ -45,6 +45,7 @@ class LongLatClass implements LongLatInterface {
 
 type AdministrativeMapLayer = 'countries' | 'states' | 'counties';
 type FloorplanBackgroundKind = 'geojson' | 'image' | 'none';
+type ManualPositionMode = 'floorplan' | 'map';
 
 // interface gmapMarkerInterface {
 //     zip: string;
@@ -269,6 +270,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private readonly floorplanImageMaxCoordinate: number = 80;
     private readonly manualFloorplanXField: string = 'map_floorplan_x';
     private readonly manualFloorplanYField: string = 'map_floorplan_y';
+    private readonly manualMapLatitudeField: string = 'map_manual_latitude';
+    private readonly manualMapLongitudeField: string = 'map_manual_longitude';
     private readonly noManualPositionNodeValue: string = 'None';
     private readonly manualMapClickHandler = (event: L.LeafletMouseEvent) => this.onManualPositionMapClick(event);
 
@@ -341,7 +344,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.FieldList.push({ label: "None", value: "None" });
         this.commonService.session.data['nodeFields'].map((d, i) => {
-            if (d === this.manualFloorplanXField || d === this.manualFloorplanYField) return;
+            if (this.isManualPositionField(d)) return;
 
             this.FieldList.push(
                 {
@@ -795,9 +798,30 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.floorplanImageError = "";
     }
 
+    private isManualPositionField(field: string): boolean {
+        return [
+            this.manualFloorplanXField,
+            this.manualFloorplanYField,
+            this.manualMapLatitudeField,
+            this.manualMapLongitudeField
+        ].includes(field);
+    }
+
+    private getManualPositionMode(): ManualPositionMode {
+        return this.shouldUseManualFloorplanPosition() ? 'floorplan' : 'map';
+    }
+
+    private getManualPositionTargetLabel(): string {
+        return this.getManualPositionMode() === 'floorplan' ? 'floorplan' : 'map';
+    }
+
+    private getManualPositionCoordinateLabel(): string {
+        return this.getManualPositionMode() === 'floorplan' ? 'x/y' : 'map location';
+    }
+
     private isManualPositioningActive(): boolean {
         return this.SelectedManualPositionTypeVariable === "On"
-            && this.shouldUseManualFloorplanPosition();
+            && this.canUseManualPositioning();
     }
 
     private hasManualFloorplanPosition(node: any): boolean {
@@ -806,11 +830,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             && this.isFiniteMapCoordinate(node[this.manualFloorplanYField]);
     }
 
-    private applyManualFloorplanPositions(): void {
-        if (!this.shouldUseManualFloorplanPosition()) {
-            return;
-        }
+    private hasManualMapPosition(node: any): boolean {
+        return !!node
+            && this.isFiniteMapCoordinate(node[this.manualMapLatitudeField])
+            && this.isFiniteMapCoordinate(node[this.manualMapLongitudeField]);
+    }
 
+    private hasManualPosition(node: any): boolean {
+        return this.getManualPositionMode() === 'floorplan'
+            ? this.hasManualFloorplanPosition(node)
+            : this.hasManualMapPosition(node);
+    }
+
+    private applyManualFloorplanPositions(): void {
         this.nodes.forEach(node => {
             if (!this.hasManualFloorplanPosition(node)) {
                 return;
@@ -819,6 +851,26 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             node._lon = Number(node[this.manualFloorplanXField]);
             node._lat = Number(node[this.manualFloorplanYField]);
         });
+    }
+
+    private applyManualMapPositions(): void {
+        this.nodes.forEach(node => {
+            if (!this.hasManualMapPosition(node)) {
+                return;
+            }
+
+            node._lat = Number(node[this.manualMapLatitudeField]);
+            node._lon = Number(node[this.manualMapLongitudeField]);
+        });
+    }
+
+    private applyManualPositions(): void {
+        if (this.getManualPositionMode() === 'floorplan') {
+            this.applyManualFloorplanPositions();
+            return;
+        }
+
+        this.applyManualMapPositions();
     }
 
     private useExactRenderedNodePosition(node: any): void {
@@ -836,8 +888,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private shouldDisableJitterForNode(node: any): boolean {
-        return this.shouldUseManualFloorplanPosition()
-            && this.hasManualFloorplanPosition(node);
+        return this.hasManualPosition(node);
     }
 
     private ensureManualFloorplanFields(): void {
@@ -852,13 +903,38 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         });
     }
 
+    private ensureManualMapFields(): void {
+        if (!Array.isArray(this.commonService.session.data.nodeFields)) {
+            this.commonService.session.data.nodeFields = [];
+        }
+
+        [this.manualMapLatitudeField, this.manualMapLongitudeField].forEach(field => {
+            if (!this.commonService.session.data.nodeFields.includes(field)) {
+                this.commonService.session.data.nodeFields.push(field);
+            }
+        });
+    }
+
+    private ensureManualPositionFields(): void {
+        if (this.getManualPositionMode() === 'floorplan') {
+            this.ensureManualFloorplanFields();
+            return;
+        }
+
+        this.ensureManualMapFields();
+    }
+
     private getManualPositionNodes(): any[] {
         return this.commonService.getVisibleNodes()
             .filter(node => node && node.visible !== false && node._id !== undefined);
     }
 
+    canUseManualPositioning(): boolean {
+        return this.getManualPositionNodes().length > 0;
+    }
+
     private getManualPositionNodeLabel(node: any): string {
-        const positionState = this.hasManualFloorplanPosition(node) ? "placed" : "unplaced";
+        const positionState = this.hasManualPosition(node) ? "placed" : "unplaced";
         return `${node._id} (${positionState})`;
     }
 
@@ -897,36 +973,44 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         });
     }
 
-    private persistManualFloorplanPosition(node: any, latlng: L.LatLng): void {
+    private persistManualPosition(node: any, latlng: L.LatLng): void {
         if (!node || !latlng) {
             return;
         }
 
-        const x = Number(latlng.lng);
-        const y = Number(latlng.lat);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        const longitude = Number(latlng.lng);
+        const latitude = Number(latlng.lat);
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
             return;
         }
 
-        this.ensureManualFloorplanFields();
+        this.ensureManualPositionFields();
         this.updateMatchingNodeRecords(node, candidate => {
-            candidate[this.manualFloorplanXField] = x;
-            candidate[this.manualFloorplanYField] = y;
-
-            if (this.shouldUseManualFloorplanPosition()) {
-                candidate._lon = x;
-                candidate._lat = y;
-                candidate._jlon = x;
-                candidate._jlat = y;
+            if (this.getManualPositionMode() === 'floorplan') {
+                candidate[this.manualFloorplanXField] = longitude;
+                candidate[this.manualFloorplanYField] = latitude;
+            } else {
+                candidate[this.manualMapLatitudeField] = latitude;
+                candidate[this.manualMapLongitudeField] = longitude;
             }
+
+            candidate._lon = longitude;
+            candidate._lat = latitude;
+            candidate._jlon = longitude;
+            candidate._jlat = latitude;
         });
         this.updateNodesWithoutLocation();
     }
 
-    private clearManualFloorplanPosition(node: any): void {
+    private clearManualPosition(node: any): void {
         this.updateMatchingNodeRecords(node, candidate => {
-            candidate[this.manualFloorplanXField] = null;
-            candidate[this.manualFloorplanYField] = null;
+            if (this.getManualPositionMode() === 'floorplan') {
+                candidate[this.manualFloorplanXField] = null;
+                candidate[this.manualFloorplanYField] = null;
+            } else {
+                candidate[this.manualMapLatitudeField] = null;
+                candidate[this.manualMapLongitudeField] = null;
+            }
         });
     }
 
@@ -959,7 +1043,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     refreshManualPositionControls(): void {
         const manualNodes = this.getManualPositionNodes();
-        const placedNodes = manualNodes.filter(node => this.hasManualFloorplanPosition(node));
+        const placedNodes = manualNodes.filter(node => this.hasManualPosition(node));
 
         this.manualPositionPlacedCount = placedNodes.length;
         this.manualPositionUnplacedCount = manualNodes.length - placedNodes.length;
@@ -977,7 +1061,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
         }
 
-        if (!this.shouldUseManualFloorplanPosition() && this.SelectedManualPositionTypeVariable === "On") {
+        if (!this.canUseManualPositioning() && this.SelectedManualPositionTypeVariable === "On") {
             this.SelectedManualPositionTypeVariable = "Off";
         }
     }
@@ -986,11 +1070,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.SelectedManualPositionTypeVariable = e || "Off";
 
         if (this.SelectedManualPositionTypeVariable === "On") {
-            if (!this.shouldUseManualFloorplanPosition()) {
+            if (!this.canUseManualPositioning()) {
                 this.SelectedManualPositionTypeVariable = "Off";
-                this.manualPositionMessage = "Show a floorplan background before positioning nodes.";
+                this.manualPositionMessage = "No visible nodes are available for positioning.";
             } else {
-                this.manualPositionMessage = "Select a node, then click the floorplan or drag its marker to set x/y.";
+                this.manualPositionMessage = `Select a node, then click the ${this.getManualPositionTargetLabel()} or drag its marker to set ${this.getManualPositionCoordinateLabel()}.`;
             }
         } else {
             this.manualPositionMessage = "";
@@ -1009,14 +1093,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
 
         if (!node) {
-            this.manualPositionMessage = "No node selected. Choose a node before clicking the floorplan.";
+            this.manualPositionMessage = `No node selected. Choose a node before clicking the ${this.getManualPositionTargetLabel()}.`;
             this.redrawManualPositionMarkers();
             return;
         }
 
-        this.manualPositionMessage = this.hasManualFloorplanPosition(node)
-            ? `${node._id} has x/y. Click the floorplan or drag its marker to move it.`
-            : `${node._id} is unplaced. Click the floorplan to set x/y.`;
+        this.manualPositionMessage = this.hasManualPosition(node)
+            ? `${node._id} has ${this.getManualPositionCoordinateLabel()}. Click the ${this.getManualPositionTargetLabel()} or drag its marker to move it.`
+            : `${node._id} is unplaced. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
         this.redrawManualPositionMarkers();
     }
 
@@ -1031,36 +1115,36 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const selectedIndex = manualNodes.findIndex(node => String(node._id) === String(this.SelectedManualPositionNodeId));
         const startIndex = selectedIndex >= 0 ? selectedIndex + 1 : 0;
         const orderedNodes = manualNodes.slice(startIndex).concat(manualNodes.slice(0, startIndex));
-        const nextNode = orderedNodes.find(node => !this.hasManualFloorplanPosition(node));
+        const nextNode = orderedNodes.find(node => !this.hasManualPosition(node));
 
         if (!nextNode) {
-            this.manualPositionMessage = "All visible nodes have x/y positions.";
+            this.manualPositionMessage = `All visible nodes have ${this.getManualPositionCoordinateLabel()}.`;
             return;
         }
 
         this.SelectedManualPositionNodeId = String(nextNode._id);
-        this.manualPositionMessage = `${nextNode._id} is unplaced. Click the floorplan to set x/y.`;
+        this.manualPositionMessage = `${nextNode._id} is unplaced. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
         this.redrawManualPositionMarkers();
     }
 
     clearSelectedManualPosition(): void {
         const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
         if (!node) {
-            this.manualPositionMessage = "Select a node before clearing x/y.";
+            this.manualPositionMessage = `Select a node before clearing ${this.getManualPositionCoordinateLabel()}.`;
             return;
         }
 
-        this.clearManualFloorplanPosition(node);
-        this.manualPositionMessage = `Cleared x/y for ${node._id}.`;
+        this.clearManualPosition(node);
+        this.manualPositionMessage = `Cleared ${this.getManualPositionCoordinateLabel()} for ${node._id}.`;
         this.refreshRenderedCoordinates(false);
     }
 
     clearAllManualPositions(): void {
         const positionedNodes = this.getManualPositionNodes()
-            .filter(node => this.hasManualFloorplanPosition(node));
+            .filter(node => this.hasManualPosition(node));
 
-        positionedNodes.forEach(node => this.clearManualFloorplanPosition(node));
-        this.manualPositionMessage = `Cleared x/y for ${positionedNodes.length} visible node${positionedNodes.length === 1 ? "" : "s"}.`;
+        positionedNodes.forEach(node => this.clearManualPosition(node));
+        this.manualPositionMessage = `Cleared ${this.getManualPositionCoordinateLabel()} for ${positionedNodes.length} visible node${positionedNodes.length === 1 ? "" : "s"}.`;
         this.refreshRenderedCoordinates(false);
     }
 
@@ -1071,9 +1155,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.SelectedManualPositionNodeId = String(node._id);
         if (showMessage) {
-            this.manualPositionMessage = this.hasManualFloorplanPosition(node)
-                ? `${node._id} selected. Click the floorplan or drag its marker to move it.`
-                : `${node._id} selected. Click the floorplan to set x/y.`;
+            this.manualPositionMessage = this.hasManualPosition(node)
+                ? `${node._id} selected. Click the ${this.getManualPositionTargetLabel()} or drag its marker to move it.`
+                : `${node._id} selected. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
         }
     }
 
@@ -1110,7 +1194,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         if (String(this.SelectedManualPositionNodeId) === String(node._id)) {
-            this.clearManualPositionNodeSelection(`${node._id} unselected. Choose a node before clicking the floorplan.`);
+            this.clearManualPositionNodeSelection(`${node._id} unselected. Choose a node before clicking the ${this.getManualPositionTargetLabel()}.`);
             this.redrawManualPositionMarkers();
             return;
         }
@@ -1130,8 +1214,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         this.selectManualPositionNode(marker.data, false);
-        this.persistManualFloorplanPosition(marker.data, marker.getLatLng());
-        this.manualPositionMessage = `Updated x/y for ${marker.data._id}.`;
+        this.persistManualPosition(marker.data, marker.getLatLng());
+        this.manualPositionMessage = `Updated ${this.getManualPositionCoordinateLabel()} for ${marker.data._id}.`;
         this.drawLinks();
         this.refreshManualPositionControls();
     }
@@ -1148,12 +1232,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
         if (!node) {
-            this.manualPositionMessage = "Select a node before clicking the floorplan.";
+            this.manualPositionMessage = `Select a node before clicking the ${this.getManualPositionTargetLabel()}.`;
             return;
         }
 
-        this.persistManualFloorplanPosition(node, e.latlng);
-        this.manualPositionMessage = `Set x/y for ${node._id}.`;
+        this.persistManualPosition(node, e.latlng);
+        this.manualPositionMessage = `Set ${this.getManualPositionCoordinateLabel()} for ${node._id}.`;
         this.drawNodes(false);
         this.drawLinks();
         this.resetStack();
@@ -2451,7 +2535,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             });
         }
 
-        this.applyManualFloorplanPositions();
+        this.applyManualPositions();
 
         let nodeLocSet: boolean = false;
         this.updateNodesWithoutLocation();
