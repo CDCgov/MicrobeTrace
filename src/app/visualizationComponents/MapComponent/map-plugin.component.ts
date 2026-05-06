@@ -938,6 +938,21 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         return `${node._id} (${positionState})`;
     }
 
+    private findRenderedManualPositionNode(node: any): any {
+        if (!node || node._id === undefined || !Array.isArray(this.nodes)) {
+            return node;
+        }
+
+        return this.nodes.find(candidate => String(candidate._id) === String(node._id)) || node;
+    }
+
+    private hasRenderedMapPosition(node: any): boolean {
+        const renderedNode = this.findRenderedManualPositionNode(node);
+        return !!renderedNode
+            && this.isFiniteMapCoordinate(renderedNode._lat)
+            && this.isFiniteMapCoordinate(renderedNode._lon);
+    }
+
     private findManualPositionNodeById(nodeId: string): any {
         if (!nodeId || nodeId === this.noManualPositionNodeValue) {
             return undefined;
@@ -1044,9 +1059,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     refreshManualPositionControls(): void {
         const manualNodes = this.getManualPositionNodes();
         const placedNodes = manualNodes.filter(node => this.hasManualPosition(node));
+        const notPlacedNodes = manualNodes.filter(node => !this.hasRenderedMapPosition(node));
 
         this.manualPositionPlacedCount = placedNodes.length;
-        this.manualPositionUnplacedCount = manualNodes.length - placedNodes.length;
+        this.manualPositionUnplacedCount = notPlacedNodes.length;
         this.manualPositionNodeList = [
             { label: "None", value: this.noManualPositionNodeValue },
             ...manualNodes.map(node => ({
