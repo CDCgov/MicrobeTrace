@@ -1941,12 +1941,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates visualization for each view that is available
      */
     publishUpdateVisualization() {
+        const updatedInstances = new Set<any>();
+
         this.homepageTabs.forEach(tab => {
             if (tab.componentRef &&
                 tab.componentRef.instance.updateVisualization) {
                 tab.componentRef.instance.updateVisualization();
+                updatedInstances.add(tab.componentRef.instance);
             }
         })
+
+        Object.values(this.commonService.visuals || {}).forEach((visual: any) => {
+            if (visual?.updateVisualization && !updatedInstances.has(visual)) {
+                visual.updateVisualization();
+            }
+        });
     }
 
     publishUpdateLinkColor() {

@@ -312,7 +312,9 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
   updateNodeColors() {}
   updateLinkColor() {}
-  updateVisualization() {}
+  updateVisualization() {
+    this.refreshTables();
+  }
   applyStyleFileSettings() {}
   openRefreshScreen() {}
   onRecallSession() {}

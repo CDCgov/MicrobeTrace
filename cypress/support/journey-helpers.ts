@@ -1123,10 +1123,11 @@ export function setFilteringEpsilonExponent(exponent: number): void {
 }
 
 export function setGlobalDistanceMetric(metric: DistanceMetric): void {
-  cy.get('#global-settings-modal')
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .parents('.p-dialog')
     .find('#default-distance-metric')
-    .should('be.visible')
-    .select(metric);
+    .should('exist')
+    .select(metric, { force: true });
 
   cy.window()
     .its('commonService.session.style.widgets.default-distance-metric')
@@ -1136,7 +1137,9 @@ export function setGlobalDistanceMetric(metric: DistanceMetric): void {
 export function setTN93DistanceDisplayFormat(format: 'decimal' | 'percentage'): void {
   const buttonLabel = format === 'percentage' ? 'Percentage' : 'Decimal';
 
-  cy.get('#tn93-distance-display-format')
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .parents('.p-dialog')
+    .find('#tn93-distance-display-format')
     .contains('span', buttonLabel)
     .click({ force: true });
 

@@ -18,7 +18,7 @@ describe('Map View', () => {
    * continues with the sample dataset, and navigates to the view.
    */
   beforeEach(() => {
-    cy.visit('/');
+    cy.visit('/?skipEula=1');
     cy.wait(6000); // Allow for initial application bootstrap
 
     cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
@@ -242,7 +242,7 @@ describe('Map View', () => {
       cy.window().its('commonService.session.style.widgets.map-counties-show').should('equal', false);
 
       cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('.p-accordionheader', 'Offline').click();
-      cy.get('#map-counties-show-hide').contains('Show').click();
+      cy.get('#map-counties-show-hide').contains('Labels + Borders').click();
       cy.window().its('commonService.session.style.widgets.map-counties-show').should('equal', true);
       cy.closeSettingsPane('Geospatial Settings');
       cy.wait(1000)
@@ -267,7 +267,7 @@ describe('Map View', () => {
 
       cy.get(selectors.settingsBtn).click();
       cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
-      cy.get('#map-states-show-hide').contains('Show').click();
+      cy.get('#map-states-show-hide').contains('Labels + Borders').click();
       cy.window().its('commonService.session.style.widgets.map-states-show').should('equal', true);
       cy.closeSettingsPane('Geospatial Settings');
       cy.wait(200)
