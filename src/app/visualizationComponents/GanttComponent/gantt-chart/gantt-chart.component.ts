@@ -14,6 +14,9 @@ export class GanttChartComponent implements OnInit, OnChanges {
   @Input() width: number;
   @Input() colorScheme = 'colorful';
   @Input() customColorScheme: string[] = [];
+  @Input() gridWidthX: number = 120;
+  @Input() gridWidthY: number = 20;
+  @Input() fontSize = 14;
 
   componentID;
   chartStartX = 150;
@@ -22,11 +25,6 @@ export class GanttChartComponent implements OnInit, OnChanges {
   phaseTimelines;
   height: number;
   min(n1: number, n2: number): number { return Math.min(n1, n2)  }
-  fontSize = 14;
-
-  gridWidthX: number = 150;
-  gridWidthY: number = 20;
-
   gridPrecisionX: number;
 
   gridID: string;
@@ -68,14 +66,26 @@ export class GanttChartComponent implements OnInit, OnChanges {
     return Math.max(1, this.ganttChartService.gridColumnCount || 8);
   }
 
+  private getParentWidth(): number {
+    const host = this.currentElement.nativeElement as HTMLElement;
+    const parent = host.parentElement;
+    if (!parent) {
+      return 0;
+    }
+
+    const parentWidth = parent.getBoundingClientRect().width;
+    return Number.isFinite(parentWidth) && parentWidth > 0 ? parentWidth : 0;
+  }
+
   private syncChartWidth(): void {
     const requiredWidth =
       this.chartStartX +
       this.ganttChartService.rectWidth +
       10 +
       this.fontSize * 2.5;
+    const baseWidth = this.getParentWidth() || this.width || 0;
 
-    this.width = this.width ? Math.max(this.width, requiredWidth) : requiredWidth;
+    this.width = Math.max(baseWidth, requiredWidth);
   }
 
   computeGrid() {
@@ -116,16 +126,14 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
 
   setDimensions() {
-    if (this.width) this.height = this.width - this.xPadding;
-    else {
-      const host = this.currentElement.nativeElement;
-      if (host.parentNode != null) {
-        const dims = host.parentNode.getBoundingClientRect();
-        this.width = dims.width;
-        this.height = this.width - this.xPadding;
-      }
+    const parentWidth = this.getParentWidth();
+    if (parentWidth) {
+      this.width = parentWidth;
+      this.height = this.width - this.xPadding;
+    } else if (this.width) {
+      this.height = this.width - this.xPadding;
     }
-    
+
      /*
      console.log('---set dimensions---');
      console.log('width: ' + this.width);
@@ -190,7 +198,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
     this.setDimensions();
     this.gridID = 'grid' + this.componentID;
     this.gridFill = `url(#${this.gridID})`
-    this.setDefaultGridWidthX();
+    this.normalizeGridWidthX();
     this.ganttChartService.setValues({
       componentID: this.componentID,
       width: this.width,
@@ -208,6 +216,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
   ngOnChanges() {
     this.setDimensions();
+    this.normalizeGridWidthX();
     this.ganttChartService.setValues({
       componentID: this.componentID,
       width: this.width,
@@ -223,8 +232,19 @@ export class GanttChartComponent implements OnInit, OnChanges {
     this.computeGrid();
   }
 
-  setDefaultGridWidthX() {
-    this.gridWidthX = this.width ? (Math.floor((this.width - this.chartStartX) / 8 / 10) - 1) * 10 : 120;
+  private calculateDefaultGridWidthX(): number {
+    const predictedWidth = this.width
+      ? (Math.floor((this.width - this.chartStartX) / 8 / 10) - 1) * 10
+      : 120;
+
+    return Math.min(200, Math.max(20, predictedWidth));
+  }
+
+  private normalizeGridWidthX() {
+    const parsedWidth = Number(this.gridWidthX);
+    this.gridWidthX = Number.isFinite(parsedWidth) && parsedWidth > 0
+      ? parsedWidth
+      : this.calculateDefaultGridWidthX();
   }
   calculateLabelYPos() {
     this.yAxis = [];

@@ -175,13 +175,15 @@ const focusAppTab = (tabLabel: string): void => {
 };
 
 const openDockedKeyTablesView = (): void => {
-  openGlobalStylingTab();
-  cy.get('#open-key-tables-view', { timeout: 15000 }).click({ force: true });
+  cy.window().its('commonService.activeTab').then((activeTabBeforeOpen) => {
+    openGlobalStylingTab();
+    cy.get('#open-key-tables-view', { timeout: 15000 }).click({ force: true });
 
-  cy.window({ timeout: 15000 }).its('commonService.visuals.keyTables').should('exist');
-  cy.window({ timeout: 15000 }).its('commonService.activeTab').should('equal', 'Docked Key Tables');
-  closeGlobalSettingsIfVisible();
-  cy.get('.key-tables-view', { timeout: 15000 }).should('be.visible');
+    cy.window({ timeout: 15000 }).its('commonService.visuals.keyTables').should('exist');
+    cy.window({ timeout: 15000 }).its('commonService.activeTab').should('equal', activeTabBeforeOpen);
+    closeGlobalSettingsIfVisible();
+    cy.get('.key-tables-view', { timeout: 15000 }).should('be.visible');
+  });
 };
 
 const enableFloatingKeyTablesFromGlobalSettings = (): void => {

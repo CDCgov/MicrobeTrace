@@ -9,11 +9,12 @@ import { WorkerModule } from '../workers/workModule';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
 import AuspiceHandler from '@app/helperClasses/auspiceHandler';
 import { AppComponentBase } from '@shared/common/app-component-base';
-import { DashboardRestoreState, StashObjects, StashObject } from '../helperClasses/interfaces';
+import { DashboardRestoreState, HomePageTabItem, StashObjects, StashObject } from '../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { HttpClient } from '@angular/common/http';
 import { GraphData } from '@app/visualizationComponents/TwoDComponent/data';
 import { CommonStoreService } from './common-store.services';
+import { LayoutConfig } from 'golden-layout';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
 import { ColorMappingService } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
@@ -44,6 +45,52 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     activeTab: string = 'Files';
     pendingDashboardRestore: DashboardRestoreState | null = null;
+
+    private readonly restorableDashboardViews = new Set<string>([
+        '2D Network',
+        'Map',
+        'Table',
+        'Epi Curve',
+        'Phylogenetic Tree',
+        'Alignment View',
+        'Crosstab',
+        'Aggregate',
+        'Gantt Chart',
+        'Heatmap',
+        'Bubble',
+        'Sankey',
+        'Waterfall'
+    ]);
+
+    private readonly legacyViewNameMap: { [key: string]: string } = {
+        '2d_network': '2D Network',
+        '2dnetwork': '2D Network',
+        'network': '2D Network',
+        'geo_map': 'Map',
+        'geomap': 'Map',
+        'map': 'Map',
+        'table': 'Table',
+        'timeline': 'Epi Curve',
+        'epi_curve': 'Epi Curve',
+        'epicurve': 'Epi Curve',
+        'phylogenetic_tree': 'Phylogenetic Tree',
+        'phylogenetictree': 'Phylogenetic Tree',
+        'tree': 'Phylogenetic Tree',
+        'sequences': 'Alignment View',
+        'sequence': 'Alignment View',
+        'alignment': 'Alignment View',
+        'alignment_view': 'Alignment View',
+        'crosstab': 'Crosstab',
+        'cross_tab': 'Crosstab',
+        'aggregate': 'Aggregate',
+        'gantt': 'Gantt Chart',
+        'gantt_chart': 'Gantt Chart',
+        'heatmap': 'Heatmap',
+        'bubble': 'Bubble',
+        'sankey': 'Sankey',
+        'waterfall': 'Waterfall',
+        'files': 'Files'
+    };
 
     thirtyColorPalette: string[] = [
         "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
@@ -609,6 +656,20 @@ export class CommonService extends AppComponentBase implements OnInit {
     }
     temp: any = this.tempSkeleton();
     session = this.sessionSkeleton();
+    private dataLoadGeneration = 0;
+
+    beginDataLoad(): number {
+        this.dataLoadGeneration += 1;
+        return this.dataLoadGeneration;
+    }
+
+    getDataLoadGeneration(): number {
+        return this.dataLoadGeneration;
+    }
+
+    isCurrentDataLoad(loadGeneration: number): boolean {
+        return loadGeneration === this.dataLoadGeneration;
+    }
 
     private getAnalysisCache() {
         if (!this.temp.analysis) {
@@ -893,6 +954,300 @@ export class CommonService extends AppComponentBase implements OnInit {
             origin: [],
             hasDistance: false
         }
+    }
+
+    public normalizeViewName(value: any): string | null {
+        if (value === null || value === undefined) {
+            return null;
+        }
+
+        const rawValue = String(value).trim();
+        if (!rawValue) {
+            return null;
+        }
+
+        const lookupKey = rawValue.toLowerCase().replace(/[\s-]+/g, '_');
+        return this.legacyViewNameMap[lookupKey] ?? rawValue;
+    }
+
+    private normalizeRestorableDashboardViewName(value: any): string | null {
+        const viewName = this.normalizeViewName(value);
+
+        if (!viewName || !this.restorableDashboardViews.has(viewName)) {
+            return null;
+        }
+
+        return viewName;
+    }
+
+    private normalizeRegisteredDashboardViewName(value: any): string | null {
+        const viewName = this.normalizeViewName(value);
+
+        if (!viewName || (viewName !== 'Files' && !this.restorableDashboardViews.has(viewName))) {
+            return null;
+        }
+
+        return viewName;
+    }
+
+    private getLegacyLayoutViewName(layoutItem: any, includeFiles: boolean = false): string | null {
+        const normalizeViewName = includeFiles
+            ? (value: any) => this.normalizeRegisteredDashboardViewName(value)
+            : (value: any) => this.normalizeRestorableDashboardViewName(value);
+
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            return normalizeViewName(layoutItem);
+        }
+
+        if (layoutItem.type === 'component') {
+            return normalizeViewName(
+                layoutItem.componentType ??
+                layoutItem.componentName ??
+                layoutItem.title
+            );
+        }
+
+        return normalizeViewName(
+            layoutItem.componentType ??
+            layoutItem.componentName ??
+            (
+                ['row', 'column', 'stack'].includes(String(layoutItem.type).toLowerCase())
+                    ? null
+                    : layoutItem.type
+            )
+        );
+    }
+
+    private collectLegacyLayoutViewNames(layoutItem: any, viewNames: string[] = []): string[] {
+        const viewName = this.getLegacyLayoutViewName(layoutItem);
+
+        if (viewName && !viewNames.includes(viewName)) {
+            viewNames.push(viewName);
+        }
+
+        const childItems = Array.isArray(layoutItem?.content)
+            ? layoutItem.content
+            : layoutItem?.root
+                ? [layoutItem.root]
+                : [];
+
+        childItems.forEach(child => this.collectLegacyLayoutViewNames(child, viewNames));
+
+        return viewNames;
+    }
+
+    private buildDashboardTabStackLayout(viewNames: string[], activeLabel?: string): any {
+        const activeItemIndex = Math.max(viewNames.findIndex(viewName => viewName === activeLabel), 0);
+
+        return {
+            root: {
+                type: 'stack',
+                activeItemIndex,
+                content: viewNames.map(viewName => ({
+                    type: 'component',
+                    componentType: viewName,
+                    title: viewName
+                }))
+            }
+        };
+    }
+
+    private formatGoldenLayoutSize(value: any, unit: any, fallbackUnit: string): string | undefined {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return undefined;
+        }
+
+        const sizeUnit = typeof unit === 'string' && unit.trim() ? unit.trim() : fallbackUnit;
+        return `${numericValue}${sizeUnit}`;
+    }
+
+    private normalizeGoldenLayoutSizeFields(layoutItem: any): void {
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            return;
+        }
+
+        const formattedSize = this.formatGoldenLayoutSize(layoutItem.size, layoutItem.sizeUnit, 'fr');
+        if (formattedSize !== undefined) {
+            layoutItem.size = formattedSize;
+        } else {
+            delete layoutItem.size;
+        }
+
+        const formattedMinSize = this.formatGoldenLayoutSize(layoutItem.minSize, layoutItem.minSizeUnit, 'px');
+        if (formattedMinSize !== undefined) {
+            layoutItem.minSize = formattedMinSize;
+        } else {
+            delete layoutItem.minSize;
+        }
+
+        delete layoutItem.sizeUnit;
+        delete layoutItem.minSizeUnit;
+    }
+
+    private normalizeGoldenLayoutDimensionFields(layoutConfig: any): void {
+        const dimensions = layoutConfig?.dimensions;
+        if (!dimensions || typeof dimensions !== 'object') {
+            return;
+        }
+
+        const minHeight = this.formatGoldenLayoutSize(dimensions.defaultMinItemHeight, dimensions.defaultMinItemHeightUnit, 'px');
+        if (minHeight !== undefined) {
+            dimensions.defaultMinItemHeight = minHeight;
+        }
+
+        const minWidth = this.formatGoldenLayoutSize(dimensions.defaultMinItemWidth, dimensions.defaultMinItemWidthUnit, 'px');
+        if (minWidth !== undefined) {
+            dimensions.defaultMinItemWidth = minWidth;
+        }
+
+        delete dimensions.defaultMinItemHeightUnit;
+        delete dimensions.defaultMinItemWidthUnit;
+    }
+
+    private toLoadableDashboardLayoutConfig(layoutConfig: any): any {
+        if (!layoutConfig || typeof layoutConfig !== 'object') {
+            return null;
+        }
+
+        if (layoutConfig.resolved === true) {
+            try {
+                return LayoutConfig.fromResolved(layoutConfig as any);
+            } catch {
+                const fallbackLayout = { ...layoutConfig };
+                delete fallbackLayout.resolved;
+                this.normalizeGoldenLayoutDimensionFields(fallbackLayout);
+                return fallbackLayout;
+            }
+        }
+
+        const loadableLayout = { ...layoutConfig };
+        delete loadableLayout.resolved;
+        this.normalizeGoldenLayoutDimensionFields(loadableLayout);
+        return loadableLayout;
+    }
+
+    public normalizeDashboardLayout(layoutConfig: any): any {
+        const loadableLayout = this.toLoadableDashboardLayoutConfig(layoutConfig);
+        const normalizedLayout = loadableLayout?.root
+            ? this.normalizeDashboardLayoutViewNames(loadableLayout)
+            : null;
+
+        return normalizedLayout?.root ? normalizedLayout : null;
+    }
+
+    private normalizeDashboardLayoutViewNames(layoutItem: any): any {
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            const componentName = this.normalizeRegisteredDashboardViewName(layoutItem);
+            return componentName
+                ? {
+                    type: 'component',
+                    componentType: componentName,
+                    title: componentName
+                }
+                : null;
+        }
+
+        if (Array.isArray(layoutItem)) {
+            return layoutItem.map(child => this.normalizeDashboardLayoutViewNames(child));
+        }
+
+        const normalizedItem = { ...layoutItem };
+        this.normalizeGoldenLayoutSizeFields(normalizedItem);
+        const componentName = this.getLegacyLayoutViewName(normalizedItem, true);
+
+        if (componentName) {
+            return {
+                ...normalizedItem,
+                type: 'component',
+                componentType: componentName,
+                title: componentName
+            };
+        }
+
+        const itemType = String(normalizedItem.type ?? '').toLowerCase();
+        const isContainerItem = ['row', 'column', 'stack'].includes(itemType);
+        if (normalizedItem.type && !isContainerItem && itemType !== 'component' && !normalizedItem.root) {
+            return null;
+        }
+
+        if (normalizedItem.root) {
+            normalizedItem.root = this.normalizeDashboardLayoutViewNames(normalizedItem.root);
+        }
+
+        if (Array.isArray(normalizedItem.openPopouts)) {
+            normalizedItem.openPopouts = normalizedItem.openPopouts
+                .map(child => this.normalizeDashboardLayoutViewNames(child))
+                .filter(Boolean);
+        }
+
+        if (Array.isArray(normalizedItem.content)) {
+            normalizedItem.content = normalizedItem.content
+                .map(child => this.normalizeDashboardLayoutViewNames(child))
+                .filter(Boolean);
+        }
+
+        if (isContainerItem && (!Array.isArray(normalizedItem.content) || normalizedItem.content.length === 0)) {
+            return null;
+        }
+
+        return normalizedItem;
+    }
+
+    private buildLegacyDashboardRestoreState(oldSession: any, savedTabs: HomePageTabItem[]): DashboardRestoreState | null {
+        const viewNames = this.collectLegacyLayoutViewNames(oldSession?.layout);
+        const defaultView = this.normalizeRestorableDashboardViewName(oldSession?.style?.widgets?.['default-view']);
+        const defaultViewWasInLayout = !defaultView || viewNames.includes(defaultView);
+        const normalizedLegacyLayout = oldSession?.layout
+            ? this.normalizeDashboardLayoutViewNames(
+                oldSession.layout.root
+                    ? oldSession.layout
+                    : { root: oldSession.layout }
+            )
+            : null;
+
+        savedTabs
+            .map(tab => this.normalizeRestorableDashboardViewName(tab.label))
+            .forEach(viewName => {
+                if (viewName && !viewNames.includes(viewName)) {
+                    viewNames.push(viewName);
+                }
+            });
+
+        if (defaultView && !viewNames.includes(defaultView)) {
+            viewNames.unshift(defaultView);
+        }
+
+        if (viewNames.length <= 1) {
+            return null;
+        }
+
+        const savedActiveLabel = savedTabs
+            .filter(tab => tab.isActive)
+            .map(tab => this.normalizeRestorableDashboardViewName(tab.label))
+            .find((viewName): viewName is string => !!viewName && viewNames.includes(viewName));
+        const activeLabel = savedActiveLabel ?? defaultView ?? viewNames[0];
+
+        return {
+            dashboardLayout: normalizedLegacyLayout?.root && defaultViewWasInLayout
+                ? normalizedLegacyLayout
+                : this.buildDashboardTabStackLayout(viewNames, activeLabel),
+            tabs: viewNames.map(viewName => ({
+                label: viewName,
+                tabTitle: viewName,
+                isActive: viewName === activeLabel,
+                componentRef: null,
+                templateRef: null
+            }))
+        };
     }
 
     public cleanupData(): void {
@@ -1602,6 +1957,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     async applySession(stashObject: StashObjects) {
         //If anything here seems eccentric, assume it's to maintain compatibility with
         //session files from older versions of MicrobeTrace.
+        this.beginDataLoad();
         $("#launch").prop("disabled", true);
 
          // Set to false to indicate that the network is not fully loaded  as new network is launching
@@ -1635,17 +1991,25 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         }
 
-        const savedDashboardLayout = stashObject.dashboardLayout ?? stashObject.session?.dashboardLayout;
+        const oldSession = stashObject.session;
         const savedTabs = Array.isArray(stashObject.tabs) ? stashObject.tabs : [];
 
-        this.pendingDashboardRestore = savedDashboardLayout?.root
-            ? {
-                dashboardLayout: savedDashboardLayout,
-                tabs: savedTabs,
-            }
-            : null;
+        const normalizedDefaultView = this.normalizeViewName(oldSession?.style?.widgets?.['default-view']);
+        if (normalizedDefaultView && oldSession?.style?.widgets) {
+            oldSession.style.widgets['default-view'] = normalizedDefaultView;
+        }
 
-        const oldSession = stashObject.session;
+        const savedDashboardLayout = stashObject.dashboardLayout ?? oldSession?.dashboardLayout;
+        const normalizedDashboardLayout = this.normalizeDashboardLayout(savedDashboardLayout);
+
+        this.pendingDashboardRestore = normalizedDashboardLayout?.root
+            ? {
+                dashboardLayout: normalizedDashboardLayout,
+                tabs: savedTabs,
+                dashboardState: stashObject.dashboardState ?? oldSession?.dashboardState,
+            }
+            : this.buildLegacyDashboardRestoreState(oldSession, savedTabs);
+
         console.log('this.temp: ', this.temp);
         this.temp.matrix = [];
         this.session.files = oldSession.files;
@@ -1687,6 +2051,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.processData();
 
         if (oldSession.network) this.session.network = oldSession.network;
+
+        this.session.network.initialLoad = true;
+        this.session.network.launched = true;
 
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;

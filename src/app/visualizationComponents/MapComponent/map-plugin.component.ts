@@ -120,6 +120,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     networkUpdatedSubscription: any;
     private destroy$ = new Subject<void>()
     private initialSettingsLoaded = false;
+    private initialSettingsLoadScheduled = false;
+    private applyingSettings = false;
 
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -503,14 +505,21 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private tryLoadInitialSettings(): void {
-        if (this.initialSettingsLoaded || !this.lmap || !this.layers.markerClusterGroup) {
+        if (this.initialSettingsLoaded || this.initialSettingsLoadScheduled || !this.lmap || !this.layers.markerClusterGroup) {
             return;
         }
 
-        this.initialSettingsLoaded = true;
+        this.initialSettingsLoadScheduled = true;
         window.setTimeout(() => {
-            this.loadSettings();
-            this.cdref.detectChanges();
+            try {
+                this.applyingSettings = true;
+                this.loadSettings();
+                this.initialSettingsLoaded = true;
+            } finally {
+                this.applyingSettings = false;
+                this.initialSettingsLoadScheduled = false;
+                this.cdref.detectChanges();
+            }
         }, 0);
     }
 
@@ -1291,6 +1300,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     onDataChange(event) {
+        if (!this.initialSettingsLoaded && !this.applyingSettings) {
+            return;
+        }
+
         this.commonService.session.style.widgets['map-field-lat'] = this.SelectedLatitude;
         this.commonService.session.style.widgets['map-field-lon'] = this.SelectedLongitude;
         this.commonService.session.style.widgets['map-field-tract'] = this.SelectedCensusTract;
@@ -1384,8 +1397,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             } else {
                 //this.commonService.getMapData('countries.json', () => $(this).trigger('click'));
                 this.getMapData('countries.json', () => {
+                    if (!this.commonService.session.style.widgets['map-countries-show']) {
+                        return;
+                    }
                     this.layers.countries.addTo(this.lmap);
-                    this.updateAdminLabelLayer('countries', showLabels);
+                    this.updateAdminLabelLayer('countries', this.commonService.session.style.widgets['map-countries-labels-show']);
                     this.resetStack();
                 });
 
@@ -1413,8 +1429,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 this.resetStack();
             } else {
                 this.getMapData('states.json', () => {
+                    if (!this.commonService.session.style.widgets['map-states-show']) {
+                        return;
+                    }
                     this.layers.states.addTo(this.lmap);
-                    this.updateAdminLabelLayer('states', showLabels);
+                    this.updateAdminLabelLayer('states', this.commonService.session.style.widgets['map-states-labels-show']);
                     this.resetStack();
                 });
             }
@@ -1440,8 +1459,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 this.resetStack();
             } else {
                 this.getMapData('counties.json', () => {
+                    if (!this.commonService.session.style.widgets['map-counties-show']) {
+                        return;
+                    }
                     this.layers.counties.addTo(this.lmap);
-                    this.updateAdminLabelLayer('counties', showLabels);
+                    this.updateAdminLabelLayer('counties', this.commonService.session.style.widgets['map-counties-labels-show']);
                     this.resetStack();
                 });
             }

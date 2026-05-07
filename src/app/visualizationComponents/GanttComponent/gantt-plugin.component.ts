@@ -1,4 +1,4 @@
-import { Injector, Component, Output, EventEmitter, OnInit,
+import { Injector, Component, Output, EventEmitter, OnInit, AfterViewInit,
   ViewChild, ViewContainerRef, ElementRef, ChangeDetectorRef, Inject } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -25,7 +25,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     styleUrls: ['./gantt-plugin.component.scss'],
     standalone: false
 })
-export class GanttComponent extends BaseComponentDirective implements OnInit {
+export class GanttComponent extends BaseComponentDirective implements OnInit, AfterViewInit {
   @ViewChild('ganttContainer', {read: ViewContainerRef}) ganttContainer: ViewContainerRef;
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   viewActive: boolean = true;
@@ -73,8 +73,15 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   showGrid: boolean = true;
   gridWidthY = 20;
   gridWidthX = 120;
+  ganttViewWidth = 0;
   currentOpacity = 0.9
   fontSize = 14;
+  private readonly ganttChartStartX = 150;
+  private readonly autoGridColumnCount = 8;
+  private readonly minGridWidthX = 20;
+  private readonly maxGridWidthX = 200;
+  private readonly gridWidthXStep = 10;
+  private gridWidthXManuallyChanged = false;
 
   SelectedNetworkExportFileTypeListVariable = 'png';
   GanttSettingsDialogSettings: DialogSettings = new DialogSettings('#gantt-settings-pane', false);
@@ -162,7 +169,10 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     // this.ganttChartData = [this.makeGanttEntry("_blank", "Ipstart", "Ipend", "#2ca02c")];
     this.goldenLayoutComponentResize();
 
-    this.container.on('resize', () => { this.goldenLayoutComponentResize() })
+    this.container.on('resize', () => {
+      this.goldenLayoutComponentResize();
+      this.cdref.detectChanges();
+    })
     this.container.on('hide', () => { 
       this.viewActive = false; 
       this.cdref.detectChanges();
@@ -187,6 +197,47 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   goldenLayoutComponentResize() {
     $('.gantt-plugin').height($('ganttcomponent').height()-19);
     $('.gantt-plugin').width($('ganttcomponent').width()-1)
+    this.ganttViewWidth = this.getGanttViewWidth();
+    this.applyAutoGridWidthX();
+  }
+
+  private getGanttViewWidth(): number {
+    const ganttElement = this.rootHtmlElement.querySelector('.gantt-plugin') as HTMLElement | null;
+    const widthCandidates = [
+      ganttElement?.getBoundingClientRect().width,
+      this.rootHtmlElement.getBoundingClientRect().width,
+      $('ganttcomponent').width() as number | undefined
+    ];
+
+    return widthCandidates.find(
+      (width): width is number => typeof width === 'number' && Number.isFinite(width) && width > 0
+    ) || 0;
+  }
+
+  private calculateAutoGridWidthX(): number | null {
+    const viewWidth = this.getGanttViewWidth();
+    if (!viewWidth) {
+      return null;
+    }
+
+    const steppedWidth =
+      (Math.floor((viewWidth - this.ganttChartStartX) / this.autoGridColumnCount / this.gridWidthXStep) - 1)
+      * this.gridWidthXStep;
+    return Math.min(this.maxGridWidthX, Math.max(this.minGridWidthX, steppedWidth));
+  }
+
+  private applyAutoGridWidthX(): void {
+    if (this.gridWidthXManuallyChanged) {
+      return;
+    }
+
+    const autoGridWidthX = this.calculateAutoGridWidthX();
+    if (autoGridWidthX == null || autoGridWidthX === this.gridWidthX) {
+      return;
+    }
+
+    this.gridWidthX = autoGridWidthX;
+    this.ganttChartElement?.updateGridWidthX(this.gridWidthX);
   }
 
   private getRawGanttFieldValue(nodeData: any, field: string): string | null {
@@ -268,11 +319,13 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.resetEntryForm();
     this.visuals.gantt.GanttSettingsDialogSettings.setVisibility(false);
 
-    if (this.ganttEntryCount == 1) {
-      this.changeFontSize();
-      this.gridWidthX = this.ganttChartElement.gridWidthX;
-    }
+  }
 
+  ngAfterViewInit(): void {
+    setTimeout(() => {
+      this.goldenLayoutComponentResize();
+      this.cdref.detectChanges();
+    });
   }
 
   removeGanttEntry(entryName): void {
@@ -374,6 +427,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   }
 
   changeGridWidthX() {
+    this.gridWidthXManuallyChanged = true;
     this.ganttChartElement.updateGridWidthX(this.gridWidthX)
   }
 
