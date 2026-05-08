@@ -214,6 +214,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     SelectedManualPositionNodeId: string = "None";
     manualPositionPlacedCount: number = 0;
     manualPositionUnplacedCount: number = 0;
+    manualPositionClearableCount: number = 0;
+    manualPositionSelectedCanClear: boolean = false;
     manualPositionMessage: string = "";
 
     NodeCollapsingTypes: any = [
@@ -276,6 +278,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private readonly manualMapLongitudeField: string = 'map_manual_longitude';
     private readonly noManualPositionNodeValue: string = 'None';
     private readonly manualMapClickHandler = (event: L.LeafletMouseEvent) => this.onManualPositionMapClick(event);
+    private readonly selectedNodeAutoExpandMaxAttempts: number = 10;
+    private readonly selectedNodeAutoExpandRetryDelayMs: number = 50;
 
     nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
@@ -386,6 +390,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         $( document ).on( "node-selected", function( ) {
             //update this?
+            that.syncMapNodeSelectionFromSessionNodes();
+            that.syncManualPositionSelectionFromNodeSelection();
             that.refreshManualPositionControls();
             that.drawNodes(false);
             that.autoExpandSelectedNode();
@@ -405,7 +411,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             that.drawNodes(false);
             that.drawLinks();
-            that.refreshManualPositionControls();
+            that.refreshManualPositionControlsFromExternalCallback();
             //that.centerMap();
         });
         
@@ -585,8 +591,50 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             && !!this.layers.markerClusterGroup
             && this.commonService.session.style.widgets['map-node-show'] === true
             && this.commonService.session.style.widgets['map-collapsing-on'] === true
-            && this.commonService.session.style.widgets['map-auto-expand-selected'] === true
-            && !this.isManualPositioningActive();
+            && this.commonService.session.style.widgets['map-auto-expand-selected'] === true;
+    }
+
+    private syncMapNodeSelectionFromSessionNodes(): void {
+        const sessionNodes = this.commonService.session.data.nodes;
+        if (!Array.isArray(sessionNodes) || !Array.isArray(this.nodes)) {
+            return;
+        }
+
+        const selectedById: Record<string, boolean> = Object.create(null);
+        sessionNodes.forEach(node => {
+            if (node && node._id !== undefined) {
+                selectedById[String(node._id)] = node.selected === true;
+            }
+        });
+
+        this.nodes.forEach(node => {
+            if (!node || node._id === undefined) {
+                return;
+            }
+
+            const nodeId = String(node._id);
+            if (Object.prototype.hasOwnProperty.call(selectedById, nodeId)) {
+                node.selected = selectedById[nodeId];
+            }
+        });
+    }
+
+    private syncManualPositionSelectionFromNodeSelection(): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const selectedNodes = this.nodes.filter(node =>
+            node.selected
+            && node.visible !== false
+            && node._id !== undefined
+        );
+
+        if (selectedNodes.length !== 1) {
+            return;
+        }
+
+        this.SelectedManualPositionNodeId = String(selectedNodes[0]._id);
     }
 
     private autoExpandSelectedNode(): void {
@@ -608,20 +656,47 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         const selectedNodeId = String(selectedNode._id);
-        window.setTimeout(() => this.expandSelectedMapNodeCluster(selectedNodeId), 0);
+        this.scheduleSelectedNodeClusterExpansion(selectedNodeId, 0);
     }
 
-    private expandSelectedMapNodeCluster(nodeId: string): void {
+    private scheduleSelectedNodeClusterExpansion(nodeId: string, attempt: number): void {
+        const delay = attempt === 0 ? 0 : this.selectedNodeAutoExpandRetryDelayMs;
+        window.setTimeout(() => this.expandSelectedMapNodeCluster(nodeId, attempt), delay);
+    }
+
+    private retrySelectedNodeClusterExpansion(nodeId: string, attempt: number): void {
+        if (attempt >= this.selectedNodeAutoExpandMaxAttempts) {
+            return;
+        }
+
+        this.scheduleSelectedNodeClusterExpansion(nodeId, attempt + 1);
+    }
+
+    private expandSelectedMapNodeCluster(nodeId: string, attempt: number = 0): void {
         if (!this.canAutoExpandSelectedNode()) {
             return;
         }
 
         const marker = this.mapNodeMarkersById[nodeId];
-        if (!marker || !(this.layers.markerClusterGroup as any)._map || !this.layers.markerClusterGroup.hasLayer(marker)) {
+        const markerClusterGroup = this.layers.markerClusterGroup;
+        const markerClusterGroupState = markerClusterGroup as any;
+
+        if (!marker || !markerClusterGroupState._map || !markerClusterGroup.hasLayer(marker)) {
+            this.retrySelectedNodeClusterExpansion(nodeId, attempt);
             return;
         }
 
-        const visibleParent = this.layers.markerClusterGroup.getVisibleParent(marker);
+        if (markerClusterGroupState._inZoomAnimation) {
+            this.retrySelectedNodeClusterExpansion(nodeId, attempt);
+            return;
+        }
+
+        const visibleParent = markerClusterGroup.getVisibleParent(marker);
+        if (!visibleParent) {
+            this.retrySelectedNodeClusterExpansion(nodeId, attempt);
+            return;
+        }
+
         const parentCluster = visibleParent !== marker && (visibleParent as any).spiderfy
             ? visibleParent as any
             : null;
@@ -631,6 +706,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         parentCluster.spiderfy();
+        if (markerClusterGroupState._spiderfied !== parentCluster) {
+            this.retrySelectedNodeClusterExpansion(nodeId, attempt);
+        }
     }
 
     /* Not sure goal of this at the moment
@@ -943,7 +1021,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private getManualPositionNodeLabel(node: any): string {
-        const positionState = this.hasManualPosition(node) ? "placed" : "unplaced";
+        const positionState = this.hasPlacedMapPosition(node) ? "placed" : "unplaced";
         return `${node._id} (${positionState})`;
     }
 
@@ -955,7 +1033,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         return this.nodes.find(candidate => String(candidate._id) === String(node._id)) || node;
     }
 
-    private hasRenderedMapPosition(node: any): boolean {
+    private hasPlacedMapPosition(node: any): boolean {
         const renderedNode = this.findRenderedManualPositionNode(node);
         return !!renderedNode
             && this.isFiniteMapCoordinate(renderedNode._lat)
@@ -1067,11 +1145,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     refreshManualPositionControls(): void {
         const manualNodes = this.getManualPositionNodes();
-        const placedNodes = manualNodes.filter(node => this.hasManualPosition(node));
-        const notPlacedNodes = manualNodes.filter(node => !this.hasRenderedMapPosition(node));
+        const placedNodes = manualNodes.filter(node => this.hasPlacedMapPosition(node));
+        const notPlacedNodes = manualNodes.filter(node => !this.hasPlacedMapPosition(node));
+        const clearableNodes = manualNodes.filter(node => this.hasManualPosition(node));
 
         this.manualPositionPlacedCount = placedNodes.length;
         this.manualPositionUnplacedCount = notPlacedNodes.length;
+        this.manualPositionClearableCount = clearableNodes.length;
         this.manualPositionNodeList = [
             { label: "None", value: this.noManualPositionNodeValue },
             ...manualNodes.map(node => ({
@@ -1085,10 +1165,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (!selectedNode && !selectedNone) {
             this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
         }
+        this.manualPositionSelectedCanClear = !!selectedNode && this.hasManualPosition(selectedNode);
 
         if (!this.canUseManualPositioning() && this.SelectedManualPositionTypeVariable === "On") {
             this.SelectedManualPositionTypeVariable = "Off";
         }
+    }
+
+    private refreshManualPositionControlsFromExternalCallback(): void {
+        this.refreshManualPositionControls();
+        this.cdref.detectChanges();
     }
 
     onManualPositioningChange(e): void {
@@ -1123,7 +1209,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             return;
         }
 
-        this.manualPositionMessage = this.hasManualPosition(node)
+        this.refreshManualPositionControls();
+        this.manualPositionMessage = this.hasPlacedMapPosition(node)
             ? `${node._id} has ${this.getManualPositionCoordinateLabel()}. Click the ${this.getManualPositionTargetLabel()} or drag its marker to move it.`
             : `${node._id} is unplaced. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
         this.redrawManualPositionMarkers();
@@ -1140,7 +1227,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const selectedIndex = manualNodes.findIndex(node => String(node._id) === String(this.SelectedManualPositionNodeId));
         const startIndex = selectedIndex >= 0 ? selectedIndex + 1 : 0;
         const orderedNodes = manualNodes.slice(startIndex).concat(manualNodes.slice(0, startIndex));
-        const nextNode = orderedNodes.find(node => !this.hasManualPosition(node));
+        const nextNode = orderedNodes.find(node => !this.hasPlacedMapPosition(node));
 
         if (!nextNode) {
             this.manualPositionMessage = `All visible nodes have ${this.getManualPositionCoordinateLabel()}.`;
@@ -1156,6 +1243,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
         if (!node) {
             this.manualPositionMessage = `Select a node before clearing ${this.getManualPositionCoordinateLabel()}.`;
+            return;
+        }
+
+        if (!this.hasManualPosition(node)) {
+            this.manualPositionMessage = `${node._id} does not have a manual ${this.getManualPositionCoordinateLabel()} to clear.`;
+            this.refreshManualPositionControls();
             return;
         }
 
@@ -1180,7 +1273,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.SelectedManualPositionNodeId = String(node._id);
         if (showMessage) {
-            this.manualPositionMessage = this.hasManualPosition(node)
+            this.manualPositionMessage = this.hasPlacedMapPosition(node)
                 ? `${node._id} selected. Click the ${this.getManualPositionTargetLabel()} or drag its marker to move it.`
                 : `${node._id} selected. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
         }
@@ -1220,11 +1313,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         if (String(this.SelectedManualPositionNodeId) === String(node._id)) {
             this.clearManualPositionNodeSelection(`${node._id} unselected. Choose a node before clicking the ${this.getManualPositionTargetLabel()}.`);
+            this.refreshManualPositionControlsFromExternalCallback();
             this.redrawManualPositionMarkers();
             return;
         }
 
         this.selectManualPositionNode(node);
+        this.refreshManualPositionControlsFromExternalCallback();
         this.redrawManualPositionMarkers();
     }
 
@@ -1246,7 +1341,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.drawNodes(false);
         }
         this.drawLinks();
-        this.refreshManualPositionControls();
+        this.refreshManualPositionControlsFromExternalCallback();
     }
 
     private onManualPositionMapClick(e: L.LeafletMouseEvent): void {
@@ -1270,7 +1365,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.drawNodes(false);
         this.drawLinks();
         this.resetStack();
-        this.refreshManualPositionControls();
+        this.refreshManualPositionControlsFromExternalCallback();
     }
 
     /**
@@ -2824,7 +2919,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             const shapeKey = this.getNodeShapeKey(d);
             const isManualPositionTarget = manualPositioningActive
                 && String(this.SelectedManualPositionNodeId) === String(d._id);
-            const isSelectedMarker = manualPositioningActive ? isManualPositionTarget : d.selected;
+            const isSelectedMarker = isManualPositionTarget || d.selected === true;
 
             let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
                 icon: this.getMapNodeIcon(shapeKey, nodeFillColor, isSelectedMarker ? selectedColor : '#000000', isSelectedMarker),

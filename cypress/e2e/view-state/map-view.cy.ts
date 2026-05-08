@@ -541,6 +541,50 @@ describe('Map View', () => {
       })
     })
 
+    it('should spiderfy the metanode containing a searched node while manual positioning is active', () => {
+      const targetNodeId = 'MZ797703';
+
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Components').click();
+      cy.get('@mapSettings').contains('.p-accordionheader', 'User Provided').click({ force: true });
+      cy.get('@mapSettings')
+        .find('#map-manual-positioning')
+        .contains('On')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.visuals.gisMap.SelectedManualPositionTypeVariable')
+        .should('equal', 'On');
+
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const marker = mapView.mapNodeMarkersById[targetNodeId];
+        expect(marker, `${targetNodeId} marker`).to.exist;
+
+        const visibleParent = mapView.layers.markerClusterGroup.getVisibleParent(marker);
+        expect(visibleParent, `${targetNodeId} should start inside a metanode`).to.not.equal(marker);
+      });
+
+      cy.get('#search-field').select('_id');
+      cy.get('#search').clear().type(targetNodeId);
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
+        const spiderfiedCluster = mapView.layers.markerClusterGroup._spiderfied;
+
+        expect(selectedNode?.selected, `${targetNodeId} selected from search`).to.equal(true);
+        expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
+        expect(spiderfiedCluster, 'spiderfied metanode').to.exist;
+
+        const spiderfiedNodeIds = spiderfiedCluster
+          .getAllChildMarkers()
+          .map((marker: any) => marker.data?._id);
+        expect(spiderfiedNodeIds, 'spiderfied metanode node ids').to.include(targetNodeId);
+      });
+    })
+
     it('should download map view as a png', () => {
       cy.closeSettingsPane('Geospatial Settings');
       cy.get('#tool-btn-container-map a[title="Export Screen"]').click(); // #tool-btn-container-map a[title="Export Screen"]'

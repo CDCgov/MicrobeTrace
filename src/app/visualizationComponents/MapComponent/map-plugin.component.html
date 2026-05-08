@@ -340,7 +340,7 @@
     <div class="form-group row">
       <div class="col-4">Status</div>
       <div class="col-8 map-manual-position-summary">
-        {{ manualPositionPlacedCount }} manually placed / {{ manualPositionUnplacedCount }} not placed
+        {{ manualPositionPlacedCount }} placed / {{ manualPositionUnplacedCount }} not placed
       </div>
     </div>
     <div class="form-group row">
@@ -352,7 +352,7 @@
       </div>
       <div class="col-4">
         <button type="button" class="btn btn-sm btn-secondary w-100"
-          [disabled]="SelectedManualPositionTypeVariable !== 'On' || SelectedManualPositionNodeId === 'None'"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || !manualPositionSelectedCanClear"
           (click)="clearSelectedManualPosition()">Clear Selected</button>
       </div>
     </div>
@@ -360,7 +360,7 @@
       <div class="col-4"></div>
       <div class="col-8">
         <button type="button" class="btn btn-sm btn-secondary w-100"
-          [disabled]="SelectedManualPositionTypeVariable !== 'On' || manualPositionPlacedCount === 0"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || manualPositionClearableCount === 0"
           (click)="clearAllManualPositions()">Clear All</button>
       </div>
     </div>
