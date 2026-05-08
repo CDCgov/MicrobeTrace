@@ -202,7 +202,11 @@ export function writeCapturedDownloadToDisk(expectedFileName: string, filePath: 
     expect(captured, `captured download for ${expectedFileName}`).to.exist;
 
     const base64 = String(captured?.dataUrl || '').split(',').pop() || '';
-    cy.writeFile(filePath, base64, 'base64');
+    cy.writeFile(filePath, base64, 'base64').then(() => {
+      w.__mtCapturedDownloads = (w.__mtCapturedDownloads || []).filter(
+        (download) => download !== captured,
+      );
+    });
   });
 }
 
@@ -1131,6 +1135,18 @@ export function setGlobalDistanceMetric(metric: DistanceMetric): void {
   cy.window()
     .its('commonService.session.style.widgets.default-distance-metric')
     .should('equal', metric);
+}
+
+export function setTN93DistanceDisplayFormat(format: 'decimal' | 'percentage'): void {
+  const buttonLabel = format === 'percentage' ? 'Percentage' : 'Decimal';
+
+  cy.get('#tn93-distance-display-format')
+    .contains('span', buttonLabel)
+    .click({ force: true });
+
+  cy.window()
+    .its('commonService.session.style.widgets.tn93-distance-display-format')
+    .should('equal', format);
 }
 
 export function setGlobalLinkThreshold(threshold: number | string): void {
@@ -2138,7 +2154,7 @@ export function enableGroupingShow(groupBy: 'cluster' | 'subtype' = 'cluster'): 
 
 
 export function assertGroupedByCluster(): void {
-  cy.window().then((win: unknown) => {
+  cy.window().should((win: unknown) => {
     const w = win as WinWithMT;
     const cyInstance = w.cytoscapeInstance as Core;
 

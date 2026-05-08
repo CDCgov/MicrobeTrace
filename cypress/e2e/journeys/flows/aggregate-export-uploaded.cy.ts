@@ -117,7 +117,7 @@ describe('Journey Flow - Aggregate uploaded export ordering', () => {
     selectAggregateExportType('csv.zip', 'csv.zip');
     cy.get('@aggregateExport').contains('button', 'Export').click({ force: true });
     cy.readFile(`${downloadsFolder}/${zipFileBase}.zip`, 'binary', { timeout: 20000 }).then((binary) => {
-      return JSZip.loadAsync(binary, { binary: true }).then((zip) => {
+      return JSZip.loadAsync(binary).then((zip) => {
         const fileNames = Object.keys(zip.files).filter((name) => !zip.files[name].dir);
         expect(fileNames).to.deep.equal(['Cluster-nodes.csv', 'Link-distance.csv', 'Node-cluster.csv']);
       });

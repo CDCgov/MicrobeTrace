@@ -46,6 +46,31 @@ const normalizeGroupName = (value: unknown): string => {
   return String(value);
 };
 
+const shouldFormatAggregateGroupName = (dataset: string, field: string): boolean => {
+  const normalizedDataset = String(dataset || '').toLowerCase();
+  const normalizedField = String(field || '').toLowerCase();
+
+  return (normalizedDataset === 'link' && normalizedField === 'distance')
+    || (normalizedDataset === 'cluster' && normalizedField === 'mean_genetic_distance');
+};
+
+const formatAggregateGroupName = (win: WinWithMT, dataset: string, field: string, groupName: string): string => {
+  if (!shouldFormatAggregateGroupName(dataset, field)) {
+    return groupName;
+  }
+
+  const numericValue = Number(groupName);
+  if (!Number.isFinite(numericValue)) {
+    return groupName;
+  }
+
+  const displayField = String(dataset || '').toLowerCase() === 'cluster'
+    ? 'mean_genetic_distance'
+    : 'distance';
+
+  return win.commonService.formatDisplayedDistanceValue(numericValue, displayField);
+};
+
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export function computeExpectedAggregateRows(win: WinWithMT, fullField: string): AggregateRow[] {
@@ -75,7 +100,7 @@ export function computeExpectedAggregateRows(win: WinWithMT, fullField: string):
 
   return Array.from(counts.entries())
     .map(([groupName, count]) => ({
-      groupName,
+      groupName: formatAggregateGroupName(win, dataset, field, groupName),
       count,
       percent: `${((count * 100) / total).toFixed(2)}%`,
     }))

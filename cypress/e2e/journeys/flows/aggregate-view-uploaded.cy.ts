@@ -200,7 +200,7 @@ describe('Journey Flow - Aggregate uploaded data coverage', () => {
     selectAggregateExportType('csv.zip', 'csv.zip');
     cy.get('@aggregateExport').contains('button', 'Export').click({ force: true });
     cy.readFile(`${downloadsFolder}/${zipFileBase}.zip`, 'binary', { timeout: 20000 }).then((binary) => {
-      return JSZip.loadAsync(binary, { binary: true }).then((zip) => {
+      return JSZip.loadAsync(binary).then((zip) => {
         expect(Object.keys(zip.files)).to.include.members(['Node-cluster.csv', 'Link-Contact type.csv']);
       });
     });

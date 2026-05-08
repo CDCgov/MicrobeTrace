@@ -155,6 +155,31 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     return String(value);
   }
 
+  private shouldFormatAggregateGroupValue(dataset: string, field: string): boolean {
+    const normalizedDataset = String(dataset || '').toLowerCase();
+    const normalizedField = String(field || '').toLowerCase();
+
+    return (normalizedDataset === 'link' && normalizedField === 'distance')
+      || (normalizedDataset === 'cluster' && normalizedField === 'mean_genetic_distance');
+  }
+
+  private formatAggregateGroupValue(dataset: string, field: string, value: string): string {
+    if (!this.shouldFormatAggregateGroupValue(dataset, field)) {
+      return value;
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return value;
+    }
+
+    const displayField = String(dataset || '').toLowerCase() === 'cluster'
+      ? 'mean_genetic_distance'
+      : 'distance';
+
+    return this.commonService.formatDisplayedDistanceValue(numericValue, displayField);
+  }
+
   private refreshTables() {
     if (!Array.isArray(this.SelectedDataFields) || this.SelectedDataFields.length === 0) {
       this.SelectedDataFields = ['Node-cluster'];
@@ -207,6 +232,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
     data.forEach(row => {
       row['percent'] = total === 0 ? 0 : (row['count']*100/total)
+      row['groupName'] = this.formatAggregateGroupValue(dataset, field, row['groupName']);
     })
     
     this.SelectedDataTables[i] = {

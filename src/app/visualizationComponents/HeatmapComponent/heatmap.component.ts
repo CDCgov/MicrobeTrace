@@ -168,6 +168,55 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.redrawHeatmap();
   }
 
+  private usesPercentageDistanceDisplay(): boolean {
+    return this.commonService.tn93PercentageDisplayEnabled('heatmap-distance');
+  }
+
+  private formatHeatmapDistanceValue(
+    value: number | null | undefined,
+    options: {
+      decimals?: number;
+      trimTrailingZeros?: boolean;
+      includeSuffix?: boolean;
+    } = {}
+  ): string {
+    return this.commonService.formatDisplayedDistanceValue(value, 'heatmap-distance', options);
+  }
+
+  private buildFormattedHeatmapMatrix(matrix: any[]): string[][] {
+    return (matrix || []).map((row) => (
+      Array.isArray(row)
+        ? row.map((value) => this.formatHeatmapDistanceValue(Number(value)))
+        : []
+    ));
+  }
+
+  private buildHeatmapColorbar(matrix: any[]): any {
+    if (!this.usesPercentageDistanceDisplay()) {
+      return undefined;
+    }
+
+    const numericValues = (matrix || [])
+      .flatMap((row) => Array.isArray(row) ? row : [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+
+    if (numericValues.length === 0) {
+      return undefined;
+    }
+
+    const minValue = Math.min(...numericValues);
+    const maxValue = Math.max(...numericValues);
+    const midpointValue = (minValue + maxValue) / 2;
+    const tickValues = [minValue, midpointValue, maxValue]
+      .filter((value, index, values) => values.findIndex((candidate) => Math.abs(candidate - value) < 1e-9) === index);
+
+    return {
+      tickvals: tickValues,
+      ticktext: tickValues.map((value) => this.formatHeatmapDistanceValue(value)),
+    };
+  }
+
   drawHeatmap(config: object): void {
     this.commonService.getDM().then(({dm, labels}) => {
       this.nodeIds = labels;
@@ -184,7 +233,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         yLabels.reverse();
       }
 
-      this.heatmapData = [{
+      const heatmapTrace: any = {
         x: xLabels,
         y: yLabels,
         z: dm,
@@ -194,7 +243,15 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
           [0.5, this.medColor],
           [1, this.hiColor]
         ]
-      }]
+      };
+
+      if (this.usesPercentageDistanceDisplay()) {
+        heatmapTrace.customdata = this.buildFormattedHeatmapMatrix(dm);
+        heatmapTrace.hovertemplate = 'X: %{x}<br>Y: %{y}<br>Distance: %{customdata}<extra></extra>';
+        heatmapTrace.colorbar = this.buildHeatmapColorbar(dm);
+      }
+
+      this.heatmapData = [heatmapTrace]
 
 /*      const parentElement = this.heatmapContainerRef.nativeElement.parentElement;
     const width = parentElement.clientWidth;
@@ -433,14 +490,20 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         yLabels.reverse();
       }
 
+      const exportedMatrix = this.usesPercentageDistanceDisplay()
+        ? matrix.map((row) => Array.isArray(row)
+          ? row.map((value) => this.formatHeatmapDistanceValue(Number(value)))
+          : row)
+        : matrix;
+
       let csvContent = "";
       if (this.heatmapShowLabels) {
         csvContent += ["", ...xLabels].join(",") + "\n";
-        for (let i = 0; i < matrix.length; i++) {
-          csvContent += [yLabels[i], ...matrix[i]].join(",") + "\n";
+        for (let i = 0; i < exportedMatrix.length; i++) {
+          csvContent += [yLabels[i], ...exportedMatrix[i]].join(",") + "\n";
         }
       } else {
-        csvContent += matrix.map((row) => row.join(",")).join("\n");
+        csvContent += exportedMatrix.map((row) => row.join(",")).join("\n");
       }
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, fileName);

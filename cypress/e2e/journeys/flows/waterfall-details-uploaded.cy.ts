@@ -66,9 +66,17 @@ function buildExpansionRows(commonService: any, source: Record<string, any>): Ex
       typeof source[key] === 'object'
     ))
     .map((key) => {
-      const rawValue = key === 'mean_genetic_distance' || key === 'links_per_node'
-        ? Number(source[key]).toFixed(3)
-        : String(source[key]);
+      let rawValue = String(source[key]);
+
+      if (key === 'mean_genetic_distance') {
+        rawValue = commonService.tn93PercentageDisplayEnabled('mean_genetic_distance')
+          ? commonService.formatDisplayedDistanceValue(source[key], 'mean_genetic_distance')
+          : Number(source[key]).toFixed(3);
+      } else if (key === 'links_per_node') {
+        rawValue = Number(source[key]).toFixed(3);
+      } else if (key === 'distance') {
+        rawValue = commonService.formatDisplayedDistanceValue(source[key], 'distance');
+      }
 
       return {
         key: String(commonService.titleize(key)),
@@ -266,7 +274,11 @@ describe('Journey Flow - Waterfall uploaded detail expansions and selection rese
       waterfallCase.expectedRows
         .filter((row) => PREFERRED_CLUSTER_ROWS.includes(row.key))
         .forEach((row) => {
-          expect(row.value, `${row.key} formatting`).to.match(/^-?\d+\.\d{3}$/);
+          expect(row.value, `${row.key} formatting`).to.match(
+            row.key === 'Mean Genetic Distance'
+              ? /^-?\d+(?:\.\d{3})?$/
+              : /^-?\d+\.\d{3}$/,
+          );
         });
     });
   });

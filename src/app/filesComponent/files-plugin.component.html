@@ -90,18 +90,9 @@
         </div>
         <div class="col-6">
           <select id="default-view" class="form-control form-control-sm" (change)="changeDefaultView($event)" title="Which view should MicrobeTrace render first, once it has successfully processed the data?" [(ngModel)]="SelectedDefaultViewVariable">
-            <option value="2D Network" selected>2D Network</option>
-            <option value="Epi Curve">Epi Curve</option>
-            <option value="Sankey">Sankey</option>
-            <option value="Table">Table</option>
-            <option value="Crosstab">Crosstab</option>
-            <option value="Map">Map</option>
-            <option value="Bubble">Bubble</option>
-            <option value="Gantt Chart">Gantt Chart</option>
-            <option value="Phylogenetic Tree">Phylogenetic Tree</option>
-            <option value="Alignment View">Alignment View</option>
-            <option value="Heatmap">Heatmap</option>
-            <option value="Waterfall">Waterfall</option>
+            @for (view of DefaultViewOptions; track view) {
+              <option [value]="view">{{ view }}</option>
+            }
           </select>
         </div>
       </div>

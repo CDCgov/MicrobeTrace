@@ -42,6 +42,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedAmbiguityThresholdVariable: any = 0.015;
   SelectedDefaultDistanceThresholdVariable: any = 0.015;
   SelectedDefaultViewVariable: string = "2D Network";
+  readonly DefaultViewOptions: string[] = [
+    '2D Network',
+    'Epi Curve',
+    'Sankey',
+    'Table',
+    'Crosstab',
+    'Map',
+    'Bubble',
+    'Gantt Chart',
+    'Phylogenetic Tree',
+    'Alignment View',
+    'Heatmap',
+    'Waterfall'
+  ];
 
   AlignTypes: any = [
     { label: 'None', value: 'None' },
@@ -125,6 +139,29 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     });
   }
 
+  private normalizeDefaultView(value: any): string {
+    const normalizedView = this.commonService.normalizeViewName(value);
+    return normalizedView && this.DefaultViewOptions.includes(normalizedView)
+      ? normalizedView
+      : '2D Network';
+  }
+
+  private setDefaultView(value: any, persist: boolean = true): string {
+    const normalizedView = this.normalizeDefaultView(value);
+    this.SelectedDefaultViewVariable = normalizedView;
+    this.commonService.session.style.widgets['default-view'] = normalizedView;
+
+    if (this.commonService.session.layout?.content?.[0]) {
+      this.commonService.session.layout.content[0].type = normalizedView;
+    }
+
+    if (persist) {
+      this.commonService.localStorageService.setItem('default-view', normalizedView);
+    }
+
+    return normalizedView;
+  }
+
   ngOnInit() {
 
     this.RefSeqIDTypes.push(
@@ -147,20 +184,34 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }  
 
      // Subscribe to new session event
-     this.store.newSession$.subscribe(() => {
-      this.removeAllFiles();
-    });
+     this.store.newSession$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((isNewSession) => {
+        if (isNewSession) {
+          this.removeAllFiles();
+          this.store.setNewSession(false);
+        }
+      });
 
     // Subscribe to style file applied event
-    this.store.styleFileApplied$.subscribe(() => {
-      this.applyStyleFileSettings();
-    });
+    this.store.styleFileApplied$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.applyStyleFileSettings();
+      });
 
-    this.store.FP_removeFiles$.subscribe(() => {
-      this.commonService.session.files.forEach(file => {
-        this.removeFile(file.name, false);
-      })
-  });
+    this.store.FP_removeFiles$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((shouldRemoveFiles) => {
+        if (!shouldRemoveFiles) {
+          return;
+        }
+
+        this.commonService.session.files.forEach(file => {
+          this.removeFile(file.name, false);
+        });
+        this.store.setFP_removeFiles(false);
+      });
 
     // TODO: the rest of ngOnInit can be revised to take advantage of angular features
     $('.alignConfigRow').hide();
@@ -389,24 +440,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.style.widgets['ambiguity-threshold'] = v;
     });
 
-    let cachedView = "";
-    this.commonService.localStorageService.getItem('default-view', (result) => {
-      cachedView = result;
-    });
-
     $('#default-view')
       .on('change', (e) => {
 
         //debugger;
 
         const target = e.target as HTMLInputElement | HTMLSelectElement | null;
-        const v = target?.value ?? e.data;
-        this.commonService.localStorageService.setItem('default-view', v);
-        this.commonService.session.style.widgets['default-view'] = v;
-        this.commonService.session.layout.content[0].type = v;
+        const v = this.setDefaultView(target?.value ?? e.data);
+        $(target).val(v);
+        this.refreshTemplateState();
       })
-      .val(cachedView ? cachedView : this.commonService.session.style.widgets['default-view'])
-      .trigger('change');
+      .val(this.setDefaultView(this.commonService.session.style.widgets['default-view'], false));
+
+    this.commonService.localStorageService.getItem('default-view', (_err, result) => {
+      const v = this.setDefaultView(result ?? this.commonService.session.style.widgets['default-view'], Boolean(result));
+      $('#default-view').val(v);
+      this.refreshTemplateState();
+    });
 
     if(this.commonService.session.network.launched){
       $('#launch').text('Update');
@@ -429,17 +479,35 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.loadPendingEmbedHandoff();
     }
 
-    if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal) {
+    if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal && this.commonService.session.data.nodes.length === 0) {
       console.log('launching outbreak');
-      $.getJSON("COVID_DummySession.microbetrace", this.commonService.applySession.bind(this.commonService)).then(() => { this.populateTable()});   
-      this.commonService.session.network.launched = true; 
-      this.commonService.session.network.initialLoad = true; 
+      const defaultLoadGeneration = this.commonService.getDataLoadGeneration();
+
+      $.getJSON("COVID_DummySession.microbetrace").then((defaultSession) => {
+        if (
+          !this.commonService.isCurrentDataLoad(defaultLoadGeneration) ||
+          this.commonService.session.network.initialLoad ||
+          this.commonService.session.data.nodes.length > 0
+        ) {
+          return;
+        }
+
+        this.commonService.applySession(defaultSession).then(() => {
+          this.populateTable();
+        });
+        this.commonService.session.network.launched = true;
+        this.commonService.session.network.initialLoad = true;
+      });
 
     }
 
-  //   setTimeout(() => {
-  //     this.populateTable();
-  // }, 2000);
+    setTimeout(() => {
+      if (this.commonService.session.files?.length) {
+        this.populateTable();
+      } else {
+        this.refreshTemplateState();
+      }
+    });
 
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
   }
@@ -529,8 +597,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * For each file in commonService.session.files, addToTable(file)
    */
   public populateTable() {  
-    const fileTableRows = $(".file-table-row");
-    fileTableRows.slideUp(() => fileTableRows.remove());
+    const fileTableRows = $(this.rootHtmlElement).find(".file-table-row");
+    fileTableRows.stop(true, true).remove();
 
     let files = cloneDeep(this.commonService.session.files);
     if (this.commonService.debugMode) {
@@ -598,10 +666,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Updated default-view widget and localStorageService
    */
   changeDefaultView(e) {
-    const v = e.target.selectedOptions[0].innerText;
-    this.commonService.localStorageService.setItem('default-view', v);
-    this.commonService.session.style.widgets['default-view'] = v;
-    this.commonService.session.layout.content[0].type = v;
+    this.setDefaultView(e.target.value);
   }
 
   /**
@@ -656,6 +721,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   launchClick() {
 
      // Set to false to indicate that the network is not fully loaded  as new network is launching
+     const loadGeneration = this.commonService.beginDataLoad();
      this.commonService.session.network.isFullyLoaded = false;
      
     // launching new network, so set network rendered to false to start loading modal
@@ -681,7 +747,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedAmbiguityResolutionStrategyVariable ??
       this.commonService.session.style.widgets["ambiguity-resolution-strategy"]
     );
-    const viewOnLaunch = String(
+    const viewOnLaunch = this.normalizeDefaultView(
       $('#default-view').val() ??
       this.SelectedDefaultViewVariable ??
       this.commonService.session.style.widgets["default-view"]
@@ -735,8 +801,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.showMessage("Starting...");
 
     setTimeout(() => {
+      if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
+        return;
+      }
+
       // Process the data files loaded.
-      this.creatLaunchSequences();
+      this.creatLaunchSequences(loadGeneration);
     }, 1000);
   }
 
@@ -744,7 +814,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Processes all files in following order (auspice, newick, matrix, link, node, fasta).
    * Adds/Updates nodes and links. After processing all files, calls processData.
    */
-  creatLaunchSequences() {
+  creatLaunchSequences(loadGeneration: number = this.commonService.getDataLoadGeneration()) {
+    const isCurrentLoad = () => this.commonService.isCurrentDataLoad(loadGeneration);
+    if (!isCurrentLoad()) {
+      return;
+    }
+
     this.commonService.session.meta.startTime = Date.now();
     $('#launch').prop('disabled', true);
 
@@ -767,6 +842,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     ));
 
     this.commonService.session.files.forEach((file, fileNum) => {
+      if (!isCurrentLoad()) return;
+
       const start = Date.now();
       const origin = [file.name];
       if (file.format === 'auspice') {
@@ -774,6 +851,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         // this.commonService.localStorageService.setItem('default-view', 'phylogenetic-tree');
         // this.commonService.localStorageService.setItem('default-distance-metric', 'SNPs');
         this.commonService.applyAuspice(file.contents).then(async auspiceData => {
+          if (!isCurrentLoad()) return 0;
+
           this.commonService.clearData();
           this.commonService.session = this.commonService.sessionSkeleton();
 
@@ -847,7 +926,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           this.commonService.runHamsters();
           this.showMessage(` - Parsed ${nodeCount} New Nodes and ${linkCount} new Links from Auspice file.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
           return nodeCount;
         });
         this.commonService._debouncedUpdateNetworkVisuals();
@@ -861,6 +940,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         let newNodes = 0;
         const parseStart = Date.now();
         this.commonService.parseFASTA(file.contents).then(seqs => {
+          if (!isCurrentLoad()) return;
+
           this.commonService.recordPerformanceTiming('ingestion', 'parseFasta', parseStart, {
             file: file.name,
             sequences: seqs.length,
@@ -885,7 +966,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           console.log('FASTA Merge time:', (Date.now() - start).toLocaleString(), 'ms');
           this.showMessage(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from FASTA.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
         });
 
       } else if (file.format === 'link') {
@@ -1004,7 +1085,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             totalNodes: t
           });
           this.showMessage(` - Parsed ${n} New, ${t} Total Nodes from Link Excel Table.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
 
         } else if (file.extension === 'json') {
             const results = JSON.parse(file.contents);
@@ -1055,7 +1136,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               totalNodes
             });
             this.showMessage(` - Parsed ${newNodes} New, ${totalNodes} Total Nodes from Link JSON.`);
-            if (fileNum === nFiles) this.processData();
+            if (fileNum === nFiles) this.processData(loadGeneration);
           } else {
 
             Papa.parse(file.contents, {
@@ -1063,6 +1144,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               dynamicTyping: true,
               skipEmptyLines: true,
               complete: results => {
+                if (!isCurrentLoad()) return;
+
                 const data = results.data;
                 data.map(forEachLink);
                 this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link CSV.`);
@@ -1105,7 +1188,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                   totalNodes
                 });
                 this.showMessage(` - Parsed ${newNodes} New, ${totalNodes} Total Nodes from Link CSV.`);
-                if (fileNum === nFiles) this.processData();
+                if (fileNum === nFiles) this.processData(loadGeneration);
               }
             });
           }
@@ -1146,7 +1229,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             totalNodes: data.length
           });
           this.showMessage(` - Parsed ${m} New, ${n} Total Nodes from Node Excel Table.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
 
         } else
           if (file.extension === 'json') {
@@ -1183,7 +1266,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             });
             this.showMessage(` - Parsed ${m} New, ${n} Total Nodes from Node JSON.`);
 
-            if (fileNum === nFiles) this.processData();
+            if (fileNum === nFiles) this.processData(loadGeneration);
 
           } else {
 
@@ -1193,6 +1276,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               dynamicTyping: true,
               skipEmptyLines: true,
               step: data => {
+                if (!isCurrentLoad()) return;
 
                 nodeCsvRows++;
                 const node = data.data;
@@ -1216,6 +1300,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 }
               },
               complete: () => {
+                if (!isCurrentLoad()) return;
 
                 console.log('Node CSV Parse time:', (Date.now() - start).toLocaleString(), 'ms');
                 this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNodeCsv', start, {
@@ -1225,7 +1310,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 });
                 this.showMessage(` - Parsed ${m} New, ${n} Total Nodes from Node CSV.`);
 
-                if (fileNum === nFiles) this.processData();
+                if (fileNum === nFiles) this.processData(loadGeneration);
               }
             });
           }
@@ -1280,7 +1365,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           });
           this.showMessage(` - Parsed ${nn} New, ${data.length - 1} Total Nodes from Excel Distance Matrix.`);
           this.showMessage(` - Parsed ${nl} New, ${((data.length - 1) ** 2 - (data.length - 1)) / 2} Total Links from Excel Distance Matrix.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
 
         } else { // file.format === "matrix" && file.extension === "csv"
  
@@ -1385,7 +1470,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           this.showMessage(` - Parsed ${nn} New, ${tn} Total Nodes from Distance Matrix.`);
           this.showMessage(` - Parsed ${nl} New, ${tl} Total Links from Distance Matrix.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
           //this.commonService.parseCSVMatrix(file).then((o: any) => {
           //});
         }
@@ -1408,6 +1493,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             check,
           }
         ).then(async patristicResult => {
+          if (!isCurrentLoad()) return;
+
           this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', patristicStart, {
             file: file.name,
             leaves: patristicResult.leafNames.length,
@@ -1450,6 +1537,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             links = Math.max(links, requeryResult?.totalLinks ?? 0);
           }
 
+          if (!isCurrentLoad()) return;
+
           console.log('Newick Tree Parse time:', (Date.now() - start).toLocaleString(), 'ms');
           this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNewick', start, {
             file: file.name,
@@ -1462,8 +1551,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           });
           this.showMessage(` - Parsed ${newNodes} New, ${patristicResult.leafNames.length} Total Nodes from Newick Tree.`);
           this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
-          if (fileNum === nFiles) this.processData();
+          if (fileNum === nFiles) this.processData(loadGeneration);
         }).catch((error: any) => {
+          if (!isCurrentLoad()) return;
+
           console.error('Newick patristic worker error:', error);
           this.showMessage(` - Error processing Newick tree: ${error?.message || error}`);
           this.commonService.session.network.isFullyLoaded = false;
@@ -1477,7 +1568,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Adds links for nodes with no edge?
    * Then calls processSequence
    */
-  processData() {
+  processData(loadGeneration: number = this.commonService.getDataLoadGeneration()) {
+    if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
+      return;
+    }
+
     let nodes = this.commonService.session.data.nodes;
     if(this.commonService.debugMode) {
       console.log(nodes);
@@ -1496,13 +1591,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     //   }, 'generated'));
     // });
 
-    this.processSequence()
+    this.processSequence(loadGeneration)
   }
 
   /**
    * If sequences are present, processes them by aligning if needed, computing consensus, consensus distances, ambiguity counts, and then links
    */
-  async processSequence() {
+  async processSequence(loadGeneration: number = this.commonService.getDataLoadGeneration()) {
+    const isCurrentLoad = () => this.commonService.isCurrentDataLoad(loadGeneration);
+    if (!isCurrentLoad()) {
+      return;
+    }
 
     if (!this.commonService.session.meta.anySequences) return this.commonService.runHamsters();
     this.commonService.session.data.nodeFields.push('seq');
@@ -1535,6 +1634,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         gap: [$('#alignerGapO').val(), $('#alignerGapE').val()].map(parseFloat),
         nodes: subset
       });
+      if (!isCurrentLoad()) {
+        return;
+      }
+
       const start = Date.now();
       const m = subset.length;
       for (let j = 0; j < m; j++) {
@@ -1549,14 +1652,28 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     console.log("Integer Sequence Translation time: ", (Date.now() - start).toLocaleString(), "ms");
 
-    (this.commonService.session.data as any).consensus = await this.commonService.computeConsensus();
+    const consensus = await this.commonService.computeConsensus();
+    if (!isCurrentLoad()) {
+      return;
+    }
+    (this.commonService.session.data as any).consensus = consensus;
     await this.commonService.computeConsensusDistances();
+    if (!isCurrentLoad()) {
+      return;
+    }
     subset.sort((a, b) => a['_diff'] - b['_diff']);
     if (this.commonService.session.style.widgets['ambiguity-resolution-strategy']) {
       await this.commonService.computeAmbiguityCounts();
+      if (!isCurrentLoad()) {
+        return;
+      }
     }
     this.showMessage('Computing Links based on Genomic Proximity...');
     const k = await this.commonService.computeLinks(subset);
+    if (!isCurrentLoad()) {
+      return;
+    }
+
     this.showMessage(` - Found ${k} New Links from Genomic Proximity`);
     this.commonService.runHamsters();
 
@@ -1747,8 +1864,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Calls nodeEdgeCheck
    */
   removeAllFiles() {
-    const fileTableRows = $(".file-table-row");
-    fileTableRows.slideUp(() => fileTableRows.remove());
+    const fileTableRows = $(this.rootHtmlElement).find(".file-table-row");
+    fileTableRows.stop(true, true).remove();
 
     this.commonService.session.files = [];
     this.nodeIds = [];
@@ -1920,7 +2037,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       function matchHeaders(type) {
 
-        const these = $(`[data-file='${file.name}'] select`);
+        const these = root.find('select');
         const a = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'],
           b = type === 'node' ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq'] : ['TARGET', 'Target', 'target'],
           c = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
@@ -1947,18 +2064,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         });
       }
 
-      const fileTable = document.getElementById('file-table');
+      const fileTable = parentContext.rootHtmlElement.querySelector('#file-table');
       if (!fileTable) {
         console.log('Skipping file table row render because the Files view is no longer mounted.', file.name);
         return;
       }
 
       root.appendTo(fileTable);
-      matchHeaders($(`[name="options-${file.name}"]:checked`).data('type'));
+      matchHeaders(root.find('input[type="radio"]:checked').data('type'));
 
       function refit(e: any = null) {
-        const type = $(e ? e.target : `[name="options-${file.name}"]:checked`).data('type'),
-          these = $(`[data-file='${file.name}']`),
+        const type = $(e ? e.target : root.find('input[type="radio"]:checked')).data('type'),
+          these = root.find('[data-file]'),
           first = $(these.get(0)),
           second = $(these.get(1)),
           third = $(these.get(2));
@@ -1980,7 +2097,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         $('#launch').prop('disabled', false).focus();
       };
 
-      const selectElements = fileTable.querySelectorAll('select');
+      const selectElements = root[0].querySelectorAll('select');
 
       for (let i = 0; i < selectElements.length; i++) {
         selectElements[i].addEventListener('change', (event) => {
@@ -1992,7 +2109,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('addTableTile end: ', headers);
 
 
-      $(`[name="options-${file.name}"]`).on("change", refit);
+      root.find('input[type="radio"]').on("change", refit);
       refit();
     }
   };
@@ -2017,16 +2134,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Updates commonService.session.files info, such as field1, field2 ...etc, based on value user selects
    */
   updateMetadata(file) {
-    $('#file-panel .file-table-row').each((i, el) => {
+    $(this.rootHtmlElement).find('.file-table-row').each((i, el) => {
       const $el = $(el);
       const fname = $el.data('filename');
       const selects = $el.find('select');
+      const checkedFormat = $el.find('input[type="radio"]:checked');
       const f = this.commonService.session.files.find(file => file.name === fname);
       if (this.commonService.debugMode) {
         console.log(f);
       }
-      if (f) {
-        f.format = $el.find('input[type="radio"]:checked').data('type');
+      if (f && selects.length >= 3 && checkedFormat.length > 0) {
+        f.format = checkedFormat.data('type');
         f.field1 = selects.get(0).value;
         f.field2 = selects.get(1).value;
         f.field3 = selects.get(2).value;
@@ -2301,7 +2419,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     if (this.SelectedDefaultViewVariable != this.commonService.session.style.widgets['default-view']){
-      this.SelectedDefaultViewVariable = this.commonService.session.style.widgets['default-view'];
+      this.setDefaultView(this.commonService.session.style.widgets['default-view'], false);
     }
   }
 }

@@ -103,9 +103,16 @@ const openLinksPanelAndSetDecimalLength = (decimalLength: number): void => {
   openLinksPanel('Labels and Tooltips');
 
   cy.get('@linksTab').find('#link-label-decimal-length')
-    .clear({ force: true })
-    .type(String(decimalLength), { force: true })
-    .blur();
+    .should('exist')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      const eventView = input.ownerDocument.defaultView || window;
+
+      input.focus();
+      input.value = String(decimalLength);
+      input.dispatchEvent(new eventView.Event('input', { bubbles: true }));
+      input.dispatchEvent(new eventView.Event('change', { bubbles: true }));
+    });
 
   cy.window()
     .its('commonService.session.style.widgets.link-label-decimal-length')

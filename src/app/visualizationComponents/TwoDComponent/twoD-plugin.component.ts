@@ -62,9 +62,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     data;
     pendingPartialUpdate = false;
     rerenderTimeout: any;
+    private isDestroyed = false;
     layoutParallelNodesPerColumn = 4;
     debugMode = false;
-    private isDestroyed = false;
     overideTransparency = false;
     containerHeight = 800; // or any other number you want
     graphData: GraphData = {
@@ -489,6 +489,41 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private destroy$ = new Subject<void>();
+
+    private isCytoscapeContainerReady(): boolean {
+        const element = this.cyContainer?.nativeElement as HTMLElement | undefined;
+        if (!element) return false;
+
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    }
+
+    private isTimelineFilteringActive(): boolean {
+        return this.commonService.session.style.widgets["timeline-date-field"] !== 'None';
+    }
+
+    private getLinkEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return String(endpoint._id ?? endpoint.id ?? '');
+        }
+
+        return String(endpoint ?? '');
+    }
+
+    private getVisibleNetworkDataForRender(filterLinksByVisibleNodes = this.isTimelineFilteringActive()) {
+        const nodes = this.commonService.getVisibleNodes();
+        let links = this.commonService.getVisibleLinks(true);
+
+        if (filterLinksByVisibleNodes) {
+            const visibleNodeIds = new Set(nodes.map(node => String(node._id ?? node.id ?? '')));
+            links = links.filter(link =>
+                visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
+                visibleNodeIds.has(this.getLinkEndpointId(link.target))
+            );
+        }
+
+        return { nodes, links };
+    }
 
 
     ngOnInit() {
@@ -1458,7 +1493,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               });
               
 
-            if (this.commonService.session.files.length > 1) $('#link-color-variable').val('origin').change();
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
             
             console.log('--- TwoD InitView onStatisticsChanged');
@@ -2030,7 +2064,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         $(this.getDockedPolygonColorTableSelector()).empty();
     }
 
-    private getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
+    public getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
         return this.isPolygonColorTableDocked
             ? document.querySelector(this.getDockedPolygonColorTableSelector()) as HTMLTableElement | undefined
             : this.polygonColorTable?.nativeElement;
@@ -2235,13 +2269,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private addParentNodesAndGroupChildren(cy: cytoscape.Core): void {
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
         let foci = this.commonService.session.style.widgets['polygons-foci'];
-	        cy.nodes().forEach(node => {
-	            const group = this.getCyNodeDataValue(node, foci);
-	            if (group || group==0) {
-                if (!groupMap.has(group)) {
-                    groupMap.set(group, []);
+        cy.nodes().forEach(node => {
+            if (node.hasClass('parent')) {
+                return;
+            }
+
+            const rawGroup = this.getCyNodeDataValue(node, foci);
+            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
+            if (group !== undefined && group !== null && group !== 'None') {
+                const groupKey = `${group}`;
+                if (!groupMap.has(groupKey)) {
+                    groupMap.set(groupKey, []);
                 }
-                groupMap.get(group)?.push(node);
+                groupMap.get(groupKey)?.push(node);
             }
         });
 
@@ -2260,7 +2300,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.temp.polygonGroups = polygonGroups;
 
         groupMap.forEach((nodesInGroup, group) => {
-            const parentId = `${group}`;
+            const parentId = `group-${group}`;
             if (cy.getElementById(parentId).length === 0) {
                 let color = this.commonService.session.style.widgets['polygons-color-show'] ? this.commonService.temp.style.polygonColorMap(group) : this.commonService.session.style.widgets['polygon-color'];
                 const alphaVal = this.commonService.temp.style.polygonAlphaMap(group) ?? 1;
@@ -2268,7 +2308,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     group: 'nodes',
                     data: { 
                         id: parentId, 
-                        label: parentId,
+                        label: `${group}`,
                         isParent: true, 
                         nodeColor: color,
                         borderWidth: 1,
@@ -2280,10 +2320,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         });
 
-	        cy.nodes().forEach(node => {
-	            const group = this.getCyNodeDataValue(node, foci);
-	            if (group || group==0) {
-                const parentId = `${group}`;
+        cy.nodes().forEach(node => {
+            if (node.hasClass('parent')) {
+                return;
+            }
+
+            const rawGroup = this.getCyNodeDataValue(node, foci);
+            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
+            if (group !== undefined && group !== null && group !== 'None') {
+                const parentId = `group-${group}`;
                 node.move({ parent: parentId });
             }
         });
@@ -2753,8 +2798,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // } else if (varName == 'target_index') {
             //     return data['target'].index
             } else if (varName == 'distance') {
-                if (data.hasDistance && data.distanceOrigin.includes(data.origin)) return data['distance']
-                else return 'N/A'
+                if (data.hasDistance && data.distanceOrigin.includes(data.origin)) {
+                    return this.formatLinkDistanceForDisplay(data['distance']);
+                } else {
+                    return 'N/A';
+                }
             } else {
                 return data[varName];
             }
@@ -3432,6 +3480,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     }
 
+    private shouldRenderSplitOriginLinks(): boolean {
+        const linkColorVariable = String(this.widgets?.['link-color-variable'] ?? 'None').toLowerCase();
+        if (linkColorVariable !== 'origin') {
+            return false;
+        }
+
+        return this.commonService.getVisibleLinks().some((link: any) =>
+            Array.isArray(link?.origin) && link.origin.length > 1,
+        );
+    }
+
+    private renderedHasSplitOriginLinks(): boolean {
+        if (!this.cy) {
+            return false;
+        }
+
+        return this.cy
+            .edges(':visible')
+            .toArray()
+            .some((edge: any) => Boolean(edge.data('secondLink')));
+    }
+
     /**
      * Gets the label for a node based on node label variable
      * @param node the node retrieve to get the value of the variable
@@ -3441,6 +3511,34 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // If no label variable then should be none
         return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
+    }
+
+    private formatLinkDistanceForDisplay(value: any, decimalLength?: number): string {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return `${value ?? ''}`;
+        }
+
+        if (String(this.widgets['default-distance-metric'] || '').toLowerCase() === 'snps') {
+            return `${Math.round(numericValue)}`;
+        }
+
+        const usePercentageDisplay =
+            String(this.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93'
+            && String(this.widgets['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage';
+
+        const displayedValue = usePercentageDisplay ? numericValue * 100 : numericValue;
+
+        if (decimalLength === undefined || decimalLength === null || Number.isNaN(Number(decimalLength))) {
+            const formattedValue = displayedValue.toFixed(3).replace(/\.?0+$/, '');
+            return usePercentageDisplay ? `${formattedValue}%` : formattedValue;
+        }
+
+        const decimals = Math.max(0, Math.floor(Number(decimalLength)));
+        const formattedValue = displayedValue.toFixed(decimals);
+
+        return usePercentageDisplay ? `${formattedValue}%` : formattedValue;
     }
 
     /**
@@ -3482,11 +3580,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             if (typeof labelValue === 'number' || !isNaN(parseFloat(labelValue))) {
-                // console.log('is number');
-                if (this.widgets['default-distance-metric'] == 'snps') {
-                    return { text: Math.round(parseFloat(labelValue)) };
+                if (String(this.widgets['default-distance-metric'] || '').toLowerCase() === 'snps') {
+                    return { text: this.formatLinkDistanceForDisplay(labelValue) };
                 } else {
-                    return (labelValue != 0) ? { text: parseFloat(labelValue).toFixed(this.widgets['link-label-decimal-length']) } : { text: '' };
+                    return (labelValue != 0)
+                        ? { text: this.formatLinkDistanceForDisplay(labelValue, this.widgets['link-label-decimal-length']) }
+                        : { text: '' };
                 }
             } else {
 
@@ -3664,9 +3763,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     private async _rerender(timelineTick=false) {
 
+        if (this.isDestroyed) return;
+
         console.log('--- TwoD DATA network rerender');
         const rerenderStart = this.getPerformanceNow();
         const hadCytoscapeAtStart = !!this.cy;
+
+        if (!this.isCytoscapeContainerReady()) {
+            if (this.viewActive) {
+                setTimeout(() => void this._rerender(timelineTick), 50);
+            } else {
+                this.rerenderOnActive = true;
+            }
+            return;
+        }
 
         if (!timelineTick) {
             // If the network is in the middle of rendering, don't rerender
@@ -3686,38 +3796,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const collectDataStart = this.getPerformanceNow();
-        let networkData;
-        if (timelineTick) {
-
-            if (this.data === undefined) {
-                return;
-            }
-            let nodes = this.commonService.getVisibleNodes();
-            if (nodes.length == this.data.nodes.length) { 
-                return;
-            }
-            let links = this.commonService.getVisibleLinks(true);
-            let visLinks = [];
-            links.forEach((d) => {
-                if (!d.visible) return;
-                var source = nodes.find(node => node._id == d.source && node.visible);
-                var target = nodes.find(node => node._id == d.target && node.visible);
-        
-                if (source && target) {
-                    visLinks.push(d);
-                }
-            })
-            networkData = { 
-                nodes : nodes, 
-                links : visLinks
-            }
-        } else {
-            networkData = {
-                nodes: this.commonService.getVisibleNodes(),
-                links: this.commonService.getVisibleLinks(true)
-            };
-
-        }
+        let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
         this.recordTwoDRenderTiming('twoDCollectVisibleGraphData', collectDataStart, {
             timelineTick,
             nodes: networkData.nodes.length,
@@ -3917,6 +3996,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               panningEnabled: true,
               userPanningEnabled: true
             });
+            this.cy.resize();
             this.recordTwoDRenderTiming('twoDCreateCytoscape', cytoscapeCreateStart, {
                 nodes: el.nodes.length,
                 edges: el.edges.length
@@ -4592,7 +4672,7 @@ private updateArrowStyles(): void {
         },
         'target-arrow-color': 'data(lineColor)',
         'source-arrow-color': 'data(lineColor)',
-        'curve-style': this.widgets['link-directed'] ? 'unbundled-bezier' : 'straight'
+        'curve-style': 'straight'
       })
       .update();
   }
@@ -4854,7 +4934,10 @@ scaleLinkWidth() {
      * centers the view
      */
     fit() {
-        if (this.cy) this.cy.fit(this.cy.nodes(), 30);
+        if (this.cy) {
+            this.cy.resize();
+            this.cy.fit(this.cy.nodes(), 30);
+        }
     };
 
     /**
@@ -4901,9 +4984,7 @@ scaleLinkWidth() {
      * On click of center button, show centers the view
      */
     openCenter() {
-        if (this.cy) {
-            this.cy.fit(this.cy.nodes(), 30);
-        }
+        this.fit();
     }
 
     /**
@@ -4929,20 +5010,35 @@ scaleLinkWidth() {
     }
 
     /**
- * Synchronizes current Cytoscape instance with new data (adds/removes/updates
- * nodes and links) instead of completely rerendering.
- */
-private async _partialUpdate() {
-    const partialUpdateStart = this.getPerformanceNow();
-    console.log('--- TwoD _partialUpdate called');
-    if (!this.cy) {
-      // Initial settings sync can request updates before Cytoscape is ready.
-      this.pendingPartialUpdate = true;
-      this.recordTwoDRenderTiming('twoDPartialUpdateSkipped', partialUpdateStart, {
-        reason: 'cytoscape-not-ready'
-      });
-      return;
+     * Synchronizes current Cytoscape instance with new data (adds/removes/updates
+     * nodes and links) instead of completely rerendering.
+     */
+    private isCytoscapeUsable(cy: Core | null | undefined = this.cy): cy is Core {
+        if (!cy) return false;
+
+        try {
+            if (cy.destroyed()) return false;
+
+            return !!(cy as any).renderer?.();
+        } catch {
+            return false;
+        }
     }
+
+    private async _partialUpdate() {
+        const partialUpdateStart = this.getPerformanceNow();
+        console.log('--- TwoD _partialUpdate called');
+        const cy = this.cy;
+        if (!this.isCytoscapeUsable(cy)) {
+            // Initial settings sync can request updates before Cytoscape is ready.
+            if (!this.isDestroyed) {
+                this.pendingPartialUpdate = true;
+            }
+            this.recordTwoDRenderTiming('twoDPartialUpdateSkipped', partialUpdateStart, {
+                reason: 'cytoscape-not-ready'
+            });
+            return;
+        }
 
     this.pendingPartialUpdate = false;
 
@@ -4950,19 +5046,17 @@ private async _partialUpdate() {
     if (!this.nodePositions) {
         this.nodePositions = new Map<string, { x: number; y: number }>();
     }
-    this.cy.nodes().forEach(node => {
+    cy.nodes().forEach(node => {
         const currentPosition = node.position();
         if (!this.nodePositions.has(node.id())) {
             this.nodePositions.set(node.id(), currentPosition); // Cache position
         }
     });
 
-    // Retrieve fresh node/link data
+    // Retrieve fresh node/link data. Timeline renders only links whose
+    // endpoints are currently timeline-visible, matching the statistics panel.
     const collectDataStart = this.getPerformanceNow();
-    const networkData = {
-        nodes: this.commonService.getVisibleNodes(),
-        links: this.commonService.getVisibleLinks(true)
-    };
+    const networkData = this.getVisibleNetworkDataForRender();
     this.recordTwoDRenderTiming('twoDPartialCollectVisibleGraphData', collectDataStart, {
         nodes: networkData.nodes.length,
         links: networkData.links.length
@@ -4975,12 +5069,17 @@ private async _partialUpdate() {
         })
     } else {
         networkData.nodes.forEach(node => {
-            node.nodeSize = Number(this.cy.nodes().getElementById(node._id).data('nodeSize'));
+            node.nodeSize = Number(cy.nodes().getElementById(node._id).data('nodeSize'));
         })
     }
     const precomputeStart = this.getPerformanceNow();
     const partialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
+
+    if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
+        return;
+    }
+
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
     this.recordTwoDRenderTiming('twoDPartialPrecomputePositions', precomputeStart, {
@@ -4993,7 +5092,7 @@ private async _partialUpdate() {
 
     // Use batch mode to disable auto-panning during updates
     const batchStart = this.getPerformanceNow();
-    this.cy.batch(() => {
+    cy.batch(() => {
 
         networkData.nodes.forEach(node => {
             node.id = node._id.toString();
@@ -5039,7 +5138,7 @@ private async _partialUpdate() {
 
         let cyNodeCount = 0;
         // Update node visibility and restore positions
-        this.cy.nodes().forEach(node => {
+        cy.nodes().forEach(node => {
             if (!node.hasClass('parent')) { cyNodeCount += 1;}
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
                 // Hide node but keep its cached position
@@ -5062,10 +5161,10 @@ private async _partialUpdate() {
         if (cyNodeCount < newElements.nodes.length) {
             let countd = 0;
             newElements.nodes.forEach(n => {
-                const cyNode = this.cy.getElementById(n.data.id);
+                const cyNode = cy.getElementById(n.data.id);
                 if (!cyNode || !cyNode.length) {
                     countd += 1;
-                    this.cy.add(n); // Add node
+                    cy.add(n); // Add node
                 } else {
                     return
                 }
@@ -5074,9 +5173,9 @@ private async _partialUpdate() {
         }
 
         // Remove old edges
-        this.cy.edges().forEach(edge => {
+        cy.edges().forEach(edge => {
             if (!newLinkIds.has(edge.id())) {
-                this.cy.remove(edge);
+                cy.remove(edge);
             }
         });
 
@@ -5085,9 +5184,9 @@ private async _partialUpdate() {
 
         // Add/Update new edges
         newElements.edges.forEach(e => {
-            const cyEdge = this.cy.getElementById(e.data.id);
+            const cyEdge = cy.getElementById(e.data.id);
             if (!cyEdge || !cyEdge.length) {
-                this.cy.add(e); // Add edge
+                cy.add(e); // Add edge
             } else {
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
             }
@@ -5108,10 +5207,13 @@ private async _partialUpdate() {
 
     });
     this.recordTwoDRenderTiming('twoDPartialBatchSync', batchStart, {
-        nodes: this.cy.nodes().length,
-        edges: this.cy.edges().length
+        nodes: cy.nodes().length,
+        edges: cy.edges().length
     });
 
+        if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
+            return;
+        }
 
         // Restore positions for all visible nodes explicitly
         // this.cy.nodes(':visible').forEach(node => {
@@ -5129,11 +5231,11 @@ private async _partialUpdate() {
            this.store.setNetworkUpdated(false); 
            this.commonService.session.network.rendering = false;
            this.recordTwoDRenderTiming('twoDPartialUpdate', partialUpdateStart, {
-            nodes: this.cy.nodes().length,
-            edges: this.cy.edges().length
+            nodes: cy.nodes().length,
+            edges: cy.edges().length
            });
 
-}
+    }
 
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
@@ -5145,8 +5247,10 @@ private async _partialUpdate() {
 
         console.log("calling destroy");
         this.isDestroyed = true;
+        this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
+        this.commonService.session.network.rendering = false;
 
         this.styleFileSub.unsubscribe();
 
@@ -5154,7 +5258,14 @@ private async _partialUpdate() {
 
         if (this.cy){
             this.cy.removeAllListeners();
+            if ((window as any).cytoscapeInstance === this.cy) {
+                delete (window as any).cytoscapeInstance;
+            }
             this.cy.destroy();
+            this.cy = null;
+        }
+        if (this.commonService.visuals.twoD === this) {
+            (this.commonService.visuals as any).twoD = null;
         }
         $('#cy').off('contextmenu.twod');
         this.cyContainer = null;
@@ -5166,6 +5277,8 @@ private async _partialUpdate() {
      * renders the network
      */
     onLoadNewData() {
+        if (this.isDestroyed) return;
+
         if (this.debugMode) {
             console.log('render new data');
         }
@@ -5184,6 +5297,15 @@ private async _partialUpdate() {
 
         if (!this.cyContainer?.nativeElement) {
             setTimeout(() => this.onLoadNewData(), 0);
+            return;
+        }
+
+        if (!this.isCytoscapeContainerReady()) {
+            if (this.viewActive) {
+                setTimeout(() => this.onLoadNewData(), 50);
+            } else {
+                this.rerenderOnActive = true;
+            }
             return;
         }
 
@@ -5350,6 +5472,16 @@ private async _partialUpdate() {
     updateLinkColor() {
         console.log('----TWOD updateLinkColor called');
         if (!this.cy) return;
+        this.widgets = this.commonService.session.style.widgets;
+
+        // Origin coloring in 2D adds or removes duplicate dashed edges for
+        // mixed-origin links, so a recolor-only update is unsafe whenever the
+        // rendered topology no longer matches the active mode.
+        if (this.shouldRenderSplitOriginLinks() !== this.renderedHasSplitOriginLinks()) {
+            void this._rerender();
+            return;
+        }
+
         this.cy.edges().forEach(link => {
             const { color, opacity } = this.getLinkColor(link.data());
             link.data('lineColor', color);

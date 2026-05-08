@@ -2,6 +2,10 @@
 
 import { getProfile } from '../datasets/profile';
 import {
+  getCustomNodeShapeData,
+  getMapNodeShapeDataUri,
+} from '../../../../src/app/contactTraceCommonServices/node-shapes';
+import {
   assertAfterLaunchCounts,
   assertMapRenderedCounts,
   goToMapView,
@@ -15,9 +19,12 @@ import { readRenderedMapNodeStyle } from '../../../support/map-helpers';
 
 type WinWithMap = Window & {
   commonService: any;
+  cytoscapeInstance?: any;
 };
 
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
+
+const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
 
 const selectPrimeOption = (selector: string, label: string): void => {
   cy.get(selector).click({ force: true });
@@ -51,6 +58,41 @@ const getRenderedMapLinkLayersByValue = (win: WinWithMap, field: string, value: 
   win.commonService.visuals.gisMap.layers.links
     .getLayers()
     .filter((layer: any) => layer?.data?.[field] === value);
+
+const getRenderedMapNodeIconUrl = (layer: any): string =>
+  String(layer?.options?.icon?.options?.iconUrl || layer?._icon?.getAttribute?.('src') || '');
+
+const getVisibleTwoDNodesByValue = (win: WinWithMap, field: string, value: string) => {
+  const cyInstance = win.cytoscapeInstance;
+
+  expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+  return cyInstance
+    .nodes(':visible')
+    .filter((node: any) => node.children().length === 0 && String(node.data(field)) === value);
+};
+
+const applyCustomNodeTypeShapes = (mappings: Array<{ value: string; shapeKey: string }>): void => {
+  openGlobalStylingTab();
+  selectPrimeOption('#node-symbol-variable', 'Node type');
+  cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
+
+  cy.window().then((win: unknown) => {
+    const typedWindow = win as WinWithMap;
+    const app = typedWindow.commonService.visuals.microbeTrace;
+
+    expect(app, 'microbeTrace app').to.exist;
+
+    mappings.forEach(({ value, shapeKey }) => {
+      const selectedNode = app.getNodeShapeTreeSelection(shapeKey);
+
+      expect(selectedNode, `shape selection for ${shapeKey}`).to.exist;
+      app.onNodeShapeTableTreeChange(selectedNode, value);
+    });
+  });
+
+  cy.closeGlobalSettings();
+};
 
 const assertMapNodeCategoryColors = (field: string, firstValue: string, secondValue: string): void => {
   cy.wait(100)
@@ -184,6 +226,81 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
 
       classroomLinks.forEach((link: any) => {
         expect(normalizeColor(link.options.color), 'unchanged classroom map color').to.equal(classroomBaseline);
+      });
+    });
+  });
+
+  it('renders custom node shapes consistently in 2D Network and Map', () => {
+    const personShapeKey = 'virus';
+    const placeShapeKey = 'house';
+
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    applyCustomNodeTypeShapes([
+      { value: 'Person', shapeKey: personShapeKey },
+      { value: 'Place', shapeKey: placeShapeKey },
+    ]);
+
+    cy.wait(300);
+
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as WinWithMap;
+      const personNodes = getVisibleTwoDNodesByValue(typedWindow, 'Node type', 'Person');
+      const placeNodes = getVisibleTwoDNodesByValue(typedWindow, 'Node type', 'Place');
+
+      expect(personNodes.length, 'person nodes in 2D').to.be.greaterThan(0);
+      expect(placeNodes.length, 'place nodes in 2D').to.be.greaterThan(0);
+
+      personNodes.forEach((node: any) => {
+        const nodeColor = String(node.data('nodeColor') || typedWindow.commonService.session.style.widgets['node-color'] || '');
+        const expectedIcon = getCustomNodeShapeData(personShapeKey, nodeColor).iconBackgroundImage;
+
+        expect(getRenderedShapeKey(node), `person shape key for ${node.id()}`).to.equal(personShapeKey);
+        expect(String(node.data('customIconKey') || ''), `person custom icon key for ${node.id()}`).to.equal(personShapeKey);
+        expect(String(node.data('iconBackgroundImage') || ''), `person icon data for ${node.id()}`).to.equal(expectedIcon);
+      });
+
+      placeNodes.forEach((node: any) => {
+        const nodeColor = String(node.data('nodeColor') || typedWindow.commonService.session.style.widgets['node-color'] || '');
+        const expectedIcon = getCustomNodeShapeData(placeShapeKey, nodeColor).iconBackgroundImage;
+
+        expect(getRenderedShapeKey(node), `place shape key for ${node.id()}`).to.equal(placeShapeKey);
+        expect(String(node.data('customIconKey') || ''), `place custom icon key for ${node.id()}`).to.equal(placeShapeKey);
+        expect(String(node.data('iconBackgroundImage') || ''), `place icon data for ${node.id()}`).to.equal(expectedIcon);
+      });
+    });
+
+    goToMapView();
+
+    openMapSettingsDialog();
+    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    setMapNodeCollapsing('Off');
+    cy.closeSettingsPane('Geospatial Settings');
+
+    assertMapRenderedCounts({
+      nodes: 4,
+      links: 4,
+    });
+
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as WinWithMap;
+      const personNodes = getRenderedMapNodeLayersByValue(typedWindow, 'Node type', 'Person');
+      const placeNodes = getRenderedMapNodeLayersByValue(typedWindow, 'Node type', 'Place');
+      const nodeColor = String(typedWindow.commonService.session.style.widgets['node-color'] || '');
+      const expectedPersonIcon = getMapNodeShapeDataUri(personShapeKey, nodeColor, '#000000', 16);
+      const expectedPlaceIcon = getMapNodeShapeDataUri(placeShapeKey, nodeColor, '#000000', 16);
+
+      expect(personNodes.length, 'person nodes on map').to.be.greaterThan(0);
+      expect(placeNodes.length, 'place nodes on map').to.be.greaterThan(0);
+      expect(expectedPersonIcon, 'custom map icons stay distinct by node type').not.to.equal(expectedPlaceIcon);
+
+      personNodes.forEach((node: any) => {
+        expect(getRenderedMapNodeIconUrl(node), `person map icon for ${node?.data?.ID}`).to.equal(expectedPersonIcon);
+      });
+
+      placeNodes.forEach((node: any) => {
+        expect(getRenderedMapNodeIconUrl(node), `place map icon for ${node?.data?.ID}`).to.equal(expectedPlaceIcon);
       });
     });
   });
