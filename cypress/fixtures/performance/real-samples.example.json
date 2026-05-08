@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "baseDir": "performance/real-samples",
+  "scenarios": [
+    {
+      "enabled": false,
+      "id": "real-sample-graph-example",
+      "title": "Real sample graph example",
+      "timeoutMs": 300000,
+      "files": [
+        {
+          "name": "sample-nodes.csv",
+          "datatype": "node",
+          "field1": "_id"
+        },
+        {
+          "name": "sample-links.csv",
+          "datatype": "link",
+          "field1": "source",
+          "field2": "target",
+          "field3": "distance"
+        }
+      ],
+      "preLaunch": {
+        "metric": "snps",
+        "threshold": 16,
+        "defaultView": "2D Network"
+      },
+      "expected": {
+        "nodes": 0,
+        "totalLinks": 0,
+        "visibleLinks": 0
+      },
+      "metadata": {
+        "source": "Replace with a non-sensitive description of the real sample source.",
+        "notes": "Copy this file to real-samples.json and set enabled=true once files and expected counts are present."
+      }
+    },
+    {
+      "enabled": false,
+      "id": "real-sample-sequence-example",
+      "title": "Real sample sequence example",
+      "timeoutMs": 300000,
+      "viewChecks": ["alignment"],
+      "files": [
+        {
+          "name": "sample-sequences.fasta",
+          "datatype": "fasta"
+        }
+      ],
+      "preLaunch": {
+        "metric": "snps",
+        "threshold": 16,
+        "defaultView": "2D Network"
+      },
+      "expected": {
+        "nodes": 0,
+        "sequences": 0
+      },
+      "metadata": {
+        "source": "Replace with a non-sensitive description of the real sample source."
+      }
+    },
+    {
+      "enabled": false,
+      "id": "real-sample-newick-example",
+      "title": "Real sample Newick example",
+      "timeoutMs": 300000,
+      "viewChecks": ["phylogeneticTree"],
+      "files": [
+        {
+          "name": "sample-tree.nwk",
+          "datatype": "newick"
+        }
+      ],
+      "preLaunch": {
+        "metric": "tn93",
+        "threshold": 0.003,
+        "defaultView": "2D Network"
+      },
+      "expected": {
+        "nodes": 0,
+        "totalLinks": 0,
+        "visibleLinks": 0
+      },
+      "metadata": {
+        "source": "Replace with a non-sensitive description of the real sample source."
+      }
+    }
+  ]
+}

@@ -392,7 +392,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 loadTime: 0,
                 readyTime: Date.now(),
                 startTime: 0,
-                anySequences: false
+                anySequences: false,
+                performance: {}
             },
             network: {
                 allPinned: false,
@@ -510,6 +511,24 @@ export class CommonService extends AppComponentBase implements OnInit {
     }
     temp: any = this.tempSkeleton();
     session = this.sessionSkeleton();
+
+    recordPerformanceTiming(category: string, name: string, startedAt: number, extra: Record<string, any> = {}) {
+        this.recordPerformanceDuration(category, name, Date.now() - startedAt, extra);
+    }
+
+    recordPerformanceDuration(category: string, name: string, durationMs: number, extra: Record<string, any> = {}) {
+        if (!this.session?.meta || !Number.isFinite(durationMs)) return;
+
+        const meta = this.session.meta as any;
+        if (!meta.performance) meta.performance = {};
+        if (!meta.performance[category]) meta.performance[category] = {};
+
+        meta.performance[category][name] = {
+            durationMs,
+            recordedAt: Date.now(),
+            ...extra
+        };
+    }
 
     private getAnalysisCache() {
         if (!this.temp.analysis) {
@@ -1362,7 +1381,9 @@ export class CommonService extends AppComponentBase implements OnInit {
           borderWidth: link.borderWidth ?? 1 // Default border width for links
         }));
 
-        console.log('--- TWOD convertToGraphDataArray end, ',links);
+        if (this.debugMode) {
+            console.log('--- TWOD convertToGraphDataArray end, ', links);
+        }
 
       
         return {
@@ -2376,19 +2397,29 @@ align(params): Promise<any> {
 
     async runHamsters() {
 
+        const runHamstersStart = Date.now();
         console.log('running hamsters');
         //if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
         let hasDistances = this.session.data.links.some(l => l.hasDistance === true && l.distance > 0)
         let hasNewickString = typeof this.session.data.newickString === 'string' && this.session.data.newickString.trim().length > 0;
+        let computedTree = false;
         if (hasDistances && this.session.data.links.length <= 2500 && !hasNewickString) {
             console.log('run ham computeTree');
             const newickString = await this.computeTree();
             this.session.data.newickString = newickString;
+            computedTree = true;
             console.log('compute tree end');
         }
         //if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
         this.finishUp();
+        this.recordPerformanceTiming('load', 'runHamsters', runHamstersStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            hasDistances,
+            hasNewickString,
+            computedTree
+        });
     };
 
     /**
@@ -2401,6 +2432,7 @@ align(params): Promise<any> {
      */
     async finishUp() {
 
+        const finishUpStart = Date.now();
         clearTimeout(this.temp.messageTimeout);
 
         console.log('----- finishUp called');
@@ -2409,6 +2441,7 @@ align(params): Promise<any> {
         console.log('----- finishUp -- node/link fields');
 
         // cycles through each node and link and if variable in nodeFields/linkFields not a key for the node/link, it is added with value of null
+        const fieldNormalizationStart = Date.now();
         ["node", "link"].forEach(v => {
             let n = this.session.data[v + "s"].length;
             let fields = this.session.data[v + "Fields"];
@@ -2418,6 +2451,12 @@ align(params): Promise<any> {
                     if (!(field in d)) d[field] = null;
                 });
             }
+        });
+        this.recordPerformanceTiming('load', 'finishUpFieldNormalization', fieldNormalizationStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            nodeFields: this.session.data.nodeFields.length,
+            linkFields: this.session.data.linkFields.length
         });
 
         // TODO:: See if this is needed
@@ -2522,10 +2561,16 @@ align(params): Promise<any> {
         // }, 1000);
         $(".hideForHIVTrace").css("display", "flex");
         this.store.updatecurrentThresholdStepSize(this.session.style.widgets["default-distance-metric"]);
+        this.recordPerformanceTiming('load', 'finishUpSync', finishUpStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            defaultView: this.session.style.widgets['default-view']
+        });
     };
 
 
     updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
+        const updateStart = Date.now();
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
         const getVisibleLinkKey = (link: any): string => String(
@@ -2567,8 +2612,20 @@ align(params): Promise<any> {
           console.log('---- Update network visuals end');
 
           console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
+            const firstLoad = !this.session.network.isFullyLoaded;
+            this.recordPerformanceTiming('network', 'updateNetworkVisuals', updateStart, {
+                silent,
+                forceClusterUpdate,
+                firstLoad,
+                nodes: this.session.data.nodes.length,
+                links: this.session.data.links.length,
+                clusters: this.session.data.clusters.length,
+                visibleNodes: updatedVisNodeCount,
+                visibleClusters: updatedNumberOfVisibleClusters,
+                visibleLinks: updatedVisibleLinkKeys.size
+            });
             // If network wasn't loaded already, launch default view
-            if (!this.session.network.isFullyLoaded) {
+            if (firstLoad) {
                 this.session.meta.loadTime = Date.now() - this.session.meta.startTime;
                 console.log("Total load time Update Network:", this.session.meta.loadTime.toLocaleString(), "ms");
                 this.launchView(this.session.style.widgets['default-view']);
@@ -3258,6 +3315,12 @@ align(params): Promise<any> {
             if (this.debugMode) {
                 console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
             }
+            this.recordPerformanceTiming('network', 'tagClusters', start, {
+                nodes: this.session.data.nodes.length,
+                links: this.session.data.links.length,
+                clusters: this.session.data.clusters.length,
+                metric
+            });
             resolve();
         });
     };
@@ -3273,6 +3336,7 @@ align(params): Promise<any> {
         let nodes = this.session.data.nodes,
             clusters = this.session.data.clusters;
         let n = nodes.length;
+        let visibleNodes = 0;
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
@@ -3295,6 +3359,8 @@ align(params): Promise<any> {
                 }
             }
 
+            if (node.visible) visibleNodes++;
+
             // if (node._id === "NIMR_NG894803") {
             //     console.log('setting node vis 2: ', _.cloneDeep(node));
             // }
@@ -3304,8 +3370,15 @@ align(params): Promise<any> {
             $(document).trigger("node-visibility");
         } 
 
+        this.recordPerformanceTiming('network', 'setNodeVisibility', start, {
+            nodes: n,
+            visibleNodes,
+            silent,
+            dateField
+        });
+
         if(this.debugMode) {
-            console.log('--- Set node viz nodes length: ', nodes.filter(n => n.visible).length);
+            console.log('--- Set node viz nodes length: ', visibleNodes);
             console.log("Node Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");        
         }
        
@@ -3324,6 +3397,7 @@ align(params): Promise<any> {
         let links = this.session.data.links;
         let clusters = this.session.data.clusters;
         let n = links.length;
+        let visibleLinks = 0;
         const globalOriginOrder = this.session.style.widgets['link-origin-array-order']; // Get the global order once
     
     
@@ -3449,6 +3523,7 @@ align(params): Promise<any> {
             // If not visible, link.origin is left as is.
     
             link.visible = visible; // Set final visibility
+            if (visible) visibleLinks++;
     
         } // End of loop
     
@@ -3460,6 +3535,16 @@ align(params): Promise<any> {
         }
     
     
+        this.recordPerformanceTiming('network', 'setLinkVisibility', start, {
+            links: n,
+            visibleLinks,
+            silent,
+            checkCluster,
+            metric,
+            threshold,
+            showNN
+        });
+
         if(this.debugMode) {
             console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
         }
@@ -3474,7 +3559,9 @@ align(params): Promise<any> {
         let min = this.session.style.widgets["cluster-minimum-size"];
         let clusters = this.session.data.clusters;
         let n = clusters.length;
-        console.log('cluster nodes ', clusters);
+        if (this.debugMode) {
+            console.log('cluster nodes ', clusters);
+        }
         for (let i = 0; i < n; i++) {
             const cluster = clusters[i];
            

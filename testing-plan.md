@@ -10,6 +10,10 @@ The older generic plan was retired because it no longer matched the codebase or 
   - Quick commands for targeted unit and Cypress runs, plus guidance on when to run a narrow slice versus the broader suites.
 - `docs/cypress-architecture.md`
   - Current maintained Cypress structure, selector rules, and migration rules.
+- `docs/performance-baseline-plan.md`
+  - Plan for discovering performance baselines, dataset tiers, responsiveness probes, and future timing budgets.
+- `docs/problem-10k-node-only-performance.md`
+  - Case study for the `problem_10k.csv` node-only fixture, including the launch/OOM root cause, 2D grouping optimizations, and before/after measurements.
 - `docs/2d-network-cypress-checklist.md`
   - Primary checklist for the 2D Network Cypress journey coverage.
 - `docs/2d-network-cypress-qa-tracker.csv`

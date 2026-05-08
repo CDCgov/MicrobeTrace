@@ -16,6 +16,7 @@ import {
 const TN93_NEWICK_FILE = 'AngularTesting_seqs_TN93_BS.nwk';
 const SYNTHETIC_SNP_FILE = 'PatristicSynthetic_snp_gt1.nwk';
 const DUPLICATE_TIP_FILE = 'PatristicDuplicateTips.nwk';
+const NEGATIVE_BRANCH_FILE = 'PatristicNegativeBranch.nwk';
 
 const tn93Profile = getProfile('load-twod-newick-tn93-angular-testing');
 
@@ -44,6 +45,24 @@ const duplicateTipProfile: DatasetProfile = {
   files: [
     {
       name: DUPLICATE_TIP_FILE,
+      datatype: 'newick',
+    },
+  ],
+  preLaunch: {
+    metric: 'tn93',
+    threshold: 0.015,
+    defaultView: '2D Network',
+  },
+  expectations: {},
+};
+
+const negativeBranchProfile: DatasetProfile = {
+  id: 'patristic-negative-branch-validation',
+  title: 'Negative-branch Newick is rejected with branch context',
+  tags: ['newick', 'patristic-worker', 'invalid'],
+  files: [
+    {
+      name: NEGATIVE_BRANCH_FILE,
       datatype: 'newick',
     },
   ],
@@ -205,6 +224,25 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     cy.window().should((win: any) => {
       expect(win.commonService.session.network.isFullyLoaded, 'network should not finish loading').to.not.equal(true);
       expect(win.commonService.session.data.links || [], 'links after duplicate-tip rejection').to.have.length(0);
+    });
+  });
+
+  it('rejects negative-branch Newick input with branch label context', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(negativeBranchProfile.files);
+
+    cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
+    cy.get('#launch').click({ force: true });
+
+    cy.contains(
+      '#loading-information',
+      /Negative branch length.*BAD_INTERNAL.*parent/i,
+      { timeout: 30000 },
+    ).should('be.visible');
+
+    cy.window().should((win: any) => {
+      expect(win.commonService.session.network.isFullyLoaded, 'network should not finish loading').to.not.equal(true);
+      expect(win.commonService.session.data.links || [], 'links after negative-branch rejection').to.have.length(0);
     });
   });
 });

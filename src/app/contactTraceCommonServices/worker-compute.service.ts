@@ -568,6 +568,32 @@ export class WorkerComputeService {
   private patristicGeneratedMaxThreshold = -Infinity;
   private patristicOrigin: string[] = ['Newick Tree'];
   private patristicDistanceOrigin = 'Newick Tree';
+  private patristicTreeInitCount = 0;
+
+  private recordPatristicPerformance(session: any, patch: any): void {
+    if (!session?.meta) return;
+    if (!session.meta.performance) {
+      session.meta.performance = {};
+    }
+
+    const current = session.meta.performance.patristic || {};
+    session.meta.performance.patristic = {
+      ...current,
+      ...patch,
+      treeInitCount: this.patristicTreeInitCount,
+      updatedAt: Date.now(),
+    };
+  }
+
+  private treeReadyTelemetry(treeReady: PatristicTreeReadyResponse): any {
+    return {
+      leafCount: treeReady.leafCount,
+      nodeCount: treeReady.nodeCount,
+      maxDistance: treeReady.maxDistance,
+      maxRootDepth: treeReady.maxRootDepth,
+      timings: treeReady.timings,
+    };
+  }
 
   /**
    * Initialize the patristic engine with a Newick string.
@@ -590,6 +616,7 @@ export class WorkerComputeService {
             this.patristicLeafNames = msg.leafNames;
             this.patristicNewickString = newickString;
             this.patristicGeneratedMaxThreshold = -Infinity;
+            this.patristicTreeInitCount++;
             worker.removeEventListener('message', handler);
             resolve(msg);
             break;
@@ -693,6 +720,7 @@ export class WorkerComputeService {
     return new Promise((resolve, reject) => {
       let newLinks = 0;
       let totalLinks = 0;
+      let finalTimings: PatristicEdgeBatchResponse['timings'] | undefined;
 
       this.buildPatristicEdges(threshold, options.maxEdges, options.batchSize).subscribe({
         next: (batch) => {
@@ -713,6 +741,9 @@ export class WorkerComputeService {
             );
             totalLinks++;
           }
+          if (batch.done) {
+            finalTimings = batch.timings;
+          }
         },
         error: (err) => reject(err),
         complete: () => {
@@ -725,9 +756,18 @@ export class WorkerComputeService {
               'Patristic edge generation + merge time:',
               (Date.now() - edgeStart).toLocaleString(),
               'ms',
-              `(${totalLinks} edges below threshold ${threshold})`
-            );
+            `(${totalLinks} edges below threshold ${threshold})`
+          );
           }
+          this.recordPatristicPerformance(session, {
+            edgeGeneration: {
+              threshold,
+              newLinks,
+              totalLinks,
+              mergeMs: Date.now() - edgeStart,
+              timings: finalTimings,
+            },
+          });
           resolve({ newLinks, totalLinks, leafNames });
         },
       });
@@ -760,6 +800,9 @@ export class WorkerComputeService {
 
     // Step 1: Initialize tree (flatten + LCA)
     const treeReady = await this.initPatristicTree(newickString);
+    this.recordPatristicPerformance(session, {
+      treeReady: this.treeReadyTelemetry(treeReady),
+    });
 
     if (session?.debugMode) {
       console.log(
@@ -796,7 +839,10 @@ export class WorkerComputeService {
     this.setPatristicMetadata(options.origin, options.distanceOrigin);
 
     if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
-      await this.initPatristicTree(newickString);
+      const treeReady = await this.initPatristicTree(newickString);
+      this.recordPatristicPerformance(session, {
+        treeReady: this.treeReadyTelemetry(treeReady),
+      });
     }
 
     if (threshold <= this.patristicGeneratedMaxThreshold) {
@@ -844,5 +890,6 @@ export class WorkerComputeService {
     this.patristicLeafNames = [];
     this.patristicNewickString = '';
     this.patristicGeneratedMaxThreshold = -Infinity;
+    this.patristicTreeInitCount = 0;
   }
 }

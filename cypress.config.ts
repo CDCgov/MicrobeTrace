@@ -1,5 +1,6 @@
 import { defineConfig } from "cypress";
 import { registerOracleTasks } from "./cypress/oracle/task";
+import { registerPerformanceTasks } from "./cypress/performance/task";
 
 export default defineConfig({
   e2e: {
@@ -9,6 +10,7 @@ export default defineConfig({
     specPattern: [
       'cypress/e2e/ingestion/**/*.cy.ts',
       'cypress/e2e/journeys/flows/**/*.cy.ts',
+      'cypress/e2e/performance/**/*.perf.cy.ts',
       'cypress/e2e/view-state/**/*.cy.ts',
     ],
     defaultCommandTimeout: 10000,
@@ -21,9 +23,13 @@ export default defineConfig({
     },
     env: {
       contractMode: 0,
+      perfMode: 0,
+      perfStress: 0,
+      perfRealSamples: 0,
     },
     setupNodeEvents(on, config) {
       registerOracleTasks(on);
+      registerPerformanceTasks(on);
       return config;
     },
   },
