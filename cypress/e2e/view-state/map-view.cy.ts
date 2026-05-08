@@ -13,7 +13,7 @@ describe('Map View', () => {
     settingsBtn: '#tool-btn-container-map a[title="Settings"]',
   };
 
-    /**
+  /**
    * This block runs before each test. It loads the application,
    * continues with the sample dataset, and navigates to the view.
    */
@@ -541,10 +541,19 @@ describe('Map View', () => {
       })
     })
 
-    it('should spiderfy the metanode containing a searched node while manual positioning is active', () => {
+    it('should respect the auto-expand toggle for a searched node inside a metanode while manual positioning is active', () => {
       const targetNodeId = 'MZ797703';
 
       cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Nodes').click();
+      cy.get('@mapSettings')
+        .find('#map-node-auto-expand-selected')
+        .contains('Off')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.session.style.widgets.map-auto-expand-selected')
+        .should('equal', false);
+
       cy.get('@mapSettings').contains('.nav-link', 'Components').click();
       cy.get('@mapSettings').contains('.p-accordionheader', 'User Provided').click({ force: true });
       cy.get('@mapSettings')
@@ -572,9 +581,31 @@ describe('Map View', () => {
       cy.window().should((win: any) => {
         const mapView = win.commonService.visuals.gisMap;
         const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
+
+        expect(selectedNode?.selected, `${targetNodeId} selected from search with auto-expand off`).to.equal(true);
+        expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
+        expect(mapView.layers.markerClusterGroup._spiderfied, 'metanode stays collapsed when auto-expand is off')
+          .to.not.exist;
+      });
+
+      cy.get(selectors.settingsBtn).click();
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Nodes').click();
+      cy.get('@mapSettings')
+        .find('#map-node-auto-expand-selected')
+        .contains('On')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.session.style.widgets.map-auto-expand-selected')
+        .should('equal', true);
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
         const spiderfiedCluster = mapView.layers.markerClusterGroup._spiderfied;
 
-        expect(selectedNode?.selected, `${targetNodeId} selected from search`).to.equal(true);
+        expect(selectedNode?.selected, `${targetNodeId} remains selected after enabling auto-expand`).to.equal(true);
         expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
         expect(spiderfiedCluster, 'spiderfied metanode').to.exist;
 
@@ -583,6 +614,8 @@ describe('Map View', () => {
           .map((marker: any) => marker.data?._id);
         expect(spiderfiedNodeIds, 'spiderfied metanode node ids').to.include(targetNodeId);
       });
+
+      cy.closeSettingsPane('Geospatial Settings');
     })
 
     it('should download map view as a png', () => {

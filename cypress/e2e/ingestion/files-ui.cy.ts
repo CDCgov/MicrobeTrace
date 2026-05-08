@@ -7,6 +7,13 @@ describe('File Handling and Processing', () => {
   const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
   const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
   const loadNodeFile = () => cy.loadFiles([{ name: nodeFile, datatype: 'node' }]);
+  const hideLocalUrlWarning = () => {
+    cy.get('body').then(($body) => {
+      if (!$body.find('#url-warning-div').length) return;
+
+      cy.get('#url-warning-div').invoke('hide');
+    });
+  };
 
   beforeEach(() => {
     cy.visit('/?skipEula=1&skipDemoSession=1');
@@ -15,6 +22,7 @@ describe('File Handling and Processing', () => {
 
   it('keeps welcome overlay actions reachable on short screens', () => {
     cy.viewport(320, 240);
+    hideLocalUrlWarning();
 
     cy.get('#add-data-container', { timeout: 10000 }).should(($container) => {
       expect(Number($container.css('opacity'))).to.be.greaterThan(0.9);
