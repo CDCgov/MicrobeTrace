@@ -308,6 +308,24 @@ The real-sample manifest supports:
 
 When `perfRealSamples=1` is set, Cypress validates the manifest and referenced files before upload. Missing files or invalid enabled scenarios fail the real-sample spec. If no manifest or no enabled scenarios exist, the opt-in spec logs that nothing is configured and exits without producing artifacts.
 
+## Bio-Realistic Simulated Scenarios
+
+Bio-realistic simulated fixtures are also opt-in. They are generated from a reviewed YAML recipe with host bioinformatics tools instead of the deterministic JavaScript fixture generator.
+
+Use dry-run validation before installing or invoking external tools:
+
+- `npm run fixtures:performance:realistic:dry-run`
+
+Generate the MuSSE + AliSim fixture outputs with:
+
+- `npm run fixtures:performance:realistic`
+
+The generator requires `Rscript` with `diversitree`, `ape`, and `jsonlite`, plus IQ-TREE/AliSim available as `iqtree3`, `iqtree2`, or `iqtree`. It writes FASTA, Newick, node metadata, and a provenance summary under `cypress/fixtures/performance/realistic/`.
+
+After those generated files exist, run the opt-in Cypress performance check with:
+
+- `npm run e2e:perf:realistic`
+
 ## Current Starting Point
 
 The initial baseline harness includes:
@@ -341,6 +359,7 @@ Use:
 - `npm run e2e:perf:large` for the opt-in upper-normal large dataset tier.
 - `npm run e2e:perf:stress` for the manual-only stress graph and Newick tier.
 - `npm run e2e:perf:real` for configured real sample scenarios.
+- `npm run e2e:perf:realistic` for generated MuSSE + AliSim calibration scenarios.
 - `npm run e2e:perf:summarize` to compare recorded artifacts across runs.
 - `npm run e2e:perf:budgets:propose` to generate candidate warning/failure thresholds after enough samples exist.
 - `npm run e2e:perf:budgets:check` to compare the latest run against reviewed budgets in report-only mode.

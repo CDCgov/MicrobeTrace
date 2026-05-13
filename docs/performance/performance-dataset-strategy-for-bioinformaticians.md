@@ -2,7 +2,7 @@
 
 This note explains how MicrobeTrace performance testing uses synthetic and real datasets, why both are needed, and what information we need from bioinformaticians to keep the tests representative of real work.
 
-For the exact generation recipes behind the committed synthetic graph, FASTA, and Newick performance fixtures, see `synthetic-performance-dataset-generation.md`.
+For the exact generation recipes behind the committed deterministic graph, FASTA, and Newick performance fixtures, see `synthetic-performance-dataset-generation.md`. For the optional trait-aware MuSSE + AliSim workflow that generates more bio-realistic simulated fixtures, see `realistic-performance-fixture-generation.md`.
 
 ## Short Summary
 
@@ -21,6 +21,8 @@ Synthetic FASTA fixtures prove sequence parsing, sequence-derived distance/link 
 Synthetic Newick fixtures prove tree parsing, patristic preprocessing, thresholded edge generation, cached threshold re-query behavior, and downstream rendering. These are the main fixtures for measuring patristic algorithm improvements.
 
 Real sample datasets prove that representative user data still works with realistic metadata, file formatting, missing values, distance distributions, and multi-file workflows. They are especially valuable for catching cases that deterministic generated data may miss.
+
+Bio-realistic simulated fixtures sit between deterministic generated fixtures and real samples. They are synthetic and reproducible, but their tree, trait transitions, and sequences are generated with external bioinformatics simulation tools so bioinformaticians can tune the model parameters directly.
 
 Stress fixtures probe upper-limit behavior. They are not normal user expectations or default CI budgets. They are used to find failure modes, memory pressure, and interaction responsiveness risks.
 
@@ -111,6 +113,12 @@ Use real datasets as opt-in validation scenarios:
 - to catch file-format and metadata issues
 - to verify important real workflows after performance refactors
 - to recalibrate what average, large, and stress should mean
+
+Use bio-realistic simulated datasets as opt-in calibration scenarios:
+
+- to review a transparent model recipe without committing sensitive data
+- to exercise FASTA, Newick, and metadata together from one known simulation
+- to tune transition rates, tree scale, sequence model, and thresholds with bioinformatics input
 
 Use before/after comparisons only when the datasets exercise the changed code path. For example, a Newick/patristic refactor should be judged primarily with Newick fixtures, while a CSV edge-list optimization should be judged with explicit link-list fixtures.
 

@@ -1,0 +1,107 @@
+# Preset schema version for the MicrobeTrace realistic fixture generator.
+version: 1
+
+# Fixture identifier. Used in generated summaries and default output filenames.
+id: pathogen-musse-500
+
+# Reproducibility seed. The R tree simulation and IQ-TREE AliSim sequence simulation both derive from this.
+seed: 42601
+
+# Number of terminal samples/taxa to simulate in the MuSSE tree.
+taxa: 500
+
+# MuSSE simulations can go extinct before reaching the requested taxa count.
+# The R script retries with seed + attempt until this limit is reached.
+maxAttempts: 50
+
+# Output paths are repo-relative. The generator writes FASTA, Newick, node metadata, and summary JSON here.
+output:
+  directory: cypress/fixtures/performance/realistic
+  basename: pathogen-musse-500
+
+  # Prefix for deterministic tip/sample IDs in the Newick tree, FASTA headers, and node metadata.
+  tipPrefix: PM500_
+
+# Discrete trait modeled on the tree. In MuSSE terminology these values are "states";
+# here they are location regions, not U.S. states.
+traits:
+  name: location
+  states:
+    - Northeast
+    - South
+    - Midwest
+    - West
+    - International
+
+  # Starting location region for the simulated lineage at the root.
+  initialState: Northeast
+
+# MuSSE parameters controlling the trait-aware birth-death tree simulation.
+musse:
+  # Per-location-region speciation/birth rates, in the same order as traits.states.
+  birthRates: [0.12, 0.11, 0.10, 0.10, 0.08]
+
+  # Per-location-region extinction/death rates, in the same order as traits.states.
+  extinctionRates: [0.02, 0.02, 0.02, 0.02, 0.03]
+
+  # Continuous-time transition rates between location regions.
+  # Larger values make movement between the two regions more common in the simulated tree.
+  transitionRates:
+    Northeast:
+      South: 0.030
+      Midwest: 0.020
+      West: 0.010
+      International: 0.005
+    South:
+      Northeast: 0.025
+      Midwest: 0.015
+      West: 0.015
+      International: 0.005
+    Midwest:
+      Northeast: 0.020
+      South: 0.020
+      West: 0.010
+      International: 0.004
+    West:
+      Northeast: 0.012
+      South: 0.018
+      Midwest: 0.012
+      International: 0.006
+    International:
+      Northeast: 0.010
+      South: 0.008
+      Midwest: 0.006
+      West: 0.010
+
+# IQ-TREE AliSim parameters controlling sequence generation from the simulated tree.
+alignment:
+  simulator: alisim
+
+  # Substitution model for AliSim. This affects generated sequence evolution.
+  model: GTR+G4
+
+  # Sequence length in bases.
+  length: 9750
+
+  # Multiplier applied to MuSSE branch lengths before AliSim runs.
+  # This tunes sequence divergence without changing the simulated tree topology.
+  treeScale: 0.001
+
+  # Output format expected by MicrobeTrace and Cypress.
+  outputFormat: fasta
+
+# Deterministic sample-date metadata generation. These dates are for UI/data-shape testing;
+# they are not used by MuSSE or AliSim.
+sampling:
+  startDate: 2024-01-01
+  daySpacing: 1
+
+# MicrobeTrace validation thresholds. These do not affect generation.
+# The generator counts expected visible links at each threshold and stores them in the summary JSON.
+microbetrace:
+  thresholds:
+    # SNP cutoffs for FASTA-derived distance/link assertions.
+    snp: [16, 50, 100]
+
+    # Patristic distance cutoffs for Newick-derived distance/link assertions.
+    patristic: [0.01, 0.02, 0.05]
