@@ -572,17 +572,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
-            const timelineTickUpdate = Boolean((this.commonService.session.state as any)['timelineTickUpdate']);
-            if (timelineTickUpdate && this.viewActive && this.commonService.activeTab === '2D Network') {
-                (this.commonService.session.state as any)['timelineTickUpdate'] = false;
-                this.store.setNetworkUpdated(false);
-                return;
-            }
-
-            if (timelineTickUpdate) {
-                (this.commonService.session.state as any)['timelineTickUpdate'] = false;
-            }
-
             if (this.data && this.store.settingsLoadedValue && newPruned) {
                 console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
                 if (this.viewActive){
@@ -737,6 +726,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // 'height': 'mapData(nodeSize, 0, 100, 10, 50)',
                     'border-width': 'data(borderWidth)', // Use dynamic border width
                     // 'border-color': '#000',
+                    'color': 'black',
+                    'z-index': 10, // Not a standard Cytoscape property, but kept for clarity
+                    // 'font-size': 'data(fontSize)' // Ensure this line is included
+                }
+            },
+            {
+                selector: 'node[!isParent]',
+                css: {
                     'text-valign': (() => {
                         const o = (this.widgets && this.widgets['node-label-orientation']) ? this.widgets['node-label-orientation'].toLowerCase() : 'right';
                         if (o === 'top') return 'top';
@@ -749,11 +746,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         if (o === 'right') return 'right';
                         return 'center';
                     })(),
-                    'color': 'black',
                     // @ts-ignore
-                    'shape': 'data(shape)',
-                    'z-index': 10, // Not a standard Cytoscape property, but kept for clarity
-                    // 'font-size': 'data(fontSize)' // Ensure this line is included
+                    'shape': 'data(shape)'
                 }
             },
             {
@@ -784,7 +778,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node[iconBackgroundImage]',
+                selector: 'node[!isParent][iconBackgroundImage]',
                 css: {
                     // @ts-ignore
                     'background-image': 'data(iconBackgroundImage)',
@@ -814,7 +808,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node[nodeColor][iconBackgroundImage]',
+                selector: 'node[!isParent][nodeColor][iconBackgroundImage]',
                 css: {
                     'background-color': '#ffffff',
                     // @ts-ignore
@@ -823,13 +817,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             },
             // Apply styles only to nodes with fontSize defined
             {
-                selector: 'node[fontSize]',
+                selector: 'node[!isParent][fontSize]',
                 css: {
                     'font-size': 'data(fontSize)'
                 }
             },
             {
-                selector: 'node[shape]',
+                selector: 'node[!isParent][shape]',
                 css: {
                     // @ts-ignore
                     'shape': 'data(shape)'
@@ -841,7 +835,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
                     // We also need to ensure that it uses data(...) for color & alpha:
                     'background-color': 'data(nodeColor)', 
-                    'border-width': 'data(borderWidth)'   
+                    'border-width': 'data(borderWidth)',
+                    'shape': 'rectangle'
                     // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
                     // 'z-compound-depth': 'back',  // ensures parent is behind children
                 }
@@ -889,7 +884,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node:selected[!iconBackgroundImage]',
+                selector: 'node:selected[!isParent][!iconBackgroundImage]',
                 css: {
                     'background-color': 'data(nodeColor)',
                     'border-color': 'data(selectedBorderColor)',
@@ -897,7 +892,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node:selected[iconBackgroundImage]',
+                selector: 'node:selected[!isParent][iconBackgroundImage]',
                 css: {
                     'background-color': '#ffffff',
                     // @ts-ignore
@@ -3362,9 +3357,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return Number(this.widgets['node-radius']);
         } else {
 
-            let v = node[sizeVariable];
+            let v = Number(node[sizeVariable]);
 
-            if (!this.isNumber(v)) v = this.nodeMid;
+            if (!this.isNumber(v) || Number.isNaN(v) ) v = this.nodeMid;
 
             // Check the type of v before calling linkScale
 
@@ -3634,7 +3629,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             this.cy.style()
-                .selector('node')
+                .selector('node[!isParent]')
                 .style({
                     'text-valign': textValign,
                     'text-halign': textHalign
@@ -4373,6 +4368,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkLabelVariableChange(e) {
         let label: any = e;
         this.widgets['link-label-variable'] = label;
+        this.updateLinkLabels();
+    }
+
+    private updateLinkLabels(): void {
         if (!this.cy) return;
         this.cy.edges().forEach(edge => {
             const newLabel = this.getLinkLabel(edge.data()).text;
@@ -4380,16 +4379,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    refreshDistanceDisplayFormat(): void {
+        this.updateLinkLabels();
+    }
+
     /**
      * Updates link-label-decimal-length widget and updates label with updated number of decimal points
      */
     onLinkDecimalVariableChange(e) {
         this.widgets['link-label-decimal-length'] = e;
-        if (!this.cy) return;
-        this.cy.edges().forEach(edge => {
-            const newLabel = this.getLinkLabel(edge.data()).text;
-            edge.data('label', newLabel);
-        });
+        this.updateLinkLabels();
         
     }
 
@@ -4460,14 +4459,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updateMinMaxNode() {
         this.visNodes = this.commonService.getVisibleNodes();
-        let n = this.visNodes.length;
         let sizeVariable = this.widgets['node-radius-variable'];
     
-        this.nodeMin = Number.MAX_VALUE;
-        this.nodeMax = Number.MIN_VALUE;
-        for (let i = 0; i < n; i++) {
-            let size = this.visNodes[i][sizeVariable];
-            if (typeof size == 'undefined') continue;
+        this.nodeMin = Infinity;
+        this.nodeMax = -Infinity;
+        for (const node of this.visNodes) {
+            let size = Number(node[sizeVariable]);
+            if (!Number.isFinite(size)) continue;
             if (size < this.nodeMin) this.nodeMin = size;
             if (size > this.nodeMax) this.nodeMax = size;
         }
@@ -5436,6 +5434,17 @@ scaleLinkWidth() {
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
     }
 
+    private isGroupNode(node: cytoscape.NodeSingular): boolean {
+        return node.hasClass('parent') || node.data('isParent') === true || node.children().length > 0;
+    }
+
+    private resetGroupNodeShapeData(node: cytoscape.NodeSingular): void {
+        node.data('shape', 'rectangle');
+        node.removeData('shapeKey');
+        node.removeData('iconBackgroundImage');
+        node.removeData('customIconKey');
+    }
+
     /**
      * Updates the sizes of all nodes based on the current widget settings.
      */
@@ -5466,6 +5475,7 @@ scaleLinkWidth() {
 	    updateNodeSizes() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
+            if (this.isGroupNode(node)) return;
 	            const newSize = Number(this.getNodeSize(this.getFullNodeDataForCyNode(node)));
 	            node.data('nodeSize', newSize);
 	        });
@@ -5478,6 +5488,7 @@ scaleLinkWidth() {
 	     updateNodeBorders() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
+            if (this.isGroupNode(node)) return;
 	            const newBorderWidth = this.getNodeBorderWidth(this.getFullNodeDataForCyNode(node));
 	            node.data('borderWidth', newBorderWidth);
 	        });
@@ -5491,7 +5502,7 @@ scaleLinkWidth() {
         console.log('----TWOD updateNodeLabels called');
         if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
-	            if (node.children().length > 0) return; // Skip parent nodes
+	            if (this.isGroupNode(node)) return;
 	                const newLabel = this.getNodeLabel(this.getFullNodeDataForCyNode(node));
 	                node.data('label', newLabel);
         });
@@ -5520,6 +5531,7 @@ scaleLinkWidth() {
     updateNodeLabelSizes() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
+            if (this.isGroupNode(node)) return;
 	            const newFontSize = this.getNodeFontSize(this.getFullNodeDataForCyNode(node));
 	            node.data('fontSize', newFontSize);
 	        });
@@ -5541,6 +5553,10 @@ scaleLinkWidth() {
 	    updateNodeShapes() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
+            if (this.isGroupNode(node)) {
+                this.resetGroupNodeShapeData(node);
+                return;
+            }
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const shapeKey = this.getNodeShape(fullNode);
 	            node.data('shapeKey', shapeKey);

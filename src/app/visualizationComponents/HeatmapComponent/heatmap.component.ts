@@ -434,6 +434,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.redrawHeatmap();
   }
 
+  refreshDistanceDisplayFormat(): void {
+    this.redrawHeatmap();
+  }
+
   saveImage(): void {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';

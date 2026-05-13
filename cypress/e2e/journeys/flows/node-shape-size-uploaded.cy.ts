@@ -92,6 +92,31 @@ const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') 
 
 const renderedNodeWidthFromWidgetSize = (widgetSize: number): number => 10 + widgetSize * 0.4;
 
+const expectNumericFieldRendersScaledNodeWidths = (field: string): void => {
+  cy.window().should((win: any) => {
+    const cyInstance = win.cytoscapeInstance;
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const rankedByFieldValue = cyInstance
+      .nodes(':visible')
+      .filter((node: any) => node.children().length === 0)
+      .map((node: any) => ({
+        value: Number(node.data(field)),
+        width: parseFloat(String(node.style('width'))),
+      }))
+      .filter((node: any) => Number.isFinite(node.value) && Number.isFinite(node.width))
+      .sort((a: any, b: any) => a.value - b.value);
+
+    expect(rankedByFieldValue.length, `visible nodes with numeric ${field}`).to.be.greaterThan(1);
+
+    const smallest = rankedByFieldValue[0];
+    const largest = rankedByFieldValue[rankedByFieldValue.length - 1];
+
+    expect(largest.value, `${field} range exists`).to.be.greaterThan(smallest.value);
+    expect(largest.width, `higher ${field} node renders larger`).to.be.greaterThan(smallest.width);
+  });
+};
+
 describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
   const profile = getProfile('style-apply-cypress-test-style');
 
@@ -185,6 +210,12 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
       expect(rankedByDegree[rankedByDegree.length - 1].degree, 'degree range exists').to.be.greaterThan(rankedByDegree[0].degree);
       expect(rankedByDegree[rankedByDegree.length - 1].width, 'higher degree node renders larger').to.be.greaterThan(rankedByDegree[0].width);
     });
+
+    cy.get('@nodesTab').find('#node-radius-variable').click({ force: true });
+    cy.contains('li[role="option"]', 'Zipcode').click({ force: true });
+
+    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'Zip_code');
+    expectNumericFieldRendersScaledNodeWidths('Zip_code');
 
     cy.get('@nodesTab')
       .find('#node-radius-min')

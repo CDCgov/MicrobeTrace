@@ -334,7 +334,7 @@
             <div class="form-group row polygons-label-row" title="How big should group labels be?">
               <div class="col-5"><label for="polygons-label-size">Label Size</label></div>
               <div class="col-7">
-                <input type="range" class="custom-range" id="polygons-label-size" min="6" value="16" step="1" max="72" [(ngModel)]="commonService.session.style.widgets['polygons-label-size']" (ngModelChange)="onPolygonLabelSizeChange($event)">
+                <input type="range" class="custom-range" id="polygons-label-size" min="6" value="16" step="1" max="128" [(ngModel)]="commonService.session.style.widgets['polygons-label-size']" (ngModelChange)="onPolygonLabelSizeChange($event)">
               </div>
             </div>
           }

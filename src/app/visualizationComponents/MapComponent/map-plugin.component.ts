@@ -3380,6 +3380,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.drawLinks();
     }
 
+    refreshDistanceDisplayFormat() {
+        this.drawLinks();
+    }
+
     applyStyleFileSettings() {
         this.loadSettings();
         //this.widgets = (window as any).context.commonService.session.style.widgets;
