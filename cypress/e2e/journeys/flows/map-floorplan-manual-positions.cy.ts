@@ -22,6 +22,8 @@ type WinWithMap = Window & {
 
 const floorplanFixture = 'map-floorplan.geojson';
 const floorplanMimeType = 'application/geo+json';
+const imageFloorplanFixture = 'map-floorplan-square.svg';
+const imageFloorplanMimeType = 'image/svg+xml';
 const placedNodeId = 'A';
 const placedPoint = {
   x: 12,
@@ -34,8 +36,12 @@ const openMapSettingsTab = (label: 'Components' | 'Data' | 'Nodes'): void => {
 
 const expandMapAccordion = (label: 'User Provided'): void => {
   cy.get('@mapSettings')
-    .contains('.p-accordionheader, .p-accordion-header', label)
-    .then(($header) => {
+    .find('p-accordion-panel[value="map-user-provided"], p-accordionpanel[value="map-user-provided"]', { timeout: 15000 })
+    .scrollIntoView()
+    .then(($panel) => {
+      const $header = $panel.find('.p-accordionheader, .p-accordion-header').first();
+      expect($header.length, `${label} accordion header`).to.be.greaterThan(0);
+
       const expanded = $header.attr('aria-expanded') === 'true';
       if (!expanded) {
         cy.wrap($header).click({ force: true });
@@ -120,6 +126,49 @@ const assertFloorplanBackgroundShown = (): void => {
       expect(widgets[widgetKey], `${widgetKey} hidden by floorplan`).to.equal(false);
       expect(mapView.lmap.hasLayer(mapView.layers[layerKey]), `${layerKey} layer hidden by floorplan`).to.equal(false);
     });
+  });
+};
+
+const assertSquareImageFloorplanBackgroundShown = (): void => {
+  cy.window({ timeout: 15000 }).should((win: unknown) => {
+    const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+    const session = mapView.commonService.session;
+    const widgets = session.style.widgets;
+
+    expect(session.data.floorplanImageLayerName, 'stored image layer name').to.equal(imageFloorplanFixture);
+    expect(session.data.floorplanImageWidth, 'stored image width').to.equal(100);
+    expect(session.data.floorplanImageHeight, 'stored image height').to.equal(100);
+    expect(session.data.floorplanImageBounds, 'stored normalized image bounds').to.deep.equal([[0, 0], [80, 80]]);
+    expect(widgets['map-floorplan-image-show'], 'floorplan image widget').to.equal(true);
+    expect(widgets['map-user-geojson-show'], 'user GeoJSON widget').to.equal(false);
+    expect(mapView.layers.floorplanImage, 'floorplan image layer').to.exist;
+    expect(mapView.lmap.hasLayer(mapView.layers.floorplanImage), 'floorplan image layer visible').to.equal(true);
+
+    const overlayBounds = mapView.layers.floorplanImage.getBounds();
+    expect(overlayBounds.getWest(), 'projected image west').to.equal(0);
+    expect(overlayBounds.getEast(), 'projected image east').to.equal(80);
+    expect(overlayBounds.getSouth(), 'projected image south').to.equal(0);
+    expect(overlayBounds.getNorth(), 'projected image north').to.be.lessThan(80);
+
+    [
+      ['basemap', 'map-basemap-show'],
+      ['satellite', 'map-satellite-show'],
+      ['countries', 'map-countries-show'],
+      ['states', 'map-states-show'],
+      ['counties', 'map-counties-show'],
+    ].forEach(([layerKey, widgetKey]) => {
+      expect(widgets[widgetKey], `${widgetKey} hidden by image floorplan`).to.equal(false);
+      expect(mapView.lmap.hasLayer(mapView.layers[layerKey]), `${layerKey} layer hidden by image floorplan`).to.equal(false);
+    });
+  });
+
+  cy.get('.mapStyle img.leaflet-image-layer', { timeout: 15000 }).should(($images) => {
+    expect($images.length, 'rendered image overlay count').to.be.greaterThan(0);
+
+    const rect = ($images[0] as HTMLImageElement).getBoundingClientRect();
+    expect(rect.width, 'rendered image width').to.be.greaterThan(40);
+    expect(rect.height, 'rendered image height').to.be.greaterThan(40);
+    expect(rect.width / rect.height, 'rendered image aspect ratio').to.be.closeTo(1, 0.08);
   });
 };
 
@@ -221,5 +270,22 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
 
     assertFloorplanBackgroundShown();
     assertNodeUsesFloorplanCoordinates(placedNodeId, placedPoint.x, placedPoint.y);
+  });
+
+  it('uploads a square image floorplan without vertical stretch', () => {
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+    goToMapView();
+
+    openMapSettingsDialog();
+    openUserProvidedPanel();
+    cy.attach_file('#map-floorplan-background-file', imageFloorplanFixture, imageFloorplanMimeType);
+    cy.get('@mapSettings')
+      .find('.map-user-geojson-summary', { timeout: 15000 })
+      .should('contain.text', imageFloorplanFixture)
+      .and('contain.text', '100 x 100px')
+      .and('contain.text', 'x 0-80.00, y 0-80.00');
+
+    assertSquareImageFloorplanBackgroundShown();
   });
 });

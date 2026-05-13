@@ -281,6 +281,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private readonly userGeoJSONLayerNameFallback: string = 'Custom GeoJSON';
     private readonly floorplanImageLayerNameFallback: string = 'Floorplan Image';
     private readonly floorplanImageMaxCoordinate: number = 80;
+    private readonly webMercatorMaxLatitude: number = 85.0511287798066;
+    private readonly degreesToRadians: number = Math.PI / 180;
+    private readonly radiansToDegrees: number = 180 / Math.PI;
     private readonly manualFloorplanXField: string = 'map_floorplan_x';
     private readonly manualFloorplanYField: string = 'map_floorplan_y';
     private readonly manualMapLatitudeField: string = 'map_manual_latitude';
@@ -808,6 +811,45 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         return Number.isFinite(Number(value));
     }
 
+    private shouldProjectFloorplanImageCoordinates(): boolean {
+        return this.getShownFloorplanBackgroundKind() === 'image';
+    }
+
+    private clampWebMercatorLatitude(latitude: number): number {
+        return Math.max(-this.webMercatorMaxLatitude, Math.min(this.webMercatorMaxLatitude, latitude));
+    }
+
+    private floorplanImageYToDisplayLatitude(y: number): number {
+        const yCoordinate = Number(y);
+        if (!Number.isFinite(yCoordinate)) {
+            return yCoordinate;
+        }
+
+        const mercatorY = yCoordinate * this.degreesToRadians;
+        const latitude = (2 * Math.atan(Math.exp(mercatorY)) - Math.PI / 2) * this.radiansToDegrees;
+        return this.clampWebMercatorLatitude(latitude);
+    }
+
+    private displayLatitudeToFloorplanImageY(latitude: number): number {
+        const displayLatitude = Number(latitude);
+        if (!Number.isFinite(displayLatitude)) {
+            return displayLatitude;
+        }
+
+        const latitudeRadians = this.clampWebMercatorLatitude(displayLatitude) * this.degreesToRadians;
+        return Math.log(Math.tan(Math.PI / 4 + latitudeRadians / 2)) * this.radiansToDegrees;
+    }
+
+    private getRenderedMapLatLng(latitude: any, longitude: any): L.LatLng {
+        const numericLatitude = Number(latitude);
+        const numericLongitude = Number(longitude);
+        const displayLatitude = this.shouldProjectFloorplanImageCoordinates()
+            ? this.floorplanImageYToDisplayLatitude(numericLatitude)
+            : numericLatitude;
+
+        return L.latLng(displayLatitude, numericLongitude);
+    }
+
     private shouldUseManualFloorplanPosition(): boolean {
         const session = this.commonService.session;
         return (!!session.data.geoJSON && session.style.widgets['map-user-geojson-show'] === true)
@@ -1096,18 +1138,22 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.ensureManualPositionFields();
         this.updateMatchingNodeRecords(node, candidate => {
+            let storedLatitude = latitude;
             if (this.getManualPositionMode() === 'floorplan') {
+                storedLatitude = this.shouldProjectFloorplanImageCoordinates()
+                    ? this.displayLatitudeToFloorplanImageY(latitude)
+                    : latitude;
                 candidate[this.manualFloorplanXField] = longitude;
-                candidate[this.manualFloorplanYField] = latitude;
+                candidate[this.manualFloorplanYField] = storedLatitude;
             } else {
                 candidate[this.manualMapLatitudeField] = latitude;
                 candidate[this.manualMapLongitudeField] = longitude;
             }
 
             candidate._lon = longitude;
-            candidate._lat = latitude;
+            candidate._lat = storedLatitude;
             candidate._jlon = longitude;
-            candidate._jlat = latitude;
+            candidate._jlat = storedLatitude;
         });
         this.updateNodesWithoutLocation();
     }
@@ -2078,7 +2124,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.removeFloorplanImageLayer();
         const data = this.commonService.session.data.floorplanImage;
         this.layers.floorplanImage = data
-            ? imageOverlay(data, this.getFloorplanImageBounds(), {
+            ? imageOverlay(data, this.getFloorplanImageOverlayBounds(), {
                 opacity: 1,
                 interactive: false
             })
@@ -2213,6 +2259,20 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.commonService.session.data.floorplanImageWidth,
             this.commonService.session.data.floorplanImageHeight
         );
+    }
+
+    private getFloorplanImageOverlayBounds(): L.LatLngBoundsExpression {
+        const normalizedBounds = L.latLngBounds(this.getFloorplanImageBounds() as any);
+        return [
+            [
+                this.floorplanImageYToDisplayLatitude(normalizedBounds.getSouth()),
+                normalizedBounds.getWest()
+            ],
+            [
+                this.floorplanImageYToDisplayLatitude(normalizedBounds.getNorth()),
+                normalizedBounds.getEast()
+            ]
+        ];
     }
 
     private formatFloorplanImageInfo(width: any, height: any, bounds: L.LatLngBoundsExpression): string {
@@ -2929,7 +2989,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 && String(this.SelectedManualPositionNodeId) === String(d._id);
             const isSelectedMarker = isManualPositionTarget || d.selected === true;
 
-            let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
+            let nodeMarker: MarkerWithData = L.marker(this.getRenderedMapLatLng(d._jlat, d._jlon), {
                 icon: this.getMapNodeIcon(shapeKey, nodeFillColor, isSelectedMarker ? selectedColor : '#000000', isSelectedMarker),
                 opacity: opacity,
                 draggable: manualPositioningActive
@@ -2992,6 +3052,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 && this.isFiniteMapCoordinate(source._jlon)
                 && this.isFiniteMapCoordinate(target._jlat)
                 && this.isFiniteMapCoordinate(target._jlon)) {
+                const sourceLatLng = this.getRenderedMapLatLng(source._jlat, source._jlon);
+                const targetLatLng = this.getRenderedMapLatLng(target._jlat, target._jlon);
                 // Handle multiple origins
                 if (lcv == 'origin' && d.origin && d.origin.length > 1) {
                     let color1 = this.commonService.temp.style.linkColorMap(d.origin[0]);
@@ -3000,13 +3062,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     let dashPattern1 = '10, 10';
                     let dashPattern2 = '0, 10, 10, 0';
     
-                    let polyline1 = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+                    let polyline1 = L.polyline([sourceLatLng, targetLatLng], {
                         color: color1,
                         dashArray: dashPattern1,
                         opacity: opacity
                     });
     
-                    let polyline2: PolyLineWithData = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+                    let polyline2: PolyLineWithData = L.polyline([sourceLatLng, targetLatLng], {
                         color: color2,
                         dashArray: dashPattern2,
                         opacity: opacity
@@ -3021,10 +3083,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     features.push(polyline2);
                 } else {
                     // Single origin handling
-                    const connectorLine: PolyLineWithData = L.polyline([
-                        [source._jlat, source._jlon],
-                        [target._jlat, target._jlon]
-                    ], {
+                    const connectorLine: PolyLineWithData = L.polyline([sourceLatLng, targetLatLng], {
                         color: lcv === "None" ?
                             this.commonService.session.style.widgets['link-color'] :
                             this.commonService.temp.style.linkColorMap(d[lcv]),

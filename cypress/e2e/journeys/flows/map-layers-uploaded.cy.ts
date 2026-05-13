@@ -70,7 +70,7 @@ const assertLayerVisible = (layerKey: LayerKey, visible: boolean): void => {
 describe('Journey Flow - Map uploaded layer controls', () => {
   const profile = getProfile('map-covid-zipcode-threshold');
 
-  it('keeps the online basemap toggle deterministic on uploaded zipcode-mapped data', () => {
+  it('keeps the offline map as the default and lets the online basemap be enabled explicitly', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
     goToMapView();
@@ -80,13 +80,19 @@ describe('Journey Flow - Map uploaded layer controls', () => {
     setMapNodeCollapsing('Off');
     openMapSettingsTab('Components');
 
+    assertLayerVisible('basemap', false);
+    assertLayerVisible('satellite', false);
+    assertLayerVisible('countries', true);
+    assertLayerVisible('states', true);
+    assertLayerVisible('counties', false);
+
     expandMapAccordion('Online');
     ensureMapToggleState('#map-basemap-show-hide', 'commonService.session.style.widgets.map-basemap-show', true);
 
     assertLayerVisible('basemap', true);
     assertLayerVisible('satellite', false);
     assertLayerVisible('countries', false);
-    assertLayerVisible('states', true);
+    assertLayerVisible('states', false);
     assertLayerVisible('counties', false);
 
     cy.closeSettingsPane('Geospatial Settings');
