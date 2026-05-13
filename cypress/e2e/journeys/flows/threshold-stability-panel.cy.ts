@@ -17,6 +17,7 @@ describe('Journey Flow - Threshold Stability Panel', () => {
 
     cy.get('[data-testid="threshold-stability-toggle"]')
       .should('exist')
+      .scrollIntoView()
       .should('be.visible')
       .and('have.attr', 'aria-expanded', 'false')
       .click({ force: true })

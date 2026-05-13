@@ -36,7 +36,7 @@ on:
         description: Space-separated CSV path or glob to sync.
         required: true
         type: string
-        default: docs/user-stories.csv
+        default: docs/product/user-stories.csv
 
 permissions:
   contents: read
@@ -97,7 +97,7 @@ jobs:
             const validProjectStatusScopes = new Set(['all', 'new_items', 'never']);
 
             if (!issues.length) {
-              core.info('No user story rows selected. Set story_sync=true in docs/user-stories.csv or run with publish_all=true.');
+              core.info('No user story rows selected. Set story_sync=true in docs/product/user-stories.csv or run with publish_all=true.');
               return;
             }
 
@@ -126,7 +126,7 @@ jobs:
               },
               'source-user-stories': {
                 color: '5319e7',
-                description: 'Generated from docs/user-stories.csv',
+                description: 'Generated from docs/product/user-stories.csv',
               },
               'needs-review': {
                 color: 'fbca04',

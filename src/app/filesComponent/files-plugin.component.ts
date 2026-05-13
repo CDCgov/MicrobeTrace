@@ -6,7 +6,6 @@ import { saveAs } from 'file-saver';
 import * as fileto from 'fileto';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';
-import * as patristic from 'patristic';
 import * as _ from 'lodash';
 import JSZip from 'jszip';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
@@ -29,6 +28,7 @@ import {
   parseGeoJSONContent,
   validateGeoJSONLocationData
 } from '@app/contactTraceCommonServices/geojson-import';
+import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -132,7 +132,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private cdr: ChangeDetectorRef,
     private store: CommonStoreService,
     private embedHandoffService: EmbedHandoffService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    private workerComputeService: WorkerComputeService
     ) {
 
     super(elRef.nativeElement);
@@ -606,6 +607,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
   }
 
+  private applyPatristicDistanceDefaults(maxDistance: number): number {
+    if (maxDistance > 1) {
+      this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
+      this.SelectedDefaultDistanceMetricVariable = 'snps';
+      this.store.updatecurrentThresholdStepSize('snps');
+      this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
+      $('#default-distance-metric').val('snps');
+      $('#default-distance-threshold').attr('step', 1).val(16);
+      this.commonService.session.style.widgets['link-threshold'] = 16;
+      this.SelectedDefaultDistanceThresholdVariable = '16';
+      this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
+      return 16;
+    }
+
+    const configuredThreshold = parseFloat(
+      `${this.commonService.session.style.widgets['link-threshold'] ?? this.SelectedDefaultDistanceThresholdVariable}`
+    );
+    return Number.isFinite(configuredThreshold) ? configuredThreshold : 0.015;
+  }
+
   private async loadPendingEmbedHandoff() {
     this.isLoadingFiles = true;
     this.handoffError = null;
@@ -675,17 +696,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     fileTableRows.stop(true, true).remove();
 
     let files = cloneDeep(this.commonService.session.files);
-    console.log('---  Populate TABLE Row Files 2: ', files);
-
-    console.log('--- files table 2 : ', $(".file-table-row"));
+    if (this.commonService.debugMode) {
+      console.log('---  Populate TABLE Row Files 2: ', files);
+      console.log('--- files table 2 : ', $(".file-table-row"));
+    }
 
     if(files && files.length > 0) {
-      console.log('--- Populate for: ', files);
+      if (this.commonService.debugMode) {
+        console.log('--- Populate for: ', files);
+      }
       for(let i = 0; i < files.length; i++) {
         this.addToTable(files[i]);
       }
 
-      console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
+      if (this.commonService.debugMode) {
+        console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
+      }
 
     } 
 
@@ -861,7 +887,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.messages = [];
     this.messages = [];
 
-    console.log('session files', this.commonService.session.files);
+    if (this.commonService.debugMode) {
+      console.log('session files', this.commonService.session.files);
+    }
 
     // this.displayloadingInformationModal = true;
 
@@ -904,7 +932,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
 
-    this.commonService.session.meta.anySequences = this.commonService.session.files.some(file => (file.format === "fasta") || (file.format === "node" && file.field2 !== "None"));
+    this.commonService.session.meta.anySequences = this.commonService.session.files.some(file => (
+      file.format === "fasta" ||
+      (file.format === "node" && !!file.field2 && file.field2 !== "None")
+    ));
 
     this.commonService.session.files.forEach((file, fileNum) => {
       if (!isCurrentLoad()) return;
@@ -915,7 +946,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.showMessage(`Parsing ${file.name} as Auspice...`);
         // this.commonService.localStorageService.setItem('default-view', 'phylogenetic-tree');
         // this.commonService.localStorageService.setItem('default-distance-metric', 'SNPs');
-        this.commonService.applyAuspice(file.contents).then(auspiceData => {
+        this.commonService.applyAuspice(file.contents).then(async auspiceData => {
           if (!isCurrentLoad()) return 0;
 
           this.commonService.clearData();
@@ -968,9 +999,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             }
           });
           let linkCount = 0;
-          auspiceData['links'].forEach(link => {
-            linkCount += this.commonService.addLink(link, true);
-          });
+          try {
+            const patristicResult = await this.workerComputeService.computePatristicEdges(
+              auspiceData['newickWithLabels'] || auspiceData['newick'],
+              parseFloat(`${this.commonService.session.style.widgets['link-threshold']}`),
+              this.commonService.addLink.bind(this.commonService),
+              this.commonService.filterXSS,
+              this.commonService.session,
+              {
+                origin,
+                distanceOrigin: file.name,
+                check: true,
+              }
+            );
+            linkCount = patristicResult.newLinks;
+          } catch (error: any) {
+            console.error('Auspice patristic worker error:', error);
+            this.showMessage(` - Error processing Auspice tree: ${error?.message || error}`);
+            this.commonService.session.network.isFullyLoaded = false;
+            return nodeCount;
+          }
 
           this.commonService.runHamsters();
           this.showMessage(` - Parsed ${nodeCount} New Nodes and ${linkCount} new Links from Auspice file.`);
@@ -986,9 +1034,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         this.showMessage(`Parsing ${file.name} as FASTA...`);
         let newNodes = 0;
+        const parseStart = Date.now();
         this.commonService.parseFASTA(file.contents).then(seqs => {
           if (!isCurrentLoad()) return;
 
+          this.commonService.recordPerformanceTiming('ingestion', 'parseFasta', parseStart, {
+            file: file.name,
+            sequences: seqs.length,
+            bytes: typeof file.contents === 'string' ? file.contents.length : null
+          });
+          const mergeStart = Date.now();
           const n = seqs.length;
           for (let i = 0; i < n; i++) {
             const node = seqs[i];
@@ -999,6 +1054,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               origin: origin
             }, check);
           }
+          this.commonService.recordPerformanceTiming('ingestion', 'mergeFastaNodes', mergeStart, {
+            file: file.name,
+            newNodes,
+            totalSequences: seqs.length
+          });
 
           console.log('FASTA Merge time:', (Date.now() - start).toLocaleString(), 'ms');
           this.showMessage(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from FASTA.`);
@@ -1113,6 +1173,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }
 
           console.log('Link Excel Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeLinkExcel', start, {
+            file: file.name,
+            newLinks: l,
+            totalLinks: data.length,
+            newNodes: n,
+            totalNodes: t
+          });
           this.showMessage(` - Parsed ${n} New, ${t} Total Nodes from Link Excel Table.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
 
@@ -1157,6 +1224,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             }
 
             console.log('Link JSON Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+            this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeLinkJson', start, {
+              file: file.name,
+              newLinks: l,
+              totalLinks: data.length,
+              newNodes,
+              totalNodes
+            });
             this.showMessage(` - Parsed ${newNodes} New, ${totalNodes} Total Nodes from Link JSON.`);
             if (fileNum === nFiles) this.processData(loadGeneration);
           } else {
@@ -1202,6 +1276,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 }
 
                 console.log('Link CSV Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+                this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeLinkCsv', start, {
+                  file: file.name,
+                  newLinks: l,
+                  totalLinks: data.length,
+                  newNodes,
+                  totalNodes
+                });
                 this.showMessage(` - Parsed ${newNodes} New, ${totalNodes} Total Nodes from Link CSV.`);
                 if (fileNum === nFiles) this.processData(loadGeneration);
               }
@@ -1224,7 +1305,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           data.forEach(node => {
             let safeNode = {
               _id: this.commonService.filterXSS('' + node[file.field1]),
-              seq: (file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
+              seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
               origin: origin
             };
             Object.keys(node).forEach(key => {
@@ -1238,6 +1319,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           });
 
           console.log('Node Excel Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNodeExcel', start, {
+            file: file.name,
+            newNodes: m,
+            totalNodes: data.length
+          });
           this.showMessage(` - Parsed ${m} New, ${n} Total Nodes from Node Excel Table.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
 
@@ -1253,7 +1339,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
                 let safeNode = {
                   _id: this.commonService.filterXSS('' + node[file.field1]),
-                  seq: (file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
+                  seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
                   origin: origin
                 };
 
@@ -1269,12 +1355,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             })
 
             console.log('Node JSON Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+            this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNodeJson', start, {
+              file: file.name,
+              newNodes: m,
+              totalNodes: results.length
+            });
             this.showMessage(` - Parsed ${m} New, ${n} Total Nodes from Node JSON.`);
 
             if (fileNum === nFiles) this.processData(loadGeneration);
 
           } else {
 
+            let nodeCsvRows = 0;
             Papa.parse(file.contents, {
               header: true,
               dynamicTyping: true,
@@ -1282,13 +1374,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               step: data => {
                 if (!isCurrentLoad()) return;
 
+                nodeCsvRows++;
                 const node = data.data;
 
                 if (node[file.field1] && node[file.field1].toString().trim()) {
 
                   let safeNode = {
                     _id: this.commonService.filterXSS('' + node[file.field1]),
-                    seq: (file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
+                    seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
                     origin: origin
                   };
 
@@ -1306,6 +1399,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 if (!isCurrentLoad()) return;
 
                 console.log('Node CSV Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+                this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNodeCsv', start, {
+                  file: file.name,
+                  newNodes: m,
+                  totalRows: nodeCsvRows
+                });
                 this.showMessage(` - Parsed ${m} New, ${n} Total Nodes from Node CSV.`);
 
                 if (fileNum === nFiles) this.processData(loadGeneration);
@@ -1354,6 +1452,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           });
 
           console.log('Distance Matrix Excel Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeMatrixExcel', start, {
+            file: file.name,
+            newNodes: nn,
+            totalNodes: data.length - 1,
+            newLinks: nl,
+            totalLinks: ((data.length - 1) ** 2 - (data.length - 1)) / 2
+          });
           this.showMessage(` - Parsed ${nn} New, ${data.length - 1} Total Nodes from Excel Distance Matrix.`);
           this.showMessage(` - Parsed ${nl} New, ${((data.length - 1) ** 2 - (data.length - 1)) / 2} Total Links from Excel Distance Matrix.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
@@ -1449,7 +1554,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               'CSV Matrix Merge time:',
               (Date.now() - start).toLocaleString(),
               'ms'
-          );             
+          );
+          this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeMatrixCsv', results.start, {
+            file: file.name,
+            newNodes: nn,
+            totalNodes: tn,
+            newLinks: nl,
+            totalLinks: tl,
+            skippedLinks: skip
+          });
 
           this.showMessage(` - Parsed ${nn} New, ${tn} Total Nodes from Distance Matrix.`);
           this.showMessage(` - Parsed ${nl} New, ${tl} Total Links from Distance Matrix.`);
@@ -1484,50 +1597,88 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       } else { // if(file.format === 'newick'){
 
-        let links = 0;
-        let newLinks = 0;
-        let newNodes = 0;
         this.commonService.session.data.newickString = file.contents;
-        const tree = patristic.parseNewick(file.contents);
-        let m = tree.toMatrix(), matrix = m.matrix, labels = m.ids.map(this.commonService.filterXSS), n = labels.length;
-        const maxRow = matrix.map(function(row){ return Math.max.apply(Math, row); });
-        const maxMax = Math.max.apply(null, maxRow);
-        if (maxMax > 1) {
-            this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-            this.store.setMetricChanged('snps');
-            this.SelectedDefaultDistanceMetricVariable = 'snps';
-            this.onDistanceMetricChange('snps');
-            this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
-            $('#default-distance-metric').val('SNPs').trigger('change');
-            $('#default-distance-threshold').attr('step', 1).val(16).trigger('change');
-            this.commonService.session.style.widgets['link-threshold'] = 16;
-            this.SelectedDefaultDistanceThresholdVariable = '16';
-            this.onLinkThresholdChange('16');
-            this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
-          // set distance to snps
-        } 
-        for (let i = 0; i < n; i++) {
-          const source = labels[i];
-          newNodes += this.commonService.addNode({
-            _id: source,
-            origin: origin
-          }, check);
-          for (let j = 0; j < i; j++) {
-            newLinks += this.commonService.addLink({
-              source: source,
-              target: labels[j],
-              origin: origin,
-              distance: parseFloat(matrix[i][j]),
-              distanceOrigin: file.name,
-              hasDistance: true
-            }, check);
-            links++;
+        const initialThreshold = parseFloat(`${this.commonService.session.style.widgets['link-threshold']}`);
+        const computedInitialThreshold = Number.isFinite(initialThreshold) ? initialThreshold : 0.015;
+        const patristicStart = Date.now();
+        this.workerComputeService.computePatristicEdges(
+          file.contents,
+          computedInitialThreshold,
+          this.commonService.addLink.bind(this.commonService),
+          this.commonService.filterXSS,
+          this.commonService.session,
+          {
+            origin,
+            distanceOrigin: file.name,
+            check,
           }
-        }
-        console.log('Newick Tree Parse time:', (Date.now() - start).toLocaleString(), 'ms');
-        this.showMessage(` - Parsed ${newNodes} New, ${n} Total Nodes from Newick Tree.`);
-        this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
-        if (fileNum === nFiles) this.processData(loadGeneration);
+        ).then(async patristicResult => {
+          if (!isCurrentLoad()) return;
+
+          this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', patristicStart, {
+            file: file.name,
+            leaves: patristicResult.leafNames.length,
+            threshold: computedInitialThreshold,
+            totalLinks: patristicResult.totalLinks,
+            newLinks: patristicResult.newLinks
+          });
+          const activeThreshold = this.applyPatristicDistanceDefaults(patristicResult.treeReady.maxDistance);
+          let newNodes = 0;
+          const mergeStart = Date.now();
+          for (const source of patristicResult.leafNames) {
+            newNodes += this.commonService.addNode({
+              _id: source,
+              origin: origin
+            }, check);
+          }
+          this.commonService.recordPerformanceTiming('ingestion', 'mergeNewickNodes', mergeStart, {
+            file: file.name,
+            newNodes,
+            totalLeaves: patristicResult.leafNames.length
+          });
+
+          let newLinks = patristicResult.newLinks;
+          let links = patristicResult.totalLinks;
+
+          if (activeThreshold > computedInitialThreshold) {
+            const requeryResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
+              activeThreshold,
+              this.commonService.addLink.bind(this.commonService),
+              this.commonService.filterXSS,
+              this.commonService.session,
+              {
+                origin,
+                distanceOrigin: file.name,
+                check: true,
+                newickString: file.contents,
+              }
+            );
+            newLinks += requeryResult?.newLinks ?? 0;
+            links = Math.max(links, requeryResult?.totalLinks ?? 0);
+          }
+
+          if (!isCurrentLoad()) return;
+
+          console.log('Newick Tree Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNewick', start, {
+            file: file.name,
+            newNodes,
+            totalLeaves: patristicResult.leafNames.length,
+            newLinks,
+            totalLinks: links,
+            initialThreshold: computedInitialThreshold,
+            activeThreshold
+          });
+          this.showMessage(` - Parsed ${newNodes} New, ${patristicResult.leafNames.length} Total Nodes from Newick Tree.`);
+          this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
+          if (fileNum === nFiles) this.processData(loadGeneration);
+        }).catch((error: any) => {
+          if (!isCurrentLoad()) return;
+
+          console.error('Newick patristic worker error:', error);
+          this.showMessage(` - Error processing Newick tree: ${error?.message || error}`);
+          this.commonService.session.network.isFullyLoaded = false;
+        });
       }
     });
 
@@ -1576,7 +1727,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!this.commonService.session.meta.anySequences) return this.commonService.runHamsters();
     this.commonService.session.data.nodeFields.push('seq');
     let subset = [];
-    console.log('link same nodes22: ', this.commonService.session.data.nodes.length, this.commonService.session.data.nodes);
+    if (this.commonService.debugMode) {
+      console.log('link same nodes22: ', this.commonService.session.data.nodes.length, this.commonService.session.data.nodes);
+    }
     let nodes = this.commonService.session.data.nodes;
     const n = nodes.length;
     const gapString = '-'.repeat(this.commonService.session.data.reference.length);
@@ -1589,7 +1742,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       }
     }
 
-    console.log('link same nodes33: ', subset);
+    if (this.commonService.debugMode) {
+      console.log('link same nodes33: ', subset);
+    }
 
     if (this.commonService.session.style.widgets['align-sw']) {
       this.showMessage('Aligning Sequences...');
@@ -2173,7 +2328,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const selects = $el.find('select');
       const checkedFormat = $el.find('input[type="radio"]:checked');
       const f = this.commonService.session.files.find(file => file.name === fname);
-      console.log(f);
+      if (this.commonService.debugMode) {
+        console.log(f);
+      }
       if (f && checkedFormat.length > 0) {
         f.format = checkedFormat.data('type');
         f.field1 = (selects.get(0) as HTMLSelectElement)?.value || 'None';
@@ -2302,7 +2459,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   async readFastas() {
     const fastas = this.commonService.session.files.filter(f => this.commonService.includes(f.extension, 'fas'));
-    const nodeFilesWithSeqs = this.commonService.session.files.filter(f => f.format === "node" && f.field2 != "None" && f.field2 != "");
+    const nodeFilesWithSeqs = this.commonService.session.files.filter(f => f.format === "node" && !!f.field2 && f.field2 != "None" && f.field2 != "");
     if (fastas.length === 0 && nodeFilesWithSeqs.length === 0) return [];
     let data = [];
     for (let i = 0; i < fastas.length; i++) {

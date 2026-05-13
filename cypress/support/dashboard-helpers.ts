@@ -367,7 +367,10 @@ const assertNoRuntimeBanner = (): void => {
 
     const details = {
       bannerText: String(banner.textContent || '').replace(/\s+/g, ' ').trim(),
-      consoleErrors: (typedWindow.__mtCapturedConsoleErrors || []).slice(-5),
+      consoleErrors: [
+        ...(typedWindow.__mtCapturedConsoleErrors || []),
+        ...((typedWindow as any).__dashboardLayoutRestoreErrors || []),
+      ].slice(-10),
     };
 
     throw new Error(`runtime error banner present: ${JSON.stringify(details)}`);

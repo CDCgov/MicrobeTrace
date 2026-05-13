@@ -64,7 +64,11 @@ const getApp = (win: WinWithMT) => {
 };
 
 const clickVisiblePrimeOption = (label: string): void => {
-  cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(label)}$`), { timeout: 15000 })
+  cy.get('.p-select-overlay:visible, .p-dropdown-panel:visible', { timeout: 15000 })
+    .last()
+    .contains('li[role="option"]', new RegExp(`^${escapeRegExp(label)}$`), { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
     .click({ force: true });
 };
 

@@ -773,11 +773,11 @@ export function assertHeatmapReady(timeout = 30000): void {
     .should('exist');
 }
 
-export function goToPhyloTreeView(): void {
+export function goToPhyloTreeView(timeout = 30000): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Phylogenetic Tree', { timeout: 15000 }).click({ force: true });
 
-  assertPhyloTreeReady();
+  assertPhyloTreeReady(timeout);
 }
 
 export function goToMapView(): void {

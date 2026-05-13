@@ -8,6 +8,7 @@ import {
 } from '../../../support/journey-helpers';
 
 type WinWithCy = Window & {
+  commonService?: any;
   cytoscapeInstance?: any;
 };
 
@@ -246,5 +247,50 @@ describe('Journey Flow - Uploaded color-by controls', () => {
         expect(normalizeColor(edge.style('line-color')), 'unchanged classroom edge color').to.equal(classroomBaseline);
       });
     });
+  });
+
+  it('keeps edited link origin table labels after switching away from and back to 2D', () => {
+    const originalOriginName = 'TestStyleEdgelist_snp.csv';
+    const renamedOriginName = 'Renamed origin';
+
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    openGlobalStylingTab();
+    selectPrimeOption('#link-tooltip-variable', 'Origin');
+
+    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get(`#link-color-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+      .should('have.text', originalOriginName)
+      .dblclick()
+      .should('have.attr', 'contenteditable', 'true')
+      .then(($cell) => {
+        const cell = $cell.get(0);
+        cell.textContent = renamedOriginName;
+        cell.dispatchEvent(new Event('input', { bubbles: true }));
+        cell.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      });
+
+    cy.window().should((win: unknown) => {
+      const linkValueNames = (win as WinWithCy).commonService?.session?.style?.linkValueNames;
+      expect(linkValueNames?.[originalOriginName], 'stored edited link origin label').to.equal(renamedOriginName);
+    });
+    cy.get(`#link-color-table td[data-value="${originalOriginName}"]`)
+      .should('have.text', renamedOriginName);
+
+    cy.closeGlobalSettings();
+
+    cy.get('[data-testid="app-view-menu-button"]').click({ force: true });
+    cy.get('[data-testid="app-view-menu-table"]').click({ force: true });
+    cy.window().its('commonService.activeTab').should('equal', 'Table');
+
+    cy.get('[data-testid="app-view-menu-button"]').click({ force: true });
+    cy.get('[data-testid="app-view-menu-2d-network"]').click({ force: true });
+    cy.window().its('commonService.activeTab').should('equal', '2D Network');
+
+    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get(`#link-color-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+      .should('have.text', renamedOriginName);
+    cy.get('#link-color-table').should('not.contain.text', originalOriginName);
   });
 });

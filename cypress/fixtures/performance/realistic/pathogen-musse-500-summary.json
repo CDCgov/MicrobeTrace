@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "id": "pathogen-musse-500",
+  "generatedAt": "2026-05-13T14:49:39.499Z",
+  "generator": "scripts/generate-realistic-performance-fixtures.js",
+  "preset": {
+    "version": 1,
+    "id": "pathogen-musse-500",
+    "seed": 42601,
+    "taxa": 500,
+    "maxAttempts": 50,
+    "output": {
+      "directory": "cypress/fixtures/performance/realistic",
+      "basename": "pathogen-musse-500",
+      "tipPrefix": "PM500_"
+    },
+    "traits": {
+      "name": "location",
+      "states": [
+        "Northeast",
+        "South",
+        "Midwest",
+        "West",
+        "International"
+      ],
+      "initialState": "Northeast"
+    },
+    "musse": {
+      "birthRates": [
+        0.12,
+        0.11,
+        0.1,
+        0.1,
+        0.08
+      ],
+      "extinctionRates": [
+        0.02,
+        0.02,
+        0.02,
+        0.02,
+        0.03
+      ],
+      "transitionRates": {
+        "Northeast": {
+          "South": 0.03,
+          "Midwest": 0.02,
+          "West": 0.01,
+          "International": 0.005
+        },
+        "South": {
+          "Northeast": 0.025,
+          "Midwest": 0.015,
+          "West": 0.015,
+          "International": 0.005
+        },
+        "Midwest": {
+          "Northeast": 0.02,
+          "South": 0.02,
+          "West": 0.01,
+          "International": 0.004
+        },
+        "West": {
+          "Northeast": 0.012,
+          "South": 0.018,
+          "Midwest": 0.012,
+          "International": 0.006
+        },
+        "International": {
+          "Northeast": 0.01,
+          "South": 0.008,
+          "Midwest": 0.006,
+          "West": 0.01
+        }
+      }
+    },
+    "alignment": {
+      "simulator": "alisim",
+      "model": "GTR+G4",
+      "length": 9750,
+      "treeScale": 0.001,
+      "outputFormat": "fasta"
+    },
+    "sampling": {
+      "startDate": "2024-01-01T00:00:00.000Z",
+      "daySpacing": 1
+    },
+    "microbetrace": {
+      "thresholds": {
+        "snp": [
+          16,
+          50,
+          100
+        ],
+        "patristic": [
+          0.01,
+          0.02,
+          0.05
+        ]
+      }
+    }
+  },
+  "tools": {
+    "node": "v24.11.1",
+    "rscript": {
+      "path": "/opt/homebrew/bin/Rscript",
+      "version": "Rscript (R) version 4.6.0 (2026-04-24)"
+    },
+    "iqtree": {
+      "name": "iqtree2",
+      "path": "/opt/homebrew/bin/iqtree2",
+      "version": "IQ-TREE multicore version 2.4.0 for MacOS ARM 64-bit built Mar  8 2025\nDeveloped by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor, Heiko Schmidt,\nDominik Schrempf, Michael Woodhams, Ly Trong Nhan, Thomas Wong"
+    }
+  },
+  "commands": {
+    "rscript": "/opt/homebrew/bin/Rscript /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/scripts/simulate-musse-tree.R /var/folders/sx/8jq8jzpx2zz5219q9g2lxsw40000gn/T/mt-realistic-fixture-Ocu1RX/pathogen-musse-500-r-config.json",
+    "iqtree": "/opt/homebrew/bin/iqtree2 --alisim /var/folders/sx/8jq8jzpx2zz5219q9g2lxsw40000gn/T/mt-realistic-fixture-Ocu1RX/pathogen-musse-500-alignment -m GTR+G4 -t /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/realistic/pathogen-musse-500.nwk --length 9750 --out-format fasta --keep-seq-order -seed 42601"
+  },
+  "outputs": {
+    "fasta": "performance/realistic/pathogen-musse-500.fasta",
+    "newick": "performance/realistic/pathogen-musse-500.nwk",
+    "nodeMetadata": "performance/realistic/pathogen-musse-500-nodes.csv",
+    "summary": "performance/realistic/pathogen-musse-500-summary.json"
+  },
+  "tree": {
+    "id": "pathogen-musse-500",
+    "seed": 42601,
+    "seedUsed": 42601,
+    "attempt": 1,
+    "taxa": 500,
+    "treeScale": 0.001,
+    "states": [
+      "Northeast",
+      "South",
+      "Midwest",
+      "West",
+      "International"
+    ],
+    "initialState": "Northeast",
+    "stateDistribution": {
+      "Northeast": 149,
+      "South": 155,
+      "Midwest": 77,
+      "West": 84,
+      "International": 35
+    },
+    "outputs": {
+      "newick": "/Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/realistic/pathogen-musse-500.nwk",
+      "metadata": "/Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/realistic/pathogen-musse-500-nodes.csv"
+    }
+  },
+  "counts": {
+    "nodes": 500,
+    "sequences": 500,
+    "leaves": 500,
+    "totalPairs": 124750,
+    "sequenceLength": {
+      "min": 9750,
+      "max": 9750
+    },
+    "stateDistribution": {
+      "West": 84,
+      "Northeast": 149,
+      "International": 35,
+      "Midwest": 77,
+      "South": 155
+    },
+    "snp": {
+      "thresholds": [
+        16,
+        50,
+        100
+      ],
+      "visibleLinksByThreshold": {
+        "16": 47,
+        "50": 146,
+        "100": 345
+      }
+    },
+    "patristic": {
+      "thresholds": [
+        0.01,
+        0.02,
+        0.05
+      ],
+      "visibleLinksByThreshold": {
+        "0.01": 328,
+        "0.02": 890,
+        "0.05": 5494
+      }
+    }
+  },
+  "cypress": {
+    "snpThreshold": 16,
+    "patristicThreshold": 0.01,
+    "timeoutMs": 300000
+  }
+}

@@ -1,0 +1,63 @@
+IQ-TREE multicore version 2.4.0 for MacOS ARM 64-bit built Mar  8 2025
+Developed by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor, Heiko Schmidt,
+Dominik Schrempf, Michael Woodhams, Ly Trong Nhan, Thomas Wong
+
+Host:    MacBook-Pro-8.local (SSE4.2, 48 GB RAM)
+Command: /opt/homebrew/bin/iqtree2 --alisim /var/folders/sx/8jq8jzpx2zz5219q9g2lxsw40000gn/T/mt-realistic-fixture-Ocu1RX/pathogen-musse-500-alignment -m GTR+G4 -t /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/realistic/pathogen-musse-500.nwk --length 9750 --out-format fasta --keep-seq-order -seed 42601
+Seed:    42601 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed May 13 10:49:39 2026
+Kernel:  SSE2 - 1 threads (16 CPU cores detected)
+
+[Alignment Simulator] Executing
+WARNING: Without Inference Mode, we strongly recommend users to specify model parameters for more accuracy simulations. Users could use <Model_Name>{<param_0>/.../<param_n>} to specify the model parameters. For the model GTR, users should provide 5 params (see User Manuals).
+WARNING: GTR must have unequal base frequencies. The base frequencies could be randomly generated if users do not provide them. However, we strongly recommend users specify the base frequencies by using +F{freq1/.../freqN} for better simulation accuracy.
+ - Tree filepath: /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/realistic/pathogen-musse-500.nwk
+ - Length of output sequences: 9750
+ - Model: GTR+G4
+ - Number of output datasets: 1
+ - Number of threads: 1
+SUBSTITUTION PROCESS
+--------------------
+
+Model of substitution: GTR+F+G4
+
+Rate parameter R:
+
+  A-C: 1.000
+  A-G: 1.000
+  A-T: 1.000
+  C-G: 1.000
+  C-T: 1.000
+  G-T: 1.000
+
+State frequencies: (empirical counts from alignment)
+
+  pi(A) = 0.29
+  pi(C) = 0.235
+  pi(G) = 0.209
+  pi(T) = 0.265
+
+Rate matrix Q:
+
+  A    -0.951     0.315      0.28     0.355
+  C     0.389     -1.02      0.28     0.355
+  G     0.389     0.315     -1.06     0.355
+  T     0.389     0.315      0.28    -0.985
+
+Model of rate heterogeneity: Gamma with 4 categories
+Gamma shape alpha: 1
+
+ Category  Relative_rate  Proportion
+  1         0.137          0.25
+  2         0.477          0.25
+  3         1              0.25
+  4         2.39           0.25
+Relative rates are computed as MEAN of the portion of the Gamma distribution falling in the category.
+
+An alignment written to /var/folders/sx/8jq8jzpx2zz5219q9g2lxsw40000gn/T/mt-realistic-fixture-Ocu1RX/pathogen-musse-500-alignment.fa
+Screen log file: /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/realistic/pathogen-musse-500.nwk.log
+[Alignment Simulator] Done
+Simulation CPU time: 0.053 sec (0h:0m:0s)
+Simulation wall-clock time: 0.065 sec (0h:0m:0s)
+
+Date and Time: Wed May 13 10:49:39 2026

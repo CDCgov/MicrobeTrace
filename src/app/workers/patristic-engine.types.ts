@@ -25,6 +25,8 @@ export interface FlatTree {
   leafNodeIndex: Int32Array;
   /** Leaf names in order matching leafNodeIndex. */
   leafNames: string[];
+  /** Node labels in flattened node-index order. Empty when a branch is unlabeled. */
+  nodeNames: string[];
 }
 
 // ─── LCA index via Euler tour + sparse table RMQ ────────────────────────────
@@ -40,6 +42,25 @@ export interface LcaIndex {
   sparseTable: Int32Array[];
   /** log2 lookup table for RMQ. */
   log2: Int32Array;
+}
+
+// ─── Worker telemetry ───────────────────────────────────────────────────────
+
+export interface PatristicTreeTimings {
+  parseMs: number;
+  flattenMs: number;
+  validationMs: number;
+  metricsMs: number;
+  lcaMs: number;
+  totalPreprocessingMs: number;
+}
+
+export interface PatristicEdgeTimings {
+  threshold: number;
+  pairScanMs: number;
+  emittedEdgeCount: number;
+  totalPairs: number;
+  maxEdgesHit: boolean;
 }
 
 // ─── Worker request messages ─────────────────────────────────────────────────
@@ -84,6 +105,9 @@ export interface PatristicTreeReadyResponse {
   leafCount: number;
   nodeCount: number;
   leafNames: string[];
+  maxDistance: number;
+  maxRootDepth: number;
+  timings: PatristicTreeTimings;
 }
 
 export interface PatristicProgressResponse {
@@ -106,6 +130,8 @@ export interface PatristicEdgeBatchResponse {
   totalEmitted: number;
   /** True when this is the final batch. */
   done: boolean;
+  /** Present only on the final batch. */
+  timings?: PatristicEdgeTimings;
 }
 
 export interface PatristicMatrixChunkResponse {

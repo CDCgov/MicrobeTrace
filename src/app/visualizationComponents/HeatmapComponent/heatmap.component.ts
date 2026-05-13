@@ -217,7 +217,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       ticktext: colorbarTickValues.map((value) => this.formatHeatmapDistanceValue(value)),
     };
   }
-  
+
   drawHeatmap(config: object): void {
     this.commonService.getDM().then(({dm, labels}) => {
       this.nodeIds = labels;
