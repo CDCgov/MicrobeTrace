@@ -38,6 +38,17 @@ describe('File Handling and Processing', () => {
     cy.get(byTestId(testIds.appSampleDatasetButton)).should('be.visible');
   });
 
+  it('keeps startup overlay above key table dialogs', () => {
+    cy.get('#overlay').should('be.visible');
+
+    cy.get('#global-settings-node-color-table').should(($tableDialog) => {
+      const overlayZIndex = Number(Cypress.$('#overlay').css('z-index'));
+      const tableZIndex = Number($tableDialog.css('z-index'));
+
+      expect(tableZIndex, 'node color table z-index').to.be.lessThan(overlayZIndex);
+    });
+  });
+
   it('uploads multiple files and then sets the datatype and the fields', () => {
     // mostly an example of this function
     cy.loadFiles([

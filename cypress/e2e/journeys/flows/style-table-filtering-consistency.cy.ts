@@ -102,7 +102,11 @@ const applyMinimumClusterSize = (size: number): void => {
     .clear()
     .wait(50)
     .type(String(size))
-    .blur();
+    .then(($input) => {
+      const input = $input.get(0);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new Event('blur', { bubbles: true }));
+    });
 
   cy.window()
     .its('commonService.session.style.widgets.cluster-minimum-size')

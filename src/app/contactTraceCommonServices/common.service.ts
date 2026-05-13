@@ -92,6 +92,32 @@ export class CommonService extends AppComponentBase implements OnInit {
         'files': 'Files'
     };
 
+    private readonly nonStyleableNodeFields = new Set<string>([
+        'seq',
+        'sequence',
+        '_seq',
+        '_seqint',
+        '_cigar',
+        'data'
+    ]);
+
+    private readonly lowPriorityStyleableNodeFields = new Set<string>([
+        'index',
+        '_id',
+        'id',
+        'selected',
+        'cluster',
+        'visible',
+        'degree',
+        'origin',
+        'hasdistance',
+        'x',
+        'y',
+        'vx',
+        'vy',
+        'foci'
+    ]);
+
     thirtyColorPalette: string[] = [
         "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
         "#8ad8e8", "#f07cab", "#235b54", "#ffcba5", "#772b9d", "#29bdab", 
@@ -877,6 +903,32 @@ export class CommonService extends AppComponentBase implements OnInit {
     capitalize(s) {
         if (typeof s !== 'string') return ''
         return s.charAt(0).toUpperCase() + s.slice(1)
+    }
+
+    isStyleableNodeField(field: string): boolean {
+        const normalizedField = `${field ?? ''}`.trim();
+        return normalizedField.length > 0 && !this.nonStyleableNodeFields.has(normalizedField.toLowerCase());
+    }
+
+    getStyleableNodeFields(): string[] {
+        const seenFields = new Set<string>();
+        const fields = this.session?.data?.nodeFields || [];
+        const styleableFields = fields.filter(field => {
+            const normalizedField = `${field ?? ''}`;
+            const normalizedKey = normalizedField.toLowerCase();
+
+            if (!this.isStyleableNodeField(normalizedField) || seenFields.has(normalizedKey)) {
+                return false;
+            }
+
+            seenFields.add(normalizedKey);
+            return true;
+        });
+
+        const metadataFields = styleableFields.filter(field => !this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
+        const builtInFields = styleableFields.filter(field => this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
+
+        return metadataFields.concat(builtInFields);
     }
 
     hasValidTimelineDateValue(value: any): boolean {
@@ -2932,7 +2984,7 @@ align(params): Promise<any> {
         $("#node-color-variable")
             .html(
                 "<option selected>None</option>" +
-                this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);

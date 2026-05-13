@@ -36,12 +36,12 @@ on:
         description: Epic CSV path to sync.
         required: true
         type: string
-        default: docs/epics.csv
+        default: docs/product/epics.csv
       story_csv_path:
         description: User story CSV path used to derive linked QA evidence, fixtures, and specs.
         required: true
         type: string
-        default: docs/user-stories.csv
+        default: docs/product/user-stories.csv
 
 permissions:
   contents: read
@@ -103,7 +103,7 @@ jobs:
             const validProjectStatusScopes = new Set(['all', 'new_items', 'never']);
 
             if (!issues.length) {
-              core.info('No epic rows selected. Set epic_sync=true in docs/epics.csv or run with publish_all=true.');
+              core.info('No epic rows selected. Set epic_sync=true in docs/product/epics.csv or run with publish_all=true.');
               return;
             }
 
@@ -128,7 +128,7 @@ jobs:
               },
               'source-epics': {
                 color: '1d76db',
-                description: 'Generated from docs/epics.csv',
+                description: 'Generated from docs/product/epics.csv',
               },
               'needs-review': {
                 color: 'fbca04',

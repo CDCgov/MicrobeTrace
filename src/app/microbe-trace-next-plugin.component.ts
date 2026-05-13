@@ -3609,7 +3609,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.FieldList = [];
 
         this.FieldList.push({ label: "None", value: "None" });
-        this.commonService.session.data['nodeFields'].map((d, i) => {
+        this.commonService.getStyleableNodeFields().forEach(d => {
             
             this.FieldList.push(
                 {

@@ -3,6 +3,7 @@
 import {
   appendMeasuredView,
   launchPerformanceScenarioToTwoD,
+  measureTwoDInteractionResponsiveness,
   writePerformanceResult,
   type PerformanceMeasurement,
   type PerformanceScenario,
@@ -44,10 +45,26 @@ function appendConfiguredViews(
   ), cy.wrap(measurement, { log: false }));
 }
 
+function appendConfiguredInteractions(
+  measurement: PerformanceMeasurement,
+  scenario: PerformanceScenario,
+): Cypress.Chainable<PerformanceMeasurement> {
+  if (!scenario.interactions) {
+    return cy.wrap(measurement, { log: false });
+  }
+
+  const options = typeof scenario.interactions === 'object'
+    ? scenario.interactions
+    : {};
+
+  return measureTwoDInteractionResponsiveness(measurement, options);
+}
+
 function runRealSampleScenario(scenario: PerformanceScenario): Cypress.Chainable<unknown> {
   const timeout = typeof scenario.timeoutMs === 'number' ? scenario.timeoutMs : 300000;
 
   return launchPerformanceScenarioToTwoD(scenario, timeout)
+    .then((measurement) => appendConfiguredInteractions(measurement, scenario))
     .then((measurement) => appendConfiguredViews(measurement, scenario.viewChecks))
     .then((measurement) => writePerformanceResult(scenario, measurement));
 }

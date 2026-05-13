@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "enabled": true,
+      "id": "real-large-distance-edgelist-1600",
+      "title": "Real large distance edge list: 1600 nodes",
+      "timeoutMs": 300000,
+      "files": [
+        {
+          "name": "LargeDataSet_Test_sequences_node.csv",
+          "datatype": "node",
+          "field1": "id"
+        },
+        {
+          "name": "LargeDataSet_Test_sequences_Distedgelist.csv",
+          "datatype": "link",
+          "field1": "ID1",
+          "field2": "ID2",
+          "field3": "Distance"
+        }
+      ],
+      "preLaunch": {
+        "metric": "tn93",
+        "threshold": 0.015,
+        "defaultView": "2D Network"
+      },
+      "expected": {
+        "nodes": 1600,
+        "totalLinks": 118282,
+        "visibleLinks": 537
+      },
+      "interactions": {
+        "thresholdDuringChange": 0.01,
+        "restoreThreshold": 0.015,
+        "restoreTimeoutMs": 120000
+      },
+      "metadata": {
+        "source": "Committed Cypress fixture set",
+        "distancePath": "real-distance-edge-list",
+        "threshold": 0.015
+      }
+    },
+    {
+      "enabled": true,
+      "id": "real-large-distance-epi-sankey-1600",
+      "title": "Real large distance edge list with epi links: 1600 nodes",
+      "timeoutMs": 300000,
+      "files": [
+        {
+          "name": "LargeDataSet_Test_sequences_node_sankey.csv",
+          "datatype": "node",
+          "field1": "id"
+        },
+        {
+          "name": "LargeDataSet_Test_sequences_Distedgelist.csv",
+          "datatype": "link",
+          "field1": "ID1",
+          "field2": "ID2",
+          "field3": "Distance"
+        },
+        {
+          "name": "Large_Dataset_forTesting_epiLinks.csv",
+          "datatype": "link",
+          "field1": "ID1",
+          "field2": "ID2"
+        }
+      ],
+      "preLaunch": {
+        "metric": "tn93",
+        "threshold": 0.015,
+        "defaultView": "2D Network"
+      },
+      "expected": {
+        "nodes": 1600,
+        "totalLinks": 118282,
+        "visibleLinks": 596
+      },
+      "interactions": {
+        "thresholdDuringChange": 0.01,
+        "restoreThreshold": 0.015,
+        "restoreTimeoutMs": 120000
+      },
+      "metadata": {
+        "source": "Committed Cypress fixture set",
+        "distancePath": "real-distance-edge-list-plus-epi-links",
+        "threshold": 0.015,
+        "epiLinks": 59
+      }
+    }
+  ]
+}

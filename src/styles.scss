@@ -36,6 +36,15 @@ p-dialog {
     position: relative;
 }
 
+#global-settings-modal {
+    z-index: 1000;
+}
+
+#global-settings-modal .p-dialog-content {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+
 .sort-button {
     cursor: pointer;
 }
@@ -328,7 +337,7 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
     -webkit-overflow-scrolling: touch;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    z-index: 4; /* Specify a stack order in case you're using a different order for other elements */
+    z-index: 11; /* Keep the welcome overlay above the URL warning banner on short screens. */
 
     .dnd-input {
         opacity: 0;

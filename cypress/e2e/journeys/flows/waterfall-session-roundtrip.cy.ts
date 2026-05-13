@@ -63,7 +63,8 @@ describe('Journey Flow - Waterfall session round-trip', () => {
     cy.get<string>('@waterfallRoundTripClusterId').then((clusterId) => {
       cy.contains('#waterfall-cluster-table-container tbody tr.ui-selectable-row', clusterId)
         .should('exist')
-        .click();
+        .scrollIntoView()
+        .click({ force: true });
     });
 
     cy.get('#waterfall-node-table-container tbody tr.ui-selectable-row', { timeout: 20000 })
@@ -71,7 +72,7 @@ describe('Journey Flow - Waterfall session round-trip', () => {
       .then(($row) => {
         const cells = $row.find('td');
         cy.wrap(String(cells.eq(0).text()).trim(), { log: false }).as('waterfallRoundTripNodeId');
-        cy.wrap($row).click();
+        cy.wrap($row).scrollIntoView().click({ force: true });
       });
 
     cy.window().then((win: any) => {
@@ -132,14 +133,16 @@ describe('Journey Flow - Waterfall session round-trip', () => {
     cy.get<WaterfallRoundTripCase>('@waterfallRoundTripCase').then((waterfallCase) => {
       cy.contains('#waterfall-cluster-table-container tbody tr.ui-selectable-row', waterfallCase.clusterId)
         .should('exist')
-        .click();
+        .scrollIntoView()
+        .click({ force: true });
 
       cy.get('#waterfall-node-table-container tbody tr.ui-selectable-row')
         .should('have.length', waterfallCase.nodeRowCount);
 
       cy.contains('#waterfall-node-table-container tbody tr.ui-selectable-row', waterfallCase.nodeId)
         .should('exist')
-        .click();
+        .scrollIntoView()
+        .click({ force: true });
 
       cy.get('#waterfall-link-table-container tbody tr.ui-selectable-row')
         .should('have.length', waterfallCase.linkRowCount);

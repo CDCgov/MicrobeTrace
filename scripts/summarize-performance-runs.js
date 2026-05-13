@@ -10,6 +10,11 @@ const OBSOLETE_SCENARIO_IDS = new Set([
   'newick-refactor-after-average-500',
   'newick-refactor-before-average-500',
 ]);
+const OBSOLETE_SCENARIO_PREFIXES = [
+  'before-',
+  'after-',
+  'compare-',
+];
 
 function parseArgs(argv) {
   const args = {
@@ -107,6 +112,12 @@ function readArtifacts(inputDir, args) {
     .filter((artifact) => {
       const scenarioId = artifact.scenarioId || artifact.scenario?.id;
       if (!args.includeObsolete && OBSOLETE_SCENARIO_IDS.has(scenarioId)) return false;
+      if (
+        !args.includeObsolete &&
+        OBSOLETE_SCENARIO_PREFIXES.some((prefix) => String(scenarioId).startsWith(prefix))
+      ) {
+        return false;
+      }
       if (args.scenarios.size === 0) return true;
       return args.scenarios.has(scenarioId);
     })
@@ -263,6 +274,7 @@ function buildSummary(artifacts, args) {
       scenarios: Array.from(args.scenarios).sort(),
       includeObsolete: args.includeObsolete,
       obsoleteScenarioIds: Array.from(OBSOLETE_SCENARIO_IDS).sort(),
+      obsoleteScenarioPrefixes: OBSOLETE_SCENARIO_PREFIXES,
       minSamples: args.minSamples,
     },
     note: 'Descriptive baseline summary only. Do not use these values as CI budgets until each scenario has enough repeated samples on stable hardware.',

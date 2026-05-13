@@ -159,8 +159,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return fullNode ? fullNode[field] : undefined;
     }
 
+    private isCytoscapeNodeMetadataValue(value: any): boolean {
+        if (value === undefined) return false;
+        if (value === null) return true;
+
+        const valueType = typeof value;
+        if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+            return true;
+        }
+
+        return Array.isArray(value) && value.length <= 25 && value.every(item => {
+            const itemType = typeof item;
+            return item == null || itemType === 'string' || itemType === 'number' || itemType === 'boolean';
+        });
+    }
+
+    private getCytoscapeNodeMetadata(node: any): Record<string, any> {
+        const metadata: Record<string, any> = {};
+
+        this.commonService.getStyleableNodeFields().forEach(field => {
+            const value = node?.[field];
+            if (this.isCytoscapeNodeMetadataValue(value)) {
+                metadata[field] = value;
+            }
+        });
+
+        return metadata;
+    }
+
     private buildCytoscapeNodeData(node: any, shapeKey: string, parent: any): any {
         return {
+            ...this.getCytoscapeNodeMetadata(node),
             id: node.id,
             _id: node._id,
             index: node.index,
@@ -1382,15 +1411,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // populate this.twoD.FieldList with [None, ...nodeFields]
             this.FieldList = [];
             this.FieldList.push({ label: "None", value: "None" });
-            this.commonService.session.data['nodeFields'].map((d, i) => {
-                if (d != 'seq' && d != 'sequence') {
-                    this.FieldList.push(
-                        {
-                            label: this.commonService.capitalize(d.replace("_", "")),
-                            value: d
-                        });
-                }
-
+            this.commonService.getStyleableNodeFields().forEach(d => {
+                this.FieldList.push(
+                    {
+                        label: this.commonService.capitalize(d.replace("_", "")),
+                        value: d
+                    });
             });
 
             // populate this.ToolTipFieldList and this.LinkToolTipList
@@ -2225,9 +2251,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateNodeGrouping(flag);
 
         if (flag) {
-            // Ensure the label orientation is updated when polygons are turned on
-            if (this.SelectedPolygonLabelShowVariable == 'Show') this.onPolygonLabelOrientationChange(this.widgets['polygon-label-orientation']);
-            else this.onPolygonLabelShowChange(false)
+            this.applyPolygonLabelStyle();
         } else {
             $(".polygons-settings-row").slideUp();
             //$('.polygons-label-row').slideUp();
@@ -2982,17 +3006,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             });
 
-            if (  this.commonService.session.style.widgets['polygons-label-show'] == false) {
-                cy.style()
-                .selector('node.parent')
-                .style({
-                    'label': '',
-                })
-                .update();
-            } else {
-                // Refresh Cytoscape styles to apply changes
-                cy.style().update();
-            }
+            this.applyPolygonLabelStyle();
 
              // **Step 6:** Create and Assign the `groups` Object for polygonGroups
              if (change) {
@@ -3093,16 +3107,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 cy.collection(group.values).move({ parent: parentId });
             });
 
-            if (this.commonService.session.style.widgets['polygons-label-show'] == false) {
-                cy.style()
-                    .selector('node.parent')
-                    .style({
-                        'label': '',
-                    })
-                    .update();
-            } else {
-                cy.style().update();
-            }
+            this.applyPolygonLabelStyle();
         });
 
         if (change) {
@@ -3208,16 +3213,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         }
 
-        if (this.commonService.session.style.widgets['polygons-label-show'] == false) {
-            cy.style()
-                .selector('node.parent')
-                .style({
-                    'label': '',
-                })
-                .update();
-        } else {
-            cy.style().update();
-        }
+        this.applyPolygonLabelStyle();
 
         if (change) {
             const groups = Array.from(groupMap.entries()).map(([key, values], index) => ({
@@ -3230,20 +3226,67 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
+    private getPolygonLabelTextStyle(): Record<string, any> {
+        const orientationValue = String(
+            this.widgets['polygon-label-orientation'] || this.SelectedPolygonLabelOrientationVariable || 'top'
+        ).toLowerCase();
+        let textValign: 'top' | 'bottom' | 'center' = 'center';
+        let textHalign: 'left' | 'center' | 'right' = 'center';
+
+        switch (orientationValue) {
+            case 'top':
+                textValign = 'top';
+                break;
+            case 'bottom':
+                textValign = 'bottom';
+                break;
+            case 'left':
+                textHalign = 'left';
+                break;
+            case 'right':
+                textHalign = 'right';
+                break;
+            case 'middle':
+            default:
+                textValign = 'center';
+                break;
+        }
+
+        return {
+            'label': 'data(label)',
+            'text-valign': textValign,
+            'text-halign': textHalign,
+            'font-size': `${this.commonService.session.style.widgets['polygons-label-size']}px`,
+            'background-color': 'data(nodeColor)',
+            'background-opacity': 'data(bgOpacity)',
+            'text-background-opacity': 0
+        };
+    }
+
+    private applyPolygonLabelStyle(): void {
+        if (!this.cy) {
+            return;
+        }
+
+        const labelStyle = this.commonService.session.style.widgets['polygons-label-show']
+            ? this.getPolygonLabelTextStyle()
+            : {
+                'label': '',
+                'text-background-opacity': 0
+            };
+
+        this.cy.style()
+            .selector('node.parent')
+            .style(labelStyle)
+            .update();
+    }
+
     /**
      * Calls setPolygonLabelSize to update polygon-label-size widget and then redraws polygon labels
      */
     onPolygonLabelSizeChange(e) {
         this.widgets['polygons-label-size'] = parseFloat(e);
-        // Update the font size of parent/group node labels in Cytoscape
-        if (this.cy) {
-            this.cy.style()
-                .selector('node.parent')
-                .style({
-                    'font-size': `${this.widgets['polygons-label-size']}px`
-                })
-                .update();
-        }
+        this.applyPolygonLabelStyle();
     }
 
     /**
@@ -3254,44 +3297,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         else if (e == 'middle') e = 'Middle'
         else if (e == 'bottom') e = 'Bottom'
         this.widgets['polygon-label-orientation'] = e;
-        // Adjust the orientation of the parent/group node labels in Cytoscape
-        if (this.cy && this.widgets['polygons-label-show']) {
-          
-            // Define specific types for text alignment to satisfy TypeScript
-            type TextAlignment = 'left' | 'center' | 'right';
-            type VerticalAlignment = 'top' | 'bottom' | 'center';
-
-            let textValign: VerticalAlignment = 'center';
-            let textHalign: TextAlignment = 'center'; // Default horizontal alignment
-
-            // Determine vertical alignment based on the selected orientation
-            switch (e.toLowerCase()) {
-                case 'top':
-                    textValign = 'top';
-                    break;
-                case 'bottom':
-                    textValign = 'bottom';
-                    break;
-                case 'right':
-                    textHalign = 'right';
-                    break;
-                case 'left':
-                    textHalign = 'left';
-                    break;
-                case 'middle':
-                default:
-                    textValign = 'center';
-                    break;
-            }
-
-            this.cy.style()
-                .selector('node.parent')
-                .style({
-                    'text-valign': textValign,
-                    'text-halign': textHalign
-                })
-                .update();
-        }
+        this.applyPolygonLabelStyle();
     }
 
     /**
@@ -3304,45 +3310,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         else {
             this.widgets['polygons-label-show'] = false;
         }
+        this.SelectedPolygonLabelShowVariable = this.widgets['polygons-label-show'] ? 'Show' : 'Hide';
 
-         // Update the parent/group nodes' labels in Cytoscape
-    if (this.cy) {
-        if (e) {
-            let textValign: "top" | "bottom" | "center" = 'center'
-            let textHalign: "center" | "left" | "right" = 'center'
-            if (this.SelectedPolygonLabelOrientationVariable == 'Bottom') textValign = 'bottom'
-            else if (this.SelectedPolygonLabelOrientationVariable == 'Top') textValign = 'top'
-            else if (this.SelectedPolygonLabelOrientationVariable == 'Left') textHalign = 'left'
-            else if (this.SelectedPolygonLabelOrientationVariable == 'Right') textHalign = 'right' 
-            // Show labels: Set the label to the group name
-            this.cy.style()
-                .selector('node.parent')
-                .style({
-                    'label': 'data(label)', // Assumes parent nodes have a 'label' data field
-                    'text-valign': textValign,
-                    'text-halign': textHalign,
-                    'font-size': `${this.commonService.session.style.widgets['polygons-label-size']}px`, // Adjust as needed
-                    //'text-background-color': '#ffffff',
-                    //'text-background-opacity': 1,
-                    //'text-background-padding': '2px',
-                    // We also need to ensure that it uses data(...) for color & alpha:
-                    'background-color': 'data(nodeColor)',    
-                    // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
-                    // @ts-ignore
-                    'background-opacity': 'data(bgOpacity)',
-                })
-                .update();
-        } else {
-            // Hide labels: Remove the label by setting it to an empty string
-            this.cy.style()
-                .selector('node.parent')
-                .style({
-                    'label': '',
-                    'text-background-opacity': 0
-                })
-                .update();
-            }
-        }
+        this.applyPolygonLabelStyle();
         
     }
 

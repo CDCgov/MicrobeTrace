@@ -36,6 +36,7 @@ export type PerformanceScenario = {
     sequences?: number;
   };
   viewChecks?: Array<'alignment' | 'phylogeneticTree'>;
+  interactions?: boolean | TwoDInteractionMeasurementOptions;
   timeoutMs?: number;
   enabled?: boolean;
   metadata?: Record<string, unknown>;
@@ -557,6 +558,7 @@ export function writePerformanceResult(
         files: scenario.files,
         preLaunch: scenario.preLaunch,
         expected: scenario.expected,
+        interactions: scenario.interactions,
         metadata: scenario.metadata,
       },
       metrics: measurement.metrics,
