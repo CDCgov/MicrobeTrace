@@ -292,6 +292,9 @@ describe('Map View', () => {
       cy.wait(100)
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         expect(mapView.lmap.hasLayer(mapView.layers.basemap)).to.equal(true)
+        expect(mapView.layers.basemap._url).to.contain('/mapbox/streets-v12/')
+        expect(mapView.layers.basemap._url).not.to.contain('tile.openstreetmap.org')
+        expect(mapView.layers.basemap.getAttribution()).to.contain('Mapbox')
       });
     })
     

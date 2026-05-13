@@ -47,6 +47,15 @@ type AdministrativeMapLayer = 'countries' | 'states' | 'counties';
 type FloorplanBackgroundKind = 'geojson' | 'image' | 'none';
 type ManualPositionMode = 'floorplan' | 'map';
 
+const MAPBOX_TOKEN = 'sk.eyJ1IjoicndhdHR5IiwiYSI6ImNrY2RuMWlzcDAwMmUyc3A5ejl3ODEzMXoifQ.qpXOouVsI6P8-HOHUWofuQ';
+const MAPBOX_ATTRIBUTION = [
+    '© <a href="https://www.mapbox.com/about/maps/" target="_blank">Mapbox</a>',
+    '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
+    '<a href="https://www.mapbox.com/map-feedback/" target="_blank">Improve this map</a>',
+].join(' ');
+const MAPBOX_STREETS_TILE_URL = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+const MAPBOX_SATELLITE_STREETS_TILE_URL = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v9/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+
 // interface gmapMarkerInterface {
 //     zip: string;
 //     marker: google.maps.Marker;
@@ -466,14 +475,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
-        //TODO: put this in a config?
-        const mapTokenKey: string = 'sk.eyJ1IjoicndhdHR5IiwiYSI6ImNrY2RuMWlzcDAwMmUyc3A5ejl3ODEzMXoifQ.qpXOouVsI6P8-HOHUWofuQ'
-
-        this.layers.basemap = tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        this.layers.basemap = tileLayer(MAPBOX_STREETS_TILE_URL, {
             maxZoom: 20,
-            attribution: '© <a href="https://openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
+            attribution: MAPBOX_ATTRIBUTION
         }); 
-        this.layers.satellite = tileLayer(`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v9/tiles/256/{z}/{x}/{y}?access_token=${mapTokenKey}`);
+        this.layers.satellite = tileLayer(MAPBOX_SATELLITE_STREETS_TILE_URL, {
+            attribution: MAPBOX_ATTRIBUTION
+        });
 
         this.leafletInitialOptions = {
             zoom: 4,
