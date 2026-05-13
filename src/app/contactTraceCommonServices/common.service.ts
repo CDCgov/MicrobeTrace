@@ -485,7 +485,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'polygon-color-table-counts': true,
             'polygon-color-table-frequencies': false,
             'polygons-color-show': false,
-            'polygons-foci': 'cluster',
+            'polygons-foci': 'None',
             'polygons-gather-force': 0,
             'polygons-label-show' : false,
             'polygon-label-orientation' : 'top',

@@ -2023,6 +2023,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         })
     }
 
+    private publishDistanceDisplayFormatChanged(): void {
+        const componentRefs = new Set<ComponentRef<any>>();
+
+        this.homepageTabs.forEach(tab => {
+            if (tab.componentRef) {
+                componentRefs.add(tab.componentRef);
+            }
+        });
+
+        const componentMap = (this._goldenLayoutHostComponent as any)?._componentRefMap as Map<any, ComponentRef<any>> | undefined;
+        componentMap?.forEach(componentRef => componentRefs.add(componentRef));
+
+        componentRefs.forEach(componentRef => {
+            const refreshDistanceDisplayFormat = componentRef.instance?.refreshDistanceDisplayFormat;
+            if (refreshDistanceDisplayFormat) {
+                refreshDistanceDisplayFormat.call(componentRef.instance);
+            }
+        });
+    }
+
     publishUpdateLinkColor() {
         this.homepageTabs.forEach(tab => {
             if (tab.componentRef &&
@@ -2974,8 +2994,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     update(h) {
 
-        (this.commonService.session.state as any)['timelineTickUpdate'] =
-          this.commonService.session.style.widgets["timeline-date-field"] != 'None';
+        // Timeline-aware views update from node-visibility; other views should
+        // not treat playback ticks as generic network updates.
         this.handle.attr("cx", this.xAttribute(h));
         this.label
         .attr("x", this.xAttribute(h))
@@ -2984,7 +3004,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
         this.commonService.updateStatistics();
-        this.store.setNetworkUpdated(true);
   }
 
     step(that : any) { 
@@ -3507,7 +3526,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.refreshThresholdStabilityPanel(false);
-        this.publishUpdateVisualization();
+        this.publishDistanceDisplayFormatChanged();
     }
         
 

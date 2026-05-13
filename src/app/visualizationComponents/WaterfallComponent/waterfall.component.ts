@@ -525,6 +525,9 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
 
   updateNodeColors() {}
   updateVisualization() {}
+  refreshDistanceDisplayFormat() {
+    this.refreshFromSession();
+  }
   applyStyleFileSettings() {}
   updateLinkColor() {}
   openRefreshScreen() {}
