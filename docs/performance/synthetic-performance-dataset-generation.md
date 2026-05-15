@@ -188,6 +188,62 @@ Useful review questions:
 - Are graph degree distributions and metadata fields representative enough for 2D, Sankey, Aggregate, and filtering performance?
 - Should future generated fixtures model dates, locations, host/facility metadata, or lineage labels more realistically?
 
+## Review-Driven Fixture Improvements
+
+The current generator is a solid first-generation engineering benchmark. It is intentionally deterministic and intentionally simple. The next generation should keep those stable fixtures, then add supplementary fixtures that exercise realistic browser, metadata, and biological-input risks.
+
+Graph fixture additions:
+
+| Fixture shape | Why it matters |
+| --- | --- |
+| many isolates plus small clusters | common in surveillance data |
+| one dominant component | tests giant-component rendering and layout |
+| hub-heavy network | stresses selection, highlighting, and neighborhood expansion |
+| dense local outbreak cluster | stresses edge rendering |
+| metadata-heavy graph | tests table, filtering, coloring, grouping, Sankey, and Aggregate workflows |
+| high-cardinality categories | stresses legends and group-by UI |
+| threshold-gradient graph | tests predictable link visibility changes at 10%, 25%, 50%, 75%, and 100% |
+
+FASTA fixture additions:
+
+| Fixture shape | Why it matters |
+| --- | --- |
+| 1,000-sequence expanded large fixture | exercises a larger all-pairs distance workload |
+| 2,500-5,000-sequence manual fixture | stresses worker time, memory, and rendering after link generation |
+| ambiguous bases and gaps | reflects common sequence quality issues |
+| masked or missing regions | reflects HIV and pathogen workflows with incomplete regions |
+| near-threshold pairs | tests threshold stability |
+| mixed sparse and dense clusters | creates more realistic graph output |
+| duplicate IDs and non-IUPAC characters | validates error handling |
+
+Newick fixture additions:
+
+| Fixture shape | Why it matters |
+| --- | --- |
+| balanced tree | baseline topology |
+| highly imbalanced tree | stresses traversal and cache behavior |
+| polytomy-rich tree | reflects low-resolution inferred trees |
+| zero-length branches | common with identical or unresolved sequences |
+| tiny and near-threshold branch lengths | tests numeric precision |
+| duplicate labels | validates upload errors |
+| long or unusual sample names | tests parsing and rendering |
+| mixed cluster sizes or one large clade | more realistic than fixed 50-leaf clusters |
+
+The browser-based tier sizes in `performance-dataset-strategy-for-bioinformaticians.md` should guide which of these fixtures run in CI, nightly, pre-release, or manual stress mode. In particular, 10,000-leaf Newick and 5,000-sequence FASTA fixtures should be treated as manual stress tests, while 25,000+ Newick leaves or 10,000+ FASTA sequences are failure-mode tests for warning, throttling, or subsetting behavior. FASTA fixtures above the default 2,000,000 pairwise-link guardrail should validate warning/subsetting behavior unless a controlled manual run intentionally raises the guardrail.
+
+Each new generated fixture should also have a manifest or documented shape summary with:
+
+- fixture name and file names
+- dataset type and tier
+- sequence, leaf, node, and link counts as applicable
+- metric and active thresholds
+- expected visible links at those thresholds
+- intended code paths
+- known limitations
+- whether the fixture is deterministic engineering data, real sample data, or bio-realistic simulation
+
+Non-generated fixtures such as `problem_10k.csv` and `stress-tree.nwk` should keep separate provenance notes so they are not mistaken for deterministic synthetic fixtures.
+
 ## Recommended Next Generation Step
 
 The current generated fixtures are adequate for deterministic performance baselines. They are not adequate as biological simulations.
