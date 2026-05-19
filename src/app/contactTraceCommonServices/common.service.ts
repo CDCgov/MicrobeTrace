@@ -28,6 +28,25 @@ import {
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
 
+interface SequencePairwiseLinkGuardrails {
+    warningThreshold: number;
+    hardLimit: number;
+}
+
+interface SequencePairwiseLinkGuardrailResult {
+    warningThreshold: number;
+    hardLimit: number;
+    pairCount: number;
+    sequenceCount: number;
+    warningHit: boolean;
+    hardLimitHit: boolean;
+    metric: string;
+    message: string;
+}
+
+const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
+const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
+
 @Directive()
 @Injectable({
     providedIn: 'root',
@@ -694,6 +713,66 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.recordPerformanceDuration(category, name, Date.now() - startedAt, extra);
     }
 
+    private readPerformanceMemorySnapshot(): Record<string, number> | null {
+        const memory = typeof window !== 'undefined'
+            ? (window.performance as any)?.memory
+            : null;
+
+        if (!memory) return null;
+
+        const usedJSHeapSize = Number(memory.usedJSHeapSize);
+        const totalJSHeapSize = Number(memory.totalJSHeapSize);
+        const jsHeapSizeLimit = Number(memory.jsHeapSizeLimit);
+
+        if (
+            !Number.isFinite(usedJSHeapSize) &&
+            !Number.isFinite(totalJSHeapSize) &&
+            !Number.isFinite(jsHeapSizeLimit)
+        ) {
+            return null;
+        }
+
+        return {
+            usedJSHeapSize: Number.isFinite(usedJSHeapSize) ? usedJSHeapSize : null,
+            totalJSHeapSize: Number.isFinite(totalJSHeapSize) ? totalJSHeapSize : null,
+            jsHeapSizeLimit: Number.isFinite(jsHeapSizeLimit) ? jsHeapSizeLimit : null
+        };
+    }
+
+    private toFinitePerformanceNumber(value: any): number | null {
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue) ? numericValue : null;
+    }
+
+    private buildGraphDensitySnapshot(extra: Record<string, any>): Record<string, number> | null {
+        const nodeCount = this.toFinitePerformanceNumber(extra.visibleNodes ?? extra.nodes);
+        const edgeCount = this.toFinitePerformanceNumber(extra.visibleLinks ?? extra.edges ?? extra.links);
+
+        if (nodeCount === null || edgeCount === null) return null;
+
+        const maxUndirectedEdges = nodeCount > 1 ? (nodeCount * (nodeCount - 1)) / 2 : 0;
+
+        return {
+            nodeCount,
+            edgeCount,
+            maxUndirectedEdges,
+            edgeDensity: maxUndirectedEdges > 0 ? edgeCount / maxUndirectedEdges : 0
+        };
+    }
+
+    private enrichPerformanceExtra(extra: Record<string, any>): Record<string, any> {
+        const memory = extra.memory !== undefined ? extra.memory : this.readPerformanceMemorySnapshot();
+        const graphDensity = extra.graphDensity !== undefined
+            ? extra.graphDensity
+            : this.buildGraphDensitySnapshot(extra);
+
+        return {
+            ...extra,
+            ...(memory ? { memory } : {}),
+            ...(graphDensity ? { graphDensity } : {})
+        };
+    }
+
     recordPerformanceDuration(category: string, name: string, durationMs: number, extra: Record<string, any> = {}) {
         if (!this.session?.meta || !Number.isFinite(durationMs)) return;
 
@@ -704,7 +783,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         meta.performance[category][name] = {
             durationMs,
             recordedAt: Date.now(),
-            ...extra
+            ...this.enrichPerformanceExtra(extra)
         };
     }
 
@@ -1325,6 +1404,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     
         // Reset visualization states
         this.session.network.isFullyLoaded = false;
+        this.session.warnings = [];
     }
 
     // public cleanupWorkers(): void {
@@ -2689,20 +2769,118 @@ align(params): Promise<any> {
   }
   
   
+  private getSequencePairwiseLinkGuardrails(): SequencePairwiseLinkGuardrails {
+    const overrides = (this.session?.meta as any)?.guardrails || {};
+    const warningThreshold = Number(overrides.sequencePairwiseLinkWarningThreshold);
+    const hardLimit = Number(overrides.sequencePairwiseLinkHardLimit);
+
+    return {
+      warningThreshold: Number.isFinite(warningThreshold) && warningThreshold > 0
+        ? warningThreshold
+        : DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD,
+      hardLimit: Number.isFinite(hardLimit) && hardLimit > 0
+        ? hardLimit
+        : DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT
+    };
+  }
+
+  private formatPerformanceCount(value: number): string {
+    return Number(value || 0).toLocaleString();
+  }
+
+  private buildSequencePairwiseLinkGuardrail(
+    sequenceCount: number,
+    pairCount: number,
+    metric: string,
+    guardrails: SequencePairwiseLinkGuardrails
+  ): SequencePairwiseLinkGuardrailResult | null {
+    const hardLimitHit = pairCount > guardrails.hardLimit;
+    const warningHit = hardLimitHit || pairCount >= guardrails.warningThreshold;
+
+    if (!warningHit) return null;
+
+    const message = hardLimitHit
+      ? `FASTA ${metric.toUpperCase()} distance generation would create ${this.formatPerformanceCount(pairCount)} pairwise genetic links, above the ${this.formatPerformanceCount(guardrails.hardLimit)} browser guardrail. MicrobeTrace skipped genetic-link generation for this sequence set; subset the FASTA, lower the analysis scope, or import a precomputed distance edge list.`
+      : `FASTA ${metric.toUpperCase()} distance generation will create ${this.formatPerformanceCount(pairCount)} pairwise genetic links, above the ${this.formatPerformanceCount(guardrails.warningThreshold)} browser warning threshold. This may take longer and use more memory in browser-based MicrobeTrace.`;
+
+    return {
+      warningThreshold: guardrails.warningThreshold,
+      hardLimit: guardrails.hardLimit,
+      pairCount,
+      sequenceCount,
+      warningHit,
+      hardLimitHit,
+      metric,
+      message
+    };
+  }
+
+  private recordSequencePairwiseLinkGuardrailWarning(guardrail?: SequencePairwiseLinkGuardrailResult | null): void {
+    if (!guardrail?.message) return;
+
+    if (!Array.isArray(this.session.warnings)) {
+      this.session.warnings = [];
+    }
+
+    const id = `sequence-pairwise-link-guardrail-${guardrail.metric}-${guardrail.sequenceCount}-${guardrail.hardLimit}`;
+    const existingIndex = this.session.warnings.findIndex((warning: any) => warning?.id === id);
+    const warning = {
+      id,
+      type: 'sequence-pairwise-link-guardrail',
+      severity: guardrail.hardLimitHit ? 'error' : 'warning',
+      message: guardrail.message,
+      metric: guardrail.metric,
+      sequenceCount: guardrail.sequenceCount,
+      pairCount: guardrail.pairCount,
+      warningThreshold: guardrail.warningThreshold,
+      hardLimit: guardrail.hardLimit,
+      hardLimitHit: guardrail.hardLimitHit,
+      recordedAt: Date.now()
+    };
+
+    if (existingIndex >= 0) {
+      this.session.warnings[existingIndex] = warning;
+    } else {
+      this.session.warnings.push(warning);
+    }
+  }
+
   // Compute links using a fresh links worker
   computeLinks(subset): Promise<any> {
     return new Promise(resolve => {
+      const computeLinksStart = Date.now();
       let k = 0;
+      const metric = this.session.style.widgets['default-distance-metric'];
+      const n = subset.length;
+      const pairCount = (n * (n - 1)) / 2;
+      const guardrails = this.getSequencePairwiseLinkGuardrails();
+      const guardrail = this.buildSequencePairwiseLinkGuardrail(n, pairCount, metric, guardrails);
+
+      this.recordSequencePairwiseLinkGuardrailWarning(guardrail);
+
+      if (guardrail?.hardLimitHit) {
+        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+          metric,
+          sequences: n,
+          pairCount,
+          generatedLinks: 0,
+          skippedByGuardrail: true,
+          guardrail
+        });
+        resolve(0);
+        return;
+      }
+
       const linksWorker = this.computer.getLinksWorker();
       linksWorker.postMessage({
         nodes: subset,
-        metric: this.session.style.widgets['default-distance-metric'],
+        metric,
         strategy: this.session.style.widgets["ambiguity-resolution-strategy"],
         threshold: this.session.style.widgets["ambiguity-threshold"]
       });
       
       const sub = linksWorker.onmessage().subscribe((response) => {
-        let dists = this.session.style.widgets['default-distance-metric'].toLowerCase() === 'snps'
+        let dists = metric.toLowerCase() === 'snps'
           ? new Uint16Array(response.data.links)
           : new Float32Array(response.data.links);
         
@@ -2711,7 +2889,6 @@ align(params): Promise<any> {
         }
         let start = Date.now();
         let check = this.session.files.length > 1;
-        let n = subset.length;
         let l = 0;
         console.log('link same compute---', n);
         for (let i = 0; i < n; i++) {
@@ -2732,6 +2909,16 @@ align(params): Promise<any> {
         if (this.debugMode) {
           console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
         }
+        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+          metric,
+          sequences: n,
+          pairCount,
+          generatedLinks: k,
+          skippedByGuardrail: false,
+          workerDurationMs: Date.now() - response.data.start,
+          mergeDurationMs: Date.now() - start,
+          ...(guardrail ? { guardrail } : {})
+        });
         resolve(k);
         linksWorker.terminate();
         sub.unsubscribe();

@@ -77,6 +77,13 @@
       </div>
     </mat-toolbar>
 
+    @if (getLatestSessionWarningMessage()) {
+      <div id="network-guardrail-warning" class="network-guardrail-warning" role="alert">
+        <span>{{ getLatestSessionWarningMessage() }}</span>
+        <button type="button" class="btn btn-sm btn-link" (click)="clearSessionWarnings()">Dismiss</button>
+      </div>
+    }
+
     <div #visualwrapper id="visualwrapper" class="kt-container  kt-grid__item kt-grid__item--fluid " style="margin: 6px 6px 0 6px;" [style.height.px]="getHeight()">
       <div class="kt-portlet kt-portlet--mobile" style="height:100%">
         <div class="kt-portlet__head kt-portlet__head--lg" style="height:100%">

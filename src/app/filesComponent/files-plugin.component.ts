@@ -1519,6 +1519,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           let newLinks = patristicResult.newLinks;
           let links = patristicResult.totalLinks;
+          let guardrail = patristicResult.guardrail;
 
           if (activeThreshold > computedInitialThreshold) {
             const requeryResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
@@ -1535,6 +1536,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             );
             newLinks += requeryResult?.newLinks ?? 0;
             links = Math.max(links, requeryResult?.totalLinks ?? 0);
+            guardrail = requeryResult?.guardrail ?? guardrail;
           }
 
           if (!isCurrentLoad()) return;
@@ -1550,6 +1552,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             activeThreshold
           });
           this.showMessage(` - Parsed ${newNodes} New, ${patristicResult.leafNames.length} Total Nodes from Newick Tree.`);
+          if (guardrail?.message) {
+            this.showMessage(` - ${guardrail.message}`);
+          }
           this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
         }).catch((error: any) => {

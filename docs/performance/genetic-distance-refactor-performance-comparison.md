@@ -106,22 +106,43 @@ The downstream-view rows mean the views have automated regression coverage that 
 
 ## Newick Output Validation
 
-The formal Newick validation layer has two parts.
+Newick refactor validation uses automated parity testing rather than manual visual inspection. The same Newick fixture is loaded in the pre-refactor and refactored builds using the same metric and threshold. Cypress captures normalized snapshots of the visible 2D network, including node IDs, visible edge source/target pairs, and patristic distance values. A Node comparator sorts and compares these snapshots and fails on missing nodes, extra nodes, missing edges, extra edges, or patristic distance differences greater than `1e-6`. This confirms that the optimized Newick worker path produces the same threshold-visible 2D network as the pre-refactor implementation for the tested inputs.
 
-The strict parity path captures visible 2D Newick output from two app builds, usually the documented pre-refactor commit and the current refactored build. The same Cypress spec runs against each supplied `baseUrl`, writes normalized snapshots under `cypress/downloads/newick-validation/<run-id>/`, and the comparator fails on:
+Downstream view validation refers to automated Cypress journey/view-state checks unless explicitly labeled as manual. Manual inspection is not counted as validation evidence.
 
-- node ID mismatch
-- visible edge source/target mismatch
-- patristic distance deltas greater than `1e-6`
+The formal Newick validation layer has two parts:
 
-This intentionally compares visible 2D network output rather than `session.data.links.length`, because the refactor changed startup behavior to avoid materializing all above-threshold Newick edge candidates.
+- strict visible-2D parity for the refactor output
+- report-first tree comparison for FASTA/full-data tree reconstruction
 
-Initial parity scenarios cover:
+### Strict 2D Parity Coverage
 
-- `AngularTesting_seqs_TN93_BS.nwk` at thresholds `0.001`, `0.015`, and `0.02`
-- `performance/average-newick-500.nwk` at thresholds `0.003` and `0.006`
-- `performance/large-newick-1000.nwk` at threshold `0.003`
-- `performance/stress-newick-2000.nwk` behind an opt-in stress flag
+The parity capture spec is `cypress/e2e/performance/newick-parity-capture.perf.cy.ts`; the comparator is `scripts/compare-newick-parity.js`. This path intentionally compares visible 2D network output rather than `session.data.links.length`, because the refactor changed startup behavior to avoid materializing all above-threshold Newick edge candidates.
+
+| Fixture | Metric | Thresholds | Expected nodes | Expected visible links | Tree shape covered | Strict assertion status |
+| --- | --- | --- | ---: | --- | --- | --- |
+| `AngularTesting_seqs_TN93_BS.nwk` | TN93/patristic | `0.015`, `0.02`, `0.001` | 14 | 14, 45, 2 | small curated regression Newick with known topology and branch lengths | strict pre-refactor/current parity |
+| `performance/average-newick-500.nwk` | TN93/patristic | `0.003`, `0.006` | 500 | 3,000, 12,250 | deterministic generated clustered tree; 10 clusters x 50 leaves; fixed terminal branch lengths and long root attachments | strict pre-refactor/current parity |
+| `performance/large-newick-1000.nwk` | TN93/patristic | `0.003` | 1,000 | 6,000 | deterministic generated clustered tree; 20 clusters x 50 leaves; same branch-length pattern as average fixture | strict pre-refactor/current parity |
+| `performance/stress-newick-2000.nwk` | TN93/patristic | `0.003`, `0.006` | 2,000 | 12,000, 49,000 | deterministic generated clustered tree; 40 clusters x 50 leaves; manual stress tier | implemented behind `parityStress=1`; manual opt-in run because of runtime |
+
+In the first implemented pre-refactor versus current run, the strict parity comparator compared six snapshots across the AngularTesting, average Newick, and large Newick scenarios with zero parity failures. The stress Newick parity scenario is available as an opt-in stress run and should be reported separately when executed.
+
+### Newick Worker Regression Coverage
+
+The journey regression spec `cypress/e2e/journeys/flows/patristic-newick-worker.cy.ts` adds strict assertions for the main Newick worker behaviors:
+
+| File | Thresholds or condition | Strict automated assertion |
+| --- | --- | --- |
+| `AngularTesting_seqs_TN93_BS.nwk` | launch at `0.015` | expected node/link counts, stored Newick string, numeric visible distances, and Newick file metadata on visible edges |
+| `AngularTesting_seqs_TN93_BS.nwk` | threshold sequence `0.015` -> `0.02` -> `0.001` -> `0.015` | visible Cytoscape edge counts recover exactly as 14 -> 45 -> 2 -> 14 |
+| `AngularTesting_seqs_TN93_BS.nwk` | forced browser guardrail limit of 20 visible links, then threshold `0.02` | warning appears, visible edge count stays at 14, and guardrail telemetry is recorded |
+| `AngularTesting_seqs_TN93_BS.nwk` | save/reload after threshold `0.02` | saved session reloads with threshold `0.02`, 45 visible links, and preserved Newick string |
+| `PatristicSynthetic_snp_gt1.nwk` | SNP-scale Newick distances greater than one | metric switches to SNP, threshold becomes 16, three visible links render with numeric distances |
+| `PatristicDuplicateTips.nwk` | duplicate leaf/tip labels | upload is rejected and no corrupt network links are created |
+| `PatristicNegativeBranch.nwk` | invalid negative branch length | upload is rejected with branch context and no corrupt network links are created |
+
+### Report-First Tree Comparison Coverage
 
 The tree-comparison path is report-first rather than strict pass/fail. It loads paired FASTA/full-data scenarios, captures the Newick exported from MicrobeTrace's Phylogenetic Tree view, and compares it with the reference `.nwk` by:
 
@@ -133,7 +154,25 @@ The tree-comparison path is report-first rather than strict pass/fail. It loads 
 
 Tree string equality is not used. An inferred tree built from FASTA or distance data may legitimately differ from the original reference tree depending on the distance metric, tree-building method, rounding, and model mismatch. Hard failures should stay limited to parse errors and leaf-set mismatches until bioinformatics reviewers approve acceptable topology and branch-length thresholds.
 
-In the first implemented pre-refactor versus current run, the strict parity comparator compared six snapshots across the AngularTesting, average Newick, and large Newick scenarios with zero parity failures. The tree-comparison report also completed for the AngularTesting FASTA/reference Newick pair and the realistic `pathogen-musse-500` FASTA/reference Newick pair with zero hard failures.
+| Input data | Reference tree | Metric/threshold | Comparison mode |
+| --- | --- | --- | --- |
+| `AngularTesting_seqs_TN93_BS.fasta` | `AngularTesting_seqs_TN93_BS.nwk` | TN93 at `0.015` | report-first tree reconstruction comparison |
+| `performance/realistic/pathogen-musse-500-nodes.csv` plus `performance/realistic/pathogen-musse-500.fasta` | `performance/realistic/pathogen-musse-500.nwk` | SNP at `16` | report-first tree reconstruction comparison |
+
+The first tree-comparison report completed for both scenarios with zero hard failures.
+
+### Downstream View Coverage
+
+Downstream view coverage is automated Cypress coverage, not manual visual inspection. These checks exercise view readiness, rendered data model assertions, export/session behavior, or uploaded-data smoke paths after the refactor.
+
+| View family | Automated coverage files |
+| --- | --- |
+| Phylogenetic Tree | `upload-launch-phylo.cy.ts`, `upload-launch-phylo-direct.cy.ts`, `phylogenetic-view-export.cy.ts`, `phylogenetic-computed-export.cy.ts`, `phylogenetic-controls-uploaded.cy.ts`, `phylogenetic-metadata-uploaded.cy.ts`, `phylogenetic-session-roundtrip.cy.ts`, `cypress/e2e/view-state/phylogenetic-view.cy.ts` |
+| Table | `table-load-uploaded.cy.ts`, `table-direct-launch-uploaded.cy.ts`, `table-columns-uploaded.cy.ts`, `table-controls-uploaded.cy.ts`, `table-refresh-uploaded.cy.ts`, `table-selection-uploaded.cy.ts`, `table-export-uploaded.cy.ts`, `table-filter-operators-uploaded.cy.ts`, `table-empty-state.cy.ts` |
+| Aggregate and Crosstab | `aggregate-view-uploaded.cy.ts`, `aggregate-controls-uploaded.cy.ts`, `aggregate-export-uploaded.cy.ts`, `aggregate-large-uploaded.cy.ts`, `upload-launch-crosstab.cy.ts`, `crosstab-file-types.cy.ts`, `crosstab-refresh-uploaded.cy.ts`, `cypress/e2e/view-state/aggregate-view.cy.ts`, `crosstab-view.cy.ts`, `crosstab-export.cy.ts` |
+| Sankey | `upload-launch-sankey.cy.ts`, `sankey-direct-launch-uploaded.cy.ts`, `sankey-controls-uploaded.cy.ts`, `sankey-cluster-filtering-uploaded.cy.ts`, `sankey-large-uploaded.cy.ts` |
+| Waterfall | `waterfall-load-uploaded.cy.ts`, `waterfall-direct-launch-uploaded.cy.ts`, `waterfall-session-roundtrip.cy.ts`, `waterfall-refresh-uploaded.cy.ts`, `waterfall-drilldown-uploaded.cy.ts`, `waterfall-details-uploaded.cy.ts` |
+| Heatmap | `upload-launch-heatmap.cy.ts`, `heatmap-direct-launch-uploaded.cy.ts`, `heatmap-controls-uploaded.cy.ts`, `heatmap-session-roundtrip.cy.ts`, `heatmap-large-uploaded.cy.ts`, `cypress/e2e/view-state/heatmap-view.cy.ts` |
 
 ## Review Follow-Up Items
 

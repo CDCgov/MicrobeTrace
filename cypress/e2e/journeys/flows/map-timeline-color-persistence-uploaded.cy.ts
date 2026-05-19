@@ -58,6 +58,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
   it('keeps edited Map node and link colors after timeline mode is turned off', () => {
     const updatedNodeColor = '#777777';
     const updatedLinkColor = '#000000';
+    const nodeColorVariable = 'Lineage';
     const expectedNodeColor = normalizeColor(updatedNodeColor);
     const expectedLinkColor = normalizeColor(updatedLinkColor);
     const midCheckpoint = timeline.checkpoints.find((checkpoint) => checkpoint.id === 'timeline-mid') ?? timeline.checkpoints[0];
@@ -83,8 +84,8 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
     });
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Cluster');
-    cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
+    selectPrimeOption('#node-color-variable', nodeColorVariable);
+    cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', nodeColorVariable);
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
 
     cy.get('#node-color-table tr', { timeout: 15000 })

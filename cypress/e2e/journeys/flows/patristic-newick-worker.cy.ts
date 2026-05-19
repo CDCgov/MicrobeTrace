@@ -4,7 +4,10 @@ import { getProfile, type DatasetProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
   assertMetricCount,
+  applyPreLaunchFileSettings,
   ensureTwoDNetworkView,
+  ensurePreLaunchProfileSynced,
+  launchAndWaitForProcessing,
   launchProfileToTwoD,
   openGlobalFilteringTab,
   saveSessionFromFileMenu,
@@ -144,6 +147,48 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     setThresholdAndAssertVisibleLinks(0.02, 45);
     setThresholdAndAssertVisibleLinks(0.001, 2);
     setThresholdAndAssertVisibleLinks(0.015, 14);
+  });
+
+  it('warns and skips additional Newick edges when a threshold exceeds the browser guardrail', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(tn93Profile.files);
+    applyPreLaunchFileSettings(tn93Profile);
+    ensurePreLaunchProfileSynced(tn93Profile);
+
+    cy.window().then((win: any) => {
+      win.commonService.session.meta.guardrails = {
+        newickVisibleLinkWarningThreshold: 20,
+        newickVisibleLinkHardLimit: 20,
+      };
+    });
+
+    launchAndWaitForProcessing(60000);
+    ensureTwoDNetworkView();
+    assertVisibleLinkCount(14);
+
+    openGlobalFilteringTab();
+    setGlobalLinkThreshold(0.02);
+    cy.closeGlobalSettings();
+    waitForProcessingDialogToClear(60000);
+
+    cy.get('#network-guardrail-warning', { timeout: 30000 })
+      .should('be.visible')
+      .and('contain.text', 'exceeded the 20 visible-link browser guardrail');
+
+    assertVisibleLinkCount(14);
+
+    cy.window().should((win: any) => {
+      const warning = win.commonService.session.warnings.find((entry: any) => (
+        entry?.type === 'newick-visible-link-guardrail'
+      ));
+      expect(warning, 'Newick visible-link guardrail warning').to.exist;
+      expect(warning.hardLimitHit, 'hard limit hit').to.equal(true);
+      expect(warning.hardLimit, 'hard limit').to.equal(20);
+      expect(
+        win.commonService.session.meta.performance.patristic.edgeGeneration.guardrail.hardLimitHit,
+        'patristic guardrail telemetry',
+      ).to.equal(true);
+    });
   });
 
   it('preserves raised-threshold Newick state through a session save and reload', () => {

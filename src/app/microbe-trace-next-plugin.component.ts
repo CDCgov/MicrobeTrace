@@ -681,6 +681,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           }, 0);
       }
 
+    getLatestSessionWarningMessage(): string {
+        const warnings = this.commonService.session?.warnings;
+        if (!Array.isArray(warnings) || warnings.length === 0) {
+            return '';
+        }
+
+        const latestWarning = warnings[warnings.length - 1];
+        if (typeof latestWarning === 'string') {
+            return latestWarning;
+        }
+
+        return String(latestWarning?.message || '');
+    }
+
+    clearSessionWarnings(): void {
+        if (Array.isArray(this.commonService.session?.warnings)) {
+            this.commonService.session.warnings = [];
+        }
+    }
+
     
     // New method to handle the actual threshold change logic
     private executeThresholdChange(newThreshold: number): void {
