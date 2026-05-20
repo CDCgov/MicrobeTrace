@@ -52,7 +52,7 @@ const persistPhyloAsDefaultView = (): void => {
 };
 
 const ensurePhyloViewAfterReload = (): void => {
-  cy.get('body', { timeout: 15000 }).then(($body) => {
+  cy.wait(200).get('body', { timeout: 15000 }).then(($body) => {
     if ($body.find('#phylocanvas:visible').length) {
       assertPhyloTreeReady(60000);
       return;

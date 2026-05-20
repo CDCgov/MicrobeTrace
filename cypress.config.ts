@@ -26,6 +26,8 @@ export default defineConfig({
       perfMode: 0,
       perfStress: 0,
       perfRealSamples: 0,
+      parityMode: 0,
+      treeValidationMode: 0,
     },
     setupNodeEvents(on, config) {
       registerOracleTasks(on);

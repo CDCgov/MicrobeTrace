@@ -650,6 +650,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.removeAllFiles();
+    this.commonService.visuals.microbeTrace?.resetKeyTablesForNewDataset();
     result.files.forEach((file: ImportedEmbedFile) => {
       this.commonService.session.files.push(file);
       this.addToTable(file);
@@ -870,9 +871,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
-    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Hide';
+    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Dock';
     this.commonService.session.style.widgets['node-symbol-variable'] = 'None';
-    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Hide';
+    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Dock';
     this.commonService.visuals.microbeTrace?.resetNodeShapeSelectionForNewDataset();
 
     this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
@@ -1639,6 +1640,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
           let newLinks = patristicResult.newLinks;
           let links = patristicResult.totalLinks;
+          let guardrail = patristicResult.guardrail;
 
           if (activeThreshold > computedInitialThreshold) {
             const requeryResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
@@ -1655,6 +1657,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             );
             newLinks += requeryResult?.newLinks ?? 0;
             links = Math.max(links, requeryResult?.totalLinks ?? 0);
+            guardrail = requeryResult?.guardrail ?? guardrail;
           }
 
           if (!isCurrentLoad()) return;
@@ -1670,6 +1673,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             activeThreshold
           });
           this.showMessage(` - Parsed ${newNodes} New, ${patristicResult.leafNames.length} Total Nodes from Newick Tree.`);
+          if (guardrail?.message) {
+            this.showMessage(` - ${guardrail.message}`);
+          }
           this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
         }).catch((error: any) => {

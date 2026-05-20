@@ -200,7 +200,7 @@ describe('Epi Curve / Timeline View', () => {
         cy.window()
           .its('commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable')
           .should('equal', 'Show');
-        cy.get('#global-settings-node-color-table').should('be.visible');
+        cy.get('#key-tables-node-table').should('be.visible');
 
         cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
         let expectedClusterCount = 4
@@ -231,7 +231,7 @@ describe('Epi Curve / Timeline View', () => {
             expect(rectFills.some((fill) => fill === '#b732cc' || fill === 'rgb(183,50,204)' || fill === 'rgb(183, 50, 204)')).to.equal(true);
           });
 
-        cy.get('#node-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+        cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
           .then(($rects) => {
             const rectFills = [...$rects]

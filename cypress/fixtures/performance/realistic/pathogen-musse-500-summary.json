@@ -97,6 +97,38 @@
           0.05
         ]
       }
+    },
+    "validation": {
+      "linkCounts": {
+        "enabled": true,
+        "hardFailOnMismatch": true,
+        "description": "Generator computes expected visible-link counts at each configured SNP and patristic threshold and stores those counts in the summary JSON.\n"
+      },
+      "newickParity": {
+        "enabled": true,
+        "hardFailOnMismatch": true,
+        "tolerance": 0.000001,
+        "compare": [
+          "nodeIds",
+          "visibleEdgeSourceTargetPairs",
+          "visibleEdgeDistances"
+        ],
+        "description": "Pre-refactor and current MicrobeTrace builds should produce the same visible 2D Newick nodes, edge source/target pairs, and edge distances for the same Newick file, metric, and threshold.\n"
+      },
+      "treeComparison": {
+        "enabled": true,
+        "hardFailures": [
+          "parseError",
+          "leafSetMismatch"
+        ],
+        "reportOnlyMetrics": [
+          "topologySplits",
+          "normalizedRfDistance",
+          "matchingSplitBranchLengthDeltas",
+          "pairwisePatristicDistanceDeltas"
+        ],
+        "description": "MT-generated trees from FASTA are compared to the reference simulated Newick, but topology, branch-length, and patristic-distance differences are reported rather than treated as automatic failures.\n"
+      }
     }
   },
   "tools": {
@@ -193,5 +225,37 @@
     "snpThreshold": 16,
     "patristicThreshold": 0.01,
     "timeoutMs": 300000
+  },
+  "validation": {
+    "linkCounts": {
+      "enabled": true,
+      "hardFailOnMismatch": true,
+      "description": "Generator computes expected visible-link counts at each configured SNP and patristic threshold and stores those counts in the summary JSON.\n"
+    },
+    "newickParity": {
+      "enabled": true,
+      "hardFailOnMismatch": true,
+      "tolerance": 0.000001,
+      "compare": [
+        "nodeIds",
+        "visibleEdgeSourceTargetPairs",
+        "visibleEdgeDistances"
+      ],
+      "description": "Pre-refactor and current MicrobeTrace builds should produce the same visible 2D Newick nodes, edge source/target pairs, and edge distances for the same Newick file, metric, and threshold.\n"
+    },
+    "treeComparison": {
+      "enabled": true,
+      "hardFailures": [
+        "parseError",
+        "leafSetMismatch"
+      ],
+      "reportOnlyMetrics": [
+        "topologySplits",
+        "normalizedRfDistance",
+        "matchingSplitBranchLengthDeltas",
+        "pairwisePatristicDistanceDeltas"
+      ],
+      "description": "MT-generated trees from FASTA are compared to the reference simulated Newick, but topology, branch-length, and patristic-distance differences are reported rather than treated as automatic failures.\n"
+    }
   }
 }

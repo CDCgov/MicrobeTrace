@@ -4,7 +4,6 @@ export const KEY_TABLE_NAMES: KeyTableName[] = ['node-color', 'link-color', 'nod
 export const DOCKED_KEY_TABLES_VIEW_NAME = 'Docked Key Tables';
 
 export interface KeyTablesFloatingState {
-    activeTab?: string;
     selectedColorNodesBy?: string;
     selectedColorLinksBy?: string;
     selectedNodeSymbol?: string;
@@ -68,53 +67,26 @@ export class KeyTablesController {
         return this.lastNonKeyTablesTab;
     }
 
-    canDisplayFloatingTable(table: KeyTableName, activeTab?: string): boolean {
-        const contextTab = this.getContextTab(activeTab);
-        if (!contextTab) {
-            return true;
-        }
-
-        if (table === 'node-shape') {
-            return contextTab === '2D Network' || contextTab === 'Map' || contextTab === 'Phylogenetic Tree';
-        }
-
-        const blockedTabs = new Set([
-            'Files',
-            'Epi Curve',
-            'Alignment View',
-            'Table',
-            'Crosstab',
-            'Aggregate',
-            'Heatmap',
-            'Gantt Chart',
-            'Waterfall',
-            'Sankey'
-        ]);
-
-        if (blockedTabs.has(contextTab)) {
-            return false;
-        }
-
-        if (table === 'link-color') {
-            return contextTab !== 'Phylogenetic Tree' && contextTab !== 'Bubble';
-        }
-
-        return true;
+    private hasSelectedValue(value?: string): boolean {
+        return !!value && value !== 'None';
     }
 
     shouldDisplayFloatingTable(table: KeyTableName, state: KeyTablesFloatingState): boolean {
-        if (this.isDocked(table) || !this.canDisplayFloatingTable(table, state.activeTab)) {
+        if (this.isDocked(table)) {
             return false;
         }
 
         if (table === 'node-color') {
-            return state.selectedNodeColorTableTypesVariable !== 'Hide' && state.selectedColorNodesBy !== 'None';
+            return state.selectedNodeColorTableTypesVariable === 'Show'
+                && this.hasSelectedValue(state.selectedColorNodesBy);
         }
 
         if (table === 'link-color') {
-            return state.selectedLinkColorTableTypesVariable !== 'Hide' && state.selectedColorLinksBy !== 'None';
+            return state.selectedLinkColorTableTypesVariable === 'Show'
+                && this.hasSelectedValue(state.selectedColorLinksBy);
         }
 
-        return state.selectedNodeShapeTableTypesVariable !== 'Hide' && state.selectedNodeSymbol !== 'None';
+        return state.selectedNodeShapeTableTypesVariable === 'Show'
+            && this.hasSelectedValue(state.selectedNodeSymbol);
     }
 }

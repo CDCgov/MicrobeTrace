@@ -293,7 +293,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
     selectPrimeOption('#node-color-variable', 'Profession');
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
 
     getLeafNodeById(EDUCATION_NODE_ID).then(($leaf) => {
       educationBaselineColor = normalizeColor(getComputedStyle($leaf.get(0) as SVGCircleElement).fill);
@@ -304,7 +304,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
         .to.not.equal(educationBaselineColor);
     });
 
-    changeColorTableEntry('#node-color-table', 'Healthcare', updatedHealthcareColor);
+    changeColorTableEntry('#key-tables-node-table', 'Healthcare', updatedHealthcareColor);
     cy.closeGlobalSettings();
 
     getLeafNodeById(HEALTHCARE_NODE_ID).should(($leaf) => {
@@ -396,7 +396,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
         .and(($overlay) => {
           const href = String($overlay.attr('href') || $overlay.attr('xlink:href') || '');
           expect(href, 'healthcare tree overlay image').to.equal(shapeContext.expectedHealthcareOverlay);
-        });
+        }); // here
 
       getLeafNodeById(shapeContext.educationNodeId)
         .should('have.css', 'fill-opacity', '0');
@@ -647,7 +647,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
         expect(String(value).toLowerCase()).to.equal('cluster');
       });
 
-    cy.get('#node-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       nodeColorsBefore = extractColorTable($table);
     });
     cy.closeGlobalSettings();
@@ -670,7 +670,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
       .should((value) => {
         expect(String(value).toLowerCase()).to.equal('cluster');
       });
-    cy.get('#node-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       nodeColorsAfter = extractColorTable($table);
     });
     cy.closeGlobalSettings();

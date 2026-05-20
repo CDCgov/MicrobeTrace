@@ -20,12 +20,11 @@ const assertRestoredNodeShapeByNone = () => {
     const home = win.commonService.visuals.microbeTrace;
 
     expect(win.commonService.session.style.widgets['node-symbol-variable']).to.equal('None');
-    expect(win.commonService.session.style.widgets['node-symbol-table-visible']).to.equal('Hide');
+    expect(win.commonService.session.style.widgets['node-symbol-table-visible']).to.equal('Dock');
     expect(home.SelectedNodeSymbolVariable).to.equal('None');
-    expect(home.SelectedNodeShapeTableTypesVariable).to.equal('Hide');
+    expect(home.SelectedNodeShapeTableTypesVariable).to.equal('Dock');
     expect(win.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable).to.equal('None');
-    expect(win.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable).to.equal('Hide');
-    expect(home.ShowGlobalSettingsNodeShapeTable).to.equal(false);
+    expect(win.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable).to.equal('Dock');
     expect(home.GlobalSettingsNodeShapeDialogSettings.isVisible).to.equal(false);
   });
 };

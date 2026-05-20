@@ -19,6 +19,31 @@ interface ComputePatristicOptions {
   batchSize?: number;
 }
 
+interface PatristicVisibleEdgeGuardrails {
+  warningThreshold: number;
+  hardLimit: number;
+}
+
+interface PatristicGuardrailResult {
+  warningThreshold: number;
+  hardLimit: number;
+  matchedEdgeCount: number;
+  warningHit: boolean;
+  hardLimitHit: boolean;
+  threshold: number;
+  message: string;
+}
+
+interface PatristicMergeResult {
+  newLinks: number;
+  totalLinks: number;
+  leafNames: string[];
+  guardrail?: PatristicGuardrailResult;
+}
+
+const DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD = 75000;
+const DEFAULT_NEWICK_VISIBLE_LINK_HARD_LIMIT = 100000;
+
 /**
  * This service delegates all Worker-based computations.
  * It expects a 'session' object with the same structure
@@ -595,6 +620,80 @@ export class WorkerComputeService {
     };
   }
 
+  private getPatristicVisibleEdgeGuardrails(session?: any): PatristicVisibleEdgeGuardrails {
+    const overrides = session?.meta?.guardrails || {};
+    const overrideWarning = Number(overrides.newickVisibleLinkWarningThreshold);
+    const overrideHardLimit = Number(overrides.newickVisibleLinkHardLimit);
+    const hardLimit = Number.isFinite(overrideHardLimit) && overrideHardLimit > 0
+      ? Math.floor(overrideHardLimit)
+      : DEFAULT_NEWICK_VISIBLE_LINK_HARD_LIMIT;
+    const warningThreshold = Number.isFinite(overrideWarning) && overrideWarning > 0
+      ? Math.floor(overrideWarning)
+      : DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD;
+
+    return {
+      hardLimit,
+      warningThreshold: Math.min(warningThreshold, hardLimit),
+    };
+  }
+
+  private formatCount(value: number): string {
+    return Math.floor(value).toLocaleString();
+  }
+
+  private buildPatristicGuardrailResult(
+    threshold: number,
+    matchedEdgeCount: number,
+    guardrails: PatristicVisibleEdgeGuardrails,
+    hardLimitHit: boolean,
+  ): PatristicGuardrailResult | undefined {
+    const warningHit = hardLimitHit || matchedEdgeCount >= guardrails.warningThreshold;
+    if (!warningHit) return undefined;
+
+    const message = hardLimitHit
+      ? `Newick threshold ${threshold} exceeded the ${this.formatCount(guardrails.hardLimit)} visible-link browser guardrail. MicrobeTrace did not add the additional Newick links for this threshold; lower the threshold, filter the network, or subset the tree before rendering.`
+      : `Newick threshold ${threshold} produced ${this.formatCount(matchedEdgeCount)} visible links, which may render slowly in the browser. Consider filtering, subsetting, or using a stricter threshold.`;
+
+    return {
+      warningThreshold: guardrails.warningThreshold,
+      hardLimit: guardrails.hardLimit,
+      matchedEdgeCount,
+      warningHit,
+      hardLimitHit,
+      threshold,
+      message,
+    };
+  }
+
+  private recordPatristicGuardrailWarning(session: any, guardrail?: PatristicGuardrailResult): void {
+    if (!session || !guardrail?.message) return;
+
+    if (!Array.isArray(session.warnings)) {
+      session.warnings = [];
+    }
+
+    const id = `newick-visible-link-guardrail-${guardrail.threshold}-${guardrail.hardLimit}`;
+    const existingIndex = session.warnings.findIndex((warning: any) => warning?.id === id);
+    const warning = {
+      id,
+      type: 'newick-visible-link-guardrail',
+      severity: guardrail.hardLimitHit ? 'error' : 'warning',
+      message: guardrail.message,
+      threshold: guardrail.threshold,
+      matchedEdgeCount: guardrail.matchedEdgeCount,
+      warningThreshold: guardrail.warningThreshold,
+      hardLimit: guardrail.hardLimit,
+      hardLimitHit: guardrail.hardLimitHit,
+      updatedAt: Date.now(),
+    };
+
+    if (existingIndex >= 0) {
+      session.warnings[existingIndex] = warning;
+    } else {
+      session.warnings.push(warning);
+    }
+  }
+
   /**
    * Initialize the patristic engine with a Newick string.
    * This preprocesses the tree (flatten, LCA build) in the worker.
@@ -710,36 +809,36 @@ export class WorkerComputeService {
     filterXSS: (s: string) => string,
     session?: any,
     options: ComputePatristicOptions = {}
-  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] }> {
+  ): Promise<PatristicMergeResult> {
     const leafNames = this.patristicLeafNames.map(filterXSS);
     const origin = options.origin?.length ? options.origin : this.patristicOrigin;
     const distanceOrigin = options.distanceOrigin || this.patristicDistanceOrigin;
     const check = options.check ?? true;
     const edgeStart = Date.now();
+    const guardrails = this.getPatristicVisibleEdgeGuardrails(session);
+    const usingGuardrailLimit = options.maxEdges === undefined;
+    const effectiveMaxEdges = usingGuardrailLimit ? guardrails.hardLimit + 1 : options.maxEdges;
 
     return new Promise((resolve, reject) => {
       let newLinks = 0;
       let totalLinks = 0;
       let finalTimings: PatristicEdgeBatchResponse['timings'] | undefined;
+      const pendingLinks: any[] = [];
 
-      this.buildPatristicEdges(threshold, options.maxEdges, options.batchSize).subscribe({
+      this.buildPatristicEdges(threshold, effectiveMaxEdges, options.batchSize).subscribe({
         next: (batch) => {
           const n = batch.sources.length;
           for (let k = 0; k < n; k++) {
             const sourceIdx = batch.sources[k];
             const targetIdx = batch.targets[k];
-            newLinks += addLink(
-              {
-                source: leafNames[sourceIdx],
-                target: leafNames[targetIdx],
-                origin: [...origin],
-                distance: batch.distances[k],
-                distanceOrigin,
-                hasDistance: true,
-              },
-              check
-            );
-            totalLinks++;
+            pendingLinks.push({
+              source: leafNames[sourceIdx],
+              target: leafNames[targetIdx],
+              origin: [...origin],
+              distance: batch.distances[k],
+              distanceOrigin,
+              hasDistance: true,
+            });
           }
           if (batch.done) {
             finalTimings = batch.timings;
@@ -747,28 +846,50 @@ export class WorkerComputeService {
         },
         error: (err) => reject(err),
         complete: () => {
-          this.patristicGeneratedMaxThreshold = Math.max(
-            this.patristicGeneratedMaxThreshold,
-            threshold
+          const matchedEdgeCount = finalTimings?.emittedEdgeCount ?? pendingLinks.length;
+          const hardLimitHit =
+            (usingGuardrailLimit && Boolean(finalTimings?.maxEdgesHit)) ||
+            matchedEdgeCount > guardrails.hardLimit;
+          const guardrail = this.buildPatristicGuardrailResult(
+            threshold,
+            matchedEdgeCount,
+            guardrails,
+            hardLimitHit,
           );
+
+          if (!hardLimitHit) {
+            for (const link of pendingLinks) {
+              newLinks += addLink(link, check);
+              totalLinks++;
+            }
+            this.patristicGeneratedMaxThreshold = Math.max(
+              this.patristicGeneratedMaxThreshold,
+              threshold
+            );
+          }
+
+          this.recordPatristicGuardrailWarning(session, guardrail);
+
           if (session?.debugMode) {
             console.log(
               'Patristic edge generation + merge time:',
               (Date.now() - edgeStart).toLocaleString(),
               'ms',
-            `(${totalLinks} edges below threshold ${threshold})`
-          );
+              `(${hardLimitHit ? 0 : totalLinks} edges added below threshold ${threshold})`
+            );
           }
           this.recordPatristicPerformance(session, {
             edgeGeneration: {
               threshold,
               newLinks,
               totalLinks,
+              matchedEdgeCount,
               mergeMs: Date.now() - edgeStart,
               timings: finalTimings,
+              guardrail,
             },
           });
-          resolve({ newLinks, totalLinks, leafNames });
+          resolve({ newLinks, totalLinks, leafNames, guardrail });
         },
       });
     });
@@ -794,7 +915,7 @@ export class WorkerComputeService {
     filterXSS: (s: string) => string,
     session?: any,
     options: ComputePatristicOptions = {}
-  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[]; treeReady: PatristicTreeReadyResponse }> {
+  ): Promise<PatristicMergeResult & { treeReady: PatristicTreeReadyResponse }> {
     const start = Date.now();
     this.setPatristicMetadata(options.origin, options.distanceOrigin);
 
@@ -830,7 +951,7 @@ export class WorkerComputeService {
     filterXSS: (s: string) => string,
     session?: any,
     options: ComputePatristicOptions & { newickString?: string } = {}
-  ): Promise<{ newLinks: number; totalLinks: number; leafNames: string[] } | null> {
+  ): Promise<PatristicMergeResult | null> {
     const newickString = options.newickString || this.patristicNewickString;
     if (!newickString || !Number.isFinite(threshold) || threshold < 0) {
       return null;

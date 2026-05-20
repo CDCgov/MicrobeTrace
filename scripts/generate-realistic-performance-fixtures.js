@@ -101,6 +101,19 @@ function ensureThresholdArray(value, label) {
   value.forEach((entry, index) => ensureNumber(entry, `${label}[${index}]`, { min: 0 }));
 }
 
+function ensureBoolean(value, label) {
+  if (typeof value !== 'boolean') {
+    throw new Error(`${label} must be a boolean.`);
+  }
+}
+
+function ensureStringArray(value, label) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} must be a non-empty string array.`);
+  }
+  value.forEach((entry, index) => ensureString(entry, `${label}[${index}]`));
+}
+
 function validatePreset(preset) {
   ensureNumber(preset.version, 'version', { integer: true, min: 1 });
   ensureString(preset.id, 'id');
@@ -155,6 +168,43 @@ function validatePreset(preset) {
   ensureObject(preset.microbetrace.thresholds, 'microbetrace.thresholds');
   ensureThresholdArray(preset.microbetrace.thresholds.snp, 'microbetrace.thresholds.snp');
   ensureThresholdArray(preset.microbetrace.thresholds.patristic, 'microbetrace.thresholds.patristic');
+
+  if (preset.validation !== undefined) {
+    ensureObject(preset.validation, 'validation');
+
+    if (preset.validation.linkCounts !== undefined) {
+      ensureObject(preset.validation.linkCounts, 'validation.linkCounts');
+      ensureBoolean(preset.validation.linkCounts.enabled, 'validation.linkCounts.enabled');
+      ensureBoolean(
+        preset.validation.linkCounts.hardFailOnMismatch,
+        'validation.linkCounts.hardFailOnMismatch'
+      );
+    }
+
+    if (preset.validation.newickParity !== undefined) {
+      ensureObject(preset.validation.newickParity, 'validation.newickParity');
+      ensureBoolean(preset.validation.newickParity.enabled, 'validation.newickParity.enabled');
+      ensureBoolean(
+        preset.validation.newickParity.hardFailOnMismatch,
+        'validation.newickParity.hardFailOnMismatch'
+      );
+      ensureNumber(preset.validation.newickParity.tolerance, 'validation.newickParity.tolerance', { min: 0 });
+      ensureStringArray(preset.validation.newickParity.compare, 'validation.newickParity.compare');
+    }
+
+    if (preset.validation.treeComparison !== undefined) {
+      ensureObject(preset.validation.treeComparison, 'validation.treeComparison');
+      ensureBoolean(preset.validation.treeComparison.enabled, 'validation.treeComparison.enabled');
+      ensureStringArray(
+        preset.validation.treeComparison.hardFailures,
+        'validation.treeComparison.hardFailures'
+      );
+      ensureStringArray(
+        preset.validation.treeComparison.reportOnlyMetrics,
+        'validation.treeComparison.reportOnlyMetrics'
+      );
+    }
+  }
 }
 
 function resolveOutputPaths(preset) {
@@ -442,6 +492,7 @@ function summarizeOutputs(preset, outputs, treeInfo, tools, commands, versions) 
     generatedAt: new Date().toISOString(),
     generator: 'scripts/generate-realistic-performance-fixtures.js',
     preset,
+    validation: preset.validation || null,
     tools: {
       node: process.version,
       rscript: {
@@ -535,6 +586,7 @@ function main() {
 
   const dryRunPayload = {
     preset: path.relative(repoRoot, presetPath),
+    validation: preset.validation || null,
     outputs: Object.fromEntries(Object.entries(outputs).map(([key, value]) => [key, path.relative(repoRoot, value)])),
     tools: {
       rscript: tools.rscript || { missing: true, name: 'Rscript' },

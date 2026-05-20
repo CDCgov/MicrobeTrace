@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-import { visitAppAndAcceptEula, waitForProcessingDialogToClear } from '../../../support/journey-helpers';
+import { openGlobalStylingTab, visitAppAndAcceptEula, waitForProcessingDialogToClear } from '../../../support/journey-helpers';
 import {
   assertDashboardViewReady,
   assertDistinctDashboardPaneRects,
@@ -34,6 +34,33 @@ const restoredFileMappings = [
   },
 ];
 const restoredFileNames = restoredFileMappings.map((file) => file.name);
+
+const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
+
+const normalizeExpectedColor = (value: string): string => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized.startsWith('#')) {
+    return normalizeColor(normalized);
+  }
+
+  const expanded = normalized.length === 4
+    ? normalized.slice(1).split('').map((char) => `${char}${char}`).join('')
+    : normalized.slice(1);
+  const red = parseInt(expanded.slice(0, 2), 16);
+  const green = parseInt(expanded.slice(2, 4), 16);
+  const blue = parseInt(expanded.slice(4, 6), 16);
+
+  return normalizeColor(`rgb(${red}, ${green}, ${blue})`);
+};
+
+const selectPrimeOption = (selector: string, label: string): void => {
+  cy.get(selector, { timeout: 15000 }).click({ force: true });
+  cy.get('.p-select-overlay:visible, .p-dropdown-panel:visible', { timeout: 15000 })
+    .last()
+    .contains('li[role="option"]', label, { timeout: 15000 })
+    .scrollIntoView()
+    .click({ force: true });
+};
 
 const loadDashboardSessionFixture = () => {
   cy.get('#fileDropRef', { timeout: 15000 })
@@ -223,9 +250,95 @@ const assertResolvedDashboardSessionLoaded = () => {
   assertNoDashboardRuntimeBanner();
 };
 
+const assertNodeClassificationColorsInTwoDAndBubble = (): void => {
+  cy.window().its('commonService.session.style.widgets.node-color-variable')
+    .should('equal', 'Classification');
+
+  assertDashboardViewReady('2D Network');
+  cy.window().should((win: any) => {
+    const commonService = win.commonService;
+    const nodeColorMap = commonService.temp.style.nodeColorMap;
+    const cyInstance = commonService.visuals.twoD.cy || win.cytoscapeInstance;
+    const dataNodes = cyInstance.nodes(':visible').filter((node: any) =>
+      node.children().length === 0 &&
+      !node.hasClass('parent')
+    );
+
+    expect(dataNodes.length, 'visible 2D data nodes').to.be.greaterThan(0);
+    dataNodes.forEach((node: any) => {
+      const fullNode = commonService.session.data.nodes.find((candidate: any) =>
+        String(candidate._id ?? candidate.id) === String(node.id())
+      );
+      expect(fullNode, `restored session node for 2D node ${node.id()}`).to.exist;
+      const classification = String(fullNode.Classification);
+      const expectedColor = normalizeExpectedColor(String(nodeColorMap(classification) || ''));
+
+      expect(expectedColor, `expected 2D node color for ${node.id()}`).not.to.equal('');
+      expect(
+        normalizeColor(String(node.style('background-color') || '')),
+        `2D node color for ${node.id()}`,
+      ).to.equal(expectedColor);
+    });
+  });
+
+  assertDashboardViewReady('Bubble');
+  cy.window().should((win: any) => {
+    const commonService = win.commonService;
+    const bubble = commonService.visuals.bubble;
+    const nodeColorMap = commonService.temp.style.nodeColorMap;
+    const dataNodes = bubble.cy.nodes().filter((node: any) =>
+      !node.hasClass('X_axis') &&
+      !node.hasClass('Y_axis')
+    );
+
+    expect(dataNodes.length, 'visible Bubble data nodes').to.be.greaterThan(0);
+    dataNodes.forEach((node: any) => {
+      const fullNode = commonService.session.data.nodes.find((candidate: any) =>
+        String(candidate._id ?? candidate.id) === String(node.id())
+      );
+      expect(fullNode, `restored session node for Bubble node ${node.id()}`).to.exist;
+      const classification = String(fullNode.Classification);
+      const expectedColor = normalizeExpectedColor(String(nodeColorMap(classification) || ''));
+
+      expect(expectedColor, `expected Bubble node color for ${node.id()}`).not.to.equal('');
+      expect(
+        normalizeColor(String(node.style('background-color') || '')),
+        `Bubble node color for ${node.id()}`,
+      ).to.equal(expectedColor);
+    });
+  });
+};
+
+const assertTwoDLinksColoredByOrigin = (): void => {
+  assertDashboardViewReady('2D Network');
+  cy.window().should((win: any) => {
+    const commonService = win.commonService;
+    const cyInstance = commonService.visuals.twoD.cy || win.cytoscapeInstance;
+    const edges = cyInstance.edges(':visible');
+    const secondLinkEdges = edges.filter((edge: any) => Boolean(edge.data('secondLink')));
+
+    expect(edges.length, 'visible 2D edges after coloring by origin').to.be.greaterThan(0);
+    expect(secondLinkEdges.length, 'split mixed-origin 2D edges').to.be.greaterThan(0);
+
+    edges.forEach((edge: any) => {
+      const rawOrigins = edge.data('origin');
+      const origins = Array.isArray(rawOrigins) ? rawOrigins.map(String) : [String(rawOrigins)];
+
+      expect(origins, `rendered origin for edge ${edge.id()}`).to.have.length(1);
+
+      const expectedColor = normalizeExpectedColor(String(commonService.temp.style.linkColorMap(origins[0]) || ''));
+      expect(expectedColor, `expected origin link color for ${edge.id()}`).not.to.equal('');
+      expect(
+        normalizeColor(String(edge.style('line-color') || '')),
+        `2D origin link color for ${edge.id()}`,
+      ).to.equal(expectedColor);
+    });
+  });
+};
+
 describe('Journey Flow - Dashboard resolved layout fixture restore', () => {
   it('loads a saved 2D/Aggregate/Bubble split layout from a .microbetrace session', () => {
-    visitAppAndAcceptEula();
+    visitAppAndAcceptEula({ skipDemoSession: false });
     captureDashboardRestoreErrors();
     loadDashboardSessionFixture();
     assertResolvedDashboardSessionLoaded();
@@ -241,5 +354,25 @@ describe('Journey Flow - Dashboard resolved layout fixture restore', () => {
     captureDashboardRestoreErrors();
     loadDashboardSessionFixture();
     assertResolvedDashboardSessionLoaded();
+  });
+
+  it('restores node color-by styling in 2D and Bubble and updates 2D link colors by origin', () => {
+    visitAppAndAcceptEula();
+    captureDashboardRestoreErrors();
+    loadDashboardSessionFixture();
+    assertNoDashboardRestoreErrors();
+
+    cy.closeSettingsPane('Aggregate Settings');
+    assertNodeClassificationColorsInTwoDAndBubble();
+
+    focusDashboardTab('2D Network');
+    openGlobalStylingTab();
+    selectPrimeOption('#link-tooltip-variable', 'Origin');
+    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'origin');
+    cy.closeGlobalSettings();
+    waitForProcessingDialogToClear();
+
+    assertTwoDLinksColoredByOrigin();
+    assertNoDashboardRuntimeBanner();
   });
 });

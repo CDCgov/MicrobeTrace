@@ -187,7 +187,7 @@ describe('Journey Flow - Bubble uploaded cluster recompute', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'Cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
-    cy.get('#node-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       clusterColorsBefore = extractColorTable($table);
     });
     cy.closeGlobalSettings();
@@ -210,7 +210,7 @@ describe('Journey Flow - Bubble uploaded cluster recompute', () => {
 
     openGlobalStylingTab();
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
-    cy.get('#node-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       clusterColorsAfter = extractColorTable($table);
     });
     cy.closeGlobalSettings();
