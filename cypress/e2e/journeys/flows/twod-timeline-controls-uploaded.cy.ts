@@ -303,7 +303,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
 
     cy.then(() => {
       expect(targetClusterValue, 'captured visible cluster value').not.to.equal('');
-      changeColorTableEntry('#node-color-table', targetClusterValue, updatedNodeColor);
+      changeColorTableEntry('#key-tables-node-table', targetClusterValue, updatedNodeColor);
     });
 
     cy.window().should((win: unknown) => {
@@ -383,7 +383,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     selectPrimeOption('#link-tooltip-variable', 'Cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
 
-    cy.get('#link-color-table tr', { timeout: 15000 })
+    cy.get('#key-tables-link-table tr', { timeout: 15000 })
       .then(($rows) => {
         targetLinkRowIndex = Array.from($rows).findIndex((row) => {
           const hasColorInput = row.querySelector('input[type="color"]') !== null;
@@ -396,7 +396,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
 
     cy.then(() => {
       expect(targetLinkRowIndex, 'captured editable 2D link color-table row index').to.be.greaterThan(0);
-      cy.get('#link-color-table tr')
+      cy.get('#key-tables-link-table tr')
         .eq(targetLinkRowIndex)
         .find('input[type="color"]')
         .should('have.length', 1)
@@ -406,7 +406,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
         });
-      cy.get('#link-color-table tr')
+      cy.get('#key-tables-link-table tr')
         .eq(targetLinkRowIndex)
         .find('input[type="color"]')
         .should('have.value', updatedLinkColor);
@@ -452,7 +452,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     });
 
     openGlobalStylingTab();
-    cy.get('#link-color-table input[type="color"]', { timeout: 15000 })
+    cy.get('#key-tables-link-table input[type="color"]', { timeout: 15000 })
       .should(($inputs) => {
         const values = Array.from($inputs).map((input) => String((input as HTMLInputElement).value).toLowerCase());
         expect(values, 'rebuilt 2D link color-table values after timeline teardown').to.include(updatedLinkColor);

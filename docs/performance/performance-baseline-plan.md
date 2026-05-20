@@ -12,13 +12,19 @@ This plan defines how MicrobeTrace should discover current performance, decide w
 
 ## Dataset Tiers
 
-Use deterministic generated fixtures for repeatability and real user-like samples for validation.
+Use deterministic generated fixtures for repeatability and real user-like samples for validation. These tiers are scoped for browser-based MicrobeTrace, so stress and failure-mode fixtures are not routine support promises.
 
-| Tier | Purpose | Starting shape |
-| --- | --- | --- |
-| Average | Expected daily-use dataset | 1600 nodes / 3200 links; 120 clustered aligned sequences; 500 Newick leaves |
-| Large | Upper-normal user dataset | 5000 nodes / 10000-25000 links; 300 clustered aligned sequences; 1000-2000 Newick leaves |
-| Stress | Probe failure modes and guardrails | 10000 nodes / 25000 links; 2000 Newick leaves |
+| Tier | Purpose | Graph CSV shape | FASTA shape | Newick shape |
+| --- | --- | --- | --- | --- |
+| Smoke | CI sanity test | 500 nodes / 1,000 links | 50-100 sequences | 100-500 leaves |
+| Average | Expected daily-use dataset | 2,000-5,000 nodes / 5,000-20,000 links | 300-1,000 sequences | 500-1,000 leaves |
+| Large | Upper-normal browser workflow | 5,000-10,000 nodes / 20,000-50,000 links | 2,000 sequences | 2,000-5,000 leaves |
+| Stress | Manual upper-limit testing | 25,000+ nodes / 75,000+ links | 5,000 sequences | 10,000 leaves |
+| Failure-mode | Warning, throttling, and crash-resistance testing | 50,000+ nodes / 100,000+ links | 10,000+ sequences | 25,000+ leaves |
+
+Large fixtures should run nightly or pre-release. Stress and failure-mode fixtures should be manual or scheduled opt-in tests because browser rendering, memory pressure, and all-pairs distance work can dominate runtime.
+
+For Newick and FASTA, visible link count can matter more than leaf or sequence count. A 5,000-leaf Newick file with 10,000 visible links may be easier for the browser than a 2,000-leaf file with 500,000 visible links. Every target and report should include both the input size and the visible node/link counts at the active threshold.
 
 Every performance artifact should record dataset shape:
 
@@ -75,12 +81,35 @@ Initial targets are guidance, not hard budgets.
 | Heavy load requiring specific progress text | 10-30s |
 | Very heavy load requiring cancel/warning/progressive behavior | over 30s |
 
-Starting expectations for average datasets:
+Starting expectations for browser-based Newick workflows:
 
-- generated graph load to 2D: under 5-8s after optimization
-- generated sequence load plus Alignment readiness: under 10-15s after optimization
-- generated Newick/patristic load to 2D: under 5-10s after optimization
+| Scenario | Target |
+| --- | --- |
+| 500 leaves | usable in <= 3s |
+| 1,000 leaves | usable in <= 3-5s |
+| 2,000 leaves | usable in <= 5-10s |
+| 5,000 leaves | usable in <= 15s if visible links are controlled |
+| 10,000 leaves | manual stress; should not crash; warning acceptable |
+
+Starting expectations for browser-based FASTA workflows:
+
+| Scenario | Target |
+| --- | --- |
+| 300 sequences | usable in <= 5-8s |
+| 500 sequences | usable in <= 10s |
+| 1,000 sequences | usable in <= 15-20s |
+| 2,000 sequences | usable in <= 30s |
+| 5,000 sequences | manual stress; <= 1-2 minutes would be useful, but not a routine expectation |
+
+Browser guardrails currently warn at 1,000,000 sequence-derived pairwise genetic links and skip FASTA/SNP/TN93 link materialization above 2,000,000 pairs by default. Those defaults allow the reviewed 2,000-sequence upper-normal target to run, while preventing 5,000+ sequence manual/failure-mode inputs from allocating an all-pairs browser link array unless a controlled test explicitly overrides `session.meta.guardrails.sequencePairwiseLinkHardLimit`.
+
+Starting expectations for loaded interactions:
+
 - switching to an already-loaded view: under 1-3s
+- threshold re-query on average Newick: <= 500ms
+- threshold re-query on large Newick: <= 1-2s
+- threshold re-query on stress Newick: <= 5s, manual-only
+- no single main-thread block over 2-3s for average workflows
 
 These targets should be revised after several baseline runs on stable hardware and CI.
 
@@ -202,6 +231,19 @@ The summarizer reads per-scenario JSON files from `cypress/downloads/performance
 - `cypress/downloads/performance/latest-baseline-summary.md`
 
 The JSON summary includes p50, p75, p90, p95, min, max, mean, and standard deviation for top-level Cypress timings, heap/long-task metrics, and app-side phase timings under `app.performance.*`.
+
+For Newick and FASTA tier reports, include at least:
+
+- p50 load-to-usable
+- p75 load-to-usable
+- p95 load-to-usable
+- max time
+- visible nodes
+- visible links
+- worker time
+- Cytoscape render time
+- peak memory when available
+- run count
 
 The summarizer excludes obsolete or one-off historical scenario IDs by default so renamed fixtures and comparison experiments do not appear as active baseline work. Use `--include-obsolete` only when intentionally reviewing historical local artifacts.
 

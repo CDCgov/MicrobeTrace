@@ -105,3 +105,48 @@ microbetrace:
 
     # Patristic distance cutoffs for Newick-derived distance/link assertions.
     patristic: [0.01, 0.02, 0.05]
+
+# Validation policy. This separates generation inputs from the checks that MicrobeTrace
+# and the Newick validation harness should run against generated outputs.
+validation:
+  # Link counts are derived from the generated FASTA/Newick and stored in the summary JSON.
+  # Cypress can use these as strict load/assertion checkpoints.
+  linkCounts:
+    enabled: true
+    hardFailOnMismatch: true
+    description: >
+      Generator computes expected visible-link counts at each configured SNP and
+      patristic threshold and stores those counts in the summary JSON.
+
+  # Strict parity is for comparing two MicrobeTrace builds against the same Newick input.
+  # It does not affect fixture generation.
+  newickParity:
+    enabled: true
+    hardFailOnMismatch: true
+    tolerance: 0.000001
+    compare:
+      - nodeIds
+      - visibleEdgeSourceTargetPairs
+      - visibleEdgeDistances
+    description: >
+      Pre-refactor and current MicrobeTrace builds should produce the same visible
+      2D Newick nodes, edge source/target pairs, and edge distances for the same
+      Newick file, metric, and threshold.
+
+  # Tree reconstruction from FASTA can legitimately differ from the simulation tree.
+  # Keep topology and branch differences report-first until bioinformatics reviewers
+  # approve explicit acceptance thresholds.
+  treeComparison:
+    enabled: true
+    hardFailures:
+      - parseError
+      - leafSetMismatch
+    reportOnlyMetrics:
+      - topologySplits
+      - normalizedRfDistance
+      - matchingSplitBranchLengthDeltas
+      - pairwisePatristicDistanceDeltas
+    description: >
+      MT-generated trees from FASTA are compared to the reference simulated Newick,
+      but topology, branch-length, and patristic-distance differences are reported
+      rather than treated as automatic failures.

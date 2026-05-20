@@ -254,7 +254,7 @@
               <div id="link-bidirectional-row" class="form-group row display-none" title="Should links be bidirectional?">
                 <div class="col-4">Bidirectional</div>
                 <div class="col-8">
-                  <p-selectButton id="link-bidirectional" [options]="bidirectionalOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-selectButton>
+                  <p-selectButton id="link-bidirectional" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-selectButton>
                 </div>
               </div>
             </div>
@@ -281,7 +281,7 @@
           <div class="form-group row" title="Should MicrobeTrace Highlight a node's neighbors when you hover on it?">
             <div class="col-3">Gridlines</div>
             <div class="col-9">
-              <p-selectButton id="network-gridlines-show-hide" [options]="GridLineTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-selectButton>
+              <p-selectButton id="network-gridlines-show-hide" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-selectButton>
             </div>
           </div>
         </div>
@@ -367,7 +367,7 @@
           <div id="polygon-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
             <div class="col-5">Group Color Table</div>
             <div class="col-7">
-              <p-selectButton id="polygon-color-table-toggle" [options]="hideShowOptions" [allowEmpty]="false" fluid
+              <p-selectButton id="polygon-color-table-toggle" [options]="polygonColorTableOptions" [allowEmpty]="false" fluid
                 [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']"
                 (ngModelChange)="polygonColorsTableToggle($event)">
               </p-selectButton>                                </div>
@@ -396,7 +396,7 @@
 
 </div>
 
-@if (!isPolygonColorTableDocked) {
+@if (!isPolygonColorTableDocked && viewActive) {
   <p-dialog id="polygon-color-table-wrapper"
     [positionLeft]="PolygonColorTableWrapperDialogSettings.left"
     [positionTop]="PolygonColorTableWrapperDialogSettings.top"

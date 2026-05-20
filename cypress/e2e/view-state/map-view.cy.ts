@@ -742,7 +742,7 @@ describe('Map View', () => {
       cy.wait(250);
       cy.closeGlobalSettings();
 
-      cy.get('#node-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
       cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
         Object.values(layers).forEach((layer: any) => {
           if (layer.data && layer.data.ID === 'MZ375596') {
@@ -780,7 +780,7 @@ describe('Map View', () => {
       cy.get('li[role="option"]').contains('Cluster').click()
 
       cy.wait(250);
-      cy.get('#link-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#key-tables-link-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
       cy.wait(100);
       
       cy.closeGlobalSettings();
@@ -982,8 +982,8 @@ describe('Map View', () => {
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
 
-      cy.get('#node-color-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
-      cy.get('#link-color-table td input').first().invoke('val', '#000000').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#key-tables-link-table td input').first().invoke('val', '#000000').trigger('input').trigger('change');
 
       cy.window().its('commonService.visuals.gisMap.layers').then(layers => {
         let penNode: any = Object.values(layers.markerClusterGroup._featureGroup._layers).find((layer: any) => layer.data && layer.data.ID === 'MZ415508')

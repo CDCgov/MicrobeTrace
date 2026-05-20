@@ -122,6 +122,72 @@ Use bio-realistic simulated datasets as opt-in calibration scenarios:
 
 Use before/after comparisons only when the datasets exercise the changed code path. For example, a Newick/patristic refactor should be judged primarily with Newick fixtures, while a CSV edge-list optimization should be judged with explicit link-list fixtures.
 
+## Browser-Based Tier Guidance
+
+MicrobeTrace runs in the browser, so the tier definitions should reflect browser memory, rendering, and main-thread responsiveness limits. Stress tiers are for finding limits and guardrails, not for promising that every workflow will feel smooth.
+
+| Tier | Graph CSV | FASTA | Newick | Expected use |
+| --- | --- | --- | --- | --- |
+| Smoke | 500 nodes / 1,000 links | 50-100 sequences | 100-500 leaves | CI sanity check |
+| Average | 2,000-5,000 nodes / 5,000-20,000 links | 300-1,000 sequences | 500-1,000 leaves | should feel smooth |
+| Large | 5,000-10,000 nodes / 20,000-50,000 links | 2,000 sequences | 2,000-5,000 leaves | should work, may be slower |
+| Stress | 25,000+ nodes / 75,000+ links | 5,000 sequences | 10,000 leaves | manual scalability test |
+| Failure-mode | 50,000+ nodes / 100,000+ links | 10,000+ sequences | 25,000+ leaves | warning, throttling, and crash-resistance testing |
+
+For both FASTA and Newick, visible link count should be reported with sequence or leaf count. The browser cost of rendering a dense visible network can dominate the algorithm cost.
+
+Practical Newick targets:
+
+| Scenario | Target |
+| --- | --- |
+| 500 leaves | usable in <= 3s |
+| 1,000 leaves | usable in <= 3-5s |
+| 2,000 leaves | usable in <= 5-10s |
+| 5,000 leaves | usable in <= 15s if visible links are controlled |
+| 10,000 leaves | manual stress; should not crash; warning acceptable |
+
+Practical FASTA targets:
+
+| Scenario | Target |
+| --- | --- |
+| 300 sequences | usable in <= 5-8s |
+| 500 sequences | usable in <= 10s |
+| 1,000 sequences | usable in <= 15-20s |
+| 2,000 sequences | usable in <= 30s |
+| 5,000 sequences | manual stress; <= 1-2 minutes would be useful, but not a routine expectation |
+
+The application now treats very large FASTA pairwise-link generation as a guarded browser operation. By default it warns at 1,000,000 pairwise genetic links and skips browser link materialization above 2,000,000 pairs, so 5,000+ sequence tests should be run as explicit manual stress or failure-mode checks rather than ordinary baseline scenarios.
+
+## Minimum Fixture Metadata
+
+Each committed performance fixture should have a small manifest or documented shape summary so reviewers know what it is intended to prove.
+
+Minimum useful fields:
+
+- fixture name and file names
+- dataset type and tier
+- node, link, sequence, or leaf count
+- active metric and threshold
+- expected visible node and link counts at important thresholds
+- expected component or cluster counts when relevant
+- known edge cases
+- intended code paths, such as parse, distance worker, threshold query, Cytoscape render, Alignment readiness, or Phylogenetic Tree readiness
+- known limitations, including whether the fixture is computationally representative rather than biologically realistic
+
+## What Future Reports Should Include
+
+For Newick and FASTA tiers, future performance reports should include:
+
+- p50, p75, and p95 load-to-usable time
+- max time and run count
+- visible node and visible link counts
+- worker or algorithm time
+- Cytoscape render time
+- peak memory when available
+- long-task or frame-gap measurements for browser responsiveness
+
+This keeps algorithm improvements separate from browser repaint or layout costs. For Newick, that distinction is important because a fast cached patristic threshold query can still be followed by a slow Cytoscape repaint if the threshold exposes many visible edges.
+
 ## How to Interpret Future Results
 
 When a generated fixture improves more than a real sample, first check whether both datasets exercise the same code path. A refactor can be very effective for one data type while having a smaller effect on another because the expensive work is different.

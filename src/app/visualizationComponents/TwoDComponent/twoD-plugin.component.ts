@@ -8,7 +8,7 @@ import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import * as _ from 'lodash';
-import { CustomShapes } from '@app/helperClasses/customShapes';
+//import { CustomShapes } from '@app/helperClasses/customShapes';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
@@ -37,6 +37,8 @@ interface CustomNodeSvgExportReplacement {
     width: number;
     height: number;
 }
+
+type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
 
 @Component({
     selector: 'TwoDComponent',
@@ -375,7 +377,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeRadiusVariable: string = "None";
     SelectedNodeRadiusSizeVariable: number = 50;
 
-    SelectedNetworkTableTypeVariable: string = "Hide";
+    SelectedNetworkTableTypeVariable: PolygonColorTableDisplayMode = "Dock";
 
     // Link Tab
     SelectedLinkTooltipVariable: any = "None";
@@ -400,13 +402,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
 
     hideShowOptions: any = [
-        { label: 'Hide', value: false },
-        { label: 'Show', value: true }
+        { label: 'Show', value: true },
+        { label: 'Hide', value: false }
     ];
 
-    bidirectionalOptions: any = [
-        { label: 'Hide', value: 'Hide' },
-        { label: 'Show', value: 'Show' }
+    readonly polygonColorTableOptions: { label: string; value: PolygonColorTableDisplayMode }[] = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Dock', value: 'Dock' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+
+    hideShowOptionsString: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
     ];
     SelectedLinkArrowTypeVariable: string = "Hide";
 
@@ -419,10 +427,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
     SelectedNetworkNeighborTypeVariable: string = "Normal";
 
-    GridLineTypes: any = [
-        { label: 'Hide', value: 'Hide' },
-        { label: 'Show', value: 'Show' }
-    ];
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
     SelecetedNetworkLinkStrengthVariable: any = 0.123;
@@ -459,10 +463,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // TODO see if needed after transition to cytoscape
     // zoomScaleExtent: [number, number] = [0.005, 5]; // Minimum zoom of 0.1 and maximum zoom of 2
 
-    private customShapes: CustomShapes = new CustomShapes();
+    //private customShapes: CustomShapes = new CustomShapes();
     //private symbolTableWrapper: HTMLElement | null = null;
-    private linkColorTableWrapper: HTMLElement | null = null;
-    private nodeColorTableWrapper: HTMLElement | null = null;
+    //private linkColorTableWrapper: HTMLElement | null = null;
+    //private nodeColorTableWrapper: HTMLElement | null = null;
 
     private isExportClosed: boolean = false;
     /* XXXXXnot sure if this boolean is necessary; currently exportWork2 is used and does not use isExporting XXXXX */
@@ -508,6 +512,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
                 this.fit()
                 this.commonService.onStatisticsChanged("Show");
+                this.syncPolygonColorTableVisibility();
             }, 50)
         })
 
@@ -1823,6 +1828,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Set export options in the service
         this.exportService.setExportOptions(exportOptions);
         const polygonColorTableElement = this.getPolygonColorTableElementForExport();
+        const shouldExportPolygonColorTable = this.shouldDisplayPolygonColorTable();
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
 
@@ -1840,7 +1846,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             content = svgString.replace('<g>', `<g transform="translate(10, 10)">`)
 
             let elementsToExport: HTMLTableElement[] = [];
-            if (this.widgets["polygon-color-table-visible"] && polygonColorTableElement) {
+            if (shouldExportPolygonColorTable && polygonColorTableElement) {
                 elementsToExport.push(polygonColorTableElement);
             }
             if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
@@ -1851,7 +1857,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } else {
             // Request export
             let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement];
-            if (this.widgets["polygon-color-table-visible"] && polygonColorTableElement) {
+            if (shouldExportPolygonColorTable && polygonColorTableElement) {
                 elementsToExport.push(polygonColorTableElement);
             }
             if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
@@ -2091,10 +2097,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             : this.polygonColorTable?.nativeElement;
     }
 
-    private shouldDisplayPolygonColorTable(): boolean {
+    private normalizePolygonColorTableDisplayMode(value: any): PolygonColorTableDisplayMode {
+        if (value === 'Show' || value === true) {
+            return 'Show';
+        }
+
+        if (value === 'Hide' || value === false) {
+            return 'Hide';
+        }
+
+        return 'Dock';
+    }
+
+    private setPolygonColorTableDisplayMode(value: any): PolygonColorTableDisplayMode {
+        const mode = this.normalizePolygonColorTableDisplayMode(value);
+        this.widgets["polygon-color-table-visible"] = mode;
+        this.SelectedNetworkTableTypeVariable = mode;
+        return mode;
+    }
+
+    private getPolygonColorTableDisplayMode(): PolygonColorTableDisplayMode {
+        return this.setPolygonColorTableDisplayMode(this.widgets?.["polygon-color-table-visible"]);
+    }
+
+    private canDisplayPolygonColorTable(): boolean {
         return !!this.widgets?.['polygons-show']
-            && !!this.widgets?.['polygons-color-show']
-            && !!this.widgets?.['polygon-color-table-visible'];
+            && !!this.widgets?.['polygons-color-show'];
+    }
+
+    private shouldDisplayPolygonColorTable(): boolean {
+        return this.canDisplayPolygonColorTable()
+            && this.getPolygonColorTableDisplayMode() !== 'Hide';
     }
 
     public hasVisibleDockedPolygonColorTable(): boolean {
@@ -2118,10 +2151,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return false;
         }
 
-        if (!this.isPolygonColorTableDocked) {
-            this.isPolygonColorTableDocked = true;
-            this.closeSettingsPane('polygonColorTableSettings');
-        }
+        this.setPolygonColorTableDisplayMode('Dock');
+        this.closeSettingsPane('polygonColorTableSettings');
 
         this.syncPolygonColorTableVisibility();
         return true;
@@ -2160,10 +2191,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private syncPolygonColorTableVisibility(shouldRefresh: boolean = true): void {
+        const mode = this.getPolygonColorTableDisplayMode();
         const isVisible = this.shouldDisplayPolygonColorTable();
-        const shouldShowFloatingDialog = isVisible && !this.isPolygonColorTableDocked;
+        const shouldDockTable = isVisible && mode === 'Dock';
+        const shouldShowFloatingDialog = isVisible && mode === 'Show';
 
-        this.SelectedNetworkTableTypeVariable = isVisible ? 'Show' : 'Hide';
+        this.isPolygonColorTableDocked = shouldDockTable;
 
         if (this.PolygonColorTableWrapperDialogSettings.isVisible !== shouldShowFloatingDialog) {
             this.PolygonColorTableWrapperDialogSettings.setVisibility(shouldShowFloatingDialog);
@@ -2174,10 +2207,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!isVisible) {
             this.clearPolygonColorTables();
             this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+            this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
             return;
         }
 
-        if (this.isPolygonColorTableDocked) {
+        if (shouldDockTable) {
+            this.commonService.visuals.microbeTrace?.ensureDockedKeyTablesViewVisible(false);
+
             if (!shouldRefresh) {
                 this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
                 return;
@@ -2190,6 +2226,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
+        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
         this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
 
         if (!shouldRefresh) {
@@ -2205,23 +2242,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     togglePolygonColorTableDocking(event?: Event): void {
         event?.stopPropagation();
-        this.isPolygonColorTableDocked = !this.isPolygonColorTableDocked;
-        if (this.isPolygonColorTableDocked) {
-            this.commonService.visuals.microbeTrace?.ensureDockedKeyTablesViewVisible(false);
-        } else {
+        const nextMode: PolygonColorTableDisplayMode = this.isPolygonColorTableDocked ? 'Show' : 'Dock';
+        this.setPolygonColorTableDisplayMode(nextMode);
+
+        if (nextMode === 'Show') {
             this.resetPolygonColorTableFloatingPosition();
-            this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
         }
+
         this.closeSettingsPane('polygonColorTableSettings');
         this.syncPolygonColorTableVisibility();
     }
 
     onPolygonColorTableDialogHide(): void {
-        if (this.isPolygonColorTableDocked) {
+        if (
+            this.isPolygonColorTableDocked
+            || this.getPolygonColorTableDisplayMode() !== 'Show'
+            || !this.canDisplayPolygonColorTable()
+            || !this.viewActive
+        ) {
             return;
         }
 
-        this.onPolygonColorTableChange(false);
+        this.onPolygonColorTableChange('Hide');
     }
 
     public handleKeyTablesViewClosed(): void {
@@ -2229,7 +2271,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        this.isPolygonColorTableDocked = false;
+        this.setPolygonColorTableDisplayMode('Hide');
         this.resetPolygonColorTableFloatingPosition();
         this.syncPolygonColorTableVisibility();
     }
@@ -2421,7 +2463,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $("#polygon-color-value-row").slideUp();
             $("#polygon-color-table-row").slideDown();
             if (syncTableVisibility) {
-                this.onPolygonColorTableChange(true);
+                this.onPolygonColorTableChange(this.widgets["polygon-color-table-visible"]);
             } else {
                 this.syncPolygonColorTableVisibility(false);
             }
@@ -2432,7 +2474,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $("#polygon-color-value-row").slideDown();
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-table").empty();
-            this.onPolygonColorTableChange(false);
+            this.syncPolygonColorTableVisibility();
             setTimeout(() => {
                 // first removes polygons, if needed second call add them back
                 this.updateNodeGrouping(false);
@@ -2455,16 +2497,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     /**
-     * This function is called when polygon-color-table-visible widget is updated from the template. 
+     * This function is called when polygon-color-table-visible widget is updated from the template.
      * It is only available when polygon-color-show is true/show
-     * This widget controls whether the polygon color table is visible.
+     * This widget controls whether the polygon color table is shown floating, docked, or hidden.
      * 
      */
-    polygonColorsTableToggle(e) {
+    polygonColorsTableToggle(e: PolygonColorTableDisplayMode) {
 
         console.log('polygonColorsTableToggle: ', e);
 
-        this.onPolygonColorTableChange(!!e);
+        this.onPolygonColorTableChange(e);
     }
 
 
@@ -3313,13 +3355,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
     /**
-     * XXXXX reevaluate if need to be combined with polygonColorsTableToggle; when called from polygonColorsTableToggle e is 'Show'/'Hide' when called
-     * from template e is true/false XXXXX
+     * Handles direct changes to the polygon color table display mode. Also normalizes older
+     * boolean values from saved sessions.
      */
-    onPolygonColorTableChange(e) {
+    onPolygonColorTableChange(e: any) {
         console.log('onPolygonColorTableChange: ', e);
 
-        this.widgets["polygon-color-table-visible"] = !!e;
+        this.setPolygonColorTableDisplayMode(e);
         this.syncPolygonColorTableVisibility();
     }
 

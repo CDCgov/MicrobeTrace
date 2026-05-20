@@ -28,6 +28,15 @@ type RealSampleManifestResult = {
   invalidScenarios: Array<{ index: number; scenarioId?: string; reason: string }>;
 };
 
+type NewickValidationArtifact = {
+  runId?: string;
+  ref?: string;
+  kind?: string;
+  scenarioId?: string;
+  extension?: string;
+  data?: unknown;
+};
+
 const runResults = new Map<string, PerformanceResult[]>();
 const defaultPerfRunId = defaultRunId();
 const realSampleManifestPath = path.join(
@@ -53,6 +62,41 @@ function normalizeFixturePath(...segments: string[]): string {
     .replace(/\\/g, '/')
     .replace(/\/+/g, '/')
     .replace(/^\/+/, '');
+}
+
+function writeNewickValidationArtifact(artifact: NewickValidationArtifact): { filePath: string; runId: string } {
+  const runId = safeSegment(
+    artifact.runId ||
+    process.env.MT_NEWICK_VALIDATION_RUN_ID ||
+    defaultPerfRunId
+  );
+  const ref = safeSegment(artifact.ref || 'current');
+  const kind = safeSegment(artifact.kind || 'artifact');
+  const scenarioId = safeSegment(artifact.scenarioId || 'scenario');
+  const extension = safeSegment(artifact.extension || 'json').replace(/^\.+/, '') || 'json';
+  const outputDir = path.join(
+    process.cwd(),
+    'cypress',
+    'downloads',
+    'newick-validation',
+    runId,
+    ref,
+    kind
+  );
+  const filePath = path.join(outputDir, `${scenarioId}.${extension}`);
+
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  if (extension === 'json') {
+    fs.writeFileSync(filePath, `${JSON.stringify(artifact.data ?? {}, null, 2)}\n`, 'utf8');
+  } else {
+    fs.writeFileSync(filePath, String(artifact.data ?? ''), 'utf8');
+  }
+
+  return {
+    filePath: path.relative(process.cwd(), filePath),
+    runId,
+  };
 }
 
 function normalizeRealSampleFileName(file: any, baseDir: string): string {
@@ -206,13 +250,20 @@ export function registerPerformanceTasks(on: PluginEvents): void {
         runId,
         generatedAt: new Date().toISOString(),
         resultCount: existingResults.length,
-        results: existingResults.map((entry) => ({
-          scenarioId: entry.scenarioId || entry.scenario?.id,
-          title: entry.scenario?.title,
-          timestamp: entry.timestamp,
-          metrics: entry.metrics,
-          counts: entry.counts,
-        })),
+        results: existingResults.map((entry) => {
+          const result = entry as any;
+
+          return {
+            scenarioId: entry.scenarioId || entry.scenario?.id,
+            title: entry.scenario?.title,
+            timestamp: entry.timestamp,
+            metrics: result.metrics,
+            counts: result.counts,
+            heap: result.heap,
+            longTasks: result.longTasks,
+            app: result.app,
+          };
+        }),
       };
       const summaryPath = path.join(outputDir, `${runId}-summary.json`);
       fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
@@ -223,6 +274,10 @@ export function registerPerformanceTasks(on: PluginEvents): void {
       );
 
       return { filePath, summaryPath, runId };
+    },
+
+    'newickValidation:writeArtifact'(artifact: NewickValidationArtifact): { filePath: string; runId: string } {
+      return writeNewickValidationArtifact(artifact);
     },
   });
 }

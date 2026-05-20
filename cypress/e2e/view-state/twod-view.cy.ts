@@ -225,7 +225,8 @@ describe('2D Network - Settings Pane Interactions', () => {
     
         cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', newWidth);
         getCy().then(cy => {
-            const node = cy.nodes().first();
+            const node = getFirstVisibleLeafNode(cy);
+            expectCytoscapeElement(node, 'visible leaf node for border-width assertion');
             expect(parseFloat(node.style('border-width'))).to.be.closeTo(newWidth, 0.1);
         });
     });

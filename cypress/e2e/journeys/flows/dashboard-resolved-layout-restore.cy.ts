@@ -36,6 +36,9 @@ type DashboardPaneRects = Record<string, {
 const mapBubbleTableTabs = ['2D Network', 'Map', 'Bubble', 'Table'];
 const keyTablesTabs = ['2D Network', 'Aggregate', 'Crosstab', 'Waterfall', 'Docked Key Tables'];
 
+type KeyTableName = 'node-color' | 'link-color' | 'node-shape';
+type KeyTableDisplayMode = 'Show' | 'Dock' | 'Hide';
+
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const clickVisiblePrimeOption = (label: string): void => {
@@ -56,6 +59,26 @@ const selectPrimeOption = (selector: string, label: string): void => {
   clickVisiblePrimeOption(label);
 };
 
+const TABLE_MODE_ROW_SELECTORS: Record<KeyTableName, string> = {
+  'node-color': '#node-color-table-row',
+  'link-color': '#link-color-table-row',
+  'node-shape': '#node-shape-table-row',
+};
+
+const setGlobalKeyTableMode = (table: KeyTableName, mode: KeyTableDisplayMode): void => {
+  cy.get(TABLE_MODE_ROW_SELECTORS[table], { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
+    .contains('.p-togglebutton-label', mode)
+    .click({ force: true });
+};
+
+const dockGlobalKeyTables = (): void => {
+  setGlobalKeyTableMode('node-color', 'Dock');
+  setGlobalKeyTableMode('link-color', 'Dock');
+  setGlobalKeyTableMode('node-shape', 'Dock');
+};
+
 const closeDialogIfPresent = (title: string): void => {
   cy.get('body').then(($body) => {
     const dialogTitle = $body
@@ -67,12 +90,7 @@ const closeDialogIfPresent = (title: string): void => {
       return;
     }
 
-    cy.contains('.p-dialog-title', title)
-      .parents('.p-dialog')
-      .find('button.p-dialog-close-button')
-      .click({ force: true });
-
-    cy.contains('.p-dialog-title', title).should('not.exist');
+    cy.closeSettingsPane(title);
   });
 };
 
@@ -160,33 +178,26 @@ const reloadSavedDashboardSession = (sessionFilePath: string): void => {
 const focusDockedKeyTables = (): void => {
   cy.window().then((win: any) => {
     const app = win.commonService.visuals.microbeTrace;
+    const hasDockedKeyTablesTab = app.homepageTabs.some((tab: any) => tab.label === 'Docked Key Tables');
+
+    if (!hasDockedKeyTablesTab) {
+      app.ensureDockedKeyTablesViewVisible(false);
+    }
+  });
+
+  cy.window({ timeout: 15000 }).should((win: any) => {
+    const app = win.commonService.visuals.microbeTrace;
     const tabIndex = app.homepageTabs.findIndex((tab: any) => tab.label === 'Docked Key Tables');
 
     expect(tabIndex, 'Docked Key Tables tab index').to.be.greaterThan(-1);
+  });
+
+  cy.window().then((win: any) => {
+    const app = win.commonService.visuals.microbeTrace;
+    const tabIndex = app.homepageTabs.findIndex((tab: any) => tab.label === 'Docked Key Tables');
 
     app._goldenLayoutHostComponent.focusComponent('Docked Key Tables');
     app.setActiveTabProperties(tabIndex);
-  });
-
-  cy.wait(50, { log: false });
-};
-
-const openDockedKeyTablesView = (): void => {
-  openGlobalStylingTab();
-  cy.get('#open-key-tables-view', { timeout: 15000 }).then(($buttons) => {
-    const visibleButton = $buttons.filter(':visible').first();
-
-    expect(visibleButton.length, 'visible Docked Key Tables button').to.be.greaterThan(0);
-    cy.wrap(visibleButton).click({ force: true });
-  });
-  cy.window({ timeout: 15000 }).its('commonService.visuals.keyTables').should('exist');
-  closeGlobalSettingsIfVisible();
-  cy.get('.key-tables-view', { timeout: 15000 }).should('be.visible');
-};
-
-const dockAllKeyTables = (): void => {
-  cy.window().then((win: any) => {
-    win.commonService.visuals.microbeTrace.openKeyTablesView();
   });
 
   cy.wait(50, { log: false });
@@ -301,19 +312,18 @@ describe('Journey Flow - Dashboard resolved layout restore', () => {
     selectPrimeOption('#node-color-variable', 'Profession');
     selectPrimeOption('#link-tooltip-variable', 'Contact type');
     selectPrimeOption('#node-symbol-variable', 'State');
+    dockGlobalKeyTables();
     cy.window().its('commonService.session.style.widgets').should((widgets) => {
       expect(widgets['node-color-variable']).to.equal('Profession');
       expect(widgets['link-color-variable']).to.equal('Contact type');
       expect(widgets['node-symbol-variable']).to.equal('State');
-      expect(widgets['node-symbol-table-visible']).to.equal('Show');
+      expect(widgets['node-symbol-table-visible']).to.equal('Dock');
     });
     cy.closeGlobalSettings();
 
-    openDockedKeyTablesView();
     assertDockedKeyTablesReady();
 
     applyDeterministicDashboardSplitLayout(keyTablesTabs, 'Docked Key Tables');
-    dockAllKeyTables();
     closeDialogIfPresent('Aggregate Settings');
     closeDialogIfPresent('Crosstab Settings');
     assertDockedKeyTablesReady();
@@ -341,7 +351,7 @@ describe('Journey Flow - Dashboard resolved layout restore', () => {
       expect(widgets['node-color-variable'], 'restored node color variable').to.equal('Profession');
       expect(widgets['link-color-variable'], 'restored link color variable').to.equal('Contact type');
       expect(widgets['node-symbol-variable'], 'restored node shape variable').to.equal('State');
-      expect(widgets['node-symbol-table-visible'], 'restored node shape table visibility').to.equal('Show');
+      expect(widgets['node-symbol-table-visible'], 'restored node shape table visibility').to.equal('Dock');
     });
 
     assertNoDashboardRuntimeBanner();

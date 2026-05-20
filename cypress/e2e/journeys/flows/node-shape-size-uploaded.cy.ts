@@ -134,7 +134,7 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.contains('li[role="option"]', 'Node type').click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
-    cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
+    cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Dock');
     assertNodeSymbolTableVisibility(true);
 
     cy.window().then((win: any) => {
