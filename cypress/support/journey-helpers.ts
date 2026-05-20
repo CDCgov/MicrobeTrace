@@ -379,7 +379,7 @@ function hexToRgbString(hex: string): string {
           });
   
         cy.window().its('commonService.session.style.widgets.polygon-color-table-visible')
-          .should('equal', true);
+          .should('equal', 'Show');
   
         // Optional: change some group colors if specified
         if (g.changeGroupColors?.groups?.length) {
@@ -679,9 +679,13 @@ export function assertPhyloTreeReady(timeout = 30000): void {
 
 export function assertMapReady(timeout = 30000): void {
   cy.get('.mapStyle', { timeout }).should('be.visible');
-  cy.window({ timeout })
-    .its('commonService.visuals.gisMap')
-    .should('exist');
+  cy.window({ timeout }).should((win: any) => {
+    const map = win.commonService?.visuals?.gisMap;
+
+    expect(map, 'Map component instance').to.exist;
+    expect(map.lmap, 'Leaflet map instance').to.exist;
+    expect(map.initialSettingsLoaded, 'Map initial settings loaded').to.equal(true);
+  });
 }
 
 export function assertBubbleReady(timeout = 30000): void {
@@ -1534,8 +1538,8 @@ export function assertStyleTablesFromProfile(profile: DatasetProfile): void {
     });
   };
 
-  assertTableVisibility('#node-color-table', style.expectTables.nodeColorTable);
-  assertTableVisibility('#link-color-table', style.expectTables.linkColorTable);
+  assertTableVisibility('#key-tables-node-table', style.expectTables.nodeColorTable);
+  assertTableVisibility('#key-tables-link-table', style.expectTables.linkColorTable);
   assertTableVisibility('#node-shape-table, #key-tables-node-shape-table, #nodeSymbolTable', style.expectTables.nodeSymbolTable);
 
   cy.window()

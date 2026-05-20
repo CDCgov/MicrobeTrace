@@ -179,8 +179,8 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'Contact type');
 
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
 
     assertMapNodeCategoryColors('Profession', 'Healthcare', 'Education');
     assertMapLinkCategoryColors('Contact type', 'sports team', 'classroom');
@@ -197,8 +197,8 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
       classroomBaseline = normalizeColor(classroomLinks[0].options.color);
     });
 
-    changeColorTableEntry('#node-color-table', 'Healthcare', updatedHealthcareColor);
-    changeColorTableEntry('#link-color-table', 'sports team', updatedSportsTeamColor);
+    changeColorTableEntry('#key-tables-node-table', 'Healthcare', updatedHealthcareColor);
+    changeColorTableEntry('#key-tables-link-table', 'sports team', updatedSportsTeamColor);
 
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithMap;

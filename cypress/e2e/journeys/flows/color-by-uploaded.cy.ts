@@ -166,8 +166,8 @@ describe('Journey Flow - Uploaded color-by controls', () => {
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
     cy.get('#node-color-table-row').should('be.visible');
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get('#node-color-table tr').should(($rows) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table tr').should(($rows) => {
       expect($rows.length, 'node color table rows').to.be.greaterThan(2);
     });
     assertNodeCategoryColors('Profession', 'Healthcare', 'Education');
@@ -176,8 +176,8 @@ describe('Journey Flow - Uploaded color-by controls', () => {
 
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'Contact type');
     cy.get('#link-color-table-row').should('be.visible');
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get('#link-color-table tr').should(($rows) => {
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-table tr').should(($rows) => {
       expect($rows.length, 'link color table rows').to.be.greaterThan(2);
     });
     assertLinkCategoryColors('Contact type', 'sports team', 'classroom');
@@ -210,7 +210,7 @@ describe('Journey Flow - Uploaded color-by controls', () => {
       classroomBaseline = normalizeColor(classroomEdges[0].style('line-color'));
     });
 
-    changeColorTableEntry('#node-color-table', 'Healthcare', updatedHealthcareColor);
+    changeColorTableEntry('#key-tables-node-table', 'Healthcare', updatedHealthcareColor);
 
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithCy;
@@ -229,7 +229,7 @@ describe('Journey Flow - Uploaded color-by controls', () => {
       });
     });
 
-    changeColorTableEntry('#link-color-table', 'sports team', updatedSportsTeamColor);
+    changeColorTableEntry('#key-tables-link-table', 'sports team', updatedSportsTeamColor);
 
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithCy;
@@ -259,23 +259,22 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     openGlobalStylingTab();
     selectPrimeOption('#link-tooltip-variable', 'Origin');
 
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get(`#link-color-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
+    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
       .should('have.text', originalOriginName)
       .dblclick()
       .should('have.attr', 'contenteditable', 'true')
-      .then(($cell) => {
-        const cell = $cell.get(0);
-        cell.textContent = renamedOriginName;
-        cell.dispatchEvent(new Event('input', { bubbles: true }));
-        cell.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-      });
+      .focus()
+      .should('be.focused')
+      .type('{selectall}{backspace}', { delay: 0 })
+      .type(renamedOriginName, { delay: 0 })
+      .blur()
 
     cy.window().should((win: unknown) => {
       const linkValueNames = (win as WinWithCy).commonService?.session?.style?.linkValueNames;
       expect(linkValueNames?.[originalOriginName], 'stored edited link origin label').to.equal(renamedOriginName);
     });
-    cy.get(`#link-color-table td[data-value="${originalOriginName}"]`)
+    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`)
       .should('have.text', renamedOriginName);
 
     cy.closeGlobalSettings();
@@ -288,9 +287,9 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     cy.get('[data-testid="app-view-menu-2d-network"]').click({ force: true });
     cy.window().its('commonService.activeTab').should('equal', '2D Network');
 
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get(`#link-color-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
+    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
       .should('have.text', renamedOriginName);
-    cy.get('#link-color-table').should('not.contain.text', originalOriginName);
+    cy.get('#key-tables-link-table').should('not.contain.text', originalOriginName);
   });
 });

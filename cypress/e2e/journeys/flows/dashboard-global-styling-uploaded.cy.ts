@@ -589,7 +589,7 @@ describe('Journey Flow - Dashboard global styling propagation', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', nodeColorField);
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', nodeColorField);
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
 
     readNodeCategoryColorState(
       nodeColorField,
@@ -598,7 +598,7 @@ describe('Journey Flow - Dashboard global styling propagation', () => {
       bubbleTargetNodeId,
       bubbleControlNodeId,
     ).then((before) => {
-      changeColorTableEntry('#node-color-table', targetCategory, targetedNodeColor);
+      changeColorTableEntry('#key-tables-node-table', targetCategory, targetedNodeColor);
       cy.closeGlobalSettings();
       waitForProcessingDialogToClear();
       assertNoDashboardRuntimeBanner();
@@ -640,11 +640,11 @@ describe('Journey Flow - Dashboard global styling propagation', () => {
       openGlobalStylingTab();
       selectPrimeOption('#link-tooltip-variable', 'Cluster');
       cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
-      cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+      cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
 
       getCommonLinkClusters().then(([targetCluster, controlCluster]) => {
         readLinkCategoryColorState(targetCluster, controlCluster).then((before) => {
-          changeColorTableEntry('#link-color-table', targetCluster, targetedLinkColor);
+          changeColorTableEntry('#key-tables-link-table', targetCluster, targetedLinkColor);
           cy.closeGlobalSettings();
           waitForProcessingDialogToClear();
           assertNoDashboardRuntimeBanner();

@@ -166,7 +166,7 @@ describe('Journey Flow - Bubble uploaded styling', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'Profession');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
 
     cy.window().then((win: unknown) => {
       const bubble = (win as WinWithBubble).commonService.visuals.bubble;
@@ -181,7 +181,7 @@ describe('Journey Flow - Bubble uploaded styling', () => {
         .to.not.equal(educationBaselineColor);
     });
 
-    changeColorTableEntry('#node-color-table', 'Healthcare', updatedHealthcareColor);
+    changeColorTableEntry('#key-tables-node-table', 'Healthcare', updatedHealthcareColor);
     cy.closeGlobalSettings();
 
     cy.window().should((win: unknown) => {

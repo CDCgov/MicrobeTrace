@@ -88,7 +88,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', nodeColorVariable);
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
 
-    cy.get('#node-color-table tr', { timeout: 15000 })
+    cy.get('#key-tables-node-table tr', { timeout: 15000 })
       .eq(1)
       .find('input[type="color"]')
       .should('have.length', 1)
@@ -98,7 +98,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
       });
-    cy.get('#node-color-table tr')
+    cy.get('#key-tables-node-table tr')
       .eq(1)
       .find('input[type="color"]')
       .should('have.value', updatedNodeColor);
@@ -173,7 +173,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
     });
 
     openGlobalStylingTab();
-    cy.get('#node-color-table tr')
+    cy.get('#key-tables-node-table tr')
       .eq(1)
       .find('input[type="color"]')
       .should('have.value', updatedNodeColor);

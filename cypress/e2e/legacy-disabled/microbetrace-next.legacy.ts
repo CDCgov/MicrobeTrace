@@ -182,14 +182,14 @@ describe('microbetrace color tables (ts)', () => {
   it('shows Link Color table when variable=origin and table visibility=Show', () => {
     cy.get('#link-color-variable').select('origin');
     cy.get('#LinkColorTableTypes').select('Show');
-    cy.get('#link-color-table').should('exist').and('be.visible');
-    cy.get('#link-color-table').find('tr').its('length').should('be.greaterThan', 1);
+    cy.get('#key-tables-link-table').should('exist').and('be.visible');
+    cy.get('#key-tables-link-table').find('tr').its('length').should('be.greaterThan', 1);
   });
 
   it('shows Node Color table when variable is selected and table visibility=Show', () => {
     cy.get('#node-color-variable').select('cluster'); // Use 'cluster' or another default field
     cy.get('#NodeColorTableTypes').select('Show');
-    cy.get('#node-color-table').should('exist').and('be.visible');
-    cy.get('#node-color-table').find('tr').its('length').should('be.greaterThan', 1);
+    cy.get('#key-tables-node-table').should('exist').and('be.visible');
+    cy.get('#key-tables-node-table').find('tr').its('length').should('be.greaterThan', 1);
   });
 });

@@ -555,6 +555,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.removeAllFiles();
+    this.commonService.visuals.microbeTrace?.resetKeyTablesForNewDataset();
     result.files.forEach((file: ImportedEmbedFile) => {
       this.commonService.session.files.push(file);
       this.addToTable(file);
@@ -775,9 +776,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
-    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Hide';
+    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Dock';
     this.commonService.session.style.widgets['node-symbol-variable'] = 'None';
-    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Hide';
+    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Dock';
     this.commonService.visuals.microbeTrace?.resetNodeShapeSelectionForNewDataset();
 
     this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
