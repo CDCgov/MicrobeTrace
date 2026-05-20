@@ -2144,6 +2144,51 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const parentContext = context;
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
       const fnamerow = $('<div class="row w-100"></div>');
+      const createFileTypeToggle = (type: string, label: string, checked: boolean) => {
+        const labelElement = $('<label class="btn btn-light"></label>').toggleClass('active', checked);
+        const input = $('<input>', {
+          type: 'radio',
+          name: `options-${file.name}`,
+          autocomplete: 'off'
+        })
+          .attr('data-type', type)
+          .prop('checked', checked);
+
+        labelElement.append(input, document.createTextNode(label));
+        return labelElement;
+      };
+      const createFieldSelect = (fieldNumber: number) => {
+        const select = $('<select></select>')
+          .attr('id', `file-${file.name}-field-${fieldNumber}`)
+          .addClass('form-control form-control-sm');
+
+        if (!isGeoJSON) {
+          select.append($('<option></option>').val('None').text('None'));
+        }
+
+        headers.forEach(h => {
+          const header = String(h);
+          select.append($('<option></option>').val(header).text(parentContext.commonService.titleize(header)));
+        });
+
+        return select;
+      };
+      const createFieldColumn = (fieldNumber: number, label: string, hidden: boolean) => {
+        const column = $('<div class="col-4"></div>').attr('data-file', file.name);
+
+        if (hidden) {
+          column.css('display', 'none');
+        }
+
+        $('<label></label>')
+          .attr('for', `file-${file.name}-field-${fieldNumber}`)
+          .text(label)
+          .appendTo(column);
+        createFieldSelect(fieldNumber).appendTo(column);
+
+        return column;
+      };
+
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
           parentContext.commonService.session.files.splice(parentContext.commonService.session.files.findIndex(f => f.name === file.name), 1);
@@ -2160,48 +2205,25 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
           }
         }))
-        .append('<span class="p-1">' + file.name + '</span>')
-        .append(`
-                    <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
-                      <label class="btn btn-light${!isFasta && !isNewick && !isNode && !isAuspice && !isGeoJSON ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${!isFasta && !isNewick && !isNode && !isAuspice && !isGeoJSON ? ' checked' : ''}>Link
-                      </label>
-                      <label class="btn btn-light${!isFasta && !isNewick && isNode && !isGeoJSON ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${!isFasta && !isNewick && isNode && !isGeoJSON ? ' checked' : ''}>Node
-                      </label>
-                      <label class="btn btn-light">
-                        <input type="radio" name="options-${file.name}" data-type="matrix" autocomplete="off">Matrix
-                      </label>
-                      <label class="btn btn-light${isFasta ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="fasta" autocomplete="off"${isFasta ? ' checked' : ''}>FASTA
-                      </label>
-                      <label class="btn btn-light${isNewick ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="newick" autocomplete="off"${isNewick ? ' checked' : ''}>Newick
-                      </label>
-                      <label class="btn btn-light${isAuspice ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="auspice" autocomplete="off"${isAuspice ? ' checked' : ''}>Auspice
-                      </label>
-                      <label class="btn btn-light${isGeoJSON ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="geojson" autocomplete="off"${isGeoJSON ? ' checked' : ''}>GeoJSON
-                      </label>
-                    </div>`).appendTo(fnamerow);
+        .append($('<span class="p-1"></span>').text(file.name))
+        .append(
+          $('<div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons"></div>')
+            .append(createFileTypeToggle('link', 'Link', !isFasta && !isNewick && !isNode && !isAuspice && !isGeoJSON))
+            .append(createFileTypeToggle('node', 'Node', !isFasta && !isNewick && isNode && !isGeoJSON))
+            .append(createFileTypeToggle('matrix', 'Matrix', false))
+            .append(createFileTypeToggle('fasta', 'FASTA', isFasta))
+            .append(createFileTypeToggle('newick', 'Newick', isNewick))
+            .append(createFileTypeToggle('auspice', 'Auspice', isAuspice))
+            .append(createFileTypeToggle('geojson', 'GeoJSON', isGeoJSON))
+        ).appendTo(fnamerow);
 
       fnamerow.appendTo(root);
       const optionsrow = $('<div class="row w-100"></div>');
-      const options = (isGeoJSON ? '' : '<option>None</option>') + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
-      optionsrow.append(`
-                  <div class='col-4 '${isFasta || isNewick || isAuspice ? ' style="display: none;"' : ''} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-1">${isNode || isGeoJSON ? 'ID' : 'Source'}</label>
-                    <select id="file-${file.name}-field-1" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${isFasta || isNewick || isAuspice || isGeoJSON ? ' style="display: none;"' : ''} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-2">${isNode ? 'Sequence' : 'Target'}</label>
-                    <select id="file-${file.name}-field-2" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${isFasta || isNewick || isAuspice || isGeoJSON ? ' style="display: none;"' : ''} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-3">Distance</label>
-                    <select id="file-${file.name}-field-3" class="form-control form-control-sm">${options}</select>
-                  </div>`);
+      optionsrow.append(
+        createFieldColumn(1, isNode || isGeoJSON ? 'ID' : 'Source', isFasta || isNewick || isAuspice),
+        createFieldColumn(2, isNode ? 'Sequence' : 'Target', isFasta || isNewick || isAuspice || isGeoJSON),
+        createFieldColumn(3, 'Distance', isFasta || isNewick || isAuspice || isGeoJSON)
+      );
 
       optionsrow.appendTo(root);
 
