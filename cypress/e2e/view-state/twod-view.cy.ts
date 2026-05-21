@@ -63,6 +63,25 @@ describe('2D Network - Core Rendering and Stats', () => {
     cy.get(selector.statsNodes).should('contain.text', '33');
     cy.get(selector.statsLinks).should('contain.text', '74');
   });
+
+  it('should apply color table node transparency to rendered nodes', () => {
+    const alpha = 0.35;
+
+    cy.openGlobalSettings();
+    cy.get('#node-color-variable').click();
+    cy.get('li[role="option"]').contains('Lineage').click();
+    cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
+    cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
+    cy.get('#color-transparency').invoke('val', alpha).trigger('change');
+    cy.window().its('commonService.session.style.nodeAlphas.0').should('equal', alpha);
+    cy.closeGlobalSettings();
+
+    getCy().then((cyInstance) => {
+      const node = cyInstance.getElementById('MZ375596');
+      expect(node.empty(), 'MZ375596 should exist').to.equal(false);
+      expect(parseFloat(node.style('background-opacity'))).to.be.closeTo(alpha, 0.01);
+    });
+  });
 });
 
 // Test suite for toolbar actions

@@ -2954,12 +2954,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
         }
       
-        // Otherwise, use nodeColorMap or a single color from the widget
-        const variable = this.widgets['node-color-variable'];
-        if (variable === 'None') {
-          return [this.widgets['node-color'], 1-this.widgets['node-opacity']];
-        }
-        return [this.commonService.temp.style.nodeColorMap(node[variable]), this.commonService.temp.style.nodeAlphaMap(node[variable])];
+        const nodeStyle = this.commonService.getNodeFillStyle(node);
+        return [nodeStyle.color, nodeStyle.alpha];
       }
 
     getLinkWidth(link: any) {

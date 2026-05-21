@@ -14,7 +14,7 @@ import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/ex
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
-type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
+type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
 @Component({
     selector: 'bubble-component',
@@ -310,6 +310,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           id: node.id,
           nodeSize: size,
           nodeColor: node.color,
+          nodeOpacity: node.opacity,
           label: node.id,
           counts: node.counts,
           totalCount: node.totalCount,
@@ -407,7 +408,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       {
         selector: 'node[nodeColor]',
         css: {
-            'background-color': 'data(nodeColor)'
+            'background-color': 'data(nodeColor)',
+            // @ts-ignore
+            'background-opacity': 'data(nodeOpacity)'
         }
       },
       {
@@ -623,6 +626,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         x: 0,
         y: 0,
         color: '#ff00ff',
+        opacity: 1,
         Xgroup: 0,
         Ygroup: 0,
         strokeColor: node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000',
@@ -782,6 +786,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
             x: X_group,
             y: Y_group,
             color: node.color,
+            opacity: node.opacity,
             Xgroup: X_group,
             Ygroup: Y_group,
             strokeColor: '#000000',
@@ -814,7 +819,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         let size = this.nodeSize * Math.sqrt(node.totalCount);
         let svgPattern = `<svg width='${size}' height='${size}' xmlns='http://www.w3.org/2000/svg'><defs>${this.svgDefs[`node${i}`]}</defs><circle fill="url(#node${i})" cx='${size/2}' cy='${size/2}' r='${size/2}'/></svg>`;
         let b64 = 'data:image/svg+xml;base64,' + btoa(svgPattern);
-        this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-fit': 'cover', 'background-image': b64})
+        this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-opacity': 0, 'background-fit': 'cover', 'background-image': b64})
       }
     })
     this.cy.style().update();
@@ -890,6 +895,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return changedVisibleNodes;
   }
 
+  private getNodeFillStyleForColorValue(value: any): { color: string; alpha: number } {
+    const colorVariable = this.commonService.session.style.widgets['node-color-variable'];
+    const syntheticNode = colorVariable === 'None' ? undefined : { [colorVariable]: value };
+    return this.commonService.getNodeFillStyle(syntheticNode);
+  }
+
   /**
    * @returns a string representing the SVG def of the patterns needed to generate the pie chart
    */
@@ -904,14 +915,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       let proportions = []
       let coordinates = []
       let colors = [];
+      let opacities = [];
       node.counts.forEach(x => {
         let proportion = proportions.reduce((acc, cv) => acc+cv, 0) + x.count/node.totalCount
         let xPos = Math.cos(2 * Math.PI * proportion)
         let yPos = Math.sin(2 * Math.PI * proportion)
+        const nodeStyle = this.getNodeFillStyleForColorValue(x.label);
         
         proportions.push(x.count/node.totalCount)
         coordinates.push([xPos, yPos])
-        colors.push(this.commonService.temp.style.nodeColorMap(x.label))
+        colors.push(nodeStyle.color)
+        opacities.push(nodeStyle.alpha)
       })
 
       patternString += `<pattern id='node${indexNumber}' viewBox='-1 -1 2 2' style='transform: rotate(-.25turn)' width='100%' height='100%'>` ;
@@ -919,7 +933,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         let arcStart = i == 0 ? '1 0': coordinates[i-1][0] + ' ' + coordinates[i-1][1];
         let largeArcFlag = proportions[i] > .5 ? 1: 0 
         let arcEnd = i == coordinates.length-1 ? '1 0' : coordinates[i][0] + ' ' + coordinates[i][1]
-        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${colors[i]}' />`
+        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${colors[i]}' fill-opacity='${opacities[i]}' />`
       }
       patternString += '</pattern>'
       this.svgDefs[`node${indexNumber}`] = (patternString);
@@ -930,9 +944,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * Updates the color of the nodes in allData
    */
   updateColors() {
-    let fillcolor = this.commonService.session.style.widgets['node-color']
-    let colorVariable = this.commonService.session.style.widgets['node-color-variable']
-
     let fullNodes = this.commonService.session.data.nodeFilteredValues;
 
     this.allData.forEach(node => {
@@ -940,7 +951,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       if (!currentFullNode) {
         return;
       }
-      node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
+      const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
+      node.color = nodeStyle.color;
+      node.opacity = nodeStyle.alpha;
     })
 
     if (this.cy && this.cy.nodes().length > 0) {
@@ -949,6 +962,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         let currentNode = this.allData.find(dataNode => dataNode.id == node.id());
         if (!currentNode) return;
         node.data('nodeColor', currentNode.color);
+        node.data('nodeOpacity', currentNode.opacity);
       });
       this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -1163,21 +1177,21 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.visibleData.forEach((node, i) => {
         if ( node.totalCount == 1 || node.counts.length == 1) {
           let currrentVar = node.counts[0].label
-          //console.log(node, currrentVar)
-          this.cy.style().selector(`#${node.id}`).style({ 'background-color': this.commonService.temp.style.nodeColorMap(currrentVar)})
+          const nodeStyle = this.getNodeFillStyleForColorValue(currrentVar);
+          this.cy.style().selector(`#${node.id}`).style({
+            'background-color': nodeStyle.color,
+            'background-opacity': nodeStyle.alpha
+          })
           return;
         } else {
           let size = this.nodeSize * Math.sqrt(node.totalCount);
           let svgPattern = `<svg width='${size}' height='${size}' xmlns='http://www.w3.org/2000/svg'><defs>${this.svgDefs[`node${i}`]}</defs><circle fill="url(#node${i})" cx='${size/2}' cy='${size/2}' r='${size/2}'/></svg>`;
           let b64 = 'data:image/svg+xml;base64,' + btoa(svgPattern);
-          this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-fit': 'cover', 'background-image': b64})
+          this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-opacity': 0, 'background-fit': 'cover', 'background-image': b64})
         }
       })
       this.cy.style().update();
 
-      let fillcolor = this.commonService.session.style.widgets['node-color']
-      let colorVariable = this.commonService.session.style.widgets['node-color-variable']
-  
       let fullNodes = this.commonService.session.data.nodeFilteredValues;
   
       this.allData.forEach(node => {
@@ -1185,7 +1199,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         if (!currentFullNode) {
           return;
         }
-        node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
+        const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
+        node.color = nodeStyle.color;
+        node.opacity = nodeStyle.alpha;
       })
     } else {
       this.updateColors();

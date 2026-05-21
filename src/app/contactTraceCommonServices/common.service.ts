@@ -650,6 +650,49 @@ export class CommonService extends AppComponentBase implements OnInit {
     session = this.sessionSkeleton();
     private dataLoadGeneration = 0;
 
+    public clampStyleAlpha(value: any, fallback = 1): number {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return fallback;
+        }
+
+        return Math.min(1, Math.max(0, numericValue));
+    }
+
+    public getNodeFillStyle(node: any): { color: string; alpha: number } {
+        const widgets = this.session.style.widgets;
+        const variable = widgets['node-color-variable'];
+        const fallbackColor = widgets['node-color'] || '#1f77b4';
+
+        if (variable === 'None' || !variable || !node) {
+            return {
+                color: fallbackColor,
+                alpha: this.clampStyleAlpha(1 - Number(widgets['node-opacity'] ?? 0), 1)
+            };
+        }
+
+        const value = node[variable];
+        let color = fallbackColor;
+        let alpha = 1;
+
+        try {
+            color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+        } catch {
+            color = fallbackColor;
+        }
+
+        try {
+            alpha = this.temp.style.nodeAlphaMap?.(value) ?? 1;
+        } catch {
+            alpha = 1;
+        }
+
+        return {
+            color,
+            alpha: this.clampStyleAlpha(alpha, 1)
+        };
+    }
+
     beginDataLoad(): number {
         this.dataLoadGeneration += 1;
         return this.dataLoadGeneration;
