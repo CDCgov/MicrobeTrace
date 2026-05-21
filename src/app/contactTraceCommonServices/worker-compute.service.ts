@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import * as patristic from 'patristic';
 import { WorkerModule } from '../workers/workModule';
+import { CommonStoreService } from './common-store.services';
 import type {
   PatristicWorkerRequest,
   PatristicWorkerResponse,
@@ -54,7 +55,10 @@ const DEFAULT_NEWICK_VISIBLE_LINK_HARD_LIMIT = 100000;
 })
 export class WorkerComputeService {
   
-  constructor(private computer: WorkerModule) {}
+  constructor(
+    private computer: WorkerModule,
+    private store: CommonStoreService
+  ) {}
 
   /**
    * Helper that converts a Worker’s events into an RxJS Observable.
@@ -692,6 +696,8 @@ export class WorkerComputeService {
     } else {
       session.warnings.push(warning);
     }
+
+    this.store.triggerWarningsChanged();
   }
 
   /**

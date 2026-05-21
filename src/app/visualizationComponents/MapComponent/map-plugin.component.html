@@ -21,7 +21,7 @@
         <a id="centerMapButton" title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Nodes without Map Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
+        <a data-testid="map-nodes-without-location-button" title="Nodes without Location Data" aria-label="Nodes without Map Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
     </span>
 </div>
 <div #mapContainer class="map-container">

@@ -368,7 +368,7 @@
             <div class="col-5">Group Color Table</div>
             <div class="col-7">
               <p-selectButton id="polygon-color-table-toggle" [options]="polygonColorTableOptions" [allowEmpty]="false" fluid
-                [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']"
+                [ngModel]="getPolygonColorTableDisplayMode()"
                 (ngModelChange)="polygonColorsTableToggle($event)">
               </p-selectButton>                                </div>
             </div>

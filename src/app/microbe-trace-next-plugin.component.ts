@@ -528,6 +528,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.applySavedNodeShapeSettingsFromSession();
             });
 
+        this.store.warningsChanged$
+            .pipe(takeUntil(this.destroy$))
+            .subscribe(() => {
+                this.cdref.detectChanges();
+            });
+
         // Subscribe to metric changes
         this.store.metricChanged$.subscribe((metric: string) => {
             this.metric = metric;
@@ -2016,10 +2022,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const componentMap = (this._goldenLayoutHostComponent as any)?._componentRefMap as Map<any, ComponentRef<any>> | undefined;
         componentMap?.forEach(componentRef => componentRefs.add(componentRef));
 
+        const refreshedInstances = new Set<any>();
         componentRefs.forEach(componentRef => {
             const refreshDistanceDisplayFormat = componentRef.instance?.refreshDistanceDisplayFormat;
             if (refreshDistanceDisplayFormat) {
                 refreshDistanceDisplayFormat.call(componentRef.instance);
+                refreshedInstances.add(componentRef.instance);
+            }
+        });
+
+        Object.values(this.commonService.visuals || {}).forEach((visual: any) => {
+            const refreshDistanceDisplayFormat = visual?.refreshDistanceDisplayFormat;
+            if (refreshDistanceDisplayFormat && !refreshedInstances.has(visual)) {
+                refreshDistanceDisplayFormat.call(visual);
             }
         });
     }
@@ -2972,9 +2987,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // Timeline-aware views update from node-visibility; other views should
         // not treat playback ticks as generic network updates.
-        this.handle.attr("cx", this.xAttribute(h));
+        this.currentTimelineValue = this.xAttribute(h);
+        this.handle.attr("cx", this.currentTimelineValue);
         this.label
-        .attr("x", this.xAttribute(h))
+        .attr("x", this.currentTimelineValue)
         .text(this.handleDateFormat(h));
         this.commonService.session.state.timeEnd = h;
         this.commonService.setNodeVisibility(false);

@@ -315,6 +315,9 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
   updateVisualization() {
     this.refreshTables();
   }
+  refreshDistanceDisplayFormat() {
+    this.refreshTables();
+  }
   applyStyleFileSettings() {}
   openRefreshScreen() {}
   onRecallSession() {}

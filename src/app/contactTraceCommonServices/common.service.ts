@@ -2842,6 +2842,8 @@ align(params): Promise<any> {
     } else {
       this.session.warnings.push(warning);
     }
+
+    this.store.triggerWarningsChanged();
   }
 
   // Compute links using a fresh links worker

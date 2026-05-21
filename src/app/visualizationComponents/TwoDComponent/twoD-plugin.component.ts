@@ -2116,7 +2116,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return mode;
     }
 
-    private getPolygonColorTableDisplayMode(): PolygonColorTableDisplayMode {
+    public getPolygonColorTableDisplayMode(): PolygonColorTableDisplayMode {
         return this.setPolygonColorTableDisplayMode(this.widgets?.["polygon-color-table-visible"]);
     }
 

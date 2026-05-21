@@ -131,6 +131,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private initialSettingsLoaded = false;
     private initialSettingsLoadScheduled = false;
     private applyingSettings = false;
+    private markerClusterReady = false;
+    private pendingMapRedraw = false;
 
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
@@ -513,16 +515,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.lmap.on('click', this.manualMapClickHandler);
         this.ensureAdminLabelPane();
         this.tryLoadInitialSettings();
+        this.flushPendingMapRedraw();
     }
 
     onMarkerClusterReady(markerCluster: MarkerClusterGroup) {
         this.layers.markerClusterGroup = markerCluster;
+        this.markerClusterReady = true;
         this.tryLoadInitialSettings();
+        this.flushPendingMapRedraw();
         this.autoExpandSelectedNode();
     }
 
     private tryLoadInitialSettings(): void {
-        if (this.initialSettingsLoaded || this.initialSettingsLoadScheduled || !this.lmap || !this.layers.markerClusterGroup) {
+        if (this.initialSettingsLoaded || this.initialSettingsLoadScheduled || !this.isMapReadyForDrawing()) {
             return;
         }
 
@@ -535,9 +540,47 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             } finally {
                 this.applyingSettings = false;
                 this.initialSettingsLoadScheduled = false;
+                this.flushPendingMapRedraw();
                 this.cdref.detectChanges();
             }
         }, 0);
+    }
+
+    private isMapReadyForDrawing(): boolean {
+        return !!this.lmap && this.markerClusterReady && !!this.layers.markerClusterGroup;
+    }
+
+    private deferMapRedraw(): void {
+        this.pendingMapRedraw = true;
+    }
+
+    private flushPendingMapRedraw(): void {
+        if (!this.pendingMapRedraw || !this.initialSettingsLoaded || !this.isMapReadyForDrawing()) {
+            return;
+        }
+
+        this.pendingMapRedraw = false;
+        this.updateVisualization();
+    }
+
+    private addLayerToMap(layer?: Layer): boolean {
+        if (!layer || !this.isMapReadyForDrawing()) {
+            this.deferMapRedraw();
+            return false;
+        }
+
+        this.lmap.addLayer(layer);
+        return true;
+    }
+
+    private addMarkerClusterLayers(features: Layer[]): boolean {
+        if (!this.isMapReadyForDrawing()) {
+            this.deferMapRedraw();
+            return false;
+        }
+
+        this.layers.markerClusterGroup.addLayers(features);
+        return true;
     }
 
     private markMapRendered(): void {
@@ -1540,18 +1583,20 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.onSatelliteChange('Hide', true);
             this.onBasemapChange('Hide', true);
             if (this.layers.countries.getLayers().length > 0) {
-                this.layers.countries.addTo(this.lmap);
-                this.updateAdminLabelLayer('countries', showLabels);
-                this.resetStack();
+                if (this.addLayerToMap(this.layers.countries)) {
+                    this.updateAdminLabelLayer('countries', showLabels);
+                    this.resetStack();
+                }
             } else {
                 //this.commonService.getMapData('countries.json', () => $(this).trigger('click'));
                 this.getMapData('countries.json', () => {
                     if (!this.commonService.session.style.widgets['map-countries-show']) {
                         return;
                     }
-                    this.layers.countries.addTo(this.lmap);
-                    this.updateAdminLabelLayer('countries', this.commonService.session.style.widgets['map-countries-labels-show']);
-                    this.resetStack();
+                    if (this.addLayerToMap(this.layers.countries)) {
+                        this.updateAdminLabelLayer('countries', this.commonService.session.style.widgets['map-countries-labels-show']);
+                        this.resetStack();
+                    }
                 });
 
             }
@@ -1573,17 +1618,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         if (showStates) {
             if (this.layers.states.getLayers().length > 0) {
-                this.layers.states.addTo(this.lmap);
-                this.updateAdminLabelLayer('states', showLabels);
-                this.resetStack();
+                if (this.addLayerToMap(this.layers.states)) {
+                    this.updateAdminLabelLayer('states', showLabels);
+                    this.resetStack();
+                }
             } else {
                 this.getMapData('states.json', () => {
                     if (!this.commonService.session.style.widgets['map-states-show']) {
                         return;
                     }
-                    this.layers.states.addTo(this.lmap);
-                    this.updateAdminLabelLayer('states', this.commonService.session.style.widgets['map-states-labels-show']);
-                    this.resetStack();
+                    if (this.addLayerToMap(this.layers.states)) {
+                        this.updateAdminLabelLayer('states', this.commonService.session.style.widgets['map-states-labels-show']);
+                        this.resetStack();
+                    }
                 });
             }
         }
@@ -1603,17 +1650,19 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         if (showCounties) {
             if (this.layers.counties.getLayers().length > 0) {
-                this.layers.counties.addTo(this.lmap);
-                this.updateAdminLabelLayer('counties', showLabels);
-                this.resetStack();
+                if (this.addLayerToMap(this.layers.counties)) {
+                    this.updateAdminLabelLayer('counties', showLabels);
+                    this.resetStack();
+                }
             } else {
                 this.getMapData('counties.json', () => {
                     if (!this.commonService.session.style.widgets['map-counties-show']) {
                         return;
                     }
-                    this.layers.counties.addTo(this.lmap);
-                    this.updateAdminLabelLayer('counties', this.commonService.session.style.widgets['map-counties-labels-show']);
-                    this.resetStack();
+                    if (this.addLayerToMap(this.layers.counties)) {
+                        this.updateAdminLabelLayer('counties', this.commonService.session.style.widgets['map-counties-labels-show']);
+                        this.resetStack();
+                    }
                 });
             }
         }
@@ -1636,15 +1685,17 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (!this.lmap) return;
 
         if (this.getAdminLabelLayer(name).getLayers().length > 0) {
-            this.getAdminLabelLayer(name).addTo(this.lmap);
-            this.resetStack();
+            if (this.addLayerToMap(this.getAdminLabelLayer(name))) {
+                this.resetStack();
+            }
             return;
         }
 
         this.getMapData(`${name}.json`, () => {
             if (this.commonService.session.style.widgets[widgetKey]) {
-                this.getAdminLabelLayer(name).addTo(this.lmap);
-                this.resetStack();
+                if (this.addLayerToMap(this.getAdminLabelLayer(name))) {
+                    this.resetStack();
+                }
             }
         });
     }
@@ -1680,8 +1731,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (e == "Show") {
             this.commonService.session.style.widgets['map-basemap-show'] = true;
 
-            this.layers.basemap.addTo(this.lmap);
-            this.layers.basemap.bringToFront();
+            if (this.addLayerToMap(this.layers.basemap)) {
+                this.layers.basemap.bringToFront();
+            }
 
             if (!isReload) {
                 this.onUserGeoJSONChange('Hide');
@@ -1714,8 +1766,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (e == "Show") {
             this.commonService.session.style.widgets['map-satellite-show'] = true;
 
-            this.layers.satellite.addTo(this.lmap);
-            this.layers.satellite.bringToFront();
+            if (this.addLayerToMap(this.layers.satellite)) {
+                this.layers.satellite.bringToFront();
+            }
 
             if (!isReload) {
                 this.onUserGeoJSONChange('Hide');
@@ -2115,7 +2168,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         if (!this.lmap.hasLayer(this.layers.userGeoJSON)) {
-            this.layers.userGeoJSON.addTo(this.lmap);
+            if (!this.addLayerToMap(this.layers.userGeoJSON)) {
+                return;
+            }
         }
         this.layers.userGeoJSON.bringToBack();
     }
@@ -2141,7 +2196,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         if (this.layers.floorplanImage && !this.lmap.hasLayer(this.layers.floorplanImage)) {
-            this.layers.floorplanImage.addTo(this.lmap);
+            if (!this.addLayerToMap(this.layers.floorplanImage)) {
+                return;
+            }
         }
         if (this.layers.floorplanImage) {
             this.layers.floorplanImage.bringToBack();
@@ -2580,7 +2637,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.setAdminLabelLayer(name, labelLayer);
 
         if (this.lmap && this.commonService.session.style.widgets[this.getAdminLabelWidgetKey(name)]) {
-            labelLayer.addTo(this.lmap);
+            this.addLayerToMap(labelLayer);
         }
     }
 
@@ -2908,7 +2965,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Calls drawLeafletMapNodes() which removes all previous nodes from map, updates _j, _theta, _jlat, _jlon for each node
      */
     drawNodes(rerollNodes=true) {
-        if (!this.lmap) {
+        if (!this.isMapReadyForDrawing()) {
+            this.deferMapRedraw();
             return;
         }
 
@@ -3025,10 +3083,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
 
         if (this.commonService.session.style.widgets['map-collapsing-on']) {
-            this.layers.markerClusterGroup.addLayers(features);
+            this.addMarkerClusterLayers(features);
         } else {
             this.layers.featureGroup = featureGroup(features);
-            this.lmap.addLayer(this.layers.featureGroup);
+            this.addLayerToMap(this.layers.featureGroup);
         }
     }
 
@@ -3036,6 +3094,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Draws links on the map
     */
     drawLinks() {
+        if (!this.isMapReadyForDrawing()) {
+            this.deferMapRedraw();
+            return;
+        }
+
         this.layers.removeLinks();
     
         if (!this.commonService.session.style.widgets['map-link-show']) return;
@@ -3106,7 +3169,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         });
     
         this.layers.links = featureGroup(features);
-        if (this.lmap != undefined) this.lmap.addLayer(this.layers.links);
+        if (!this.addLayerToMap(this.layers.links)) {
+            return;
+        }
 
         if (this.commonService.session.style.widgets['map-node-show']) {
             if (this.commonService.session.style.widgets['map-collapsing-on']) {
