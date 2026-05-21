@@ -1086,7 +1086,20 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    */
   sortData(sortVariable) {
     let allNodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodeFilteredValues));
-    allNodes.sort((a, b) => new Date(a[sortVariable]).getTime() - new Date(b[sortVariable]).getTime())
+    const getSortTime = (value: any): number => {
+      if (value === null || value === undefined) {
+        return Number.NEGATIVE_INFINITY;
+      }
+
+      if (typeof value === 'string' && value.trim().toLowerCase() === 'null') {
+        return Number.NEGATIVE_INFINITY;
+      }
+
+      const time = new Date(value).getTime();
+      return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+    };
+
+    allNodes.sort((a, b) => getSortTime(a[sortVariable]) - getSortTime(b[sortVariable]))
     
     let allData = []
     allNodes.forEach(node => {

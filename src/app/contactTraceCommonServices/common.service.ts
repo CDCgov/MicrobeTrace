@@ -1,5 +1,5 @@
 import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
-import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
 import * as Papa from 'papaparse';
@@ -27,6 +27,25 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+
+interface SequencePairwiseLinkGuardrails {
+    warningThreshold: number;
+    hardLimit: number;
+}
+
+interface SequencePairwiseLinkGuardrailResult {
+    warningThreshold: number;
+    hardLimit: number;
+    pairCount: number;
+    sequenceCount: number;
+    warningHit: boolean;
+    hardLimitHit: boolean;
+    metric: string;
+    message: string;
+}
+
+const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
+const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
 
 @Directive()
 @Injectable({
@@ -92,6 +111,32 @@ export class CommonService extends AppComponentBase implements OnInit {
         'files': 'Files'
     };
 
+    private readonly nonStyleableNodeFields = new Set<string>([
+        'seq',
+        'sequence',
+        '_seq',
+        '_seqint',
+        '_cigar',
+        'data'
+    ]);
+
+    private readonly lowPriorityStyleableNodeFields = new Set<string>([
+        'index',
+        '_id',
+        'id',
+        'selected',
+        'cluster',
+        'visible',
+        'degree',
+        'origin',
+        'hasdistance',
+        'x',
+        'y',
+        'vx',
+        'vy',
+        'foci'
+    ]);
+
     thirtyColorPalette: string[] = [
         "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
         "#8ad8e8", "#f07cab", "#235b54", "#ffcba5", "#772b9d", "#29bdab", 
@@ -102,23 +147,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
-
-    private linkElementSource = new BehaviorSubject<HTMLElement | null>(null);
-    private nodeElementSource = new BehaviorSubject<HTMLElement | null>(null);
-
-    currentLinkTableElement = this.linkElementSource.asObservable();
-
-    currentNodeTableElement = this.nodeElementSource.asObservable();
-
-
-    setLinkTableElement(element: HTMLElement | null) {
-        this.linkElementSource.next(element);
-    }
-
-    setNodeTableElement(element: HTMLElement | null) {
-        this.nodeElementSource.next(element);
-    }
-
 
     // Using lodash's debounce, for example
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
@@ -137,9 +165,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedLinkSortVariable: 'Distance',
         SelectedLinkThresholdVariable: 0.015,
         SelectedDistanceMetricVariable: 'tn93',
-        SelectedLinkColorTableTypesVariable: 'Hide',
-        SelectedNodeColorTableTypesVariable: 'Hide',
-        SelectedNodeShapeTableTypesVariable: 'Hide',
+        SelectedLinkColorTableTypesVariable: 'Dock',
+        SelectedNodeColorTableTypesVariable: 'Dock',
+        SelectedNodeShapeTableTypesVariable: 'Dock',
 
         SelectedColorVariable: '#ff8300',
         SelectedBackgroundColorVariable: '#ffffff',
@@ -441,7 +469,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-symbol-table-counts': true,
             'node-symbol-table-frequencies': false,
             'node-symbol-variable': 'None',
-            'node-symbol-table-visible': 'Hide',
+            'node-symbol-table-visible': 'Dock',
             'node-timeline-variable' : 'None',
             'node-tooltip-variable': ['_id'],
             'physics-tree-branch-type': 'Straight',
@@ -459,13 +487,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             'polygon-color-table-counts': true,
             'polygon-color-table-frequencies': false,
             'polygons-color-show': false,
-            'polygons-foci': 'cluster',
+            'polygons-foci': 'None',
             'polygons-gather-force': 0,
             'polygons-label-show' : false,
             'polygon-label-orientation' : 'top',
             'polygons-label-size' : 16,
             'polygons-show' : false,
-            'polygon-color-table-visible': false,
+            'polygon-color-table-visible': 'Dock',
             'reference-source-file': true,
             'reference-source-first': false,
             'reference-source-consensus': false,
@@ -530,7 +558,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 loadTime: 0,
                 readyTime: Date.now(),
                 startTime: 0,
-                anySequences: false
+                anySequences: false,
+                performance: {}
             },
             network: {
                 allPinned: false,
@@ -704,6 +733,84 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     isCurrentDataLoad(loadGeneration: number): boolean {
         return loadGeneration === this.dataLoadGeneration;
+    }
+
+    recordPerformanceTiming(category: string, name: string, startedAt: number, extra: Record<string, any> = {}) {
+        this.recordPerformanceDuration(category, name, Date.now() - startedAt, extra);
+    }
+
+    private readPerformanceMemorySnapshot(): Record<string, number> | null {
+        const memory = typeof window !== 'undefined'
+            ? (window.performance as any)?.memory
+            : null;
+
+        if (!memory) return null;
+
+        const usedJSHeapSize = Number(memory.usedJSHeapSize);
+        const totalJSHeapSize = Number(memory.totalJSHeapSize);
+        const jsHeapSizeLimit = Number(memory.jsHeapSizeLimit);
+
+        if (
+            !Number.isFinite(usedJSHeapSize) &&
+            !Number.isFinite(totalJSHeapSize) &&
+            !Number.isFinite(jsHeapSizeLimit)
+        ) {
+            return null;
+        }
+
+        return {
+            usedJSHeapSize: Number.isFinite(usedJSHeapSize) ? usedJSHeapSize : null,
+            totalJSHeapSize: Number.isFinite(totalJSHeapSize) ? totalJSHeapSize : null,
+            jsHeapSizeLimit: Number.isFinite(jsHeapSizeLimit) ? jsHeapSizeLimit : null
+        };
+    }
+
+    private toFinitePerformanceNumber(value: any): number | null {
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue) ? numericValue : null;
+    }
+
+    private buildGraphDensitySnapshot(extra: Record<string, any>): Record<string, number> | null {
+        const nodeCount = this.toFinitePerformanceNumber(extra.visibleNodes ?? extra.nodes);
+        const edgeCount = this.toFinitePerformanceNumber(extra.visibleLinks ?? extra.edges ?? extra.links);
+
+        if (nodeCount === null || edgeCount === null) return null;
+
+        const maxUndirectedEdges = nodeCount > 1 ? (nodeCount * (nodeCount - 1)) / 2 : 0;
+
+        return {
+            nodeCount,
+            edgeCount,
+            maxUndirectedEdges,
+            edgeDensity: maxUndirectedEdges > 0 ? edgeCount / maxUndirectedEdges : 0
+        };
+    }
+
+    private enrichPerformanceExtra(extra: Record<string, any>): Record<string, any> {
+        const memory = extra.memory !== undefined ? extra.memory : this.readPerformanceMemorySnapshot();
+        const graphDensity = extra.graphDensity !== undefined
+            ? extra.graphDensity
+            : this.buildGraphDensitySnapshot(extra);
+
+        return {
+            ...extra,
+            ...(memory ? { memory } : {}),
+            ...(graphDensity ? { graphDensity } : {})
+        };
+    }
+
+    recordPerformanceDuration(category: string, name: string, durationMs: number, extra: Record<string, any> = {}) {
+        if (!this.session?.meta || !Number.isFinite(durationMs)) return;
+
+        const meta = this.session.meta as any;
+        if (!meta.performance) meta.performance = {};
+        if (!meta.performance[category]) meta.performance[category] = {};
+
+        meta.performance[category][name] = {
+            durationMs,
+            recordedAt: Date.now(),
+            ...this.enrichPerformanceExtra(extra)
+        };
     }
 
     private getAnalysisCache() {
@@ -901,6 +1008,32 @@ export class CommonService extends AppComponentBase implements OnInit {
     capitalize(s) {
         if (typeof s !== 'string') return ''
         return s.charAt(0).toUpperCase() + s.slice(1)
+    }
+
+    isStyleableNodeField(field: string): boolean {
+        const normalizedField = `${field ?? ''}`.trim();
+        return normalizedField.length > 0 && !this.nonStyleableNodeFields.has(normalizedField.toLowerCase());
+    }
+
+    getStyleableNodeFields(): string[] {
+        const seenFields = new Set<string>();
+        const fields = this.session?.data?.nodeFields || [];
+        const styleableFields = fields.filter(field => {
+            const normalizedField = `${field ?? ''}`;
+            const normalizedKey = normalizedField.toLowerCase();
+
+            if (!this.isStyleableNodeField(normalizedField) || seenFields.has(normalizedKey)) {
+                return false;
+            }
+
+            seenFields.add(normalizedKey);
+            return true;
+        });
+
+        const metadataFields = styleableFields.filter(field => !this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
+        const builtInFields = styleableFields.filter(field => this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
+
+        return metadataFields.concat(builtInFields);
     }
 
     hasValidTimelineDateValue(value: any): boolean {
@@ -1297,6 +1430,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     
         // Reset visualization states
         this.session.network.isFullyLoaded = false;
+        this.session.warnings = [];
     }
 
     // public cleanupWorkers(): void {
@@ -1851,7 +1985,9 @@ export class CommonService extends AppComponentBase implements OnInit {
           borderWidth: link.borderWidth ?? 1 // Default border width for links
         }));
 
-        console.log('--- TWOD convertToGraphDataArray end, ',links);
+        if (this.debugMode) {
+            console.log('--- TWOD convertToGraphDataArray end, ', links);
+        }
 
       
         return {
@@ -2081,6 +2217,13 @@ export class CommonService extends AppComponentBase implements OnInit {
         ['nodeFields', 'linkFields', 'clusterFields', 'nodeExclusions'].forEach(v => {
             if (oldSession.data[v]) this.session.data[v] = this.uniq(this.session.data[v].concat(oldSession.data[v]));
         });
+
+        if (typeof oldSession.data?.newickString === 'string') {
+            this.session.data.newickString = oldSession.data.newickString;
+        }
+        if (oldSession.data?.tree) {
+            this.session.data.tree = oldSession.data.tree;
+        }
 
         // TODO: See about this process data functionality.  DO we need this?
         this.processData();
@@ -2652,20 +2795,118 @@ align(params): Promise<any> {
   }
   
   
+  private getSequencePairwiseLinkGuardrails(): SequencePairwiseLinkGuardrails {
+    const overrides = (this.session?.meta as any)?.guardrails || {};
+    const warningThreshold = Number(overrides.sequencePairwiseLinkWarningThreshold);
+    const hardLimit = Number(overrides.sequencePairwiseLinkHardLimit);
+
+    return {
+      warningThreshold: Number.isFinite(warningThreshold) && warningThreshold > 0
+        ? warningThreshold
+        : DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD,
+      hardLimit: Number.isFinite(hardLimit) && hardLimit > 0
+        ? hardLimit
+        : DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT
+    };
+  }
+
+  private formatPerformanceCount(value: number): string {
+    return Number(value || 0).toLocaleString();
+  }
+
+  private buildSequencePairwiseLinkGuardrail(
+    sequenceCount: number,
+    pairCount: number,
+    metric: string,
+    guardrails: SequencePairwiseLinkGuardrails
+  ): SequencePairwiseLinkGuardrailResult | null {
+    const hardLimitHit = pairCount > guardrails.hardLimit;
+    const warningHit = hardLimitHit || pairCount >= guardrails.warningThreshold;
+
+    if (!warningHit) return null;
+
+    const message = hardLimitHit
+      ? `FASTA ${metric.toUpperCase()} distance generation would create ${this.formatPerformanceCount(pairCount)} pairwise genetic links, above the ${this.formatPerformanceCount(guardrails.hardLimit)} browser guardrail. MicrobeTrace skipped genetic-link generation for this sequence set; subset the FASTA, lower the analysis scope, or import a precomputed distance edge list.`
+      : `FASTA ${metric.toUpperCase()} distance generation will create ${this.formatPerformanceCount(pairCount)} pairwise genetic links, above the ${this.formatPerformanceCount(guardrails.warningThreshold)} browser warning threshold. This may take longer and use more memory in browser-based MicrobeTrace.`;
+
+    return {
+      warningThreshold: guardrails.warningThreshold,
+      hardLimit: guardrails.hardLimit,
+      pairCount,
+      sequenceCount,
+      warningHit,
+      hardLimitHit,
+      metric,
+      message
+    };
+  }
+
+  private recordSequencePairwiseLinkGuardrailWarning(guardrail?: SequencePairwiseLinkGuardrailResult | null): void {
+    if (!guardrail?.message) return;
+
+    if (!Array.isArray(this.session.warnings)) {
+      this.session.warnings = [];
+    }
+
+    const id = `sequence-pairwise-link-guardrail-${guardrail.metric}-${guardrail.sequenceCount}-${guardrail.hardLimit}`;
+    const existingIndex = this.session.warnings.findIndex((warning: any) => warning?.id === id);
+    const warning = {
+      id,
+      type: 'sequence-pairwise-link-guardrail',
+      severity: guardrail.hardLimitHit ? 'error' : 'warning',
+      message: guardrail.message,
+      metric: guardrail.metric,
+      sequenceCount: guardrail.sequenceCount,
+      pairCount: guardrail.pairCount,
+      warningThreshold: guardrail.warningThreshold,
+      hardLimit: guardrail.hardLimit,
+      hardLimitHit: guardrail.hardLimitHit,
+      recordedAt: Date.now()
+    };
+
+    if (existingIndex >= 0) {
+      this.session.warnings[existingIndex] = warning;
+    } else {
+      this.session.warnings.push(warning);
+    }
+  }
+
   // Compute links using a fresh links worker
   computeLinks(subset): Promise<any> {
     return new Promise(resolve => {
+      const computeLinksStart = Date.now();
       let k = 0;
+      const metric = this.session.style.widgets['default-distance-metric'];
+      const n = subset.length;
+      const pairCount = (n * (n - 1)) / 2;
+      const guardrails = this.getSequencePairwiseLinkGuardrails();
+      const guardrail = this.buildSequencePairwiseLinkGuardrail(n, pairCount, metric, guardrails);
+
+      this.recordSequencePairwiseLinkGuardrailWarning(guardrail);
+
+      if (guardrail?.hardLimitHit) {
+        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+          metric,
+          sequences: n,
+          pairCount,
+          generatedLinks: 0,
+          skippedByGuardrail: true,
+          guardrail
+        });
+        resolve(0);
+        return;
+      }
+
       const linksWorker = this.computer.getLinksWorker();
       linksWorker.postMessage({
         nodes: subset,
-        metric: this.session.style.widgets['default-distance-metric'],
+        metric,
         strategy: this.session.style.widgets["ambiguity-resolution-strategy"],
         threshold: this.session.style.widgets["ambiguity-threshold"]
       });
       
       const sub = linksWorker.onmessage().subscribe((response) => {
-        let dists = this.session.style.widgets['default-distance-metric'].toLowerCase() === 'snps'
+        let dists = metric.toLowerCase() === 'snps'
           ? new Uint16Array(response.data.links)
           : new Float32Array(response.data.links);
         
@@ -2674,7 +2915,6 @@ align(params): Promise<any> {
         }
         let start = Date.now();
         let check = this.session.files.length > 1;
-        let n = subset.length;
         let l = 0;
         console.log('link same compute---', n);
         for (let i = 0; i < n; i++) {
@@ -2695,6 +2935,16 @@ align(params): Promise<any> {
         if (this.debugMode) {
           console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
         }
+        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+          metric,
+          sequences: n,
+          pairCount,
+          generatedLinks: k,
+          skippedByGuardrail: false,
+          workerDurationMs: Date.now() - response.data.start,
+          mergeDurationMs: Date.now() - start,
+          ...(guardrail ? { guardrail } : {})
+        });
         resolve(k);
         linksWorker.terminate();
         sub.unsubscribe();
@@ -2842,21 +3092,57 @@ align(params): Promise<any> {
         return this.workerComputeService.computeNN(this.session, this.temp);
     }
 
+    ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
+        const newickString = this.session.data?.newickString;
+        if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+            return Promise.resolve(null);
+        }
+
+        const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
+        const distanceOrigin = firstDistanceLink?.distanceOrigin || this.session.files?.find(file => file?.format === 'newick')?.name || 'Newick Tree';
+        const origin = Array.isArray(firstDistanceLink?.origin) && firstDistanceLink.origin.length
+            ? firstDistanceLink.origin
+            : [distanceOrigin];
+
+        return this.workerComputeService.ensurePatristicEdgesForThreshold(
+            threshold,
+            this.addLink.bind(this),
+            this.filterXSS,
+            this.session,
+            {
+                origin,
+                distanceOrigin,
+                check: true,
+                newickString,
+            }
+        );
+    }
+
     async runHamsters() {
 
+        const runHamstersStart = Date.now();
         console.log('running hamsters');
         //if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
         let hasDistances = this.session.data.links.some(l => l.hasDistance === true && l.distance > 0)
         let hasNewickString = typeof this.session.data.newickString === 'string' && this.session.data.newickString.trim().length > 0;
+        let computedTree = false;
         if (hasDistances && this.session.data.links.length <= 2500 && !hasNewickString) {
             console.log('run ham computeTree');
             const newickString = await this.computeTree();
             this.session.data.newickString = newickString;
+            computedTree = true;
             console.log('compute tree end');
         }
         //if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
         this.finishUp();
+        this.recordPerformanceTiming('load', 'runHamsters', runHamstersStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            hasDistances,
+            hasNewickString,
+            computedTree
+        });
     };
 
     /**
@@ -2869,6 +3155,7 @@ align(params): Promise<any> {
      */
     async finishUp() {
 
+        const finishUpStart = Date.now();
         clearTimeout(this.temp.messageTimeout);
 
         console.log('----- finishUp called');
@@ -2877,6 +3164,7 @@ align(params): Promise<any> {
         console.log('----- finishUp -- node/link fields');
 
         // cycles through each node and link and if variable in nodeFields/linkFields not a key for the node/link, it is added with value of null
+        const fieldNormalizationStart = Date.now();
         ["node", "link"].forEach(v => {
             let n = this.session.data[v + "s"].length;
             let fields = this.session.data[v + "Fields"];
@@ -2886,6 +3174,12 @@ align(params): Promise<any> {
                     if (!(field in d)) d[field] = null;
                 });
             }
+        });
+        this.recordPerformanceTiming('load', 'finishUpFieldNormalization', fieldNormalizationStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            nodeFields: this.session.data.nodeFields.length,
+            linkFields: this.session.data.linkFields.length
         });
 
         // TODO:: See if this is needed
@@ -2903,7 +3197,7 @@ align(params): Promise<any> {
         $("#node-color-variable")
             .html(
                 "<option selected>None</option>" +
-                this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);
@@ -2990,10 +3284,16 @@ align(params): Promise<any> {
         // }, 1000);
         $(".hideForHIVTrace").css("display", "flex");
         this.store.updatecurrentThresholdStepSize(this.session.style.widgets["default-distance-metric"]);
+        this.recordPerformanceTiming('load', 'finishUpSync', finishUpStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            defaultView: this.session.style.widgets['default-view']
+        });
     };
 
 
     updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
+        const updateStart = Date.now();
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
         const getVisibleLinkKey = (link: any): string => String(
@@ -3035,8 +3335,20 @@ align(params): Promise<any> {
           console.log('---- Update network visuals end');
 
           console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
+            const firstLoad = !this.session.network.isFullyLoaded;
+            this.recordPerformanceTiming('network', 'updateNetworkVisuals', updateStart, {
+                silent,
+                forceClusterUpdate,
+                firstLoad,
+                nodes: this.session.data.nodes.length,
+                links: this.session.data.links.length,
+                clusters: this.session.data.clusters.length,
+                visibleNodes: updatedVisNodeCount,
+                visibleClusters: updatedNumberOfVisibleClusters,
+                visibleLinks: updatedVisibleLinkKeys.size
+            });
             // If network wasn't loaded already, launch default view
-            if (!this.session.network.isFullyLoaded) {
+            if (firstLoad) {
                 this.session.meta.loadTime = Date.now() - this.session.meta.startTime;
                 console.log("Total load time Update Network:", this.session.meta.loadTime.toLocaleString(), "ms");
                 this.launchView(this.session.style.widgets['default-view']);
@@ -3410,7 +3722,9 @@ align(params): Promise<any> {
             }));
 
             this.temp.polygonGroups = polygonGroups;
-            this.session.style.widgets['polygon-color-table-visible'] = true;
+            if (this.session.style.widgets['polygon-color-table-visible'] == null) {
+                this.session.style.widgets['polygon-color-table-visible'] = 'Dock';
+            }
         }
 
         const result = this.colorMappingService.createPolygonColorMap(
@@ -3729,6 +4043,12 @@ align(params): Promise<any> {
             if (this.debugMode) {
                 console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
             }
+            this.recordPerformanceTiming('network', 'tagClusters', start, {
+                nodes: this.session.data.nodes.length,
+                links: this.session.data.links.length,
+                clusters: this.session.data.clusters.length,
+                metric
+            });
             resolve();
         });
     };
@@ -3744,6 +4064,7 @@ align(params): Promise<any> {
         let nodes = this.session.data.nodes,
             clusters = this.session.data.clusters;
         let n = nodes.length;
+        let visibleNodes = 0;
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
@@ -3766,6 +4087,8 @@ align(params): Promise<any> {
                 }
             }
 
+            if (node.visible) visibleNodes++;
+
             // if (node._id === "NIMR_NG894803") {
             //     console.log('setting node vis 2: ', _.cloneDeep(node));
             // }
@@ -3775,8 +4098,15 @@ align(params): Promise<any> {
             $(document).trigger("node-visibility");
         } 
 
+        this.recordPerformanceTiming('network', 'setNodeVisibility', start, {
+            nodes: n,
+            visibleNodes,
+            silent,
+            dateField
+        });
+
         if(this.debugMode) {
-            console.log('--- Set node viz nodes length: ', nodes.filter(n => n.visible).length);
+            console.log('--- Set node viz nodes length: ', visibleNodes);
             console.log("Node Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");        
         }
        
@@ -3795,6 +4125,7 @@ align(params): Promise<any> {
         let links = this.session.data.links;
         let clusters = this.session.data.clusters;
         let n = links.length;
+        let visibleLinks = 0;
         const globalOriginOrder = this.session.style.widgets['link-origin-array-order']; // Get the global order once
     
     
@@ -3920,6 +4251,7 @@ align(params): Promise<any> {
             // If not visible, link.origin is left as is.
     
             link.visible = visible; // Set final visibility
+            if (visible) visibleLinks++;
     
         } // End of loop
     
@@ -3931,6 +4263,16 @@ align(params): Promise<any> {
         }
     
     
+        this.recordPerformanceTiming('network', 'setLinkVisibility', start, {
+            links: n,
+            visibleLinks,
+            silent,
+            checkCluster,
+            metric,
+            threshold,
+            showNN
+        });
+
         if(this.debugMode) {
             console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
         }
@@ -3945,7 +4287,9 @@ align(params): Promise<any> {
         let min = this.session.style.widgets["cluster-minimum-size"];
         let clusters = this.session.data.clusters;
         let n = clusters.length;
-        console.log('cluster nodes ', clusters);
+        if (this.debugMode) {
+            console.log('cluster nodes ', clusters);
+        }
         for (let i = 0; i < n; i++) {
             const cluster = clusters[i];
            

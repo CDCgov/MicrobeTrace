@@ -153,7 +153,7 @@ describe('Journey Flow - 2D mixed-origin link coloring', () => {
     });
 
     openGlobalStylingTab();
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
 
     cy.window().then((win: unknown) => {
       const typedWindow = win as WinWithCy;
@@ -174,7 +174,7 @@ describe('Journey Flow - 2D mixed-origin link coloring', () => {
         normalizeExpectedColor(String(typedWindow.commonService.temp.style.linkColorMap(origin) || '')),
       );
 
-      cy.get('#link-color-table', { timeout: 15000 }).should(($table) => {
+      cy.get('#key-tables-link-table', { timeout: 15000 }).should(($table) => {
         const zeroOriginCells = $table.find('td[data-value]').filter((_, cell) =>
           String(Cypress.$(cell).attr('data-value') || '') === zeroCountOrigin,
         );

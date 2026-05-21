@@ -22,6 +22,7 @@ import type {
   PatristicWorkerRequest,
   PatristicWorkerResponse,
   PatristicEdgeBatchResponse,
+  PatristicEdgeTimings,
 } from './patristic-engine.types';
 
 // ─── Worker state (persists across messages) ─────────────────────────────────
@@ -31,6 +32,12 @@ let currentLca: LcaIndex | null = null;
 let cancelledJobs = new Set<number>();
 
 // ─── Tree flattening ─────────────────────────────────────────────────────────
+
+function getBranchLabel(node: any): string {
+  const rawLabel = node?.id ?? node?.name ?? node?.data?.id ?? node?.data?.name;
+  if (rawLabel === undefined || rawLabel === null) return '';
+  return String(rawLabel).trim();
+}
 
 /**
  * Flatten a patristic Branch tree into contiguous typed arrays.
@@ -56,6 +63,7 @@ function flattenTree(root: any): FlatTree {
   const isLeaf = new Uint8Array(nodeCount);
   const leafIndices: number[] = [];
   const leafNames: string[] = [];
+  const nodeNames: string[] = new Array(nodeCount);
 
   // Second pass: assign indices via iterative DFS
   // Stack entries: [node, parentIndex]
@@ -65,9 +73,11 @@ function flattenTree(root: any): FlatTree {
   while (assignStack.length > 0) {
     const [node, parentIdx] = assignStack.pop()!;
     const idx = nextIndex++;
+    const nodeName = getBranchLabel(node);
 
     parent[idx] = parentIdx;
-    const bl = typeof node.length === 'number' && node.length >= 0 ? node.length : 0;
+    nodeNames[idx] = nodeName;
+    const bl = typeof node.length === 'number' ? node.length : 0;
     branchLength[idx] = bl;
     rootDepth[idx] = parentIdx >= 0 ? rootDepth[parentIdx] + bl : 0;
 
@@ -75,7 +85,7 @@ function flattenTree(root: any): FlatTree {
     if (children.length === 0) {
       isLeaf[idx] = 1;
       leafIndices.push(idx);
-      leafNames.push(node.id || node.name || `leaf_${leafIndices.length - 1}`);
+      leafNames.push(nodeName || `leaf_${leafIndices.length - 1}`);
     } else {
       isLeaf[idx] = 0;
       // Push children in reverse so leftmost child is processed first
@@ -100,23 +110,65 @@ function flattenTree(root: any): FlatTree {
     isLeaf,
     leafNodeIndex,
     leafNames,
+    nodeNames,
   };
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
+function describeTreeNode(tree: FlatTree, nodeIndex: number): string {
+  if (nodeIndex < 0 || nodeIndex >= tree.nodeCount) return 'unknown node';
+
+  const name = tree.nodeNames[nodeIndex];
+  const kind = tree.parent[nodeIndex] < 0
+    ? 'root'
+    : tree.isLeaf[nodeIndex]
+      ? 'leaf'
+      : 'internal node';
+
+  return name ? `${kind} "${name}"` : `${kind} at worker index ${nodeIndex}`;
+}
+
+function firstDescendantLeafName(tree: FlatTree, nodeIndex: number): string | null {
+  for (let leafIndex = 0; leafIndex < tree.leafCount; leafIndex++) {
+    let current = tree.leafNodeIndex[leafIndex];
+    while (current >= 0) {
+      if (current === nodeIndex) return tree.leafNames[leafIndex] || null;
+      current = tree.parent[current];
+    }
+  }
+
+  return null;
+}
+
+function describeTreeNodeContext(tree: FlatTree, nodeIndex: number): string {
+  const details = [`branch: ${describeTreeNode(tree, nodeIndex)}`];
+  const parentIndex = tree.parent[nodeIndex];
+  if (parentIndex >= 0) {
+    details.push(`parent: ${describeTreeNode(tree, parentIndex)}`);
+  }
+
+  if (!tree.isLeaf[nodeIndex]) {
+    const nearbyLeaf = firstDescendantLeafName(tree, nodeIndex);
+    if (nearbyLeaf) details.push(`near leaf "${nearbyLeaf}"`);
+  }
+
+  details.push(`worker index ${nodeIndex}`);
+  return details.join('; ');
+}
+
 function validateTree(tree: FlatTree): string | null {
   // Check for negative branch lengths
   for (let i = 0; i < tree.nodeCount; i++) {
     if (tree.branchLength[i] < 0) {
-      return `Negative branch length (${tree.branchLength[i]}) at node index ${i}. This may indicate a malformed tree.`;
+      return `Negative branch length (${tree.branchLength[i]}) in Newick tree (${describeTreeNodeContext(tree, i)}). Branch lengths must be non-negative; this may indicate a malformed tree.`;
     }
   }
 
   // Check for NaN depths
   for (let i = 0; i < tree.nodeCount; i++) {
     if (isNaN(tree.rootDepth[i])) {
-      return `NaN root depth at node index ${i}. Check for missing branch lengths.`;
+      return `Invalid root depth in Newick tree (${describeTreeNodeContext(tree, i)}). Check for missing or invalid branch lengths.`;
     }
   }
 
@@ -135,6 +187,51 @@ function validateTree(tree: FlatTree): string | null {
   }
 
   return null;
+}
+
+function calculateTreeMetrics(tree: FlatTree): { maxDistance: number; maxRootDepth: number } {
+  const children: number[][] = new Array(tree.nodeCount);
+  for (let i = 0; i < tree.nodeCount; i++) {
+    children[i] = [];
+  }
+  for (let i = 1; i < tree.nodeCount; i++) {
+    children[tree.parent[i]].push(i);
+  }
+
+  const bestDownToLeaf = new Float64Array(tree.nodeCount);
+  let maxDistance = 0;
+  let maxRootDepth = 0;
+
+  for (let i = 0; i < tree.leafCount; i++) {
+    const nodeIndex = tree.leafNodeIndex[i];
+    if (tree.rootDepth[nodeIndex] > maxRootDepth) {
+      maxRootDepth = tree.rootDepth[nodeIndex];
+    }
+  }
+
+  for (let nodeIndex = tree.nodeCount - 1; nodeIndex >= 0; nodeIndex--) {
+    if (tree.isLeaf[nodeIndex]) {
+      bestDownToLeaf[nodeIndex] = 0;
+      continue;
+    }
+
+    let best = 0;
+    let secondBest = 0;
+    for (const childIndex of children[nodeIndex]) {
+      const childDistance = tree.branchLength[childIndex] + bestDownToLeaf[childIndex];
+      if (childDistance >= best) {
+        secondBest = best;
+        best = childDistance;
+      } else if (childDistance > secondBest) {
+        secondBest = childDistance;
+      }
+    }
+
+    bestDownToLeaf[nodeIndex] = best;
+    maxDistance = Math.max(maxDistance, best + secondBest);
+  }
+
+  return { maxDistance, maxRootDepth };
 }
 
 // ─── LCA via Euler tour + Sparse Table RMQ ───────────────────────────────────
@@ -283,6 +380,7 @@ function generateThresholdedEdges(
   batchSize: number = 10000,
   maxEdges: number = Infinity
 ): void {
+  const pairStart = performance.now();
   const n = tree.leafCount;
   const totalPairs = (n * (n - 1)) / 2;
 
@@ -339,7 +437,14 @@ function generateThresholdedEdges(
   }
 
   // Flush remaining
-  flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true);
+  const timings: PatristicEdgeTimings = {
+    threshold,
+    pairScanMs: performance.now() - pairStart,
+    emittedEdgeCount: totalEmitted,
+    totalPairs,
+    maxEdgesHit: Number.isFinite(maxEdges) && totalEmitted >= maxEdges && pairsProcessed < totalPairs,
+  };
+  flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true, timings);
 }
 
 /**
@@ -396,7 +501,8 @@ function flushBatch(
   distances: Float32Array,
   count: number,
   totalEmitted: number,
-  done: boolean
+  done: boolean,
+  timings?: PatristicEdgeTimings
 ): void {
   // Slice to actual size if batch is partially filled
   const s = count < sources.length ? sources.slice(0, count) : sources;
@@ -412,6 +518,9 @@ function flushBatch(
     totalEmitted,
     done,
   };
+  if (timings) {
+    response.timings = timings;
+  }
 
   // Transfer the typed array buffers (zero-copy)
   postMessage(response, [s.buffer, t.buffer, d.buffer] as any);
@@ -428,9 +537,11 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
     switch (data.type) {
       case 'INIT_TREE': {
         const { jobId, newickString } = data;
+        const totalStart = performance.now();
 
         // Parse
         respond({ type: 'PROGRESS', jobId, phase: 'parse', percent: 0 });
+        const parseStart = performance.now();
         let parsedTree: any;
         try {
           parsedTree = patristic.parseNewick(newickString);
@@ -438,22 +549,33 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           respond({ type: 'ERROR', jobId, message: `Failed to parse Newick: ${e.message || e}` });
           return;
         }
+        const parseMs = performance.now() - parseStart;
 
         // Flatten
         respond({ type: 'PROGRESS', jobId, phase: 'flatten', percent: 25 });
+        const flattenStart = performance.now();
         currentTree = flattenTree(parsedTree);
+        const flattenMs = performance.now() - flattenStart;
 
         // Validate
+        const validationStart = performance.now();
         const validationError = validateTree(currentTree);
+        const validationMs = performance.now() - validationStart;
         if (validationError) {
           respond({ type: 'ERROR', jobId, message: validationError });
           currentTree = null;
           return;
         }
 
+        const metricsStart = performance.now();
+        const treeMetrics = calculateTreeMetrics(currentTree);
+        const metricsMs = performance.now() - metricsStart;
+
         // Build LCA
         respond({ type: 'PROGRESS', jobId, phase: 'lca', percent: 50 });
+        const lcaStart = performance.now();
         currentLca = buildLcaIndex(currentTree);
+        const lcaMs = performance.now() - lcaStart;
 
         respond({
           type: 'TREE_READY',
@@ -461,6 +583,16 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           leafCount: currentTree.leafCount,
           nodeCount: currentTree.nodeCount,
           leafNames: currentTree.leafNames,
+          maxDistance: treeMetrics.maxDistance,
+          maxRootDepth: treeMetrics.maxRootDepth,
+          timings: {
+            parseMs,
+            flattenMs,
+            validationMs,
+            metricsMs,
+            lcaMs,
+            totalPreprocessingMs: performance.now() - totalStart,
+          },
         });
         break;
       }

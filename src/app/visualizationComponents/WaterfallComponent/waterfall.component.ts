@@ -233,6 +233,14 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     return this.buildExpandedRowData(link);
   }
 
+  private getEndpointId(endpoint: any): string {
+    if (endpoint && typeof endpoint === 'object') {
+      return String(endpoint._id ?? endpoint.id ?? '');
+    }
+
+    return String(endpoint ?? '');
+  }
+
   private setClusterExpandedRow(clusterId: any) {
     this.clusterExpandedRowKeys = clusterId == null ? {} : { [String(clusterId)]: true };
     if (this.clusterTable) {
@@ -418,11 +426,16 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
 
   private buildLinkTableData(nodeId: any) {
     const links = [];
+    const selectedNodeId = String(nodeId);
+
     this.getVisibleLinksForWaterfall().forEach(link => {
-      if (link.source == nodeId) {
-        links.push({ 'id': link.target, 'distance': link.distance, 'index': link.index })
-      } else if (link.target == nodeId) {
-        links.push({ 'id': link.source, 'distance': link.distance, 'index': link.index })
+      const sourceId = this.getEndpointId(link.source);
+      const targetId = this.getEndpointId(link.target);
+
+      if (sourceId === selectedNodeId) {
+        links.push({ 'id': targetId, 'distance': link.distance, 'index': link.index })
+      } else if (targetId === selectedNodeId) {
+        links.push({ 'id': sourceId, 'distance': link.distance, 'index': link.index })
       }
     });
 
@@ -447,6 +460,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     this.expandedLinkRowData = [];
     this.setNodeExpandedRow(null);
     this.setLinkExpandedRow(null);
+    this.cdref.detectChanges();
   }
 
   onClusterRowUnselect() {
@@ -461,6 +475,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     this.setClusterExpandedRow(null);
     this.setNodeExpandedRow(null);
     this.setLinkExpandedRow(null);
+    this.cdref.detectChanges();
   }
 
   clearClusterTableSelection() {
@@ -481,6 +496,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     this.selectedLinkRow = null;
     this.expandedLinkRowData = [];
     this.setLinkExpandedRow(null);
+    this.cdref.detectChanges();
   }
 
   onNodeRowUnselect() {
@@ -490,22 +506,28 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     this.expandedLinkRowData = [];
     this.setNodeExpandedRow(null);
     this.setLinkExpandedRow(null);
+    this.cdref.detectChanges();
   }
 
   onLinkRowSelect(e) {
     let linkIndex = e.data.index;
     this.expandedLinkRowData = this.buildLinkExpandedRowData(linkIndex);
     this.setLinkExpandedRow(linkIndex);
+    this.cdref.detectChanges();
 
   }
 
   onLinkRowUnselect() {
     this.expandedLinkRowData = [];
     this.setLinkExpandedRow(null);
+    this.cdref.detectChanges();
   }
 
   updateNodeColors() {}
   updateVisualization() {}
+  refreshDistanceDisplayFormat() {
+    this.refreshFromSession();
+  }
   applyStyleFileSettings() {}
   updateLinkColor() {}
   openRefreshScreen() {}

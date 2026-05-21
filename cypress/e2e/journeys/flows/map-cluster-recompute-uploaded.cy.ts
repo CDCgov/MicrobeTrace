@@ -163,15 +163,15 @@ describe('Journey Flow - Map uploaded cluster-color recompute', () => {
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
 
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
-    waitForColorTableRows('#node-color-table', 'before-threshold node');
-    waitForColorTableRows('#link-color-table', 'before-threshold link');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
+    waitForColorTableRows('#key-tables-node-table', 'before-threshold node');
+    waitForColorTableRows('#key-tables-link-table', 'before-threshold link');
 
-    cy.get('#node-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       nodeColorsBefore = extractColorTable($table);
     });
-    cy.get('#link-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-link-table', { timeout: 15000 }).then(($table) => {
       linkColorsBefore = extractColorTable($table);
     });
     cy.closeGlobalSettings();
@@ -201,12 +201,12 @@ describe('Journey Flow - Map uploaded cluster-color recompute', () => {
     openGlobalStylingTab();
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
-    waitForColorTableRows('#node-color-table', 'after-threshold node');
-    waitForColorTableRows('#link-color-table', 'after-threshold link');
-    cy.get('#node-color-table', { timeout: 15000 }).then(($table) => {
+    waitForColorTableRows('#key-tables-node-table', 'after-threshold node');
+    waitForColorTableRows('#key-tables-link-table', 'after-threshold link');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       nodeColorsAfter = extractColorTable($table);
     });
-    cy.get('#link-color-table', { timeout: 15000 }).then(($table) => {
+    cy.get('#key-tables-link-table', { timeout: 15000 }).then(($table) => {
       linkColorsAfter = extractColorTable($table);
     });
     cy.closeGlobalSettings();

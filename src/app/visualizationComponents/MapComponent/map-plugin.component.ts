@@ -1525,6 +1525,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Calls drawLeafletMapNodes() which removes all previous nodes from map, updates _j, _theta, _jlat, _jlon for each node
      */
     drawNodes(rerollNodes=true) {
+        if (!this.lmap) {
+            return;
+        }
+
         this.drawLeafletMapNodes(rerollNodes);
     }
 
@@ -1967,6 +1971,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     updateVisualization() {
         this.drawNodes(false);
+        this.drawLinks();
+    }
+
+    refreshDistanceDisplayFormat() {
         this.drawLinks();
     }
 

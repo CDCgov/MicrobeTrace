@@ -319,23 +319,15 @@ function hexToRgbString(hex: string): string {
       .its('commonService.session.style.widgets.polygons-show')
       .should('equal', g.showGroups);
 
-    if (g.showGroups) {
-      assertGroupsRendered(1);
-    }
-  
     // Group By (only visible when showGroups=true)
     if (g.showGroups) {
-      const wantSubtype = g.groupBy === 'Subtype';
-  
-      // If you need to switch to subtype
-      if (wantSubtype) {
-        cy.get('@groupingTab').find('#polygons-foci').should('be.visible').click({ force: true });
-        cy.contains('li[role="option"]', 'Subtype').click({ force: true });
-        cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
-      } else {
-        // default is cluster
-        cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'cluster');
-      }
+      const groupByLabel = g.groupBy;
+      const groupByValue = String(groupByLabel).toLowerCase();
+
+      cy.get('@groupingTab').find('#polygons-foci').should('be.visible').click({ force: true });
+      cy.contains('li[role="option"]', groupByLabel).click({ force: true });
+      cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', groupByValue);
+      assertGroupsRendered(1);
     }
   
     // Labels
@@ -387,7 +379,7 @@ function hexToRgbString(hex: string): string {
           });
   
         cy.window().its('commonService.session.style.widgets.polygon-color-table-visible')
-          .should('equal', true);
+          .should('equal', 'Show');
   
         // Optional: change some group colors if specified
         if (g.changeGroupColors?.groups?.length) {
@@ -687,9 +679,13 @@ export function assertPhyloTreeReady(timeout = 30000): void {
 
 export function assertMapReady(timeout = 30000): void {
   cy.get('.mapStyle', { timeout }).should('be.visible');
-  cy.window({ timeout })
-    .its('commonService.visuals.gisMap')
-    .should('exist');
+  cy.window({ timeout }).should((win: any) => {
+    const map = win.commonService?.visuals?.gisMap;
+
+    expect(map, 'Map component instance').to.exist;
+    expect(map.lmap, 'Leaflet map instance').to.exist;
+    expect(map.initialSettingsLoaded, 'Map initial settings loaded').to.equal(true);
+  });
 }
 
 export function assertBubbleReady(timeout = 30000): void {
@@ -773,11 +769,11 @@ export function assertHeatmapReady(timeout = 30000): void {
     .should('exist');
 }
 
-export function goToPhyloTreeView(): void {
+export function goToPhyloTreeView(timeout = 30000): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Phylogenetic Tree', { timeout: 15000 }).click({ force: true });
 
-  assertPhyloTreeReady();
+  assertPhyloTreeReady(timeout);
 }
 
 export function goToMapView(): void {
@@ -1542,8 +1538,8 @@ export function assertStyleTablesFromProfile(profile: DatasetProfile): void {
     });
   };
 
-  assertTableVisibility('#node-color-table', style.expectTables.nodeColorTable);
-  assertTableVisibility('#link-color-table', style.expectTables.linkColorTable);
+  assertTableVisibility('#key-tables-node-table', style.expectTables.nodeColorTable);
+  assertTableVisibility('#key-tables-link-table', style.expectTables.linkColorTable);
   assertTableVisibility('#node-shape-table, #key-tables-node-shape-table, #nodeSymbolTable', style.expectTables.nodeSymbolTable);
 
   cy.window()
@@ -2124,26 +2120,22 @@ export function enableGroupingShow(groupBy: 'cluster' | 'subtype' = 'cluster'): 
     .its('commonService.session.style.widgets.polygons-show')
     .should('equal', true);
 
-  // Wait until Cytoscape actually has parent nodes (groups)
-  assertGroupsRendered(1);
-
   // Set group-by if needed (only visible after show=true)
-  if (groupBy !== 'cluster') {
-    cy.get('@groupingTab')
-      .find('#polygons-foci')
-      .should('be.visible')
-      .click({ force: true });
+  const groupByLabel = groupBy === 'cluster' ? 'Cluster' : 'Subtype';
 
-    cy.contains('li[role="option"]', 'Subtype').click({ force: true });
+  cy.get('@groupingTab')
+    .find('#polygons-foci')
+    .should('be.visible')
+    .click({ force: true });
 
-    cy.window()
-      .its('commonService.session.style.widgets.polygons-foci')
-      .should('equal', 'subtype');
-  } else {
-    cy.window()
-      .its('commonService.session.style.widgets.polygons-foci')
-      .should('equal', 'cluster');
-  }
+  cy.contains('li[role="option"]', groupByLabel).click({ force: true });
+
+  cy.window()
+    .its('commonService.session.style.widgets.polygons-foci')
+    .should('equal', groupBy);
+
+  // Wait until Cytoscape actually has parent nodes for the selected grouping field.
+  assertGroupsRendered(1);
 
   cy.get('@twoDSettings')
     .find('button.p-dialog-close-button')

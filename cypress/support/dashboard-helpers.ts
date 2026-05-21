@@ -223,11 +223,21 @@ const applyDashboardLayout = (
 
   cy.window().then((win: unknown) => {
     const app = getDashboardApp(win as DashboardWindow);
+    const shouldPreserveKeyTablesState = orderedLabels
+      .map((label) => normalizeViewName(label))
+      .includes('Docked Key Tables');
+    const wasApplyingPendingDashboardRestore = (app as any).applyingPendingDashboardRestore;
 
     try {
+      if (shouldPreserveKeyTablesState) {
+        (app as any).applyingPendingDashboardRestore = true;
+      }
+
       app._goldenLayoutHostComponent.goldenLayout.loadLayout(layout);
     } catch (error) {
       throw new Error(`dashboard loadLayout failed: ${toErrorMessage(error)}`);
+    } finally {
+      (app as any).applyingPendingDashboardRestore = wasApplyingPendingDashboardRestore;
     }
   });
 
@@ -367,7 +377,10 @@ const assertNoRuntimeBanner = (): void => {
 
     const details = {
       bannerText: String(banner.textContent || '').replace(/\s+/g, ' ').trim(),
-      consoleErrors: (typedWindow.__mtCapturedConsoleErrors || []).slice(-5),
+      consoleErrors: [
+        ...(typedWindow.__mtCapturedConsoleErrors || []),
+        ...((typedWindow as any).__dashboardLayoutRestoreErrors || []),
+      ].slice(-10),
     };
 
     throw new Error(`runtime error banner present: ${JSON.stringify(details)}`);

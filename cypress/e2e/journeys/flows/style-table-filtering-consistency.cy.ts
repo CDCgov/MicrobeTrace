@@ -102,7 +102,11 @@ const applyMinimumClusterSize = (size: number): void => {
     .clear()
     .wait(50)
     .type(String(size))
-    .blur();
+    .then(($input) => {
+      const input = $input.get(0);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new Event('blur', { bubbles: true }));
+    });
 
   cy.window()
     .its('commonService.session.style.widgets.cluster-minimum-size')
@@ -144,7 +148,7 @@ const assertNodeColorTableMatchesVisibleNodes = (field: string): void => {
 
     expect(cyInstance, 'cytoscapeInstance').to.exist;
 
-    cy.get('#node-color-table', { timeout: 15000 }).should(($table) => {
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should(($table) => {
       const rows = extractColorTableRows($table);
       const visibleByValue: Record<string, { count: number; colors: string[] }> = {};
       cyInstance
@@ -183,7 +187,7 @@ const assertLinkColorTableMatchesVisibleLinks = (field: string): void => {
 
     expect(cyInstance, 'cytoscapeInstance').to.exist;
 
-    cy.get('#link-color-table', { timeout: 15000 }).should(($table) => {
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should(($table) => {
       const rows = extractColorTableRows($table);
       const visibleByValue: Record<string, { count: number; colors: string[] }> = {};
       cyInstance
@@ -349,8 +353,8 @@ describe('Journey Flow - Filtering keeps style tables coherent', () => {
     selectPrimeOption('#link-tooltip-variable', 'Contact type');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'Contact type');
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
     cy.closeGlobalSettings();
 
     assertNodeColorTableMatchesVisibleNodes('Profession');
@@ -365,8 +369,8 @@ describe('Journey Flow - Filtering keeps style tables coherent', () => {
       expect(count, 'links not increased after filtering').to.be.at.most(launchLinkCount);
     });
 
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
     assertNodeColorTableMatchesVisibleNodes('Profession');
     assertLinkColorTableMatchesVisibleLinks('Contact type');
   });
@@ -385,7 +389,7 @@ describe('Journey Flow - Filtering keeps style tables coherent', () => {
     cy.contains('li[role="option"]', 'Node type').click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
-    cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
+    cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Dock');
     cy.get(nodeShapeTableSelector, { timeout: 15000 }).should('exist');
     cy.closeGlobalSettings();
 

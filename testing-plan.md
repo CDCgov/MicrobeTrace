@@ -6,76 +6,22 @@ The older generic plan was retired because it no longer matched the codebase or 
 
 ## Active Testing Docs
 
-- `docs/test-runner-quick-reference.md`
+- `docs/testing/test-runner-quick-reference.md`
   - Quick commands for targeted unit and Cypress runs, plus guidance on when to run a narrow slice versus the broader suites.
-- `docs/cypress-architecture.md`
+- `docs/testing/cypress-architecture.md`
   - Current maintained Cypress structure, selector rules, and migration rules.
-- `docs/2d-network-cypress-checklist.md`
-  - Primary checklist for the 2D Network Cypress journey coverage.
-- `docs/2d-network-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and next flows.
-- `docs/2d-network-cypress-bug-log.csv`
-  - Known app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/map-view-cypress-checklist.md`
-  - Primary checklist for the Map-view Cypress journey coverage.
-- `docs/map-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Map coverage.
-- `docs/map-view-cypress-bug-log.csv`
-  - Known Map app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/epi-curve-cypress-checklist.md`
-  - Primary checklist for the Epi Curve Cypress journey coverage.
-- `docs/epi-curve-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Epi coverage.
-- `docs/epi-curve-cypress-bug-log.csv`
-  - Known Epi Curve app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/gantt-chart-cypress-checklist.md`
-  - Primary checklist for the Gantt Chart Cypress journey coverage.
-- `docs/gantt-chart-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Gantt coverage.
-- `docs/gantt-chart-cypress-bug-log.csv`
-  - Known Gantt app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/aggregate-view-cypress-checklist.md`
-  - Primary checklist for the Aggregate-view Cypress journey coverage.
-- `docs/aggregate-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Aggregate coverage.
-- `docs/aggregate-view-cypress-bug-log.csv`
-  - Known Aggregate app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/sankey-view-cypress-checklist.md`
-  - Primary checklist for the Sankey-view Cypress journey coverage.
-- `docs/sankey-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Sankey coverage.
-- `docs/sankey-view-cypress-bug-log.csv`
-  - Known Sankey app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/alignment-view-cypress-checklist.md`
-  - Primary checklist for the Alignment-view Cypress journey coverage.
-- `docs/alignment-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Alignment coverage.
-- `docs/alignment-view-cypress-bug-log.csv`
-  - Known Alignment app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/bubble-view-cypress-checklist.md`
-  - Primary checklist for the Bubble-view Cypress journey coverage.
-- `docs/bubble-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Bubble coverage.
-- `docs/bubble-view-cypress-bug-log.csv`
-  - Known Bubble app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/table-view-cypress-checklist.md`
-  - Primary checklist for the Table-view Cypress journey coverage.
-- `docs/table-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Table coverage.
-- `docs/table-view-cypress-bug-log.csv`
-  - Known Table app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/waterfall-view-cypress-checklist.md`
-  - Primary checklist for the Waterfall-view Cypress journey coverage.
-- `docs/waterfall-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for Waterfall coverage.
-- `docs/waterfall-view-cypress-bug-log.csv`
-  - Known Waterfall app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
-- `docs/phylogenetic-view-cypress-checklist.md`
-  - Primary checklist for the Phylogenetic Tree Cypress journey coverage.
-- `docs/phylogenetic-view-cypress-qa-tracker.csv`
-  - QA-facing tracker with priority, status, fixtures, current specs, and migration gaps for tree coverage.
-- `docs/phylogenetic-view-cypress-bug-log.csv`
-  - Known tree app bugs or observed-vs-intended deviations surfaced by Cypress, plus the regression specs tied to each one.
+- `docs/testing/README.md`
+  - Testing-doc index for core Cypress docs and view-specific folders.
+- `docs/testing/views/`
+  - View-specific checklist, QA tracker, and bug-log folders.
+- `docs/performance/performance-baseline-plan.md`
+  - Plan for discovering performance baselines, dataset tiers, responsiveness probes, and future timing budgets.
+- `docs/performance/genetic-distance-refactor-performance-comparison.md`
+  - Before/after performance comparison for the genetic-distance and Newick/patristic refactor.
+- `docs/performance/performance-dataset-strategy-for-bioinformaticians.md`
+  - Bioinformatics-facing guidance on synthetic fixtures, real datasets, and representative performance shapes.
+- `docs/performance/problem-10k-node-only-performance.md`
+  - Case study for the `problem_10k.csv` node-only fixture, including the launch/OOM root cause, 2D grouping optimizations, and before/after measurements.
 
 ## Current Test Layers
 
@@ -172,31 +118,37 @@ The older generic plan was retired because it no longer matched the codebase or 
 
 ## Update Rules
 
-- Keep `docs/cypress-architecture.md` aligned with the actual folder structure and npm scripts.
+- Keep `docs/testing/cypress-architecture.md` aligned with the actual folder structure and npm scripts.
 - Update the checklist and QA tracker together for the surface you changed:
-  - `docs/2d-network-cypress-checklist.md` and `docs/2d-network-cypress-qa-tracker.csv`
-  - `docs/map-view-cypress-checklist.md` and `docs/map-view-cypress-qa-tracker.csv`
-  - `docs/epi-curve-cypress-checklist.md` and `docs/epi-curve-cypress-qa-tracker.csv`
-  - `docs/gantt-chart-cypress-checklist.md` and `docs/gantt-chart-cypress-qa-tracker.csv`
-  - `docs/aggregate-view-cypress-checklist.md` and `docs/aggregate-view-cypress-qa-tracker.csv`
-  - `docs/sankey-view-cypress-checklist.md` and `docs/sankey-view-cypress-qa-tracker.csv`
-  - `docs/alignment-view-cypress-checklist.md` and `docs/alignment-view-cypress-qa-tracker.csv`
-  - `docs/bubble-view-cypress-checklist.md` and `docs/bubble-view-cypress-qa-tracker.csv`
-  - `docs/table-view-cypress-checklist.md` and `docs/table-view-cypress-qa-tracker.csv`
-  - `docs/waterfall-view-cypress-checklist.md` and `docs/waterfall-view-cypress-qa-tracker.csv`
-  - `docs/phylogenetic-view-cypress-checklist.md` and `docs/phylogenetic-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/2d-network/2d-network-cypress-checklist.md` and `docs/testing/views/2d-network/2d-network-cypress-qa-tracker.csv`
+  - `docs/testing/views/map/map-view-cypress-checklist.md` and `docs/testing/views/map/map-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/epi-curve/epi-curve-cypress-checklist.md` and `docs/testing/views/epi-curve/epi-curve-cypress-qa-tracker.csv`
+  - `docs/testing/views/gantt-chart/gantt-chart-cypress-checklist.md` and `docs/testing/views/gantt-chart/gantt-chart-cypress-qa-tracker.csv`
+  - `docs/testing/views/aggregate/aggregate-view-cypress-checklist.md` and `docs/testing/views/aggregate/aggregate-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/sankey/sankey-view-cypress-checklist.md` and `docs/testing/views/sankey/sankey-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/crosstab/crosstab-view-cypress-checklist.md` and `docs/testing/views/crosstab/crosstab-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/alignment/alignment-view-cypress-checklist.md` and `docs/testing/views/alignment/alignment-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/bubble/bubble-view-cypress-checklist.md` and `docs/testing/views/bubble/bubble-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/dashboard/dashboard-cypress-checklist.md` and `docs/testing/views/dashboard/dashboard-cypress-qa-tracker.csv`
+  - `docs/testing/views/heatmap/heatmap-view-cypress-checklist.md` and `docs/testing/views/heatmap/heatmap-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/table/table-view-cypress-checklist.md` and `docs/testing/views/table/table-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/waterfall/waterfall-view-cypress-checklist.md` and `docs/testing/views/waterfall/waterfall-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-checklist.md` and `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-qa-tracker.csv`
 - Update the matching bug log whenever maintained Cypress coverage exposes or resolves a product bug:
-  - `docs/2d-network-cypress-bug-log.csv` for 2D Network
-  - `docs/map-view-cypress-bug-log.csv` for Map
-  - `docs/epi-curve-cypress-bug-log.csv` for Epi Curve
-  - `docs/gantt-chart-cypress-bug-log.csv` for Gantt
-  - `docs/aggregate-view-cypress-bug-log.csv` for Aggregate
-  - `docs/sankey-view-cypress-bug-log.csv` for Sankey
-  - `docs/alignment-view-cypress-bug-log.csv` for Alignment View
-  - `docs/bubble-view-cypress-bug-log.csv` for Bubble
-  - `docs/table-view-cypress-bug-log.csv` for Table
-  - `docs/waterfall-view-cypress-bug-log.csv` for Waterfall
-  - `docs/phylogenetic-view-cypress-bug-log.csv` for Phylogenetic Tree
+  - `docs/testing/views/2d-network/2d-network-cypress-bug-log.csv` for 2D Network
+  - `docs/testing/views/map/map-view-cypress-bug-log.csv` for Map
+  - `docs/testing/views/epi-curve/epi-curve-cypress-bug-log.csv` for Epi Curve
+  - `docs/testing/views/gantt-chart/gantt-chart-cypress-bug-log.csv` for Gantt
+  - `docs/testing/views/aggregate/aggregate-view-cypress-bug-log.csv` for Aggregate
+  - `docs/testing/views/sankey/sankey-view-cypress-bug-log.csv` for Sankey
+  - `docs/testing/views/crosstab/crosstab-view-cypress-bug-log.csv` for Crosstab
+  - `docs/testing/views/alignment/alignment-view-cypress-bug-log.csv` for Alignment View
+  - `docs/testing/views/bubble/bubble-view-cypress-bug-log.csv` for Bubble
+  - `docs/testing/views/dashboard/dashboard-cypress-bug-log.csv` for Dashboard
+  - `docs/testing/views/heatmap/heatmap-view-cypress-bug-log.csv` for Heatmap
+  - `docs/testing/views/table/table-view-cypress-bug-log.csv` for Table
+  - `docs/testing/views/waterfall/waterfall-view-cypress-bug-log.csv` for Waterfall
+  - `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-bug-log.csv` for Phylogenetic Tree
 - When a journey is added, move its tracker row from `Missing` or `Partial` to `Covered`.
 - Add the exact current Cypress spec path in the CSV once coverage exists.
 - When current product behavior differs from intended behavior, keep both expectations instead of changing the intended value to make the test pass.

@@ -216,7 +216,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       ticktext: tickValues.map((value) => this.formatHeatmapDistanceValue(value)),
     };
   }
-  
+
   drawHeatmap(config: object): void {
     this.commonService.getDM().then(({dm, labels}) => {
       this.nodeIds = labels;
@@ -429,6 +429,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   }
 
   updateVisualization(): void {
+    this.redrawHeatmap();
+  }
+
+  refreshDistanceDisplayFormat(): void {
     this.redrawHeatmap();
   }
 

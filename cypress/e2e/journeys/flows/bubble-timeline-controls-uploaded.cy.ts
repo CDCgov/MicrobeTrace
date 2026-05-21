@@ -271,8 +271,8 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'State');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'State');
-    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
-    changeColorTableEntry('#node-color-table', 'Pennsylvania', updatedPennsylvaniaColor);
+    cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
+    changeColorTableEntry('#key-tables-node-table', 'Pennsylvania', updatedPennsylvaniaColor);
     cy.closeGlobalSettings();
 
     cy.window().should((win: unknown) => {
@@ -303,7 +303,7 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     });
 
     openGlobalStylingTab();
-    cy.get('#node-color-table td[data-value="Pennsylvania"]')
+    cy.get('#key-tables-node-table td[data-value="Pennsylvania"]')
       .closest('tr')
       .find('input[type="color"]')
       .should('have.value', updatedPennsylvaniaColor);

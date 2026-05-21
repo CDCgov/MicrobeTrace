@@ -10,6 +10,7 @@ import {
 } from '../../../support/journey-helpers';
 
 type KeyTableName = 'node-color' | 'link-color' | 'node-shape';
+type KeyTableDisplayMode = 'Show' | 'Dock' | 'Hide';
 
 type WinWithMT = Window & {
   commonService: any;
@@ -64,7 +65,11 @@ const getApp = (win: WinWithMT) => {
 };
 
 const clickVisiblePrimeOption = (label: string): void => {
-  cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(label)}$`), { timeout: 15000 })
+  cy.get('.p-select-overlay:visible, .p-dropdown-panel:visible', { timeout: 15000 })
+    .last()
+    .contains('li[role="option"]', new RegExp(`^${escapeRegExp(label)}$`), { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
     .click({ force: true });
 };
 
@@ -174,23 +179,45 @@ const focusAppTab = (tabLabel: string): void => {
   assertActiveTab(tabLabel);
 };
 
-const openDockedKeyTablesView = (): void => {
-  cy.window().its('commonService.activeTab').then((activeTabBeforeOpen) => {
-    openGlobalStylingTab();
-    cy.get('#open-key-tables-view', { timeout: 15000 }).click({ force: true });
+const TABLE_MODE_ROW_SELECTORS: Record<KeyTableName, string> = {
+  'node-color': '#node-color-table-row',
+  'link-color': '#link-color-table-row',
+  'node-shape': '#node-shape-table-row',
+};
 
-    cy.window({ timeout: 15000 }).its('commonService.visuals.keyTables').should('exist');
-    cy.window({ timeout: 15000 }).its('commonService.activeTab').should('equal', activeTabBeforeOpen);
-    closeGlobalSettingsIfVisible();
-    cy.get('.key-tables-view', { timeout: 15000 }).should('be.visible');
+const setGlobalKeyTableMode = (table: KeyTableName, mode: KeyTableDisplayMode): void => {
+  cy.get(TABLE_MODE_ROW_SELECTORS[table], { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
+    .contains('.p-togglebutton-label', mode)
+    .click({ force: true });
+};
+
+const assertKeyTableDisplayModes = (expectedMode: KeyTableDisplayMode): void => {
+  cy.window().should((win: unknown) => {
+    const app = getApp(win as WinWithMT);
+
+    expect(app.SelectedNodeColorTableTypesVariable, 'node color display mode').to.equal(expectedMode);
+    expect(app.SelectedLinkColorTableTypesVariable, 'link color display mode').to.equal(expectedMode);
+    expect(app.SelectedNodeShapeTableTypesVariable, 'node shape display mode').to.equal(expectedMode);
+    expect(
+      (win as WinWithMT).commonService.session.style.widgets['node-symbol-table-visible'],
+      'node shape widget display mode',
+    ).to.equal(expectedMode);
   });
 };
 
-const enableFloatingKeyTablesFromGlobalSettings = (): void => {
+const enableKeyTablesFromGlobalSettings = (mode: KeyTableDisplayMode = 'Dock'): void => {
   openGlobalStylingTab();
   selectPrimeOption('#node-color-variable', 'State');
   selectPrimeOption('#link-tooltip-variable', 'Contact type');
   selectPrimeOption('#node-symbol-variable', 'State');
+
+  if (mode !== 'Dock') {
+    setGlobalKeyTableMode('node-color', mode);
+    setGlobalKeyTableMode('link-color', mode);
+    setGlobalKeyTableMode('node-shape', mode);
+  }
 
   cy.window()
     .its('commonService.session.style.widgets')
@@ -198,8 +225,8 @@ const enableFloatingKeyTablesFromGlobalSettings = (): void => {
       expect(widgets['node-color-variable']).to.equal('State');
       expect(widgets['link-color-variable']).to.equal('Contact type');
       expect(widgets['node-symbol-variable']).to.equal('State');
-      expect(widgets['node-symbol-table-visible']).to.equal('Show');
     });
+  assertKeyTableDisplayModes(mode);
 
   cy.closeGlobalSettings();
 };
@@ -449,7 +476,7 @@ const enableFloatingGroupColorTable = (groupByLabel: 'Subtype' | 'Cluster' = 'Su
       cy.get('#polygon-color-table-toggle').contains('Show').click({ force: true });
     });
 
-  cy.window().its('commonService.session.style.widgets.polygon-color-table-visible').should('equal', true);
+  cy.window().its('commonService.session.style.widgets.polygon-color-table-visible').should('equal', 'Show');
   closeTwoDSettingsIfVisible();
   assertFloatingGroupColorTableVisible(true);
 };
@@ -460,53 +487,19 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     closeTwoDSettingsIfVisible();
   });
 
-  it('opens the shared docked view from Global Settings and supports independent dock and float controls', () => {
+  it('docks key tables by default and supports independent dock and float controls', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
-    enableFloatingKeyTablesFromGlobalSettings();
+    enableKeyTablesFromGlobalSettings('Dock');
 
     assertActiveTab('2D Network');
-    assertDockedState({
-      'node-color': false,
-      'link-color': false,
-      'node-shape': false,
-    });
-    assertDockedViewOpen(false);
-    assertFloatingDialogVisible('node-color', true);
-    assertFloatingDialogVisible('link-color', true);
-    assertFloatingDialogVisible('node-shape', true);
-
-    dockFloatingTable('node-color');
-    assertDockedState({
-      'node-color': true,
-      'link-color': false,
-      'node-shape': false,
-    });
-    assertDockedViewOpen(true);
-    assertActiveTab('2D Network');
-    assertFloatingDialogVisible('node-color', false);
-    assertFloatingDialogVisible('link-color', true);
-    assertFloatingDialogVisible('node-shape', true);
-
-    dockFloatingTable('link-color');
-    assertDockedState({
-      'node-color': true,
-      'link-color': true,
-      'node-shape': false,
-    });
-    assertActiveTab('2D Network');
-    assertFloatingDialogVisible('node-color', false);
-    assertFloatingDialogVisible('link-color', false);
-    assertFloatingDialogVisible('node-shape', true);
-
-    dockFloatingTable('node-shape');
     assertDockedState({
       'node-color': true,
       'link-color': true,
       'node-shape': true,
     });
-    assertActiveTab('2D Network');
+    assertDockedViewOpen(true);
     assertFloatingDialogVisible('node-color', false);
     assertFloatingDialogVisible('link-color', false);
     assertFloatingDialogVisible('node-shape', false);
@@ -542,13 +535,51 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     assertFloatingDialogVisible('node-color', true);
     assertFloatingDialogVisible('link-color', true);
     assertFloatingDialogVisible('node-shape', true);
+    assertKeyTableDisplayModes('Show');
+
+    dockFloatingTable('node-color');
+    assertDockedState({
+      'node-color': true,
+      'link-color': false,
+      'node-shape': false,
+    });
+    assertDockedViewOpen(true);
+    assertActiveTab('2D Network');
+    assertFloatingDialogVisible('node-color', false);
+    assertFloatingDialogVisible('link-color', true);
+    assertFloatingDialogVisible('node-shape', true);
+
+    dockFloatingTable('link-color');
+    assertDockedState({
+      'node-color': true,
+      'link-color': true,
+      'node-shape': false,
+    });
+    assertDockedViewOpen(true);
+    assertActiveTab('2D Network');
+    assertFloatingDialogVisible('node-color', false);
+    assertFloatingDialogVisible('link-color', false);
+    assertFloatingDialogVisible('node-shape', true);
+
+    dockFloatingTable('node-shape');
+    assertDockedState({
+      'node-color': true,
+      'link-color': true,
+      'node-shape': true,
+    });
+    assertDockedViewOpen(true);
+    assertActiveTab('2D Network');
+    assertFloatingDialogVisible('node-color', false);
+    assertFloatingDialogVisible('link-color', false);
+    assertFloatingDialogVisible('node-shape', false);
+    assertKeyTableDisplayModes('Dock');
   });
 
   it('lets docked node-color, link-color, and node-shape cards switch their backing variables', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
-    openDockedKeyTablesView();
+    enableKeyTablesFromGlobalSettings('Dock');
     assertDockedState({
       'node-color': true,
       'link-color': true,
@@ -618,7 +649,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
-    openDockedKeyTablesView();
+    enableKeyTablesFromGlobalSettings('Dock');
     selectDockedCardVariable('node-color', 'State');
     selectDockedCardVariable('link-color', 'Contact type');
     selectDockedCardVariable('node-shape', 'State');

@@ -1,0 +1,103 @@
+name: Performance Baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Number of repeated baseline runs.
+        required: true
+        default: "1"
+      min_samples:
+        description: Minimum samples before summaries/proposals mark scenarios stable.
+        required: true
+        default: "5"
+      large:
+        description: Include opt-in large generated scenarios.
+        required: false
+        type: boolean
+        default: false
+      stress:
+        description: Include manual-only stress generated scenarios.
+        required: false
+        type: boolean
+        default: false
+      real:
+        description: Include configured real-sample scenarios.
+        required: false
+        type: boolean
+        default: false
+      enforce_budgets:
+        description: Fail the job on reviewed budget failures or missing configured metrics.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    name: Cypress performance baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Cypress performance baseline
+        run: |
+          set -euo pipefail
+          args=(--runs "${{ inputs.runs }}" --min-samples "${{ inputs.min_samples }}")
+
+          if [[ "${{ inputs.large }}" == "true" ]]; then
+            args+=(--large)
+          fi
+
+          if [[ "${{ inputs.stress }}" == "true" ]]; then
+            args+=(--stress)
+          fi
+
+          if [[ "${{ inputs.real }}" == "true" ]]; then
+            args+=(--real)
+          fi
+
+          node scripts/run-performance-baseline.js "${args[@]}"
+
+      - name: Propose descriptive budgets
+        run: node scripts/propose-performance-budgets.js --min-samples "${{ inputs.min_samples }}"
+
+      - name: Check reviewed budgets
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.enforce_budgets }}" == "true" ]]; then
+            npm run e2e:perf:budgets:check:enforce
+          else
+            npm run e2e:perf:budgets:check
+          fi
+
+      - name: Package performance report
+        if: always()
+        run: node scripts/package-performance-report.js --github-step-summary
+
+      - name: Upload performance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-performance-${{ github.run_id }}
+          path: |
+            cypress/downloads/performance/**
+            cypress/screenshots/**
+            cypress/videos/**
+          if-no-files-found: warn
+          retention-days: 30

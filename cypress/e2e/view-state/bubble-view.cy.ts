@@ -187,7 +187,7 @@ describe('Bubble View', () => {
       cy.wait(250);
       cy.closeGlobalSettings();
 
-      cy.get('#node-color-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
       getCy().then(cytoscapeInstance => {
         const testNode = cytoscapeInstance.nodes('[id = "MZ375596"]')
         const color = testNode.style('background-color');
@@ -569,7 +569,7 @@ describe('Bubble View', () => {
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
 
-      cy.get('#node-color-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
 
       cy.window().its('commonService.visuals.bubble').then(bubble => {
         let penNode = bubble.cy.nodes('[id = "MZ415508"]')[0]

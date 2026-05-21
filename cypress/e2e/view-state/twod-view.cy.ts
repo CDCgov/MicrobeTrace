@@ -13,6 +13,19 @@ import { byTestId, testIds } from '../../support/selectors';
 
 const getCy = () => cy.window({ log: false }).its('cytoscapeInstance') as Cypress.Chainable<Core>;
 
+const getFirstVisibleLeafNode = (cyInstance: any) =>
+  cyInstance
+    .nodes(':visible')
+    .filter((node: any) => node.children().length === 0 && !node.hasClass('parent'))[0];
+
+const getFirstGroupNode = (cyInstance: any) => cyInstance.nodes('.parent:visible')[0];
+
+const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
+
+const expectCytoscapeElement = (element: any, message: string): void => {
+  expect(Boolean(element && typeof element.empty === 'function' && !element.empty()), message).to.equal(true);
+};
+
 // Selectors for key elements in the 2D component
 const selector : any = {
   canvas: '#cy',
@@ -231,7 +244,8 @@ describe('2D Network - Settings Pane Interactions', () => {
     
         cy.window().its('commonService.session.style.widgets.node-border-width').should('equal', newWidth);
         getCy().then(cy => {
-            const node = cy.nodes().first();
+            const node = getFirstVisibleLeafNode(cy);
+            expectCytoscapeElement(node, 'visible leaf node for border-width assertion');
             expect(parseFloat(node.style('border-width'))).to.be.closeTo(newWidth, 0.1);
         });
     });
@@ -527,6 +541,116 @@ describe('2D Network - Settings Pane Interactions', () => {
             const parentNode = cy.nodes('.parent').first();
             expect(parentNode.style('font-size')).to.contain(newSize);
             expect(parentNode.style('text-valign')).to.equal(newOrientation.toLowerCase());
+        });
+    });
+
+    it('keeps group label orientation when node label orientation changes', () => {
+        const nodeOrientation = 'Bottom';
+
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Labels').click();
+        cy.get('@dialogContainer').find(selector.groupLabelToggle).contains('Show').click();
+
+        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'Top');
+        getCy().then(cyInstance => {
+            const parentNode = getFirstGroupNode(cyInstance);
+
+            expectCytoscapeElement(parentNode, 'visible group node');
+            expect(parentNode.style('text-valign'), 'initial group label vertical alignment').to.equal('top');
+            expect(parentNode.style('text-halign'), 'initial group label horizontal alignment').to.equal('center');
+        });
+
+        cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+        cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
+        cy.get('@dialogContainer').find(selector.nodeLabelVar).click();
+        cy.contains('li[role="option"]', 'Id').click();
+        cy.get('@dialogContainer').find(selector.nodeLabelOrientation).click();
+        cy.contains('li[role="option"]', nodeOrientation).click();
+
+        cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', nodeOrientation);
+        cy.window().its('commonService.session.style.widgets.polygon-label-orientation').should('equal', 'Top');
+
+        getCy().then(cyInstance => {
+            const parentNode = getFirstGroupNode(cyInstance);
+            const leafNode = getFirstVisibleLeafNode(cyInstance);
+
+            expect(parentNode.style('text-valign'), 'group label vertical alignment after node change').to.equal('top');
+            expect(parentNode.style('text-halign'), 'group label horizontal alignment after node change').to.equal('center');
+            expect(leafNode.style('text-valign'), 'leaf node label vertical alignment').to.equal('bottom');
+        });
+    });
+
+    it('keeps group node shape when node shape settings change', () => {
+        cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Controls').click();
+        cy.get('@dialogContainer').find(selector.showGroupsToggle).contains('Show').click();
+
+        getCy().then(cyInstance => {
+            const parentNode = getFirstGroupNode(cyInstance);
+
+            expectCytoscapeElement(parentNode, 'visible group node');
+            cy.wrap({
+                dataShape: String(parentNode.data('shape') || ''),
+                styleShape: String(parentNode.style('shape') || ''),
+            }).as('initialGroupShape');
+        });
+
+        cy.window().then((win: any) => {
+            const app = win.commonService.visuals.microbeTrace;
+            const selectedShape = app.getNodeShapeTreeSelection('house');
+
+            expect(selectedShape, 'default node shape selection').to.exist;
+            app.onNodeShapeByChanged(true, false, 'None');
+            app.onNodeShapeTreeChange(selectedShape);
+        });
+
+        cy.window().its('commonService.session.style.widgets.node-symbol').should('equal', 'house');
+        cy.get('@initialGroupShape').then((initialGroupShape: any) => {
+            getCy().then(cyInstance => {
+                const parentNode = getFirstGroupNode(cyInstance);
+                const leafNode = getFirstVisibleLeafNode(cyInstance);
+
+                expect(parentNode.data('shape'), 'group data shape after default node shape change').to.equal(initialGroupShape.dataShape);
+                expect(parentNode.style('shape'), 'group rendered shape after default node shape change').to.equal(initialGroupShape.styleShape);
+                expect(parentNode.data('shapeKey'), 'group shape key after default node shape change').to.be.undefined;
+                expect(parentNode.data('iconBackgroundImage'), 'group icon background after default node shape change').to.be.undefined;
+                expect(getRenderedShapeKey(leafNode), 'leaf node shape after default node shape change').to.equal('house');
+            });
+        });
+
+        cy.window().then((win: any) => {
+            const app = win.commonService.visuals.microbeTrace;
+            const shapeVariable = 'cluster';
+
+            app.onNodeShapeByChanged(false, true, shapeVariable);
+
+            const tableValues = win.commonService.session.style.nodeSymbolsTableKeys[shapeVariable];
+            const firstValue = tableValues[0];
+            const selectedShape = app.getNodeShapeTreeSelection('clinic');
+
+            expect(firstValue, 'first node shape table value').to.exist;
+            expect(selectedShape, 'field-based node shape selection').to.exist;
+            app.onNodeShapeTableTreeChange(selectedShape, firstValue);
+            cy.wrap(firstValue).as('changedShapeValue');
+        });
+
+        cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'cluster');
+        cy.get('@initialGroupShape').then((initialGroupShape: any) => {
+            cy.get('@changedShapeValue').then((changedShapeValue: any) => {
+                getCy().then(cyInstance => {
+                    const parentNode = getFirstGroupNode(cyInstance);
+                    const changedLeafNode = cyInstance
+                        .nodes(':visible')
+                        .filter((node: any) => node.children().length === 0 && String(node.data('cluster')) === String(changedShapeValue))[0];
+
+                    expect(parentNode.data('shape'), 'group data shape after field node shape change').to.equal(initialGroupShape.dataShape);
+                    expect(parentNode.style('shape'), 'group rendered shape after field node shape change').to.equal(initialGroupShape.styleShape);
+                    expect(parentNode.data('shapeKey'), 'group shape key after field node shape change').to.be.undefined;
+                    expect(parentNode.data('iconBackgroundImage'), 'group icon background after field node shape change').to.be.undefined;
+                    expectCytoscapeElement(changedLeafNode, 'leaf node for changed shape value');
+                    expect(getRenderedShapeKey(changedLeafNode), 'leaf node shape after field node shape change').to.equal('clinic');
+                });
+            });
         });
     });
   });
