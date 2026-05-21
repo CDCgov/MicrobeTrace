@@ -381,7 +381,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const selectedColor = this.SelectedSelectedLeafNodeColorVariable;
     const nodeData = this.getLeafNodeData(data.data.id);
     const isSelected = !!(nodeData && nodeData.selected);
-    const fillColor = this.getLeafNodeFillColor(nodeData);
+    const fillStyle = this.getLeafNodeFillStyle(nodeData);
+    const fillColor = fillStyle.color;
+    const fillOpacity = fillStyle.alpha;
     const nodeSelection = d3.select(node);
 
     nodeSelection
@@ -410,13 +412,13 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         this.removeLeafNodeShapeOverlay(node);
         nodeSelection
           .style('fill', fillColor)
-          .style('fill-opacity', 1)
+          .style('fill-opacity', fillOpacity)
           .style('stroke', strokeColor)
           .style('stroke-width', isSelected ? '3px' : '1px');
         return;
       }
 
-      this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected);
+      this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity);
       nodeSelection
         .style('fill', fillColor)
         .style('fill-opacity', 0)
@@ -428,7 +430,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.removeLeafNodeShapeOverlay(node);
     nodeSelection
       .style('fill', fillColor)
-      .style('fill-opacity', 1)
+      .style('fill-opacity', fillOpacity)
       .style('stroke', isSelected ? selectedColor : '#000000')
       .style('stroke-width', isSelected ? '3px' : '1px');
   }
@@ -439,14 +441,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     );
   }
 
-  private getLeafNodeFillColor(nodeData: any): string {
-    const variable = this.visuals.phylogenetic.commonService.session.style.widgets['node-color-variable'];
-    if (variable === 'None' || !nodeData) {
-      return this.SelectedLeafNodeColorVariable;
-    }
-
-    const colorMap = this.visuals.phylogenetic.commonService.temp.style.nodeColorMap;
-    return colorMap ? colorMap(nodeData[variable]) : this.SelectedLeafNodeColorVariable;
+  private getLeafNodeFillStyle(nodeData: any): { color: string; alpha: number } {
+    return this.visuals.phylogenetic.commonService.getNodeFillStyle(nodeData);
   }
 
   private removeLeafNodeShapeOverlay(node: SVGElement): void {
@@ -464,14 +460,14 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     return Math.max(isSelected ? 14 : 6, Math.min(isSelected ? 48 : 24, scaledStrokeWidth));
   }
 
-  private getLeafShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string {
-    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}`;
+  private getLeafShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number): string {
+    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}`;
     const cachedUri = this.treeLeafShapeUriCache.get(cacheKey);
     if (cachedUri) {
       return cachedUri;
     }
 
-    const dataUri = getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth);
+    const dataUri = getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
     this.treeLeafShapeUriCache.set(cacheKey, dataUri);
     return dataUri;
   }
@@ -482,7 +478,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     leafSize: number,
     fillColor: string,
     strokeColor: string,
-    isSelected: boolean
+    isSelected: boolean,
+    fillOpacity: number
   ): void {
     const parentNode = node.parentNode as SVGGElement | null;
     if (!parentNode) {
@@ -491,7 +488,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     const diameter = leafSize * 2;
     const strokeWidth = this.getLeafShapeStrokeWidth(leafSize, isSelected);
-    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth);
+    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
     const overlayDiameter = diameter * getTreeNodeShapeScale(shapeKey);
     const overlayOffset = overlayDiameter / 2;
     const overlaySelection = d3.select(parentNode)
