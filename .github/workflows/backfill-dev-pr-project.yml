@@ -1,0 +1,237 @@
+name: Backfill Dev PR Project Items
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log matching PRs without adding project items.
+        required: true
+        type: boolean
+        default: true
+      include_drafts:
+        description: Include draft PRs targeting dev.
+        required: true
+        type: boolean
+        default: true
+      update_existing_status:
+        description: Also set Status on PRs that are already in the project.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  backfill-dev-prs:
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run }}
+      INCLUDE_DRAFTS: ${{ inputs.include_drafts }}
+      UPDATE_EXISTING_STATUS: ${{ inputs.update_existing_status }}
+      PROJECT_TOKEN_CONFIGURED: ${{ secrets.PR_PROJECT_TOKEN != '' || secrets.USER_STORY_PROJECT_TOKEN != '' }}
+      PR_PROJECT_OWNER: ${{ vars.PR_PROJECT_OWNER || vars.USER_STORY_PROJECT_OWNER || 'CDCgov' }}
+      PR_PROJECT_OWNER_TYPE: ${{ vars.PR_PROJECT_OWNER_TYPE || vars.USER_STORY_PROJECT_OWNER_TYPE || 'organization' }}
+      PR_PROJECT_NUMBER: ${{ vars.PR_PROJECT_NUMBER || vars.USER_STORY_PROJECT_NUMBER || '79' }}
+      PR_PROJECT_STATUS: ${{ vars.PR_PROJECT_STATUS || 'New Issues' }}
+      PR_PROJECT_STATUS_FIELD: ${{ vars.PR_PROJECT_STATUS_FIELD || vars.USER_STORY_PROJECT_STATUS_FIELD || 'Status' }}
+    steps:
+      - name: Backfill dev PRs into project
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_PROJECT_TOKEN || secrets.USER_STORY_PROJECT_TOKEN || github.token }}
+          script: |
+            const dryRun = process.env.DRY_RUN === 'true';
+            const includeDrafts = process.env.INCLUDE_DRAFTS === 'true';
+            const updateExistingStatus = process.env.UPDATE_EXISTING_STATUS === 'true';
+
+            const missing = [];
+            if (process.env.PROJECT_TOKEN_CONFIGURED !== 'true') missing.push('secret PR_PROJECT_TOKEN or USER_STORY_PROJECT_TOKEN');
+            if (!process.env.PR_PROJECT_OWNER) missing.push('variable PR_PROJECT_OWNER or USER_STORY_PROJECT_OWNER');
+            if (!process.env.PR_PROJECT_NUMBER) missing.push('variable PR_PROJECT_NUMBER or USER_STORY_PROJECT_NUMBER');
+
+            if (missing.length) {
+              throw new Error(`Project backfill is missing ${missing.join(', ')}.`);
+            }
+
+            const owner = process.env.PR_PROJECT_OWNER;
+            const ownerType = (process.env.PR_PROJECT_OWNER_TYPE || 'organization').toLowerCase();
+            const projectNumber = Number(process.env.PR_PROJECT_NUMBER);
+            const statusFieldName = process.env.PR_PROJECT_STATUS_FIELD || 'Status';
+            const statusValue = process.env.PR_PROJECT_STATUS || 'New Issues';
+
+            if (!Number.isInteger(projectNumber) || projectNumber < 1) {
+              throw new Error(`PR_PROJECT_NUMBER must be a positive integer; got ${process.env.PR_PROJECT_NUMBER || '(empty)'}.`);
+            }
+
+            async function loadProject() {
+              const fieldFragment = `
+                id
+                fields(first: 100) {
+                  nodes {
+                    ... on ProjectV2Field {
+                      id
+                      name
+                    }
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                      options {
+                        id
+                        name
+                      }
+                    }
+                    ... on ProjectV2IterationField {
+                      id
+                      name
+                    }
+                  }
+                }
+              `;
+
+              const query = ownerType === 'user'
+                ? `query($owner: String!, $number: Int!) { user(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`
+                : `query($owner: String!, $number: Int!) { organization(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`;
+
+              const result = await github.graphql(query, { owner, number: projectNumber });
+              const project = ownerType === 'user'
+                ? result.user && result.user.projectV2
+                : result.organization && result.organization.projectV2;
+
+              if (!project) {
+                throw new Error(`Could not find ${ownerType} project ${owner}/${projectNumber}.`);
+              }
+
+              const statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
+              if (!statusField || !statusField.options) {
+                throw new Error(`Could not find single-select project field ${statusFieldName}.`);
+              }
+
+              const statusOption = statusField.options.find((option) => option.name === statusValue);
+              if (!statusOption) {
+                throw new Error(`Could not find project status option ${statusValue}.`);
+              }
+
+              return {
+                id: project.id,
+                statusFieldId: statusField.id,
+                statusOptionId: statusOption.id,
+              };
+            }
+
+            async function findProjectItemId(projectId, pullRequestNodeId) {
+              const result = await github.graphql(
+                `query($pullRequestNodeId: ID!) {
+                  node(id: $pullRequestNodeId) {
+                    ... on PullRequest {
+                      projectItems(first: 50) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { pullRequestNodeId }
+              );
+
+              const projectItems = (result.node && result.node.projectItems && result.node.projectItems.nodes) || [];
+              const existingItem = projectItems.find((item) => item.project && item.project.id === projectId);
+              return existingItem ? existingItem.id : null;
+            }
+
+            async function addProjectItem(projectId, pullRequestNodeId) {
+              const result = await github.graphql(
+                `mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                    item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId,
+                  contentId: pullRequestNodeId,
+                }
+              );
+
+              return result.addProjectV2ItemById.item.id;
+            }
+
+            async function updateProjectStatus(project, itemId) {
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId: project.id,
+                  itemId,
+                  fieldId: project.statusFieldId,
+                  optionId: project.statusOptionId,
+                }
+              );
+            }
+
+            const project = await loadProject();
+            const pullRequests = await github.paginate(
+              github.rest.pulls.list,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                base: 'dev',
+                per_page: 100,
+              }
+            );
+
+            const selectedPullRequests = pullRequests
+              .filter((pullRequest) => includeDrafts || !pullRequest.draft)
+              .sort((left, right) => left.number - right.number);
+
+            core.info(`Found ${selectedPullRequests.length} open PR(s) targeting dev${includeDrafts ? '' : ', excluding drafts'}.`);
+
+            let addedCount = 0;
+            let existingCount = 0;
+            let existingStatusUpdateCount = 0;
+
+            for (const pullRequest of selectedPullRequests) {
+              const currentItemId = await findProjectItemId(project.id, pullRequest.node_id);
+
+              if (currentItemId) {
+                existingCount += 1;
+                if (updateExistingStatus) {
+                  core.info(`${dryRun ? '[dry-run] Would update' : 'Updating'} existing project item for PR #${pullRequest.number}: ${pullRequest.html_url}`);
+                  if (!dryRun) {
+                    await updateProjectStatus(project, currentItemId);
+                  }
+                  existingStatusUpdateCount += 1;
+                } else {
+                  core.info(`Already in project, leaving status unchanged for PR #${pullRequest.number}: ${pullRequest.html_url}`);
+                }
+                continue;
+              }
+
+              core.info(`${dryRun ? '[dry-run] Would add' : 'Adding'} PR #${pullRequest.number} to project with ${statusFieldName}=${statusValue}: ${pullRequest.html_url}`);
+
+              if (!dryRun) {
+                const itemId = await addProjectItem(project.id, pullRequest.node_id);
+                await updateProjectStatus(project, itemId);
+              }
+
+              addedCount += 1;
+            }
+
+            core.info(`${dryRun ? '[dry-run] ' : ''}Backfill complete: ${addedCount} missing PR(s), ${existingCount} already in project, ${existingStatusUpdateCount} existing status update(s).`);

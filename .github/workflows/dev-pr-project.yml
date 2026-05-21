@@ -1,0 +1,222 @@
+name: Dev PR Project Item
+
+on:
+  pull_request_target:
+    branches:
+      - dev
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: PR number to add to the configured project.
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  add-pr-to-project:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_TOKEN_CONFIGURED: ${{ secrets.PR_PROJECT_TOKEN != '' || secrets.USER_STORY_PROJECT_TOKEN != '' }}
+      PR_PROJECT_OWNER: ${{ vars.PR_PROJECT_OWNER || vars.USER_STORY_PROJECT_OWNER || 'CDCgov' }}
+      PR_PROJECT_OWNER_TYPE: ${{ vars.PR_PROJECT_OWNER_TYPE || vars.USER_STORY_PROJECT_OWNER_TYPE || 'organization' }}
+      PR_PROJECT_NUMBER: ${{ vars.PR_PROJECT_NUMBER || vars.USER_STORY_PROJECT_NUMBER || '79' }}
+      PR_PROJECT_STATUS: ${{ vars.PR_PROJECT_STATUS || 'New Issues' }}
+      PR_PROJECT_STATUS_FIELD: ${{ vars.PR_PROJECT_STATUS_FIELD || vars.USER_STORY_PROJECT_STATUS_FIELD || 'Status' }}
+    steps:
+      - name: Add PR to New Issues project bucket
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_PROJECT_TOKEN || secrets.USER_STORY_PROJECT_TOKEN || github.token }}
+          script: |
+            const missing = [];
+            if (process.env.PROJECT_TOKEN_CONFIGURED !== 'true') missing.push('secret PR_PROJECT_TOKEN or USER_STORY_PROJECT_TOKEN');
+            if (!process.env.PR_PROJECT_OWNER) missing.push('variable PR_PROJECT_OWNER or USER_STORY_PROJECT_OWNER');
+            if (!process.env.PR_PROJECT_NUMBER) missing.push('variable PR_PROJECT_NUMBER or USER_STORY_PROJECT_NUMBER');
+
+            if (missing.length) {
+              throw new Error(`Project sync is missing ${missing.join(', ')}.`);
+            }
+
+            const owner = process.env.PR_PROJECT_OWNER;
+            const ownerType = (process.env.PR_PROJECT_OWNER_TYPE || 'organization').toLowerCase();
+            const projectNumber = Number(process.env.PR_PROJECT_NUMBER);
+            const statusFieldName = process.env.PR_PROJECT_STATUS_FIELD || 'Status';
+            const statusValue = process.env.PR_PROJECT_STATUS || 'New Issues';
+
+            if (!Number.isInteger(projectNumber) || projectNumber < 1) {
+              throw new Error(`PR_PROJECT_NUMBER must be a positive integer; got ${process.env.PR_PROJECT_NUMBER || '(empty)'}.`);
+            }
+
+            async function loadPullRequest() {
+              if (context.eventName === 'pull_request_target') {
+                const pullRequest = context.payload.pull_request;
+                return {
+                  number: pullRequest.number,
+                  nodeId: pullRequest.node_id,
+                  url: pullRequest.html_url,
+                };
+              }
+
+              const pullNumber = Number(context.payload.inputs.pull_request_number);
+              if (!Number.isInteger(pullNumber) || pullNumber < 1) {
+                throw new Error(`pull_request_number must be a positive integer; got ${context.payload.inputs.pull_request_number}.`);
+              }
+
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pullNumber,
+              });
+
+              if (pullRequest.base.ref !== 'dev') {
+                throw new Error(`PR #${pullNumber} targets ${pullRequest.base.ref}, not dev.`);
+              }
+
+              return {
+                number: pullRequest.number,
+                nodeId: pullRequest.node_id,
+                url: pullRequest.html_url,
+              };
+            }
+
+            async function loadProject() {
+              const fieldFragment = `
+                id
+                fields(first: 100) {
+                  nodes {
+                    ... on ProjectV2Field {
+                      id
+                      name
+                    }
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                      options {
+                        id
+                        name
+                      }
+                    }
+                    ... on ProjectV2IterationField {
+                      id
+                      name
+                    }
+                  }
+                }
+              `;
+
+              const query = ownerType === 'user'
+                ? `query($owner: String!, $number: Int!) { user(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`
+                : `query($owner: String!, $number: Int!) { organization(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`;
+
+              const result = await github.graphql(query, { owner, number: projectNumber });
+              const project = ownerType === 'user'
+                ? result.user && result.user.projectV2
+                : result.organization && result.organization.projectV2;
+
+              if (!project) {
+                throw new Error(`Could not find ${ownerType} project ${owner}/${projectNumber}.`);
+              }
+
+              const statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
+              if (!statusField || !statusField.options) {
+                throw new Error(`Could not find single-select project field ${statusFieldName}.`);
+              }
+
+              const statusOption = statusField.options.find((option) => option.name === statusValue);
+              if (!statusOption) {
+                throw new Error(`Could not find project status option ${statusValue}.`);
+              }
+
+              return {
+                id: project.id,
+                statusFieldId: statusField.id,
+                statusOptionId: statusOption.id,
+              };
+            }
+
+            async function findProjectItemId(projectId, pullRequestNodeId) {
+              const result = await github.graphql(
+                `query($pullRequestNodeId: ID!) {
+                  node(id: $pullRequestNodeId) {
+                    ... on PullRequest {
+                      projectItems(first: 50) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { pullRequestNodeId }
+              );
+
+              const projectItems = (result.node && result.node.projectItems && result.node.projectItems.nodes) || [];
+              const existingItem = projectItems.find((item) => item.project && item.project.id === projectId);
+              return existingItem ? existingItem.id : null;
+            }
+
+            async function addProjectItem(projectId, pullRequestNodeId) {
+              const result = await github.graphql(
+                `mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                    item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId,
+                  contentId: pullRequestNodeId,
+                }
+              );
+
+              return result.addProjectV2ItemById.item.id;
+            }
+
+            async function updateProjectStatus(project, itemId) {
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId: project.id,
+                  itemId,
+                  fieldId: project.statusFieldId,
+                  optionId: project.statusOptionId,
+                }
+              );
+            }
+
+            const pullRequest = await loadPullRequest();
+            const project = await loadProject();
+            let itemId = await findProjectItemId(project.id, pullRequest.nodeId);
+            let addedToProject = false;
+
+            if (!itemId) {
+              itemId = await addProjectItem(project.id, pullRequest.nodeId);
+              addedToProject = true;
+            }
+
+            await updateProjectStatus(project, itemId);
+
+            const action = addedToProject ? 'Added' : 'Updated';
+            core.info(`${action} PR #${pullRequest.number} in project ${owner}/${projectNumber} with ${statusFieldName}=${statusValue}: ${pullRequest.url}`);
