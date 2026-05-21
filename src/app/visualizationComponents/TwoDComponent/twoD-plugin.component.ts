@@ -11,7 +11,6 @@ import * as _ from 'lodash';
 //import { CustomShapes } from '@app/helperClasses/customShapes';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
-import { saveAs } from 'file-saver';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
@@ -24,11 +23,6 @@ import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
-import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
-import {
-    NetworkStatisticsResult,
-    serializeNetworkStatisticsCsv,
-} from '@app/contactTraceCommonServices/network-statistics';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -451,11 +445,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNetworkExportScaleVariable: any = 1;
     SelectedNetworkExportQualityVariable: any = 0.92;
     CalculatedResolution: string;
-    networkStatisticsResult: NetworkStatisticsResult | null = null;
-    networkStatisticsLoading = false;
-    networkStatisticsError = '';
-    private networkStatisticsRequestId = 0;
-    private readonly networkStatisticsTopRowLimit = 8;
 
     SelectedNodeLabelSizeVariable: any = 16;
 
@@ -499,7 +488,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         private gtmService: GoogleTagManagerService,
         private store: CommonStoreService,
         private exportService: ExportService,
-        private workerComputeService: WorkerComputeService,
         private zone: NgZone 
     ) {
 
@@ -569,138 +557,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         return { nodes, links };
-    }
-
-    get topNetworkCentralityRows() {
-        return (this.networkStatisticsResult?.centrality || []).slice(0, this.networkStatisticsTopRowLimit);
-    }
-
-    get topNetworkComponentRows() {
-        return (this.networkStatisticsResult?.components || []).slice(0, this.networkStatisticsTopRowLimit);
-    }
-
-    get networkStatisticsThresholdLabel(): string {
-        return this.commonService.formatDisplayedDistanceValue(
-            Number(this.commonService.session.style.widgets['link-threshold']),
-            this.commonService.session.style.widgets['link-sort-variable']
-        );
-    }
-
-    get networkStatisticsApproximationLabel(): string {
-        const summary = this.networkStatisticsResult?.summary;
-        if (!summary || (!summary.approximateBetweenness && !summary.approximatePathMetrics)) {
-            return '';
-        }
-
-        return `Approx. (${summary.sampledSourceCount.toLocaleString()} sampled sources)`;
-    }
-
-    formatStatisticValue(value: number | null | undefined, decimals = 3): string {
-        if (value === null || value === undefined || !Number.isFinite(Number(value))) {
-            return 'N/A';
-        }
-
-        const numericValue = Number(value);
-        if (Math.abs(numericValue - Math.round(numericValue)) < 1e-9) {
-            return Math.round(numericValue).toLocaleString();
-        }
-
-        return numericValue.toLocaleString(undefined, {
-            maximumFractionDigits: decimals,
-            minimumFractionDigits: 0
-        });
-    }
-
-    formatStatisticPercent(value: number | null | undefined): string {
-        if (value === null || value === undefined || !Number.isFinite(Number(value))) {
-            return 'N/A';
-        }
-
-        return `${(Number(value) * 100).toLocaleString(undefined, {
-            maximumFractionDigits: 1,
-            minimumFractionDigits: 0
-        })}%`;
-    }
-
-    private buildNetworkStatisticsRequest() {
-        const networkData = this.getVisibleNetworkDataForRender(true);
-
-        return {
-            nodes: networkData.nodes.map((node: any) => {
-                const id = String(node._id ?? node.id ?? '');
-                return {
-                    _id: id,
-                    id,
-                    selected: Boolean(node.selected)
-                };
-            }),
-            links: networkData.links.map((link: any) => ({
-                source: this.getLinkEndpointId(link.source),
-                target: this.getLinkEndpointId(link.target),
-                visible: link.visible !== false
-            })),
-            selectedNodeIds: networkData.nodes
-                .filter((node: any) => node.selected)
-                .map((node: any) => String(node._id ?? node.id ?? '')),
-            metricLabel: this.commonService.titleize(this.commonService.session.style.widgets['link-sort-variable'] || 'distance'),
-            threshold: this.networkStatisticsThresholdLabel,
-            approximation: {
-                exactNodeLimit: 2000,
-                exactLinkLimit: 10000,
-                sampleSize: 256
-            }
-        };
-    }
-
-    async refreshNetworkStatistics(): Promise<void> {
-        if (this.isDestroyed) return;
-
-        const requestId = ++this.networkStatisticsRequestId;
-        this.networkStatisticsLoading = true;
-        this.networkStatisticsError = '';
-        this.cdref.markForCheck();
-
-        try {
-            const result = await this.workerComputeService.computeNetworkStatistics(this.buildNetworkStatisticsRequest());
-            if (this.isDestroyed || requestId !== this.networkStatisticsRequestId) {
-                return;
-            }
-
-            this.networkStatisticsResult = result;
-            this.networkStatisticsLoading = false;
-            this.networkStatisticsError = '';
-        } catch (error) {
-            if (this.isDestroyed || requestId !== this.networkStatisticsRequestId) {
-                return;
-            }
-
-            this.networkStatisticsLoading = false;
-            this.networkStatisticsError = 'Network statistics could not be calculated.';
-            console.error('Network statistics calculation failed:', error);
-        } finally {
-            if (!this.isDestroyed && requestId === this.networkStatisticsRequestId) {
-                this.cdref.markForCheck();
-            }
-        }
-    }
-
-    exportNetworkStatisticsCsv(): void {
-        if (!this.networkStatisticsResult) {
-            return;
-        }
-
-        const csv = serializeNetworkStatisticsCsv(this.networkStatisticsResult);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-        const browserWindow = window as Window & {
-            __mtTestSaveAs?: (content: Blob | string, filename: string) => void;
-        };
-
-        if (typeof browserWindow.__mtTestSaveAs === 'function') {
-            browserWindow.__mtTestSaveAs(blob, 'network_statistics.csv');
-            return;
-        }
-
-        saveAs(blob, 'network_statistics.csv');
     }
 
 
@@ -1666,7 +1522,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.widgets['background-color']) $('#cy').css('background-color', this.widgets['background-color']);
             
             console.log('--- TwoD InitView onStatisticsChanged');
-            this.commonService.onStatisticsChanged("Show");
+            this.commonService.onStatisticsChanged();
 
             console.log('--- TwoD InitView loadSettings');
             this.loadSettings();
@@ -4070,7 +3926,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 nodes: this.cy.nodes().length,
                 edges: this.cy.edges().length
             });
-            void this.refreshNetworkStatistics();
 
 
         } else{
@@ -4428,7 +4283,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               this.store.setNetworkUpdated(false);
               this.commonService.session.network.rendering = false;
               this.commonService.demoNetworkRendered = true;
-              void this.refreshNetworkStatistics();
 
               if (this.pendingPartialUpdate) {
                 void this._partialUpdate();
@@ -5386,7 +5240,6 @@ scaleLinkWidth() {
            // Now we can set network update to false after its been updated fully
            this.store.setNetworkUpdated(false); 
            this.commonService.session.network.rendering = false;
-           void this.refreshNetworkStatistics();
            this.recordTwoDRenderTiming('twoDPartialUpdate', partialUpdateStart, {
             nodes: cy.nodes().length,
             edges: cy.edges().length
