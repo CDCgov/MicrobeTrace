@@ -268,15 +268,24 @@
   </div>
 </p-accordion-content>
 </p-accordion-panel>
-<p-accordion-panel value="map-user-provided" style="color:#495057">
-  <p-accordion-header>User Provided</p-accordion-header>
-  <p-accordion-content>
+</p-accordion>
+</tab>
+<tab heading="{{'Custom Map' | localize}}" customClass="m-tabs__item">
+    <div class="form-group row" title="Open the custom map tutorial document.">
+      <div class="col-4">Tutorial</div>
+      <div class="col-8">
+        <a class="btn btn-sm map-btn w-100" href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View"
+          target="_blank" rel="noreferrer noopener" role="button"
+          title="Open the custom map tutorial document for GeoJSON and image floorplans.">More Information</a>
+      </div>
+    </div>
     <div class="form-group row" title="Load a GeoJSON or image floorplan background.">
       <div class="col-4">Background</div>
       <div class="col-8">
-        <input type="file" id="map-floorplan-background-file" class="form-control form-control-sm"
+        <input type="file" id="map-floorplan-background-file" class="d-none"
           accept=".geojson,.json,application/geo+json,application/json,image/*"
           (change)="onFloorplanBackgroundFileSelected($event)">
+        <label class="custom-file-label" for="map-floorplan-background-file">Choose Custom Map File</label>
       </div>
     </div>
     <div class="form-group row" title="Would you like to show the uploaded floorplan background?">
@@ -369,9 +378,6 @@
         </div>
       </div>
     }
-  </p-accordion-content>
-</p-accordion-panel>
-</p-accordion>
 </tab>
 <tab heading="{{'Nodes' | localize}}" customClass="m-tabs__item">
   <div class="form-group row">

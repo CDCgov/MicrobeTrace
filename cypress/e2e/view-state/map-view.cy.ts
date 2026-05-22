@@ -557,8 +557,7 @@ describe('Map View', () => {
         .its('commonService.session.style.widgets.map-auto-expand-selected')
         .should('equal', false);
 
-      cy.get('@mapSettings').contains('.nav-link', 'Components').click();
-      cy.get('@mapSettings').contains('.p-accordionheader', 'User Provided').click({ force: true });
+      cy.get('@mapSettings').contains('.nav-link', 'Custom Map').click();
       cy.get('@mapSettings')
         .find('#map-manual-positioning')
         .contains('On')

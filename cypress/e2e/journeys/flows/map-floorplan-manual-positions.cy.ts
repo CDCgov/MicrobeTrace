@@ -30,28 +30,20 @@ const placedPoint = {
   y: 8,
 };
 
-const openMapSettingsTab = (label: 'Components' | 'Data' | 'Nodes'): void => {
+const openMapSettingsTab = (label: 'Components' | 'Custom Map' | 'Data' | 'Nodes'): void => {
   cy.get('@mapSettings').contains('.nav-link', label).click({ force: true });
 };
 
-const expandMapAccordion = (label: 'User Provided'): void => {
+const openCustomMapTab = (): void => {
+  openMapSettingsTab('Custom Map');
+  cy.get('@mapSettings').find('#map-floorplan-background-file').should('exist');
   cy.get('@mapSettings')
-    .find('p-accordion-panel[value="map-user-provided"], p-accordionpanel[value="map-user-provided"]', { timeout: 15000 })
-    .scrollIntoView()
-    .then(($panel) => {
-      const $header = $panel.find('.p-accordionheader, .p-accordion-header').first();
-      expect($header.length, `${label} accordion header`).to.be.greaterThan(0);
-
-      const expanded = $header.attr('aria-expanded') === 'true';
-      if (!expanded) {
-        cy.wrap($header).click({ force: true });
-      }
-    });
-};
-
-const openUserProvidedPanel = (): void => {
-  openMapSettingsTab('Components');
-  expandMapAccordion('User Provided');
+    .contains('label.custom-file-label', 'Choose Custom Map File')
+    .should('be.visible');
+  cy.get('@mapSettings')
+    .contains('a[href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View"]', 'More Information')
+    .should('have.attr', 'target', '_blank')
+    .and('have.attr', 'title', 'Open the custom map tutorial document for GeoJSON and image floorplans.');
 };
 
 const setFloorplanLayer = (selection: 'Show' | 'Hide'): void => {
@@ -224,7 +216,7 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     });
 
     openMapSettingsDialog();
-    openUserProvidedPanel();
+    openCustomMapTab();
     cy.attach_file('#map-floorplan-background-file', floorplanFixture, floorplanMimeType);
     cy.get('@mapSettings')
       .find('.map-user-geojson-summary', { timeout: 15000 })
@@ -278,7 +270,7 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     goToMapView();
 
     openMapSettingsDialog();
-    openUserProvidedPanel();
+    openCustomMapTab();
     cy.attach_file('#map-floorplan-background-file', imageFloorplanFixture, imageFloorplanMimeType);
     cy.get('@mapSettings')
       .find('.map-user-geojson-summary', { timeout: 15000 })
