@@ -621,6 +621,140 @@ describe('Map View', () => {
       cy.closeSettingsPane('Geospatial Settings');
     })
 
+    it('should select every node matching a cluster search and expand each matching metanode', () => {
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.window().then((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const markerClusterGroup = mapView.layers.markerClusterGroup;
+        const sessionNodes = win.commonService.session.data.nodes || [];
+        const clusterCases = new Map<string, {
+          clusterValue: string;
+          collapsedNodeIds: string[];
+          expandedNodeIds: Set<string>;
+          expandedNodeGroups: Map<string, string[]>;
+          sessionMatchIds: string[];
+        }>();
+
+        sessionNodes.forEach((node: any) => {
+          if (node.cluster === undefined || node.cluster === null || node._id === undefined) {
+            return;
+          }
+
+          const clusterValue = String(node.cluster);
+          if (!clusterCases.has(clusterValue)) {
+            clusterCases.set(clusterValue, {
+              clusterValue,
+              collapsedNodeIds: [],
+              expandedNodeIds: new Set<string>(),
+              expandedNodeGroups: new Map<string, string[]>(),
+              sessionMatchIds: [],
+            });
+          }
+          clusterCases.get(clusterValue)!.sessionMatchIds.push(String(node._id));
+        });
+
+        win.commonService.getVisibleNodes().forEach((node: any) => {
+          if (node.cluster === undefined || node.cluster === null || node._id === undefined) {
+            return;
+          }
+
+          const marker = mapView.mapNodeMarkersById[String(node._id)];
+          if (!marker) {
+            return;
+          }
+
+          const visibleParent = markerClusterGroup.getVisibleParent(marker);
+          const parentCluster = visibleParent !== marker && visibleParent && (visibleParent as any).spiderfy
+            ? visibleParent as any
+            : null;
+          if (!parentCluster) {
+            return;
+          }
+
+          const clusterValue = String(node.cluster);
+          const clusterCase = clusterCases.get(clusterValue);
+          if (!clusterCase) {
+            return;
+          }
+
+          const parentId = String(L.stamp(parentCluster));
+          clusterCase.collapsedNodeIds.push(String(node._id));
+          if (!clusterCase.expandedNodeGroups.has(parentId)) {
+            const childNodeIds = parentCluster
+              .getAllChildMarkers()
+              .map((marker: any) => {
+                return marker?.data?._id !== undefined ? String(marker.data._id) : undefined;
+              })
+              .filter((nodeId: string | undefined): nodeId is string => nodeId !== undefined)
+              .sort();
+            clusterCase.expandedNodeGroups.set(parentId, childNodeIds);
+            childNodeIds.forEach((nodeId: string) => clusterCase.expandedNodeIds.add(nodeId));
+          }
+        });
+
+        const candidates = Array.from(clusterCases.values())
+          .filter(clusterCase => clusterCase.expandedNodeGroups.size > 1 && clusterCase.collapsedNodeIds.length > 1)
+          .sort((a, b) => b.expandedNodeGroups.size - a.expandedNodeGroups.size || b.collapsedNodeIds.length - a.collapsedNodeIds.length);
+
+        expect(candidates, 'cluster search case spanning multiple map metanodes').to.not.be.empty;
+
+        const selectedCase = candidates[0];
+        cy.wrap({
+          clusterValue: selectedCase.clusterValue,
+          collapsedNodeIds: selectedCase.collapsedNodeIds.sort(),
+          expandedNodeIds: Array.from(selectedCase.expandedNodeIds).sort(),
+          expandedNodeGroups: Array.from(selectedCase.expandedNodeGroups.values())
+            .map(group => group.sort())
+            .sort((a, b) => a.join('|').localeCompare(b.join('|'))),
+          sessionMatchIds: selectedCase.sessionMatchIds.sort(),
+        }, { log: false }).as('clusterSearchCase');
+      });
+
+      cy.get<{
+        clusterValue: string;
+        collapsedNodeIds: string[];
+        expandedNodeIds: string[];
+        expandedNodeGroups: string[][];
+        sessionMatchIds: string[];
+      }>('@clusterSearchCase').then((clusterSearchCase) => {
+        cy.get('#search-field').select('cluster');
+        cy.get('#search').clear().type(clusterSearchCase.clusterValue);
+
+        cy.window().should((win: any) => {
+          const mapView = win.commonService.visuals.gisMap;
+          const selectedIds = (win.commonService.session.data.nodes || [])
+            .filter((node: any) => node.selected)
+            .map((node: any) => String(node._id))
+            .sort();
+
+          expect(selectedIds, `selected nodes for cluster ${clusterSearchCase.clusterValue}`)
+            .to.deep.equal(clusterSearchCase.sessionMatchIds);
+          expect(mapView.layers.markerClusterGroup._spiderfied, 'native single-cluster spiderfy is not used for multi-metanode search')
+            .to.not.exist;
+
+          const overlayLayers = mapView.selectedNodeExpansionGroup.getLayers();
+          const overlayNodeIds = overlayLayers
+            .map((layer: any) => String(layer.data?._id))
+            .sort();
+          const selectedOverlayNodeIds = overlayLayers
+            .filter((layer: any) => layer.data?.selected)
+            .map((layer: any) => String(layer.data?._id))
+            .sort();
+          const overlayNodeGroups = Object.values(mapView.selectedNodeExpansionMarkerIdsByCluster)
+            .map((group: string[]) => group.slice().sort())
+            .sort((a: string[], b: string[]) => a.join('|').localeCompare(b.join('|')));
+
+          expect(overlayNodeIds, 'expanded selected map node overlays')
+            .to.deep.equal(clusterSearchCase.expandedNodeIds);
+          expect(selectedOverlayNodeIds, 'selected nodes inside expanded metanodes')
+            .to.deep.equal(clusterSearchCase.collapsedNodeIds);
+          expect(overlayNodeGroups, 'expanded selected map metanodes')
+            .to.deep.equal(clusterSearchCase.expandedNodeGroups);
+        });
+      });
+    })
+
     it('should download map view as a png', () => {
       cy.closeSettingsPane('Geospatial Settings');
       cy.get('#tool-btn-container-map a[title="Export Screen"]').click(); // #tool-btn-container-map a[title="Export Screen"]'

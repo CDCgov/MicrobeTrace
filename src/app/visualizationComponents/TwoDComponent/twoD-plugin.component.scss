@@ -8,6 +8,10 @@
   position: absolute;
   overflow: hidden;
   z-index: 1 !important;
+  isolation: isolate;
+  --twod-network-layer: 0;
+  --twod-grid-layer: 1;
+  --twod-control-layer: 1300;
   padding: 1px;
   /*top: 37px !important;
   left: 1px !important; 
@@ -40,6 +44,7 @@
   position: relative;
   width: 100%;
   height: 100%;
+  z-index: var(--twod-network-layer);
 }
 
 /* Grid Overlay Styling */
@@ -54,7 +59,7 @@
       linear-gradient(to bottom, lightgray 1px, transparent 1px);
   background-size: 100px 100px; /* Adjust grid spacing here */
   pointer-events: none; /* Make sure grid doesn't capture mouse events */
-  z-index: 1; /* Position grid above Cytoscape's canvas */
+  z-index: var(--twod-grid-layer); /* Position grid above Cytoscape's canvas */
   transition: opacity 0.3s ease;
   opacity: 1;
 }
@@ -64,11 +69,51 @@
 }
 
 #cy {
-  // position: absolute;
+  position: relative;
   width: 100%;
   height: 100%;
   top: 0;
   left: 0;
+  z-index: var(--twod-network-layer);
+}
+
+:host ::ng-deep #cy > div {
+  z-index: var(--twod-network-layer) !important;
+}
+
+#tool-btn-container {
+  background: transparent;
+}
+
+#tool-btn-container .btn-icon {
+  background-color: #fff !important;
+  border: 1px solid rgba(192, 192, 192, 0.9);
+  border-radius: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+#tool-btn-container .btn-icon:hover {
+  background-color: #f2f3f8 !important;
+}
+
+#tool-btn-container .btn-icon[style*="lightblue"] {
+  background-color: lightblue !important;
+}
+
+#tool-btn-container > span {
+  width: max-content;
+}
+
+#tool-btn-container,
+#network-statistics-wrapper {
+  position: absolute;
+  z-index: var(--twod-control-layer) !important;
+}
+
+.view-controls {
+  position: relative;
+  z-index: var(--twod-control-layer) !important;
 }
 
 

@@ -26,6 +26,37 @@ const expectCytoscapeElement = (element: any, message: string): void => {
   expect(Boolean(element && typeof element.empty === 'function' && !element.empty()), message).to.equal(true);
 };
 
+const expectTopHitWithin = ($target: JQuery<HTMLElement>, expectedSelector: string, label: string): void => {
+  const target = $target[0];
+  const rect = target.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const topElement = target.ownerDocument.elementFromPoint(x, y) as HTMLElement | null;
+
+  expect(topElement, `${label} top hit target`).to.exist;
+  expect(topElement!.closest(expectedSelector), `${label} is above the network`).to.not.equal(null);
+  expect(topElement!.closest('#cy'), `${label} is not inside Cytoscape`).to.equal(null);
+  expect(topElement!.tagName.toLowerCase(), `${label} is not a Cytoscape canvas`).to.not.equal('canvas');
+};
+
+const moveFirstNodeUnderViewportPoint = (cyInstance: Core, viewportX: number, viewportY: number): void => {
+  const node = getFirstVisibleLeafNode(cyInstance);
+  expectCytoscapeElement(node, 'node moved under toolbar');
+
+  if (node.locked && node.locked()) {
+    node.unlock();
+  }
+
+  const containerRect = cyInstance.container().getBoundingClientRect();
+  const pan = cyInstance.pan();
+  const zoom = cyInstance.zoom();
+  node.position({
+    x: (viewportX - containerRect.left - pan.x) / zoom,
+    y: (viewportY - containerRect.top - pan.y) / zoom
+  });
+  cyInstance.forceRender();
+};
+
 // Selectors for key elements in the 2D component
 const selector : any = {
   canvas: '#cy',
@@ -75,6 +106,39 @@ describe('2D Network - Core Rendering and Stats', () => {
     // Assert that the stats panel shows the correct counts from the seeded data
     cy.get(selector.statsNodes).should('contain.text', '33');
     cy.get(selector.statsLinks).should('contain.text', '74');
+  });
+
+  it('keeps 2D controls above the Cytoscape render surface', () => {
+    cy.get(selector.settingsBtn)
+      .should('be.visible')
+      .then(($button) => {
+        const rect = $button[0].getBoundingClientRect();
+        const backgroundColor = getComputedStyle($button[0]).backgroundColor;
+
+        expect(rect.width, 'toolbar button has a visible paint box').to.be.greaterThan(0);
+        expect(backgroundColor, 'toolbar button background is opaque').to.not.match(/^(transparent|rgba\(0, 0, 0, 0\))$/);
+      });
+
+    cy.get(selector.settingsBtn).should('be.visible').then(($button) => {
+      const rect = $button[0].getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+
+      return getCy().then((cyInstance) => {
+        moveFirstNodeUnderViewportPoint(cyInstance, x, y);
+      });
+    });
+
+    cy.get(selector.settingsBtn)
+      .then(($button) => expectTopHitWithin($button, '#tool-btn-container', 'toolbar settings button'));
+
+    cy.get(selector.settingsBtn).click();
+
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .should('be.visible')
+      .then(($dialog) => expectTopHitWithin($dialog, '.p-dialog', 'settings dialog'));
   });
 });
 

@@ -1344,24 +1344,79 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     public onSearch() {
         const nodes = this.commonService.session.data.nodes;
+        const filteredNodes = this.commonService.session.data.nodeFilteredValues;
         const n = nodes.length;
 
         let v = this.searchText;
         const val = v;
+        const field = this.commonService.session.style.widgets["search-field"];
+        const syncFilteredSelection = () => {
+          if (!Array.isArray(filteredNodes) || filteredNodes === nodes) {
+            return;
+          }
+
+          const selectedById: Record<string, boolean> = Object.create(null);
+          for (let i = 0; i < n; i++) {
+            const node = nodes[i];
+            if (node && node._id !== undefined) {
+              selectedById[String(node._id)] = node.selected === true;
+            }
+          }
+
+          filteredNodes.forEach(node => {
+            if (!node || node._id === undefined) {
+              return;
+            }
+
+            const nodeId = String(node._id);
+            if (Object.prototype.hasOwnProperty.call(selectedById, nodeId)) {
+              node.selected = selectedById[nodeId];
+            }
+          });
+        };
+        const buildSearchRegex = (searchValue: string): RegExp => {
+          let regexValue = searchValue;
+          if (this.commonService.session.style.widgets["search-whole-word"]) {
+            regexValue = '\\b' + regexValue + '\\b';
+          }
+
+          return this.commonService.session.style.widgets["search-case-sensitive"]
+            ? new RegExp(regexValue)
+            : new RegExp(regexValue, 'i');
+        };
+        const applyNodeSelection = (searchValue: string, searchRegex: RegExp) => {
+          for(let i = 0; i < n; i++){
+            const node = nodes[i];
+            node.selected = false;
+            const fieldValue = node[field];
+
+            if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
+              continue;
+            }
+            if (typeof fieldValue == "string") {
+              node.selected = searchRegex.test(fieldValue);
+            }
+            if (typeof fieldValue == "number") {
+              node.selected = (fieldValue + "" == searchValue);
+            }
+          }
+
+          syncFilteredSelection();
+        };
 
         if (v == "") {
           $('#search-results').html("").hide();
           for(let i = 0; i < n; i++){
             nodes[i].selected = false;
           }
+          syncFilteredSelection();
         } else {
           $('#search-results').html("").hide();
-          const field = this.commonService.session.style.widgets["search-field"];
           
           const dataSet = new Set();
           for(let i = 0; i < n; i++){
             const node = nodes[i];
-            if (node[field]) {
+            if (node[field] !== undefined && node[field] !== null && node[field] !== '') {
   
                 const fieldData = node[field].toString(); // Convert the data to string
                 // matches anything that is not a digit, letter, whitespace or one of following char < > & and replaces with corresponding HTML entity number
@@ -1373,10 +1428,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
           }
           const dataArray = Array.from(dataSet).sort() as string[];
           //#298
-          if (this.commonService.session.style.widgets["search-whole-word"])  v = '\\b' + v + '\\b';
-          let vre: RegExp;
-          if (this.commonService.session.style.widgets["search-case-sensitive"])  vre = new RegExp(v);
-          else  vre = new RegExp(v, 'i');
+          let vre = buildSearchRegex(v);
   
           dataArray.forEach(element => {
             if ((element as any).match(vre)) {
@@ -1387,65 +1439,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               }
           });
 
-        const that = this;
-          
         // on click of an option from the search list, the node is selected
           $('.autocomplete-wrapper li').on('click', function() {
-            let ac_v = $(this).attr('data-value');
+            let ac_v = $(this).attr('data-value') || '';
             const ac_val = ac_v;
-            let ac_vre: RegExp;
             $('#search').val(ac_v);
             $('#search-results').html("").hide();
           
-            if (that.commonService.session.style.widgets["search-whole-word"])  ac_v = '\\b' + ac_v + '\\b';
-            if (that.commonService.session.style.widgets["search-case-sensitive"])  ac_vre = new RegExp(ac_v);
-            else ac_vre = new RegExp(ac_v, 'i');
-  
-            for(let i = 0; i < n; i++){
-
-              const node = nodes[i];
-
-              if (!node[field]) {
-                node.selected = false;
-              }
-              if (typeof node[field] == "string") {
-                node.selected = ac_vre.test(node[field]);
-              }
-              if (typeof node[field] == "number") {
-                node.selected = (node[field] + "" == ac_val);
-              }
-
-            }
+            const ac_vre = buildSearchRegex(ac_v);
+            applyNodeSelection(ac_val, ac_vre);
 
             $(document).trigger("node-selected");
 
           });
   
-          let firstSelected = false;
-
           // selects that meets current search criteria
-          for(let i = 0; i < n; i++){
-  
-            if(!firstSelected){
-                const node = nodes[i];
-
-                if (!node[field]) {
-                  node.selected = false;
-                }
-                if (typeof node[field] == "string") {
-                  node.selected = vre.test(node[field]);
-                  firstSelected = node.selected;
-                }
-                if (typeof node[field] == "number") {
-                  node.selected = (node[field] + "" == val);
-                  firstSelected = node.selected;
-                }
-
-            } else {
-                break;
-            }
-            
-          }
+          applyNodeSelection(val, vre);
   
           if (!nodes.some(node => node.selected)) console.log('no matches');
         }
