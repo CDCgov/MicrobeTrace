@@ -338,6 +338,34 @@ const getVisibleLeafNodesByValue = (win: WinWithMT, field: string, value: string
     .filter((node: any) => node.children().length === 0 && String(node.data(field)) === value);
 };
 
+const setFirstVisibleLeafNodeFieldToNull = (field: string): Cypress.Chainable<string> => {
+  return cy.window().then((win: unknown) => {
+    const typedWindow = win as WinWithMT;
+    const cyInstance = typedWindow.cytoscapeInstance;
+
+    expect(cyInstance, 'cytoscapeInstance').to.exist;
+
+    const leafNode = cyInstance
+      .nodes(':visible')
+      .filter((node: any) => node.children().length === 0)
+      .first();
+
+    expect(leafNode.empty(), `visible leaf node for ${field} null bucket`).to.equal(false);
+
+    const nodeId = String(leafNode.id());
+    const sessionNode = typedWindow.commonService.session.data.nodes.find((node: any) =>
+      String(node.id ?? node._id) === nodeId || String(node._id ?? node.id) === nodeId,
+    );
+
+    expect(sessionNode, `session node for ${nodeId}`).to.exist;
+
+    sessionNode[field] = null;
+    leafNode.data(field, null);
+
+    return nodeId;
+  });
+};
+
 const getVisibleEdgesByValue = (win: WinWithMT, field: string, value: string) => {
   const cyInstance = win.cytoscapeInstance;
 
@@ -731,6 +759,56 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
           `unchanged classroom edge color for ${edge.id()}`,
         ).to.equal(classroomBaselineColor);
       });
+    });
+  });
+
+  it('keeps docked node color edits for the (Empty) bucket after table refreshes', () => {
+    const updatedEmptyColor = '#00aa88';
+    const expectedEmptyColor = normalizeColor(hexToRgbString(updatedEmptyColor));
+    let emptyNodeId = '';
+
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    setFirstVisibleLeafNodeFieldToNull('State').then((nodeId) => {
+      emptyNodeId = nodeId;
+    });
+
+    enableKeyTablesFromGlobalSettings('Dock');
+    selectDockedCardVariable('node-color', 'State');
+    focusAppTab('Docked Key Tables');
+
+    cy.get('#key-tables-node-table td[data-value="null"]', { timeout: 15000 })
+      .should('contain.text', '(Empty)');
+
+    changeColorTableEntry('#key-tables-node-table', 'null', updatedEmptyColor);
+    assertNodeColorTableState('State', 'null', updatedEmptyColor);
+
+    cy.window().then((win: unknown) => {
+      const typedWindow = win as WinWithMT;
+      typedWindow.commonService.visuals.keyTables?.refreshTables?.();
+    });
+
+    cy.get('#key-tables-node-table td[data-value="null"]')
+      .closest('tr')
+      .find('input[type="color"]')
+      .should('have.value', updatedEmptyColor);
+
+    focusAppTab('2D Network');
+
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as WinWithMT;
+      const emptyNode = typedWindow.cytoscapeInstance.getElementById(emptyNodeId);
+
+      expect(emptyNode.empty(), 'empty-bucket node still rendered').to.equal(false);
+      expect(
+        String(typedWindow.commonService.temp.style.nodeColorMap(null) || '').toLowerCase(),
+        'empty-bucket node color map',
+      ).to.equal(updatedEmptyColor);
+      expect(
+        normalizeColor(String(emptyNode.style('background-color') || '')),
+        'rendered empty-bucket node color',
+      ).to.equal(expectedEmptyColor);
     });
   });
 

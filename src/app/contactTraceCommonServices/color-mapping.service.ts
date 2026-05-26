@@ -141,22 +141,19 @@ export class ColorMappingService {
       );
     }
 
-    // Maintain “color history” to keep consistent color assignment
-    const historyKeys = Object.keys(updatedColorsTableHistory);
-
     // For each distinct value, see if we have a color in the “history”
     distinctValues.forEach((val, i) => {
-      const indexInHistory = historyKeys.indexOf(val);
-      if (indexInHistory !== -1) {
-        // We previously assigned a color to this value
-        updatedNodeColors[i] = updatedColorsTableHistory[val];
-      } else {
-        // Not in history -> record it
-        updatedColorsTableHistory[val] = updatedNodeColors[i];
+      const historyColor = updatedColorsTableHistory[val];
+      
+      if (typeof historyColor === 'string') {
+        updatedNodeColors[i] = historyColor;
+        return;
       }
       if (val === 'null') {
         updatedNodeColors[i] = '#EAE553';
       }
+
+      updatedColorsTableHistory[val] = updatedNodeColors[i];
     });
 
     // We store this updated array back into the “table”
