@@ -389,14 +389,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
-        //TODO: put this in a config?
-        const mapTokenKey: string = 'sk.eyJ1IjoicndhdHR5IiwiYSI6ImNrY2RuMWlzcDAwMmUyc3A5ejl3ODEzMXoifQ.qpXOouVsI6P8-HOHUWofuQ'
-
         this.layers.basemap = tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 20,
             attribution: '© <a href="https://openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
         }); 
-        this.layers.satellite = tileLayer(`https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v9/tiles/256/{z}/{x}/{y}?access_token=${mapTokenKey}`);
+        this.layers.satellite = tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri - Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        });
 
         this.leafletInitialOptions = {
             zoom: 4,
