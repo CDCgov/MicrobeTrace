@@ -315,6 +315,12 @@
       </p-select>
     </div>
   </div>
+  <div id="node-radius-row" class="form-group row" title="How big should the nodes be?">
+    <div class="col-4"><label for="node-radius">Size</label></div>
+    <div class="col-8">
+      <input type="range" class="custom-range" id="node-radius" min="16" step="2" max="80" [(ngModel)]="mapNodeIconSize" (ngModelChange)="onNodeRadiusChange()">
+    </div>
+  </div>
 </tab>
 <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
   <div class="form-group row">

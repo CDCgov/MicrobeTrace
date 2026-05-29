@@ -161,19 +161,19 @@
     @if (SelectedLeafNodeSizeVariable=='None' && SelectedLeafNodeShowVariable) {
       <div class="form-group row leaf-size-row" title="How big should leaves be?">
         <div class="col-5"><label for="leaf-size">Leaf Size</label></div>
-        <div class="col-7"><input type="range" class="custom-range" id="leaf-size" min="1" step="0.5" max="50" [(ngModel)]="SelectedLeafNodeSize" (ngModelChange)="onLeafNodeSizeChange($event)"></div>
+        <div class="col-7"><input type="range" class="custom-range" id="leaf-size" min="5" step="0.5" max="50" [(ngModel)]="SelectedLeafNodeSize" (ngModelChange)="onLeafNodeSizeChange($event)"></div>
       </div>
     }
     @if (SelectedLeafNodeSizeVariable!='None' && SelectedLeafNodeShowVariable) {
       <div class="form-group row " title="How big should leaves be?">
         <div class="col-5"><label>Min Leaf Size</label></div>
-        <div class="col-7"><input type="range" class="custom-range" id="leaf-size-min" min="1" step="0.5" max="25" [(ngModel)]="minNodeWidth" (ngModelChange)="styleTree()"></div>
+        <div class="col-7"><input type="range" class="custom-range" id="leaf-size-min" min="5" step="0.5" max="25" [(ngModel)]="minNodeWidth" (ngModelChange)="styleTree()"></div>
       </div>
     }
     @if (SelectedLeafNodeSizeVariable!='None' && SelectedLeafNodeShowVariable) {
       <div class="form-group row" title="How big should leaves be?">
         <div class="col-5"><label>Max Leaf Size</label></div>
-        <div class="col-7"><input type="range" class="custom-range" id="leaf-size-max" min="5" step="0.5" max="40" [(ngModel)]="maxNodeWidth" (ngModelChange)="styleTree()"></div>
+        <div class="col-7"><input type="range" class="custom-range" id="leaf-size-max" min="10" step="0.5" max="50" [(ngModel)]="maxNodeWidth" (ngModelChange)="styleTree()"></div>
       </div>
     }
   </div>
