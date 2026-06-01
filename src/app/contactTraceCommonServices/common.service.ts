@@ -407,7 +407,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-color': '#a6cee3',
             'link-color-table-counts': true,
             'link-color-table-frequencies': false,
-            'link-color-variable': 'None',
+            'link-color-variable': 'origin',
             'link-directed': false,
             'link-bidirectional': false,
             'link-label-variable': 'None',
