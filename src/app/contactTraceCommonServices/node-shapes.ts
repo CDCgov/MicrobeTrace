@@ -159,7 +159,7 @@ const CUSTOM_NODE_SHAPE_DEFINITIONS: Record<string, CustomNodeShapeDefinition> =
         width: 262,
         height: 300,
         viewBox: '0 0 262 300',
-        path: 'M256 64l-68 110v89h4q6 0 10 4t4 10v9q0 6 -4 10t-10 4h-122q-6 0 -10 -4t-4 -10v-9q0 -6 4 -10t10 -4h5v-89l-69 -110q-8 -14 -5.5 -29t14 -25t27.5 -10h179q16 0 27 10t14 25t-6 29zM81 113l28 45q3 5 3 11v94h38v-94q0 -6 3 -11l29 -45h-101z'    
+        path: 'M256 64l-68 110v89h4q6 0 10 4t4 10v9q0 6 -4 10t-10 4h-122q-6 0 -10 -4t-4 -10v-9q0 -6 4 -10t10 -4h5v-89l-69 -110q-8 -14 -5.5 -29t14 -25t27.5 -10h179q16 0 27 10t14 25t-6 29zM81 113l28 45q3 5 3 11v94h38v-94q0 -6 3 -11l29 -45h-101z'
     },
     ship: {
         key: 'ship',
@@ -695,6 +695,15 @@ function sanitizeSvgColor(color: string | null | undefined): string {
     return (color || '#000000').replace(/"/g, '&quot;');
 }
 
+function sanitizeSvgOpacity(opacity: number | null | undefined): number {
+    const numericOpacity = Number(opacity);
+    if (!Number.isFinite(numericOpacity)) {
+        return 1;
+    }
+
+    return Math.min(1, Math.max(0, numericOpacity));
+}
+
 function buildPaddedViewBox(viewBox: string, padding: number): string {
     const dimensions = viewBox.trim().split(/\s+/).map(value => Number(value));
     if (dimensions.length !== 4 || dimensions.some(value => Number.isNaN(value))) {
@@ -711,13 +720,15 @@ function buildCustomNodeShapeDataUri(
     strokeColor: string,
     strokeWidth: number,
     viewBoxPadding: number = 0,
-    intrinsicCanvasSize?: { width: number; height: number }
+    intrinsicCanvasSize?: { width: number; height: number },
+    fillOpacity: number = 1
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
     const svgWidth = intrinsicCanvasSize?.width ?? definition.width;
     const svgHeight = intrinsicCanvasSize?.height ?? definition.height;
-    const fillPath = `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" stroke="none"/>`;
+    const fillPath = `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>`;
     const outlinePath = `<path d="${definition.path}" fill="none" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`;
     const svg = `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g transform="translate(0,${definition.height}) scale(1,-1)">${fillPath}${outlinePath}</g></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -727,11 +738,13 @@ function buildEllipseNodeShapeDataUri(
     fillColor: string,
     strokeColor: string,
     strokeWidth: number,
-    viewBoxPadding: number = Math.max(20, strokeWidth)
+    viewBoxPadding: number = Math.max(20, strokeWidth),
+    fillOpacity: number = 1
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><circle cx="150" cy="150" r="110" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><circle cx="150" cy="150" r="110" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
@@ -851,12 +864,14 @@ function buildBarrelNodeShapeDataUri(
     fillColor: string,
     strokeColor: string,
     strokeWidth: number,
-    viewBoxPadding: number = Math.max(20, strokeWidth)
+    viewBoxPadding: number = Math.max(20, strokeWidth),
+    fillOpacity: number = 1
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
     const barrelPath = 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z';
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><path d="${barrelPath}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><path d="${barrelPath}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
@@ -865,14 +880,15 @@ function buildBasicNodeShapeDataUri(
     fillColor: string,
     strokeColor: string,
     strokeWidth: number,
-    viewBoxPadding: number = Math.max(20, strokeWidth)
+    viewBoxPadding: number = Math.max(20, strokeWidth),
+    fillOpacity: number = 1
 ): string | null {
     if (shapeKey === 'ellipse') {
-        return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, viewBoxPadding);
+        return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, viewBoxPadding, fillOpacity);
     }
 
     if (shapeKey === 'barrel') {
-        return buildBarrelNodeShapeDataUri(fillColor, strokeColor, strokeWidth, viewBoxPadding);
+        return buildBarrelNodeShapeDataUri(fillColor, strokeColor, strokeWidth, viewBoxPadding, fillOpacity);
     }
 
     const path = buildBasicNodeShapePath(shapeKey);
@@ -882,11 +898,12 @@ function buildBasicNodeShapeDataUri(
 
     const safeFill = sanitizeSvgColor(fillColor);
     const safeStroke = sanitizeSvgColor(strokeColor);
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><path d="${path}" fill="${safeFill}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${buildPaddedViewBox('0 0 300 300', viewBoxPadding)}" aria-hidden="true"><path d="${path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string {
+export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number = 1): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     if (isCustomNodeShape(normalizedShapeKey)) {
         const definition = CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey];
@@ -901,35 +918,39 @@ export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, stro
             strokeColor,
             strokeWidth,
             Math.max(20, strokeWidth),
-            { width: squareCanvasSize, height: squareCanvasSize }
+            { width: squareCanvasSize, height: squareCanvasSize },
+            fillOpacity
         );
     }
 
-    const basicShapeDataUri = buildBasicNodeShapeDataUri(normalizedShapeKey, fillColor, strokeColor, strokeWidth);
+    const basicShapeDataUri = buildBasicNodeShapeDataUri(normalizedShapeKey, fillColor, strokeColor, strokeWidth, undefined, fillOpacity);
     if (basicShapeDataUri) {
         return basicShapeDataUri;
     }
 
-    return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth);
+    return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, undefined, fillOpacity);
 }
 
-export function getTreeNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number): string {
+export function getTreeNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number = 1): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     if (isCustomNodeShape(normalizedShapeKey)) {
         return buildCustomNodeShapeDataUri(
             CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey],
             fillColor,
             strokeColor,
-            strokeWidth
+            strokeWidth,
+            undefined,
+            undefined,
+            fillOpacity
         );
     }
 
-    const basicShapeDataUri = buildBasicNodeShapeDataUri(normalizedShapeKey, fillColor, strokeColor, strokeWidth, 0);
+    const basicShapeDataUri = buildBasicNodeShapeDataUri(normalizedShapeKey, fillColor, strokeColor, strokeWidth, 0, fillOpacity);
     if (basicShapeDataUri) {
         return basicShapeDataUri;
     }
 
-    return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, 0);
+    return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, 0, fillOpacity);
 }
 
 export function getTreeNodeShapeScale(shapeKey: string): number {

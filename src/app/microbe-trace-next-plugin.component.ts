@@ -3203,13 +3203,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                         // Update table with new alpha value
                         // Need to get value from id since "this" keyword is used by angular
-                        this.commonService.session.style.nodeAlphas.splice(i, 1, parseFloat(f.target['value'] as string));
+                        const alphaValue = this.commonService.clampStyleAlpha(parseFloat(f.target['value'] as string));
+                        this.commonService.session.style.nodeAlphas.splice(i, 1, alphaValue);
 
                         this.commonService.temp.style.nodeAlphaMap = d3
                             .scaleOrdinal(this.commonService.session.style.nodeAlphas)
                             .domain(aggregateValues);
 
-                        colorinput.trigger('change', this.commonService.temp.style.nodeColorMap(value))
+                        colorinput.css('opacity', alphaValue);
+                        this.publishUpdateNodeColors();
                         $("#color-transparency-wrapper").fadeOut();
 
                     });

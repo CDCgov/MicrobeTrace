@@ -1,6 +1,8 @@
 /// <reference types="cypress" />
 
 import * as L from 'leaflet';
+import { getRenderedMapNodeContainerPoint, readRenderedMapNodeStyle } from '../../support/map-helpers';
+import { visitAppAndAcceptEula } from '../../support/journey-helpers';
 const takeScreenshots: boolean = false;
 
 /**
@@ -18,13 +20,7 @@ describe('Map View', () => {
    * continues with the sample dataset, and navigates to the view.
    */
   beforeEach(() => {
-    cy.visit('/');
-    cy.wait(6000); // Allow for initial application bootstrap
-
-    cy.get('button:contains("Continue with Sample Dataset")', { timeout: 10000 })
-     .click({ force: true });
-
-    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+    visitAppAndAcceptEula({ skipDemoSession: false });
 
     // Open the "View" menu and click on "Map"
     cy.contains('button', 'View').click();
@@ -439,15 +435,14 @@ describe('Map View', () => {
         const container = lmap.getContainer() as HTMLElement;
         const rect = container.getBoundingClientRect();
 
-        const point = NC_node._point;
-        const clientX = Math.round(rect.left + point.x)
-        const clientY = Math.round(rect.top + point.y)
+        const containerPoint = getRenderedMapNodeContainerPoint(lmap, NC_node);
+        const clientX = Math.round(rect.left + containerPoint.x)
+        const clientY = Math.round(rect.top + containerPoint.y)
         const eventInit: any = { bubbles: true, cancelable: true, composed: true,
           button: 0, x: clientX, y: clientY,  pageX: clientX, pageY: clientY
         };
         const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
 
-        const containerPoint =  L.point(point.x, point.y);
         const latlng = lmap.containerPointToLatLng(containerPoint);
           
         NC_node.fire('mouseover', {latlng, layer: NC_node, containerPoint, originalEvent: fakeOriginalEvent});
@@ -520,12 +515,11 @@ describe('Map View', () => {
         expect(NC_node.data.selected).to.be.false;
         expect(NC_node.options.color).to.be.eq('#000000')
 
-        const point = NC_node._point;
         const eventInit: any = { bubbles: true, cancelable: true, composed: true };
         const fakeOriginalEvent = new MouseEvent('click', eventInit);
 
         const lmap = win.commonService.visuals.gisMap.lmap;
-        const containerPoint =  L.point(point.x, point.y);
+        const containerPoint = getRenderedMapNodeContainerPoint(lmap, NC_node);
         const latlng = lmap.containerPointToLatLng(containerPoint);
           
         NC_node.fire('click', {latlng, layer: NC_node, containerPoint, originalEvent: fakeOriginalEvent});
@@ -674,6 +668,37 @@ describe('Map View', () => {
       cy.get('.leaflet-control-zoom-out').click({force: true});
       cy.wait(1000);
       if (takeScreenshots) cy.screenshot('map/node-colorado-gray', { overwrite: true});
+    })
+
+    it('should combine color table node transparency with map node transparency', () => {
+      const tableAlpha = 0.4;
+      const mapTransparency = 0.25;
+      const expectedFillOpacity = tableAlpha * (1 - mapTransparency);
+
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('Lineage').click()
+      cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
+      cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
+      cy.get('#color-transparency').invoke('val', tableAlpha).trigger('change');
+      cy.window().its('commonService.session.style.nodeAlphas.0').should('equal', tableAlpha);
+      cy.closeGlobalSettings();
+
+      cy.get(selectors.settingsBtn).click();
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Nodes').click()
+      cy.get('#map-node-transparency').invoke('val', mapTransparency).trigger('input').trigger('change');
+      cy.window().its('commonService.session.style.widgets.map-node-transparency').should('equal', mapTransparency);
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
+        const targetLayer = Object.values(layers).find((layer: any) =>
+          layer.data && (layer.data.ID === 'MZ375596' || layer.data._id === 'MZ375596')
+        ) as any;
+
+        expect(targetLayer, 'MZ375596 marker layer').to.exist;
+        const renderedStyle = readRenderedMapNodeStyle(targetLayer);
+        expect(renderedStyle.fillOpacity).to.be.closeTo(expectedFillOpacity, 0.001);
+        expect(renderedStyle.opacity).to.equal(1);
+      });
     })
 
     // Map link colors should be mappable and remappable
@@ -842,15 +867,14 @@ describe('Map View', () => {
         const container = lmap.getContainer() as HTMLElement;
         const rect = container.getBoundingClientRect();
 
-        const point = NC_node._point;
-        const clientX = Math.round(rect.left + point.x)
-        const clientY = Math.round(rect.top + point.y)
+        const containerPoint = getRenderedMapNodeContainerPoint(lmap, NC_node);
+        const clientX = Math.round(rect.left + containerPoint.x)
+        const clientY = Math.round(rect.top + containerPoint.y)
         const eventInit: any = { bubbles: true, cancelable: true, composed: true,
           button: 0, x: clientX, y: clientY,  pageX: clientX, pageY: clientY
         };
         const fakeOriginalEvent = new MouseEvent('mouseover', eventInit);
 
-        const containerPoint =  L.point(point.x, point.y);
         const latlng = lmap.containerPointToLatLng(containerPoint);
           
         NC_node.fire('mouseover', {latlng, layer: NC_node, containerPoint, originalEvent: fakeOriginalEvent});

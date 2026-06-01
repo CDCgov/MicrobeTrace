@@ -1,3 +1,5 @@
+import { visitAppAndAcceptEula } from '../../support/journey-helpers';
+
 let takeScreenshots = false;
 const getCy = () => cy.window().then(win => win.commonService.visuals.bubble.cy)
 
@@ -9,11 +11,7 @@ describe('Bubble View', () => {
   };
   
   beforeEach(() => {
-    cy.visit('/');
-    cy.wait(6000);
-
-    cy.contains('button', 'Continue with Sample Dataset', { timeout: 10000 }).click({ force: true });
-    cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+    visitAppAndAcceptEula({ skipDemoSession: false });
 
     cy.contains('button', 'View').click();
     cy.contains('button[mat-menu-item]', 'Bubble').click();
@@ -197,6 +195,55 @@ describe('Bubble View', () => {
       })
 
       if (takeScreenshots) cy.screenshot('map/node-colorado-gray', { overwrite: true});
+    })
+
+    it('should apply color table node transparency to individual bubble nodes', () => {
+      const alpha = 0.35;
+
+      cy.closeSettingsPane('Bubble Settings')
+      cy.openGlobalSettings();
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('Lineage').click()
+      cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
+      cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
+      cy.get('#color-transparency').invoke('val', alpha).trigger('change');
+      cy.window().its('commonService.session.style.nodeAlphas.0').should('equal', alpha);
+      cy.closeGlobalSettings();
+
+      getCy().then(cytoscapeInstance => {
+        const testNode = cytoscapeInstance.nodes('[id = "MZ375596"]')
+        expect(parseFloat(testNode.style('background-opacity'))).to.be.closeTo(alpha, 0.01);
+      })
+    })
+
+    it('should apply color table transparency to only matching collapsed pie slices', () => {
+      const alpha = 0.35;
+
+      updateVariable('X', 'Cluster')
+      updateCollapsed(true, false)
+      cy.closeSettingsPane('Bubble Settings')
+      cy.openGlobalSettings();
+      cy.get('#node-color-variable').click()
+      cy.get('li[role="option"]').contains('Lineage').click()
+      cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
+      cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
+      cy.get('#color-transparency').invoke('val', alpha).trigger('change');
+      cy.window().its('commonService.session.style.nodeAlphas.0').should('equal', alpha);
+      cy.closeGlobalSettings();
+
+      cy.window().then((win: any) => {
+        const bubble = win.commonService.visuals.bubble;
+        const pieDefs = Object.values(bubble.svgDefs).join('');
+        expect(pieDefs).to.include(`fill-opacity='${alpha}'`);
+        expect(pieDefs).to.include(`fill-opacity='1'`);
+
+        const pieNodes = bubble.cy.nodes().filter((node: any) =>
+          !node.hasClass('X_axis') &&
+          !node.hasClass('Y_axis') &&
+          String(node.style('background-image')).includes('data:image')
+        );
+        expect(pieNodes.length, 'collapsed pie nodes with SVG backgrounds').to.be.greaterThan(0);
+      });
     })
 
     it('should update link threhold to split/merge clusters, node positions and color should be updated', () => {
