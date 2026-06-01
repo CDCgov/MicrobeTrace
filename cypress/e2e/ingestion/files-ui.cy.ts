@@ -204,4 +204,48 @@ describe('File Handling and Processing', () => {
       expect(link.Contact).to.equal('Bar');
     });
   });
+
+  it('preserves analysis styling when files are removed and added back', () => {
+    const customNodeColor = '#cc3366';
+
+    cy.loadFiles([
+      { name: nodeFile, datatype: 'node' },
+      { name: linkFile, datatype: 'link' },
+    ]);
+
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win) => {
+      const microbeTrace = win.commonService.visuals.microbeTrace;
+      microbeTrace.SelectedNodeColorVariable = customNodeColor;
+      microbeTrace.onNodeColorChanged(true);
+    });
+    cy.window()
+      .its('commonService.session.style.widgets.node-color')
+      .should('equal', customNodeColor);
+
+    cy.contains('#file-table .file-table-row', linkFile)
+      .find('.flaticon-delete-1')
+      .click({ force: true });
+    cy.contains('#file-table .file-table-row', linkFile).should('not.exist');
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+    cy.window()
+      .its('commonService.session.style.widgets.node-color')
+      .should('equal', customNodeColor);
+
+    cy.loadFiles([{ name: linkFile, datatype: 'link' }]);
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+    cy.window()
+      .its('commonService.session.style.widgets.node-color')
+      .should('equal', customNodeColor);
+  });
 });

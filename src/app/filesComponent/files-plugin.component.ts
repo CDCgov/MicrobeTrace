@@ -723,6 +723,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
      // Set to false to indicate that the network is not fully loaded  as new network is launching
      const loadGeneration = this.commonService.beginDataLoad();
+     const wasAlreadyLaunched = this.commonService.session.network.launched;
      this.commonService.session.network.isFullyLoaded = false;
      
     // launching new network, so set network rendered to false to start loading modal
@@ -730,9 +731,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.store.setNetworkUpdated(false);
     this.store.setSettingsLoaded(false);
 
-    this.commonService.cleanupData();
-
-    this.commonService.updateLegacyNodeSymbols();
+    if (!wasAlreadyLaunched) {
+      this.commonService.updateLegacyNodeSymbols();
+    }
     const thresholdOnLaunch = parseFloat(String(
       $('#default-distance-threshold').val() ??
       this.SelectedDefaultDistanceThresholdVariable ??
@@ -756,30 +757,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
 
     console.log('launch click');
-    if( this.commonService.session.network.launched) {
-      console.log('launch click launched ', this.commonService.session.network.launched);
-
-      this.commonService.resetData();
-
+    this.commonService.resetData();
+    this.commonService.session.network.launched = true;
+    if (wasAlreadyLaunched) {
+      console.log('launch click launched ', wasAlreadyLaunched);
       $('#launch').text('Update');
-      // this.visuals.twoD.isLoading = true;
-      this.commonService.session.style.nodeColorsTable = {};
-      this.commonService.session.style.nodeColorsTableKeys = {};
-      this.commonService.session.style.nodeSymbolsTable = {};
-      this.commonService.session.style.nodeSymbolsTableKeys = {};
+    } else {
+      console.log('launch click not launched ', wasAlreadyLaunched);
     }
-    else if (!this.commonService.session.network.launched) {
-      console.log('launch click not launched ', this.commonService.session.network.launched);
-
-      this.commonService.resetData();
-      this.commonService.session.network.launched = true;
-    }
-
-    this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
-    this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = 'Dock';
-    this.commonService.session.style.widgets['node-symbol-variable'] = 'None';
-    this.commonService.session.style.widgets['node-symbol-table-visible'] = 'Dock';
-    this.commonService.visuals.microbeTrace?.resetNodeShapeSelectionForNewDataset();
 
     this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;

@@ -3731,8 +3731,7 @@ align(params): Promise<any> {
     };
 
     /**
-     * Sets the following objects back to default values: commonService.temp.matrix, commonService.temp.tree, commonService.session.data, commonService.session.network,
-     * commonService.session.style.widgets. Filters 'Demo_outbreak_NodeList.csv' from files
+     * Rebuilds loaded graph data while preserving the current analysis settings.
      */
     resetData() {
 
@@ -3763,15 +3762,6 @@ align(params): Promise<any> {
 
         this.session.files = files;
         this.session.meta = meta;
-        this.session.style.widgets = this.defaultWidgets();
-        
-
-        // default values are 'tn93' and 0.015, so not sure if this if statement is every true
-        if (this.session.style.widgets['default-distance-metric'] !== 'snps' &&
-          this.session.style.widgets['link-threshold'] >= 1) {
-          this.visuals.microbeTrace.SelectedLinkThresholdVariable = this.session.style.widgets['link-threshold'];
-          this.visuals.microbeTrace.onLinkThresholdChanged();
-        }
     };
 
     getJurisdictions(): Promise<JurisdictionItem[]>{
