@@ -508,16 +508,17 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
     }
 
-    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean): L.Icon {
+    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean, fillOpacity: number): L.Icon {
         const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
         const safeFill = fillColor || '#000000';
         const safeStroke = strokeColor || '#000000';
-        const strokeWidth = this.getStrokeWidth(shapeKey, selected)
-        const shapeStrokeColor = isCustomNodeIconShape(normalizedShapeKey) && !selected ? (shapeKey == 'lettuce'? '#ffffff' : '#000000') : safeStroke; // default for unselected shapes is black except for lettuce;
-        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|`;
-        
+        const safeFillOpacity = this.commonService.clampStyleAlpha(fillOpacity, 1);
+        const strokeWidth = this.getStrokeWidth(normalizedShapeKey, selected);
+        const shapeStrokeColor = isCustomNodeIconShape(normalizedShapeKey) && !selected ? (normalizedShapeKey == 'lettuce' ? '#ffffff' : '#000000') : safeStroke; // default for unselected shapes is black except for lettuce
+        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}`;
+
         if (!this.mapNodeIconCache[cacheKey]) {
-            this.mapNodeIconCache[cacheKey] = getMapNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth)
+            this.mapNodeIconCache[cacheKey] = getMapNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity);
         }
 
         return icon({
@@ -1444,10 +1445,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Draws nodes on the map
      */
     drawLeafletMapNodesList() {
-        var fillcolor = this.commonService.session.style.widgets['node-color'],
-            colorVariable = this.commonService.session.style.widgets['node-color-variable'],
-            selectedColor = this.commonService.session.style.widgets['selected-color'],
-            opacity = 1 - this.commonService.session.style.widgets['map-node-transparency'];
+        var selectedColor = this.commonService.session.style.widgets['selected-color'],
+            mapOpacity = this.commonService.clampStyleAlpha(1 - this.commonService.session.style.widgets['map-node-transparency']);
 
         var features: Layer[] = [];
 
@@ -1456,15 +1455,20 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             var d = this.nodes[i];
             if (!d._jlat || !d._jlon || d.visible === false) continue;
 
-            const nodeFillColor = colorVariable == 'None'
-                ? fillcolor
-                : this.commonService.temp.style.nodeColorMap(d[colorVariable]);
+            const nodeStyle = this.commonService.getNodeFillStyle(d);
+            const nodeFillOpacity = this.commonService.clampStyleAlpha(nodeStyle.alpha * mapOpacity);
+            const strokeColor = d.selected ? selectedColor : '#000000';
+            const strokeWidth = d.selected ? 36 : 16;
             const shapeKey = this.getNodeShapeKey(d);
 
             let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
-                icon: this.getMapNodeIcon(shapeKey, nodeFillColor, d.selected ? selectedColor : '#000000', d.selected),
-                opacity: opacity
-            });
+                icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, d.selected, nodeFillOpacity),
+                opacity: 1,
+                fillOpacity: nodeFillOpacity,
+                fillColor: nodeStyle.color,
+                color: strokeColor,
+                weight: strokeWidth
+            } as L.MarkerOptions & { fillOpacity: number; fillColor: string; color: string; weight: number });
 
             nodeMarker.data = d;
             if (d._id !== undefined) {
@@ -1926,7 +1930,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.SelectedNodeTransparencyVariable = this.commonService.session.style.widgets['map-node-transparency'];
         this.onNodeTransparencyChange(this.SelectedNodeTransparencyVariable);
 
-        // Node|Size 
+        // Node|Size
         this.mapNodeIconSize = this.commonService.session.style.widgets['map-node-size']
         //Nodes|Jitter
         this.SelectedNodeJitterVariable = this.commonService.session.style.widgets['map-node-jitter'];
