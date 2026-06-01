@@ -6,6 +6,7 @@ import { byTestId, testIds } from '../../support/selectors';
 describe('File Handling and Processing', () => {
   const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
   const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
+  const additionalNodeFile = 'AngularTesting_nodes_Map.csv';
   const loadNodeFile = () => cy.loadFiles([{ name: nodeFile, datatype: 'node' }]);
 
   beforeEach(() => {
@@ -202,6 +203,36 @@ describe('File Handling and Processing', () => {
         (l.source === 'KF773571' && l.target === 'KF773578')
       );
       expect(link.Contact).to.equal('Bar');
+    });
+  });
+
+  it('appends files dropped onto the Files tab after a network has launched', () => {
+    cy.loadFiles([
+      { name: nodeFile, datatype: 'node' },
+      { name: linkFile, datatype: 'link' },
+    ]);
+
+    cy.get('#launch').click({ force: true });
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
+
+    cy.get(byTestId(testIds.appFileMenuButton)).click({ force: true });
+    cy.contains('[role="menuitem"]', 'Add Data').click({ force: true });
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', 'Files');
+
+    cy.get('body', { timeout: 20000 })
+      .selectFile(`${Cypress.config('fixturesFolder')}/${additionalNodeFile}`, {
+        action: 'drag-drop',
+        force: true,
+      });
+
+    cy.contains('#file-table .file-table-row', additionalNodeFile, { timeout: 20000 }).should('be.visible');
+    cy.get('#launch', { timeout: 20000 }).should('not.be.disabled');
+
+    cy.window().its('commonService.session.files').should((files: any[]) => {
+      const fileNames = files.map((file) => file.name);
+
+      expect(files, 'session files').to.have.length(3);
+      expect(fileNames).to.include.members([nodeFile, linkFile, additionalNodeFile]);
     });
   });
 });
