@@ -5,6 +5,7 @@ import { byTestId, testIds } from '../../support/selectors';
 
 describe('File Handling and Processing', () => {
   const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
+  const compatibleNodeFile = 'AngularTesting_nodes_Map.csv';
   const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
   const loadNodeFile = () => cy.loadFiles([{ name: nodeFile, datatype: 'node' }]);
 
@@ -247,5 +248,72 @@ describe('File Handling and Processing', () => {
     cy.window()
       .its('commonService.session.style.widgets.node-color')
       .should('equal', customNodeColor);
+  });
+
+  it('keeps only field-compatible styling when files are updated', () => {
+    const customNodeColor = '#cc3366';
+    const shapeVariable = 'subtype';
+
+    cy.loadFiles([
+      { name: nodeFile, datatype: 'node' },
+      { name: linkFile, datatype: 'link' },
+    ]);
+
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win) => {
+      const microbeTrace = win.commonService.visuals.microbeTrace;
+      microbeTrace.SelectedNodeColorVariable = customNodeColor;
+      microbeTrace.onNodeColorChanged(true);
+      microbeTrace.onNodeShapeByChanged(true, false, shapeVariable);
+    });
+    cy.window()
+      .its('commonService.session.style.widgets.node-color')
+      .should('equal', customNodeColor);
+    cy.window()
+      .its('commonService.session.style.widgets.node-symbol-variable')
+      .should('equal', shapeVariable);
+
+    cy.contains('#file-table .file-table-row', nodeFile)
+      .find('.flaticon-delete-1')
+      .click({ force: true });
+    cy.loadFiles([{ name: compatibleNodeFile, datatype: 'node', field1: '_id', field2: 'seq' }]);
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+    cy.window().then((win) => {
+      expect(win.commonService.session.data.nodeFields).to.include(shapeVariable);
+      expect(win.commonService.session.style.widgets['node-symbol-variable']).to.equal(shapeVariable);
+      expect(win.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable).to.equal(shapeVariable);
+      expect(win.commonService.session.style.widgets['node-color']).to.equal(customNodeColor);
+    });
+
+    cy.contains('#file-table .file-table-row', compatibleNodeFile)
+      .find('.flaticon-delete-1')
+      .click({ force: true });
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+    cy.window().then((win) => {
+      expect(win.commonService.session.data.nodeFields).not.to.include(shapeVariable);
+      expect(win.commonService.session.style.widgets['node-symbol-variable']).to.equal('None');
+      expect(win.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable).to.equal('None');
+      expect(win.commonService.session.style.widgets['node-color']).to.equal(customNodeColor);
+    });
+
+    cy.contains('#file-table .file-table-row', linkFile)
+      .find('.flaticon-delete-1')
+      .click({ force: true });
+    cy.window().then((win) => {
+      expect(win.commonService.session.files).to.have.length(0);
+      expect(win.commonService.session.network.launched).to.equal(true);
+      expect(win.commonService.session.style.widgets['node-color']).to.equal(customNodeColor);
+      expect(win.commonService.session.style.widgets['node-symbol-variable']).to.equal('None');
+    });
   });
 });

@@ -2412,6 +2412,49 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.cdref.markForCheck();
     }
 
+    public resetIncompatibleStyleSettingsForCurrentData(): void {
+        const changed = this.commonService.resetIncompatibleStyleSettingsForCurrentData();
+        const widgets = this.commonService.session.style.widgets;
+
+        this.SelectedColorNodesByVariable = widgets['node-color-variable'] ?? 'None';
+        this.SelectedColorLinksByVariable = widgets['link-color-variable'] ?? 'None';
+        this.SelectedNodeSymbolVariable = widgets['node-symbol-variable'] ?? 'None';
+        this.SelectedLinkSortVariable = widgets['link-sort-variable'] ?? 'distance';
+
+        this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
+        this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = this.SelectedNodeSymbolVariable;
+        this.commonService.GlobalSettingsModel.SelectedLinkSortVariable = this.SelectedLinkSortVariable;
+
+        if (this.SelectedColorNodesByVariable === 'None') {
+            this.GlobalSettingsNodeColorDialogSettings?.setVisibility(false);
+            $('#node-color-table').empty();
+        }
+
+        if (this.SelectedColorLinksByVariable === 'None') {
+            this.GlobalSettingsLinkColorDialogSettings?.setVisibility(false);
+            $('#link-color-table').empty();
+        }
+
+        if (this.SelectedNodeSymbolVariable === 'None') {
+            this.GlobalSettingsNodeShapeDialogSettings?.setVisibility(false);
+            $('#node-shape-table').empty();
+        }
+
+        this.commonService.createNodeColorMap();
+        this.commonService.createLinkColorMap();
+        this.applySavedNodeShapeSettingsFromSession();
+        this.getGlobalSettingsData();
+
+        if (changed) {
+            this.refreshVisibleColorTables();
+        } else {
+            this.refreshKeyTablesView();
+        }
+
+        this.cdref.markForCheck();
+    }
+
     onNodeShapeTableVisibilityChanged(silent: boolean = false) {
         this.syncNodeShapeTableStateWithSelection();
         this.setKeyTableDisplayMode('node-shape', this.normalizeKeyTableDisplayMode(this.SelectedNodeShapeTableTypesVariable));

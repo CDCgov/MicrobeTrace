@@ -1970,10 +1970,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const fnamerow = $('<div class="row w-100"></div>');
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
-          parentContext.commonService.session.files.splice(parentContext.commonService.session.files.findIndex(f => f.name === file.name), 1);
+          const fileIndex = parentContext.commonService.session.files.findIndex(f => f.name === file.name);
+          if (fileIndex >= 0) {
+            parentContext.commonService.session.files.splice(fileIndex, 1);
+          }
           parentContext.removeFile(file.name);
-          $('#launch').prop('disabled', false).focus();
-          $('#launch').text('Update');
+          if (parentContext.commonService.session.files.length === 0) {
+            $('#launch').prop('disabled', true);
+          } else {
+            $('#launch').prop('disabled', false).focus();
+            $('#launch').text('Update');
+          }
           root.slideUp(() => root.remove());
           parentContext.refreshTemplateState();
         }))
