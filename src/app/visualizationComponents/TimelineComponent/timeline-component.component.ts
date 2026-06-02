@@ -645,11 +645,6 @@ private setupEventListeners(): void {
     }
   });
 
-  $(window).on('node-color-change', () => {
-    this.svg.selectAll(".epiCurve-epi-curve rect")
-      .attr("fill", this.commonService.session.style.widgets["node-color-variable"]);
-  });
-
   $('#timeline-speed').on('change', () => {
     this.setTimer();
   });
@@ -1086,7 +1081,9 @@ private propagate(): void {
 // }
 
 updateNodeColors() {
-  this.refresh();
+  if(this.selectedGraphType == "Single Date Field" && this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+    this.refresh();
+  }
 }
 updateVisualization() {
   //Not Relevant

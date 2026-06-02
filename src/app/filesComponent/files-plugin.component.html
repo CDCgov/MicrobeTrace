@@ -1,6 +1,6 @@
 ﻿<div class="m-content">
 
-  <div id="file-panel" class="container-fluid" style="padding-top: 60px;">
+  <div id="file-panel" appDnd (fileDropped)="processFiles($event)" class="container-fluid files-drop-zone" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
     </div>
     @if (handoffError) {

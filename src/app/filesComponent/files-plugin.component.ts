@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, NgZone } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, Inject, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, NgZone, HostListener } from '@angular/core';
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as XLSX from 'xlsx';
 import * as Papa from 'papaparse';
@@ -137,6 +137,50 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.ngZone.run(() => {
       this.cdr.markForCheck();
     });
+  }
+
+  private isFileDragEvent(evt: DragEvent): boolean {
+    const transfer = evt.dataTransfer;
+    if (!transfer) {
+      return false;
+    }
+
+    return Array.from(transfer.types || []).includes('Files') || transfer.files.length > 0;
+  }
+
+  private isFilesViewVisible(): boolean {
+    const style = window.getComputedStyle(this.rootHtmlElement);
+
+    return style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      this.rootHtmlElement.getClientRects().length > 0;
+  }
+
+  private isFilesPageDropEnabled(): boolean {
+    return this.commonService.activeTab === FilesComponent.componentTypeName || this.isFilesViewVisible();
+  }
+
+  @HostListener('document:dragover', ['$event'])
+  onDocumentDragOver(evt: DragEvent): void {
+    if (!this.isFilesPageDropEnabled()) {
+      return;
+    }
+
+    evt.preventDefault();
+    if (evt.dataTransfer) {
+      evt.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  @HostListener('document:drop', ['$event'])
+  onDocumentDrop(evt: DragEvent): void {
+    if (!this.isFilesPageDropEnabled() || !this.isFileDragEvent(evt)) {
+      return;
+    }
+
+    evt.preventDefault();
+    evt.stopPropagation();
+    void this.processFiles(evt.dataTransfer?.files);
   }
 
   private normalizeDefaultView(value: any): string {

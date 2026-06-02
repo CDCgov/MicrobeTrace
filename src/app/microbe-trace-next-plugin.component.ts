@@ -4321,10 +4321,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               break;
             }
             case "Add Data": {
-                
+
                 // If files tab exists, go to it
-                if(this.homepageTabs.length > 1 && this.homepageTabs.findIndex(x => x.label === "Files") !== -1) {
-                    this._goldenLayoutHostComponent.focusComponent("Files");
+                if(this.homepageTabs.findIndex(x => x.label === "Files") !== -1) {
+                    this.focusHomepageTab("Files");
                 } else {
                     this.addComponent('Files');
                 }
