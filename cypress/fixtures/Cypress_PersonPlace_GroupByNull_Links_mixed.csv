@@ -1,0 +1,7 @@
+source,target,Contact type
+P001,P002,household
+P001,PL001,visited
+P002,PL002,attended
+P003,PL003,worked
+P004,PL001,visited
+P002,PL003,worked
