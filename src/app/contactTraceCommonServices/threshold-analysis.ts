@@ -61,6 +61,16 @@ export interface VisibleClusterSummary {
   clusterCount: number;
 }
 
+export interface ThresholdConnectedComponent {
+  nodeIds: string[];
+  nodeIndexes: number[];
+}
+
+export interface ThresholdConnectedComponentSummary {
+  components: ThresholdConnectedComponent[];
+  nodeComponentById: Record<string, number>;
+}
+
 class UnionFind {
   private readonly parent: number[];
   private readonly sizes: number[];
@@ -129,6 +139,80 @@ function getNumericMetricValue(link: ThresholdAnalysisLinkLike, metric: string):
   }
 
   return null;
+}
+
+function getLinkEndpointId(endpoint: any): string {
+  if (endpoint && typeof endpoint === 'object') {
+    return String(endpoint._id ?? endpoint.id ?? '');
+  }
+
+  return String(endpoint ?? '');
+}
+
+export function buildThresholdConnectedComponents(
+  nodes: ThresholdAnalysisNodeLike[],
+  links: ThresholdAnalysisLinkLike[],
+  metric: string,
+  threshold: number
+): ThresholdConnectedComponentSummary {
+  const nodeIds = nodes.map((node) => getNodeId(node));
+  const nodeIndexById: Record<string, number> = Object.create(null);
+  const uf = new UnionFind(nodeIds.length);
+  const numericThreshold = Number(threshold);
+
+  nodeIds.forEach((nodeId, index) => {
+    nodeIndexById[nodeId] = index;
+  });
+
+  if (Number.isFinite(numericThreshold)) {
+    links.forEach((link) => {
+      const value = getNumericMetricValue(link, metric);
+
+      if (value === null || value > numericThreshold) {
+        return;
+      }
+
+      const sourceIndex = nodeIndexById[getLinkEndpointId(link.source)];
+      const targetIndex = nodeIndexById[getLinkEndpointId(link.target)];
+
+      if (
+        sourceIndex === undefined ||
+        targetIndex === undefined ||
+        sourceIndex === targetIndex
+      ) {
+        return;
+      }
+
+      uf.union(sourceIndex, targetIndex);
+    });
+  }
+
+  const rootToComponentId = new Map<number, number>();
+  const components: ThresholdConnectedComponent[] = [];
+  const nodeComponentById: Record<string, number> = Object.create(null);
+
+  nodeIds.forEach((nodeId, nodeIndex) => {
+    const root = uf.find(nodeIndex);
+    let componentId = rootToComponentId.get(root);
+
+    if (componentId === undefined) {
+      componentId = components.length;
+      rootToComponentId.set(root, componentId);
+      components.push({
+        nodeIds: [],
+        nodeIndexes: []
+      });
+    }
+
+    components[componentId].nodeIds.push(nodeId);
+    components[componentId].nodeIndexes.push(nodeIndex);
+    nodeComponentById[nodeId] = componentId;
+  });
+
+  return {
+    components,
+    nodeComponentById
+  };
 }
 
 export function buildStoredDistanceEdgeCache(

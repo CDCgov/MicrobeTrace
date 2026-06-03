@@ -451,6 +451,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'network-friction': 0.4,
             'network-gravity': 0.05,
             'network-link-strength': 0.124,
+            'network-node-collapse-enabled': false,
+            'network-node-collapse-threshold': 0,
             'node-charge': 200,
             'node-border-width' : 2.0,
             'node-color': '#1f77b4',

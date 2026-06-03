@@ -23,6 +23,8 @@ import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
+import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
+import { buildPieChartPathSlices, buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -36,6 +38,17 @@ interface CustomNodeSvgExportReplacement {
     strokeWidth: number;
     width: number;
     height: number;
+}
+
+interface CollapsedPieSvgExportReplacement {
+    borderColor: string;
+    borderOpacity: number;
+    borderWidth: number;
+    exportHeight: number;
+    exportWidth: number;
+    exportX: number;
+    exportY: number;
+    slices: PieChartSlice[];
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
@@ -74,6 +87,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         links: []
     };
     selectedNodeId = undefined;
+    private readonly collapsedNodeIdPrefix = 'twod-collapse-';
 
     private getPerformanceNow(): number {
         return typeof performance !== 'undefined' && performance.now
@@ -204,9 +218,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             selected: node.selected,
             degree: node.degree,
             label: node.label,
+            isCollapsedAggregate: node.isCollapsedAggregate,
+            collapsedMemberIds: node.collapsedMemberIds,
+            totalCount: node.totalCount,
+            counts: node.counts,
             nodeSize: node.nodeSize,
+            aggregateRenderedSize: node.aggregateRenderedSize,
             nodeColor: node.nodeColor,
             bgOpacity: node.bgOpacity,
+            pieBackgroundImage: node.pieBackgroundImage,
             borderWidth: node.borderWidth,
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
@@ -376,6 +396,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeRadiusVariable: string = "None";
     SelectedNodeRadiusSizeVariable: number = 50;
+    SelectedNodeCollapseTypeVariable: boolean = false;
+    SelectedNodeCollapseThresholdDisplayedVariable: number = 0;
+    NodeCollapseThresholdMinDisplayed: number = 0;
+    NodeCollapseThresholdMaxDisplayed: number = 1;
+    NodeCollapseThresholdStepDisplayed: number = 0.001;
 
     SelectedNetworkTableTypeVariable: PolygonColorTableDisplayMode = "Dock";
 
@@ -496,6 +521,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.setExpanded(this.mainSite);
 
         this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
 
         this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
         this.container.on('hide', () => { 
@@ -544,6 +570,40 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return String(endpoint ?? '');
     }
 
+    private getNodeId(node: any): string {
+        const id = node?._id ?? node?.id ?? '';
+        return typeof id === 'string' ? id : String(id);
+    }
+
+    private normalizeNetworkDataForCytoscape(
+        networkData: { nodes: any[]; links: any[] },
+        warnInvalidLinks = true
+    ): Set<string> {
+        networkData.nodes.forEach(node => {
+            node.id = this.getNodeId(node);
+        });
+
+        const nodeIds = new Set(networkData.nodes.map(node => this.getNodeId(node)));
+
+        networkData.links.forEach(link => {
+            link.source = this.getLinkEndpointId(link.source);
+            link.target = this.getLinkEndpointId(link.target);
+        });
+
+        if (warnInvalidLinks) {
+            networkData.links.forEach(link => {
+                if (!nodeIds.has(link.source)) {
+                    console.warn('Link source not found in nodes:', link.source, link);
+                }
+                if (!nodeIds.has(link.target)) {
+                    console.warn('Link target not found in nodes:', link.target, link);
+                }
+            });
+        }
+
+        return nodeIds;
+    }
+
     private getVisibleNetworkDataForRender(filterLinksByVisibleNodes = this.isTimelineFilteringActive()) {
         const nodes = this.commonService.getVisibleNodes();
         let links = this.commonService.getVisibleLinks(true);
@@ -557,6 +617,362 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         return { nodes, links };
+    }
+
+    private ensureNodeCollapseWidgetDefaults(): void {
+        if (!this.widgets) return;
+        if (this.widgets['network-node-collapse-enabled'] === undefined || this.widgets['network-node-collapse-enabled'] === null) {
+            this.widgets['network-node-collapse-enabled'] = false;
+        }
+        if (!Number.isFinite(Number(this.widgets['network-node-collapse-threshold']))) {
+            this.widgets['network-node-collapse-threshold'] = 0;
+        }
+    }
+
+    private getNodeCollapseMetric(): string {
+        return String(this.widgets?.['link-sort-variable'] || this.widgets?.['default-distance-metric'] || 'distance');
+    }
+
+    private getNodeCollapseThresholdRaw(): number {
+        this.ensureNodeCollapseWidgetDefaults();
+        return Number(this.widgets['network-node-collapse-threshold']);
+    }
+
+    private isNodeCollapseEnabled(): boolean {
+        this.ensureNodeCollapseWidgetDefaults();
+        return this.widgets['network-node-collapse-enabled'] === true;
+    }
+
+    private getNumericMetricValue(link: any, metric: string): number | null {
+        const raw = link?.[metric];
+        if (typeof raw === 'number') {
+            return Number.isFinite(raw) ? raw : null;
+        }
+
+        if (typeof raw === 'string' && raw.trim().length > 0) {
+            const parsed = Number(raw);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        return null;
+    }
+
+    private isNodeCollapseDistanceLink(link: any, metric: string): boolean {
+        if (link?.hasDistance !== true || this.getNumericMetricValue(link, metric) === null) {
+            return false;
+        }
+
+        const distanceOrigins = this.commonService.getLinkDistanceOrigins?.(link) || [];
+        if (distanceOrigins.length > 0) {
+            return true;
+        }
+
+        const origins = Array.isArray(link?.origin) ? link.origin : [];
+        return origins.some((origin: any) => String(origin || '').toLowerCase().includes('distance'));
+    }
+
+    private getNodeCollapseDistanceLinks(nodeIds: Set<string>, metric: string): any[] {
+        return (this.commonService.session.data.links || []).filter(link => {
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+            return nodeIds.has(source)
+                && nodeIds.has(target)
+                && this.isNodeCollapseDistanceLink(link, metric);
+        });
+    }
+
+    private updateNodeCollapseThresholdDisplayBounds(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        const metric = this.getNodeCollapseMetric();
+        const nodeIds = new Set((this.commonService.session.data.nodes || []).map(node => this.getNodeId(node)));
+        const values = this.getNodeCollapseDistanceLinks(nodeIds, metric)
+            .map(link => this.getNumericMetricValue(link, metric))
+            .filter((value): value is number => value !== null)
+            .sort((a, b) => a - b);
+
+        const storedThreshold = this.getNodeCollapseThresholdRaw();
+        const rawStep = String(this.widgets['default-distance-metric'] || metric).toLowerCase() === 'snps' ? 1 : 0.001;
+        const rawMin = values.length ? Math.min(0, values[0]) : 0;
+        const rawMaxFromData = values.length ? values[values.length - 1] : rawStep;
+        const rawMax = Math.max(rawMaxFromData, storedThreshold, rawStep);
+
+        this.NodeCollapseThresholdMinDisplayed = this.commonService.toDisplayedDistanceValue(rawMin, metric);
+        this.NodeCollapseThresholdMaxDisplayed = this.commonService.toDisplayedDistanceValue(rawMax, metric);
+        this.NodeCollapseThresholdStepDisplayed = this.commonService.toDisplayedDistanceValue(rawStep, metric);
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(storedThreshold, metric);
+        this.syncNodeCollapseThresholdDomControls();
+    }
+
+    private syncNodeCollapseThresholdDomControls(): void {
+        const controls = $('#network-node-collapse-threshold, #network-node-collapse-threshold-input');
+        controls
+            .attr('min', this.NodeCollapseThresholdMinDisplayed)
+            .attr('max', this.NodeCollapseThresholdMaxDisplayed)
+            .attr('step', this.NodeCollapseThresholdStepDisplayed)
+            .val(this.SelectedNodeCollapseThresholdDisplayedVariable);
+    }
+
+    private syncNodeCollapseControlsFromWidgets(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.SelectedNodeCollapseTypeVariable = this.widgets['network-node-collapse-enabled'] === true;
+        this.updateNodeCollapseThresholdDisplayBounds();
+    }
+
+    private refreshNodeCollapseRender(): void {
+        if (!this.viewActive) {
+            this.rerenderOnActive = true;
+            return;
+        }
+
+        void this._rerender(false)
+            .finally(() => {
+                if (!this.isDestroyed) {
+                    this.commonService.session.network.rendering = false;
+                }
+            });
+    }
+
+    public onNodeCollapseEnabledChange(enabled: boolean): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.widgets['network-node-collapse-enabled'] = enabled === true;
+        this.SelectedNodeCollapseTypeVariable = this.widgets['network-node-collapse-enabled'];
+        this.updateNodeCollapseThresholdDisplayBounds();
+        this.refreshNodeCollapseRender();
+    }
+
+    public onNodeCollapseThresholdDisplayedChange(value: any): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        const metric = this.getNodeCollapseMetric();
+        const rawDisplayedValue = value && typeof value === 'object' && 'target' in value
+            ? (value.target as HTMLInputElement)?.value
+            : value;
+        const displayedValue = Number(rawDisplayedValue);
+
+        if (!Number.isFinite(displayedValue)) {
+            return;
+        }
+
+        const clampedDisplayedValue = Math.min(
+            Math.max(displayedValue, this.NodeCollapseThresholdMinDisplayed),
+            this.NodeCollapseThresholdMaxDisplayed
+        );
+        const rawThreshold = this.commonService.fromDisplayedDistanceValue(clampedDisplayedValue, metric);
+
+        if (!Number.isFinite(rawThreshold)) {
+            return;
+        }
+
+        this.widgets['network-node-collapse-threshold'] = rawThreshold;
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(rawThreshold, metric);
+
+        if (this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+        }
+    }
+
+    private getCollapsedNodeBaseSize(): number {
+        const rawSize = Number(this.widgets?.['node-radius']);
+        return Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 20;
+    }
+
+    private getCollapsedNodeRenderedSize(totalCount: number): number {
+        return this.mapNodeSize(this.getCollapsedNodeBaseSize()) * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+    }
+
+    private buildCollapsedNodeCounts(memberNodes: any[]): Array<{ label: string; count: number }> {
+        const colorVariable = this.widgets['node-color-variable'];
+
+        if (colorVariable === 'None') {
+            return [{ label: 'All Nodes', count: memberNodes.length }];
+        }
+
+        const counts = new Map<string, number>();
+        memberNodes.forEach(node => {
+            const rawLabel = node?.[colorVariable];
+            const label = rawLabel === undefined || rawLabel === null ? '' : String(rawLabel);
+            counts.set(label, (counts.get(label) || 0) + 1);
+        });
+
+        return Array.from(counts.entries()).map(([label, count]) => ({ label, count }));
+    }
+
+    private getCollapsedPieSlices(counts: Array<{ label: string; count: number }>): PieChartSlice[] {
+        const colorVariable = this.widgets['node-color-variable'];
+        const fixedColor = this.widgets['node-color'];
+
+        return counts.map(count => ({
+            label: count.label,
+            count: count.count,
+            color: colorVariable === 'None'
+                ? fixedColor
+                : this.commonService.temp.style.nodeColorMap(count.label),
+            alpha: colorVariable === 'None'
+                ? 1 - Number(this.widgets['node-opacity'] || 0)
+                : this.commonService.temp.style.nodeAlphaMap(count.label)
+        }));
+    }
+
+    private getCollapsedSolidNodeColor(counts: Array<{ label: string; count: number }>): [string, number] {
+        const colorVariable = this.widgets['node-color-variable'];
+
+        if (colorVariable === 'None') {
+            return [this.widgets['node-color'], 1 - Number(this.widgets['node-opacity'] || 0)];
+        }
+
+        const label = counts[0]?.label ?? '';
+        return [
+            this.commonService.temp.style.nodeColorMap(label),
+            this.commonService.temp.style.nodeAlphaMap(label)
+        ];
+    }
+
+    private createCollapsedAggregateNode(
+        memberNodes: any[],
+        componentIndex: number
+    ): any {
+        const aggregateId = `${this.collapsedNodeIdPrefix}${componentIndex}`;
+        const firstMember = memberNodes[0] || {};
+        const finiteX = memberNodes.map(node => Number(node.x)).filter(value => Number.isFinite(value));
+        const finiteY = memberNodes.map(node => Number(node.y)).filter(value => Number.isFinite(value));
+        const cachedPosition = this.nodePositions.get(aggregateId);
+        const cachedX = Number(cachedPosition?.x);
+        const cachedY = Number(cachedPosition?.y);
+        const x = Number.isFinite(cachedX)
+            ? cachedX
+            : finiteX.length
+                ? finiteX.reduce((sum, value) => sum + value, 0) / finiteX.length
+                : 0;
+        const y = Number.isFinite(cachedY)
+            ? cachedY
+            : finiteY.length
+                ? finiteY.reduce((sum, value) => sum + value, 0) / finiteY.length
+                : 0;
+        const totalCount = memberNodes.length;
+        const nodeSize = this.getCollapsedNodeBaseSize() * Math.sqrt(totalCount);
+        const aggregateRenderedSize = this.getCollapsedNodeRenderedSize(totalCount);
+        const counts = this.buildCollapsedNodeCounts(memberNodes);
+        const slices = this.getCollapsedPieSlices(counts);
+        const hasPie = this.widgets['node-color-variable'] !== 'None' && slices.length > 1;
+        const [solidColor, solidOpacity] = this.getCollapsedSolidNodeColor(counts);
+
+        return {
+            ...firstMember,
+            id: aggregateId,
+            _id: aggregateId,
+            index: firstMember.index,
+            cluster: undefined,
+            group: undefined,
+            x,
+            y,
+            vx: 0,
+            vy: 0,
+            visible: true,
+            selected: false,
+            isCollapsedAggregate: true,
+            collapsedMemberIds: memberNodes.map(node => this.getNodeId(node)),
+            totalCount,
+            counts,
+            label: `${totalCount} nodes`,
+            nodeSize,
+            aggregateRenderedSize,
+            nodeColor: hasPie ? 'transparent' : solidColor,
+            bgOpacity: hasPie ? 1 : solidOpacity,
+            borderWidth: this.getNodeBorderWidth(firstMember),
+            pieBackgroundImage: hasPie
+                ? buildPieChartSvgDataUri(`twod-collapse-pie-${componentIndex}`, aggregateRenderedSize, slices)
+                : undefined
+        };
+    }
+
+    private applyNodeCollapseToNetworkData(networkData: { nodes: any[]; links: any[] }): { nodes: any[]; links: any[] } {
+        if (!this.isNodeCollapseEnabled()) {
+            return networkData;
+        }
+
+        const nodes = networkData.nodes || [];
+        if (nodes.length === 0) {
+            return networkData;
+        }
+
+        const metric = this.getNodeCollapseMetric();
+        const threshold = this.getNodeCollapseThresholdRaw();
+        if (!Number.isFinite(threshold)) {
+            return networkData;
+        }
+
+        const nodeById = new Map<string, any>();
+        nodes.forEach(node => {
+            const nodeId = this.getNodeId(node);
+            node.id = nodeId;
+            nodeById.set(nodeId, node);
+        });
+
+        const nodeIds = new Set(nodeById.keys());
+        const distanceLinks = this.getNodeCollapseDistanceLinks(nodeIds, metric);
+        const summary = buildThresholdConnectedComponents(nodes, distanceLinks, metric, threshold);
+        const collapsedComponentIds = new Set<number>();
+
+        summary.components.forEach((component, componentIndex) => {
+            if (component.nodeIds.length > 1) {
+                collapsedComponentIds.add(componentIndex);
+            }
+        });
+
+        if (collapsedComponentIds.size === 0) {
+            return networkData;
+        }
+
+        const renderedNodeIdByOriginalId = new Map<string, string>();
+        const renderedNodes: any[] = [];
+        const renderedNodeIds = new Set<string>();
+
+        summary.components.forEach((component, componentIndex) => {
+            if (!collapsedComponentIds.has(componentIndex)) {
+                const node = nodeById.get(component.nodeIds[0]);
+                if (node) {
+                    renderedNodes.push(node);
+                    renderedNodeIds.add(this.getNodeId(node));
+                    renderedNodeIdByOriginalId.set(this.getNodeId(node), this.getNodeId(node));
+                }
+                return;
+            }
+
+            const memberNodes = component.nodeIds
+                .map(nodeId => nodeById.get(nodeId))
+                .filter(Boolean);
+            const aggregateNode = this.createCollapsedAggregateNode(memberNodes, componentIndex);
+            renderedNodes.push(aggregateNode);
+            renderedNodeIds.add(aggregateNode.id);
+            component.nodeIds.forEach(nodeId => renderedNodeIdByOriginalId.set(nodeId, aggregateNode.id));
+        });
+
+        const renderedLinks = (networkData.links || []).reduce((acc, link, index) => {
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+            const collapsedSource = renderedNodeIdByOriginalId.get(source) || source;
+            const collapsedTarget = renderedNodeIdByOriginalId.get(target) || target;
+
+            if (
+                collapsedSource === collapsedTarget ||
+                !renderedNodeIds.has(collapsedSource) ||
+                !renderedNodeIds.has(collapsedTarget)
+            ) {
+                return acc;
+            }
+
+            acc.push({
+                ...link,
+                id: link.id ?? `collapsed-link-${index}`,
+                source: collapsedSource,
+                target: collapsedTarget
+            });
+            return acc;
+        }, [] as any[]);
+
+        return {
+            nodes: renderedNodes,
+            links: renderedLinks
+        };
     }
 
 
@@ -776,6 +1192,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
+                selector: 'node[!isParent][isCollapsedAggregate][aggregateRenderedSize]',
+                css: {
+                    'width': 'data(aggregateRenderedSize)',
+                    'height': 'data(aggregateRenderedSize)'
+                }
+            },
+            {
                 selector: 'node[bgOpacity]',
                 css: {
                     // @ts-ignore
@@ -797,6 +1220,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-image-opacity': 'data(bgOpacity)',
                     'background-opacity': 0,
                     'border-width': 0
+                }
+            },
+            {
+                selector: 'node[!isParent][pieBackgroundImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(pieBackgroundImage)',
+                    'background-fit': 'cover',
+                    'background-clip': 'node',
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    'background-color': 'transparent',
+                    'background-opacity': 1
                 }
             },
                 {
@@ -889,7 +1326,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node:selected[!isParent][!iconBackgroundImage]',
+                selector: 'node:selected[!isParent][!iconBackgroundImage][!pieBackgroundImage]',
                 css: {
                     'background-color': 'data(nodeColor)',
                     'border-color': 'data(selectedBorderColor)',
@@ -902,6 +1339,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-color': '#ffffff',
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)',
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[!isParent][pieBackgroundImage]',
+                css: {
+                    'background-color': 'transparent',
+                    'background-opacity': 1,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
                 }
@@ -931,8 +1377,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // Debounced function to sync Cytoscape selections with the common service.
         const syncCySelectionToService = _.debounce(() => {
-            const selectedNodes = this.cy.nodes(':selected');
+            const selectedNodes = this.cy.nodes(':selected').filter((node: any) => !node.data('isCollapsedAggregate'));
             const selectedIds = new Set(selectedNodes.map(node => node.id()));
+
+            if (this.isNodeCollapseEnabled() && selectedIds.size === 0) {
+                return;
+            }
 
             let selectionChanged = false;
             // Sync with the main nodes array
@@ -980,7 +1430,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 	        this.cy.on('cxttap', 'node', (evt) => {
             const node = evt.target;
-            if (node.data('isParent')) {
+            if (node.data('isParent') || node.data('isCollapsedAggregate')) {
                 return;
             }
 
@@ -1365,6 +1815,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const nodeId = node.id();
         // This is for REAL user events. It reads the now-updated position from Cytoscape.
         const newPosition = node.position(); 
+        if (node.data('isCollapsedAggregate')) {
+            this.nodePositions.set(nodeId, newPosition);
+            return;
+        }
         this.commonService.updateNodePosition(nodeId, newPosition);
     }
     /** Initializes the view.
@@ -1391,6 +1845,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['link-threshold'] =
                 this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
         }
+        this.ensureNodeCollapseWidgetDefaults();
 
         // Subscribe to style file applied event
         this.styleFileSub = this.store.styleFileApplied$.subscribe(() => {
@@ -1812,6 +2267,170 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    private getCollapsedPieSvgExportReplacementList(): CollapsedPieSvgExportReplacement[] {
+        const replacements: CollapsedPieSvgExportReplacement[] = [];
+        if (!this.cy) {
+            return replacements;
+        }
+
+        const graphBounds = this.cy.elements().boundingBox();
+        this.cy.nodes().forEach(node => {
+            if (!node.data('isCollapsedAggregate') || !node.data('pieBackgroundImage')) {
+                return;
+            }
+
+            const counts = node.data('counts') || [];
+            const slices = this.getCollapsedPieSlices(counts);
+            if (slices.length < 2) {
+                return;
+            }
+
+            const position = node.position();
+            const padding = Number(node.numericStyle('padding')) || 0;
+            const paddingX2 = padding * 2;
+            const nodeTotalWidth = node.width() + paddingX2;
+            const nodeTotalHeight = node.height() + paddingX2;
+            const borderWidth = Number(node.numericStyle('border-width')) || Number(node.data('borderWidth')) || 0;
+            const borderOpacity = Number(node.numericStyle('border-opacity'));
+
+            replacements.push({
+                borderColor: String(node.style('border-color') || '#000000'),
+                borderOpacity: Number.isFinite(borderOpacity) ? borderOpacity : 1,
+                borderWidth,
+                exportHeight: nodeTotalHeight,
+                exportWidth: nodeTotalWidth,
+                exportX: position.x - graphBounds.x1 - (nodeTotalWidth / 2),
+                exportY: position.y - graphBounds.y1 - (nodeTotalHeight / 2),
+                slices
+            });
+        });
+
+        return replacements;
+    }
+
+    private findMatchingCollapsedPieSvgExportReplacement(
+        image: Element,
+        replacements: CollapsedPieSvgExportReplacement[],
+        usedReplacements: Set<CollapsedPieSvgExportReplacement>
+    ): CollapsedPieSvgExportReplacement | null {
+        const imageWidth = this.getSvgLengthAttribute(image, 'width');
+        const imageHeight = this.getSvgLengthAttribute(image, 'height');
+        const imageTranslate = this.getSvgTranslateTransform(image);
+        if (imageWidth === null || imageHeight === null || !imageTranslate) {
+            return null;
+        }
+
+        let bestMatch: CollapsedPieSvgExportReplacement | null = null;
+        let bestScore = Number.POSITIVE_INFINITY;
+        for (const replacement of replacements) {
+            if (usedReplacements.has(replacement)) {
+                continue;
+            }
+
+            const score =
+                Math.abs(replacement.exportX - imageTranslate.x)
+                + Math.abs(replacement.exportY - imageTranslate.y)
+                + Math.abs(replacement.exportWidth - imageWidth)
+                + Math.abs(replacement.exportHeight - imageHeight);
+            if (score < bestScore) {
+                bestScore = score;
+                bestMatch = replacement;
+            }
+        }
+
+        return bestMatch;
+    }
+
+    private createCollapsedPieVectorExportElement(
+        doc: XMLDocument,
+        sourceImage: SVGImageElement,
+        replacement: CollapsedPieSvgExportReplacement
+    ): SVGGElement {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const vectorGroup = doc.createElementNS(svgNamespace, 'g');
+        const attributesToCopy = ['opacity', 'style', 'clip-path'];
+
+        for (const attributeName of attributesToCopy) {
+            const attributeValue = sourceImage.getAttribute(attributeName);
+            if (attributeValue) {
+                vectorGroup.setAttribute(attributeName, attributeValue);
+            }
+        }
+
+        const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
+        const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
+        const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
+        const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
+        const imageTransform = sourceImage.getAttribute('transform') || '';
+        const transforms: string[] = [];
+        if (imageX !== 0 || imageY !== 0) {
+            transforms.push(`translate(${imageX}, ${imageY})`);
+        }
+        if (imageTransform) {
+            transforms.push(imageTransform);
+        }
+        if (transforms.length) {
+            vectorGroup.setAttribute('transform', transforms.join(' '));
+        }
+        vectorGroup.setAttribute('aria-hidden', 'true');
+        vectorGroup.setAttribute('data-microbetrace-collapsed-pie-export', 'true');
+
+        const centerX = imageWidth / 2;
+        const centerY = imageHeight / 2;
+        const safeBorderWidth = Math.max(0, Number(replacement.borderWidth) || 0);
+        const radius = Math.max(0.1, (Math.min(imageWidth, imageHeight) / 2) - (safeBorderWidth / 2));
+        const pathSlices = buildPieChartPathSlices(replacement.slices, centerX, centerY, radius);
+
+        pathSlices.forEach(slice => {
+            const path = doc.createElementNS(svgNamespace, 'path');
+            path.setAttribute('d', slice.path);
+            path.setAttribute('fill', slice.color);
+            path.setAttribute('stroke', 'none');
+            vectorGroup.appendChild(path);
+        });
+
+        if (safeBorderWidth > 0) {
+            const outline = doc.createElementNS(svgNamespace, 'circle');
+            outline.setAttribute('cx', `${centerX}`);
+            outline.setAttribute('cy', `${centerY}`);
+            outline.setAttribute('r', `${radius}`);
+            outline.setAttribute('fill', 'none');
+            outline.setAttribute('stroke', replacement.borderColor || '#000000');
+            outline.setAttribute('stroke-width', `${safeBorderWidth}`);
+            outline.setAttribute('stroke-opacity', `${replacement.borderOpacity}`);
+            vectorGroup.appendChild(outline);
+        }
+
+        return vectorGroup;
+    }
+
+    private replaceExportedCollapsedPieImagesWithVectorShapes(doc: XMLDocument): void {
+        const replacementList = this.getCollapsedPieSvgExportReplacementList();
+        if (replacementList.length === 0) {
+            return;
+        }
+
+        const images = Array.from(doc.getElementsByTagName('image'))
+            .filter(image => {
+                const href = this.getSvgImageHref(image);
+                return !!href
+                    && href.startsWith('data:image/')
+                    && this.hasClipPathAncestor(image);
+            });
+        const usedReplacements = new Set<CollapsedPieSvgExportReplacement>();
+
+        images.forEach(image => {
+            const replacement = this.findMatchingCollapsedPieSvgExportReplacement(image, replacementList, usedReplacements);
+            if (!replacement || !image.parentNode) {
+                return;
+            }
+
+            usedReplacements.add(replacement);
+            const vectorElement = this.createCollapsedPieVectorExportElement(doc, image as SVGImageElement, replacement);
+            image.parentNode.replaceChild(vectorElement, image);
+        });
+    }
+
     /**
      * Hides export pane, sets isExporting variable to true and calls exportWork2 to export the twoD network image
      */
@@ -1839,6 +2458,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
             this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
+            this.replaceExportedCollapsedPieImagesWithVectorShapes(doc);
             const svg1 = doc.documentElement;          
             svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
             svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
@@ -2801,15 +3421,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           this.selectedNodeId = d.id;
         }
 
-        let tt_var_len = this.widgets['node-tooltip-variable'].length
         let tooltipHtml: string;
 
-        if (tt_var_len == 0) {
-          return null;
-        } else if (tt_var_len == 1) {
-         tooltipHtml =  `${d[this.widgets['node-tooltip-variable'][0]]}`
+        if (d.isCollapsedAggregate) {
+          const countRows = (d.counts || []).map(count => [count.label || 'Unspecified', count.count]);
+          tooltipHtml = this.tabulate([
+            ['Collapsed Nodes', d.totalCount || 0],
+            ...countRows
+          ]);
         } else {
-          tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
+          let tt_var_len = this.widgets['node-tooltip-variable'].length
+
+          if (tt_var_len == 0) {
+            return null;
+          } else if (tt_var_len == 1) {
+           tooltipHtml =  `${d[this.widgets['node-tooltip-variable'][0]]}`
+          } else {
+            tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
+          }
         }
 
         let [X, Y] = this.getRelativeMousePosition(event);
@@ -3393,6 +4022,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     getNodeSize(node: any) {
 
+        if (node?.isCollapsedAggregate) {
+            return Number(node.nodeSize);
+        }
+
         let sizeVariable = this.widgets['node-radius-variable'];
 
         if (sizeVariable == 'None') {
@@ -3423,6 +4056,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     getNodeColor(node: any): [string, number] {
+        if (node?.isCollapsedAggregate) {
+            return [
+                node.nodeColor || this.widgets['node-color'],
+                Number.isFinite(Number(node.bgOpacity)) ? Number(node.bgOpacity) : 1
+            ];
+        }
+
         // If this node is a parent (polygon/group), keep using polygonColorMap
         if (node.isParent) {
             if (!this.commonService.session.style.widgets['polygons-color-show']) {
@@ -3512,6 +4152,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getNodeLabel(node: any) {
 
         // If no label variable then should be none
+        if (node?.isCollapsedAggregate) {
+            return (this.widgets['node-label-variable'] == 'None') ? '' : (node.label || `${node.totalCount || 0} nodes`);
+        }
         return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
     }
@@ -3757,6 +4400,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeRadiusChange(e) {
 
         this.widgets['node-radius'] = this.SelectedNodeRadiusSizeVariable;
+        if (this.isNodeCollapseEnabled() && this.cy) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
         this.updateNodeSizes(); // Update node sizes without rerendering the entire network
 
     }
@@ -3800,39 +4447,26 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const collectDataStart = this.getPerformanceNow();
         let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
+        this.normalizeNetworkDataForCytoscape(networkData, false);
+        networkData = this.applyNodeCollapseToNetworkData(networkData);
+        this.normalizeNetworkDataForCytoscape(networkData, false);
         this.recordTwoDRenderTiming('twoDCollectVisibleGraphData', collectDataStart, {
             timelineTick,
             nodes: networkData.nodes.length,
             links: networkData.links.length
         });
 
-       
-        // Need to convert source and target to string ids for cytoscape
-        networkData.links.forEach((link) => {
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-            link.source = link.source._id.toString();
-            }
-
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
-        });
-
-        const nodeIds = new Set(networkData.nodes.map(n => n.id));
-
-
        // Instead of calling synchronously, await the precomputation:
        if (!this.cy) {
         const precomputeStart = this.getPerformanceNow();
         const initialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300);
-        const refinementLayout = await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, 5, false);
+        const refinementTicks = this.isNodeCollapseEnabled() ? 60 : 5;
+        const refinementLayout = await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, refinementTicks, false);
         const { nodes: laidOutNodes, links: laidOutLinks } = refinementLayout;
         this.recordTwoDRenderTiming('twoDPrecomputePositions', precomputeStart, {
             nodes: laidOutNodes.length,
             links: laidOutLinks.length,
-            ticks: 305,
+            ticks: 300 + refinementTicks,
             tickBatches: initialLayout.tickBatches + refinementLayout.tickBatches,
             initialTicksPerYield: initialLayout.ticksPerYield,
             refinementTicksPerYield: refinementLayout.ticksPerYield
@@ -3850,30 +4484,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Update networkData with the precomputed positions
         networkData.nodes = laidOutNodes;
         networkData.links = laidOutLinks;
-
-
-        networkData.links.forEach((link, i) => {
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-            link.source = link.source._id.toString();
-            }
-        
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
-        });
-
-
-        networkData.links.forEach(link => {
-            if (!nodeIds.has(link.source)) {
-                console.warn('Link source not found in nodes:', link.source, link);
-            }
-            if (!nodeIds.has(link.target)) {
-                console.warn('Link target not found in nodes:', link.target, link);
-            }
-        });
        }
+
+        this.normalizeNetworkDataForCytoscape(networkData);
 
 
         // Update Cytoscape visualization if it exists
@@ -4327,6 +4940,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     public getNodeShape(node: any) {
+        if (node?.isCollapsedAggregate) {
+            return 'ellipse';
+        }
+
         return resolveNodeShapeForNode(
             node,
             this.commonService.session.style.widgets,
@@ -4419,6 +5036,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     refreshDistanceDisplayFormat(): void {
         this.updateLinkLabels();
+        this.syncNodeCollapseControlsFromWidgets();
+        this.cdref.detectChanges();
     }
 
     /**
@@ -4838,6 +5457,10 @@ private updateArrowStyles(): void {
 
         if(!this.cy) return;
 
+        if (this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
 
         let variable = this.widgets['node-color-variable'];
         let color = this.widgets['node-color']
@@ -4965,6 +5588,7 @@ scaleLinkWidth() {
         (this.Node2DNetworkExportDialogSettings.isVisible) ? this.Node2DNetworkExportDialogSettings.setVisibility(false) : this.Node2DNetworkExportDialogSettings.setVisibility(true);
         this.ShowStatistics = !this.Show2DSettingsPane;
         this.updateLinkWidthRows(this.SelectedLinkWidthByVariable);
+        this.syncNodeCollapseControlsFromWidgets();
     }
 
     /**
@@ -5062,22 +5686,20 @@ scaleLinkWidth() {
     // Retrieve fresh node/link data. Timeline renders only links whose
     // endpoints are currently timeline-visible, matching the statistics panel.
     const collectDataStart = this.getPerformanceNow();
-    const networkData = this.getVisibleNetworkDataForRender();
+    let networkData = this.getVisibleNetworkDataForRender();
     this.recordTwoDRenderTiming('twoDPartialCollectVisibleGraphData', collectDataStart, {
         nodes: networkData.nodes.length,
         links: networkData.links.length
     });
 
-    // Add nodeSize to each node so that infomration can be used with calcuating node position
-    if (this.SelectedNodeRadiusVariable == 'None') {
-        networkData.nodes.forEach(node => {
-            node.nodeSize = Number(this.widgets['node-radius']);
-        })
-    } else {
-        networkData.nodes.forEach(node => {
-            node.nodeSize = Number(cy.nodes().getElementById(node._id).data('nodeSize'));
-        })
-    }
+    // Keep layout collision sizing in sync with current style widgets.
+    networkData.nodes.forEach(node => {
+        node.nodeSize = Number(this.getNodeSize(node));
+    });
+    this.normalizeNetworkDataForCytoscape(networkData, false);
+    networkData = this.applyNodeCollapseToNetworkData(networkData);
+    this.normalizeNetworkDataForCytoscape(networkData);
+
     const precomputeStart = this.getPerformanceNow();
     const partialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
@@ -5088,6 +5710,7 @@ scaleLinkWidth() {
 
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
+    this.normalizeNetworkDataForCytoscape(networkData);
     this.recordTwoDRenderTiming('twoDPartialPrecomputePositions', precomputeStart, {
         nodes: laidOutNodes.length,
         links: laidOutLinks.length,
@@ -5099,35 +5722,6 @@ scaleLinkWidth() {
     // Use batch mode to disable auto-panning during updates
     const batchStart = this.getPerformanceNow();
     cy.batch(() => {
-
-        networkData.nodes.forEach(node => {
-            node.id = node._id.toString();
-        });
-        networkData.links.forEach((link, i) => {
-            // Set a unique link id if desired
-            //link.id =  i.toString();  // or link.index.toString()
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-                link.source = link.source._id.toString();
-            }
-
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
-        });
-
-        const nodeIds = new Set(networkData.nodes.map(n => n.id));
-
-        networkData.links.forEach(link => {
-        if (!nodeIds.has(link.source)) {
-            console.warn('Link source not found in nodes:', link.source, link);
-        }
-        if (!nodeIds.has(link.target)) {
-            console.warn('Link target not found in nodes:', link.target, link);
-        }
-        });
-
         if (this.debugMode) {
             console.log('--- TwoDComponent _partialUpdate called:  ', networkData.links);
         }
@@ -5142,10 +5736,8 @@ scaleLinkWidth() {
         // @ts-ignore
         const newLinkIds = new Set(newElements.edges.map(l => l.data.id));
 
-        let cyNodeCount = 0;
         // Update node visibility and restore positions
         cy.nodes().forEach(node => {
-            if (!node.hasClass('parent')) { cyNodeCount += 1;}
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
                 // Hide node but keep its cached position
                 node.addClass('hidden');
@@ -5162,21 +5754,14 @@ scaleLinkWidth() {
             }
         });
 
-        // some series of operations (ie. min-cluster size set to 2, then playing timeline, then setting min-cluster size back to) led to nodes being removed from
-        // this.cy.nodes, this checks and adds them back
-        if (cyNodeCount < newElements.nodes.length) {
-            let countd = 0;
-            newElements.nodes.forEach(n => {
-                const cyNode = cy.getElementById(n.data.id);
-                if (!cyNode || !cyNode.length) {
-                    countd += 1;
-                    cy.add(n); // Add node
-                } else {
-                    return
-                }
-
-            });
-        }
+        // Always add missing render IDs. Collapse can reduce total nodes while
+        // introducing new aggregate IDs, so count-based checks are insufficient.
+        newElements.nodes.forEach(n => {
+            const cyNode = cy.getElementById(n.data.id);
+            if (!cyNode || !cyNode.length) {
+                cy.add(n);
+            }
+        });
 
         // Remove old edges
         cy.edges().forEach(edge => {
@@ -5190,9 +5775,13 @@ scaleLinkWidth() {
 
         // Add/Update new edges
         newElements.edges.forEach(e => {
-            const cyEdge = cy.getElementById(e.data.id);
+            let cyEdge = cy.getElementById(e.data.id);
             if (!cyEdge || !cyEdge.length) {
-                cy.add(e); // Add edge
+                cyEdge = cy.add(e); // Add edge
+            } else if (cyEdge.source().id() !== e.data.source || cyEdge.target().id() !== e.data.target) {
+                // Cytoscape edge endpoints are not retargeted by mutating data.
+                cy.remove(cyEdge);
+                cyEdge = cy.add(e);
             } else {
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
             }
@@ -5245,6 +5834,7 @@ scaleLinkWidth() {
 
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
         this.loadSettings();
         this._partialUpdate(); 
     }
@@ -5291,6 +5881,7 @@ scaleLinkWidth() {
 
         console.log('onLoadNewData');
         this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
         this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
 
         if (!this.IsDataAvailable) {
@@ -5343,6 +5934,7 @@ scaleLinkWidth() {
      * (ie. onPolygonLabelVariableChange, onPolygonLabelVariableChange, onPolygonLabelOrientationChange all call redrawPolygonLabels) XXXXX
      */
     loadSettings() {
+        this.ensureNodeCollapseWidgetDefaults();
 
         //Polygons|Label Size
         this.SelectedPolygonLabelSizeVariable = this.widgets['polygons-label-size'];
@@ -5396,6 +5988,7 @@ scaleLinkWidth() {
         this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
 
         this.nodeBorderWidth = this.widgets['node-border-width']
+        this.syncNodeCollapseControlsFromWidgets();
 
         //Links|Tooltip
         this.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
@@ -5596,6 +6189,13 @@ scaleLinkWidth() {
                 return;
             }
 	            const fullNode = this.getFullNodeDataForCyNode(node);
+            if (fullNode?.isCollapsedAggregate) {
+                node.data('shapeKey', 'ellipse');
+                node.data('shape', 'ellipse');
+                node.removeData('iconBackgroundImage');
+                node.removeData('customIconKey');
+                return;
+            }
 	            const shapeKey = this.getNodeShape(fullNode);
 	            node.data('shapeKey', shapeKey);
             node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
