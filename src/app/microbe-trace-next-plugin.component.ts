@@ -5220,6 +5220,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
     }
 
+    this.commonService.visuals.twoD?.refreshDistanceMetricSettings?.();
     this.refreshThresholdStabilityPanel();
   }
 

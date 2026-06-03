@@ -177,7 +177,7 @@
                     </div>
                   </div>
                   <div class="form-group row" title="Maximum genetic distance for nodes to collapse into aggregate pie nodes.">
-                    <div class="col-4"><label for="network-node-collapse-threshold">Distance</label></div>
+                    <div class="col-4"><label for="network-node-collapse-threshold">Distance ({{ SelectedNodeCollapseMetricLabel }})</label></div>
                     <div class="col-8">
                       <input type="range" class="custom-range" id="network-node-collapse-threshold" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="!SelectedNodeCollapseTypeVariable" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (change)="onNodeCollapseThresholdDisplayedChange($event)">
                     </div>

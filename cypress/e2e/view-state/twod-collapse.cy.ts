@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
+import { ensureTwoDNetworkView, setGlobalDistanceMetric, setTN93DistanceDisplayFormat, visitAppAndAcceptEula } from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
 
 const selectors = {
@@ -39,7 +39,7 @@ function configureDeterministicCollapsePie(win: any): number {
   const commonService = win.commonService;
   const twoD = commonService.visuals.twoD;
   const widgets = commonService.session.style.widgets;
-  const metric = String(widgets['link-sort-variable'] || widgets['default-distance-metric'] || 'distance');
+  const metric = 'distance';
   const distanceLinks = distanceLinksForMetric(win, metric);
 
   expect(distanceLinks.length, 'sample dataset distance links').to.be.greaterThan(0);
@@ -108,6 +108,11 @@ describe('2D Network - Collapse Related Nodes', () => {
     visitAppAndAcceptEula({ skipDemoSession: false });
     ensureTwoDNetworkView();
     cy.get(selectors.canvas, { timeout: 15000 }).should('be.visible');
+    cy.openGlobalSettings();
+    cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
+    setGlobalDistanceMetric('tn93');
+    setTN93DistanceDisplayFormat('percentage');
+    cy.closeGlobalSettings();
   });
 
   it('collapses threshold-connected nodes into aggregate pie nodes and restores individual nodes', () => {
@@ -123,13 +128,13 @@ describe('2D Network - Collapse Related Nodes', () => {
     cy.get('@dialogContainer').find(selectors.collapseToggle).should('exist');
     cy.get('@dialogContainer').find(selectors.collapseThreshold).should('exist');
     cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('exist');
-    cy.closeSettingsPane('2D Network Settings');
+    cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');
 
     cy.window().then((win: any) => {
       const commonService = win.commonService;
       const twoD = commonService.visuals.twoD;
       const threshold = configureDeterministicCollapsePie(win);
-      const metric = String(commonService.session.style.widgets['link-sort-variable'] || commonService.session.style.widgets['default-distance-metric'] || 'distance');
+      const metric = 'distance';
       const displayedThreshold = commonService.toDisplayedDistanceValue(threshold, metric);
 
       twoD.SelectedNodeCollapseThresholdDisplayedVariable = displayedThreshold;
@@ -138,7 +143,12 @@ describe('2D Network - Collapse Related Nodes', () => {
 
       expect(commonService.session.style.widgets['network-node-collapse-enabled']).to.equal(true);
       expect(commonService.session.style.widgets['network-node-collapse-threshold']).to.equal(threshold);
+      expect(twoD.SelectedNodeCollapseMetricLabel).to.equal('TN93');
+
+      cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', String(displayedThreshold));
     });
+
+    cy.closeSettingsPane('2D Network Settings');
 
     cy.window().then((win: any) => {
       cy.wrap(null, { timeout: 20000 }).should(() => {
@@ -166,5 +176,60 @@ describe('2D Network - Collapse Related Nodes', () => {
         expect(getCollapseRenderSummary(win).aggregateCount, 'visible aggregate nodes after disable').to.equal(0);
       });
     });
+  });
+
+  it('updates collapse distance controls from global metric and format selections', () => {
+    cy.get(selectors.settingsBtn).click();
+
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
+
+    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', '0');
+    cy.get('@dialogContainer').find(selectors.collapseThreshold).should('have.attr', 'step', '0.1');
+    cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');
+    cy.closeSettingsPane('2D Network Settings');
+
+    cy.openGlobalSettings();
+    cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
+    setTN93DistanceDisplayFormat('decimal');
+    cy.closeGlobalSettings();
+
+    cy.get(selectors.settingsBtn).click();
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
+
+    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', '0');
+    cy.get('@dialogContainer').find(selectors.collapseThreshold).should('have.attr', 'step', '0.001');
+    cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');
+    cy.closeSettingsPane('2D Network Settings');
+
+    cy.openGlobalSettings();
+    cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
+    setGlobalDistanceMetric('snps');
+    cy.closeGlobalSettings();
+
+    cy.window()
+      .its('commonService.session.style.widgets.network-node-collapse-threshold', { timeout: 20000 })
+      .should('equal', 0);
+
+    cy.get(selectors.settingsBtn).click();
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
+
+    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', '0');
+    cy.get('@dialogContainer').find(selectors.collapseThreshold).should('have.attr', 'step', '1');
+    cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');
   });
 });

@@ -398,6 +398,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeRadiusSizeVariable: number = 50;
     SelectedNodeCollapseTypeVariable: boolean = false;
     SelectedNodeCollapseThresholdDisplayedVariable: number = 0;
+    SelectedNodeCollapseMetricLabel: string = 'TN93';
     NodeCollapseThresholdMinDisplayed: number = 0;
     NodeCollapseThresholdMaxDisplayed: number = 1;
     NodeCollapseThresholdStepDisplayed: number = 0.001;
@@ -633,6 +634,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return String(this.widgets?.['link-sort-variable'] || this.widgets?.['default-distance-metric'] || 'distance');
     }
 
+    private getNodeCollapseMetricLabel(metric: string): string {
+        if (String(metric || '').toLowerCase() === 'distance') {
+            return this.commonService.titleize(this.widgets?.['default-distance-metric'] || 'distance');
+        }
+
+        return this.commonService.titleize(metric);
+    }
+
+    private getNodeCollapseRawStep(metric: string): number {
+        return String(metric || '').toLowerCase() === 'snps' ||
+            String(this.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps'
+            ? 1
+            : 0.001;
+    }
+
     private getNodeCollapseThresholdRaw(): number {
         this.ensureNodeCollapseWidgetDefaults();
         return Number(this.widgets['network-node-collapse-threshold']);
@@ -657,8 +673,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return null;
     }
 
+    private getNumericNodeCollapseDistanceValue(link: any, metric: string): number | null {
+        const primaryValue = this.getNumericMetricValue(link, metric);
+        if (primaryValue !== null) {
+            return primaryValue;
+        }
+
+        const selectedMetric = String(this.widgets?.['default-distance-metric'] || '').toLowerCase();
+        return selectedMetric !== metric
+            ? this.getNumericMetricValue(link, selectedMetric)
+            : null;
+    }
+
     private isNodeCollapseDistanceLink(link: any, metric: string): boolean {
-        if (link?.hasDistance !== true || this.getNumericMetricValue(link, metric) === null) {
+        if (link?.hasDistance !== true || this.getNumericNodeCollapseDistanceValue(link, metric) === null) {
             return false;
         }
 
@@ -672,13 +700,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getNodeCollapseDistanceLinks(nodeIds: Set<string>, metric: string): any[] {
-        return (this.commonService.session.data.links || []).filter(link => {
+        return (this.commonService.session.data.links || []).reduce((acc, link) => {
             const source = this.getLinkEndpointId(link.source);
             const target = this.getLinkEndpointId(link.target);
-            return nodeIds.has(source)
+            const value = this.getNumericNodeCollapseDistanceValue(link, metric);
+
+            if (
+                nodeIds.has(source)
                 && nodeIds.has(target)
-                && this.isNodeCollapseDistanceLink(link, metric);
-        });
+                && this.isNodeCollapseDistanceLink(link, metric)
+                && value !== null
+            ) {
+                acc.push(link[metric] === value ? link : { ...link, [metric]: value });
+            }
+
+            return acc;
+        }, [] as any[]);
     }
 
     private updateNodeCollapseThresholdDisplayBounds(): void {
@@ -686,16 +723,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const metric = this.getNodeCollapseMetric();
         const nodeIds = new Set((this.commonService.session.data.nodes || []).map(node => this.getNodeId(node)));
         const values = this.getNodeCollapseDistanceLinks(nodeIds, metric)
-            .map(link => this.getNumericMetricValue(link, metric))
+            .map(link => this.getNumericNodeCollapseDistanceValue(link, metric))
             .filter((value): value is number => value !== null)
             .sort((a, b) => a - b);
 
         const storedThreshold = this.getNodeCollapseThresholdRaw();
-        const rawStep = String(this.widgets['default-distance-metric'] || metric).toLowerCase() === 'snps' ? 1 : 0.001;
+        const rawStep = this.getNodeCollapseRawStep(metric);
         const rawMin = values.length ? Math.min(0, values[0]) : 0;
         const rawMaxFromData = values.length ? values[values.length - 1] : rawStep;
         const rawMax = Math.max(rawMaxFromData, storedThreshold, rawStep);
 
+        this.SelectedNodeCollapseMetricLabel = this.getNodeCollapseMetricLabel(metric);
         this.NodeCollapseThresholdMinDisplayed = this.commonService.toDisplayedDistanceValue(rawMin, metric);
         this.NodeCollapseThresholdMaxDisplayed = this.commonService.toDisplayedDistanceValue(rawMax, metric);
         this.NodeCollapseThresholdStepDisplayed = this.commonService.toDisplayedDistanceValue(rawStep, metric);
@@ -764,6 +802,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets['network-node-collapse-threshold'] = rawThreshold;
         this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(rawThreshold, metric);
+        this.syncNodeCollapseThresholdDomControls();
 
         if (this.isNodeCollapseEnabled()) {
             this.refreshNodeCollapseRender();
@@ -5032,6 +5071,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const newLabel = this.getLinkLabel(edge.data()).text;
             edge.data('label', newLabel);
         });
+    }
+
+    public refreshDistanceMetricSettings(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.updateLinkLabels();
+        this.syncNodeCollapseControlsFromWidgets();
+        this.cdref.detectChanges();
+
+        if (this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+        }
     }
 
     refreshDistanceDisplayFormat(): void {
