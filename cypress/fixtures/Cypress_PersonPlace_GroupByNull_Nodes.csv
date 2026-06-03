@@ -3,6 +3,8 @@ P001,Person 001,Person,Household contact,Nurse,L1
 P002,Person 002,Person,Workplace contact,Teacher,L1
 P003,Person 003,Person,Community exposure,Driver,L2
 P004,Person 004,Person,Household contact,Student,L2
+P005,Person 005,Person,undefined,Analyst,L3
+P006,Person 006,Person,None,Retired,L3
 PL001,Clinic A,Place,,,
 PL002,School B,Place,,,
 PL003,Worksite C,Place,,,

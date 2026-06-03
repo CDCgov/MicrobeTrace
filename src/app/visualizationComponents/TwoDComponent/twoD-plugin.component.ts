@@ -173,8 +173,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return null;
         }
 
-        const lowerGroup = normalizedGroup.toLowerCase();
-        if (lowerGroup === 'none' || lowerGroup === 'null' || lowerGroup === 'undefined') {
+        if (normalizedGroup.toLowerCase() === 'null') {
             return null;
         }
 
