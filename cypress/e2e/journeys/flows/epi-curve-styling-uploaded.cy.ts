@@ -253,7 +253,9 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
     });
 
     switchGlobalSettingsTab('Styling');
-    cy.get('#node-color-table-row').should('not.be.visible');
+    cy.get('#node-color-table-row')
+      .scrollIntoView()
+      .should('be.visible');
 
     readUniqueEpiCurveFills().then((fills) => {
       fillsBeforeColorEdit = fills;

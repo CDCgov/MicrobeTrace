@@ -6,13 +6,25 @@ import * as tn93 from 'tn93';
 
 import type { ComputeWorkerRequest } from './compute-worker.types';
 
-function postBufferResponse(field: string, buffer: ArrayBufferLike, start: number, jobId: number): void {
-  postMessage({ [field]: buffer, start, data: buffer, jobId }, [buffer]);
+function postBufferResponse(
+  field: string,
+  buffer: ArrayBufferLike,
+  start: number,
+  jobId: number,
+  extra: Record<string, unknown> = {},
+): void {
+  postMessage({ [field]: buffer, start, data: buffer, jobId, ...extra }, [buffer]);
 }
 
-function postJsonResponse(field: string, value: unknown, start: number, jobId: number): void {
+function postJsonResponse(
+  field: string,
+  value: unknown,
+  start: number,
+  jobId: number,
+  extra: Record<string, unknown> = {},
+): void {
   const buffer = new TextEncoder().encode(JSON.stringify(value)).buffer;
-  postBufferResponse(field, buffer, start, jobId);
+  postBufferResponse(field, buffer, start, jobId, extra);
 }
 
 function computeConsensusString(nodes: Array<{ seq?: string }>): string {
@@ -92,12 +104,20 @@ function handleAlign(payload: any, jobId: number): void {
 }
 
 function handleConsensus(payload: any, jobId: number): void {
+  const computeStart = Date.now();
   const data = payload?.data ?? payload;
 
   if (Array.isArray(data)) {
     const consensus = computeConsensusString(data);
     const buffer = new TextEncoder().encode(consensus).buffer;
-    postMessage({ consensus: buffer, start: Date.now(), data: buffer, jobId }, [buffer]);
+    const workerFinishedAt = Date.now();
+    postMessage({
+      consensus: buffer,
+      start: workerFinishedAt,
+      data: buffer,
+      jobId,
+      computeDurationMs: workerFinishedAt - computeStart,
+    }, [buffer]);
     return;
   }
 
@@ -106,10 +126,14 @@ function handleConsensus(payload: any, jobId: number): void {
     ? data.consensus
     : computeConsensusString(subset);
   const dists = computeConsensusDifferences(consensus, subset);
-  postBufferResponse('dists', dists.buffer, Date.now(), jobId);
+  const workerFinishedAt = Date.now();
+  postBufferResponse('dists', dists.buffer, workerFinishedAt, jobId, {
+    computeDurationMs: workerFinishedAt - computeStart,
+  });
 }
 
 function handleAmbiguityCounts(payload: any, jobId: number): void {
+  const computeStart = Date.now();
   const subset = payload?.data ?? payload;
   const n = subset.length;
   const output = new Float32Array(n);
@@ -124,7 +148,10 @@ function handleAmbiguityCounts(payload: any, jobId: number): void {
     output[i] = sequenceLength === 0 ? 0 : count / sequenceLength;
   }
 
-  postBufferResponse('counts', output.buffer, Date.now(), jobId);
+  const workerFinishedAt = Date.now();
+  postBufferResponse('counts', output.buffer, workerFinishedAt, jobId, {
+    computeDurationMs: workerFinishedAt - computeStart,
+  });
 }
 
 function snps(s1: Uint8Array, s2: Uint8Array): number {
@@ -139,6 +166,7 @@ function snps(s1: Uint8Array, s2: Uint8Array): number {
 }
 
 function handleLinks(payload: any, jobId: number): void {
+  const computeStart = Date.now();
   const subset = payload.nodes;
   const n = subset.length;
   const threshold = parseFloat(payload.threshold);
@@ -178,7 +206,10 @@ function handleLinks(payload: any, jobId: number): void {
     }
   }
 
-  postBufferResponse('links', output.buffer, Date.now(), jobId);
+  const workerFinishedAt = Date.now();
+  postBufferResponse('links', output.buffer, workerFinishedAt, jobId, {
+    computeDurationMs: workerFinishedAt - computeStart,
+  });
 }
 
 function handleTree(payload: any, jobId: number): void {

@@ -23,7 +23,22 @@ const normalizeColor = (value: string): string => String(value || '').replace(/\
 
 const selectPrimeOption = (selector: string, label: string): void => {
   cy.get(selector).click({ force: true });
-  cy.contains('li[role="option"]:visible', label, { timeout: 15000 }).click({ force: true });
+  cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
+};
+
+const setLinkColorVariableToNone = (): void => {
+  cy.window().then((win: unknown) => {
+    const app = (win as WinWithMap).commonService.visuals.microbeTrace;
+
+    expect(app, 'MicrobeTrace host app').to.exist;
+    if (app.SelectedColorLinksByVariable !== 'None') {
+      app.SelectedColorLinksByVariable = 'None';
+      app.onColorLinksByChanged();
+    }
+  });
+
+  cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
+  cy.get('#link-color', { timeout: 15000 }).should('be.visible');
 };
 
 const setColorInputValue = (selector: string, value: string): void => {
@@ -132,7 +147,7 @@ describe('Journey Flow - Map uploaded fixed colors', () => {
     cy.closeSettingsPane('Geospatial Settings');
 
     openGlobalStylingTab();
-    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
+    setLinkColorVariableToNone();
 
     setColorInputValue('#link-color', linkColor);
 

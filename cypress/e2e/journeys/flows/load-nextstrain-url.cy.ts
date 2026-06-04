@@ -10,6 +10,7 @@ import { byTestId, testIds } from '../../../support/selectors';
 
 describe('Journey Flow - Load Nextstrain URL', () => {
   const nextstrainUrl = 'https://nextstrain.org/yellow-fever/genome';
+  const fixtureName = 'nextstrain-yellow-fever-small.json';
 
   const openPhylogeneticTreeView = (): void => {
     cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
@@ -19,10 +20,13 @@ describe('Journey Flow - Load Nextstrain URL', () => {
   };
 
   it('loads Nextstrain URL data and opens the phylogenetic tree view', () => {
+    cy.intercept('GET', nextstrainUrl, { fixture: fixtureName }).as('loadNextstrainDataset');
+
     visitAppAndAcceptEula({
       extraQuery: { url: nextstrainUrl },
     });
 
+    cy.wait('@loadNextstrainDataset', { timeout: 30000 });
     cy.wait(2000)
     waitForProcessingDialogToClear(120000);
     cy.wait(2000)
@@ -33,8 +37,13 @@ describe('Journey Flow - Load Nextstrain URL', () => {
     ensureTwoDNetworkView();
 
     cy.window().then((win: any) => {
-      expect(win.commonService.session.data.nodes.length, 'nodes loaded from URL').to.be.eq(356);
-      expect(win.commonService.session.data.links.filter(l => l.visible).length, 'links loaded from URL').to.be.eq(14374);
+      const nodes = win.commonService.session.data.nodes;
+      const visibleLinks = win.commonService.session.data.links.filter(l => l.visible);
+
+      expect(nodes.length, 'nodes loaded from stubbed Nextstrain URL').to.equal(4);
+      expect(visibleLinks.length, 'links generated from stubbed Nextstrain URL').to.equal(6);
+      expect(win.commonService.session.style.widgets['default-distance-metric'], 'decimal divergence metric').to.equal('tn93');
+      expect(Number(win.commonService.session.style.widgets['link-threshold']), 'decimal divergence threshold').to.equal(0.015);
     });
 
     openPhylogeneticTreeView();
