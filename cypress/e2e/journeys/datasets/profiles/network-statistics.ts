@@ -4,8 +4,8 @@ import { P } from '../types';
 export const NETWORK_STATISTICS_PROFILES: DatasetProfile[] = [
   P({
     id: 'network-statistics-panel',
-    title: 'Network Statistics: deterministic panel and export fixture',
-    tags: ['network-statistics', 'load-to-twod', 'filtering'],
+    title: 'Network Statistics: deterministic view and export fixture',
+    tags: ['network-statistics', 'load-to-twod', 'view', 'filtering'],
     files: [
       { name: 'NetworkStatisticsNodes.csv', datatype: 'node', field1: '_id' },
       {

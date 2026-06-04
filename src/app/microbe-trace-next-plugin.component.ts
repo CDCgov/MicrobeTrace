@@ -23,6 +23,7 @@ import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
+import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     NODE_SHAPE_GROUPS,
@@ -4387,7 +4388,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     void instance._rerender();
                 }
             } else if (
-                ['Table', 'Crosstab', 'Aggregate'].includes(viewName) &&
+                ['Table', NetworkStatisticsComponent.componentTypeName, 'Crosstab', 'Aggregate'].includes(viewName) &&
                 instance.onLoadNewData
             ) {
                 instance.onLoadNewData();
@@ -4566,6 +4567,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 break;
             }
             case "Table": {
+
+                this.showSettings = false;
+                this.showExport = true;
+                this.showCenter = false;
+                this.showPinAllNodes = false;
+                this.showRefresh = false;
+                this.showButtonGroup = true;
+                this.showSorting = true;
+
+                break;
+            }
+            case NetworkStatisticsComponent.componentTypeName: {
 
                 this.showSettings = false;
                 this.showExport = true;

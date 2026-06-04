@@ -1,4 +1,4 @@
-import { computeNetworkStatistics } from './network-statistics';
+import { computeNetworkStatistics, serializeNetworkStatisticsCsv } from './network-statistics';
 
 describe('computeNetworkStatistics', () => {
   it('computes a fully clustered triangle', () => {
@@ -100,5 +100,25 @@ describe('computeNetworkStatistics', () => {
     expect(result.summary.approximateBetweenness).toBeTrue();
     expect(result.summary.approximatePathMetrics).toBeTrue();
     expect(result.summary.sampledSourceCount).toBe(2);
+  });
+
+  it('serializes network statistics as human-readable CSV sections', () => {
+    const result = computeNetworkStatistics({
+      nodes: [{ _id: 'A' }, { _id: 'B' }, { _id: 'C' }],
+      links: [
+        { source: 'A', target: 'B', visible: true },
+      ],
+    });
+
+    const csv = serializeNetworkStatisticsCsv(result);
+
+    expect(csv).toContain('Network Statistics Summary\r\nMetric,Value');
+    expect(csv).toContain('Clusters,1');
+    expect(csv).toContain('Singletons,1');
+    expect(csv).toContain('Degree Distribution\r\nDegree,Node Count,Fraction');
+    expect(csv).toContain('Node Centrality\r\nNode ID,Cluster ID,Degree,Normalized Degree,Betweenness,Normalized Betweenness');
+    expect(csv).toContain('Clusters\r\nCluster ID,Node Count,Link Count,Density,Average Degree,Max Degree,Diameter,Diameter Approximate,Member IDs');
+    expect(csv).not.toContain('record_type');
+    expect(csv).not.toContain('component_id');
   });
 });

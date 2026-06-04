@@ -563,108 +563,94 @@ function csvEscape(value: any): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
+function csvRow(values: any[]): string {
+  return values.map((value) => csvEscape(value)).join(',');
+}
+
+function yesNo(value: boolean): string {
+  return value ? 'Yes' : 'No';
+}
+
 export function serializeNetworkStatisticsCsv(result: NetworkStatisticsResult): string {
-  const headers = [
-    'record_type',
-    'key',
-    'value',
-    'node_id',
-    'component_id',
-    'degree',
-    'node_count',
-    'link_count',
-    'fraction',
-    'density',
-    'average_degree',
-    'max_degree',
-    'betweenness',
-    'normalized_degree',
-    'normalized_betweenness',
-    'clustering',
-    'transitivity',
-    'average_path_length',
-    'diameter',
-    'approximate',
-    'metric',
-    'threshold',
-    'member_ids',
-    'generated_at'
-  ];
-
-  const rows: Record<string, any>[] = [];
   const summary = result.summary;
-  const summaryEntries: Array<[keyof NetworkStatisticsSummary, any]> = [
-    ['nodeCount', summary.nodeCount],
-    ['linkCount', summary.linkCount],
-    ['selectedNodeCount', summary.selectedNodeCount],
-    ['componentCount', summary.componentCount],
-    ['clusterCount', summary.clusterCount],
-    ['singletonCount', summary.singletonCount],
-    ['largestComponentSize', summary.largestComponentSize],
-    ['density', summary.density],
-    ['averageDegree', summary.averageDegree],
-    ['maxDegree', summary.maxDegree],
-    ['averageLocalClusteringCoefficient', summary.averageLocalClusteringCoefficient],
-    ['transitivity', summary.transitivity],
-    ['averagePathLength', summary.averagePathLength],
-    ['diameter', summary.diameter],
-    ['sampledSourceCount', summary.sampledSourceCount]
+  const clusterRows = result.components.filter((component) => component.nodeCount > 1);
+  const largestClusterSize = result.components
+    .filter((component) => component.nodeCount > 1)
+    .reduce((largest, component) => Math.max(largest, component.nodeCount), 0);
+  const calculationMode = summary.approximateBetweenness || summary.approximatePathMetrics
+    ? `Approximate sampled metrics from ${summary.sampledSourceCount} source nodes`
+    : 'Exact';
+  const lines: string[] = [
+    'Network Statistics Summary',
+    csvRow(['Metric', 'Value']),
+    csvRow(['Nodes', summary.nodeCount]),
+    csvRow(['Links', summary.linkCount]),
+    csvRow(['Selected Nodes', summary.selectedNodeCount]),
+    csvRow(['Clusters', summary.clusterCount]),
+    csvRow(['Singletons', summary.singletonCount]),
+    csvRow(['Largest Cluster', largestClusterSize]),
+    csvRow(['Density', summary.density]),
+    csvRow(['Average Degree', summary.averageDegree]),
+    csvRow(['Max Degree', summary.maxDegree]),
+    csvRow(['Average Local Clustering', summary.averageLocalClusteringCoefficient]),
+    csvRow(['Transitivity', summary.transitivity]),
+    csvRow(['Average Reachable Path Length', summary.averagePathLength]),
+    csvRow(['Diameter', summary.diameter]),
+    csvRow(['Distance Metric', summary.metricLabel]),
+    csvRow(['Threshold', summary.threshold]),
+    csvRow(['Calculation Mode', calculationMode]),
+    csvRow(['Generated At', result.generatedAtIso]),
+    '',
+    'Degree Distribution',
+    csvRow(['Degree', 'Node Count', 'Fraction']),
+    ...result.degreeDistribution.map((row) => csvRow([
+      row.degree,
+      row.nodeCount,
+      row.fraction
+    ])),
+    '',
+    'Node Centrality',
+    csvRow([
+      'Node ID',
+      'Cluster ID',
+      'Degree',
+      'Normalized Degree',
+      'Betweenness',
+      'Normalized Betweenness'
+    ]),
+    ...result.centrality.map((row) => csvRow([
+      row.nodeId,
+      row.componentId,
+      row.degree,
+      row.normalizedDegree,
+      row.betweenness,
+      row.normalizedBetweenness
+    ])),
+    '',
+    'Clusters',
+    csvRow([
+      'Cluster ID',
+      'Node Count',
+      'Link Count',
+      'Density',
+      'Average Degree',
+      'Max Degree',
+      'Diameter',
+      'Diameter Approximate',
+      'Member IDs'
+    ]),
+    ...clusterRows.map((row) => csvRow([
+      row.componentId,
+      row.nodeCount,
+      row.linkCount,
+      row.density,
+      row.averageDegree,
+      row.maxDegree,
+      row.diameter,
+      yesNo(row.diameterApproximate),
+      row.memberIds
+    ]))
   ];
 
-  summaryEntries.forEach(([key, value]) => {
-    rows.push({
-      record_type: 'summary',
-      key,
-      value,
-      approximate: summary.approximateBetweenness || summary.approximatePathMetrics,
-      metric: summary.metricLabel,
-      threshold: summary.threshold,
-      generated_at: result.generatedAtIso
-    });
-  });
-
-  result.degreeDistribution.forEach((row) => {
-    rows.push({
-      record_type: 'degree_bucket',
-      degree: row.degree,
-      node_count: row.nodeCount,
-      fraction: row.fraction,
-      generated_at: result.generatedAtIso
-    });
-  });
-
-  result.centrality.forEach((row) => {
-    rows.push({
-      record_type: 'node_centrality',
-      node_id: row.nodeId,
-      component_id: row.componentId,
-      degree: row.degree,
-      betweenness: row.betweenness,
-      normalized_degree: row.normalizedDegree,
-      normalized_betweenness: row.normalizedBetweenness,
-      approximate: summary.approximateBetweenness,
-      generated_at: result.generatedAtIso
-    });
-  });
-
-  result.components.forEach((row) => {
-    rows.push({
-      record_type: 'component',
-      component_id: row.componentId,
-      node_count: row.nodeCount,
-      link_count: row.linkCount,
-      density: row.density,
-      average_degree: row.averageDegree,
-      max_degree: row.maxDegree,
-      diameter: row.diameter,
-      approximate: row.diameterApproximate,
-      member_ids: row.memberIds,
-      generated_at: result.generatedAtIso
-    });
-  });
-
-  return [
-    headers.join(','),
-    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(','))
-  ].join('\r\n');
+  return lines.join('\r\n');
 }

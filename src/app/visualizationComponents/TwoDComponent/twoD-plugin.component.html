@@ -33,180 +33,34 @@
       <!-- Static Watermark (Optional) -->
       <div id="watermark" class="watermark"></div>
     </div>
-    <div id="network-statistics-wrapper" data-testid="network-statistics-panel">
+    <div id="network-statistics-wrapper">
       <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
-      <div class="network-statistics-header">
-        <div>
-          <div class="network-statistics-title">Network Statistics</div>
-          @if (networkStatisticsApproximationLabel) {
-            <div class="network-statistics-subtitle" data-testid="network-statistics-approximation">{{ networkStatisticsApproximationLabel }}</div>
-          }
-        </div>
-        <button
-          type="button"
-          class="btn btn-sm btn-clean btn-icon btn-icon-md"
-          title="Export Network Statistics"
-          data-testid="network-statistics-export"
-          [disabled]="!networkStatisticsResult"
-          (click)="exportNetworkStatisticsCsv()">
-          <i class="flaticon-download primary"></i>
-        </button>
-      </div>
-
-      @if (networkStatisticsLoading) {
-        <div class="network-statistics-state" data-testid="network-statistics-loading">Calculating...</div>
-      }
-      @if (networkStatisticsError) {
-        <div class="network-statistics-state network-statistics-error" data-testid="network-statistics-error">{{ networkStatisticsError }}</div>
-      }
-
-      @if (networkStatisticsResult) {
-        <table #networkStats id="network-statistics-table">
-          <tr>
-            <td class="text-right">
-              <span id="numberOfNodes">{{ networkStatisticsResult.summary.nodeCount.toLocaleString() }}</span>
-              (<span id="numberOfSelectedNodes">{{ networkStatisticsResult.summary.selectedNodeCount.toLocaleString() }}</span>)
-            </td>
-            <td>Nodes (Selected)</td>
-          </tr>
-          <tr>
-            <td id="numberOfVisibleLinks" class="text-right">{{ networkStatisticsResult.summary.linkCount.toLocaleString() }}</td>
-            <td>Links</td>
-          </tr>
-          <tr>
-            <td id="numberOfDisjointComponents" class="text-right">{{ networkStatisticsResult.summary.clusterCount.toLocaleString() }}</td>
-            <td>Clusters</td>
-          </tr>
-          <tr>
-            <td id="numberOfSingletonNodes" class="text-right">{{ networkStatisticsResult.summary.singletonCount.toLocaleString() }}</td>
-            <td>Singletons</td>
-          </tr>
-          <tr>
-            <td colspan="2">Link Threshold =
-              <span id="currentLinkThreshold">{{ networkStatisticsThresholdLabel }}</span></td>
+      <table #networkStats id="network-statistics-table">
+        <tr>
+          <td class="text-right">
+            <span id="numberOfNodes"></span>
+            (<span id="numberOfSelectedNodes"></span>)
+          </td>
+          <td>Nodes (Selected)</td>
+        </tr>
+        <tr>
+          <td id="numberOfVisibleLinks" class="text-right"></td>
+          <td>Links</td>
+        </tr>
+        <tr>
+          <td id="numberOfDisjointComponents" class="text-right"></td>
+          <td>Clusters</td>
+        </tr>
+        <tr>
+          <td id="numberOfSingletonNodes" class="text-right"></td>
+          <td>Singletons</td>
+        </tr>
+        <tr>
+          <td colspan="2">Link Threshold =
+            <span id="currentLinkThreshold"></span></td>
           </tr>
         </table>
-
-        <div class="network-statistics-grid" data-testid="network-statistics-summary">
-          <div>
-            <span>Components</span>
-            <strong data-testid="network-statistics-components">{{ networkStatisticsResult.summary.componentCount.toLocaleString() }}</strong>
-          </div>
-          <div>
-            <span>Largest</span>
-            <strong>{{ networkStatisticsResult.summary.largestComponentSize.toLocaleString() }}</strong>
-          </div>
-          <div>
-            <span>Density</span>
-            <strong>{{ formatStatisticValue(networkStatisticsResult.summary.density) }}</strong>
-          </div>
-          <div>
-            <span>Avg Degree</span>
-            <strong>{{ formatStatisticValue(networkStatisticsResult.summary.averageDegree) }}</strong>
-          </div>
-          <div>
-            <span>Max Degree</span>
-            <strong>{{ networkStatisticsResult.summary.maxDegree.toLocaleString() }}</strong>
-          </div>
-          <div>
-            <span>Clustering</span>
-            <strong>{{ formatStatisticValue(networkStatisticsResult.summary.averageLocalClusteringCoefficient) }}</strong>
-          </div>
-          <div>
-            <span>Transitivity</span>
-            <strong>{{ formatStatisticValue(networkStatisticsResult.summary.transitivity) }}</strong>
-          </div>
-          <div>
-            <span>Avg Path</span>
-            <strong>{{ formatStatisticValue(networkStatisticsResult.summary.averagePathLength) }}</strong>
-          </div>
-          <div>
-            <span>Diameter</span>
-            <strong>{{ networkStatisticsResult.summary.diameter.toLocaleString() }}</strong>
-          </div>
-        </div>
-
-        <div class="network-statistics-section">
-          <div class="network-statistics-section-title">Centrality</div>
-          <table class="network-statistics-detail-table" data-testid="network-statistics-centrality-table">
-            <thead>
-              <tr>
-                <th>Node</th>
-                <th>Comp.</th>
-                <th>Degree</th>
-                <th>Norm. Degree</th>
-                <th>Betweenness</th>
-                <th>Norm. Betw.</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of topNetworkCentralityRows; track row.nodeId) {
-                <tr>
-                  <td>{{ row.nodeId }}</td>
-                  <td>{{ row.componentId }}</td>
-                  <td>{{ row.degree.toLocaleString() }}</td>
-                  <td>{{ formatStatisticValue(row.normalizedDegree) }}</td>
-                  <td>{{ formatStatisticValue(row.betweenness) }}</td>
-                  <td>{{ formatStatisticValue(row.normalizedBetweenness) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <div class="network-statistics-section">
-          <div class="network-statistics-section-title">Components</div>
-          <table class="network-statistics-detail-table" data-testid="network-statistics-component-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nodes</th>
-                <th>Links</th>
-                <th>Density</th>
-                <th>Avg Degree</th>
-                <th>Max Degree</th>
-                <th>Diameter</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of topNetworkComponentRows; track row.componentId) {
-                <tr>
-                  <td>{{ row.componentId }}</td>
-                  <td>{{ row.nodeCount.toLocaleString() }}</td>
-                  <td>{{ row.linkCount.toLocaleString() }}</td>
-                  <td>{{ formatStatisticValue(row.density) }}</td>
-                  <td>{{ formatStatisticValue(row.averageDegree) }}</td>
-                  <td>{{ row.maxDegree.toLocaleString() }}</td>
-                  <td>{{ formatStatisticValue(row.diameter) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <div class="network-statistics-section">
-          <div class="network-statistics-section-title">Degree Distribution</div>
-          <table class="network-statistics-detail-table" data-testid="network-statistics-degree-table">
-            <thead>
-              <tr>
-                <th>Degree</th>
-                <th>Nodes</th>
-                <th>Share</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of networkStatisticsResult.degreeDistribution; track row.degree) {
-                <tr>
-                  <td>{{ row.degree.toLocaleString() }}</td>
-                  <td>{{ row.nodeCount.toLocaleString() }}</td>
-                  <td>{{ formatStatisticPercent(row.fraction) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </div>
+      </div>
 
 
       @if (IsDataAvailable == false) {
