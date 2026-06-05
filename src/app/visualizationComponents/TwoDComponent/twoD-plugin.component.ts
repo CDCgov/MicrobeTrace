@@ -24,7 +24,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
-import { buildPieChartPathSlices, buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -38,17 +38,6 @@ interface CustomNodeSvgExportReplacement {
     strokeWidth: number;
     width: number;
     height: number;
-}
-
-interface CollapsedPieSvgExportReplacement {
-    borderColor: string;
-    borderOpacity: number;
-    borderWidth: number;
-    exportHeight: number;
-    exportWidth: number;
-    exportX: number;
-    exportY: number;
-    slices: PieChartSlice[];
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
@@ -915,7 +904,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             nodeSize,
             aggregateRenderedSize,
             nodeColor: hasPie ? 'transparent' : solidColor,
-            bgOpacity: hasPie ? 1 : solidOpacity,
+            bgOpacity: hasPie ? 0 : solidOpacity,
             borderWidth: this.getNodeBorderWidth(firstMember),
             pieBackgroundImage: hasPie
                 ? buildPieChartSvgDataUri(`twod-collapse-pie-${componentIndex}`, aggregateRenderedSize, slices)
@@ -1272,7 +1261,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-position-y': '50%',
                     'background-repeat': 'no-repeat',
                     'background-color': 'transparent',
-                    'background-opacity': 1
+                    'background-opacity': 0
                 }
             },
                 {
@@ -1386,7 +1375,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node:selected[!isParent][pieBackgroundImage]',
                 css: {
                     'background-color': 'transparent',
-                    'background-opacity': 1,
+                    'background-opacity': 0,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
                 }
@@ -2306,146 +2295,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
-    private getCollapsedPieSvgExportReplacementList(): CollapsedPieSvgExportReplacement[] {
-        const replacements: CollapsedPieSvgExportReplacement[] = [];
-        if (!this.cy) {
-            return replacements;
-        }
-
-        const graphBounds = this.cy.elements().boundingBox();
-        this.cy.nodes().forEach(node => {
-            if (!node.data('isCollapsedAggregate') || !node.data('pieBackgroundImage')) {
-                return;
-            }
-
-            const counts = node.data('counts') || [];
-            const slices = this.getCollapsedPieSlices(counts);
-            if (slices.length < 2) {
-                return;
-            }
-
-            const position = node.position();
-            const padding = Number(node.numericStyle('padding')) || 0;
-            const paddingX2 = padding * 2;
-            const nodeTotalWidth = node.width() + paddingX2;
-            const nodeTotalHeight = node.height() + paddingX2;
-            const borderWidth = Number(node.numericStyle('border-width')) || Number(node.data('borderWidth')) || 0;
-            const borderOpacity = Number(node.numericStyle('border-opacity'));
-
-            replacements.push({
-                borderColor: String(node.style('border-color') || '#000000'),
-                borderOpacity: Number.isFinite(borderOpacity) ? borderOpacity : 1,
-                borderWidth,
-                exportHeight: nodeTotalHeight,
-                exportWidth: nodeTotalWidth,
-                exportX: position.x - graphBounds.x1 - (nodeTotalWidth / 2),
-                exportY: position.y - graphBounds.y1 - (nodeTotalHeight / 2),
-                slices
-            });
-        });
-
-        return replacements;
-    }
-
-    private findMatchingCollapsedPieSvgExportReplacement(
-        image: Element,
-        replacements: CollapsedPieSvgExportReplacement[],
-        usedReplacements: Set<CollapsedPieSvgExportReplacement>
-    ): CollapsedPieSvgExportReplacement | null {
-        const imageWidth = this.getSvgLengthAttribute(image, 'width');
-        const imageHeight = this.getSvgLengthAttribute(image, 'height');
-        const imageTranslate = this.getSvgTranslateTransform(image);
-        if (imageWidth === null || imageHeight === null || !imageTranslate) {
-            return null;
-        }
-
-        let bestMatch: CollapsedPieSvgExportReplacement | null = null;
-        let bestScore = Number.POSITIVE_INFINITY;
-        for (const replacement of replacements) {
-            if (usedReplacements.has(replacement)) {
-                continue;
-            }
-
-            const score =
-                Math.abs(replacement.exportX - imageTranslate.x)
-                + Math.abs(replacement.exportY - imageTranslate.y)
-                + Math.abs(replacement.exportWidth - imageWidth)
-                + Math.abs(replacement.exportHeight - imageHeight);
-            if (score < bestScore) {
-                bestScore = score;
-                bestMatch = replacement;
-            }
-        }
-
-        return bestMatch;
-    }
-
-    private createCollapsedPieVectorExportElement(
-        doc: XMLDocument,
-        sourceImage: SVGImageElement,
-        replacement: CollapsedPieSvgExportReplacement
-    ): SVGGElement {
+    private addCollapsedPieSvgExportOutlines(doc: XMLDocument): void {
         const svgNamespace = 'http://www.w3.org/2000/svg';
-        const vectorGroup = doc.createElementNS(svgNamespace, 'g');
-        const attributesToCopy = ['opacity', 'style', 'clip-path'];
-
-        for (const attributeName of attributesToCopy) {
-            const attributeValue = sourceImage.getAttribute(attributeName);
-            if (attributeValue) {
-                vectorGroup.setAttribute(attributeName, attributeValue);
-            }
-        }
-
-        const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
-        const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
-        const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
-        const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
-        const imageTransform = sourceImage.getAttribute('transform') || '';
-        const transforms: string[] = [];
-        if (imageX !== 0 || imageY !== 0) {
-            transforms.push(`translate(${imageX}, ${imageY})`);
-        }
-        if (imageTransform) {
-            transforms.push(imageTransform);
-        }
-        if (transforms.length) {
-            vectorGroup.setAttribute('transform', transforms.join(' '));
-        }
-        vectorGroup.setAttribute('aria-hidden', 'true');
-        vectorGroup.setAttribute('data-microbetrace-collapsed-pie-export', 'true');
-
-        const centerX = imageWidth / 2;
-        const centerY = imageHeight / 2;
-        const safeBorderWidth = Math.max(0, Number(replacement.borderWidth) || 0);
-        const radius = Math.max(0.1, (Math.min(imageWidth, imageHeight) / 2) - (safeBorderWidth / 2));
-        const pathSlices = buildPieChartPathSlices(replacement.slices, centerX, centerY, radius);
-
-        pathSlices.forEach(slice => {
-            const path = doc.createElementNS(svgNamespace, 'path');
-            path.setAttribute('d', slice.path);
-            path.setAttribute('fill', slice.color);
-            path.setAttribute('stroke', 'none');
-            vectorGroup.appendChild(path);
-        });
-
-        if (safeBorderWidth > 0) {
-            const outline = doc.createElementNS(svgNamespace, 'circle');
-            outline.setAttribute('cx', `${centerX}`);
-            outline.setAttribute('cy', `${centerY}`);
-            outline.setAttribute('r', `${radius}`);
-            outline.setAttribute('fill', 'none');
-            outline.setAttribute('stroke', replacement.borderColor || '#000000');
-            outline.setAttribute('stroke-width', `${safeBorderWidth}`);
-            outline.setAttribute('stroke-opacity', `${replacement.borderOpacity}`);
-            vectorGroup.appendChild(outline);
-        }
-
-        return vectorGroup;
-    }
-
-    private replaceExportedCollapsedPieImagesWithVectorShapes(doc: XMLDocument): void {
-        const replacementList = this.getCollapsedPieSvgExportReplacementList();
-        if (replacementList.length === 0) {
+        const borderWidth = Math.max(0, Number(this.widgets?.['node-border-width']) || 0);
+        if (borderWidth <= 0) {
             return;
         }
 
@@ -2456,17 +2309,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     && href.startsWith('data:image/')
                     && this.hasClipPathAncestor(image);
             });
-        const usedReplacements = new Set<CollapsedPieSvgExportReplacement>();
 
         images.forEach(image => {
-            const replacement = this.findMatchingCollapsedPieSvgExportReplacement(image, replacementList, usedReplacements);
-            if (!replacement || !image.parentNode) {
+            if (!image.parentNode) {
                 return;
             }
 
-            usedReplacements.add(replacement);
-            const vectorElement = this.createCollapsedPieVectorExportElement(doc, image as SVGImageElement, replacement);
-            image.parentNode.replaceChild(vectorElement, image);
+            const imageWidth = this.getSvgLengthAttribute(image, 'width');
+            const imageHeight = this.getSvgLengthAttribute(image, 'height');
+            if (imageWidth === null || imageHeight === null || imageWidth <= 0 || imageHeight <= 0) {
+                return;
+            }
+
+            const imageX = this.getSvgLengthAttribute(image, 'x') ?? 0;
+            const imageY = this.getSvgLengthAttribute(image, 'y') ?? 0;
+            const radius = Math.max(0.1, (Math.min(imageWidth, imageHeight) / 2) - (borderWidth / 2));
+            const outline = doc.createElementNS(svgNamespace, 'circle');
+            outline.setAttribute('cx', `${imageX + (imageWidth / 2)}`);
+            outline.setAttribute('cy', `${imageY + (imageHeight / 2)}`);
+            outline.setAttribute('r', `${radius}`);
+            outline.setAttribute('fill', 'none');
+            outline.setAttribute('stroke', '#000000');
+            outline.setAttribute('stroke-width', `${borderWidth}`);
+            outline.setAttribute('stroke-opacity', '1');
+            outline.setAttribute('data-microbetrace-collapsed-pie-outline', 'true');
+
+            const imageTransform = image.getAttribute('transform');
+            if (imageTransform) {
+                outline.setAttribute('transform', imageTransform);
+            }
+
+            image.parentNode.insertBefore(outline, image.nextSibling);
         });
     }
 
@@ -2497,7 +2370,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
             this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
-            this.replaceExportedCollapsedPieImagesWithVectorShapes(doc);
+            this.addCollapsedPieSvgExportOutlines(doc);
             const svg1 = doc.documentElement;          
             svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
             svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());

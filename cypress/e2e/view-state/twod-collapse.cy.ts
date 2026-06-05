@@ -178,6 +178,51 @@ describe('2D Network - Collapse Related Nodes', () => {
     });
   });
 
+  it('preserves collapsed pie images in SVG export content', () => {
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const twoD = commonService.visuals.twoD;
+      const threshold = configureDeterministicCollapsePie(win);
+      const displayedThreshold = commonService.toDisplayedDistanceValue(threshold, 'distance');
+
+      twoD.SelectedNodeCollapseThresholdDisplayedVariable = displayedThreshold;
+      twoD.onNodeCollapseThresholdDisplayedChange(displayedThreshold);
+      twoD.onNodeCollapseEnabledChange(true);
+    });
+
+    cy.window().then((win: any) => {
+      cy.wrap(null, { timeout: 20000 }).should(() => {
+        expect(getCollapseRenderSummary(win).pieNodes.length, 'aggregate nodes with pie backgrounds').to.be.greaterThan(0);
+      });
+    });
+
+    cy.window().then((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      cy.stub(twoD.exportService, 'requestSVGExport').as('requestSVGExport');
+      twoD.SelectedNetworkExportFileTypeListVariable = 'svg';
+      twoD.exportVisualization(new win.Event('click'));
+    });
+
+    cy.get('@requestSVGExport').should('have.been.calledOnce');
+    cy.get('@requestSVGExport').then((stub: any) => {
+      const svgContent = String(stub.getCall(0).args[1] || '');
+      const doc = new DOMParser().parseFromString(svgContent, 'image/svg+xml');
+      const pieImages = Array.from(doc.getElementsByTagName('image'))
+        .filter((image: any) => {
+          const href = String(image.getAttribute('href') || image.getAttribute('xlink:href') || '');
+          return href.startsWith('data:image/');
+        });
+      const pieOutlines = Array.from(doc.querySelectorAll('circle[data-microbetrace-collapsed-pie-outline="true"]'));
+
+      expect(svgContent, 'svg export contains image elements').to.include('<image');
+      expect(svgContent, 'svg export contains pie image data').to.include('data:image/');
+      expect(pieImages.length, 'exported collapsed pie images').to.be.greaterThan(0);
+      expect(pieOutlines.length, 'collapsed pie outlines').to.equal(pieImages.length);
+      expect(svgContent, 'svg export does not contain vectorized collapsed pies')
+        .not.to.include('data-microbetrace-collapsed-pie-export');
+    });
+  });
+
   it('updates collapse distance controls from global metric and format selections', () => {
     cy.get(selectors.settingsBtn).click();
 
