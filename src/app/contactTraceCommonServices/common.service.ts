@@ -575,9 +575,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                 settingsLoaded: false,
             },
             state: {
-                timeStart: 0,
-                timeEnd: new Date(),
-                timeTarget: null
+                timeStart: null as Date | number | string | null,
+                timeEnd: new Date() as Date | number | string | null,
+                timeTarget: null as Date | number | string | null
             },
             style: {
                 linkAlphas: [1],
@@ -2135,7 +2135,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         console.log('this.temp: ', this.temp);
         this.temp.matrix = [];
         this.session.files = oldSession.files;
-        this.session.state = oldSession.state;
+        this.session.state = Object.assign({},
+            this.sessionSkeleton().state,
+            oldSession.state || {}
+        );
         this.session.style = oldSession.style;
 
         this.session.meta.startTime = Date.now();
@@ -4016,6 +4019,10 @@ align(params): Promise<any> {
             clusters = this.session.data.clusters;
         let n = nodes.length;
         let visibleNodes = 0;
+        const hasTimelineStart = this.hasValidTimelineDateValue(this.session.state.timeStart);
+        const hasTimelineEnd = this.hasValidTimelineDateValue(this.session.state.timeEnd);
+        const timelineStart = hasTimelineStart ? moment(this.session.state.timeStart).toDate() : null;
+        const timelineEnd = hasTimelineEnd ? moment(this.session.state.timeEnd).toDate() : null;
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
@@ -4031,10 +4038,12 @@ align(params): Promise<any> {
             }
             if (dateField != "None") {
                 const rawDateValue = node[dateField];
-                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                if (this.hasValidTimelineDateValue(rawDateValue) && timelineEnd) {
+                    const nodeDate = moment(rawDateValue).toDate();
                     node.visible =
                         node.visible &&
-                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                        timelineEnd >= nodeDate &&
+                        (!timelineStart || timelineStart <= nodeDate);
                 }
             }
 

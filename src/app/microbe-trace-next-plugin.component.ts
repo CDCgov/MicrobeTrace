@@ -61,6 +61,7 @@ type DashboardOpenEntry = {
 };
 
 type KeyTableDisplayMode = 'Show' | 'Dock' | 'Hide';
+type TimelineRangeBoundary = 'start' | 'end' | 'both';
 
 interface NodeShapeOptionGroup {
     key: NodeShapeGroupKey;
@@ -314,8 +315,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public playBtnText: string = "Play";
 
     public handle: any;
+
+    public rangeStartHandle: any;
+
+    public rangeEndHandle: any;
     
     public label: any;
+
+    public rangeStartLabel: any;
+
+    public rangeEndLabel: any;
 
     public xAttribute: any;
 
@@ -323,7 +332,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     public currentTimelineValue: any;
 
+    public currentTimelineStartValue: any;
+
     public currentTimelineTargetValue: any;
+
+    public timelineRangeStartInput: string = '';
+
+    public timelineRangeEndInput: string = '';
+
+    private rangeSelection: any;
+
+    private timelineDomainStart: Date | null = null;
+
+    private timelineDomainEnd: Date | null = null;
+
+    private timelinePlaybackPaused: boolean = false;
 
     private previousTab: string = '';
 
@@ -2727,13 +2750,184 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         $(`.duo-link-color-segment[data-duo-index="${index}"]`).css({ background: color, opacity: opacity })
     }
 
+    private stopTimelinePlayback(paused = false): void {
+        clearInterval(this.commonService.session.timeline);
+        this.playBtnText = "Play";
+        this.timelinePlaybackPaused = paused;
+        d3.select("#timeline-play-button").text("Play");
+    }
+
+    private parseTimelineDate(value: any): Date | null {
+        if (value instanceof Date) {
+            return Number.isFinite(value.getTime()) ? value : null;
+        }
+
+        if (value == null || value === '') {
+            return null;
+        }
+
+        const strictDate = moment(String(value), 'YYYY-MM-DD', true);
+        if (strictDate.isValid()) {
+            return strictDate.toDate();
+        }
+
+        const parsed = moment(value);
+        return parsed.isValid() ? parsed.toDate() : null;
+    }
+
+    private formatTimelineDateInput(date: Date | null): string {
+        return date ? moment(date).format('YYYY-MM-DD') : '';
+    }
+
+    private clampTimelineDate(date: Date): Date {
+        if (!this.timelineDomainStart || !this.timelineDomainEnd) {
+            return date;
+        }
+
+        const time = date.getTime();
+        const min = this.timelineDomainStart.getTime();
+        const max = this.timelineDomainEnd.getTime();
+        return new Date(Math.min(Math.max(time, min), max));
+    }
+
+    private getSelectedTimelineStart(): Date {
+        const parsed = this.parseTimelineDate(this.commonService.session.state.timeStart);
+        return this.clampTimelineDate(parsed ?? this.timelineDomainStart ?? new Date(0));
+    }
+
+    private getSelectedTimelineEnd(): Date {
+        const parsedTarget = this.parseTimelineDate(this.commonService.session.state.timeTarget);
+        const parsedEnd = this.parseTimelineDate(this.commonService.session.state.timeEnd);
+        return this.clampTimelineDate(parsedTarget ?? parsedEnd ?? this.timelineDomainEnd ?? new Date());
+    }
+
+    private getActiveTimelineEnd(): Date {
+        const parsed = this.parseTimelineDate(this.commonService.session.state.timeEnd);
+        const rangeStart = this.getSelectedTimelineStart();
+        const rangeEnd = this.getSelectedTimelineEnd();
+        const active = this.clampTimelineDate(parsed ?? rangeEnd);
+        return new Date(Math.min(Math.max(active.getTime(), rangeStart.getTime()), rangeEnd.getTime()));
+    }
+
+    private syncTimelineRangeInputs(startDate = this.getSelectedTimelineStart(), endDate = this.getSelectedTimelineEnd()): void {
+        this.timelineRangeStartInput = this.formatTimelineDateInput(startDate);
+        this.timelineRangeEndInput = this.formatTimelineDateInput(endDate);
+        $("#timeline-range-start").val(this.timelineRangeStartInput);
+        $("#timeline-range-end").val(this.timelineRangeEndInput);
+    }
+
+    private syncTimelineRangeGraphics(): void {
+        if (!this.xAttribute) {
+            return;
+        }
+
+        const startDate = this.getSelectedTimelineStart();
+        const endDate = this.getSelectedTimelineEnd();
+        const startX = this.xAttribute(startDate);
+        const endX = this.xAttribute(endDate);
+
+        this.currentTimelineStartValue = startX;
+        this.currentTimelineTargetValue = endX;
+
+        if (this.rangeSelection) {
+            this.rangeSelection
+                .attr("x1", startX)
+                .attr("x2", endX);
+        }
+
+        if (this.rangeStartHandle) {
+            this.rangeStartHandle.attr("cx", startX);
+        }
+
+        if (this.rangeEndHandle) {
+            this.rangeEndHandle.attr("cx", endX);
+        }
+
+        if (this.rangeStartLabel) {
+            this.rangeStartLabel
+                .attr("x", startX)
+                .text(this.handleDateFormat ? this.handleDateFormat(startDate) : '');
+        }
+
+        if (this.rangeEndLabel) {
+            this.rangeEndLabel
+                .attr("x", endX)
+                .text(this.handleDateFormat ? this.handleDateFormat(endDate) : '');
+        }
+    }
+
+    private applyTimelineVisibility(): void {
+        this.commonService.setNodeVisibility(false);
+        this.commonService.setLinkVisibility(false);
+        this.commonService.updateStatistics();
+    }
+
+    private setTimelineRange(
+        startValue: any,
+        endValue: any,
+        changedBoundary: TimelineRangeBoundary = 'both',
+        stopPlayback = true,
+    ): void {
+        if (!this.timelineDomainStart || !this.timelineDomainEnd) {
+            return;
+        }
+
+        if (stopPlayback) {
+            this.stopTimelinePlayback(false);
+        }
+
+        let startDate = this.clampTimelineDate(
+            this.parseTimelineDate(startValue) ?? this.getSelectedTimelineStart()
+        );
+        let endDate = this.clampTimelineDate(
+            this.parseTimelineDate(endValue) ?? this.getSelectedTimelineEnd()
+        );
+
+        if (startDate.getTime() > endDate.getTime()) {
+            if (changedBoundary === 'start') {
+                endDate = startDate;
+            } else if (changedBoundary === 'end') {
+                startDate = endDate;
+            } else {
+                const previousStart = startDate;
+                startDate = endDate;
+                endDate = previousStart;
+            }
+        }
+
+        this.commonService.session.state.timeStart = startDate;
+        this.commonService.session.state.timeTarget = endDate;
+        this.commonService.session.state.timeEnd = endDate;
+        this.syncTimelineRangeInputs(startDate, endDate);
+        this.syncTimelineRangeGraphics();
+        this.update(endDate);
+    }
+
+    public onTimelineRangeStartInputChanged(value: string): void {
+        this.setTimelineRange(value, this.commonService.session.state.timeTarget, 'start');
+    }
+
+    public onTimelineRangeEndInputChanged(value: string): void {
+        this.setTimelineRange(this.commonService.session.state.timeStart, value, 'end');
+    }
+
+    public resetTimelineRange(): void {
+        if (!this.timelineDomainStart || !this.timelineDomainEnd) {
+            return;
+        }
+
+        this.setTimelineRange(this.timelineDomainStart, this.timelineDomainEnd, 'both');
+    }
+
     public onTimelineChanged(e) : void {
         this.SelectedTimelineVariable = e;
         if(this.commonService.debugMode) {
             console.log('timeline changed: ', e);
         }
         d3.select('#global-timeline svg').remove();
-        clearInterval(this.commonService.session.timeline);
+        this.stopTimelinePlayback();
+        this.timelineDomainStart = null;
+        this.timelineDomainEnd = null;
         let variable = e;  
         let loadingJsonFile = this.commonService.session.style.widgets["node-timeline-variable"] == variable;
         if (this.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
@@ -2750,6 +2944,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (variable == "None") {
             $("#global-timeline-field").empty();
             this.commonService.session.style.widgets["timeline-date-field"] = 'None'  
+            this.timelineRangeStartInput = '';
+            this.timelineRangeEndInput = '';
+            this.timelinePlaybackPaused = false;
             $("#global-timeline-wrapper").fadeOut();
             // $('#pinbutton').prop("disabled", false);
             // if(!this.commonService.session.network.timelinePinned) {
@@ -2823,8 +3020,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (times.length < 2) {
             times = [new Date(2000, 1, 1), new Date()];
         }
-        const timeDomainStart = Math.min(...times);
-        const timeDomainEnd = Math.max(...times);
+        const timeDomainStart = new Date(Math.min(...times));
+        const timeDomainEnd = new Date(Math.max(...times));
+        this.timelineDomainStart = timeDomainStart;
+        this.timelineDomainEnd = timeDomainEnd;
 
         const days = moment(timeDomainEnd).diff(moment(timeDomainStart), 'days');
         const tickDateFormat = d => {
@@ -2839,17 +3038,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         const startDate = timeDomainStart;
         const endDate = timeDomainEnd;
-        const margin = {top:50, right:50, bottom:0, left:50},
-            width = ($('#visualwrapper').width() * 4 / 5) - margin.left - margin.right,
+        const margin = {top:50, right:0, bottom:0, left:0},
+            width = Math.max(0, (($('#visualwrapper').width() || 0) * 4 / 5) - margin.left - margin.right),
             height = 200 - margin.top - margin.bottom;
 
         var svgTimeline = d3.select("#global-timeline")
             .append("svg")
             .attr("width", width + margin.left + margin.right)
-            .attr("height", 120);  
+            .attr("height", 120)
+            .style("overflow", "visible");
 
             ////////// slider //////////
-        this.currentTimelineValue = 0;
+        this.currentTimelineStartValue = 0;
+        this.currentTimelineValue = width;
         this.currentTimelineTargetValue = width;
         this.commonService.session.state.timeStart = startDate;
 
@@ -2859,11 +3060,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.xAttribute = d3.scaleTime()
             .domain([startDate, endDate])
             .range([0, this.currentTimelineTargetValue])
-            .clamp(true)
-            .nice();
+            .clamp(true);
+        const estimateTimelineTickWidth = (date: Date) => Math.max(28, String(tickDateFormat(date)).length * 7);
+        const tickValues = [startDate, ...this.xAttribute.ticks(12), endDate]
+            .sort((a, b) => a.getTime() - b.getTime())
+            .filter((date, index, dates) => index === 0 || date.getTime() !== dates[index - 1].getTime())
+            .filter((date, index, dates) => {
+                const isEndpoint = date.getTime() === startDate.getTime() || date.getTime() === endDate.getTime();
+                if (isEndpoint) {
+                    return true;
+                }
+
+                const previousDate = dates[index - 1];
+                const nextDate = dates[index + 1];
+                const x = this.xAttribute(date);
+                const previousX = previousDate ? this.xAttribute(previousDate) : Number.NEGATIVE_INFINITY;
+                const nextX = nextDate ? this.xAttribute(nextDate) : Number.POSITIVE_INFINITY;
+                const minimumPreviousGap = (estimateTimelineTickWidth(date) + (previousDate ? estimateTimelineTickWidth(previousDate) : 0)) / 2 + 6;
+                const minimumNextGap = (estimateTimelineTickWidth(date) + (nextDate ? estimateTimelineTickWidth(nextDate) : 0)) / 2 + 6;
+                return x - previousX >= minimumPreviousGap && nextX - x >= minimumNextGap;
+            });
         const slider = svgTimeline.append("g")
             .attr("class", "slider")
-            .attr("transform", "translate(30," + height/2 + ")");
+            .attr("transform", "translate(0," + height/2 + ")");
 
         slider.append("line")
             .attr("class", "track")
@@ -2881,6 +3100,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .attr("stroke", "#ddd")  // Ensure this is a visible color
             .attr("stroke-width", "10px")  // Ensure this is a sufficient width
             //.each(function() { this.parentNode.appendChild(this.cloneNode(true)); })
+        this.rangeSelection = slider.append('line')
+            .attr("class", "timeline-selected-range")
+            .attr("x1", this.xAttribute.range()[0])
+            .attr("x2", this.xAttribute.range()[1]);
         slider.append('line')
             // Pre D3
             // .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
@@ -2892,19 +3115,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .call(d3.drag()
                 .on("start.interrupt", function() { slider.interrupt(); })
                 .on("start drag", function() {
-                    that.currentTimelineValue = (d3 as any).event.x;
-                    that.update(that.xAttribute.invert(that.currentTimelineValue));
-                    if (that.playBtnText == "Pause") {
-                        that.playBtnText = "Play";
-                    clearInterval(that.commonService.session.timeline);
-                    }
+                    const date = that.xAttribute.invert((d3 as any).event.x);
+                    that.setTimelineRange(that.commonService.session.state.timeStart, date, 'end');
                 })
             );
         slider.insert("g", ".track-overlay")
             .attr("class", "ticks")
             .attr("transform", "translate(0," + 18 + ")")
             .selectAll("text")
-            .data(this.xAttribute.ticks(12))
+            .data(tickValues)
             .enter()
             .append("text")
             .attr("x", this.xAttribute)
@@ -2913,27 +3132,83 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .text(function(d) { return tickDateFormat(d); });
 
 
+        this.rangeStartLabel = slider.append("text")
+            .attr("class", "timeline-range-label timeline-range-start-label")
+            .attr("text-anchor", "middle")
+            .attr("y", -36);
+
+        this.rangeEndLabel = slider.append("text")
+            .attr("class", "timeline-range-label timeline-range-end-label")
+            .attr("text-anchor", "middle")
+            .attr("y", -36);
+
         this.label = slider.append("text")  
             .attr("class", "label")
             .attr("text-anchor", "middle")
-            .text(this.handleDateFormat(startDate))
-            .attr("transform", "translate(25," + (-20) + ")")
+            .text(this.handleDateFormat(endDate))
+            .attr("y", -18);
 
-            this.handle = slider.insert("circle", ".track-overlay")
+        this.handle = slider.append("circle")
             .attr("class", "handle")
             .attr("r", 9);
 
+        this.rangeStartHandle = slider.append("circle")
+            .attr("class", "timeline-range-handle timeline-range-start-handle")
+            .attr("data-testid", "timeline-range-start-handle")
+            .attr("r", 8)
+            .call(d3.drag()
+                .on("start.interrupt", function() { slider.interrupt(); })
+                .on("start drag", function() {
+                    const date = that.xAttribute.invert((d3 as any).event.x);
+                    that.setTimelineRange(date, that.commonService.session.state.timeTarget, 'start');
+                })
+            );
+
+        this.rangeEndHandle = slider.append("circle")
+            .attr("class", "timeline-range-handle timeline-range-end-handle")
+            .attr("data-testid", "timeline-range-end-handle")
+            .attr("r", 8)
+            .call(d3.drag()
+                .on("start.interrupt", function() { slider.interrupt(); })
+                .on("start drag", function() {
+                    const date = that.xAttribute.invert((d3 as any).event.x);
+                    that.setTimelineRange(that.commonService.session.state.timeStart, date, 'end');
+                })
+            );
+
         this.commonService.session.style.widgets["timeline-date-field"] = field;
-        this.commonService.session.state.timeStart = startDate;
-        this.commonService.session.state.timeTarget = this.xAttribute.invert(this.currentTimelineTargetValue);
-        if (loadingJsonFile && moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
-            let t = moment(this.commonService.session.state.timeEnd).toDate();
-            this.currentTimelineTargetValue = this.xAttribute(t);
-            this.handle.attr("cx", this.xAttribute(t));
-            this.label
-            .attr("x", this.xAttribute(t))
-            .text(this.handleDateFormat(t));
+        let selectedStartDate = startDate;
+        let selectedEndDate = endDate;
+        let activeEndDate = endDate;
+
+        if (loadingJsonFile) {
+            selectedStartDate = this.clampTimelineDate(
+                this.parseTimelineDate(this.commonService.session.state.timeStart) ?? startDate
+            );
+            selectedEndDate = this.clampTimelineDate(
+                this.parseTimelineDate(this.commonService.session.state.timeTarget) ?? endDate
+            );
+
+            if (selectedStartDate.getTime() > selectedEndDate.getTime()) {
+                selectedStartDate = startDate;
+                selectedEndDate = endDate;
+            }
+
+            activeEndDate = this.clampTimelineDate(
+                this.parseTimelineDate(this.commonService.session.state.timeEnd) ?? selectedEndDate
+            );
+            activeEndDate = new Date(Math.min(
+                Math.max(activeEndDate.getTime(), selectedStartDate.getTime()),
+                selectedEndDate.getTime()
+            ));
         }
+
+        this.commonService.session.state.timeStart = selectedStartDate;
+        this.commonService.session.state.timeTarget = selectedEndDate;
+        this.commonService.session.state.timeEnd = activeEndDate;
+        this.syncTimelineRangeInputs(selectedStartDate, selectedEndDate);
+        this.syncTimelineRangeGraphics();
+        this.update(activeEndDate);
         $("#global-timeline-wrapper").fadeIn();
        
     }
@@ -2941,10 +3216,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public playTimeline() : void {
 
             if (this.playBtnText == "Pause") {
-                this.playBtnText = "Play";
-                clearInterval(this.commonService.session.timeline);
+                this.stopTimelinePlayback(true);
             } else {
+                if (!this.xAttribute) {
+                    return;
+                }
+
+                const startDate = this.getSelectedTimelineStart();
+                const endDate = this.getSelectedTimelineEnd();
+                const activeDate = this.timelinePlaybackPaused ? this.getActiveTimelineEnd() : startDate;
+                const playbackStartDate = activeDate.getTime() >= endDate.getTime() ? startDate : activeDate;
+                this.timelinePlaybackPaused = false;
+                this.currentTimelineStartValue = this.xAttribute(playbackStartDate);
+                this.currentTimelineTargetValue = this.xAttribute(endDate);
+                this.currentTimelineValue = this.currentTimelineStartValue;
+                this.update(playbackStartDate);
+
+                if (this.currentTimelineStartValue >= this.currentTimelineTargetValue) {
+                    this.stopTimelinePlayback();
+                    return;
+                }
+
                 this.playBtnText = "Pause";
+                d3.select("#timeline-play-button").text("Pause");
                 this.commonService.session.timeline = setInterval(this.step, this.timelineSpeed, this);
             }
 
@@ -2963,26 +3257,58 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // Timeline-aware views update from node-visibility; other views should
         // not treat playback ticks as generic network updates.
-        this.handle.attr("cx", this.xAttribute(h));
-        this.label
-        .attr("x", this.xAttribute(h))
-        .text(this.handleDateFormat(h));
-        this.commonService.session.state.timeEnd = h;
-        this.commonService.setNodeVisibility(false);
-        this.commonService.setLinkVisibility(false);
-        this.commonService.updateStatistics();
+        if (!this.xAttribute) {
+            return;
+        }
+
+        const selectedStart = this.getSelectedTimelineStart();
+        const selectedEnd = this.getSelectedTimelineEnd();
+        const parsedDate = this.parseTimelineDate(h) ?? selectedEnd;
+        const nextDate = new Date(Math.min(
+            Math.max(this.clampTimelineDate(parsedDate).getTime(), selectedStart.getTime()),
+            selectedEnd.getTime()
+        ));
+        const nextX = this.xAttribute(nextDate);
+
+        this.currentTimelineValue = nextX;
+        this.commonService.session.state.timeStart = selectedStart;
+        this.commonService.session.state.timeTarget = selectedEnd;
+        this.commonService.session.state.timeEnd = nextDate;
+        this.syncTimelineRangeInputs(selectedStart, selectedEnd);
+        this.syncTimelineRangeGraphics();
+
+        if (this.handle) {
+            this.handle.attr("cx", nextX);
+        }
+
+        if (this.label) {
+            this.label
+                .attr("x", nextX)
+                .text(this.handleDateFormat(nextDate));
+        }
+
+        this.applyTimelineVisibility();
   }
 
     step(that : any) { 
-        that.update(that.xAttribute.invert(that.currentTimelineValue));
-        if (that.currentTimelineValue > that.currentTimelineTargetValue) { 
-            that.currentTimelineValue = 0;
-        clearInterval(that.commonService.session.timeline);
-        that.playBtnText = "Play";
-        return;
-        }
-        that.currentTimelineValue = that.currentTimelineValue + (that.currentTimelineTargetValue/151);
+        const startValue = Number(that.currentTimelineStartValue ?? 0);
+        const targetValue = Number(that.currentTimelineTargetValue ?? 0);
+        const currentValue = Number(that.currentTimelineValue ?? startValue);
 
+        if (targetValue <= startValue || currentValue >= targetValue) {
+            that.update(that.xAttribute.invert(targetValue));
+            that.stopTimelinePlayback();
+            return;
+        }
+
+        const stepSize = Math.max((targetValue - startValue) / 151, 1);
+        const nextValue = Math.min(currentValue + stepSize, targetValue);
+        that.currentTimelineValue = nextValue;
+        that.update(that.xAttribute.invert(nextValue));
+
+        if (nextValue >= targetValue) {
+            that.stopTimelinePlayback();
+        }
     }
 
     showNodeColorTable() {

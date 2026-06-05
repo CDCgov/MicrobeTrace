@@ -52,6 +52,7 @@ type OracleState = {
   nearestNeighborEnabled: boolean;
   epsilonExponent: number;
   timelineField: string | null;
+  timelineStart: number | null;
   timelineEnd: number | null;
 };
 
@@ -410,6 +411,7 @@ function computeEarliestDateForField(graph: MutableGraph, field: string): number
 function resolveNodeTimelineState(
   node: MutableNode,
   timelineField: string | null,
+  timelineStart: number | null,
   timelineEnd: number | null,
   earliestDateForField: number | null,
 ): OracleNodeDebugState {
@@ -428,18 +430,23 @@ function resolveNodeTimelineState(
 
   const rawValue = node.data[timelineField];
   const rawTimelineValue = stringifyTimelineValue(rawValue);
-  const shouldBackfillMissingDate = earliestDateForField !== null && isMissingDateLikeValue(rawValue);
+  const shouldBackfillMissingDate =
+    timelineStart === null &&
+    earliestDateForField !== null &&
+    isMissingDateLikeValue(rawValue);
   const effectiveTimestamp = shouldBackfillMissingDate
     ? earliestDateForField
     : parseMomentTimestamp(rawValue);
   const effectiveTimelineValue = shouldBackfillMissingDate
     ? new Date(earliestDateForField).toString()
     : rawTimelineValue;
-  const visibleBecauseRawValueIsNull = !shouldBackfillMissingDate && rawValue == null;
+  const visibleBecauseDateDoesNotFilter = !shouldBackfillMissingDate && effectiveTimestamp === null;
   const visible =
     timelineEnd === null ||
-    effectiveTimestamp !== null && timelineEnd >= effectiveTimestamp ||
-    visibleBecauseRawValueIsNull;
+    (effectiveTimestamp !== null &&
+      (timelineStart === null || timelineStart <= effectiveTimestamp) &&
+      timelineEnd >= effectiveTimestamp) ||
+    visibleBecauseDateDoesNotFilter;
   const hiddenByTimeline = !visible;
 
   return {
@@ -731,6 +738,7 @@ function snapshotState(state: OracleState, snapshotId: string): OracleSnapshot {
       const debugState = resolveNodeTimelineState(
         node,
         state.timelineField,
+        state.timelineStart,
         state.timelineEnd,
         earliestDateForField,
       );
@@ -824,6 +832,7 @@ function snapshotState(state: OracleState, snapshotId: string): OracleSnapshot {
     nearestNeighborEnabled: state.nearestNeighborEnabled,
     epsilonExponent: state.epsilonExponent,
     timelineField: state.timelineField,
+    timelineStart: state.timelineStart === null ? null : new Date(state.timelineStart).toISOString(),
     timelineEnd: state.timelineEnd === null ? null : new Date(state.timelineEnd).toISOString(),
     visibleLinkIds,
     visibleNodeIds,
@@ -859,6 +868,7 @@ function applyStep(state: OracleState, step: OracleStep): void {
     case 'set-timeline-field':
       state.timelineField = step.field === 'None' ? null : step.field;
       if (step.field === 'None') {
+        state.timelineStart = null;
         state.timelineEnd = null;
       }
       return;
@@ -869,6 +879,18 @@ function applyStep(state: OracleState, step: OracleStep): void {
         throw new Error(`Oracle timeline checkpoint "${step.date}" is not a valid date.`);
       }
       state.timelineEnd = timestamp;
+      return;
+    }
+
+    case 'set-timeline-range': {
+      const startTimestamp = parseMomentTimestamp(step.start);
+      const endTimestamp = parseMomentTimestamp(step.end);
+      if (startTimestamp === null || endTimestamp === null) {
+        throw new Error(`Oracle timeline range "${step.start}" - "${step.end}" contains an invalid date.`);
+      }
+
+      state.timelineStart = Math.min(startTimestamp, endTimestamp);
+      state.timelineEnd = Math.max(startTimestamp, endTimestamp);
       return;
     }
 
@@ -888,6 +910,7 @@ export async function computeFilteringOracle(manifest: OracleManifest): Promise<
     nearestNeighborEnabled: false,
     epsilonExponent: DEFAULT_EPSILON_EXPONENT,
     timelineField: null,
+    timelineStart: null,
     timelineEnd: null,
   };
 

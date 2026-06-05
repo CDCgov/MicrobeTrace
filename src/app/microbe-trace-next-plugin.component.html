@@ -98,7 +98,7 @@
       <p-dialog class="table-z-index" id="global-settings-link-color-table"
         position="right"
         [(visible)]="GlobalSettingsLinkColorDialogSettings.isVisible"
-        [style]="{'z-index': '1'}"
+        [style]="{'z-index': '1200'}"
         (onShow)="showLinkColorTable()"
         (onHide)="hideLinkColorTable()"
         >
@@ -127,9 +127,10 @@
       </p-dialog>
 
 
-      <p-dialog id="global-settings-node-color-table"
+      <p-dialog class="table-z-index" id="global-settings-node-color-table"
         position="left"
         [(visible)]="GlobalSettingsNodeColorDialogSettings.isVisible"
+        [style]="{'z-index': '1200'}"
         (onShow)="showNodeColorTable()"
         (onHide)="hideNodeColorTable()"
         >
@@ -157,10 +158,10 @@
         </div>
       </p-dialog>
 
-      <p-dialog id="global-settings-node-shape-table"
+      <p-dialog class="table-z-index" id="global-settings-node-shape-table"
         position="left"
         [(visible)]="GlobalSettingsNodeShapeDialogSettings.isVisible"
-        [style]="{width: '50vw', maxWidth: '500px'}"
+        [style]="{width: '50vw', maxWidth: '500px', 'z-index': '1200'}"
         (onShow)="showNodeShapeTable()"
         (onHide)="hideNodeShapeTable()"
         >
@@ -632,6 +633,24 @@
                     <div class="col-6"><label for="node-timeline-variable">Timeline By</label></div>
                     <div class="col-6">
                       <p-select id="node-timeline-variable" class="width-percent-100" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedTimelineVariable" (onChange)="onTimelineChanged($event.value)"></p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Start date for the temporary timeline range filter.">
+                    <div class="col-6"><label for="timeline-range-start">Range Start</label></div>
+                    <div class="col-6">
+                      <input type="date" id="timeline-range-start" data-testid="timeline-range-start" class="form-control form-control-sm" [ngModel]="timelineRangeStartInput" (ngModelChange)="onTimelineRangeStartInputChanged($event)" [disabled]="SelectedTimelineVariable === 'None'">
+                    </div>
+                  </div>
+                  <div class="form-group row" title="End date for the temporary timeline range filter.">
+                    <div class="col-6"><label for="timeline-range-end">Range End</label></div>
+                    <div class="col-6">
+                      <input type="date" id="timeline-range-end" data-testid="timeline-range-end" class="form-control form-control-sm" [ngModel]="timelineRangeEndInput" (ngModelChange)="onTimelineRangeEndInputChanged($event)" [disabled]="SelectedTimelineVariable === 'None'">
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Reset the timeline range to all dates in the selected timeline field.">
+                    <div class="col-6"></div>
+                    <div class="col-6">
+                      <button type="button" id="timeline-range-reset" data-testid="timeline-range-reset" class="btn btn-light btn-sm width-percent-100" (click)="resetTimelineRange()" [disabled]="SelectedTimelineVariable === 'None'">Reset Range</button>
                     </div>
                   </div>
                   <div class="form-group row " title="How much time between ticks of the timeline (ms)?">
