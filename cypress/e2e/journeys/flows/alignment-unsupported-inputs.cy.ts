@@ -39,7 +39,7 @@ function launchProfileToTwoDWithoutFileSettingsDialog(profile: DatasetProfile): 
 function assertUnsupportedAlignmentState(): void {
   cy.get('.msa-viewer-container', { timeout: 30000 }).should('be.visible');
   cy.get('#msa-viewer', { timeout: 30000 }).should('be.visible');
-  cy.get('body').should('not.contain.text', 'Unexpected application error');
+  cy.get('.runtime-error-banner').should('not.exist');
   cy.get('#alignment-empty-state')
     .should('be.visible')
     .and('contain.text', 'No sequence-bearing nodes are available for Alignment View');

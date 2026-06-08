@@ -18,6 +18,6 @@ installWindowRuntimeHardening({
 
 platformBrowserDynamic().bootstrapModule(AppModule, { applicationProviders: [provideZoneChangeDetection()], })
   .catch(err => {
-    reportRuntimeError({ source: 'bootstrap' });
+    reportRuntimeError({ source: 'bootstrap', error: err });
     console.error(`[RuntimeError] ${describeError(err)}`);
   });

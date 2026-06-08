@@ -23,6 +23,8 @@ import type {
   PatristicWorkerResponse,
   PatristicEdgeBatchResponse,
   PatristicEdgeTimings,
+  PatristicNearestNeighborBatchResponse,
+  PatristicNearestNeighborTimings,
 } from './patristic-engine.types';
 
 // ─── Worker state (persists across messages) ─────────────────────────────────
@@ -447,6 +449,196 @@ function generateThresholdedEdges(
   flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true, timings);
 }
 
+function buildPatristicMst(tree: FlatTree, lca: LcaIndex, jobId: number): { parent: Int32Array; edgeWeight: Float64Array } {
+  const n = tree.leafCount;
+  const parent = new Int32Array(n).fill(-1);
+  const edgeWeight = new Float64Array(n);
+  const key = new Float64Array(n);
+  const inMst = new Uint8Array(n);
+
+  key.fill(Number.POSITIVE_INFINITY);
+  edgeWeight.fill(0);
+  key[0] = 0;
+
+  for (let count = 0; count < n; count++) {
+    if (count % 100 === 0 && cancelledJobs.has(jobId)) {
+      cancelledJobs.delete(jobId);
+      break;
+    }
+
+    let minValue = Number.POSITIVE_INFINITY;
+    let minIndex = -1;
+    for (let i = 0; i < n; i++) {
+      if (!inMst[i] && key[i] < minValue) {
+        minValue = key[i];
+        minIndex = i;
+      }
+    }
+
+    if (minIndex < 0) break;
+
+    inMst[minIndex] = 1;
+
+    for (let target = 0; target < n; target++) {
+      if (inMst[target] || target === minIndex) continue;
+
+      const dist = patristicDistance(minIndex, target, tree, lca);
+      if (dist >= 0 && dist < key[target]) {
+        parent[target] = minIndex;
+        key[target] = dist;
+        edgeWeight[target] = dist;
+      }
+    }
+  }
+
+  return { parent, edgeWeight };
+}
+
+function buildMstAdjacency(parent: Int32Array, edgeWeight: Float64Array): Array<Array<[number, number]>> {
+  const adjacency: Array<Array<[number, number]>> = Array.from({ length: parent.length }, () => []);
+
+  for (let i = 1; i < parent.length; i++) {
+    const p = parent[i];
+    if (p < 0) continue;
+
+    const weight = edgeWeight[i];
+    adjacency[i].push([p, weight]);
+    adjacency[p].push([i, weight]);
+  }
+
+  return adjacency;
+}
+
+/**
+ * Generate the same MST-plus-epsilon nearest-neighbor edge set used by the
+ * legacy matrix worker, but compute distances directly from the Newick tree.
+ */
+function generateNearestNeighborEdges(
+  tree: FlatTree,
+  lca: LcaIndex,
+  epsilon: number,
+  jobId: number,
+  batchSize: number = 10000
+): void {
+  const n = tree.leafCount;
+  const totalPairs = (n * (n - 1)) / 2;
+  const mstStart = performance.now();
+  const { parent, edgeWeight } = buildPatristicMst(tree, lca, jobId);
+  const mstMs = performance.now() - mstStart;
+  const adjacency = buildMstAdjacency(parent, edgeWeight);
+  const pairStart = performance.now();
+  const epsilonMultiplier = 1 + Math.max(0, epsilon);
+  const seenEdges = new Set<string>();
+  const longestEdgeToRoot = new Float64Array(n);
+  const visited = new Uint8Array(n);
+  const queue = new Int32Array(n);
+
+  let batchSources = new Uint32Array(batchSize);
+  let batchTargets = new Uint32Array(batchSize);
+  let batchDistances = new Float32Array(batchSize);
+  let batchPos = 0;
+  let totalEmitted = 0;
+  let pairsProcessed = 0;
+  let lastProgressPercent = -1;
+
+  const emitEdge = (a: number, b: number, distance: number): void => {
+    if (a === b || a < 0 || b < 0) return;
+
+    const source = Math.max(a, b);
+    const target = Math.min(a, b);
+    const key = `${source}-${target}`;
+    if (seenEdges.has(key)) return;
+
+    seenEdges.add(key);
+    batchSources[batchPos] = source;
+    batchTargets[batchPos] = target;
+    batchDistances[batchPos] = distance;
+    batchPos++;
+    totalEmitted++;
+
+    if (batchPos >= batchSize) {
+      flushNearestNeighborBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, false);
+      batchSources = new Uint32Array(batchSize);
+      batchTargets = new Uint32Array(batchSize);
+      batchDistances = new Float32Array(batchSize);
+      batchPos = 0;
+    }
+  };
+
+  for (let leafIndex = 1; leafIndex < n; leafIndex++) {
+    const parentIndex = parent[leafIndex];
+    if (parentIndex >= 0) {
+      emitEdge(leafIndex, parentIndex, edgeWeight[leafIndex]);
+    }
+  }
+
+  for (let root = 0; root < n; root++) {
+    if (cancelledJobs.has(jobId)) {
+      cancelledJobs.delete(jobId);
+      return;
+    }
+
+    visited.fill(0);
+    longestEdgeToRoot.fill(0);
+    let queueStart = 0;
+    let queueEnd = 0;
+    queue[queueEnd++] = root;
+    visited[root] = 1;
+
+    while (queueStart < queueEnd) {
+      const node = queue[queueStart++];
+      for (const [neighbor, weight] of adjacency[node]) {
+        if (visited[neighbor]) continue;
+
+        visited[neighbor] = 1;
+        longestEdgeToRoot[neighbor] = Math.max(longestEdgeToRoot[node], weight);
+        queue[queueEnd++] = neighbor;
+      }
+    }
+
+    for (let target = 0; target < root; target++) {
+      pairsProcessed++;
+
+      const percent = Math.floor((pairsProcessed / totalPairs) * 100);
+      if (percent > lastProgressPercent && percent % 5 === 0) {
+        lastProgressPercent = percent;
+        respond({
+          type: 'PROGRESS',
+          jobId,
+          phase: 'pairs',
+          percent,
+        });
+      }
+
+      const longestPathEdge = longestEdgeToRoot[target];
+      if (longestPathEdge <= 0) continue;
+
+      const dist = patristicDistance(root, target, tree, lca);
+      if (dist > 0 && dist <= longestPathEdge * epsilonMultiplier) {
+        emitEdge(root, target, dist);
+      }
+    }
+  }
+
+  const timings: PatristicNearestNeighborTimings = {
+    epsilon,
+    mstMs,
+    pairScanMs: performance.now() - pairStart,
+    emittedEdgeCount: totalEmitted,
+    totalPairs,
+  };
+  flushNearestNeighborBatch(
+    jobId,
+    batchSources,
+    batchTargets,
+    batchDistances,
+    batchPos,
+    totalEmitted,
+    true,
+    timings
+  );
+}
+
 /**
  * Generate ALL edges (no threshold) for full matrix export.
  * Streams row by row for memory efficiency.
@@ -523,6 +715,36 @@ function flushBatch(
   }
 
   // Transfer the typed array buffers (zero-copy)
+  postMessage(response, [s.buffer, t.buffer, d.buffer] as any);
+}
+
+function flushNearestNeighborBatch(
+  jobId: number,
+  sources: Uint32Array,
+  targets: Uint32Array,
+  distances: Float32Array,
+  count: number,
+  totalEmitted: number,
+  done: boolean,
+  timings?: PatristicNearestNeighborTimings
+): void {
+  const s = count < sources.length ? sources.slice(0, count) : sources;
+  const t = count < targets.length ? targets.slice(0, count) : targets;
+  const d = count < distances.length ? distances.slice(0, count) : distances;
+
+  const response: PatristicNearestNeighborBatchResponse = {
+    type: 'NN_EDGE_BATCH',
+    jobId,
+    sources: s,
+    targets: t,
+    distances: d,
+    totalEmitted,
+    done,
+  };
+  if (timings) {
+    response.timings = timings;
+  }
+
   postMessage(response, [s.buffer, t.buffer, d.buffer] as any);
 }
 
@@ -618,6 +840,30 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           jobId,
           batchSize ?? 10000,
           maxEdges ?? Infinity
+        );
+        break;
+      }
+
+      case 'BUILD_NEAREST_NEIGHBOR_EDGES': {
+        const { jobId, epsilon, batchSize } = data;
+
+        if (!currentTree || !currentLca) {
+          respond({ type: 'ERROR', jobId, message: 'No tree initialized. Call INIT_TREE first.' });
+          return;
+        }
+
+        if (typeof epsilon !== 'number' || !Number.isFinite(epsilon) || epsilon < 0) {
+          respond({ type: 'ERROR', jobId, message: `Invalid nearest-neighbor epsilon: ${epsilon}` });
+          return;
+        }
+
+        respond({ type: 'PROGRESS', jobId, phase: 'pairs', percent: 0 });
+        generateNearestNeighborEdges(
+          currentTree,
+          currentLca,
+          epsilon,
+          jobId,
+          batchSize ?? 10000
         );
         break;
       }

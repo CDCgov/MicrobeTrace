@@ -4,6 +4,8 @@ import { getProfile } from '../datasets/profile';
 import {
   getCustomNodeShapeData,
   getMapNodeShapeDataUri,
+  isCustomNodeShape,
+  resolveNodeShapeKey,
 } from '../../../../src/app/contactTraceCommonServices/node-shapes';
 import {
   assertAfterLaunchCounts,
@@ -25,6 +27,15 @@ type WinWithMap = Window & {
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
 
 const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
+
+const getExpectedMapNodeStrokeWidth = (shapeKey: string, selected: boolean = false): number => {
+  const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+
+  if (normalizedShapeKey === 'lettuce') return selected ? 10 : 3;
+  if (['ship', 'tick', 'swab'].includes(normalizedShapeKey)) return selected ? 15 : 5;
+  if (isCustomNodeShape(normalizedShapeKey)) return selected ? 20 : 10;
+  return selected ? 36 : 16;
+};
 
 const selectPrimeOption = (selector: string, label: string): void => {
   cy.get(selector).click({ force: true });
@@ -171,7 +182,7 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
     openGlobalStylingTab();
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'None');
-    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'origin');
 
     selectPrimeOption('#node-color-variable', 'Profession');
     selectPrimeOption('#link-tooltip-variable', 'Contact type');
@@ -288,8 +299,18 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
       const personNodes = getRenderedMapNodeLayersByValue(typedWindow, 'Node type', 'Person');
       const placeNodes = getRenderedMapNodeLayersByValue(typedWindow, 'Node type', 'Place');
       const nodeColor = String(typedWindow.commonService.session.style.widgets['node-color'] || '');
-      const expectedPersonIcon = getMapNodeShapeDataUri(personShapeKey, nodeColor, '#000000', 16);
-      const expectedPlaceIcon = getMapNodeShapeDataUri(placeShapeKey, nodeColor, '#000000', 16);
+      const expectedPersonIcon = getMapNodeShapeDataUri(
+        personShapeKey,
+        nodeColor,
+        '#000000',
+        getExpectedMapNodeStrokeWidth(personShapeKey),
+      );
+      const expectedPlaceIcon = getMapNodeShapeDataUri(
+        placeShapeKey,
+        nodeColor,
+        '#000000',
+        getExpectedMapNodeStrokeWidth(placeShapeKey),
+      );
 
       expect(personNodes.length, 'person nodes on map').to.be.greaterThan(0);
       expect(placeNodes.length, 'place nodes on map').to.be.greaterThan(0);
