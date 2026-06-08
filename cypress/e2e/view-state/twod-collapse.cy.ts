@@ -222,7 +222,7 @@ describe('2D Network - Collapse Related Nodes', () => {
 
       expect(commonService.session.style.widgets['network-node-collapse-enabled']).to.equal(true);
       expect(commonService.session.style.widgets['network-node-collapse-threshold']).to.equal(threshold);
-      expect(twoD.SelectedNodeCollapseMetricLabel).to.equal('TN93');
+      expect(twoD.SelectedNodeCollapseMetricLabel).to.equal('TN93 (%)');
 
       cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', String(displayedThreshold));
     });
@@ -382,6 +382,7 @@ describe('2D Network - Collapse Related Nodes', () => {
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer').find('label[for="network-node-collapse-threshold-input"]').should('have.text', 'TN93 (%)');
     cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', '0');
     cy.get('@dialogContainer').find(selectors.collapseThreshold).should('have.attr', 'step', '0.1');
     cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');
@@ -400,6 +401,7 @@ describe('2D Network - Collapse Related Nodes', () => {
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer').find('label[for="network-node-collapse-threshold-input"]').should('have.text', 'TN93');
     cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', '0');
     cy.get('@dialogContainer').find(selectors.collapseThreshold).should('have.attr', 'step', '0.001');
     cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');
@@ -422,6 +424,7 @@ describe('2D Network - Collapse Related Nodes', () => {
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer').find('label[for="network-node-collapse-threshold-input"]').should('have.text', 'SNPs');
     cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('have.value', '0');
     cy.get('@dialogContainer').find(selectors.collapseThreshold).should('have.attr', 'step', '1');
     cy.get('@dialogContainer').find('#network-node-collapse-threshold-readout').should('not.exist');

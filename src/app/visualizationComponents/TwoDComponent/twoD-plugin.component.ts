@@ -626,11 +626,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getNodeCollapseMetricLabel(metric: string): string {
-        if (String(metric || '').toLowerCase() === 'distance') {
-            return this.commonService.titleize(this.widgets?.['default-distance-metric'] || 'distance');
+        const normalizedMetric = String(metric || 'distance').toLowerCase();
+        const effectiveMetric = normalizedMetric === 'distance'
+            ? String(this.widgets?.['default-distance-metric'] || 'distance').toLowerCase()
+            : normalizedMetric;
+
+        if (
+            effectiveMetric === 'tn93'
+            && String(this.widgets?.['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage'
+        ) {
+            return 'TN93 (%)';
         }
 
-        return this.commonService.titleize(metric);
+        return this.commonService.titleize(effectiveMetric);
     }
 
     private getNodeCollapseRawStep(metric: string): number {
