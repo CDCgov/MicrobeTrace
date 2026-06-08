@@ -30,35 +30,104 @@ function distanceLinksForMetric(win: any, metric: string): any[] {
       const value = metricValue(link, metric);
       const source = linkEndpointId(link.source);
       const target = linkEndpointId(link.target);
-      return Boolean(source && target && source !== target && link.hasDistance === true && value !== null);
+      const distanceOrigins = win.commonService.getLinkDistanceOrigins?.(link) || [];
+      const origins = Array.isArray(link.origin) ? link.origin : [];
+      const hasDistanceOrigin = distanceOrigins.length > 0
+        || origins.some((origin: any) => String(origin || '').toLowerCase().includes('distance'));
+
+      return Boolean(source && target && source !== target && link.hasDistance === true && value !== null && hasDistanceOrigin);
     })
     .sort((a: any, b: any) => Number(a[metric]) - Number(b[metric]));
+}
+
+function internalDistanceSummaryForMembers(
+  win: any,
+  memberIds: string[],
+  metric: string,
+): { mean: number | null; pairCount: number } {
+  const members = new Set(memberIds.map((id) => String(id)));
+  const pairValues = new Map<string, number[]>();
+
+  distanceLinksForMetric(win, metric).forEach((link: any) => {
+    const source = linkEndpointId(link.source);
+    const target = linkEndpointId(link.target);
+
+    if (source === target || !members.has(source) || !members.has(target)) {
+      return;
+    }
+
+    const value = metricValue(link, metric);
+    if (value === null) {
+      return;
+    }
+
+    const pairKey = JSON.stringify(source < target ? [source, target] : [target, source]);
+    const values = pairValues.get(pairKey) || [];
+    values.push(value);
+    pairValues.set(pairKey, values);
+  });
+
+  const pairMeans = Array.from(pairValues.values())
+    .map((values) => values.reduce((sum, value) => sum + value, 0) / values.length);
+
+  if (pairMeans.length === 0) {
+    return { mean: null, pairCount: 0 };
+  }
+
+  return {
+    mean: pairMeans.reduce((sum, value) => sum + value, 0) / pairMeans.length,
+    pairCount: pairMeans.length,
+  };
 }
 
 function configureDeterministicCollapsePie(win: any): number {
   const commonService = win.commonService;
   const twoD = commonService.visuals.twoD;
   const widgets = commonService.session.style.widgets;
-  const metric = 'distance';
-  const distanceLinks = distanceLinksForMetric(win, metric);
+  const threshold = 0.001;
+  const aboveThresholdDistance = 0.2;
+  const [firstNode, secondNode, thirdNode] = (commonService.session.data.nodes || [])
+    .filter((node: any) => String(node._id ?? node.id ?? '').length > 0);
 
-  expect(distanceLinks.length, 'sample dataset distance links').to.be.greaterThan(0);
+  expect(firstNode, 'first collapse fixture node').to.exist;
+  expect(secondNode, 'second collapse fixture node').to.exist;
+  expect(thirdNode, 'third collapse fixture node').to.exist;
 
-  const seedLink = distanceLinks[0];
-  const threshold = metricValue(seedLink, metric);
-  expect(threshold, 'collapse threshold').to.be.a('number');
+  const firstId = String(firstNode._id ?? firstNode.id);
+  const secondId = String(secondNode._id ?? secondNode.id);
+  const thirdId = String(thirdNode._id ?? thirdNode.id);
+  const targetIds = new Set([firstId, secondId, thirdId]);
+  const syntheticLinks = [
+    { id: 'cypress-collapse-distance-ab', source: firstId, target: secondId, distance: threshold },
+    { id: 'cypress-collapse-distance-bc', source: secondId, target: thirdId, distance: threshold },
+    { id: 'cypress-collapse-distance-ac', source: firstId, target: thirdId, distance: aboveThresholdDistance },
+  ];
 
-  const firstId = linkEndpointId(seedLink.source);
-  const secondId = linkEndpointId(seedLink.target);
-  const targetIds = new Set([firstId, secondId]);
+  commonService.session.data.links = (commonService.session.data.links || [])
+    .filter((link: any) => !String(link.id || '').startsWith('cypress-collapse-distance-'));
+  syntheticLinks.forEach((link, index) => {
+    commonService.session.data.links.push({
+      index: commonService.session.data.links.length + index,
+      ...link,
+      visible: true,
+      origin: ['Cypress Collapse Mean Distance', 'Genetic Distance'],
+      hasDistance: true,
+      distanceOrigin: 'Genetic Distance',
+      directed: false,
+    });
+  });
 
   commonService.session.data.nodes.forEach((node: any) => {
     const id = String(node._id ?? node.id ?? '');
-    node[collapseGroupField] = targetIds.has(id) ? `Pair ${id === firstId ? 'A' : 'B'}` : 'Outside Pair';
+    node[collapseGroupField] = targetIds.has(id)
+      ? `Pair ${id === firstId ? 'A' : id === secondId ? 'B' : 'C'}`
+      : 'Outside Pair';
   });
   commonService.session.data.nodeFilteredValues.forEach((node: any) => {
     const id = String(node._id ?? node.id ?? '');
-    node[collapseGroupField] = targetIds.has(id) ? `Pair ${id === firstId ? 'A' : 'B'}` : 'Outside Pair';
+    node[collapseGroupField] = targetIds.has(id)
+      ? `Pair ${id === firstId ? 'A' : id === secondId ? 'B' : 'C'}`
+      : 'Outside Pair';
   });
 
   if (!commonService.session.data.nodeFields.includes(collapseGroupField)) {
@@ -69,7 +138,7 @@ function configureDeterministicCollapsePie(win: any): number {
   commonService.createNodeColorMap();
   twoD.updateNodeColors();
 
-  return threshold as number;
+  return threshold;
 }
 
 function getCollapseRenderSummary(win: any) {
@@ -81,15 +150,21 @@ function getCollapseRenderSummary(win: any) {
       const counts = node.data('counts') || [];
       const pieBackgroundImage = String(node.data('pieBackgroundImage') || '');
       const collapsedMemberIds = node.data('collapsedMemberIds') || [];
+      const meanInternalDistance = node.data('meanInternalDistance');
 
       return {
         id: node.id(),
         totalCount: Number(node.data('totalCount') || 0),
         collapsedMemberCount: collapsedMemberIds.length,
+        collapsedMemberIds: collapsedMemberIds.map((id: any) => String(id)),
         counts: counts.map((count: any) => ({
           label: String(count.label),
           count: Number(count.count || 0),
         })),
+        meanInternalDistance: meanInternalDistance === undefined || meanInternalDistance === null
+          ? null
+          : Number(meanInternalDistance),
+        internalDistancePairCount: Number(node.data('internalDistancePairCount') || 0),
         labels: counts.map((count: any) => String(count.label)),
         pieBackgroundImage,
         renderedBackgroundImage: String(node.style('background-image') || ''),
@@ -164,7 +239,7 @@ describe('2D Network - Collapse Related Nodes', () => {
         expect(pieNode.collapsedMemberCount, 'collapsed member ids').to.be.greaterThan(1);
         expect(pieNode.totalCount, 'total count').to.equal(pieNode.collapsedMemberCount);
         expect(pieNode.labels, 'pie labels')
-          .to.include.members(['Pair A', 'Pair B']);
+          .to.include.members(['Pair A', 'Pair B', 'Pair C']);
         expect(pieNode.renderedBackgroundImage, 'rendered pie background').to.include('data:image');
         expect(summary.selfEdgeIds, 'self edges').to.deep.equal([]);
       });
@@ -204,6 +279,9 @@ describe('2D Network - Collapse Related Nodes', () => {
       const commonService = win.commonService;
       const summary = getCollapseRenderSummary(win);
       const pieNode = summary.pieNodes[0];
+      const metric = 'distance';
+      const collapseThreshold = Number(commonService.session.style.widgets['network-node-collapse-threshold']);
+      const expectedInternalDistance = internalDistanceSummaryForMembers(win, pieNode.collapsedMemberIds, metric);
       const expectedHeaders = [
         commonService.capitalize(commonService.session.style.widgets['node-color-variable']),
         'Count',
@@ -215,6 +293,23 @@ describe('2D Network - Collapse Related Nodes', () => {
         `${(count.count / pieNode.totalCount * 100).toFixed(1)}%`,
       ]);
       expectedRows.push(['Total', String(pieNode.totalCount), '']);
+      expectedRows.push([
+        `Mean Distance (${win.commonService.visuals.twoD.SelectedNodeCollapseMetricLabel})`,
+        commonService.formatDisplayedDistanceValue(expectedInternalDistance.mean, metric),
+        '',
+      ]);
+
+      expect(pieNode.internalDistancePairCount, 'internal distance pair count')
+        .to.equal(expectedInternalDistance.pairCount);
+      expect(expectedInternalDistance.pairCount, 'all pairwise member distances').to.be.at.least(3);
+      if (expectedInternalDistance.mean === null) {
+        expect(pieNode.meanInternalDistance, 'mean internal distance').to.equal(null);
+      } else {
+        expect(expectedInternalDistance.mean, 'mean includes above-threshold internal pair')
+          .to.be.greaterThan(collapseThreshold);
+        expect(pieNode.meanInternalDistance, 'mean internal distance')
+          .to.be.closeTo(expectedInternalDistance.mean, 1e-12);
+      }
 
       win.Cypress.test.tooltip('show', pieNode.id);
 

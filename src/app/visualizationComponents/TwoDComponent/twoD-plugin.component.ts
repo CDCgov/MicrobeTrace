@@ -211,6 +211,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             collapsedMemberIds: node.collapsedMemberIds,
             totalCount: node.totalCount,
             counts: node.counts,
+            meanInternalDistance: node.meanInternalDistance,
+            internalDistancePairCount: node.internalDistancePairCount,
             nodeSize: node.nodeSize,
             aggregateRenderedSize: node.aggregateRenderedSize,
             nodeColor: node.nodeColor,
@@ -854,9 +856,58 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         ];
     }
 
+    private getCollapsedNodeDistanceSummary(
+        memberNodes: any[],
+        metric: string
+    ): { meanInternalDistance: number | null; internalDistancePairCount: number } {
+        const memberIds = new Set(memberNodes.map(node => this.getNodeId(node)));
+        // Collapse membership is threshold-driven; this summary uses every available member-pair distance.
+        const distanceLinks = this.getNodeCollapseDistanceLinks(memberIds, metric);
+        const pairValues = new Map<string, number[]>();
+
+        distanceLinks.forEach(link => {
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+
+            if (
+                source === target ||
+                !memberIds.has(source) ||
+                !memberIds.has(target)
+            ) {
+                return;
+            }
+
+            const value = this.getNumericNodeCollapseDistanceValue(link, metric);
+            if (value === null) {
+                return;
+            }
+
+            const pairKey = JSON.stringify(source < target ? [source, target] : [target, source]);
+            const values = pairValues.get(pairKey) || [];
+            values.push(value);
+            pairValues.set(pairKey, values);
+        });
+
+        const pairMeans = Array.from(pairValues.values())
+            .map(values => values.reduce((sum, value) => sum + value, 0) / values.length);
+
+        if (pairMeans.length === 0) {
+            return {
+                meanInternalDistance: null,
+                internalDistancePairCount: 0
+            };
+        }
+
+        return {
+            meanInternalDistance: pairMeans.reduce((sum, value) => sum + value, 0) / pairMeans.length,
+            internalDistancePairCount: pairMeans.length
+        };
+    }
+
     private createCollapsedAggregateNode(
         memberNodes: any[],
-        componentIndex: number
+        componentIndex: number,
+        metric: string
     ): any {
         const aggregateId = `${this.collapsedNodeIdPrefix}${componentIndex}`;
         const firstMember = memberNodes[0] || {};
@@ -882,6 +933,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const slices = this.getCollapsedPieSlices(counts);
         const hasPie = this.widgets['node-color-variable'] !== 'None' && slices.length > 1;
         const [solidColor, solidOpacity] = this.getCollapsedSolidNodeColor(counts);
+        const distanceSummary = this.getCollapsedNodeDistanceSummary(memberNodes, metric);
 
         return {
             ...firstMember,
@@ -900,6 +952,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             collapsedMemberIds: memberNodes.map(node => this.getNodeId(node)),
             totalCount,
             counts,
+            meanInternalDistance: distanceSummary.meanInternalDistance,
+            internalDistancePairCount: distanceSummary.internalDistancePairCount,
             label: `${totalCount} nodes`,
             nodeSize,
             aggregateRenderedSize,
@@ -968,7 +1022,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const memberNodes = component.nodeIds
                 .map(nodeId => nodeById.get(nodeId))
                 .filter(Boolean);
-            const aggregateNode = this.createCollapsedAggregateNode(memberNodes, componentIndex);
+            const aggregateNode = this.createCollapsedAggregateNode(memberNodes, componentIndex, metric);
             renderedNodes.push(aggregateNode);
             renderedNodeIds.add(aggregateNode.id);
             component.nodeIds.forEach(nodeId => renderedNodeIdByOriginalId.set(nodeId, aggregateNode.id));
@@ -3349,6 +3403,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (d.isCollapsedAggregate) {
           const totalCount = Number(d.totalCount || 0);
           const colorVariable = this.commonService.capitalize(this.widgets['node-color-variable']);
+          const collapseMetric = this.getNodeCollapseMetric();
+          const meanDistanceLabel = `Mean Distance (${this.getNodeCollapseMetricLabel(collapseMetric)})`;
+          const meanDistanceValue = this.formatNodeCollapseDistanceForDisplay(d.meanInternalDistance, collapseMetric);
           const countRows = (d.counts || []).map(count => {
             const countValue = Number(count.count || 0);
             const percent = totalCount > 0 ? (countValue / totalCount * 100).toFixed(1) + '%' : '0.0%';
@@ -3357,7 +3414,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
           tooltipHtml = this.tabulate([
             ...countRows,
-            ['Total', totalCount, '']
+            ['Total', totalCount, ''],
+            [meanDistanceLabel, meanDistanceValue, '']
           ], [colorVariable, 'Count', '%']);
         } else {
           let tt_var_len = this.widgets['node-tooltip-variable'].length
@@ -4115,6 +4173,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const formattedValue = displayedValue.toFixed(decimals);
 
         return usePercentageDisplay ? `${formattedValue}%` : formattedValue;
+    }
+
+    private formatNodeCollapseDistanceForDisplay(value: any, metric: string): string {
+        if (String(metric || '').toLowerCase() === 'snps') {
+            return this.commonService.formatDisplayedDistanceValue(value, 'distance', { decimals: 0 });
+        }
+
+        return this.commonService.formatDisplayedDistanceValue(value, metric);
     }
 
     /**
