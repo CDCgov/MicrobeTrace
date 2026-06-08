@@ -3273,9 +3273,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Generate a tabular HTML string from the data array
      * @param data [ [Col1, ...], ...] - An Array of arrays where arrays within outer array represent different rows and
      *  values within inner array represent the cells within that row
+     * @param headers Optional table header cells
      * @returns an HTML string with a table representation of the data
      */
-    tabulate(data: any[]) {
+    tabulate(data: any[], headers: any[] = []) {
 
         let tableHtml = `
             <style>
@@ -3304,7 +3305,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 background-color: #fff;
             }
             </style>
-            <table id="tooltip-table"><tbody>`;
+            <table id="tooltip-table">`;
+
+        if (headers.length > 0) {
+            tableHtml += '<thead><tr>';
+            for (let header of headers) {
+                tableHtml += '<th>' + header + '</th>';
+            }
+            tableHtml += '</tr></thead>';
+        }
+
+        tableHtml += '<tbody>';
 
         for (let row of data) {
             tableHtml += '<tr>';
@@ -3336,11 +3347,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let tooltipHtml: string;
 
         if (d.isCollapsedAggregate) {
-          const countRows = (d.counts || []).map(count => [count.label || 'Unspecified', count.count]);
+          const totalCount = Number(d.totalCount || 0);
+          const colorVariable = this.commonService.capitalize(this.widgets['node-color-variable']);
+          const countRows = (d.counts || []).map(count => {
+            const countValue = Number(count.count || 0);
+            const percent = totalCount > 0 ? (countValue / totalCount * 100).toFixed(1) + '%' : '0.0%';
+            return [count.label, countValue, percent];
+          });
+
           tooltipHtml = this.tabulate([
-            ['Collapsed Nodes', d.totalCount || 0],
-            ...countRows
-          ]);
+            ...countRows,
+            ['Total', totalCount, '']
+          ], [colorVariable, 'Count', '%']);
         } else {
           let tt_var_len = this.widgets['node-tooltip-variable'].length
 

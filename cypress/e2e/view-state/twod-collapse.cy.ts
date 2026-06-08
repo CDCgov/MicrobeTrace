@@ -86,6 +86,10 @@ function getCollapseRenderSummary(win: any) {
         id: node.id(),
         totalCount: Number(node.data('totalCount') || 0),
         collapsedMemberCount: collapsedMemberIds.length,
+        counts: counts.map((count: any) => ({
+          label: String(count.label),
+          count: Number(count.count || 0),
+        })),
         labels: counts.map((count: any) => String(count.label)),
         pieBackgroundImage,
         renderedBackgroundImage: String(node.style('background-image') || ''),
@@ -175,6 +179,56 @@ describe('2D Network - Collapse Related Nodes', () => {
       cy.wrap(null, { timeout: 20000 }).should(() => {
         expect(getCollapseRenderSummary(win).aggregateCount, 'visible aggregate nodes after disable').to.equal(0);
       });
+    });
+  });
+
+  it('shows Bubble-style table content for collapsed aggregate node tooltips', () => {
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const twoD = commonService.visuals.twoD;
+      const threshold = configureDeterministicCollapsePie(win);
+      const displayedThreshold = commonService.toDisplayedDistanceValue(threshold, 'distance');
+
+      twoD.SelectedNodeCollapseThresholdDisplayedVariable = displayedThreshold;
+      twoD.onNodeCollapseThresholdDisplayedChange(displayedThreshold);
+      twoD.onNodeCollapseEnabledChange(true);
+    });
+
+    cy.window().then((win: any) => {
+      cy.wrap(null, { timeout: 20000 }).should(() => {
+        expect(getCollapseRenderSummary(win).pieNodes.length, 'aggregate nodes with pie backgrounds').to.be.greaterThan(0);
+      });
+    });
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const summary = getCollapseRenderSummary(win);
+      const pieNode = summary.pieNodes[0];
+      const expectedHeaders = [
+        commonService.capitalize(commonService.session.style.widgets['node-color-variable']),
+        'Count',
+        '%',
+      ];
+      const expectedRows = pieNode.counts.map((count: any) => [
+        count.label,
+        String(count.count),
+        `${(count.count / pieNode.totalCount * 100).toFixed(1)}%`,
+      ]);
+      expectedRows.push(['Total', String(pieNode.totalCount), '']);
+
+      win.Cypress.test.tooltip('show', pieNode.id);
+
+      cy.get('#tooltip #tooltip-table', { timeout: 1000 }).should('be.visible').within(() => {
+        cy.get('thead th').then(($headers) => {
+          expect($headers.toArray().map((header) => header.textContent?.trim() || '')).to.deep.equal(expectedHeaders);
+        });
+        cy.get('tbody tr').should('have.length', expectedRows.length).each(($row, index) => {
+          const cells = $row.find('td').toArray().map((cell) => cell.textContent?.trim() || '');
+          expect(cells).to.deep.equal(expectedRows[index]);
+        });
+      });
+
+      win.Cypress.test.tooltip('hide', pieNode.id);
     });
   });
 
