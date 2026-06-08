@@ -77,6 +77,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     };
     selectedNodeId = undefined;
     private readonly collapsedNodeIdPrefix = 'twod-collapse-';
+    private nodeCollapseShapeWarningConfirmed = false;
+    private nodeCollapseShapeWarningPending = false;
 
     private getPerformanceNow(): number {
         return typeof performance !== 'undefined' && performance.now
@@ -769,12 +771,92 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
     }
 
-    public onNodeCollapseEnabledChange(enabled: boolean): void {
+    private isNonCircleNodeShape(shapeKey: any): boolean {
+        const rawShape = String(shapeKey ?? '').trim();
+        if (!rawShape) {
+            return false;
+        }
+
+        return resolveNodeShapeKey(rawShape, rawShape) !== 'ellipse';
+    }
+
+    private hasActiveNonCircleNodeShapes(): boolean {
+        if (this.cy) {
+            const renderedNodes = this.cy.nodes(':visible')
+                .filter((node: any) => !this.isGroupNode(node) && !node.data('isCollapsedAggregate'));
+
+            if (renderedNodes.toArray().some((node: any) => (
+                this.isNonCircleNodeShape(node.data('shapeKey') || node.data('shape') || node.style('shape'))
+            ))) {
+                return true;
+            }
+        }
+
+        const visibleNodes = this.getVisibleNetworkDataForRender().nodes || [];
+        return visibleNodes.some((node: any) => (
+            !node?.isCollapsedAggregate && this.isNonCircleNodeShape(this.getNodeShape(node))
+        ));
+    }
+
+    private setNodeCollapseEnabled(enabled: boolean, refreshRender = true): void {
         this.ensureNodeCollapseWidgetDefaults();
         this.widgets['network-node-collapse-enabled'] = enabled === true;
         this.SelectedNodeCollapseTypeVariable = this.widgets['network-node-collapse-enabled'];
         this.updateNodeCollapseThresholdDisplayBounds();
-        this.refreshNodeCollapseRender();
+        this.cdref.markForCheck();
+        this.cdref.detectChanges();
+
+        if (refreshRender) {
+            this.refreshNodeCollapseRender();
+        }
+    }
+
+    private syncNodeCollapseDisabledControlState(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.widgets['network-node-collapse-enabled'] = false;
+        this.SelectedNodeCollapseTypeVariable = null as any;
+        this.updateNodeCollapseThresholdDisplayBounds();
+        this.cdref.markForCheck();
+        this.cdref.detectChanges();
+
+        setTimeout(() => {
+            if (!this.isDestroyed && this.widgets['network-node-collapse-enabled'] !== true) {
+                this.setNodeCollapseEnabled(false, false);
+            }
+        }, 0);
+    }
+
+    public onNodeCollapseEnabledChange(enabled: boolean, warnOnNonCircleShapes = false): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        const shouldCheckShapeWarning = enabled === true
+            && warnOnNonCircleShapes
+            && !this.nodeCollapseShapeWarningConfirmed;
+        const shouldWarnForNonCircleShapes = shouldCheckShapeWarning
+            && (this.nodeCollapseShapeWarningPending || this.hasActiveNonCircleNodeShapes());
+
+        if (shouldWarnForNonCircleShapes) {
+            this.nodeCollapseShapeWarningPending = true;
+            this.syncNodeCollapseDisabledControlState();
+
+            const confirmationHost = this.commonService.visuals.microbeTrace;
+            if (confirmationHost?.openNodeCollapseShapeConfirmation) {
+                confirmationHost.openNodeCollapseShapeConfirmation(
+                    () => {
+                        this.nodeCollapseShapeWarningConfirmed = true;
+                        this.nodeCollapseShapeWarningPending = false;
+                        this.setNodeCollapseEnabled(true);
+                    },
+                    () => this.syncNodeCollapseDisabledControlState()
+                );
+                return;
+            }
+        }
+
+        if (shouldCheckShapeWarning && !shouldWarnForNonCircleShapes) {
+            this.nodeCollapseShapeWarningPending = false;
+        }
+
+        this.setNodeCollapseEnabled(enabled);
     }
 
     public onNodeCollapseThresholdDisplayedChange(value: any): void {

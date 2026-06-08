@@ -12,6 +12,7 @@ const selectors = {
 };
 
 const collapseGroupField = '__twodCollapseGroup';
+const collapseShapeWarningText = 'All collapsed nodes will be displayed as circles';
 
 function linkEndpointId(endpoint: any): string {
   if (endpoint === undefined || endpoint === null) return '';
@@ -192,6 +193,15 @@ describe('2D Network - Collapse Related Nodes', () => {
     setGlobalDistanceMetric('tn93');
     setTN93DistanceDisplayFormat('percentage');
     cy.closeGlobalSettings();
+
+    cy.window().then((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      const selectedShape = app.getNodeShapeTreeSelection('ellipse');
+
+      expect(selectedShape, 'circle node shape selection').to.exist;
+      app.onNodeShapeByChanged(true, false, 'None');
+      app.onNodeShapeTreeChange(selectedShape);
+    });
   });
 
   it('collapses threshold-connected nodes into aggregate pie nodes and restores individual nodes', () => {
@@ -253,6 +263,64 @@ describe('2D Network - Collapse Related Nodes', () => {
     cy.window().then((win: any) => {
       cy.wrap(null, { timeout: 20000 }).should(() => {
         expect(getCollapseRenderSummary(win).aggregateCount, 'visible aggregate nodes after disable').to.equal(0);
+      });
+    });
+  });
+
+  it('warns that collapsed nodes render as circles when non-circle node shapes are active', () => {
+    cy.get(selectors.settingsBtn).click();
+
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
+
+    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const app = commonService.visuals.microbeTrace;
+      const twoD = commonService.visuals.twoD;
+      const selectedShape = app.getNodeShapeTreeSelection('triangle');
+      const threshold = configureDeterministicCollapsePie(win);
+      const displayedThreshold = commonService.toDisplayedDistanceValue(threshold, 'distance');
+
+      expect(selectedShape, 'triangle node shape selection').to.exist;
+      app.onNodeShapeByChanged(true, false, 'None');
+      app.onNodeShapeTreeChange(selectedShape);
+      twoD.SelectedNodeCollapseThresholdDisplayedVariable = displayedThreshold;
+      twoD.onNodeCollapseThresholdDisplayedChange(displayedThreshold);
+
+      expect(commonService.session.style.widgets['node-symbol']).to.equal('triangle');
+      expect(commonService.session.style.widgets['network-node-collapse-enabled']).to.equal(false);
+    });
+
+    cy.get('@dialogContainer').find(selectors.collapseToggle).contains('span', 'Show').click({ force: true });
+    cy.contains('.p-dialog:visible', collapseShapeWarningText, { timeout: 15000 }).as('collapseShapeConfirmDialog');
+    cy.get('@collapseShapeConfirmDialog').contains('button', 'Cancel').click({ force: true });
+    cy.contains('.p-dialog:visible', collapseShapeWarningText).should('not.exist');
+    cy.window().its('commonService.session.style.widgets.network-node-collapse-enabled').should('equal', false);
+    cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('be.disabled');
+    cy.wait(250);
+
+    cy.get('@dialogContainer').find(selectors.collapseToggle).contains('span', 'Show').click({ force: true });
+    cy.contains('.p-dialog:visible', collapseShapeWarningText, { timeout: 15000 }).as('collapseShapeConfirmDialog');
+    cy.get('@collapseShapeConfirmDialog').contains('button', 'Confirm').click({ force: true });
+    cy.contains('.p-dialog:visible', collapseShapeWarningText).should('not.exist');
+    cy.window().its('commonService.session.style.widgets.network-node-collapse-enabled').should('equal', true);
+    cy.closeSettingsPane('2D Network Settings');
+
+    cy.window().then((win: any) => {
+      cy.wrap(null, { timeout: 20000 }).should(() => {
+        const aggregateNodes = win.commonService.visuals.twoD.cy.nodes(':visible')
+          .filter((node: any) => node.data('isCollapsedAggregate') === true);
+
+        expect(aggregateNodes.length, 'visible aggregate nodes').to.be.greaterThan(0);
+        aggregateNodes.forEach((node: any) => {
+          expect(String(node.data('shapeKey') || '').trim(), 'aggregate node shape key').to.equal('ellipse');
+          expect(String(node.style('shape') || '').trim(), 'aggregate rendered shape').to.equal('ellipse');
+        });
       });
     });
   });

@@ -173,7 +173,7 @@
                   <div class="form-group row" title="Collapse visible nodes connected by distance links at or below the selected distance.">
                     <div class="col-4"><label for="network-node-collapse-enabled">Collapse</label></div>
                     <div class="col-8">
-                      <p-selectButton id="network-node-collapse-enabled" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeCollapseTypeVariable" (ngModelChange)="onNodeCollapseEnabledChange($event)"></p-selectButton>
+                      <p-selectButton id="network-node-collapse-enabled" [options]="hideShowOptions" [allowEmpty]="false" fluid [ngModel]="SelectedNodeCollapseTypeVariable" (ngModelChange)="onNodeCollapseEnabledChange($event, true)"></p-selectButton>
                     </div>
                   </div>
                   <div class="form-group row" title="Maximum genetic distance for nodes to collapse into aggregate pie nodes.">
