@@ -316,6 +316,36 @@ function buildSequenceFixtures() {
     sampleMutationSpread: 3,
     expectedVisibleLinks: 2850,
   });
+
+  buildSequenceFixture({
+    clusterCount: 25,
+    samplesPerCluster: 40,
+    sequenceLength: 1800,
+    fileName: 'expanded-large-sequences-1000.fasta',
+    idPrefix: 'ELSEQ',
+    idPad: 4,
+    seed: 0x45534c31,
+    threshold: 16,
+    clusterSignatureSnps: 12,
+    sampleMutationBase: 4,
+    sampleMutationSpread: 3,
+    expectedVisibleLinks: 19500,
+  });
+
+  buildSequenceFixture({
+    clusterCount: 40,
+    samplesPerCluster: 50,
+    sequenceLength: 1800,
+    fileName: 'stress-sequences-2000.fasta',
+    idPrefix: 'SSEQ',
+    idPad: 4,
+    seed: 0x53535132,
+    threshold: 16,
+    clusterSignatureSnps: 12,
+    sampleMutationBase: 4,
+    sampleMutationSpread: 3,
+    expectedVisibleLinks: 49000,
+  });
 }
 
 function buildNewickFixture({

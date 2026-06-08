@@ -105,7 +105,9 @@ const assertRestoredFilesTabPopulated = () => {
     .should('have.length', restoredFileNames.length);
 
   restoredFileNames.forEach((fileName) => {
-    cy.contains('#file-table .file-name', fileName).should('be.visible');
+    cy.contains('#file-table .file-name', fileName)
+      .scrollIntoView()
+      .should('be.visible');
   });
 
   restoredFileMappings.forEach((fileMapping) => {

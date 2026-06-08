@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "id": "hiv-like-dunes-500",
+  "generatedAt": "2026-05-27T14:44:10.056Z",
+  "generator": "scripts/generate-dunes-performance-fixtures.js",
+  "preset": {
+    "version": 1,
+    "id": "hiv-like-dunes-500",
+    "seed": 68417,
+    "output": {
+      "directory": "cypress/fixtures/performance/dunes",
+      "basename": "hiv-like-dunes-500"
+    },
+    "reference": {
+      "sequenceCount": 10,
+      "sequenceLength": 9750,
+      "idPrefix": "HIVD",
+      "idPad": 2,
+      "lineageSignatureSnps": 64
+    },
+    "dunes": {
+      "mutationRate": 0.0041,
+      "years": 0.25,
+      "mutantsPerSequence": 50
+    },
+    "microbetrace": {
+      "thresholds": {
+        "snp": [
+          16,
+          8,
+          32
+        ]
+      }
+    },
+    "metadata": {
+      "sampleDateStart": "2024-01-01",
+      "locations": [
+        "Atlanta",
+        "Baltimore",
+        "Chicago",
+        "Denver",
+        "Miami"
+      ]
+    },
+    "cypress": {
+      "timeoutMs": 300000
+    }
+  },
+  "reproducibility": {
+    "referenceSeed": 68417,
+    "dunesSeed": null,
+    "note": "DUNES does not expose a seed option; regenerate outputs and summary together."
+  },
+  "tools": {
+    "node": "v24.11.1",
+    "java": {
+      "path": "/usr/bin/java",
+      "version": "openjdk version \"24.0.1\" 2025-04-15\nOpenJDK Runtime Environment Temurin-24.0.1+9 (build 24.0.1+9)\nOpenJDK 64-Bit Server VM Temurin-24.0.1+9 (build 24.0.1+9, mixed mode, sharing)"
+    },
+    "dunes": {
+      "jar": "/private/tmp/dunes.jar",
+      "version": "0.0"
+    }
+  },
+  "commands": {
+    "dunes": "/usr/bin/java -jar /private/tmp/dunes.jar -i /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/dunes/hiv-like-dunes-500-source.fasta -m 0.0041 -y 0.25 -n 50 -o /Users/evanmoscoso/Desktop/EvanGit/MicrobeTrace/cypress/fixtures/performance/dunes/hiv-like-dunes-500.fasta"
+  },
+  "outputs": {
+    "fasta": "performance/dunes/hiv-like-dunes-500.fasta",
+    "nodeMetadata": "performance/dunes/hiv-like-dunes-500-nodes.csv",
+    "referenceFasta": "performance/dunes/hiv-like-dunes-500-source.fasta",
+    "referenceInput": null,
+    "summary": "performance/dunes/hiv-like-dunes-500-summary.json"
+  },
+  "counts": {
+    "nodes": 473,
+    "sequences": 473,
+    "requestedSequences": 500,
+    "sourceSequences": 10,
+    "totalPairs": 111628,
+    "sequenceLength": {
+      "min": 9750,
+      "max": 9750
+    },
+    "sourceDistribution": {
+      "HIVD01": 46,
+      "HIVD02": 46,
+      "HIVD03": 47,
+      "HIVD04": 46,
+      "HIVD05": 50,
+      "HIVD06": 46,
+      "HIVD07": 49,
+      "HIVD08": 50,
+      "HIVD09": 45,
+      "HIVD10": 48
+    },
+    "snp": {
+      "thresholds": [
+        16,
+        8,
+        32
+      ],
+      "visibleLinksByThreshold": {
+        "8": 10202,
+        "16": 10965,
+        "32": 10965
+      }
+    }
+  },
+  "cypress": {
+    "snpThreshold": 16,
+    "timeoutMs": 300000
+  }
+}
