@@ -82,7 +82,7 @@ describe('File Handling and Processing', () => {
     cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
     cy.contains('#file-table .file-table-row', nodeFile, { timeout: 20000 }).should('be.visible');
     cy.contains('#file-table .file-table-row', linkFile, { timeout: 20000 }).should('be.visible');
-    cy.get('body').should('not.contain.text', 'Unexpected application error');
+    cy.get('.runtime-error-banner').should('not.exist');
     cy.get('#launch').should('not.be.disabled').click({ force: true });
     cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
   });

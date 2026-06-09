@@ -556,24 +556,55 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     // console.log('session: ', this.commonService?.session?.files, this.commonService.session.files.length);
   }
 
-  private applyPatristicDistanceDefaults(maxDistance: number): number {
-    if (maxDistance > 1) {
-      this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-      this.SelectedDefaultDistanceMetricVariable = 'snps';
-      this.store.updatecurrentThresholdStepSize('snps');
-      this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
-      $('#default-distance-metric').val('snps');
-      $('#default-distance-threshold').attr('step', 1).val(16);
-      this.commonService.session.style.widgets['link-threshold'] = 16;
-      this.SelectedDefaultDistanceThresholdVariable = '16';
-      this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
-      return 16;
-    }
+  private setDefaultDistanceControls(metric: 'snps' | 'tn93', threshold: number, step: number): void {
+    this.commonService.session.style.widgets['default-distance-metric'] = metric;
+    this.commonService.session.style.widgets['link-threshold'] = threshold;
+    this.SelectedDefaultDistanceMetricVariable = metric;
+    this.SelectedDefaultDistanceThresholdVariable = String(threshold);
+    this.store.updatecurrentThresholdStepSize(metric);
+    this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = metric;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = threshold;
+    $('#default-distance-metric').val(metric);
+    $('#default-distance-threshold').attr('step', step).val(threshold);
 
+    const microbeTrace = this.commonService.visuals?.microbeTrace;
+    if (microbeTrace) {
+      microbeTrace.SelectedDistanceMetricVariable = metric;
+      microbeTrace.metric = metric;
+      microbeTrace.SelectedLinkThresholdVariable = threshold;
+      microbeTrace.threshold = String(threshold);
+      microbeTrace.syncThresholdDisplayFromStoredValue?.();
+    }
+  }
+
+  private applyPatristicDistanceDefaults(maxDistance: number): number {
     const configuredThreshold = parseFloat(
       `${this.commonService.session.style.widgets['link-threshold'] ?? this.SelectedDefaultDistanceThresholdVariable}`
     );
-    return Number.isFinite(configuredThreshold) ? configuredThreshold : 0.015;
+    const configuredMetric = String(
+      this.commonService.session.style.widgets['default-distance-metric'] ?? this.SelectedDefaultDistanceMetricVariable
+    ).toLowerCase();
+    const finiteConfiguredThreshold = Number.isFinite(configuredThreshold) ? configuredThreshold : undefined;
+
+    if (Number.isFinite(maxDistance) && maxDistance > 0 && maxDistance <= 1) {
+      const threshold = finiteConfiguredThreshold !== undefined && finiteConfiguredThreshold < 1
+        ? finiteConfiguredThreshold
+        : 0.015;
+      this.setDefaultDistanceControls('tn93', threshold, 0.001);
+      return threshold;
+    }
+
+    if (maxDistance > 1 || configuredMetric === 'snps') {
+      const threshold = finiteConfiguredThreshold !== undefined && finiteConfiguredThreshold >= 1
+        ? finiteConfiguredThreshold
+        : 16;
+      this.setDefaultDistanceControls('snps', threshold, 1);
+      return threshold;
+    }
+
+    const threshold = finiteConfiguredThreshold !== undefined ? finiteConfiguredThreshold : 0.015;
+    this.setDefaultDistanceControls('tn93', threshold, 0.001);
+    return threshold;
   }
 
   private async loadPendingEmbedHandoff() {
@@ -810,14 +841,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('launch click not launched ', wasAlreadyLaunched);
     }
 
-    this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
     this.commonService.session.style.widgets["default-view"] = viewOnLaunch;
-    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = thresholdOnLaunch;
     this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = metricOnLaunch;
-    this.store.setLinkThreshold(thresholdOnLaunch);
     this.store.setMetricChanged(metricOnLaunch);
+
+    this.SelectedDefaultDistanceThresholdVariable = thresholdOnLaunch;
+    this.commonService.session.style.widgets["link-threshold"] = thresholdOnLaunch;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = thresholdOnLaunch;
+    this.store.setLinkThreshold(thresholdOnLaunch);
 
     this.commonService.session.messages = [];
     this.messages = [];
@@ -1508,34 +1541,48 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       } else { // if(file.format === 'newick'){
 
         this.commonService.session.data.newickString = file.contents;
-        const initialThreshold = parseFloat(`${this.commonService.session.style.widgets['link-threshold']}`);
-        const computedInitialThreshold = Number.isFinite(initialThreshold) ? initialThreshold : 0.015;
         const patristicStart = Date.now();
-        this.workerComputeService.computePatristicEdges(
-          file.contents,
-          computedInitialThreshold,
-          this.commonService.addLink.bind(this.commonService),
-          this.commonService.filterXSS,
-          this.commonService.session,
-          {
-            origin,
-            distanceOrigin: file.name,
-            check,
-          }
-        ).then(async patristicResult => {
+        this.workerComputeService.initPatristicTree(file.contents).then(async treeReady => {
           if (!isCurrentLoad()) return;
 
-          this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', patristicStart, {
+          this.commonService.recordPerformanceTiming('ingestion', 'preprocessNewickPatristicTree', patristicStart, {
             file: file.name,
-            leaves: patristicResult.leafNames.length,
-            threshold: computedInitialThreshold,
-            totalLinks: patristicResult.totalLinks,
-            newLinks: patristicResult.newLinks
+            leaves: treeReady.leafCount,
+            maxDistance: treeReady.maxDistance,
+            timings: treeReady.timings
           });
-          const activeThreshold = this.applyPatristicDistanceDefaults(patristicResult.treeReady.maxDistance);
+
+          const activeThreshold = this.applyPatristicDistanceDefaults(treeReady.maxDistance);
+          const requeryStart = Date.now();
+          const patristicResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
+            activeThreshold,
+            this.commonService.addLink.bind(this.commonService),
+            this.commonService.filterXSS,
+            this.commonService.session,
+            {
+              origin,
+              distanceOrigin: file.name,
+              check,
+              newickString: file.contents,
+            }
+          );
+
+          if (!isCurrentLoad()) return;
+
+          const leafNames = patristicResult?.leafNames?.length
+            ? patristicResult.leafNames
+            : this.workerComputeService.getPatristicLeafNames().map(this.commonService.filterXSS);
+
+          this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', requeryStart, {
+            file: file.name,
+            leaves: leafNames.length,
+            threshold: activeThreshold,
+            totalLinks: patristicResult?.totalLinks ?? 0,
+            newLinks: patristicResult?.newLinks ?? 0
+          });
           let newNodes = 0;
           const mergeStart = Date.now();
-          for (const source of patristicResult.leafNames) {
+          for (const source of leafNames) {
             newNodes += this.commonService.addNode({
               _id: source,
               origin: origin
@@ -1544,30 +1591,29 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.commonService.recordPerformanceTiming('ingestion', 'mergeNewickNodes', mergeStart, {
             file: file.name,
             newNodes,
-            totalLeaves: patristicResult.leafNames.length
+            totalLeaves: leafNames.length
           });
 
-          let newLinks = patristicResult.newLinks;
-          let links = patristicResult.totalLinks;
-          let guardrail = patristicResult.guardrail;
+          const analysisStart = Date.now();
+          const analysisResult = await this.workerComputeService.collectPatristicDistanceAnalysisEdges(
+            this.commonService.session
+          );
+          if (!isCurrentLoad()) return;
 
-          if (activeThreshold > computedInitialThreshold) {
-            const requeryResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
-              activeThreshold,
-              this.commonService.addLink.bind(this.commonService),
-              this.commonService.filterXSS,
-              this.commonService.session,
-              {
-                origin,
-                distanceOrigin: file.name,
-                check: true,
-                newickString: file.contents,
-              }
-            );
-            newLinks += requeryResult?.newLinks ?? 0;
-            links = Math.max(links, requeryResult?.totalLinks ?? 0);
-            guardrail = requeryResult?.guardrail ?? guardrail;
+          if (!analysisResult.skipped && analysisResult.edges.length > 0) {
+            this.commonService.setPatristicThresholdAnalysisEdges('distance', leafNames, analysisResult.edges);
           }
+          this.commonService.recordPerformanceTiming('ingestion', 'buildNewickThresholdAnalysis', analysisStart, {
+            file: file.name,
+            totalPairs: analysisResult.totalPairs,
+            sampledPairs: analysisResult.edges.length,
+            skipped: analysisResult.skipped,
+            skipReason: analysisResult.skipReason
+          });
+
+          let newLinks = patristicResult?.newLinks ?? 0;
+          let links = patristicResult?.totalLinks ?? 0;
+          let guardrail = patristicResult?.guardrail;
 
           if (!isCurrentLoad()) return;
 
@@ -1575,13 +1621,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeNewick', start, {
             file: file.name,
             newNodes,
-            totalLeaves: patristicResult.leafNames.length,
+            totalLeaves: leafNames.length,
             newLinks,
             totalLinks: links,
-            initialThreshold: computedInitialThreshold,
             activeThreshold
           });
-          this.showMessage(` - Parsed ${newNodes} New, ${patristicResult.leafNames.length} Total Nodes from Newick Tree.`);
+          this.showMessage(` - Parsed ${newNodes} New, ${leafNames.length} Total Nodes from Newick Tree.`);
           if (guardrail?.message) {
             this.showMessage(` - ${guardrail.message}`);
           }
@@ -1633,12 +1678,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * If sequences are present, processes them by aligning if needed, computing consensus, consensus distances, ambiguity counts, and then links
    */
   async processSequence(loadGeneration: number = this.commonService.getDataLoadGeneration()) {
+    const processSequenceStart = Date.now();
     const isCurrentLoad = () => this.commonService.isCurrentDataLoad(loadGeneration);
     if (!isCurrentLoad()) {
       return;
     }
 
-    if (!this.commonService.session.meta.anySequences) return this.commonService.runHamsters();
+    if (!this.commonService.session.meta.anySequences) {
+      this.commonService.recordPerformanceTiming('sequence', 'processSequenceTotal', processSequenceStart, {
+        skipped: true,
+        reason: 'no-sequences'
+      });
+      return this.commonService.runHamsters();
+    }
     this.commonService.session.data.nodeFields.push('seq');
     let subset = [];
     if (this.commonService.debugMode) {
@@ -1659,6 +1711,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (this.commonService.debugMode) {
       console.log('link same nodes33: ', subset);
     }
+    const sequenceLength = subset[0]?.seq?.length ?? 0;
 
     if (this.commonService.session.style.widgets['align-sw']) {
       this.showMessage('Aligning Sequences...');
@@ -1686,6 +1739,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       node['_seqInt'] = tn93.toInts(node['seq']);
     }
     console.log("Integer Sequence Translation time: ", (Date.now() - start).toLocaleString(), "ms");
+    this.commonService.recordPerformanceTiming('sequence', 'translateToInts', start, {
+      nodes: n,
+      sequences: subset.length,
+      sequenceLength
+    });
 
     const consensus = await this.commonService.computeConsensus();
     if (!isCurrentLoad()) {
@@ -1709,6 +1767,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       return;
     }
 
+    this.commonService.recordPerformanceTiming('sequence', 'processSequenceTotal', processSequenceStart, {
+      nodes: n,
+      sequences: subset.length,
+      sequenceLength,
+      generatedLinks: k
+    });
     this.showMessage(` - Found ${k} New Links from Genomic Proximity`);
     this.commonService.runHamsters();
 

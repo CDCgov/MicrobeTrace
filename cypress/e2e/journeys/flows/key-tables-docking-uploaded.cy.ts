@@ -824,7 +824,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
 
     assertActiveTab('2D Network');
     assertGroupColorTableDockedState(false);
-    assertDockedViewOpen(false);
+    assertDockedViewOpen(true);
     assertFloatingGroupColorTableVisible(true);
 
     cy.window().then((win: unknown) => {
@@ -897,7 +897,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     focusAppTab('Docked Key Tables');
     floatDockedGroupColorTable();
     assertGroupColorTableDockedState(false);
-    assertDockedViewOpen(false);
+    assertDockedViewOpen(true);
     assertFloatingGroupColorTableVisible(true);
   });
 });

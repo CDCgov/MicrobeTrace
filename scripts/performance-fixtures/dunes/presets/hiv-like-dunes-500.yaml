@@ -1,0 +1,49 @@
+# Preset schema version for the MicrobeTrace DUNES fixture generator.
+version: 1
+
+# Human-readable fixture id. Also used by the Cypress performance spec.
+id: hiv-like-dunes-500
+
+# Seed for the generated source FASTA. DUNES itself does not expose a seed option.
+seed: 68417
+
+output:
+  directory: cypress/fixtures/performance/dunes
+  basename: hiv-like-dunes-500
+
+reference:
+  # Leave reference.fasta unset to generate deterministic source strains.
+  # To use a reviewed source FASTA instead, set:
+  # fasta: path/to/source.fasta
+  sequenceCount: 10
+  sequenceLength: 9750
+  idPrefix: HIVD
+  idPad: 2
+  lineageSignatureSnps: 64
+
+dunes:
+  # DUNES option -m, substitutions per nucleotide per year.
+  mutationRate: 0.0041
+  # DUNES option -y. Kept below 1 so routine SNP threshold 16 stays useful.
+  years: 0.25
+  # DUNES option -n, mutants generated per source sequence.
+  mutantsPerSequence: 50
+
+microbetrace:
+  thresholds:
+    snp:
+      - 16
+      - 8
+      - 32
+
+metadata:
+  sampleDateStart: '2024-01-01'
+  locations:
+    - Atlanta
+    - Baltimore
+    - Chicago
+    - Denver
+    - Miami
+
+cypress:
+  timeoutMs: 300000

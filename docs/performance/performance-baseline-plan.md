@@ -352,7 +352,17 @@ When `perfRealSamples=1` is set, Cypress validates the manifest and referenced f
 
 ## Bio-Realistic Simulated Scenarios
 
-Bio-realistic simulated fixtures are also opt-in. They are generated from a reviewed YAML recipe with host bioinformatics tools instead of the deterministic JavaScript fixture generator.
+Simple and bio-realistic simulated fixtures are also opt-in. They are generated from reviewed YAML recipes with host bioinformatics tools instead of the deterministic JavaScript fixture generator.
+
+DUNES is the simpler FASTA-only tier:
+
+- `npm run fixtures:performance:dunes:dry-run`
+- `DUNES_JAR=/path/to/dunes.jar npm run fixtures:performance:dunes`
+- `npm run e2e:perf:dunes`
+
+The DUNES generator writes FASTA, node metadata, and a provenance summary under `cypress/fixtures/performance/dunes/`. It does not produce a reference Newick tree.
+
+MuSSE + AliSim remains the trait-aware FASTA/Newick/metadata tier.
 
 Use dry-run validation before installing or invoking external tools:
 
@@ -401,6 +411,7 @@ Use:
 - `npm run e2e:perf:large` for the opt-in upper-normal large dataset tier.
 - `npm run e2e:perf:stress` for the manual-only stress graph and Newick tier.
 - `npm run e2e:perf:real` for configured real sample scenarios.
+- `npm run e2e:perf:dunes` for generated DUNES FASTA-only sequence scenarios.
 - `npm run e2e:perf:realistic` for generated MuSSE + AliSim calibration scenarios.
 - `npm run e2e:perf:summarize` to compare recorded artifacts across runs.
 - `npm run e2e:perf:budgets:propose` to generate candidate warning/failure thresholds after enough samples exist.

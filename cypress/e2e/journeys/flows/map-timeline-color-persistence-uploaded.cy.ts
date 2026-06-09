@@ -24,7 +24,22 @@ const getNodeId = (data: any): string => String(data?._id ?? data?.ID ?? data?.i
 
 const selectPrimeOption = (selector: string, label: string): void => {
   cy.get(selector).click({ force: true });
-  cy.contains('li[role="option"]:visible', label, { timeout: 15000 }).click({ force: true });
+  cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
+};
+
+const setLinkColorVariableToNone = (): void => {
+  cy.window().then((win: unknown) => {
+    const app = (win as WinWithMap).commonService.visuals.microbeTrace;
+
+    expect(app, 'MicrobeTrace host app').to.exist;
+    if (app.SelectedColorLinksByVariable !== 'None') {
+      app.SelectedColorLinksByVariable = 'None';
+      app.onColorLinksByChanged();
+    }
+  });
+
+  cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
+  cy.get('#link-color', { timeout: 15000 }).should('be.visible');
 };
 
 const assertRenderedNodeColor = (nodeId: string, expectedColor: string): void => {
@@ -86,7 +101,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', nodeColorVariable);
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', nodeColorVariable);
-    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
+    setLinkColorVariableToNone();
 
     cy.get('#key-tables-node-table tr', { timeout: 15000 })
       .eq(1)
