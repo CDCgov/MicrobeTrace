@@ -37,10 +37,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   auspiceUrlVal: any;
 
-  SelectedDefaultDistanceMetricVariable: string = "tn93";
+  SelectedDefaultDistanceMetricVariable: string = "snps";
   SelectedAmbiguityResolutionStrategyVariable: string = "AVERAGE";
   SelectedAmbiguityThresholdVariable: any = 0.015;
-  SelectedDefaultDistanceThresholdVariable: any = 0.015;
+  SelectedDefaultDistanceThresholdVariable: any = 16;
   SelectedDefaultViewVariable: string = "2D Network";
   readonly DefaultViewOptions: string[] = [
     '2D Network',
@@ -100,6 +100,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   displaySequenceSettings: boolean = false;
   displayloadingInformationModal: boolean = false;
   handoffError: string | null = null;
+
+  get hasLaunchableFiles(): boolean {
+    return !this.isLoadingFiles && (this.commonService.session?.files?.length ?? 0) > 0;
+  }
 
   nodeIds: { fileName: string; ids: string[] }[] = [];
   edgeIds: { fileName: string; ids: { source: string; target: string }[] }[] = [];
@@ -204,6 +208,108 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     return normalizedView;
+  }
+
+  private setLaunchButtonsDisabled(disabled: boolean, focusPrimary: boolean = false): void {
+    $(this.rootHtmlElement).find('.files-launch-action').prop('disabled', disabled);
+    if (!disabled && focusPrimary) {
+      $(this.rootHtmlElement).find('#launch').focus();
+    }
+    this.refreshTemplateState();
+  }
+
+  private syncGlobalSettingsModelFromWidgets(): void {
+    const widgets = this.commonService.session.style.widgets;
+    Object.assign(this.commonService.GlobalSettingsModel, {
+      SelectedColorNodesByVariable: widgets['node-color-variable'] ?? 'None',
+      SelectedColorLinksByVariable: widgets['link-color-variable'] ?? 'None',
+      SelectedNodeSymbolVariable: widgets['node-symbol-variable'] ?? 'None',
+      SelectedNodeColorVariable: widgets['node-color'] ?? '#1f77b4',
+      SelectedLinkColorVariable: widgets['link-color'] ?? '#a6cee3',
+      SelectedPruneWithTypesVariable: 'None',
+      SelectedStatisticsTypesVariable: 'Hide',
+      SelectedClusterMinimumSizeVariable: widgets['cluster-minimum-size'] ?? 1,
+      SelectedLinkSortVariable: widgets['link-sort-variable'] ?? 'distance',
+      SelectedLinkThresholdVariable: widgets['link-threshold'] ?? 16,
+      SelectedDistanceMetricVariable: widgets['default-distance-metric'] ?? 'snps',
+      SelectedLinkColorTableTypesVariable: 'Dock',
+      SelectedNodeColorTableTypesVariable: 'Dock',
+      SelectedNodeShapeTableTypesVariable: widgets['node-symbol-table-visible'] ?? 'Dock',
+      SelectedColorVariable: widgets['selected-color'] ?? '#ff8300',
+      SelectedBackgroundColorVariable: widgets['background-color'] ?? '#ffffff',
+      SelectedApplyStyleVariable: '',
+      SelectedRevealTypesVariable: 'Everything'
+    });
+  }
+
+  private syncFileSettingsControlsFromWidgets(): void {
+    const widgets = this.commonService.session.style.widgets;
+    const metric = String(widgets['default-distance-metric'] ?? 'snps').toLowerCase();
+    const threshold = widgets['link-threshold'] ?? 16;
+    const ambiguityStrategy = widgets['ambiguity-resolution-strategy'] ?? 'AVERAGE';
+    const ambiguityThreshold = widgets['ambiguity-threshold'] ?? 0.015;
+    const defaultView = this.normalizeDefaultView(widgets['default-view']);
+
+    this.SelectedDefaultDistanceMetricVariable = metric;
+    this.SelectedDefaultDistanceThresholdVariable = threshold;
+    this.SelectedAmbiguityResolutionStrategyVariable = ambiguityStrategy;
+    this.SelectedAmbiguityThresholdVariable = ambiguityThreshold;
+    this.SelectedDefaultViewVariable = defaultView;
+    widgets['default-view'] = defaultView;
+
+    $('#default-distance-metric').val(metric);
+    $('#default-distance-threshold').attr('step', metric === 'snps' ? 1 : 0.001).val(threshold);
+    $('#ambiguity-resolution-strategy').val(ambiguityStrategy);
+    $('#ambiguity-threshold').val(ambiguityThreshold);
+    $('#default-view').val(defaultView);
+
+    if (metric === 'snps') {
+      $('#ambiguities-row').slideUp();
+    } else {
+      $('#ambiguities-row').slideDown();
+    }
+
+    if (ambiguityStrategy === 'HIVTRACE-G') {
+      $('#ambiguity-threshold-row').slideDown();
+    } else {
+      $('#ambiguity-threshold-row').slideUp();
+    }
+
+    this.store.setMetricChanged(metric);
+    this.store.updatecurrentThresholdStepSize(metric);
+    this.store.setLinkThreshold(threshold);
+  }
+
+  private resetSettingsForLaunch(): void {
+    this.commonService.visuals?.microbeTrace?.resetKeyTablesForNewDataset?.();
+    this.commonService.session.style = cloneDeep(this.commonService.sessionSkeleton().style);
+    this.syncFileSettingsControlsFromWidgets();
+    this.syncGlobalSettingsModelFromWidgets();
+
+    const widgets = this.commonService.session.style.widgets;
+    const microbeTrace = this.commonService.visuals?.microbeTrace as any;
+    if (microbeTrace) {
+      microbeTrace.SelectedColorNodesByVariable = widgets['node-color-variable'] ?? 'None';
+      microbeTrace.SelectedColorLinksByVariable = widgets['link-color-variable'] ?? 'None';
+      microbeTrace.SelectedNodeSymbolVariable = widgets['node-symbol-variable'] ?? 'None';
+      microbeTrace.SelectedNodeColorVariable = widgets['node-color'] ?? '#1f77b4';
+      microbeTrace.SelectedLinkColorVariable = widgets['link-color'] ?? '#a6cee3';
+      microbeTrace.SelectedBackgroundColorVariable = widgets['background-color'] ?? '#ffffff';
+      microbeTrace.SelectedDistanceMetricVariable = widgets['default-distance-metric'] ?? 'snps';
+      microbeTrace.metric = microbeTrace.SelectedDistanceMetricVariable;
+      microbeTrace.SelectedLinkThresholdVariable = widgets['link-threshold'] ?? 16;
+      microbeTrace.threshold = String(microbeTrace.SelectedLinkThresholdVariable);
+      microbeTrace.SelectedLinkSortVariable = widgets['link-sort-variable'] ?? 'distance';
+      microbeTrace.syncThresholdDisplayFromStoredValue?.();
+      microbeTrace.getGlobalSettingsData?.();
+      microbeTrace.refreshKeyTablesView?.();
+      microbeTrace.cdref?.markForCheck?.();
+    }
+
+    this.commonService.createNodeColorMap();
+    this.commonService.createLinkColorMap();
+    this.commonService.createPolygonColorMap();
+    this.refreshTemplateState();
   }
 
   ngOnInit() {
@@ -502,10 +608,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.refreshTemplateState();
     });
 
-    if(this.commonService.session.network.launched){
-      $('#launch').text('Update');
-    }
-
     // $.getJSON("../assets/outbreak.microbetrace", (window as any).context.commonService.applySession);
     // Use this when building production (.ie gh-pages branch)
     if (!this.auspiceUrlVal) {
@@ -769,7 +871,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('---loadDefaultVisualization Called - stop loading modal');
 
-      $('#launch').prop('disabled', false).focus();
+      this.setLaunchButtonsDisabled(false, true);
 
       this.displayloadingInformationModal = false;
 
@@ -790,11 +892,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   
 
   /**
-   * Resets the value of session.data, temp.trees if previously launched (or more if not previously launched). Retains the values of following 
-   * widgets: link-threshold, default-distance-metric, ambiguity-resolution-strategy, and default view.
+   * Resets the value of session.data and temp.trees. Retains current settings by default,
+   * or resets all settings when requested by the Files tab reset update action.
    * Calls creatLaunchSequences to process the data files loaded.
    */
-  launchClick() {
+  launchClick(options: { resetSettings?: boolean } = {}) {
 
      // Set to false to indicate that the network is not fully loaded  as new network is launching
      const loadGeneration = this.commonService.beginDataLoad();
@@ -809,6 +911,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!wasAlreadyLaunched) {
       this.commonService.updateLegacyNodeSymbols();
     }
+
+    if (options.resetSettings) {
+      this.resetSettingsForLaunch();
+    }
+
     const thresholdOnLaunch = parseFloat(String(
       $('#default-distance-threshold').val() ??
       this.SelectedDefaultDistanceThresholdVariable ??
@@ -834,9 +941,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     console.log('launch click');
     this.commonService.resetData();
     this.commonService.session.network.launched = true;
+    this.refreshTemplateState();
     if (wasAlreadyLaunched) {
       console.log('launch click launched ', wasAlreadyLaunched);
-      $('#launch').text('Update');
     } else {
       console.log('launch click not launched ', wasAlreadyLaunched);
     }
@@ -884,7 +991,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.commonService.session.meta.startTime = Date.now();
-    $('#launch').prop('disabled', true);
+    this.setLaunchButtonsDisabled(true);
 
     // $('#loading-information').html('');
     this.commonService.temp.messageTimeout = setTimeout(() => {
@@ -2084,10 +2191,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }
           parentContext.removeFile(file.name);
           if (parentContext.commonService.session.files.length === 0) {
-            $('#launch').prop('disabled', true);
+            parentContext.setLaunchButtonsDisabled(true);
           } else {
-            $('#launch').prop('disabled', false).focus();
-            $('#launch').text('Update');
+            parentContext.setLaunchButtonsDisabled(false, true);
           }
           root.slideUp(() => root.remove());
           parentContext.refreshTemplateState();
@@ -2200,7 +2306,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         }
         parentContext.updateMetadata(file);
 
-        $('#launch').prop('disabled', false).focus();
+        parentContext.setLaunchButtonsDisabled(false, true);
       };
 
       const selectElements = root[0].querySelectorAll('select');

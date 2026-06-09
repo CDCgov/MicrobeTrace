@@ -164,8 +164,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedStatisticsTypesVariable: 'Hide',
         SelectedClusterMinimumSizeVariable: 0,
         SelectedLinkSortVariable: 'Distance',
-        SelectedLinkThresholdVariable: 0.015,
-        SelectedDistanceMetricVariable: 'tn93',
+        SelectedLinkThresholdVariable: 16,
+        SelectedDistanceMetricVariable: 'snps',
         SelectedLinkColorTableTypesVariable: 'Dock',
         SelectedNodeColorTableTypesVariable: 'Dock',
         SelectedNodeShapeTableTypesVariable: 'Dock',
@@ -377,7 +377,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'choropleth-transparency': 0.3,
             'cluster-minimum-size': 1,
             'default-view': '2D Network', // 'Phylogenetic Tree' 'Alignment View'
-            'default-distance-metric': 'tn93',
+            'default-distance-metric': 'snps',
             'filtering-epsilon': -8,
             'flow-showNodes': 'selected',
             'gantt-date-list': '',
@@ -418,7 +418,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-opacity': 0,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
-            'link-threshold': 0.015,
+            'link-threshold': 16,
             'tn93-distance-display-format': 'decimal',
             'link-tooltip-variable': ['None'],
             'link-width': 3,
@@ -1121,164 +1121,6 @@ export class CommonService extends AppComponentBase implements OnInit {
         const builtInFields = styleableFields.filter(field => this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
 
         return metadataFields.concat(builtInFields);
-    }
-
-    private isEmptyFieldSelection(value: any): boolean {
-        if (value === null || value === undefined) {
-            return true;
-        }
-
-        const normalizedValue = `${value}`.trim();
-        return normalizedValue === '' || normalizedValue.toLowerCase() === 'none';
-    }
-
-    private isCompatibleFieldSelection(value: any, fields: Set<string>): boolean {
-        return this.isEmptyFieldSelection(value) || fields.has(`${value}`);
-    }
-
-    private getCompatibleFieldFallback(defaultValue: any, fields: Set<string>): any {
-        if (Array.isArray(defaultValue)) {
-            const compatibleDefaults = defaultValue.filter(value => this.isCompatibleFieldSelection(value, fields));
-            return compatibleDefaults.length > 0 ? compatibleDefaults : ['None'];
-        }
-
-        return this.isCompatibleFieldSelection(defaultValue, fields) ? defaultValue : 'None';
-    }
-
-    private resetFieldBackedWidgetIfIncompatible(
-        widgets: Record<string, any>,
-        defaultWidgets: Record<string, any>,
-        widgetName: string,
-        fields: Set<string>
-    ): { changed: boolean; previousValue: any } {
-        if (!Object.prototype.hasOwnProperty.call(widgets, widgetName)) {
-            return { changed: false, previousValue: undefined };
-        }
-
-        const previousValue = widgets[widgetName];
-
-        if (Array.isArray(previousValue)) {
-            const compatibleValues = previousValue.filter(value => this.isCompatibleFieldSelection(value, fields));
-            if (compatibleValues.length === previousValue.length) {
-                return { changed: false, previousValue };
-            }
-
-            const fallbackValue = this.getCompatibleFieldFallback(defaultWidgets[widgetName] ?? ['None'], fields);
-            widgets[widgetName] = Array.isArray(fallbackValue) ? fallbackValue : [fallbackValue];
-            return { changed: true, previousValue };
-        }
-
-        if (this.isCompatibleFieldSelection(previousValue, fields)) {
-            return { changed: false, previousValue };
-        }
-
-        widgets[widgetName] = this.getCompatibleFieldFallback(defaultWidgets[widgetName] ?? 'None', fields);
-        return { changed: true, previousValue };
-    }
-
-    public resetIncompatibleStyleSettingsForCurrentData(): boolean {
-        if (!this.session?.style) {
-            return false;
-        }
-
-        if (!this.session.style.widgets) {
-            this.session.style.widgets = this.defaultWidgets();
-        }
-
-        const widgets = this.session.style.widgets;
-        const defaults = this.defaultWidgets();
-        const nodeFields = new Set<string>(this.session.data?.nodeFields ?? []);
-        const styleableNodeFields = new Set<string>(this.getStyleableNodeFields());
-        const linkFields = new Set<string>(this.session.data?.linkFields ?? []);
-        let changed = false;
-
-        const resetWidget = (widgetName: string, fields: Set<string>) => {
-            const result = this.resetFieldBackedWidgetIfIncompatible(widgets, defaults, widgetName, fields);
-            changed = changed || result.changed;
-            return result;
-        };
-
-        const nodeColorResult = resetWidget('node-color-variable', styleableNodeFields);
-        if (nodeColorResult.changed && !Array.isArray(nodeColorResult.previousValue)) {
-            delete this.session.style.nodeColorsTable?.[nodeColorResult.previousValue];
-            delete this.session.style.nodeColorsTableKeys?.[nodeColorResult.previousValue];
-        }
-
-        const nodeShapeResult = resetWidget('node-symbol-variable', styleableNodeFields);
-        if (nodeShapeResult.changed && !Array.isArray(nodeShapeResult.previousValue)) {
-            delete this.session.style.nodeSymbolsTable?.[nodeShapeResult.previousValue];
-            delete this.session.style.nodeSymbolsTableKeys?.[nodeShapeResult.previousValue];
-        }
-
-        const linkColorResult = resetWidget('link-color-variable', linkFields);
-        if (linkColorResult.changed && !Array.isArray(linkColorResult.previousValue)) {
-            delete this.session.style.linkColorsTable?.[linkColorResult.previousValue];
-            delete this.session.style.linkColorsTableKeys?.[linkColorResult.previousValue];
-        }
-
-        [
-            '3DNet-node-tooltip-variable',
-            '3DNet-node-radius-variable',
-            'alignView-labelField',
-            'alignView-sortField',
-            'bubble-x',
-            'bubble-y',
-            'choropleth-aggregate-on',
-            'globe-field-lat',
-            'globe-field-lon',
-            'globe-field-tract',
-            'globe-field-zipcode',
-            'globe-field-county',
-            'globe-field-state',
-            'globe-field-country',
-            'map-field-lat',
-            'map-field-lon',
-            'map-field-tract',
-            'map-field-zipcode',
-            'map-field-county',
-            'map-field-state',
-            'map-field-country',
-            'map-node-tooltip-variable',
-            'node-label-variable',
-            'node-radius-variable',
-            'node-timeline-variable',
-            'node-tooltip-variable',
-            'physics-tree-node-label-variable',
-            'polygons-foci',
-            'search-field',
-            'timeline-date-field',
-            'tree-leaf-node-radius-variable'
-        ].forEach(widgetName => resetWidget(widgetName, nodeFields));
-
-        [
-            '3DNet-link-tooltip-variable',
-            'link-label-variable',
-            'link-sort-variable',
-            'link-tooltip-variable',
-            'link-width-variable',
-            'map-link-tooltip-variable'
-        ].forEach(widgetName => resetWidget(widgetName, linkFields));
-
-        this.GlobalSettingsModel.SelectedColorNodesByVariable = widgets['node-color-variable'];
-        this.GlobalSettingsModel.SelectedColorLinksByVariable = widgets['link-color-variable'];
-        this.GlobalSettingsModel.SelectedNodeSymbolVariable = widgets['node-symbol-variable'];
-        this.GlobalSettingsModel.SelectedLinkSortVariable = widgets['link-sort-variable'];
-
-        if (widgets['node-color-variable'] === 'None') {
-            this.temp.style.nodeColorMap = () => widgets['node-color'];
-            this.temp.style.nodeAlphaMap = () => 1;
-        }
-
-        if (widgets['link-color-variable'] === 'None') {
-            this.temp.style.linkColorMap = () => widgets['link-color'];
-            this.temp.style.linkAlphaMap = () => 1;
-        }
-
-        if (widgets['node-symbol-variable'] === 'None') {
-            this.temp.style.nodeSymbolMap = () => widgets['node-symbol'];
-        }
-
-        return changed;
     }
 
     hasValidTimelineDateValue(value: any): boolean {
@@ -2349,7 +2191,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         //If anything here seems eccentric, assume it's to maintain compatibility with
         //session files from older versions of MicrobeTrace.
         this.beginDataLoad();
-        $("#launch").prop("disabled", true);
+        $(".files-launch-action, #launch").prop("disabled", true);
 
          // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
@@ -3462,12 +3304,7 @@ align(params): Promise<any> {
             linkFields: this.session.data.linkFields.length
         });
 
-        const microbeTrace = this.visuals?.microbeTrace as any;
-        if (microbeTrace?.resetIncompatibleStyleSettingsForCurrentData) {
-            microbeTrace.resetIncompatibleStyleSettingsForCurrentData();
-        } else {
-            this.resetIncompatibleStyleSettingsForCurrentData();
-        }
+        // Files tab updates now choose explicitly whether settings are preserved or reset.
 
         // TODO:: See if this is needed
         // this.foldMultiSelect();
