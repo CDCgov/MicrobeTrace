@@ -3588,6 +3588,36 @@ align(params): Promise<any> {
         return out;
     };
 
+    private getLinkEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return String(endpoint._id ?? endpoint.id ?? '');
+        }
+
+        return String(endpoint ?? '');
+    }
+
+    /**
+     * Gets visible links for timeline-aware tables and statistics.
+     * In timeline mode, links are only counted when both endpoints are currently timeline-visible.
+     */
+    getVisibleLinksForCurrentTimeline(copy: any = false) {
+        const visibleLinks = this.getVisibleLinks(copy);
+        const timelineDateField = this.session.style.widgets["timeline-date-field"];
+
+        if (timelineDateField == 'None') {
+            return visibleLinks;
+        }
+
+        const visibleNodeIds = new Set(
+            this.getVisibleNodes().map(node => String(node._id ?? node.id ?? ''))
+        );
+
+        return visibleLinks.filter(link =>
+            visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
+            visibleNodeIds.has(this.getLinkEndpointId(link.target))
+        );
+    }
+
     /**
      * Gets links for non-target data views while preserving all non-timeline filters.
      * Link visibility is currently computed independently of the timeline node gate, so the
@@ -3656,6 +3686,7 @@ align(params): Promise<any> {
         }
         let vnodes = this.getVisibleNodes();
         let vlinks = this.getVisibleLinks();
+        const effectiveVisibleLinks = this.getVisibleLinksForCurrentTimeline();
         console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
@@ -3663,26 +3694,20 @@ align(params): Promise<any> {
         const timelineDateField = this.session.style.widgets["timeline-date-field"];
         const timelineMode = timelineDateField != 'None';
         if (!timelineMode) {
-            linkCount = vlinks.length;
+            linkCount = effectiveVisibleLinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
               cluster => cluster.visible && cluster.nodes > 1).length;
             singletons = vnodes.filter(d => d.degree == 0).length;
         } else {
             const metric = this.session.style.widgets["link-sort-variable"];
-            const visibleNodeIds = new Set(
-                vnodes.map(node => String(node._id ?? node.id ?? ''))
-            );
-            const timelineLinks = vlinks.filter(link => {
-                return visibleNodeIds.has(String(link.source)) && visibleNodeIds.has(String(link.target));
-            });
             const timelineSummary = buildVisibleClusterSummary(
                 vnodes,
-                timelineLinks.map(link => ({ ...link, visible: true })),
+                effectiveVisibleLinks.map(link => ({ ...link, visible: true })),
                 metric
             );
 
-            linkCount = timelineLinks.length;
+            linkCount = effectiveVisibleLinks.length;
             clusterCount = timelineSummary.clusterCount;
             singletons = timelineSummary.singletonCount;
         }
@@ -3772,7 +3797,7 @@ align(params): Promise<any> {
             return [];
         }
 
-        const links = this.getVisibleLinks();
+        const links = this.getVisibleLinksForCurrentTimeline();
       
         let linkColors;
         if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {

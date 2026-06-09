@@ -337,7 +337,7 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
     -webkit-overflow-scrolling: touch;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    z-index: 11; /* Keep the welcome overlay above the URL warning banner on short screens. */
+    z-index: 1300; /* Keep the welcome overlay above docked key tables and the URL warning banner. */
 
     .dnd-input {
         opacity: 0;

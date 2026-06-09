@@ -205,6 +205,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private destroy$ = new Subject<void>();
     private applyingPendingDashboardRestore = false;
     private duoLinkOrigins: string[] = [];
+    private timelineTablesRefreshHandle: ReturnType<typeof setTimeout> | null = null;
 
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
@@ -2063,6 +2064,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.refreshKeyTablesView();
     }
 
+    private refreshTimelineSensitiveTables(): void {
+        this.refreshVisibleColorTables();
+
+        const tableComp = this.commonService.visuals.tableComp;
+        if (tableComp?.viewActive && tableComp.dataSetViewSelected == 'Link') {
+            tableComp.onFilterDataChange();
+        }
+    }
+
+    private scheduleTimelineTablesRefresh(): void {
+        if (this.timelineTablesRefreshHandle !== null) {
+            return;
+        }
+
+        this.timelineTablesRefreshHandle = setTimeout(() => {
+            this.timelineTablesRefreshHandle = null;
+            this.refreshTimelineSensitiveTables();
+        }, 0);
+    }
+
     mapPreviousShapeNameToCurrent(name: string): string {
         return resolveNodeShapeKey(name);
     }
@@ -2504,7 +2525,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
-        const visibleDuoLink = this.commonService.getVisibleLinks().find((link: any) =>
+        const visibleDuoLink = this.commonService.getVisibleLinksForCurrentTimeline().find((link: any) =>
             Array.isArray(link?.origin) && link.origin.length > 1,
         );
 
@@ -2547,7 +2568,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     const aggregates = this.commonService.createLinkColorMap();
 
-    const vlinks = this.commonService.getVisibleLinks();
+    const vlinks = this.commonService.getVisibleLinksForCurrentTimeline();
 
     const aggregateValues = Object.keys(aggregates);
         const disabled: string = isEditable ? '' : 'disabled';
@@ -2860,6 +2881,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
         this.commonService.updateStatistics();
+        this.scheduleTimelineTablesRefresh();
     }
 
     private setTimelineRange(
@@ -2934,10 +2956,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
             if (moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
                 this.commonService.session.state.timeEnd = this.commonService.session.state.timeTarget;
-            this.commonService.setNodeVisibility(false);
-            this.commonService.setLinkVisibility(false);
-            this.commonService.updateStatistics();
-            this.store.setNetworkUpdated(true);
+                this.applyTimelineVisibility();
+                this.store.setNetworkUpdated(true);
             }
         }
         this.commonService.session.style.widgets["node-timeline-variable"] = variable;
@@ -2954,9 +2974,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // this.commonService.updatePinNodes(false);
             // }
             this.commonService.session.network.timelineNodes = [];
-            this.commonService.setNodeVisibility(false);
-            this.commonService.setLinkVisibility(false);
-            this.commonService.updateStatistics();
+            this.applyTimelineVisibility();
             this.store.setNetworkUpdated(true);
             return;
         }
@@ -5489,6 +5507,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     ngOnDestroy(): void {
+        if (this.timelineTablesRefreshHandle !== null) {
+            clearTimeout(this.timelineTablesRefreshHandle);
+            this.timelineTablesRefreshHandle = null;
+        }
+
         this.NewSession();
     }
 

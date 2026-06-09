@@ -2463,8 +2463,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if(this.commonService.debugMode) {
       console.log('changing link threshold');
     }
-    const newValue = e.target?.value ?? e;
+    const newValue = e?.target?.value ?? e;
+
+    if (newValue === null || newValue === undefined || newValue === '') {
+      return;
+    }
+
     const parsedValue = parseFloat(newValue);
+    if (!Number.isFinite(parsedValue)) {
+      return;
+    }
 
     this.SelectedDefaultDistanceThresholdVariable = parsedValue;
     this.commonService.session.style.widgets['link-threshold'] = parsedValue;

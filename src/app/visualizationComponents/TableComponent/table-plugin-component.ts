@@ -447,7 +447,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       const sourceData = type === 'node'
         ? this.visuals.tableComp.commonService.getVisibleNodes()
         : type === 'link'
-          ? this.visuals.tableComp.commonService.session.data.links.filter((link) => link.visible)
+          ? this.visuals.tableComp.commonService.getVisibleLinksForCurrentTimeline()
           : this.visuals.tableComp.commonService.session.data.clusters.filter((cluster) => cluster.visible);
   
       // checks if data for tableData exists in TableDatas, if not, creates a new TableData object and adds it to TableDatas
