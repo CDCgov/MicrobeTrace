@@ -516,6 +516,14 @@ export function measureTwoDInteractionResponsiveness(
     .then(() => refreshPerformanceMeasurement(measurement));
 }
 
+export function measureStatisticsRefresh(
+  measurement: PerformanceMeasurement,
+): Cypress.Chainable<PerformanceMeasurement> {
+  return cy.window().then((win: unknown) => {
+    (win as PerfWindow).commonService.updateStatistics();
+  }).then(() => refreshPerformanceMeasurement(measurement));
+}
+
 export function refreshPerformanceMeasurement(
   measurement: PerformanceMeasurement,
 ): Cypress.Chainable<PerformanceMeasurement> {
@@ -542,6 +550,26 @@ export function refreshPerformanceMeasurement(
       },
     };
   });
+}
+
+export function assertPerformanceTimingEntry(
+  measurement: PerformanceMeasurement,
+  category: string,
+  name: string,
+  requiredFields: string[] = [],
+): Record<string, any> {
+  const performance = measurement.app.performance as Record<string, any> | undefined;
+  const entry = performance?.[category]?.[name];
+
+  expect(entry, `${category}.${name}`).to.be.an('object');
+  expect(entry.durationMs, `${category}.${name}.durationMs`).to.be.a('number');
+  expect(entry.durationMs, `${category}.${name}.durationMs`).to.be.gte(0);
+
+  requiredFields.forEach((field) => {
+    expect(entry, `${category}.${name}.${field}`).to.have.property(field);
+  });
+
+  return entry;
 }
 
 export function writePerformanceResult(

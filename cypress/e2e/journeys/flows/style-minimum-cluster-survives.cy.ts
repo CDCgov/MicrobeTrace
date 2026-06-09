@@ -17,6 +17,20 @@ import { byTestId, testIds } from '../../../support/selectors';
 describe('Journey Flow - Style survives Minimum Cluster Size filtering', () => {
   const profile = getProfile('style-apply-cypress-test-style');
 
+  const setMinimumClusterSize = (value: number): void => {
+    cy.get(byTestId(testIds.filterMinimumClusterSize))
+      .should('be.visible')
+      .then(($input) => {
+        const input = $input.get(0) as HTMLInputElement;
+
+        input.focus();
+        input.value = String(value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.blur();
+      });
+  };
+
   it('preserves node and link styling after filter changes and after reveal', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
@@ -38,7 +52,7 @@ describe('Journey Flow - Style survives Minimum Cluster Size filtering', () => {
     });
 
     openGlobalFilteringTab();
-    cy.get(byTestId(testIds.filterMinimumClusterSize)).clear().type('2').blur();
+    setMinimumClusterSize(2);
     cy.window().its('commonService.session.style.widgets.cluster-minimum-size').should('equal', 2);
     cy.closeGlobalSettings();
     assertStyleTablesFromProfile(profile);

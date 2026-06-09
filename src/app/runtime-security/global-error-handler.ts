@@ -4,7 +4,7 @@ import { describeError, reportRuntimeError } from './runtime-error.store';
 @Injectable()
 export class GlobalErrorHandler implements ErrorHandler {
   handleError(error: unknown): void {
-    reportRuntimeError({ source: 'angular.error' });
+    reportRuntimeError({ source: 'angular.error', error });
     console.error(`[RuntimeError] ${describeError(error)}`);
   }
 }

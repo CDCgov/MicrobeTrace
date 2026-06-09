@@ -165,7 +165,7 @@ const assertRenderedLinkColor = (linkId: string, expectedColor: string): void =>
 };
 
 const assertNoRuntimeErrorBanner = (): void => {
-  cy.get('body').should('not.contain.text', 'Unexpected application error');
+  cy.get('.runtime-error-banner').should('not.exist');
 };
 
 const assertProcessingModalClosed = (): void => {

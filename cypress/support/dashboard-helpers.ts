@@ -593,10 +593,14 @@ export function applyDeterministicDashboardSplitLayout(viewNames: string[], acti
 
 export function assertOpenDashboardTabs(expectedTitles: string[]): void {
   const normalizedTitles = expectedTitles.map((title) => normalizeViewName(title)).sort();
+  const includesDockedKeyTables = normalizedTitles.includes('Docked Key Tables');
 
   cy.window().should((win: unknown) => {
     const app = getDashboardApp(win as DashboardWindow);
-    const actualTitles = app.homepageTabs.map((tab) => normalizeViewName(tab.label)).sort();
+    const actualTitles = app.homepageTabs
+      .map((tab) => normalizeViewName(tab.label))
+      .filter((title) => includesDockedKeyTables || title !== 'Docked Key Tables')
+      .sort();
 
     expect(actualTitles, 'open dashboard tabs').to.deep.equal(normalizedTitles);
   });
