@@ -813,12 +813,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
     this.cy.style().resetToDefault();
     this.cy.style(this.getCytoscapeStyle())
-    this.visibleData.forEach((node, i) => {
+    this.visibleData.forEach((node) => {
       if ( node.totalCount == 1 || node.counts.length == 1) {
         return;
       } else {
-        let b64 = this.getCollapsedBubblePieDataUri(node, `node${node.index}`);
-        this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-opacity': 0, 'background-fit': 'cover', 'background-image': b64})
+        this.applyCollapsedBubblePieStyle(node);
       }
     })
     this.cy.style().update();
@@ -917,6 +916,25 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return buildPieChartSvgDataUri(patternId, size, this.getPieSlicesForCollapsedBubbleNode(node));
   }
 
+  private getCollapsedBubblePatternId(node: DataRecord): string {
+    return `bubble-${String(node.id || node.index).replace(/[^A-Za-z0-9_-]/g, '-')}`;
+  }
+
+  private applyCollapsedBubblePieStyle(node: DataRecord): void {
+    const renderedNode = this.cy?.getElementById(String(node.id));
+    if (!renderedNode || renderedNode.empty()) {
+      return;
+    }
+
+    const b64 = this.getCollapsedBubblePieDataUri(node, this.getCollapsedBubblePatternId(node));
+    renderedNode.style({
+      'background-color': 'transparent',
+      'background-opacity': 0,
+      'background-fit': 'cover',
+      'background-image': b64
+    });
+  }
+
   /**
    * @returns a string representing the SVG def of the patterns needed to generate the pie chart
    */
@@ -928,10 +946,10 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         return;
       }
 
-      this.svgDefs[`node${indexNumber}`] = buildPieChartPatternDef(
-        `node${indexNumber}`,
-        this.getPieSlicesForCollapsedBubbleNode(node)
-      );
+      const slices = this.getPieSlicesForCollapsedBubbleNode(node);
+      const stablePatternId = this.getCollapsedBubblePatternId(node);
+      this.svgDefs[stablePatternId] = buildPieChartPatternDef(stablePatternId, slices);
+      this.svgDefs[`node${indexNumber}`] = buildPieChartPatternDef(`node${indexNumber}`, slices);
     })
   }
 
@@ -1182,7 +1200,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.getData();
       this.updateNodes();
 
-      this.visibleData.forEach((node, i) => {
+      this.visibleData.forEach((node) => {
         if ( node.totalCount == 1 || node.counts.length == 1) {
           let currrentVar = node.counts[0].label
           const nodeStyle = this.getNodeFillStyleForColorValue(currrentVar);
@@ -1192,8 +1210,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           })
           return;
         } else {
-          let b64 = this.getCollapsedBubblePieDataUri(node, `node${node.index}`);
-          this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-opacity': 0, 'background-fit': 'cover', 'background-image': b64})
+          this.applyCollapsedBubblePieStyle(node);
         }
       })
       this.cy.style().update();

@@ -569,6 +569,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return typeof id === 'string' ? id : String(id);
     }
 
+    private getSessionNetworkNodes(): any[] {
+        const networkNodes = this.commonService.session?.network?.nodes;
+        if (Array.isArray(networkNodes) && networkNodes.length > 0) {
+            return networkNodes;
+        }
+
+        const filteredNodes = this.commonService.session?.data?.nodeFilteredValues;
+        if (Array.isArray(filteredNodes) && filteredNodes.length > 0) {
+            return filteredNodes;
+        }
+
+        const dataNodes = this.commonService.session?.data?.nodes;
+        return Array.isArray(dataNodes) ? dataNodes : [];
+    }
+
+    private getSessionNetworkNodeByEndpoint(nodes: any[], endpoint: any): any {
+        const endpointId = this.getLinkEndpointId(endpoint);
+        return nodes.find(node => this.getNodeId(node) === endpointId);
+    }
+
+    private isNetworkRendering(): boolean {
+        return this.commonService.session?.network?.rendering === true;
+    }
+
+    private setNetworkRendering(rendering: boolean): void {
+        const network = this.commonService.session?.network;
+        if (network) {
+            network.rendering = rendering;
+        }
+    }
+
     private normalizeNetworkDataForCytoscape(
         networkData: { nodes: any[]; links: any[] },
         warnInvalidLinks = true
@@ -766,7 +797,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         void this._rerender(false)
             .finally(() => {
                 if (!this.isDestroyed) {
-                    this.commonService.session.network.rendering = false;
+                    this.setNetworkRendering(false);
                 }
             });
     }
@@ -2593,7 +2624,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             display: "none"
         });
 
-        this.commonService.session.network.nodes.forEach(node => {
+        this.getSessionNetworkNodes().forEach(node => {
             node.selected = false;
         });
     }
@@ -3198,7 +3229,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let vlinks = this.commonService.getVisibleLinks(true);
         let output = [];
         let n = vlinks.length;
-        let nodes = this.commonService.session.network.nodes;
+        let nodes = this.getSessionNetworkNodes();
         for (let i = 0; i < n; i++) {
             if (vlinks[i].origin) {
                 if (typeof vlinks[i].origin === 'object') {
@@ -3209,8 +3240,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                                 origin: o,
                                 oNum: j,
                                 origins: l.length,
-                                source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                                target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                                source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                                target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                             });
                             output.push(holder);
                         });
@@ -3218,8 +3249,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         const holder = Object.assign({}, vlinks[i], {
                             oNum: 0,
                             origins: 1,
-                            source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                            target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                            source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                            target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                         });
                         output.push(holder);
                     }
@@ -3227,8 +3258,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     const holder = Object.assign({}, vlinks[i], {
                         oNum: 0,
                         origins: 1,
-                        source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                        target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                        source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                        target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                     });
                     //console.log(holder);
                     output.push(holder);
@@ -3238,8 +3269,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     origin: 'Unknown',
                     oNum: 0,
                     origins: 1,
-                    source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                    target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                    source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                    target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                 });
                 output.push(holder);
             }
@@ -3260,9 +3291,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getLLinks() {
         let vlinks = this.commonService.getVisibleLinks(true);
         let n = vlinks.length;
+        const nodes = this.getSessionNetworkNodes();
         for (let i = 0; i < n; i++) {
-            vlinks[i].source = this.commonService.session.network.nodes.find(d => d._id == vlinks[i].source);
-            vlinks[i].target = this.commonService.session.network.nodes.find(d => d._id == vlinks[i].target);
+            vlinks[i].source = this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source);
+            vlinks[i].target = this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target);
         }
         return vlinks;
     };
@@ -4516,7 +4548,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (!timelineTick) {
             // If the network is in the middle of rendering, don't rerender
-            if(this.commonService.session.network.rendering) {
+            if(this.isNetworkRendering()) {
                 this.recordTwoDRenderTiming('twoDRerenderSkipped', rerenderStart, {
                     reason: 'already-rendering',
                     timelineTick
@@ -4525,7 +4557,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             // Set rendering to true to prevent actions during rerendering
-            this.commonService.session.network.rendering = true;
+            this.setNetworkRendering(true);
 
             // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
             this.store.setNetworkRendered(false);
@@ -4559,7 +4591,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         if (this.isDestroyed || !this.cyContainer?.nativeElement) {
-            this.commonService.session.network.rendering = false;
+            this.setNetworkRendering(false);
             return;
         }
 
@@ -4579,6 +4611,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.cy && !timelineTick) {
         
             await this._partialUpdate();
+            if (!this.cy || this.isDestroyed || !this.isCytoscapeUsable(this.cy)) {
+                this.setNetworkRendering(false);
+                return;
+            }
             this.ensurePolygon();
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
                 mode: 'partial',
@@ -4976,7 +5012,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               // Mark as rendered
               this.store.setNetworkRendered(true);
               this.store.setNetworkUpdated(false);
-              this.commonService.session.network.rendering = false;
+              this.setNetworkRendering(false);
               this.commonService.demoNetworkRendered = true;
 
               if (this.pendingPartialUpdate) {
@@ -5921,7 +5957,7 @@ scaleLinkWidth() {
            this.store.setNetworkRendered(true); 
            // Now we can set network update to false after its been updated fully
            this.store.setNetworkUpdated(false); 
-           this.commonService.session.network.rendering = false;
+           this.setNetworkRendering(false);
            this.recordTwoDRenderTiming('twoDPartialUpdate', partialUpdateStart, {
             nodes: cy.nodes().length,
             edges: cy.edges().length
@@ -5943,7 +5979,7 @@ scaleLinkWidth() {
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
-        this.commonService.session.network.rendering = false;
+        this.setNetworkRendering(false);
 
         this.styleFileSub.unsubscribe();
 
