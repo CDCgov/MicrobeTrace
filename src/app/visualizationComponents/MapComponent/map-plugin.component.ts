@@ -45,6 +45,11 @@ class LongLatClass implements LongLatInterface {
 
 type AdministrativeMapLayer = 'countries' | 'states' | 'counties';
 
+const CARTO_VOYAGER_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>';
+const ESRI_WORLD_IMAGERY_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const ESRI_WORLD_IMAGERY_ATTRIBUTION = 'Tiles &copy; Esri - Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+
 // interface gmapMarkerInterface {
 //     zip: string;
 //     marker: google.maps.Marker;
@@ -401,13 +406,14 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
-        this.layers.basemap = tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        this.layers.basemap = tileLayer(CARTO_VOYAGER_TILE_URL, {
             maxZoom: 20,
-            attribution: '© <a href="https://openstreetmap.org/about" target="_blank">OpenStreetMap</a> contributors'
+            subdomains: 'abcd',
+            attribution: CARTO_ATTRIBUTION
         }); 
-        this.layers.satellite = tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        this.layers.satellite = tileLayer(ESRI_WORLD_IMAGERY_TILE_URL, {
             maxZoom: 19,
-            attribution: 'Tiles &copy; Esri - Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+            attribution: ESRI_WORLD_IMAGERY_ATTRIBUTION
         });
 
         this.leafletInitialOptions = {

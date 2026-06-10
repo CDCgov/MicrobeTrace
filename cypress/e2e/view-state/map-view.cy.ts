@@ -288,6 +288,10 @@ describe('Map View', () => {
       cy.wait(100)
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         expect(mapView.lmap.hasLayer(mapView.layers.basemap)).to.equal(true)
+        expect(mapView.layers.basemap._url).to.contain('basemaps.cartocdn.com/rastertiles/voyager')
+        expect(mapView.layers.basemap._url).not.to.contain('tile.openstreetmap.org')
+        expect(mapView.layers.basemap._url).not.to.contain('access_token')
+        expect(mapView.layers.basemap.getAttribution()).to.contain('CARTO')
       });
     })
     
@@ -304,6 +308,9 @@ describe('Map View', () => {
       cy.wait(100)
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
        expect(mapView.lmap.hasLayer(mapView.layers.satellite)).to.equal(true)
+       expect(mapView.layers.satellite._url).to.contain('World_Imagery/MapServer')
+       expect(mapView.layers.satellite._url).not.to.contain('access_token')
+       expect(mapView.layers.satellite.getAttribution()).to.contain('Esri')
      });
     })
     
