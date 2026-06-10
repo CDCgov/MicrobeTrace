@@ -427,6 +427,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-width-reciprocal': false,
             'link-origin-array-order': [],
             'map-basemap-show': true,
+            'map-auto-expand-selected': true,
             'map-collapsing-on': true,
             'map-counties-show': false,
             'map-countries-show': false,
