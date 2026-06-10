@@ -39,6 +39,10 @@ type TextFileSummary = {
 
 const DASHBOARD_TABS = ['2D Network', 'Map', 'Bubble', 'Table', 'Aggregate', 'Crosstab', 'Waterfall'];
 
+const assertVisualDashboardPaneCount = (): void => {
+  assertDashboardOpenComponentCount(DASHBOARD_TABS.length, { includeDockedKeyTables: false });
+};
+
 const closeDialogIfPresent = (title: string): void => {
   cy.get('body').then(($body) => {
     const dialogTitle = $body
@@ -116,7 +120,7 @@ describe('Journey Flow - Dashboard session round-trip on uploaded data', () => {
     applyDeterministicDashboardSplitLayout(DASHBOARD_TABS, 'Table');
     focusDashboardTab('Table');
 
-    assertDashboardOpenComponentCount(7);
+    assertVisualDashboardPaneCount();
     captureDashboardPaneRects(['2D Network', 'Map', 'Table', 'Aggregate', 'Crosstab'], 'savedDashboardPaneRects');
     assertDistinctDashboardPaneRects('savedDashboardPaneRects', 3);
 
@@ -140,7 +144,7 @@ describe('Journey Flow - Dashboard session round-trip on uploaded data', () => {
     cy.get('#fileDropRef', { timeout: 15000 }).selectFile(sessionFilePath, { force: true });
     waitForProcessingDialogToClear(60000);
 
-    assertDashboardOpenComponentCount(7);
+    assertVisualDashboardPaneCount();
     assertOpenDashboardTabs(DASHBOARD_TABS);
     assertActiveDashboardTab('Table');
     captureDashboardPaneRects(['2D Network', 'Map', 'Table', 'Aggregate', 'Crosstab'], 'restoredDashboardPaneRects');

@@ -99,6 +99,10 @@ describe('2D Network - Core Rendering and Stats', () => {
     cy.openGlobalSettings();
     cy.get('#node-color-variable').click();
     cy.get('li[role="option"]').contains('Lineage').click();
+    cy.get('#node-color-table-row')
+      .contains('.p-togglebutton-label', 'Show')
+      .click({ force: true });
+    cy.window().its('commonService.visuals.microbeTrace.SelectedNodeColorTableTypesVariable').should('equal', 'Show');
     cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
     cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
     cy.get('#color-transparency').invoke('val', alpha).trigger('change');

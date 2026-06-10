@@ -24,6 +24,12 @@ export interface ThresholdAnalysisBaseEdge {
   targetIndex: number;
 }
 
+export interface ThresholdAnalysisPairEdge {
+  sourceIndex: number;
+  targetIndex: number;
+  value: number;
+}
+
 export interface StoredDistanceEdgeCache {
   metric: string;
   version: number;
