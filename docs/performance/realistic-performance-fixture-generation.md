@@ -4,6 +4,8 @@ This document describes the optional workflow for generating MicrobeTrace perfor
 
 The deterministic fixtures from `scripts/generate-performance-fixtures.js` remain the default baseline. This workflow is for reviewer-facing calibration when we want synthetic datasets that better resemble pathogen evolution and geographic or trait movement.
 
+For the simpler FASTA-only DUNES tier, see `dunes-performance-fixture-generation.md`.
+
 For local install instructions and troubleshooting, see `realistic-fixture-developer-setup.md`.
 
 ## What the Workflow Produces

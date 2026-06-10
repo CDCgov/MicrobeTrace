@@ -63,6 +63,14 @@ export interface PatristicEdgeTimings {
   maxEdgesHit: boolean;
 }
 
+export interface PatristicNearestNeighborTimings {
+  epsilon: number;
+  mstMs: number;
+  pairScanMs: number;
+  emittedEdgeCount: number;
+  totalPairs: number;
+}
+
 // ─── Worker request messages ─────────────────────────────────────────────────
 
 export interface PatristicInitTreeRequest {
@@ -81,6 +89,15 @@ export interface PatristicBuildEdgesRequest {
   batchSize?: number;
 }
 
+export interface PatristicBuildNearestNeighborRequest {
+  type: 'BUILD_NEAREST_NEIGHBOR_EDGES';
+  jobId: number;
+  /** Already-expanded epsilon value. For example, filtering-epsilon -8 becomes 1e-8. */
+  epsilon: number;
+  /** Number of edges per batch message. Default: 10000. */
+  batchSize?: number;
+}
+
 export interface PatristicExportMatrixRequest {
   type: 'EXPORT_MATRIX';
   jobId: number;
@@ -94,6 +111,7 @@ export interface PatristicCancelRequest {
 export type PatristicWorkerRequest =
   | PatristicInitTreeRequest
   | PatristicBuildEdgesRequest
+  | PatristicBuildNearestNeighborRequest
   | PatristicExportMatrixRequest
   | PatristicCancelRequest;
 
@@ -144,6 +162,23 @@ export interface PatristicMatrixChunkResponse {
   done: boolean;
 }
 
+export interface PatristicNearestNeighborBatchResponse {
+  type: 'NN_EDGE_BATCH';
+  jobId: number;
+  /** Leaf indices (into leafNames) for source of each selected edge. */
+  sources: Uint32Array;
+  /** Leaf indices (into leafNames) for target of each selected edge. */
+  targets: Uint32Array;
+  /** Patristic distances for each selected edge. */
+  distances: Float32Array;
+  /** Total edges emitted so far (including this batch). */
+  totalEmitted: number;
+  /** True when this is the final batch. */
+  done: boolean;
+  /** Present only on the final batch. */
+  timings?: PatristicNearestNeighborTimings;
+}
+
 export interface PatristicErrorResponse {
   type: 'ERROR';
   jobId: number;
@@ -155,4 +190,5 @@ export type PatristicWorkerResponse =
   | PatristicProgressResponse
   | PatristicEdgeBatchResponse
   | PatristicMatrixChunkResponse
+  | PatristicNearestNeighborBatchResponse
   | PatristicErrorResponse;

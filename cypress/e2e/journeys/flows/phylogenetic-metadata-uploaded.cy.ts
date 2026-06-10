@@ -1,7 +1,11 @@
 /// <reference types="cypress" />
 
 import { getProfile } from '../datasets/profile';
-import { getTreeNodeShapeDataUri } from '../../../../src/app/contactTraceCommonServices/node-shapes';
+import {
+  getTreeNodeShapeDataUri,
+  isCustomNodeShape,
+  resolveNodeShapeKey,
+} from '../../../../src/app/contactTraceCommonServices/node-shapes';
 import {
   applyStyleFromProfile,
   assertPhyloTreeReady,
@@ -254,10 +258,13 @@ const assertLeafSnapshotMatchesTable = (snapshot: LeafSnapshot, table: ColorTabl
   });
 };
 
-const getTreeLeafShapeStrokeWidth = (leafSize: number, isSelected: boolean = false): number => {
-  const diameter = Math.max(leafSize * 2, 1);
-  const scaledStrokeWidth = Math.round(((isSelected ? 2.5 : 1.1) * 300) / diameter);
-  return Math.max(isSelected ? 14 : 6, Math.min(isSelected ? 48 : 24, scaledStrokeWidth));
+const getTreeLeafShapeStrokeWidth = (shapeKey: string, isSelected: boolean = false): number => {
+  const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+
+  if (normalizedShapeKey === 'lettuce') return isSelected ? 10 : 3;
+  if (['ship', 'tick', 'swab'].includes(normalizedShapeKey)) return isSelected ? 12 : 5;
+  if (isCustomNodeShape(normalizedShapeKey)) return isSelected ? 20 : 10;
+  return isSelected ? 48 : 16;
 };
 
 describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
@@ -375,16 +382,15 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
 
     cy.window().then((win: unknown) => {
       const typedWindow = win as WinWithMT;
-      const phylo = typedWindow.commonService.visuals.phylogenetic;
-      const leafSize = Number(phylo.SelectedLeafNodeSize || 5);
       const nodeColor = String(typedWindow.commonService.session.style.widgets['node-color'] || '');
-      const strokeWidth = getTreeLeafShapeStrokeWidth(leafSize, false);
+      const healthcareStrokeWidth = getTreeLeafShapeStrokeWidth(healthcareShapeKey, false);
+      const educationStrokeWidth = getTreeLeafShapeStrokeWidth(educationShapeKey, false);
 
       cy.wrap({
         healthcareNodeId: HEALTHCARE_NODE_ID,
         educationNodeId: EDUCATION_NODE_ID,
-        expectedHealthcareOverlay: getTreeNodeShapeDataUri(healthcareShapeKey, nodeColor, '#000000', strokeWidth),
-        expectedEducationOverlay: getTreeNodeShapeDataUri(educationShapeKey, nodeColor, '#000000', strokeWidth),
+        expectedHealthcareOverlay: getTreeNodeShapeDataUri(healthcareShapeKey, nodeColor, '#000000', healthcareStrokeWidth),
+        expectedEducationOverlay: getTreeNodeShapeDataUri(educationShapeKey, nodeColor, '#000000', educationStrokeWidth),
       }).as('customTreeShapes');
     });
 
