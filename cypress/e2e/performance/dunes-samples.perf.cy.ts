@@ -10,6 +10,18 @@ import { goToAlignmentView } from '../../support/journey-helpers';
 
 type DunesFixtureSummary = {
   id: string;
+  preset: {
+    dunes: {
+      distribution: string;
+    };
+  };
+  tools: {
+    dunes: {
+      source: {
+        repository: string;
+      };
+    };
+  };
   outputs: {
     fasta: string;
     nodeMetadata: string;
@@ -17,6 +29,7 @@ type DunesFixtureSummary = {
   counts: {
     nodes: number;
     sequences: number;
+    distribution: string;
     totalPairs: number;
     snp: {
       visibleLinksByThreshold: Record<string, number>;
@@ -69,7 +82,7 @@ function buildDunesScenario(summary: DunesFixtureSummary): PerformanceScenario {
       sequences: summary.counts.sequences,
     },
     metadata: {
-      fixtureKind: 'simple-sequence-simulated',
+      fixtureKind: 'forked-dunes-sequence-simulated',
       generator: 'scripts/generate-dunes-performance-fixtures.js',
       preset: summary.id,
       distancePath: 'dunes-fasta-snp',
@@ -80,6 +93,11 @@ function buildDunesScenario(summary: DunesFixtureSummary): PerformanceScenario {
 describeDunesPerf('Performance Baseline - DUNES simulated sequence fixtures', () => {
   it('records DUNES FASTA load, 2D readiness, and Alignment readiness', () => {
     cy.fixture(summaryFixture).then((summary: DunesFixtureSummary) => {
+      expect(summary.tools.dunes.source.repository, 'DUNES source fork')
+        .to.equal('https://github.com/dacowan404/dunes');
+      expect(summary.preset.dunes.distribution, 'DUNES preset distribution').to.equal('hiv');
+      expect(summary.counts.distribution, 'DUNES generated distribution').to.equal('hiv');
+
       const scenario = buildDunesScenario(summary);
       const timeout = summary.cypress.timeoutMs || 300000;
 

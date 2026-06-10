@@ -150,7 +150,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getFullNodeDataForCyNode(node: cytoscape.NodeSingular): any {
-        return this.nodeDataById.get(node.id()) || node.data();
+        const cachedNode = this.nodeDataById.get(node.id());
+        if (!cachedNode) return node.data();
+
+        return {
+            ...cachedNode,
+            ...node.data()
+        };
     }
 
     private getCyNodeDataValue(node: cytoscape.NodeSingular, field: string): any {
