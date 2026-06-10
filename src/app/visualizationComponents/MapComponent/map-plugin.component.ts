@@ -144,7 +144,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
 
     CountriesTypes: any = [
-        { label: 'Show', value: 'Show' },
+        { label: 'Labels + Borders', value: 'Show' },
         { label: 'Borders Only', value: 'BordersOnly' },
         { label: 'Hide', value: 'Hide' }
     ];
@@ -152,7 +152,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
 
     StatesTypes: any = [
-        { label: 'Show', value: 'Show' },
+        { label: 'Labels + Borders', value: 'Show' },
         { label: 'Borders Only', value: 'BordersOnly' },
         { label: 'Hide', value: 'Hide' }
     ];
@@ -160,7 +160,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
 
     CountiesTypes: any = [
-        { label: 'Show', value: 'Show' },
+        { label: 'Labels + Borders', value: 'Show' },
         { label: 'Borders Only', value: 'BordersOnly' },
         { label: 'Hide', value: 'Hide' }
     ];
