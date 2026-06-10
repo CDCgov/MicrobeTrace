@@ -150,7 +150,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getFullNodeDataForCyNode(node: cytoscape.NodeSingular): any {
-        return this.nodeDataById.get(node.id()) || node.data();
+        const cachedNode = this.nodeDataById.get(node.id());
+        if (!cachedNode) return node.data();
+
+        return {
+            ...cachedNode,
+            ...node.data()
+        };
     }
 
     private getCyNodeDataValue(node: cytoscape.NodeSingular, field: string): any {
@@ -159,6 +165,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const fullNode = this.getFullNodeDataForCyNode(node);
         return fullNode ? fullNode[field] : undefined;
+    }
+
+    private normalizeGroupingValue(value: any): string | null {
+        const groupValue = Array.isArray(value) ? value[0] : value;
+
+        if (groupValue === undefined || groupValue === null) {
+            return null;
+        }
+
+        const normalizedGroup = `${groupValue}`.trim();
+        if (!normalizedGroup) {
+            return null;
+        }
+
+        if (normalizedGroup.toLowerCase() === 'null') {
+            return null;
+        }
+
+        return normalizedGroup;
+    }
+
+    private getCyNodeGroupingKey(node: cytoscape.NodeSingular, field: string): string | null {
+        return this.normalizeGroupingValue(this.getCyNodeDataValue(node, field));
     }
 
     private isCytoscapeNodeMetadataValue(value: any): boolean {
@@ -249,11 +278,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const groupMap = new Map<string, cytoscape.NodeSingular[]>();
         childNodes.forEach((node: cytoscape.NodeSingular) => {
-            const rawGroup = this.getCyNodeDataValue(node as cytoscape.NodeSingular, foci);
-            const normalizedGroup = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-            const group = normalizedGroup === undefined || normalizedGroup === null || normalizedGroup === 'None'
-                ? '__ungrouped__'
-                : `${normalizedGroup}`;
+            const group = this.getCyNodeGroupingKey(node as cytoscape.NodeSingular, foci) ?? '__ungrouped__';
 
             if (!groupMap.has(group)) groupMap.set(group, []);
             groupMap.get(group).push(node);
@@ -2335,10 +2360,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 return;
             }
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-            if (group !== undefined && group !== null && group !== 'None') {
-                const groupKey = `${group}`;
+            const groupKey = this.getCyNodeGroupingKey(node, foci);
+            if (groupKey !== null) {
                 if (!groupMap.has(groupKey)) {
                     groupMap.set(groupKey, []);
                 }
@@ -2386,9 +2409,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 return;
             }
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-            if (group !== undefined && group !== null && group !== 'None') {
+            const group = this.getCyNodeGroupingKey(node, foci);
+            if (group !== null) {
                 const parentId = `group-${group}`;
                 node.move({ parent: parentId });
             }
@@ -2993,10 +3015,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 //     console.log('nodeee2: ', node.data(foci));
                 // }
                 
-	                const rawGroup = this.getCyNodeDataValue(node, foci); // Assuming foci corresponds to a data attribute
-                const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup; // Use first element if array
-                
-                if (group !== undefined && group !== null && group !== 'None') {
+                const group = this.getCyNodeGroupingKey(node, foci);
+                if (group !== null) {
                     if (!groupMap.has(group)) {
                         groupMap.set(group, []);
                     }
@@ -3038,7 +3058,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Handle nodes without a group (optional)
             cy.nodes().forEach(node => {
-	                if (!node.parent().length && this.getCyNodeDataValue(node, foci) !== 'None') {
+                if (!node.parent().length && this.getCyNodeGroupingKey(node, foci) !== null) {
                     node.move({ parent: null });
                 }
             });
@@ -3072,10 +3092,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         cy.nodes().forEach(node => {
             if (node.hasClass('parent')) return;
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-
-            if (group !== undefined && group !== null && group !== 'None') {
+            const group = this.getCyNodeGroupingKey(node, foci);
+            if (group !== null) {
                 if (!groupMap.has(group)) {
                     groupMap.set(group, []);
                 }
@@ -3187,10 +3205,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         cy.nodes().forEach(node => {
             if (node.hasClass('parent')) return;
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-
-            if (group !== undefined && group !== null && group !== 'None') {
+            const group = this.getCyNodeGroupingKey(node, foci);
+            if (group !== null) {
                 if (!groupMap.has(group)) {
                     groupMap.set(group, []);
                 }

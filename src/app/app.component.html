@@ -1,7 +1,27 @@
-<section *ngIf="runtimeError() as error" class="runtime-error-banner" role="alert" aria-live="assertive">
+<section
+  *ngIf="runtimeError() as error"
+  class="runtime-error-banner"
+  [class.runtime-error-banner--critical]="error.severity === 'critical'"
+  [class.runtime-error-banner--warning]="error.severity === 'warning'"
+  [attr.aria-live]="getRuntimeErrorLiveRegion(error)"
+  [attr.data-severity]="error.severity"
+  [attr.role]="getRuntimeErrorRole(error)"
+>
   <div class="runtime-error-banner__body">
-    <strong>{{ error.title }}</strong>
-    <span>{{ error.message }}</span>
+    <div class="runtime-error-banner__heading">
+      <span class="runtime-error-banner__severity">{{ error.severity === 'critical' ? 'Critical' : 'Warning' }}</span>
+      <strong>{{ error.title }}</strong>
+    </div>
+    <span class="runtime-error-banner__message">{{ error.message }}</span>
+    <span *ngIf="error.summary" class="runtime-error-banner__summary">Summary: {{ error.summary }}</span>
+    <div class="runtime-error-banner__meta">
+      <span>Source: {{ error.sourceLabel }}</span>
+      <span>{{ error.timestamp | date:'mediumTime' }}</span>
+    </div>
+    <details *ngIf="error.detail && error.detail !== error.summary" class="runtime-error-banner__details">
+      <summary>Details</summary>
+      <pre>{{ error.detail }}</pre>
+    </details>
   </div>
   <button type="button" class="runtime-error-banner__dismiss" (click)="dismissRuntimeError()">
     Dismiss

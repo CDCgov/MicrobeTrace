@@ -46,8 +46,9 @@ export function installWindowRuntimeHardening(options: WindowRuntimeHardeningOpt
   }, true);
 
   window.addEventListener('error', (event: ErrorEvent) => {
-    reportRuntimeError({ source: 'window.error' });
-    console.error(`[RuntimeError] ${describeError(event.error ?? event.message)}`);
+    const error = event.error ?? event.message;
+    reportRuntimeError({ source: 'window.error', error });
+    console.error(`[RuntimeError] ${describeError(error)}`);
 
     if (options.production) {
       event.preventDefault();
@@ -55,7 +56,7 @@ export function installWindowRuntimeHardening(options: WindowRuntimeHardeningOpt
   }, true);
 
   window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
-    reportRuntimeError({ source: 'window.unhandledrejection' });
+    reportRuntimeError({ source: 'window.unhandledrejection', error: event.reason });
     console.error(`[RuntimeError] ${describeError(event.reason)}`);
 
     if (options.production) {
