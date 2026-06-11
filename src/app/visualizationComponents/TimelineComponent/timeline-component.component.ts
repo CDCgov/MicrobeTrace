@@ -14,6 +14,7 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { color } from 'node_modules_dev/listr2/dist';
 
 @Component({
     selector: 'app-timeline-component',
@@ -445,7 +446,7 @@ updateLocalColorMap() {
       nodeColorTableKeys.push(node[this.widgets['epiCurve-stackColorBy']])
     }
   })
-  this.localColorMap = d3.scaleOrdinal(this.commonService.session.style.nodeColors).domain(nodeColorTableKeys);
+  this.localColorMap = d3.scaleOrdinal(this.commonService.thirtyColorPalette).domain(nodeColorTableKeys);
 
   return nodeColorTableKeys;
 }
