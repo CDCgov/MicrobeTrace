@@ -319,6 +319,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeTableColumns: [],
             linkTableColumns: [],
             clusterTableColumns: [],
+            geoJSON: null,
+            geoJSONLayerName: '',
+            floorplanImage: null,
+            floorplanImageLayerName: '',
+            floorplanImageBounds: null,
+            floorplanImageWidth: null,
+            floorplanImageHeight: null,
             tree: {},
             newickString: '',
             reference: REFERENCE
@@ -438,6 +445,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-county': 'None',
             'map-field-state': 'None',
             'map-field-country': 'None',
+            'map-user-geojson-show': false,
+            'map-floorplan-image-show': false,
             'map-link-show': true,
             'map-link-tooltip-variable': 'None',
             'map-link-transparency': 0,
@@ -2298,9 +2307,17 @@ export class CommonService extends AppComponentBase implements OnInit {
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
 
-         if (oldSession.data.geoJSONLayerName !== "") {
+        if (oldSession.data?.geoJSONLayerName || oldSession.data?.geoJSON) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
-            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
+            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName || '';
+        }
+
+        if (oldSession.data?.floorplanImageLayerName || oldSession.data?.floorplanImage) {
+            this.session.data['floorplanImage'] = oldSession.data.floorplanImage;
+            this.session.data['floorplanImageLayerName'] = oldSession.data.floorplanImageLayerName || '';
+            this.session.data['floorplanImageBounds'] = oldSession.data.floorplanImageBounds || null;
+            this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
+            this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
         }
 
         // previous versions of MT had bug where nodeColorsTableHistory stored jQuery events instead of color string in session file, this section resolves that bug

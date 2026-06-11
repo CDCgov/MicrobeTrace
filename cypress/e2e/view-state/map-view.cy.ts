@@ -535,6 +535,82 @@ describe('Map View', () => {
       })
     })
 
+    it('should respect the auto-expand toggle for a searched node inside a metanode while manual positioning is active', () => {
+      const targetNodeId = 'MZ797703';
+
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Nodes').click();
+      cy.get('@mapSettings')
+        .find('#map-node-auto-expand-selected')
+        .contains('Off')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.session.style.widgets.map-auto-expand-selected')
+        .should('equal', false);
+
+      cy.get('@mapSettings').contains('.nav-link', 'Custom Map').click();
+      cy.get('@mapSettings')
+        .find('#map-manual-positioning')
+        .contains('On')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.visuals.gisMap.SelectedManualPositionTypeVariable')
+        .should('equal', 'On');
+
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const marker = mapView.mapNodeMarkersById[targetNodeId];
+        expect(marker, `${targetNodeId} marker`).to.exist;
+
+        const visibleParent = mapView.layers.markerClusterGroup.getVisibleParent(marker);
+        expect(visibleParent, `${targetNodeId} should start inside a metanode`).to.not.equal(marker);
+      });
+
+      cy.get('#search-field').select('_id');
+      cy.get('#search').clear().type(targetNodeId);
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
+
+        expect(selectedNode?.selected, `${targetNodeId} selected from search with auto-expand off`).to.equal(true);
+        expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
+        expect(mapView.layers.markerClusterGroup._spiderfied, 'metanode stays collapsed when auto-expand is off')
+          .to.not.exist;
+      });
+
+      cy.get(selectors.settingsBtn).click();
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Nodes').click();
+      cy.get('@mapSettings')
+        .find('#map-node-auto-expand-selected')
+        .contains('On')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.session.style.widgets.map-auto-expand-selected')
+        .should('equal', true);
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
+        const spiderfiedCluster = mapView.layers.markerClusterGroup._spiderfied;
+
+        expect(selectedNode?.selected, `${targetNodeId} remains selected after enabling auto-expand`).to.equal(true);
+        expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
+        expect(spiderfiedCluster, 'spiderfied metanode').to.exist;
+
+        const spiderfiedNodeIds = spiderfiedCluster
+          .getAllChildMarkers()
+          .map((marker: any) => marker.data?._id);
+        expect(spiderfiedNodeIds, 'spiderfied metanode node ids').to.include(targetNodeId);
+      });
+
+      cy.closeSettingsPane('Geospatial Settings');
+    })
+
     it('should download map view as a png', () => {
       cy.closeSettingsPane('Geospatial Settings');
       cy.get('#tool-btn-container-map a[title="Export Screen"]').click(); // #tool-btn-container-map a[title="Export Screen"]'

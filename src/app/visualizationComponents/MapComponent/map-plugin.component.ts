@@ -13,7 +13,7 @@ import 'leaflet.markercluster';
 import * as MarkerCluster from 'leaflet.markercluster';
 import { SelectItem } from 'primeng/api';
 import { Observable, takeUntil, Subject } from 'rxjs';
-import { tileLayer, latLng, marker, icon, polyline, circle, polygon, Map, MapOptions, Layer, Marker, markerClusterGroup, MarkerClusterGroupOptions, MarkerClusterGroup, circleMarker, PathOptions, featureGroup, FeatureGroup, TileLayer, geoJSON } from 'leaflet';
+import { tileLayer, latLng, marker, icon, polyline, circle, polygon, Map, MapOptions, Layer, Marker, markerClusterGroup, MarkerClusterGroupOptions, MarkerClusterGroup, circleMarker, PathOptions, featureGroup, FeatureGroup, TileLayer, geoJSON, imageOverlay, ImageOverlay } from 'leaflet';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
@@ -44,6 +44,8 @@ class LongLatClass implements LongLatInterface {
 }
 
 type AdministrativeMapLayer = 'countries' | 'states' | 'counties';
+type FloorplanBackgroundKind = 'geojson' | 'image' | 'none';
+type ManualPositionMode = 'floorplan' | 'map';
 
 // interface gmapMarkerInterface {
 //     zip: string;
@@ -179,6 +181,43 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     ];
     SelectedSatelliteTypeVariable: string = "Hide";
 
+    UserGeoJSONTypes: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+    SelectedUserGeoJSONTypeVariable: string = "Hide";
+    userGeoJSONFileName: string = "";
+    userGeoJSONFeatureCount: number = 0;
+    userGeoJSONError: string = "";
+    FloorplanBackgroundTypes: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+    SelectedFloorplanBackgroundTypeVariable: string = "Hide";
+    floorplanBackgroundFileName: string = "";
+    floorplanBackgroundSummary: string = "";
+    floorplanBackgroundError: string = "";
+    FloorplanImageTypes: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+    SelectedFloorplanImageTypeVariable: string = "Hide";
+    floorplanImageFileName: string = "";
+    floorplanImageInfo: string = "";
+    floorplanImageError: string = "";
+    ManualPositionTypes: any = [
+        { label: 'On', value: 'On' },
+        { label: 'Off', value: 'Off' }
+    ];
+    SelectedManualPositionTypeVariable: string = "Off";
+    manualPositionNodeList: SelectItem[] = [{ label: "None", value: "None" }];
+    SelectedManualPositionNodeId: string = "None";
+    manualPositionPlacedCount: number = 0;
+    manualPositionUnplacedCount: number = 0;
+    manualPositionClearableCount: number = 0;
+    manualPositionSelectedCanClear: boolean = false;
+    manualPositionMessage: string = "";
+
     NodeCollapsingTypes: any = [
         { label: 'On', value: 'On' },
         { label: 'Off', value: 'Off' }
@@ -221,6 +260,18 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private lmap: Map;
     private mapTooltip: string = '#mapTooltip'
     private readonly mapAdminLabelPaneName: string = 'map-admin-labels';
+    private readonly userGeoJSONLayerNameFallback: string = 'Custom GeoJSON';
+    private readonly floorplanImageLayerNameFallback: string = 'Floorplan Image';
+    private readonly floorplanImageMaxCoordinate: number = 80;
+    private readonly webMercatorMaxLatitude: number = 85.0511287798066;
+    private readonly degreesToRadians: number = Math.PI / 180;
+    private readonly radiansToDegrees: number = 180 / Math.PI;
+    private readonly manualFloorplanXField: string = 'map_floorplan_x';
+    private readonly manualFloorplanYField: string = 'map_floorplan_y';
+    private readonly manualMapLatitudeField: string = 'map_manual_latitude';
+    private readonly manualMapLongitudeField: string = 'map_manual_longitude';
+    private readonly noManualPositionNodeValue: string = 'None';
+    private readonly manualMapClickHandler = (event: L.LeafletMouseEvent) => this.onManualPositionMapClick(event);
 
     nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
@@ -291,6 +342,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.FieldList.push({ label: "None", value: "None" });
         this.commonService.session.data['nodeFields'].map((d, i) => {
+            if (this.isManualPositionField(d)) return;
 
             this.FieldList.push(
                 {
@@ -330,6 +382,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         $( document ).on( "node-selected", function( ) {
             //update this?
+            that.syncManualPositionSelectionFromNodeSelection();
+            that.refreshManualPositionControls();
             that.drawNodes(false);
             that.autoExpandSelectedNode();
         });
@@ -348,6 +402,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
             that.drawNodes(false);
             that.drawLinks();
+            that.refreshManualPositionControls();
             //that.centerMap();
         });
         
@@ -356,6 +411,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             .subscribe(newPruned => {
                 console.log('--- Map updated', newPruned, this.viewActive);
                 if (this.viewActive && newPruned) {
+                    this.refreshManualPositionControls();
                     this.drawNodes(false)
                     this.drawLinks();
                     this.store.setNetworkUpdated(false); 
@@ -434,6 +490,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.lmap = map;
         this.lmap.zoomControl.setPosition('bottomleft');
         this.ensureAdminLabelPane();
+        this.lmap.off('click', this.manualMapClickHandler);
+        this.lmap.on('click', this.manualMapClickHandler);
         this.tryLoadInitialSettings();
     }
 
@@ -554,8 +612,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const selectedNode = this.nodes.find(node =>
             node.selected
             && node.visible !== false
-            && node._jlat
-            && node._jlon
+            && this.isFiniteMapCoordinate(node._jlat)
+            && this.isFiniteMapCoordinate(node._jlon)
             && node._id !== undefined
             && this.mapNodeMarkersById[String(node._id)]
         );
@@ -630,18 +688,1173 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     centerMap() {
-        if (this.lmap && this.layers.nodes().getLayers().length > 0) {
-            const nodeBounds = this.layers.nodes().getBounds();
-            if (!nodeBounds.isValid()) {
+        if (!this.lmap) {
+            return;
+        }
+
+        const bounds = this.getVisibleMapBounds();
+        if (!bounds || !bounds.isValid()) {
+            return;
+        }
+
+        const padding = this.commonService.session.style.widgets['map-collapsing-on'] ? 28 : 18;
+        this.lmap.fitBounds(bounds, {
+            animate: false,
+            padding: [padding, padding]
+        });
+    }
+
+    private getVisibleMapBounds(): L.LatLngBounds | null {
+        let bounds: L.LatLngBounds | null = null;
+        const extendBounds = (candidate?: L.LatLngBounds) => {
+            if (!candidate || !candidate.isValid()) {
+                return;
+            }
+            bounds = bounds ? bounds.extend(candidate) : candidate;
+        };
+
+        if (this.layers.nodes().getLayers().length > 0) {
+            extendBounds(this.layers.nodes().getBounds());
+        }
+
+        if (this.isUserGeoJSONLayerVisible() && this.layers.userGeoJSON.getLayers().length > 0) {
+            extendBounds(this.layers.userGeoJSON.getBounds());
+        }
+
+        if (this.isFloorplanImageLayerVisible() && this.layers.floorplanImage) {
+            extendBounds(this.layers.floorplanImage.getBounds());
+        }
+
+        return bounds;
+    }
+
+    private isFiniteMapCoordinate(value: any): boolean {
+        if (value === null || value === undefined) {
+            return false;
+        }
+        if (typeof value === 'string' && value.trim() === '') {
+            return false;
+        }
+
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue);
+    }
+
+    private shouldProjectFloorplanImageCoordinates(): boolean {
+        return this.getShownFloorplanBackgroundKind() === 'image';
+    }
+
+    private clampWebMercatorLatitude(latitude: number): number {
+        return Math.max(-this.webMercatorMaxLatitude, Math.min(this.webMercatorMaxLatitude, latitude));
+    }
+
+    private floorplanImageYToDisplayLatitude(y: number): number {
+        const yCoordinate = Number(y);
+        if (!Number.isFinite(yCoordinate)) {
+            return yCoordinate;
+        }
+
+        const mercator = yCoordinate * this.degreesToRadians;
+        const geographicLatitude = (2 * Math.atan(Math.exp(mercator)) - (Math.PI / 2)) * this.radiansToDegrees;
+        return this.clampWebMercatorLatitude(geographicLatitude);
+    }
+
+    private displayLatitudeToFloorplanImageY(latitude: number): number {
+        const displayLatitude = Number(latitude);
+        if (!Number.isFinite(displayLatitude)) {
+            return displayLatitude;
+        }
+
+        const clampedLatitude = this.clampWebMercatorLatitude(displayLatitude);
+        const mercator = Math.log(Math.tan((Math.PI / 4) + (clampedLatitude * this.degreesToRadians / 2)));
+        return mercator * this.radiansToDegrees;
+    }
+
+    private getRenderedMapLatLng(latitude: any, longitude: any): L.LatLng {
+        const numericLatitude = Number(latitude);
+        const numericLongitude = Number(longitude);
+        const displayLatitude = this.shouldProjectFloorplanImageCoordinates()
+            ? this.floorplanImageYToDisplayLatitude(numericLatitude)
+            : numericLatitude;
+
+        return L.latLng(displayLatitude, numericLongitude);
+    }
+
+    private shouldUseManualFloorplanPosition(): boolean {
+        const session = this.commonService.session;
+        return (!!session.data.geoJSON && session.style.widgets['map-user-geojson-show'] === true)
+            || (!!session.data.floorplanImage && session.style.widgets['map-floorplan-image-show'] === true);
+    }
+
+    hasFloorplanBackgroundForManualPositioning(): boolean {
+        return !!this.commonService.session.data.geoJSON || !!this.commonService.session.data.floorplanImage;
+    }
+
+    isFloorplanBackgroundShownForManualPositioning(): boolean {
+        return this.shouldUseManualFloorplanPosition();
+    }
+
+    private getShownFloorplanBackgroundKind(): FloorplanBackgroundKind {
+        const session = this.commonService.session;
+        if (session.data.floorplanImage && session.style.widgets['map-floorplan-image-show'] === true) {
+            return 'image';
+        }
+        if (session.data.geoJSON && session.style.widgets['map-user-geojson-show'] === true) {
+            return 'geojson';
+        }
+        return 'none';
+    }
+
+    private getLoadedFloorplanBackgroundKind(): FloorplanBackgroundKind {
+        const shownKind = this.getShownFloorplanBackgroundKind();
+        if (shownKind !== 'none') {
+            return shownKind;
+        }
+
+        const session = this.commonService.session;
+        if (session.data.floorplanImage && !session.data.geoJSON) {
+            return 'image';
+        }
+        if (session.data.geoJSON && !session.data.floorplanImage) {
+            return 'geojson';
+        }
+        if (session.data.floorplanImage && session.data.geoJSON) {
+            return 'image';
+        }
+        return 'none';
+    }
+
+    private syncFloorplanBackgroundControls(): void {
+        const shownKind = this.getShownFloorplanBackgroundKind();
+        const loadedKind = this.getLoadedFloorplanBackgroundKind();
+        const activeKind = shownKind !== 'none' ? shownKind : loadedKind;
+
+        this.SelectedFloorplanBackgroundTypeVariable = shownKind === 'none' ? "Hide" : "Show";
+        this.SelectedUserGeoJSONTypeVariable = this.commonService.session.style.widgets['map-user-geojson-show'] ? "Show" : "Hide";
+        this.SelectedFloorplanImageTypeVariable = this.commonService.session.style.widgets['map-floorplan-image-show'] ? "Show" : "Hide";
+
+        if (activeKind === 'geojson') {
+            this.floorplanBackgroundFileName = this.userGeoJSONFileName
+                || this.commonService.session.data.geoJSONLayerName
+                || (this.commonService.session.data.geoJSON ? this.userGeoJSONLayerNameFallback : "");
+            this.floorplanBackgroundSummary = this.userGeoJSONFeatureCount ? `${this.userGeoJSONFeatureCount} features` : "";
+            return;
+        }
+
+        if (activeKind === 'image') {
+            this.floorplanBackgroundFileName = this.floorplanImageFileName
+                || this.commonService.session.data.floorplanImageLayerName
+                || (this.commonService.session.data.floorplanImage ? this.floorplanImageLayerNameFallback : "");
+            this.floorplanBackgroundSummary = this.floorplanImageInfo || "";
+            return;
+        }
+
+        this.floorplanBackgroundFileName = "";
+        this.floorplanBackgroundSummary = "";
+    }
+
+    private setFloorplanBackgroundError(message: string): void {
+        this.floorplanBackgroundError = message;
+        this.userGeoJSONError = "";
+        this.floorplanImageError = "";
+    }
+
+    private clearFloorplanBackgroundError(): void {
+        this.floorplanBackgroundError = "";
+        this.userGeoJSONError = "";
+        this.floorplanImageError = "";
+    }
+
+    private isManualPositionField(field: string): boolean {
+        return [
+            this.manualFloorplanXField,
+            this.manualFloorplanYField,
+            this.manualMapLatitudeField,
+            this.manualMapLongitudeField
+        ].includes(field);
+    }
+
+    private getManualPositionMode(): ManualPositionMode {
+        return this.shouldUseManualFloorplanPosition() ? 'floorplan' : 'map';
+    }
+
+    private getManualPositionTargetLabel(): string {
+        return this.getManualPositionMode() === 'floorplan' ? 'floorplan' : 'map';
+    }
+
+    private getManualPositionCoordinateLabel(): string {
+        return this.getManualPositionMode() === 'floorplan' ? 'x/y' : 'map location';
+    }
+
+    private isManualPositioningActive(): boolean {
+        return this.SelectedManualPositionTypeVariable === "On"
+            && this.canUseManualPositioning();
+    }
+
+    private hasManualFloorplanPosition(node: any): boolean {
+        return !!node
+            && this.isFiniteMapCoordinate(node[this.manualFloorplanXField])
+            && this.isFiniteMapCoordinate(node[this.manualFloorplanYField]);
+    }
+
+    private hasManualMapPosition(node: any): boolean {
+        return !!node
+            && this.isFiniteMapCoordinate(node[this.manualMapLatitudeField])
+            && this.isFiniteMapCoordinate(node[this.manualMapLongitudeField]);
+    }
+
+    private hasManualPosition(node: any): boolean {
+        return this.getManualPositionMode() === 'floorplan'
+            ? this.hasManualFloorplanPosition(node)
+            : this.hasManualMapPosition(node);
+    }
+
+    private applyManualFloorplanPositions(): void {
+        this.nodes.forEach(node => {
+            if (!this.hasManualFloorplanPosition(node)) {
                 return;
             }
 
-            const padding = this.commonService.session.style.widgets['map-collapsing-on'] ? 28 : 18;
-            this.lmap.fitBounds(nodeBounds, {
-                animate: false,
-                padding: [padding, padding]
-            });
+            node._lon = Number(node[this.manualFloorplanXField]);
+            node._lat = Number(node[this.manualFloorplanYField]);
+        });
+    }
+
+    private applyManualMapPositions(): void {
+        this.nodes.forEach(node => {
+            if (!this.hasManualMapPosition(node)) {
+                return;
+            }
+
+            node._lat = Number(node[this.manualMapLatitudeField]);
+            node._lon = Number(node[this.manualMapLongitudeField]);
+        });
+    }
+
+    private applyManualPositions(): void {
+        if (this.getManualPositionMode() === 'floorplan') {
+            this.applyManualFloorplanPositions();
+            return;
         }
+
+        this.applyManualMapPositions();
+    }
+
+    private shouldDisableJitterForNode(node: any): boolean {
+        return this.hasManualPosition(node);
+    }
+
+    private useExactRenderedNodePosition(node: any): void {
+        node._jlon = parseFloat(node._lon);
+        node._jlat = parseFloat(node._lat);
+    }
+
+    private ensureManualFloorplanFields(): void {
+        if (!Array.isArray(this.commonService.session.data.nodeFields)) {
+            this.commonService.session.data.nodeFields = [];
+        }
+
+        [this.manualFloorplanXField, this.manualFloorplanYField].forEach(field => {
+            if (!this.commonService.session.data.nodeFields.includes(field)) {
+                this.commonService.session.data.nodeFields.push(field);
+            }
+        });
+    }
+
+    private ensureManualMapFields(): void {
+        if (!Array.isArray(this.commonService.session.data.nodeFields)) {
+            this.commonService.session.data.nodeFields = [];
+        }
+
+        [this.manualMapLatitudeField, this.manualMapLongitudeField].forEach(field => {
+            if (!this.commonService.session.data.nodeFields.includes(field)) {
+                this.commonService.session.data.nodeFields.push(field);
+            }
+        });
+    }
+
+    private ensureManualPositionFields(): void {
+        if (this.getManualPositionMode() === 'floorplan') {
+            this.ensureManualFloorplanFields();
+            return;
+        }
+
+        this.ensureManualMapFields();
+    }
+
+    private getManualPositionNodes(): any[] {
+        return this.commonService.getVisibleNodes()
+            .filter(node => node && node.visible !== false && node._id !== undefined);
+    }
+
+    canUseManualPositioning(): boolean {
+        return this.getManualPositionNodes().length > 0;
+    }
+
+    private getManualPositionNodeLabel(node: any): string {
+        const positionState = this.hasPlacedMapPosition(node) ? "placed" : "unplaced";
+        return `${node._id} (${positionState})`;
+    }
+
+    private findRenderedManualPositionNode(node: any): any {
+        if (!node || node._id === undefined || !Array.isArray(this.nodes)) {
+            return node;
+        }
+
+        return this.nodes.find(candidate => String(candidate?._id) === String(node._id)) || node;
+    }
+
+    private hasPlacedMapPosition(node: any): boolean {
+        const renderedNode = this.findRenderedManualPositionNode(node);
+        return !!renderedNode
+            && this.isFiniteMapCoordinate(renderedNode._lat)
+            && this.isFiniteMapCoordinate(renderedNode._lon);
+    }
+
+    private refreshNodesWithoutLocationData(): void {
+        this.nodesWithoutLoc = [];
+        this.nodes.forEach(node => {
+            if (!this.isFiniteMapCoordinate(node._lat) || !this.isFiniteMapCoordinate(node._lon)) {
+                this.nodesWithoutLoc.push({index: node.index, ID: node._id});
+            }
+        });
+    }
+
+    private findManualPositionNodeById(nodeId: string): any {
+        if (!nodeId || nodeId === this.noManualPositionNodeValue) {
+            return undefined;
+        }
+
+        return this.getManualPositionNodes().find(node => String(node._id) === String(nodeId));
+    }
+
+    private updateMatchingNodeRecords(node: any, update: (candidate: any) => void): void {
+        if (!node || node._id === undefined) {
+            return;
+        }
+
+        const id = String(node._id);
+        [
+            this.commonService.session.data.nodes,
+            this.commonService.session.data.nodeFilteredValues,
+            this.nodes
+        ].forEach(collection => {
+            if (!Array.isArray(collection)) {
+                return;
+            }
+
+            collection
+                .filter(candidate => String(candidate?._id) === id)
+                .forEach(update);
+        });
+    }
+
+    private persistManualPosition(node: any, latlng: L.LatLng): void {
+        if (!node || !latlng) {
+            return;
+        }
+
+        const latitude = Number(latlng.lat);
+        const longitude = Number(latlng.lng);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return;
+        }
+
+        this.ensureManualPositionFields();
+        this.updateMatchingNodeRecords(node, candidate => {
+            let storedLatitude = latitude;
+            if (this.getManualPositionMode() === 'floorplan') {
+                storedLatitude = this.shouldProjectFloorplanImageCoordinates()
+                    ? this.displayLatitudeToFloorplanImageY(latitude)
+                    : latitude;
+                candidate[this.manualFloorplanXField] = longitude;
+                candidate[this.manualFloorplanYField] = storedLatitude;
+            } else {
+                candidate[this.manualMapLatitudeField] = latitude;
+                candidate[this.manualMapLongitudeField] = longitude;
+            }
+
+            candidate._lon = longitude;
+            candidate._lat = storedLatitude;
+            candidate._jlon = longitude;
+            candidate._jlat = storedLatitude;
+        });
+        this.refreshNodesWithoutLocationData();
+    }
+
+    private clearManualPosition(node: any): void {
+        this.updateMatchingNodeRecords(node, candidate => {
+            if (this.getManualPositionMode() === 'floorplan') {
+                candidate[this.manualFloorplanXField] = null;
+                candidate[this.manualFloorplanYField] = null;
+            } else {
+                candidate[this.manualMapLatitudeField] = null;
+                candidate[this.manualMapLongitudeField] = null;
+            }
+        });
+    }
+
+    private refreshRenderedCoordinates(centerMap: boolean = false): void {
+        if (!this.lmap) {
+            this.refreshManualPositionControls();
+            return;
+        }
+
+        this.clearAllMarkers();
+        this.layers.removeLinks();
+        this.nodes = this.commonService.getVisibleNodes();
+
+        this.matchCoordinates(() => {
+            if (this.rerollCheck()) {
+                this.drawNodes();
+            } else {
+                this.jitter();
+                this.drawNodes(false);
+            }
+            this.drawLinks();
+            this.resetStack();
+            this.refreshManualPositionControls();
+            if (centerMap) {
+                this.centerMap();
+            }
+            this.autoExpandSelectedNode();
+        }, false);
+    }
+
+    refreshManualPositionControls(): void {
+        const manualNodes = this.getManualPositionNodes();
+        const placedNodes = manualNodes.filter(node => this.hasPlacedMapPosition(node));
+        const notPlacedNodes = manualNodes.filter(node => !this.hasPlacedMapPosition(node));
+        const clearableNodes = manualNodes.filter(node => this.hasManualPosition(node));
+
+        this.manualPositionPlacedCount = placedNodes.length;
+        this.manualPositionUnplacedCount = notPlacedNodes.length;
+        this.manualPositionClearableCount = clearableNodes.length;
+        this.manualPositionNodeList = [
+            { label: "None", value: this.noManualPositionNodeValue },
+            ...manualNodes.map(node => ({
+                label: this.getManualPositionNodeLabel(node),
+                value: String(node._id)
+            }))
+        ];
+
+        const selectedNode = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+        const selectedNone = this.SelectedManualPositionNodeId === this.noManualPositionNodeValue;
+        if (!selectedNode && !selectedNone) {
+            this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
+        }
+        this.manualPositionSelectedCanClear = !!selectedNode && this.hasManualPosition(selectedNode);
+
+        if (!this.canUseManualPositioning() && this.SelectedManualPositionTypeVariable === "On") {
+            this.SelectedManualPositionTypeVariable = "Off";
+        }
+    }
+
+    private refreshManualPositionControlsFromExternalCallback(): void {
+        this.cdref.detectChanges();
+        window.setTimeout(() => {
+            this.refreshManualPositionControls();
+            this.cdref.detectChanges();
+        }, 0);
+    }
+
+    private syncManualPositionSelectionFromNodeSelection(): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const selectedNodes = this.commonService.session.data.nodes
+            .filter(node => node?.selected === true && node?._id !== undefined);
+        if (selectedNodes.length !== 1) {
+            return;
+        }
+
+        this.SelectedManualPositionNodeId = String(selectedNodes[0]._id);
+    }
+
+    onManualPositioningChange(e): void {
+        this.SelectedManualPositionTypeVariable = e;
+
+        if (e === "On") {
+            this.ensureManualPositionFields();
+            this.refreshManualPositionControls();
+            const selectedNode = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+            if (!selectedNode) {
+                this.manualPositionMessage = `Select a node, then click the ${this.getManualPositionTargetLabel()} or drag its marker to set ${this.getManualPositionCoordinateLabel()}.`;
+            }
+        } else {
+            this.manualPositionMessage = "";
+            this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
+        }
+
+        this.refreshManualPositionControls();
+        if (this.lmap) {
+            this.drawNodes(false);
+            this.drawLinks();
+            this.resetStack();
+        }
+    }
+
+    onManualPositionNodeChange(nodeId: string): void {
+        this.SelectedManualPositionNodeId = nodeId || this.noManualPositionNodeValue;
+        const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+
+        if (!node) {
+            this.manualPositionMessage = `No node selected. Choose a node before clicking the ${this.getManualPositionTargetLabel()}.`;
+            this.redrawManualPositionMarkers();
+            return;
+        }
+
+        this.refreshManualPositionControls();
+        this.manualPositionMessage = this.hasPlacedMapPosition(node)
+            ? `${node._id} has ${this.getManualPositionCoordinateLabel()}. Click the ${this.getManualPositionTargetLabel()} or drag its marker to move it.`
+            : `${node._id} is unplaced. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
+        this.redrawManualPositionMarkers();
+    }
+
+    private selectManualPositionNode(node: any, redraw: boolean = true): void {
+        if (!node || node._id === undefined) {
+            this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
+            this.manualPositionMessage = `No node selected. Choose a node before clicking the ${this.getManualPositionTargetLabel()}.`;
+        } else {
+            this.SelectedManualPositionNodeId = String(node._id);
+            this.manualPositionMessage = this.hasPlacedMapPosition(node)
+                ? `${node._id} has ${this.getManualPositionCoordinateLabel()}. Click the ${this.getManualPositionTargetLabel()} or drag its marker to move it.`
+                : `${node._id} is unplaced. Click the ${this.getManualPositionTargetLabel()} to set ${this.getManualPositionCoordinateLabel()}.`;
+        }
+
+        this.refreshManualPositionControls();
+        if (redraw) {
+            this.redrawManualPositionMarkers();
+        }
+    }
+
+    selectNextUnplacedManualPositionNode(): void {
+        const node = this.getManualPositionNodes().find(candidate => !this.hasPlacedMapPosition(candidate));
+        if (!node) {
+            this.manualPositionMessage = `All visible nodes have ${this.getManualPositionCoordinateLabel()}.`;
+            return;
+        }
+
+        this.selectManualPositionNode(node);
+    }
+
+    clearSelectedManualPosition(): void {
+        const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+        if (!node) {
+            this.manualPositionMessage = `No node selected.`;
+            return;
+        }
+
+        this.clearManualPosition(node);
+        this.manualPositionMessage = `Cleared ${this.getManualPositionCoordinateLabel()} for ${node._id}.`;
+        this.refreshRenderedCoordinates(false);
+    }
+
+    clearAllManualPositions(): void {
+        this.getManualPositionNodes().forEach(node => this.clearManualPosition(node));
+        this.manualPositionMessage = `Cleared ${this.getManualPositionCoordinateLabel()} for all visible nodes.`;
+        this.refreshRenderedCoordinates(false);
+    }
+
+    private redrawManualPositionMarkers(): void {
+        if (!this.lmap || !this.isManualPositioningActive()) {
+            return;
+        }
+
+        this.drawNodes(false);
+        this.drawLinks();
+        this.resetStack();
+    }
+
+    private onManualPositionMarkerClick(e): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const node = e.sourceTarget && e.sourceTarget.data
+            ? e.sourceTarget.data
+            : e.target && e.target.data;
+        if (!node || node._id === undefined) {
+            return;
+        }
+
+        if (e.originalEvent) {
+            e.originalEvent.preventDefault();
+            e.originalEvent.stopPropagation();
+        }
+
+        if (String(this.SelectedManualPositionNodeId) === String(node._id)) {
+            this.SelectedManualPositionNodeId = this.noManualPositionNodeValue;
+            this.manualPositionMessage = `No node selected. Choose a node before clicking the ${this.getManualPositionTargetLabel()}.`;
+        } else {
+            this.selectManualPositionNode(node, false);
+        }
+
+        this.refreshManualPositionControls();
+        this.redrawManualPositionMarkers();
+    }
+
+    private onManualPositionMarkerDragEnd(e): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const marker = e.target as MarkerWithData;
+        if (!marker || !marker.data) {
+            return;
+        }
+
+        this.selectManualPositionNode(marker.data, false);
+        this.persistManualPosition(marker.data, marker.getLatLng());
+        this.manualPositionMessage = `Updated ${this.getManualPositionCoordinateLabel()} for ${marker.data._id}.`;
+        this.drawNodes(false);
+        this.drawLinks();
+        this.refreshManualPositionControlsFromExternalCallback();
+    }
+
+    private onManualPositionMapClick(e: L.LeafletMouseEvent): void {
+        if (!this.isManualPositioningActive()) {
+            return;
+        }
+
+        const originalTarget = e.originalEvent ? e.originalEvent.target as HTMLElement : null;
+        if (originalTarget && originalTarget.closest && originalTarget.closest('.leaflet-marker-icon')) {
+            return;
+        }
+
+        const node = this.findManualPositionNodeById(this.SelectedManualPositionNodeId);
+        if (!node) {
+            this.manualPositionMessage = `Select a node before clicking the ${this.getManualPositionTargetLabel()}.`;
+            return;
+        }
+
+        this.persistManualPosition(node, e.latlng);
+        this.manualPositionMessage = `Set ${this.getManualPositionCoordinateLabel()} for ${node._id}.`;
+        this.drawNodes(false);
+        this.drawLinks();
+        this.resetStack();
+        this.refreshManualPositionControlsFromExternalCallback();
+    }
+
+    onFloorplanBackgroundFileSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input?.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        this.clearFloorplanBackgroundError();
+        const lowerName = file.name.toLowerCase();
+        const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/i.test(lowerName);
+
+        if (isImage) {
+            this.readFloorplanImageFile(file);
+        } else {
+            this.readGeoJSONBackgroundFile(file);
+        }
+
+        input.value = "";
+    }
+
+    private readGeoJSONBackgroundFile(file: File): void {
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.setFloorplanBackgroundError(`Unable to read ${file.name}.`);
+            this.syncFloorplanBackgroundControls();
+            this.cdref.detectChanges();
+        };
+        reader.onload = () => {
+            try {
+                const data = JSON.parse(String(reader.result || ""));
+                this.validateUserGeoJSON(data);
+                this.setUserGeoJSON(data, file.name);
+                this.syncFloorplanBackgroundControls();
+                this.refreshRenderedCoordinates(true);
+                this.cdref.detectChanges();
+            } catch (error) {
+                const message = error instanceof Error ? error.message : `Unable to parse ${file.name}.`;
+                this.setFloorplanBackgroundError(message);
+                this.syncFloorplanBackgroundControls();
+                this.cdref.detectChanges();
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    private readFloorplanImageFile(file: File): void {
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.setFloorplanBackgroundError(`Unable to read ${file.name}.`);
+            this.syncFloorplanBackgroundControls();
+            this.cdref.detectChanges();
+        };
+        reader.onload = () => {
+            const dataUrl = String(reader.result || "");
+            const image = new Image();
+            image.onload = () => {
+                const width = image.naturalWidth || image.width || 1;
+                const height = image.naturalHeight || image.height || 1;
+                const bounds = this.createFloorplanImageBounds(width, height);
+                this.setFloorplanImage(dataUrl, file.name, bounds, width, height);
+                this.syncFloorplanBackgroundControls();
+                this.refreshRenderedCoordinates(true);
+                this.cdref.detectChanges();
+            };
+            image.onerror = () => {
+                this.setFloorplanBackgroundError(`Unable to load ${file.name} as an image.`);
+                this.syncFloorplanBackgroundControls();
+                this.cdref.detectChanges();
+            };
+            image.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    onFloorplanBackgroundLayerChange(e): void {
+        this.SelectedFloorplanBackgroundTypeVariable = e;
+        if (e === "Show") {
+            const loadedKind = this.getLoadedFloorplanBackgroundKind();
+            if (loadedKind === 'image') {
+                this.onFloorplanImageChange("Show");
+            } else if (loadedKind === 'geojson') {
+                this.onUserGeoJSONChange("Show");
+            } else {
+                this.setFloorplanBackgroundError("Upload a GeoJSON or image background before showing this layer.");
+                this.SelectedFloorplanBackgroundTypeVariable = "Hide";
+            }
+        } else {
+            this.onUserGeoJSONChange("Hide");
+            this.onFloorplanImageChange("Hide");
+        }
+
+        this.syncFloorplanBackgroundControls();
+        this.refreshRenderedCoordinates(false);
+    }
+
+    onUserGeoJSONChange(e) {
+        this.ensureUserGeoJSONWidgetDefaults();
+        this.ensureFloorplanImageWidgetDefaults();
+        this.SelectedUserGeoJSONTypeVariable = e;
+
+        if (e == "Show") {
+            if (!this.commonService.session.data.geoJSON) {
+                this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+                this.SelectedUserGeoJSONTypeVariable = "Hide";
+                this.setFloorplanBackgroundError("Upload a GeoJSON or image background before showing this layer.");
+                this.removeUserGeoJSONLayer();
+                this.refreshManualPositionControls();
+                this.syncFloorplanBackgroundControls();
+                return;
+            }
+
+            this.commonService.session.style.widgets['map-user-geojson-show'] = true;
+            this.clearFloorplanBackgroundError();
+            this.hideFloorplanImageForSiblingBackground();
+            this.hideOtherBackgroundLayersForUserFloorplan();
+            this.addUserGeoJSONLayerToMap();
+            this.syncFloorplanBackgroundControls();
+            this.resetStack();
+            this.refreshManualPositionControls();
+        } else {
+            this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+            this.SelectedUserGeoJSONTypeVariable = "Hide";
+            this.removeUserGeoJSONLayer();
+            this.syncFloorplanBackgroundControls();
+            this.refreshManualPositionControls();
+        }
+    }
+
+    onFloorplanImageChange(e) {
+        this.ensureFloorplanImageWidgetDefaults();
+        this.ensureUserGeoJSONWidgetDefaults();
+        this.SelectedFloorplanImageTypeVariable = e;
+
+        if (e == "Show") {
+            if (!this.commonService.session.data.floorplanImage) {
+                this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+                this.SelectedFloorplanImageTypeVariable = "Hide";
+                this.setFloorplanBackgroundError("Upload a GeoJSON or image background before showing this layer.");
+                this.removeFloorplanImageLayer();
+                this.refreshManualPositionControls();
+                this.syncFloorplanBackgroundControls();
+                return;
+            }
+
+            this.commonService.session.style.widgets['map-floorplan-image-show'] = true;
+            this.clearFloorplanBackgroundError();
+            this.hideUserGeoJSONForSiblingBackground();
+            this.hideOtherBackgroundLayersForUserFloorplan();
+            this.addFloorplanImageLayerToMap();
+            this.syncFloorplanBackgroundControls();
+            this.resetStack();
+            this.refreshManualPositionControls();
+        } else {
+            this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+            this.SelectedFloorplanImageTypeVariable = "Hide";
+            this.removeFloorplanImageLayer();
+            this.syncFloorplanBackgroundControls();
+            this.refreshManualPositionControls();
+        }
+    }
+
+    centerFloorplanBackground() {
+        this.centerMap();
+    }
+
+    clearFloorplanBackground() {
+        this.clearUserGeoJSONBackgroundData();
+        this.clearFloorplanImageBackgroundData();
+        this.clearFloorplanBackgroundError();
+        this.SelectedManualPositionTypeVariable = "Off";
+        this.refreshRenderedCoordinates(false);
+        this.syncFloorplanBackgroundControls();
+    }
+
+    private setUserGeoJSON(data: any, fileName: string) {
+        this.clearFloorplanImageBackgroundData();
+        this.clearFloorplanBackgroundError();
+        this.commonService.session.data.geoJSON = data;
+        this.commonService.session.data.geoJSONLayerName = fileName || this.userGeoJSONLayerNameFallback;
+        this.userGeoJSONFileName = this.commonService.session.data.geoJSONLayerName;
+        this.userGeoJSONFeatureCount = this.countGeoJSONFeatures(data);
+        this.userGeoJSONError = "";
+        this.rebuildUserGeoJSONLayer();
+        this.onUserGeoJSONChange("Show");
+    }
+
+    private setFloorplanImage(dataUrl: string, fileName: string, bounds: [[number, number], [number, number]], width: number, height: number) {
+        this.clearUserGeoJSONBackgroundData();
+        this.clearFloorplanBackgroundError();
+        this.commonService.session.data.floorplanImage = dataUrl;
+        this.commonService.session.data.floorplanImageLayerName = fileName || this.floorplanImageLayerNameFallback;
+        this.commonService.session.data.floorplanImageBounds = bounds;
+        this.commonService.session.data.floorplanImageWidth = width;
+        this.commonService.session.data.floorplanImageHeight = height;
+        this.floorplanImageFileName = this.commonService.session.data.floorplanImageLayerName;
+        this.floorplanImageInfo = this.formatFloorplanImageInfo(width, height, bounds);
+        this.floorplanImageError = "";
+        this.rebuildFloorplanImageLayer();
+        this.onFloorplanImageChange("Show");
+    }
+
+    private restoreUserGeoJSONLayer() {
+        const data = this.commonService.session.data.geoJSON;
+        this.userGeoJSONFileName = this.commonService.session.data.geoJSONLayerName || "";
+        this.userGeoJSONFeatureCount = data ? this.countGeoJSONFeatures(data) : 0;
+        this.userGeoJSONError = "";
+
+        if (!data) {
+            this.removeUserGeoJSONLayer();
+            return;
+        }
+
+        try {
+            this.validateUserGeoJSON(data);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unable to restore GeoJSON background.";
+            this.commonService.session.data.geoJSON = null;
+            this.commonService.session.data.geoJSONLayerName = "";
+            this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+            this.SelectedUserGeoJSONTypeVariable = "Hide";
+            this.userGeoJSONFileName = "";
+            this.userGeoJSONFeatureCount = 0;
+            this.userGeoJSONError = message;
+            this.removeUserGeoJSONLayer();
+            return;
+        }
+
+        this.rebuildUserGeoJSONLayer();
+    }
+
+    private restoreFloorplanImageLayer() {
+        const data = this.commonService.session.data.floorplanImage;
+        this.floorplanImageFileName = this.commonService.session.data.floorplanImageLayerName || "";
+        this.floorplanImageInfo = this.formatFloorplanImageInfo(
+            this.commonService.session.data.floorplanImageWidth,
+            this.commonService.session.data.floorplanImageHeight,
+            this.getFloorplanImageBounds()
+        );
+        this.floorplanImageError = "";
+
+        if (!data) {
+            this.removeFloorplanImageLayer();
+            return;
+        }
+
+        this.rebuildFloorplanImageLayer();
+    }
+
+    private rebuildUserGeoJSONLayer() {
+        this.removeUserGeoJSONLayer();
+        const data = this.commonService.session.data.geoJSON;
+        let canRenderGeoJSON = false;
+        if (data) {
+            try {
+                this.validateUserGeoJSON(data);
+                canRenderGeoJSON = true;
+            } catch {
+                canRenderGeoJSON = false;
+            }
+        }
+
+        this.layers.userGeoJSON = canRenderGeoJSON
+            ? geoJSON(data, {
+                style: () => this.getUserGeoJSONPathStyle(),
+                pointToLayer: (_feature, latlng) => circleMarker(latlng, {
+                    radius: 4,
+                    color: '#555555',
+                    fillColor: '#a6cee3',
+                    fillOpacity: 0.55,
+                    weight: 1
+                })
+            })
+            : geoJSON();
+    }
+
+    private getUserGeoJSONPathStyle(): any {
+        return {
+            color: '#555555',
+            weight: 1,
+            fillColor: '#dceaf7',
+            fillOpacity: 0.45,
+            opacity: 0.85
+        };
+    }
+
+    private addUserGeoJSONLayerToMap() {
+        if (!this.lmap || !this.commonService.session.data.geoJSON) {
+            return;
+        }
+
+        if (!this.layers.userGeoJSON || this.layers.userGeoJSON.getLayers().length === 0) {
+            this.rebuildUserGeoJSONLayer();
+        }
+
+        if (!this.lmap.hasLayer(this.layers.userGeoJSON)) {
+            this.layers.userGeoJSON.addTo(this.lmap);
+        }
+        this.layers.userGeoJSON.bringToBack();
+    }
+
+    private rebuildFloorplanImageLayer() {
+        this.removeFloorplanImageLayer();
+        const data = this.commonService.session.data.floorplanImage;
+        this.layers.floorplanImage = data
+            ? imageOverlay(data, this.getFloorplanImageOverlayBounds(), {
+                opacity: 1,
+                interactive: false
+            })
+            : null;
+    }
+
+    private addFloorplanImageLayerToMap() {
+        if (!this.lmap || !this.commonService.session.data.floorplanImage) {
+            return;
+        }
+
+        if (!this.layers.floorplanImage) {
+            this.rebuildFloorplanImageLayer();
+        }
+
+        if (this.layers.floorplanImage && !this.lmap.hasLayer(this.layers.floorplanImage)) {
+            this.layers.floorplanImage.addTo(this.lmap);
+        }
+        if (this.layers.floorplanImage) {
+            this.layers.floorplanImage.bringToBack();
+        }
+    }
+
+    private removeUserGeoJSONLayer() {
+        if (this.layers.userGeoJSON) {
+            this.layers.userGeoJSON.remove();
+        }
+    }
+
+    private removeFloorplanImageLayer() {
+        if (this.layers.floorplanImage) {
+            this.layers.floorplanImage.remove();
+        }
+    }
+
+    private isUserGeoJSONLayerVisible(): boolean {
+        return !!this.lmap && !!this.layers.userGeoJSON && this.lmap.hasLayer(this.layers.userGeoJSON);
+    }
+
+    private isFloorplanImageLayerVisible(): boolean {
+        return !!this.lmap && !!this.layers.floorplanImage && this.lmap.hasLayer(this.layers.floorplanImage);
+    }
+
+    private hideOtherBackgroundLayersForUserFloorplan() {
+        this.SelectedBasemapTypeVariable = "Hide";
+        this.SelectedSatelliteTypeVariable = "Hide";
+        this.SelectedCountriesTypeVariable = "Hide";
+        this.SelectedStatesTypeVariable = "Hide";
+        this.SelectedCountiesTypeVariable = "Hide";
+
+        this.onBasemapChange("Hide", true);
+        this.onSatelliteChange("Hide", true);
+        this.onCountriesShowHidChange("Hide");
+        this.onStatesShowHideChange("Hide");
+        this.onCountiesShowHideChange("Hide");
+    }
+
+    private hideFloorplanImageForSiblingBackground() {
+        this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+        this.SelectedFloorplanImageTypeVariable = "Hide";
+        this.removeFloorplanImageLayer();
+    }
+
+    private hideUserGeoJSONForSiblingBackground() {
+        this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+        this.SelectedUserGeoJSONTypeVariable = "Hide";
+        this.removeUserGeoJSONLayer();
+    }
+
+    private clearUserGeoJSONBackgroundData() {
+        this.commonService.session.data.geoJSON = null;
+        this.commonService.session.data.geoJSONLayerName = "";
+        this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+        this.SelectedUserGeoJSONTypeVariable = "Hide";
+        this.userGeoJSONFileName = "";
+        this.userGeoJSONFeatureCount = 0;
+        this.userGeoJSONError = "";
+        this.removeUserGeoJSONLayer();
+    }
+
+    private clearFloorplanImageBackgroundData() {
+        this.commonService.session.data.floorplanImage = null;
+        this.commonService.session.data.floorplanImageLayerName = "";
+        this.commonService.session.data.floorplanImageBounds = null;
+        this.commonService.session.data.floorplanImageWidth = null;
+        this.commonService.session.data.floorplanImageHeight = null;
+        this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+        this.SelectedFloorplanImageTypeVariable = "Hide";
+        this.floorplanImageFileName = "";
+        this.floorplanImageInfo = "";
+        this.floorplanImageError = "";
+        this.removeFloorplanImageLayer();
+    }
+
+    private ensureUserGeoJSONWidgetDefaults(): void {
+        const widgets = this.commonService.session.style.widgets;
+        if (widgets['map-user-geojson-show'] === undefined || widgets['map-user-geojson-show'] === null) {
+            widgets['map-user-geojson-show'] = false;
+        }
+        if (this.commonService.session.data.geoJSON === undefined) {
+            this.commonService.session.data.geoJSON = null;
+        }
+        if (this.commonService.session.data.geoJSONLayerName === undefined) {
+            this.commonService.session.data.geoJSONLayerName = "";
+        }
+    }
+
+    private ensureFloorplanImageWidgetDefaults(): void {
+        const widgets = this.commonService.session.style.widgets;
+        if (widgets['map-floorplan-image-show'] === undefined || widgets['map-floorplan-image-show'] === null) {
+            widgets['map-floorplan-image-show'] = false;
+        }
+        if (this.commonService.session.data.floorplanImage === undefined) {
+            this.commonService.session.data.floorplanImage = null;
+        }
+        if (this.commonService.session.data.floorplanImageLayerName === undefined) {
+            this.commonService.session.data.floorplanImageLayerName = "";
+        }
+        if (this.commonService.session.data.floorplanImageBounds === undefined) {
+            this.commonService.session.data.floorplanImageBounds = null;
+        }
+        if (this.commonService.session.data.floorplanImageWidth === undefined) {
+            this.commonService.session.data.floorplanImageWidth = null;
+        }
+        if (this.commonService.session.data.floorplanImageHeight === undefined) {
+            this.commonService.session.data.floorplanImageHeight = null;
+        }
+    }
+
+    private createFloorplanImageBounds(width: number, height: number): [[number, number], [number, number]] {
+        const safeWidth = Number(width) > 0 ? Number(width) : 1;
+        const safeHeight = Number(height) > 0 ? Number(height) : 1;
+        const scale = this.floorplanImageMaxCoordinate / Math.max(safeWidth, safeHeight);
+        const xMax = safeWidth * scale;
+        const yMax = safeHeight * scale;
+
+        return [[0, 0], [yMax, xMax]];
+    }
+
+    private getFloorplanImageBounds(): L.LatLngBoundsExpression {
+        const storedBounds = this.commonService.session.data.floorplanImageBounds;
+        if (Array.isArray(storedBounds)
+            && storedBounds.length === 2
+            && Array.isArray(storedBounds[0])
+            && Array.isArray(storedBounds[1])) {
+            return storedBounds as L.LatLngBoundsExpression;
+        }
+
+        return this.createFloorplanImageBounds(
+            this.commonService.session.data.floorplanImageWidth,
+            this.commonService.session.data.floorplanImageHeight
+        );
+    }
+
+    private getFloorplanImageOverlayBounds(): L.LatLngBoundsExpression {
+        const normalizedBounds = L.latLngBounds(this.getFloorplanImageBounds() as any);
+        return [
+            [
+                this.floorplanImageYToDisplayLatitude(normalizedBounds.getSouth()),
+                normalizedBounds.getWest()
+            ],
+            [
+                this.floorplanImageYToDisplayLatitude(normalizedBounds.getNorth()),
+                normalizedBounds.getEast()
+            ]
+        ];
+    }
+
+    private formatFloorplanImageInfo(width: any, height: any, bounds: L.LatLngBoundsExpression): string {
+        if (!width || !height) {
+            return "";
+        }
+
+        const latLngBounds = L.latLngBounds(bounds as any);
+        return `${width} x ${height}px, x ${latLngBounds.getWest().toFixed(2)}-${latLngBounds.getEast().toFixed(2)}, y ${latLngBounds.getSouth().toFixed(2)}-${latLngBounds.getNorth().toFixed(2)}`;
+    }
+
+    private validateUserGeoJSON(data: any) {
+        if (!data || typeof data !== 'object') {
+            throw new Error("GeoJSON file must contain a JSON object.");
+        }
+
+        const isRenderableGeoJSON = data.type === "FeatureCollection"
+            || data.type === "Feature"
+            || !!data.coordinates
+            || data.type === "GeometryCollection";
+        if (!isRenderableGeoJSON) {
+            throw new Error("GeoJSON file must be a FeatureCollection, Feature, or geometry object.");
+        }
+
+        if (data.type === "FeatureCollection" && (!Array.isArray(data.features) || data.features.length === 0)) {
+            throw new Error("GeoJSON FeatureCollection does not contain any features.");
+        }
+
+        if (this.countGeoJSONFeatures(data) === 0) {
+            throw new Error("GeoJSON file does not contain any renderable features.");
+        }
+    }
+
+    private countGeoJSONFeatures(data: any): number {
+        if (!data) {
+            return 0;
+        }
+
+        if (data.type === "FeatureCollection") {
+            return Array.isArray(data.features) ? data.features.length : 0;
+        }
+
+        if (data.type === "Feature" || data.type === "GeometryCollection" || data.coordinates) {
+            return 1;
+        }
+
+        return 0;
     }
 
     /**
@@ -705,6 +1918,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             that.drawLinks();
             that.resetStack();
+            that.refreshManualPositionControls();
             that.centerMap()
             that.autoExpandSelectedNode();
             that.markMapRendered();
@@ -1253,6 +2467,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     matchCoordinates(callback, norefresh) {
         if (!norefresh) this.nodes = this.commonService.getVisibleNodes();
+        this.nodes.forEach(n => {
+            n._lat = undefined;
+            n._lon = undefined;
+        });
         if (this.commonService.session.style.widgets['map-field-country'] !== 'None') {
             if (!this.commonService.temp.mapData.countries) {
                 this.getMapData('countries.json', () => this.matchCoordinates(callback, true));
@@ -1365,14 +2583,9 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             });
         }
 
-        this.nodesWithoutLoc = [];
-        let nodeLocSet: boolean = false;
-        this.nodes.forEach(n => {
-            if (!n._lat || !n._lon){
-                this.nodesWithoutLoc.push({index: n.index, ID: n._id})
-            }
-            if ( !nodeLocSet && n._lat && n._lon) nodeLocSet = true;
-        })
+        this.applyManualPositions();
+
+        this.refreshNodesWithoutLocationData();
 
         if (callback) callback();
     }
@@ -1413,6 +2626,52 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //}
     }
 
+    private createMapNodeMarker(
+        d: any,
+        latlng: L.LatLng,
+        isSelectedMarker: boolean,
+        draggable: boolean,
+        manualPositioningActive: boolean
+    ): MarkerWithData {
+        const selectedColor = this.commonService.session.style.widgets['selected-color'];
+        const mapOpacity = this.commonService.clampStyleAlpha(1 - this.commonService.session.style.widgets['map-node-transparency']);
+        const nodeStyle = this.commonService.getNodeFillStyle(d);
+        const nodeFillOpacity = this.commonService.clampStyleAlpha(nodeStyle.alpha * mapOpacity);
+        const strokeColor = isSelectedMarker ? selectedColor : '#000000';
+        const strokeWidth = this.getStrokeWidth(this.getNodeShapeKey(d), isSelectedMarker);
+        const shapeKey = this.getNodeShapeKey(d);
+
+        const nodeMarker: MarkerWithData = L.marker(latlng, {
+            icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, isSelectedMarker, nodeFillOpacity),
+            opacity: 1,
+            fillOpacity: nodeFillOpacity,
+            fillColor: nodeStyle.color,
+            color: strokeColor,
+            weight: strokeWidth,
+            draggable
+        } as L.MarkerOptions & { fillOpacity: number; fillColor: string; color: string; weight: number; draggable: boolean });
+
+        nodeMarker.data = d;
+
+        if (draggable) {
+            nodeMarker.on('dragend', (e) => this.onManualPositionMarkerDragEnd(e));
+        }
+
+        nodeMarker
+            .on('mouseover', (e) => this.showNodeTooltip(e))
+            .on('mouseout', (e) => this.hideTooltip())
+            .on('click', (e) => {
+                if (manualPositioningActive) {
+                    this.onManualPositionMarkerClick(e);
+                    return;
+                }
+
+                this.clickHandler(e);
+            });
+
+        return nodeMarker;
+    }
+
     /*drawLeafletMapNodesGeospatial() {
         const opacity = 1 - this.commonService.session.style.widgets['map-node-transparency'];
         const selectedColor = this.commonService.session.style.widgets['selected-color'];
@@ -1445,41 +2704,28 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Draws nodes on the map
      */
     drawLeafletMapNodesList() {
-        var selectedColor = this.commonService.session.style.widgets['selected-color'],
-            mapOpacity = this.commonService.clampStyleAlpha(1 - this.commonService.session.style.widgets['map-node-transparency']);
-
         var features: Layer[] = [];
+        const manualPositioningActive = this.isManualPositioningActive();
 
         var n = this.nodes.length;
         for (var i = 0; i < n; i++) {
             var d = this.nodes[i];
-            if (!d._jlat || !d._jlon || d.visible === false) continue;
+            if (!this.isFiniteMapCoordinate(d._jlat) || !this.isFiniteMapCoordinate(d._jlon) || d.visible === false) continue;
 
-            const nodeStyle = this.commonService.getNodeFillStyle(d);
-            const nodeFillOpacity = this.commonService.clampStyleAlpha(nodeStyle.alpha * mapOpacity);
-            const strokeColor = d.selected ? selectedColor : '#000000';
-            const strokeWidth = d.selected ? 36 : 16;
-            const shapeKey = this.getNodeShapeKey(d);
+            const isManualPositionTarget = manualPositioningActive
+                && String(this.SelectedManualPositionNodeId) === String(d._id);
+            const isSelectedMarker = isManualPositionTarget || d.selected === true;
+            const nodeMarker = this.createMapNodeMarker(
+                d,
+                this.getRenderedMapLatLng(d._jlat, d._jlon),
+                isSelectedMarker,
+                manualPositioningActive,
+                manualPositioningActive
+            );
 
-            let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
-                icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, d.selected, nodeFillOpacity),
-                opacity: 1,
-                fillOpacity: nodeFillOpacity,
-                fillColor: nodeStyle.color,
-                color: strokeColor,
-                weight: strokeWidth
-            } as L.MarkerOptions & { fillOpacity: number; fillColor: string; color: string; weight: number });
-
-            nodeMarker.data = d;
             if (d._id !== undefined) {
                 this.mapNodeMarkersById[String(d._id)] = nodeMarker;
             }
-
-            nodeMarker
-                .on('mouseover', (e) => this.showNodeTooltip(e))
-                .on('mouseout', (e) => this.hideTooltip())
-                .on('click', (e) => this.clickHandler(e));
-
 
             features.push(nodeMarker);
         }
@@ -1511,7 +2757,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             var source = this.nodes.find(node => node._id == d.source && node.visible);
             var target = this.nodes.find(node => node._id == d.target && node.visible);
     
-            if (source && target && source._jlat && source._jlon && target._jlat && target._jlon) {
+            if (source && target
+                && this.isFiniteMapCoordinate(source._jlat)
+                && this.isFiniteMapCoordinate(source._jlon)
+                && this.isFiniteMapCoordinate(target._jlat)
+                && this.isFiniteMapCoordinate(target._jlon)) {
+                const sourceLatLng = this.getRenderedMapLatLng(source._jlat, source._jlon);
+                const targetLatLng = this.getRenderedMapLatLng(target._jlat, target._jlon);
                 // Handle multiple origins
                 if (lcv == 'origin' && d.origin && d.origin.length > 1) {
                     let color1 = this.commonService.temp.style.linkColorMap(d.origin[0]);
@@ -1520,13 +2772,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     let dashPattern1 = '10, 10';
                     let dashPattern2 = '0, 10, 10, 0';
     
-                    let polyline1 = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+                    let polyline1 = L.polyline([sourceLatLng, targetLatLng], {
                         color: color1,
                         dashArray: dashPattern1,
                         opacity: opacity
                     });
     
-                    let polyline2: PolyLineWithData = L.polyline([[source._jlat, source._jlon], [target._jlat, target._jlon]], {
+                    let polyline2: PolyLineWithData = L.polyline([sourceLatLng, targetLatLng], {
                         color: color2,
                         dashArray: dashPattern2,
                         opacity: opacity
@@ -1541,10 +2793,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     features.push(polyline2);
                 } else {
                     // Single origin handling
-                    const connectorLine: PolyLineWithData = L.polyline([
-                        [source._jlat, source._jlon],
-                        [target._jlat, target._jlon]
-                    ], {
+                    const connectorLine: PolyLineWithData = L.polyline([sourceLatLng, targetLatLng], {
                         color: lcv === "None" ?
                             this.commonService.session.style.widgets['link-color'] :
                             this.commonService.temp.style.linkColorMap(d[lcv]),
@@ -1569,6 +2818,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             if (this.commonService.session.style.widgets['map-collapsing-on']) {
                 // Not sure how to move collapsed nodes to front with bringToFront(), they use markerClusterGroup (from leaflet.markercluster plugin) instead of featureGroup (from base leaflet)
                 this.drawNodes(false)
+                this.autoExpandSelectedNode();
             } else {
                 this.layers.featureGroup.bringToFront();
             }
@@ -1671,6 +2921,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Tile Layers, in reverse order:
         if (this.layers.satellite && this.commonService.session.style.widgets['map-satellite-show']) this.layers.satellite.bringToBack();
         if (this.layers.basemap && this.commonService.session.style.widgets['map-basemap-show']) this.layers.basemap.bringToBack();
+        if (this.layers.userGeoJSON && this.commonService.session.style.widgets['map-user-geojson-show']) this.layers.userGeoJSON.bringToBack();
+        if (this.layers.floorplanImage && this.commonService.session.style.widgets['map-floorplan-image-show']) this.layers.floorplanImage.bringToBack();
 
         //Background Layers, in order:
         if (this.layers.countries && this.commonService.session.style.widgets['map-countries-show']) this.layers.countries.bringToFront();
@@ -1682,7 +2934,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         //User Layers:
         Object.keys(this.layers)
-            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'links', 'nodes'], l))
+            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'userGeoJSON', 'floorplanImage', 'links', 'nodes'], l))
             .forEach(l => this.layers[l].bringToFront());
 
 
@@ -1708,6 +2960,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         node._theta = this.commonService.r01() * Math.PI * 2;
         node._j = this.commonService.r01();
 
+        if (this.shouldDisableJitterForNode(node)) {
+            this.useExactRenderedNodePosition(node);
+            return;
+        }
+
         var v = this.commonService.session.style.widgets['map-node-jitter'] == -2 ? 0 : Math.pow(2, this.commonService.session.style.widgets['map-node-jitter']);
         node._jlon = parseFloat(node._lon) + v * node._j * Math.cos(node._theta);
         node._jlat = parseFloat(node._lat) + v * node._j * Math.sin(node._theta);
@@ -1722,6 +2979,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var n = this.nodes.length;
         for (var i = 0; i < n; i++) {
             var node = this.nodes[i];
+            if (this.shouldDisableJitterForNode(node)) {
+                this.useExactRenderedNodePosition(node);
+                continue;
+            }
             this.nodes[i]._jlon = parseFloat(node._lon) + v * node._j * Math.cos(node._theta);
             this.nodes[i]._jlat = parseFloat(node._lat) + v * node._j * Math.sin(node._theta);
         }
@@ -1858,6 +3119,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     loadSettings() {
         this.ensureMapAutoExpandSelectedSetting();
         this.ensureAdminLabelWidgetDefaults();
+        this.ensureUserGeoJSONWidgetDefaults();
+        this.ensureFloorplanImageWidgetDefaults();
+        this.SelectedManualPositionTypeVariable = "Off";
+        this.manualPositionMessage = "";
 
         // Components | Layers
         this.SelectedBasemapTypeVariable = this.commonService.session.style.widgets['map-basemap-show'] ? 'Show' : 'Hide';
@@ -1865,6 +3130,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.SelectedCountriesTypeVariable = this.getAdminLayerSelection('countries');
         this.SelectedStatesTypeVariable = this.getAdminLayerSelection('states');
         this.SelectedCountiesTypeVariable = this.getAdminLayerSelection('counties');
+        this.SelectedUserGeoJSONTypeVariable = this.commonService.session.style.widgets['map-user-geojson-show'] ? 'Show' : 'Hide';
+        this.SelectedFloorplanImageTypeVariable = this.commonService.session.style.widgets['map-floorplan-image-show'] ? 'Show' : 'Hide';
 
         // Apply the saved widget state without rewriting sibling layer preferences during reload.
         this.onBasemapChange(this.SelectedBasemapTypeVariable, true);
@@ -1872,6 +3139,25 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.onCountriesShowHidChange(this.SelectedCountriesTypeVariable);
         this.onStatesShowHideChange(this.SelectedStatesTypeVariable);
         this.onCountiesShowHideChange(this.SelectedCountiesTypeVariable);
+        const savedUserGeoJSONSelection = this.SelectedUserGeoJSONTypeVariable;
+        const savedFloorplanImageSelection = this.SelectedFloorplanImageTypeVariable;
+        this.restoreUserGeoJSONLayer();
+        this.restoreFloorplanImageLayer();
+        if (savedFloorplanImageSelection === 'Show' && this.commonService.session.data.floorplanImage) {
+            this.onFloorplanImageChange('Show');
+        }
+        else if (savedUserGeoJSONSelection === 'Show' && this.commonService.session.data.geoJSON) {
+            this.onUserGeoJSONChange('Show');
+        }
+        else {
+            this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+            this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
+            this.SelectedUserGeoJSONTypeVariable = 'Hide';
+            this.SelectedFloorplanImageTypeVariable = 'Hide';
+            this.removeUserGeoJSONLayer();
+            this.removeFloorplanImageLayer();
+            this.syncFloorplanBackgroundControls();
+        }
 
         //Components|Network|Nodes
         this.SelectedNodesTypeVariable = this.commonService.session.style.widgets['map-node-show'] ? 'Show' : 'Hide';
@@ -1948,9 +3234,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         //Links|Tooltip
         this.SelectedLinkTooltipVariable = this.commonService.session.style.widgets['map-link-tooltip-variable'];
         this.onLinkToolTipChange(this.SelectedLinkTooltipVariable);
+        this.refreshManualPositionControls();
     }
 
     ngOnDestroy(): void {
+        if (this.lmap) {
+            this.lmap.off('click', this.manualMapClickHandler);
+        }
         this.destroy$.next();
         this.destroy$.complete();
     }
@@ -1966,6 +3256,8 @@ class MapLayers {
     countries: L.GeoJSON<any> = geoJSON();
     states: L.GeoJSON<any> = geoJSON();
     counties: L.GeoJSON<any> = geoJSON();
+    userGeoJSON: L.GeoJSON<any> = geoJSON();
+    floorplanImage: ImageOverlay | null = null;
     countriesLabels: FeatureGroup = featureGroup();
     statesLabels: FeatureGroup = featureGroup();
     countiesLabels: FeatureGroup = featureGroup();

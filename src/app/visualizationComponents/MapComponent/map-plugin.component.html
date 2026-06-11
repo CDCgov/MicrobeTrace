@@ -23,7 +23,7 @@
         <a id="centerMapButton" title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Nodes without Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
+        <a data-testid="map-nodes-without-location-button" title="Nodes without Location Data" aria-label="Nodes without Map Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
     </span>
 </div>
 <div #mapContainer class="map-container">
@@ -272,6 +272,115 @@
 </p-accordion-panel>
 </p-accordion>
 </tab>
+<tab heading="{{'Custom Map' | localize}}" customClass="m-tabs__item">
+    <div class="form-group row" title="Open the custom map tutorial document.">
+      <div class="col-4">Tutorial</div>
+      <div class="col-8">
+        <a class="btn btn-sm map-btn w-100" href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View"
+          target="_blank" rel="noreferrer noopener" role="button"
+          title="Open the custom map tutorial document for GeoJSON and image floorplans.">More Information</a>
+      </div>
+    </div>
+    <div class="form-group row" title="Load a GeoJSON or image floorplan background.">
+      <div class="col-4">Background</div>
+      <div class="col-8">
+        <input type="file" id="map-floorplan-background-file" class="d-none"
+          accept=".geojson,.json,application/geo+json,application/json,image/*"
+          (change)="onFloorplanBackgroundFileSelected($event)">
+        <label class="custom-file-label" for="map-floorplan-background-file">Choose Custom Map File</label>
+      </div>
+    </div>
+    <div class="form-group row" title="Would you like to show the uploaded floorplan background?">
+      <div class="col-4">Layer</div>
+      <div class="col-8">
+        <p-selectButton [options]="FloorplanBackgroundTypes" [allowEmpty]="false" id="map-floorplan-background-show-hide" fluid
+          [(ngModel)]="SelectedFloorplanBackgroundTypeVariable"
+          (ngModelChange)="onFloorplanBackgroundLayerChange($event)"></p-selectButton>
+      </div>
+    </div>
+    @if (floorplanBackgroundFileName) {
+      <div class="form-group row">
+        <div class="col-4">Loaded</div>
+        <div class="col-8 map-user-geojson-summary">
+          {{ floorplanBackgroundFileName }}{{ floorplanBackgroundSummary ? ' (' + floorplanBackgroundSummary + ')' : '' }}
+        </div>
+      </div>
+    }
+    @if (floorplanBackgroundError) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanBackgroundError }}</div>
+        </div>
+      </div>
+    }
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!floorplanBackgroundFileName"
+          (click)="centerFloorplanBackground()">Center</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!floorplanBackgroundFileName"
+          (click)="clearFloorplanBackground()">Clear</button>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-12 map-manual-position-heading">Manual Positions</div>
+    </div>
+    <div class="form-group row" title="Turn on manual node placement for the current map.">
+      <div class="col-4">Positioning</div>
+      <div class="col-8">
+        <p-selectButton [options]="ManualPositionTypes" [allowEmpty]="false" id="map-manual-positioning" fluid
+          [disabled]="!canUseManualPositioning()"
+          [(ngModel)]="SelectedManualPositionTypeVariable"
+          (ngModelChange)="onManualPositioningChange($event)"></p-selectButton>
+      </div>
+    </div>
+    <div class="form-group row" title="Choose the visible node to place by clicking the map or floorplan.">
+      <div class="col-4"><label for="map-manual-position-node">Node</label></div>
+      <div class="col-8">
+        <p-select id="map-manual-position-node" [options]="manualPositionNodeList" appendTo="body"
+          class="width-percent-100" [disabled]="SelectedManualPositionTypeVariable !== 'On'"
+          [(ngModel)]="SelectedManualPositionNodeId"
+          (ngModelChange)="onManualPositionNodeChange($event)">
+        </p-select>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4">Status</div>
+      <div class="col-8 map-manual-position-summary">
+        {{ manualPositionPlacedCount }} placed / {{ manualPositionUnplacedCount }} not placed
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On'"
+          (click)="selectNextUnplacedManualPositionNode()">Next Unplaced</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || !manualPositionSelectedCanClear"
+          (click)="clearSelectedManualPosition()">Clear Selected</button>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-8">
+        <button type="button" class="btn btn-sm btn-secondary w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || manualPositionClearableCount === 0"
+          (click)="clearAllManualPositions()">Clear All</button>
+      </div>
+    </div>
+    @if (manualPositionMessage) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-info py-2 mb-0" role="status">{{ manualPositionMessage }}</div>
+        </div>
+      </div>
+    }
+</tab>
 <tab heading="{{'Nodes' | localize}}" customClass="m-tabs__item">
   <div class="form-group row">
     <div class="col-4">Color</div>
@@ -417,9 +526,9 @@
       @if (viewActive) {
         <p-dialog header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ 'width': '35rem', 'max-height': '40rem' }">
           @if (nodesWithoutLoc.length == 0) {
-            <span class="text-surface-500 dark:text-surface-400 block mb-8">All nodes contain location data.</span>
+            <span class="text-surface-500 dark:text-surface-400 block mb-8">All nodes contain map location data.</span>
           } @else {
-            <span *ngIf="nodesWithoutLoc.length > 0" class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain location data and were omitted from Map View:
+            <span *ngIf="nodesWithoutLoc.length > 0" class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain map location data and were omitted from Map View:
               <ol>
                 @for (node of nodesWithoutLoc; track node) {
                   <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>

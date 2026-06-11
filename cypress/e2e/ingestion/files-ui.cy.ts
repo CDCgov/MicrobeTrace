@@ -7,6 +7,7 @@ describe('File Handling and Processing', () => {
   const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
   const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
   const additionalNodeFile = 'AngularTesting_nodes_Map.csv';
+  const geoJSONLocationFile = 'map-node-locations.geojson';
   const loadNodeFile = () => cy.loadFiles([{ name: nodeFile, datatype: 'node' }]);
 
   beforeEach(() => {
@@ -203,6 +204,47 @@ describe('File Handling and Processing', () => {
         (l.source === 'KF773571' && l.target === 'KF773578')
       );
       expect(link.Contact).to.equal('Bar');
+    });
+  });
+
+  it('detects a GeoJSON location file, joins feature centers to nodes, and stores the layer', () => {
+    cy.attach_files('#fileDropRef', [nodeFile, geoJSONLocationFile]);
+
+    cy.contains('#file-table .file-table-row', geoJSONLocationFile, { timeout: 20000 })
+      .should('be.visible')
+      .within(() => {
+        cy.contains('label', 'GeoJSON').should('be.visible');
+        cy.get('input[data-type="geojson"]').should('be.checked');
+        cy.contains('label', 'ID').should('be.visible');
+        cy.get(`select[id="file-${geoJSONLocationFile}-field-1"]`).should('have.value', '_id');
+        cy.get(`select[id="file-${geoJSONLocationFile}-field-2"]`).parent().should('not.be.visible');
+        cy.get(`select[id="file-${geoJSONLocationFile}-field-3"]`).parent().should('not.be.visible');
+      });
+
+    cy.get('#launch').should('not.be.disabled').click({ force: true });
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
+
+    cy.window().then((win) => {
+      const session = win.commonService.session;
+      const firstNode = session.data.nodes.find((node: any) => node._id === 'KF773425');
+      const secondNode = session.data.nodes.find((node: any) => node._id === 'KF773426');
+      const missingNode = session.data.nodes.find((node: any) => node._id === 'missing-node');
+
+      expect(session.data.geoJSON?.type, 'stored GeoJSON layer').to.equal('FeatureCollection');
+      expect(session.data.geoJSONLayerName, 'stored GeoJSON layer name').to.equal(geoJSONLocationFile);
+      expect(session.style.widgets['map-user-geojson-show'], 'GeoJSON layer hidden until Map View shows it').to.equal(false);
+      expect(session.style.widgets['map-field-lat'], 'GeoJSON latitude field selected').to.equal('GeoJSON Latitude');
+      expect(session.style.widgets['map-field-lon'], 'GeoJSON longitude field selected').to.equal('GeoJSON Longitude');
+
+      expect(firstNode['GeoJSON Latitude'], 'point latitude').to.equal(8);
+      expect(firstNode['GeoJSON Longitude'], 'point longitude').to.equal(12);
+      expect(firstNode['GeoJSON Feature ID'], 'point feature id').to.equal('KF773425');
+      expect(firstNode.origin, 'point origin').to.include(geoJSONLocationFile);
+
+      expect(secondNode['GeoJSON Latitude'], 'polygon center latitude').to.equal(8);
+      expect(secondNode['GeoJSON Longitude'], 'polygon center longitude').to.equal(22);
+      expect(secondNode['GeoJSON Feature ID'], 'polygon feature id').to.equal('KF773426');
+      expect(missingNode, 'unmatched feature is not converted into a node').to.not.exist;
     });
   });
 

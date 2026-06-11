@@ -76,6 +76,29 @@
   color: white
 }
 
+.map-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.map-user-geojson-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-manual-position-heading {
+  border-top: 1px solid #d9dee3;
+  color: #495057;
+  font-weight: 600;
+  padding-top: .5rem;
+}
+
+.map-manual-position-summary {
+  color: #495057;
+  line-height: 31px;
+}
+
 :host ::ng-deep .map-admin-label {
   background: transparent;
   border: 0;

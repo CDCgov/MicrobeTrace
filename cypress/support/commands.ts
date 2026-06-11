@@ -43,6 +43,7 @@ export const getMimeTypeFromFilename = (name: string): string => {
   const ext = (name.split('.').pop() || '').toLowerCase();
 
   if (ext === 'csv') return 'text/csv';
+  if (ext === 'geojson') return 'application/geo+json';
   if (ext === 'json' || ext === 'microbetrace' || ext === 'style') return 'application/json';
   if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'nwk' || ext === 'newick') {
     return 'text/plain';
