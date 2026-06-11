@@ -14,7 +14,6 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-import { color } from 'node_modules_dev/listr2/dist';
 
 @Component({
     selector: 'app-timeline-component',
