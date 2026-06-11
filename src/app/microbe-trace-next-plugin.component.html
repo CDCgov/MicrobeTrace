@@ -203,7 +203,12 @@
             </tr>
             @for (group of shapeAggregates; track group.rawValue) {
               <tr>
-                <td contenteditable>{{commonService.titleize(group.key)}}</td>
+                <td
+                  contenteditable
+                  [attr.data-value]="group.rawValue"
+                  [textContent]="getNodeValueDisplayName(group.rawValue)"
+                  (blur)="onNodeShapeNameBlur($event, group.rawValue)">
+                </td>
                 @if (widgets['node-symbol-table-counts']) {
                   <td class="tableCount">{{group.count}}</td>
                 }

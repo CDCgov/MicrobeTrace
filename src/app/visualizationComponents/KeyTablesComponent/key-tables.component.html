@@ -235,65 +235,72 @@
         </p>
       </div>
       <div class="key-table-card__table" [hidden]="nodeShapeTableCollapsed || !hasNodeShapeTable">
-        <table id="key-tables-node-shape-table">
-          <tr>
-            <th class="table-header-row" contenteditable>
-              <div class="header-content sortable">Node {{ formatNodeShapeGroup(selectedNodeShapeBy) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
-            </th>
-            @if (widgets['node-symbol-table-counts']) {
-              <th class="table-header-row tableCount" contenteditable>
-                <div class="header-content sortable">Count<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
-              </th>
-            }
-            @if (widgets['node-symbol-table-frequencies']) {
-              <th class="table-header-row tableFrequency" contenteditable>
-                <div class="header-content sortable">Frequency<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
-              </th>
-            }
-            <th>Shape</th>
-          </tr>
-          @for (group of shapeAggregates; track group.rawValue) {
+        @if (hasNodeShapeTable) {
+          <table id="key-tables-node-shape-table">
             <tr>
-              <td contenteditable>{{formatNodeShapeGroup(group.key)}}</td>
+              <th class="table-header-row" contenteditable>
+                <div class="header-content sortable">Node {{ formatNodeShapeGroup(selectedNodeShapeBy) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
+              </th>
               @if (widgets['node-symbol-table-counts']) {
-                <td class="tableCount">{{group.count}}</td>
+                <th class="table-header-row tableCount" contenteditable>
+                  <div class="header-content sortable">Count<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
+                </th>
               }
               @if (widgets['node-symbol-table-frequencies']) {
-                <td class="tableFrequency">{{group.frequency}}</td>
+                <th class="table-header-row tableFrequency" contenteditable>
+                  <div class="header-content sortable">Frequency<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
+                </th>
               }
-              <td>
-                <p-treeSelect
-                  [options]="symbolMappingTree"
-                  [panelStyle]="{ width: '23rem' }"
-                  panelStyleClass="shapeTreeSelectPanel"
-                  selectionMode="single"
-                  appendTo="body"
-                  class="width-percent-100"
-                  [ngModel]="getNodeShapeTableValue(group.rawValue)"
-                  (ngModelChange)="onNodeShapeTableTreeChange($event, group.rawValue)"
-                  styleClass="shapeDropdown"
-                  (onShow)="onShapeTreeShow(getNodeShapeValue(group.rawValue))">
-                  <ng-template pTemplate="value" let-node let-placeholder="placeholder">
-                    @if (node?.data) {
-                      <div class="shape-tree-value">
+              <th>Shape</th>
+            </tr>
+            @for (group of shapeAggregates; track group.rawValue) {
+              <tr>
+                <td
+                  contenteditable
+                  [attr.data-value]="group.rawValue"
+                  [textContent]="getNodeShapeGroupDisplayName(group.rawValue)"
+                  (blur)="onNodeShapeNameBlur($event, group.rawValue)">
+                </td>
+                @if (widgets['node-symbol-table-counts']) {
+                  <td class="tableCount">{{group.count}}</td>
+                }
+                @if (widgets['node-symbol-table-frequencies']) {
+                  <td class="tableFrequency">{{group.frequency}}</td>
+                }
+                <td>
+                  <p-treeSelect
+                    [options]="symbolMappingTree"
+                    [panelStyle]="{ width: '23rem' }"
+                    panelStyleClass="shapeTreeSelectPanel"
+                    selectionMode="single"
+                    appendTo="body"
+                    class="width-percent-100"
+                    [ngModel]="getNodeShapeTableValue(group.rawValue)"
+                    (ngModelChange)="onNodeShapeTableTreeChange($event, group.rawValue)"
+                    styleClass="shapeDropdown"
+                    (onShow)="onShapeTreeShow(getNodeShapeValue(group.rawValue))">
+                    <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+                      @if (node?.data) {
+                        <div class="shape-tree-value">
+                          <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
+                          {{ node.data.name }}
+                        </div>
+                      } @else {
+                        <span>{{ placeholder }}</span>
+                      }
+                    </ng-template>
+                    <ng-template pTemplate="shape" let-node>
+                      <div class="shape-tree-node">
                         <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
                         {{ node.data.name }}
                       </div>
-                    } @else {
-                      <span>{{ placeholder }}</span>
-                    }
-                  </ng-template>
-                  <ng-template pTemplate="shape" let-node>
-                    <div class="shape-tree-node">
-                      <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
-                      {{ node.data.name }}
-                    </div>
-                  </ng-template>
-                </p-treeSelect>
-              </td>
-            </tr>
-          }
-        </table>
+                    </ng-template>
+                  </p-treeSelect>
+                </td>
+              </tr>
+            }
+          </table>
+        }
       </div>
     </section>
 

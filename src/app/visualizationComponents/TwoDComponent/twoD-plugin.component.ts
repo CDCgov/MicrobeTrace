@@ -2226,8 +2226,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
         this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
 
         if (!shouldRefresh) {
             return;
