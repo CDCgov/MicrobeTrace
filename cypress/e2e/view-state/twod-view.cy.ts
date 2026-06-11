@@ -33,6 +33,7 @@ const selector : any = {
   pinAllBtn: byTestId(testIds.twodPinAllButton),
   refreshBtn: byTestId(testIds.twodRecalculateLayoutButton),
   statsNodes: '#numberOfNodes',
+  statsSelectedNodes: '#numberOfSelectedNodes',
   statsLinks: '#numberOfVisibleLinks',
   settingsPane: byTestId(testIds.twodSettingsDialog),
   nodeLabelVar: '#node-label-variable',
@@ -75,6 +76,21 @@ describe('2D Network - Core Rendering and Stats', () => {
     // Assert that the stats panel shows the correct counts from the seeded data
     cy.get(selector.statsNodes).should('contain.text', '33');
     cy.get(selector.statsLinks).should('contain.text', '74');
+  });
+
+  it('should include selected nodes in the statistics table', () => {
+    getCy().then((cyInstance) => {
+      cyInstance.getElementById('MZ375596').select();
+      cyInstance.getElementById('MZ696569').select();
+    });
+
+    cy.get(selector.statsSelectedNodes).should('have.text', '2');
+    cy.get('#network-statistics-table tr')
+      .first()
+      .should(($row) => {
+        const normalizedText = $row.text().replace(/\s+/g, ' ').trim();
+        expect(normalizedText).to.equal('33 (2) Nodes (Selected)');
+      });
   });
 
   it('should apply color table node transparency to rendered nodes', () => {

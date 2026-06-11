@@ -1336,6 +1336,31 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Uses search-field, search-whole-word, search-case-sensitive widgets, and searchText variable to search each node and select all nodes that meet current criteria.
      * Also populates search-results list, and sets function that selects the node for when an option in the list is selected.
      */
+    private getSearchNodeId(node: any): string | undefined {
+        if (node?._id === undefined || node?._id === null) {
+            return undefined;
+        }
+
+        return String(node._id);
+    }
+
+    private syncFilteredNodeSelectionFromSearch(): void {
+        const selectedById = new Map<string, boolean>();
+        (this.commonService.session.data.nodes || []).forEach((node: any) => {
+            const nodeId = this.getSearchNodeId(node);
+            if (nodeId !== undefined) {
+                selectedById.set(nodeId, node.selected === true);
+            }
+        });
+
+        (this.commonService.session.data.nodeFilteredValues || []).forEach((node: any) => {
+            const nodeId = this.getSearchNodeId(node);
+            if (nodeId !== undefined && selectedById.has(nodeId)) {
+                node.selected = selectedById.get(nodeId);
+            }
+        });
+    }
+
     public onSearch() {
         const nodes = this.commonService.session.data.nodes;
         const n = nodes.length;
@@ -1411,39 +1436,31 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
             }
 
+            that.syncFilteredNodeSelectionFromSearch();
             $(document).trigger("node-selected");
 
           });
   
-          let firstSelected = false;
-
           // selects that meets current search criteria
           for(let i = 0; i < n; i++){
+            const node = nodes[i];
+            let nodeSelected = false;
   
-            if(!firstSelected){
-                const node = nodes[i];
-
-                if (!node[field]) {
-                  node.selected = false;
-                }
-                if (typeof node[field] == "string") {
-                  node.selected = vre.test(node[field]);
-                  firstSelected = node.selected;
-                }
-                if (typeof node[field] == "number") {
-                  node.selected = (node[field] + "" == val);
-                  firstSelected = node.selected;
-                }
-
-            } else {
-                break;
+            if (typeof node[field] == "string") {
+              nodeSelected = vre.test(node[field]);
             }
+            if (typeof node[field] == "number") {
+              nodeSelected = (node[field] + "" == val);
+            }
+
+            node.selected = nodeSelected;
             
           }
   
           if (!nodes.some(node => node.selected)) console.log('no matches');
         }
 
+        this.syncFilteredNodeSelectionFromSearch();
         $(document).trigger("node-selected");
     }
 

@@ -974,6 +974,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const shouldBeSelected = selectedIds.has(n._id || n.id);
                 if (n.selected !== shouldBeSelected) {
                     n.selected = shouldBeSelected;
+                    selectionChanged = true;
                 }
             });
 
@@ -1537,6 +1538,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 } else {
                   that.selectedNodeId = undefined;
                 }
+
+                that.commonService.updateStatistics();
               
                 if (that.debugMode) {
                   console.log('node-selected in 2d ids: ', mtSelectedNodeIds);

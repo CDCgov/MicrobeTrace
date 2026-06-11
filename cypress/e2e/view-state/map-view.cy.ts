@@ -5,6 +5,126 @@ import { getRenderedMapNodeContainerPoint, readRenderedMapNodeStyle } from '../.
 import { visitAppAndAcceptEula } from '../../support/journey-helpers';
 const takeScreenshots: boolean = false;
 
+const findClusteredMapNodeTarget = (mapView: any, excludedNodeIds: string[] = []): string => {
+  const markerClusterGroup = mapView.layers.markerClusterGroup;
+  const excluded = new Set(excludedNodeIds);
+  const markerEntries = Object.entries(mapView.mapNodeMarkersById || {}) as [string, any][];
+  const target = markerEntries.find(([nodeId, marker]) => {
+    if (excluded.has(nodeId)) {
+      return false;
+    }
+
+    const visibleParent = markerClusterGroup.getVisibleParent(marker);
+    return visibleParent
+      && visibleParent !== marker
+      && typeof visibleParent.spiderfy === 'function'
+      && visibleParent.getChildCount?.() > 1;
+  });
+
+  if (!target) {
+    throw new Error('Unable to find a clustered map node target.');
+  }
+
+  return target[0];
+};
+
+const getMapNodeVisibleParent = (mapView: any, nodeId: string): any => {
+  const marker = mapView.mapNodeMarkersById?.[nodeId];
+  expect(marker, `map marker for ${nodeId}`).to.exist;
+  return mapView.layers.markerClusterGroup.getVisibleParent(marker);
+};
+
+const getAutoExpandedMapNodeIds = (mapView: any): string[] =>
+  normalizeIds(
+    (mapView.layers.autoExpandedSelectedNodes?.getLayers?.() || [])
+      .map((layer: any) => layer.data?._id)
+      .filter((nodeId: any) => nodeId !== undefined && nodeId !== null),
+  );
+
+const expectMapNodeCollapsed = (mapView: any, nodeId: string): void => {
+  const marker = mapView.mapNodeMarkersById?.[nodeId];
+  const visibleParent = getMapNodeVisibleParent(mapView, nodeId);
+  expect(visibleParent, `visible parent for ${nodeId}`).to.exist;
+  expect(visibleParent, `${nodeId} is represented by a cluster`).to.not.equal(marker);
+};
+
+const expectMapNodeExpanded = (mapView: any, nodeId: string): void => {
+  const marker = mapView.mapNodeMarkersById?.[nodeId];
+  const visibleParent = getMapNodeVisibleParent(mapView, nodeId);
+  const spiderfiedCluster = mapView.layers.markerClusterGroup._spiderfied;
+  const childMarkers = spiderfiedCluster?.getAllChildMarkers?.() || [];
+  const autoExpandedNodeIds = getAutoExpandedMapNodeIds(mapView);
+
+  expect(
+    visibleParent === marker || childMarkers.includes(marker) || autoExpandedNodeIds.includes(String(nodeId)),
+    `${nodeId} is visible directly, in a spiderfied cluster, or in the auto-expanded overlay`,
+  ).to.equal(true);
+};
+
+const normalizeIds = (ids: any[]): string[] =>
+  ids.map((id) => String(id)).sort();
+
+const findClusterSearchExpansionTarget = (mapView: any): {
+  clusterValue: string;
+  expandedClusterMemberIds: string[];
+  matchingNodeIds: string[];
+} => {
+  const candidatesByClusterValue = new Map<string, Map<any, string[]>>();
+
+  Object.values(mapView.mapNodeMarkersById || {}).forEach((marker: any) => {
+    const node = marker.data;
+    if (!node || node.cluster === undefined || node.cluster === null) {
+      return;
+    }
+
+    const visibleParent = mapView.layers.markerClusterGroup.getVisibleParent(marker);
+    if (!visibleParent || visibleParent === marker || typeof visibleParent.getAllChildMarkers !== 'function') {
+      return;
+    }
+
+    const clusterValue = String(node.cluster);
+    const parentClusters = candidatesByClusterValue.get(clusterValue) || new Map<any, string[]>();
+    if (!parentClusters.has(visibleParent)) {
+      parentClusters.set(
+        visibleParent,
+        normalizeIds(
+          visibleParent.getAllChildMarkers()
+            .map((childMarker: any) => childMarker.data?._id)
+            .filter((nodeId: any) => nodeId !== undefined && nodeId !== null),
+        ),
+      );
+    }
+    candidatesByClusterValue.set(clusterValue, parentClusters);
+  });
+
+  const candidate = Array.from(candidatesByClusterValue.entries())
+    .filter(([, parentClusters]) => parentClusters.size > 1)
+    .sort((a, b) => b[1].size - a[1].size)[0];
+
+  expect(candidate, 'cluster search value spanning multiple collapsed map clusters').to.exist;
+
+  const [clusterValue, parentClusters] = candidate;
+
+  return {
+    clusterValue,
+    expandedClusterMemberIds: normalizeIds(Array.from(parentClusters.values()).flat()),
+    matchingNodeIds: normalizeIds(
+      Object.values(mapView.mapNodeMarkersById || {})
+        .map((marker: any) => marker.data)
+        .filter((node: any) => node && String(node.cluster) === clusterValue)
+        .map((node: any) => node._id),
+    ),
+  };
+};
+
+const searchForFieldValue = (field: string, value: string): void => {
+  cy.get('#search-field').select(field);
+  cy.get('#search').clear().type(value);
+};
+
+const searchForNode = (nodeId: string): void =>
+  searchForFieldValue('_id', nodeId);
+
 /**
  * Tests for the Map visualization component.
  */
@@ -103,6 +223,135 @@ describe('Map View', () => {
 
       cy.closeSettingsPane('Geospatial Settings');
       if (takeScreenshots) cy.screenshot('map/node-collapsed', { overwrite: true});
+    })
+
+    it('should auto-expand a collapsed map node cluster for a searched node', () => {
+      let targetNodeId = '';
+
+      cy.window().then((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        expect(win.commonService.session.style.widgets['map-auto-expand-selected']).to.equal(true);
+        targetNodeId = findClusteredMapNodeTarget(mapView);
+        expectMapNodeCollapsed(mapView, targetNodeId);
+      });
+
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.then(() => searchForNode(targetNodeId));
+
+      cy.window().its('commonService.visuals.gisMap', { timeout: 5000 }).should((mapView: any) => {
+        expectMapNodeExpanded(mapView, targetNodeId);
+      });
+    })
+
+    it('should select every node matching a cluster search', () => {
+      let clusterValue = '';
+      let expectedNodeIds: string[] = [];
+      let expectedVisibleNodeIds: string[] = [];
+
+      cy.window().then((win: any) => {
+        const nodes = win.commonService.session.data.nodes || [];
+        const visibleNodes = win.commonService.session.data.nodeFilteredValues || [];
+        const countsByCluster = new Map<string, number>();
+
+        nodes.forEach((node: any) => {
+          if (node.cluster === undefined || node.cluster === null) {
+            return;
+          }
+
+          const value = String(node.cluster);
+          countsByCluster.set(value, (countsByCluster.get(value) || 0) + 1);
+        });
+
+        const candidate = Array.from(countsByCluster.entries())
+          .filter(([, count]) => count > 1)
+          .sort((a, b) => b[1] - a[1])[0];
+
+        expect(candidate, 'cluster with multiple nodes').to.exist;
+        clusterValue = candidate[0];
+        expectedNodeIds = normalizeIds(
+          nodes.filter((node: any) => String(node.cluster) === clusterValue).map((node: any) => node._id),
+        );
+        expectedVisibleNodeIds = normalizeIds(
+          visibleNodes.filter((node: any) => String(node.cluster) === clusterValue).map((node: any) => node._id),
+        );
+      });
+
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.then(() => searchForFieldValue('cluster', clusterValue));
+
+      cy.window().should((win: any) => {
+        const selectedNodeIds = normalizeIds(
+          win.commonService.session.data.nodes
+            .filter((node: any) => node.selected)
+            .map((node: any) => node._id),
+        );
+        const selectedVisibleNodeIds = normalizeIds(
+          win.commonService.session.data.nodeFilteredValues
+            .filter((node: any) => node.selected)
+            .map((node: any) => node._id),
+        );
+        const selectedMapNodeIds = normalizeIds(
+          win.commonService.visuals.gisMap.nodes
+            .filter((node: any) => node.selected)
+            .map((node: any) => node._id),
+        );
+
+        expect(selectedNodeIds).to.deep.equal(expectedNodeIds);
+        expect(selectedVisibleNodeIds).to.deep.equal(expectedVisibleNodeIds);
+        expect(selectedMapNodeIds).to.deep.equal(expectedVisibleNodeIds);
+      });
+    })
+
+    it('should auto-expand every collapsed map cluster containing cluster search matches', () => {
+      let clusterValue = '';
+      let expectedExpandedClusterMemberIds: string[] = [];
+      let expectedMatchingNodeIds: string[] = [];
+
+      cy.window().then((win: any) => {
+        const target = findClusterSearchExpansionTarget(win.commonService.visuals.gisMap);
+        clusterValue = target.clusterValue;
+        expectedExpandedClusterMemberIds = target.expandedClusterMemberIds;
+        expectedMatchingNodeIds = target.matchingNodeIds;
+      });
+
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.then(() => searchForFieldValue('cluster', clusterValue));
+
+      cy.window().its('commonService.visuals.gisMap', { timeout: 5000 }).should((mapView: any) => {
+        const autoExpandedNodeIds = getAutoExpandedMapNodeIds(mapView);
+        expectedExpandedClusterMemberIds.forEach((nodeId) => {
+          expect(autoExpandedNodeIds, `auto-expanded map cluster member ${nodeId}`).to.include(nodeId);
+        });
+        expectedMatchingNodeIds.forEach((nodeId) => {
+          expectMapNodeExpanded(mapView, nodeId);
+        });
+      });
+    })
+
+    it('should keep collapsed map node clusters closed when auto-expand is off', () => {
+      let targetNodeId = '';
+
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Nodes').click()
+      cy.get('#map-node-auto-expand-selected').contains('Off').click()
+      cy.window().its('commonService.session.style.widgets').should((widgets: any) => {
+        expect(widgets['map-auto-expand-selected']).to.equal(false);
+      });
+
+      cy.window().then((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        targetNodeId = findClusteredMapNodeTarget(mapView);
+        expectMapNodeCollapsed(mapView, targetNodeId);
+      });
+
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.then(() => searchForNode(targetNodeId));
+      cy.wait(300);
+
+      cy.window().its('commonService.visuals.gisMap').should((mapView: any) => {
+        expect(mapView.layers.markerClusterGroup._spiderfied).to.equal(null);
+        expect(getAutoExpandedMapNodeIds(mapView)).to.deep.equal([]);
+        expectMapNodeCollapsed(mapView, targetNodeId);
+      });
     })
     
     // Map transparency should scale with slider bar

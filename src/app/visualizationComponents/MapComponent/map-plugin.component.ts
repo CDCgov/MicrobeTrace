@@ -240,6 +240,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private mapNodeIconSize: number = 24;
     private mapNodeIconCache: Record<string, string> = {};
     private mapNodeMarkersById: Record<string, MarkerWithData> = Object.create(null);
+    private autoExpandRequestId = 0;
+    private autoExpandedClusterOriginalOpacities = new globalThis.Map<any, number>();
 
     public NodeMapSettingsExportDialogSettings: DialogSettings;
 
@@ -552,48 +554,226 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             && this.commonService.session.style.widgets['map-auto-expand-selected'] === true;
     }
 
+    private hasValidMapCoordinates(node: any): boolean {
+        const latitude = node?._jlat;
+        const longitude = node?._jlon;
+
+        return latitude !== undefined
+            && latitude !== null
+            && String(latitude).trim() !== ''
+            && longitude !== undefined
+            && longitude !== null
+            && String(longitude).trim() !== ''
+            && Number.isFinite(Number(latitude))
+            && Number.isFinite(Number(longitude));
+    }
+
     private autoExpandSelectedNode(): void {
         if (!this.canAutoExpandSelectedNode()) {
             return;
         }
 
-        const selectedNode = this.nodes.find(node =>
+        const selectedNodeIds = this.nodes
+            .filter(node =>
             node.selected
             && node.visible !== false
-            && node._jlat
-            && node._jlon
+            && this.hasValidMapCoordinates(node)
             && node._id !== undefined
             && this.mapNodeMarkersById[String(node._id)]
-        );
+            )
+            .map(node => String(node._id));
 
-        if (!selectedNode) {
+        if (!selectedNodeIds.length) {
             return;
         }
 
-        const selectedNodeId = String(selectedNode._id);
-        window.setTimeout(() => this.expandSelectedMapNodeCluster(selectedNodeId), 0);
+        this.scheduleExpandSelectedMapNodeClusters(selectedNodeIds, ++this.autoExpandRequestId);
     }
 
-    private expandSelectedMapNodeCluster(nodeId: string): void {
+    private scheduleExpandSelectedMapNodeClusters(nodeIds: string[], requestId: number, attempt: number = 0): void {
+        window.setTimeout(() => {
+            if (requestId !== this.autoExpandRequestId) {
+                return;
+            }
+
+            if (this.expandSelectedMapNodeClusters(nodeIds) || attempt >= 20) {
+                return;
+            }
+
+            this.scheduleExpandSelectedMapNodeClusters(nodeIds, requestId, attempt + 1);
+        }, attempt === 0 ? 0 : 100);
+    }
+
+    private expandSelectedMapNodeClusters(nodeIds: string[]): boolean {
         if (!this.canAutoExpandSelectedNode()) {
+            return true;
+        }
+
+        if (!(this.layers.markerClusterGroup as any)._map) {
+            return false;
+        }
+
+        this.clearAutoExpandedSelectedClusters();
+
+        let visibleSelectedMarkerFound = false;
+        let waitingForClusterLayout = false;
+        const selectedClusters = new globalThis.Map<any, MarkerWithData[]>();
+
+        nodeIds.forEach(nodeId => {
+            const marker = this.mapNodeMarkersById[nodeId];
+            if (!marker || !this.layers.markerClusterGroup.hasLayer(marker)) {
+                return;
+            }
+
+            const visibleParent = this.layers.markerClusterGroup.getVisibleParent(marker);
+            if (!visibleParent) {
+                waitingForClusterLayout = true;
+                return;
+            }
+
+            if (visibleParent === marker) {
+                visibleSelectedMarkerFound = true;
+                return;
+            }
+
+            const parentCluster = visibleParent && (visibleParent as any).spiderfy
+                ? visibleParent as any
+                : null;
+            if (!parentCluster) {
+                return;
+            }
+
+            const selectedMarkers = selectedClusters.get(parentCluster) || [];
+            selectedMarkers.push(marker);
+            selectedClusters.set(parentCluster, selectedMarkers);
+        });
+
+        if (!selectedClusters.size) {
+            return visibleSelectedMarkerFound && !waitingForClusterLayout;
+        }
+
+        this.renderAutoExpandedSelectedClusters(Array.from(selectedClusters.keys()));
+        return this.layers.autoExpandedSelectedNodes.getLayers().length > 0;
+    }
+
+    private renderAutoExpandedSelectedClusters(clusters: any[]): void {
+        if (!this.lmap) {
             return;
         }
 
-        const marker = this.mapNodeMarkersById[nodeId];
-        if (!marker || !(this.layers.markerClusterGroup as any)._map || !this.layers.markerClusterGroup.hasLayer(marker)) {
-            return;
+        clusters.forEach(cluster => {
+            const childMarkers = (cluster.getAllChildMarkers?.() || []) as MarkerWithData[];
+            if (!childMarkers.length) {
+                return;
+            }
+
+            const centerPoint = this.lmap.latLngToLayerPoint(cluster.getLatLng());
+            const positions = this.generateAutoExpandPositions(childMarkers.length, centerPoint);
+
+            if (!this.autoExpandedClusterOriginalOpacities.has(cluster)) {
+                this.autoExpandedClusterOriginalOpacities.set(cluster, cluster.options?.opacity ?? 1);
+            }
+            if (typeof cluster.setOpacity === 'function') {
+                cluster.setOpacity(0.3);
+            }
+
+            childMarkers.forEach((marker, index) => {
+                const expandedMarker = this.createAutoExpandedNodeMarker(marker, positions[index]);
+                this.layers.autoExpandedSelectedNodes.addLayer(expandedMarker);
+            });
+        });
+
+        if (this.layers.autoExpandedSelectedNodes.getLayers().length > 0 && !this.lmap.hasLayer(this.layers.autoExpandedSelectedNodes)) {
+            this.lmap.addLayer(this.layers.autoExpandedSelectedNodes);
+        }
+    }
+
+    private generateAutoExpandPositions(count: number, centerPoint: L.Point): L.Point[] {
+        const spiderfyDistanceMultiplier = (this.leafletMarkerClusterOptions as any).spiderfyDistanceMultiplier || 1;
+        const circleSpiralSwitchOver = 9;
+
+        if (count >= circleSpiralSwitchOver) {
+            return this.generateAutoExpandSpiralPositions(count, centerPoint, spiderfyDistanceMultiplier);
         }
 
-        const visibleParent = this.layers.markerClusterGroup.getVisibleParent(marker);
-        const parentCluster = visibleParent !== marker && (visibleParent as any).spiderfy
-            ? visibleParent as any
-            : null;
+        return this.generateAutoExpandCirclePositions(count, centerPoint, spiderfyDistanceMultiplier);
+    }
 
-        if (!parentCluster) {
-            return;
+    private generateAutoExpandCirclePositions(count: number, centerPoint: L.Point, distanceMultiplier: number): L.Point[] {
+        const circleFootSeparation = 25;
+        const circleStartAngle = 0;
+        const twoPi = Math.PI * 2;
+        const legLength = Math.max(distanceMultiplier * circleFootSeparation * (2 + count) / twoPi, 35);
+        const angleStep = twoPi / count;
+        const positions: L.Point[] = [];
+
+        for (let i = 0; i < count; i++) {
+            const angle = circleStartAngle + i * angleStep;
+            positions[i] = new L.Point(
+                centerPoint.x + legLength * Math.cos(angle),
+                centerPoint.y + legLength * Math.sin(angle)
+            ).round();
         }
 
-        parentCluster.spiderfy();
+        return positions;
+    }
+
+    private generateAutoExpandSpiralPositions(count: number, centerPoint: L.Point, distanceMultiplier: number): L.Point[] {
+        const spiralFootSeparation = 28;
+        const spiralLengthStart = 11;
+        const spiralLengthFactor = 5;
+        const twoPi = Math.PI * 2;
+        const separation = distanceMultiplier * spiralFootSeparation;
+        const lengthFactor = distanceMultiplier * spiralLengthFactor * twoPi;
+        let legLength = distanceMultiplier * spiralLengthStart;
+        let angle = 0;
+        const positions: L.Point[] = [];
+
+        for (let i = count; i >= 0; i--) {
+            if (i < count) {
+                positions[i] = new L.Point(
+                    centerPoint.x + legLength * Math.cos(angle),
+                    centerPoint.y + legLength * Math.sin(angle)
+                ).round();
+            }
+            angle += separation / legLength + i * 0.0005;
+            legLength += lengthFactor / angle;
+        }
+
+        return positions;
+    }
+
+    private createAutoExpandedNodeMarker(sourceMarker: MarkerWithData, layerPoint: L.Point): MarkerWithData {
+        const expandedMarker = L.marker(this.lmap.layerPointToLatLng(layerPoint), {
+            ...sourceMarker.options,
+            icon: sourceMarker.options.icon,
+            zIndexOffset: 1000000
+        } as L.MarkerOptions & { fillOpacity: number; fillColor: string; color: string; weight: number }) as MarkerWithData;
+
+        expandedMarker.data = sourceMarker.data;
+        expandedMarker.locationDetail = sourceMarker.locationDetail;
+        expandedMarker.nodeType = sourceMarker.nodeType;
+
+        expandedMarker
+            .on('mouseover', (e) => this.showNodeTooltip(e))
+            .on('mouseout', (e) => this.hideTooltip())
+            .on('click', (e) => this.clickHandler(e));
+
+        return expandedMarker;
+    }
+
+    private clearAutoExpandedSelectedClusters(): void {
+        this.autoExpandedClusterOriginalOpacities.forEach((opacity, cluster) => {
+            if (typeof cluster.setOpacity === 'function') {
+                cluster.setOpacity(opacity);
+            }
+        });
+        this.autoExpandedClusterOriginalOpacities.clear();
+
+        this.layers.autoExpandedSelectedNodes.clearLayers();
+        if (this.lmap?.hasLayer(this.layers.autoExpandedSelectedNodes)) {
+            this.lmap.removeLayer(this.layers.autoExpandedSelectedNodes);
+        }
     }
 
     /* Not sure goal of this at the moment
@@ -669,6 +849,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * Removes all nodes from map and remove _jlat and _jlon value for each node
      */
     clearAllMarkers_Leaflet() {
+        this.clearAutoExpandedSelectedClusters();
         this.layers.removeNodes();
         this.nodes.forEach(node => {
             node._jlat = undefined;
@@ -966,6 +1147,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
         else {
             this.commonService.session.style.widgets['map-collapsing-on'] = false;
+            this.clearAutoExpandedSelectedClusters();
             this.drawNodes(false);
         }
     }
@@ -979,6 +1161,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         if (this.commonService.session.style.widgets['map-auto-expand-selected']) {
             this.autoExpandSelectedNode();
+        } else {
+            this.clearAutoExpandedSelectedClusters();
         }
     }
 
@@ -1399,6 +1583,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
      * @param rerollNodes if true rerolls node positioning
      */
     drawLeafletMapNodes(rerollNodes) {
+        this.clearAutoExpandedSelectedClusters();
+
         if (rerollNodes) {
             this.clearAllMarkers();
             this.rerollNodes();
@@ -1459,7 +1645,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var n = this.nodes.length;
         for (var i = 0; i < n; i++) {
             var d = this.nodes[i];
-            if (!d._jlat || !d._jlon || d.visible === false) continue;
+            if (!this.hasValidMapCoordinates(d) || d.visible === false) continue;
 
             const nodeStyle = this.commonService.getNodeFillStyle(d);
             const nodeFillOpacity = this.commonService.clampStyleAlpha(nodeStyle.alpha * mapOpacity);
@@ -1957,6 +2143,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     ngOnDestroy(): void {
+        this.autoExpandRequestId++;
         this.destroy$.next();
         this.destroy$.complete();
     }
@@ -1975,6 +2162,7 @@ class MapLayers {
     countriesLabels: FeatureGroup = featureGroup();
     statesLabels: FeatureGroup = featureGroup();
     countiesLabels: FeatureGroup = featureGroup();
+    autoExpandedSelectedNodes: FeatureGroup = featureGroup();
 
     public nodes(): FeatureGroup | MarkerClusterGroup {
         if (this.markerClusterGroup.getLayers().length) return this.markerClusterGroup;
@@ -1982,6 +2170,7 @@ class MapLayers {
     }
 
     public removeNodes() {
+        this.autoExpandedSelectedNodes.clearLayers();
         this.featureGroup.clearLayers();
         this.markerClusterGroup.clearLayers();
     }
