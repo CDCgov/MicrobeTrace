@@ -5,11 +5,21 @@ import {
   assertHeatmapReady,
   assertMetricCount,
   goToHeatmapView,
+  openGlobalFilteringTab,
   openHeatmapSettingsDialog,
+  setGlobalDistanceMetric,
+  setTN93DistanceDisplayFormat,
   visitAppAndAcceptEula,
 } from '../../support/journey-helpers';
 
 type HeatmapAccordionPanel = 'heatmap-labels';
+type HeatmapColorbarSnapshot = {
+  tickvals: number[];
+  ticktext: string[];
+};
+type WinWithMT = Window & {
+  commonService: any;
+};
 
 const openHeatmapAccordion = (panelValue: HeatmapAccordionPanel): void => {
   cy.get('@heatmapSettings')
@@ -40,6 +50,33 @@ const openHeatmapExportDialog = (): void => {
     .should('be.visible')
     .parents('.p-dialog')
     .as('heatmapExportDialog');
+};
+
+const readHeatmapColorbar = (): Cypress.Chainable<HeatmapColorbarSnapshot> => {
+  return cy.window().then((win: unknown) => {
+    const trace = (win as WinWithMT).commonService.visuals.heatmap.heatmapData?.[0];
+    const colorbar = trace?.colorbar || {};
+
+    return {
+      tickvals: [...(colorbar.tickvals || [])],
+      ticktext: [...(colorbar.ticktext || [])],
+    };
+  });
+};
+
+const assertHeatmapColorbarFormat = (expectedPercentageFormat: boolean): void => {
+  cy.window({ timeout: 20000 }).should((win: unknown) => {
+    const trace = (win as WinWithMT).commonService.visuals.heatmap.heatmapData?.[0];
+    const colorbar = trace?.colorbar || {};
+    const tickvals = colorbar.tickvals || [];
+    const ticktext = colorbar.ticktext || [];
+
+    expect(colorbar.tickmode, 'heatmap colorbar tick mode').to.equal('array');
+    expect(tickvals.length, 'heatmap colorbar tick count').to.be.greaterThan(3);
+    expect(ticktext.length, 'heatmap colorbar label count').to.equal(tickvals.length);
+    expect(ticktext.some((label: string) => label.includes('%')), 'heatmap colorbar percentage labels')
+      .to.equal(expectedPercentageFormat);
+  });
 };
 
 describe('Heatmap View', () => {
@@ -74,5 +111,39 @@ describe('Heatmap View', () => {
 
     openHeatmapExportDialog();
     cy.closeSettingsPane('Export Heatmap');
+  });
+
+  it('keeps colorbar ticks stable when switching TN93 distance display format', () => {
+    openGlobalFilteringTab();
+    setGlobalDistanceMetric('tn93');
+    cy.contains('.p-dialog-title', 'Global Settings')
+      .parents('.p-dialog')
+      .find('#tn93-distance-display-format')
+      .should('be.visible');
+    setTN93DistanceDisplayFormat('decimal');
+    cy.closeGlobalSettings();
+
+    assertHeatmapColorbarFormat(false);
+    readHeatmapColorbar().then((decimalColorbar) => {
+      openGlobalFilteringTab();
+      setTN93DistanceDisplayFormat('percentage');
+      cy.closeGlobalSettings();
+
+      assertHeatmapColorbarFormat(true);
+      readHeatmapColorbar().then((percentageColorbar) => {
+        expect(percentageColorbar.tickvals, 'percentage tick positions').to.deep.equal(decimalColorbar.tickvals);
+        expect(percentageColorbar.ticktext, 'percentage tick labels').to.not.deep.equal(decimalColorbar.ticktext);
+      });
+
+      openGlobalFilteringTab();
+      setTN93DistanceDisplayFormat('decimal');
+      cy.closeGlobalSettings();
+
+      assertHeatmapColorbarFormat(false);
+      readHeatmapColorbar().then((resetColorbar) => {
+        expect(resetColorbar.tickvals, 'restored decimal tick positions').to.deep.equal(decimalColorbar.tickvals);
+        expect(resetColorbar.ticktext, 'restored decimal tick labels').to.deep.equal(decimalColorbar.ticktext);
+      });
+    });
   });
 });
