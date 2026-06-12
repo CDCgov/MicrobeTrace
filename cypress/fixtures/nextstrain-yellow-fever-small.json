@@ -1,0 +1,94 @@
+{
+  "version": "v2",
+  "meta": {
+    "title": "Cypress stubbed Yellow fever",
+    "geo_resolutions": []
+  },
+  "tree": {
+    "name": "NODE_0000000",
+    "node_attrs": {
+      "div": 0,
+      "num_date": {
+        "value": 2024
+      },
+      "region": {
+        "value": "Americas"
+      }
+    },
+    "branch_attrs": {
+      "mutations": {
+        "nuc": []
+      }
+    },
+    "children": [
+      {
+        "name": "YF_A",
+        "node_attrs": {
+          "div": 0.001,
+          "num_date": {
+            "value": 2024.1
+          },
+          "region": {
+            "value": "Americas"
+          }
+        },
+        "branch_attrs": {
+          "mutations": {
+            "nuc": ["A1G"]
+          }
+        }
+      },
+      {
+        "name": "YF_B",
+        "node_attrs": {
+          "div": 0.002,
+          "num_date": {
+            "value": 2024.2
+          },
+          "region": {
+            "value": "Americas"
+          }
+        },
+        "branch_attrs": {
+          "mutations": {
+            "nuc": ["C2T"]
+          }
+        }
+      },
+      {
+        "name": "YF_C",
+        "node_attrs": {
+          "div": 0.003,
+          "num_date": {
+            "value": 2024.3
+          },
+          "region": {
+            "value": "Africa"
+          }
+        },
+        "branch_attrs": {
+          "mutations": {
+            "nuc": ["G3A"]
+          }
+        }
+      },
+      {
+        "name": "YF_D",
+        "node_attrs": {
+          "div": 0.004,
+          "num_date": {
+            "value": 2024.4
+          },
+          "region": {
+            "value": "Africa"
+          }
+        },
+        "branch_attrs": {
+          "mutations": {
+            "nuc": ["T4C"]
+          }
+        }
+      }
+    ]
+  }
+}

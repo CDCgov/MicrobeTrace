@@ -11,7 +11,7 @@ This is not meant to replace the existing Table functional Cypress suite. It is 
 - The repo already runs Cypress reliably in local Chrome mode.
 - The repo does not currently include a screenshot-diff plugin such as `cypress-image-snapshot` or Percy.
 - `cypress.config.ts` already registers custom node tasks, so a small local screenshot-compare task can be added there later.
-- `sharp` is already present in `package.json`, so the comparison path can stay lightweight.
+- Add a maintained screenshot-diff dependency only when this visual comparison task is implemented.
 
 ## Low-Noise Rules
 

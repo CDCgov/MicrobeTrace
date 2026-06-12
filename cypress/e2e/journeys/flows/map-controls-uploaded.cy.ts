@@ -111,7 +111,7 @@ const assertExpandedNodeOpacity = (expectedOpacity: number): void => {
     expect(layers.length, 'expanded node layers present').to.be.greaterThan(0);
     layers.forEach((layer: any) => {
       const style = readRenderedMapNodeStyle(layer);
-      expect(style.opacity, 'map node stroke opacity').to.equal(expectedOpacity);
+      expect(style.opacity, 'map node stroke opacity remains opaque').to.equal(1);
       expect(style.fillOpacity, 'map node fill opacity').to.equal(expectedOpacity);
     });
   });

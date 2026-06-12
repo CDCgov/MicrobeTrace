@@ -33,6 +33,7 @@ const selector : any = {
   pinAllBtn: byTestId(testIds.twodPinAllButton),
   refreshBtn: byTestId(testIds.twodRecalculateLayoutButton),
   statsNodes: '#numberOfNodes',
+  statsSelectedNodes: '#numberOfSelectedNodes',
   statsLinks: '#numberOfVisibleLinks',
   settingsPane: byTestId(testIds.twodSettingsDialog),
   nodeLabelVar: '#node-label-variable',
@@ -77,12 +78,31 @@ describe('2D Network - Core Rendering and Stats', () => {
     cy.get(selector.statsLinks).should('contain.text', '74');
   });
 
+  it('should include selected nodes in the statistics table', () => {
+    getCy().then((cyInstance) => {
+      cyInstance.getElementById('MZ375596').select();
+      cyInstance.getElementById('MZ696569').select();
+    });
+
+    cy.get(selector.statsSelectedNodes).should('have.text', '2');
+    cy.get('#network-statistics-table tr')
+      .first()
+      .should(($row) => {
+        const normalizedText = $row.text().replace(/\s+/g, ' ').trim();
+        expect(normalizedText).to.equal('33 (2) Nodes (Selected)');
+      });
+  });
+
   it('should apply color table node transparency to rendered nodes', () => {
     const alpha = 0.35;
 
     cy.openGlobalSettings();
     cy.get('#node-color-variable').click();
     cy.get('li[role="option"]').contains('Lineage').click();
+    cy.get('#node-color-table-row')
+      .contains('.p-togglebutton-label', 'Show')
+      .click({ force: true });
+    cy.window().its('commonService.visuals.microbeTrace.SelectedNodeColorTableTypesVariable').should('equal', 'Show');
     cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
     cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
     cy.get('#color-transparency').invoke('val', alpha).trigger('change');
