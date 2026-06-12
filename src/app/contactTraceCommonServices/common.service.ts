@@ -583,6 +583,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 linkAlphas: [1],
                 linkColors: d3.schemePaired,
                 linkValueNames: {},
+                keyTableColumnNames: {},
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
                 nodeColorsTable: {},

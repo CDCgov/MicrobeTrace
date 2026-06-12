@@ -1928,14 +1928,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * 
      */
     updatePolygonColors(tableSelector: string = this.getActivePolygonColorTableSelector()) {
+        const microbeTrace = this.commonService.visuals.microbeTrace;
+        const legacyPolygonHeader = this.commonService.session.style.overwrite?.['polygonColorHeaderVariable'] === this.widgets['polygons-foci']
+            ? this.commonService.session.style.overwrite?.['polygonColorHeaderTitle']
+            : undefined;
+        const valueColumnName = microbeTrace?.getKeyTableColumnDisplayName(
+            'polygon-color',
+            'value',
+            legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci'])
+        ) ?? (legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci']));
+        const countColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'count', 'Count') ?? 'Count';
+        const frequencyColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'frequency', 'Frequency') ?? 'Frequency';
 
         let polygonColorTable = $(tableSelector)
             .empty()
             .append(            
                 "<tr>" +
-                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Group " + this.commonService.titleize(this.widgets['polygons-foci']) + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
-                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
+                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='count'>${countColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
                 "<th>Color</th>" +
                 "</tr>");
             //.append(polygonHeader)
@@ -2023,7 +2034,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         //   .domain(values);
 
         polygonColorTable
-            .find("td")
+            .find("td[data-value]")
             .on("dblclick", function () {
                 $(this).attr("contenteditable", "true").focus();
             })
@@ -2034,10 +2045,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
         polygonColorTable
-            .find(".p-1")
-            .on("focusout", function () {
-                that.commonService.session.style['overwrite']['polygonColorHeaderVariable'] = that.widgets["polygons-foci"];
-                that.commonService.session.style['overwrite']['polygonColorHeaderTitle'] = $($(this).contents()[0]).text();
+            .find("[data-table-key][data-column-key]")
+            .on("focusout", function (event) {
+                const cell = event.currentTarget as HTMLElement;
+                microbeTrace?.setKeyTableColumnDisplayName(
+                    String(cell.getAttribute('data-table-key')),
+                    String(cell.getAttribute('data-column-key')),
+                    cell.textContent ?? ''
+                );
             });
 
 
