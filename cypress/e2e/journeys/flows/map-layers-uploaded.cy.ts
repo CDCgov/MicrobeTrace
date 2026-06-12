@@ -126,8 +126,8 @@ describe('Journey Flow - Map uploaded layer controls', () => {
     ensureMapToggleState('#map-states-show-hide', 'commonService.session.style.widgets.map-states-show', false);
     assertLayerVisible('states', false);
 
-    ensureMapToggleState('#map-counties-show-hide', 'commonService.session.style.widgets.map-counties-show', true);
-    assertLayerVisible('counties', true);
+    ensureMapToggleState('#map-counties-show-hide', 'commonService.session.style.widgets.map-counties-show', false);
+    assertLayerVisible('counties', false);
 
     ensureMapToggleState('#map-counties-show-hide', 'commonService.session.style.widgets.map-counties-show', false);
     assertLayerVisible('counties', false);

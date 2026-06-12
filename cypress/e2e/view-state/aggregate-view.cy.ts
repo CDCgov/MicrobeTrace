@@ -15,7 +15,10 @@ import {
 import {
   assertAggregateReady,
   goToAggregateView,
+  openGlobalFilteringTab,
   openAggregateSettingsDialog,
+  setGlobalDistanceMetric,
+  setTN93DistanceDisplayFormat,
   visitAppAndAcceptEula,
 } from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
@@ -28,6 +31,25 @@ const assertSortedStrings = (values: string[], direction: 'asc' | 'desc'): void 
 const assertSortedNumbers = (values: number[], direction: 'asc' | 'desc'): void => {
   const sorted = [...values].sort((a, b) => a - b);
   expect(values).to.deep.equal(direction === 'asc' ? sorted : sorted.reverse());
+};
+
+const assertAggregateGroupCellsUsePercentageFormat = (expected: boolean): void => {
+  cy.get(byTestId(testIds.aggregateTable))
+    .eq(0)
+    .find('tbody tr td:first-child')
+    .should(($cells) => {
+      const groupNames = Array.from($cells).map((cell) => String(cell.textContent || '').trim());
+      expect(groupNames.some((groupName) => groupName.includes('%')), 'distance group percentage format')
+        .to.equal(expected);
+    });
+};
+
+const closeAggregateSettingsIfOpen = (): void => {
+  cy.get('body').then(($body) => {
+    if ($body.find('.p-dialog-title:contains("Aggregate Settings")').length) {
+      cy.closeSettingsPane('Aggregate Settings');
+    }
+  });
 };
 
 describe('Aggregate View', () => {
@@ -74,6 +96,58 @@ describe('Aggregate View', () => {
     assertAggregateTableCount(2);
     assertAggregateTableMatchesModel(0, 'Node-cluster');
     assertAggregateTableMatchesModel(1, 'Node-selected');
+  });
+
+  it('refreshes distance aggregate tables when the TN93 display format changes', () => {
+    closeAggregateSettingsIfOpen();
+
+    openGlobalFilteringTab();
+    setGlobalDistanceMetric('tn93');
+    cy.contains('.p-dialog-title', 'Global Settings')
+      .parents('.p-dialog')
+      .find('#tn93-distance-display-format')
+      .should('exist');
+    setTN93DistanceDisplayFormat('decimal');
+    cy.closeGlobalSettings();
+
+    openAggregateSettingsDialog();
+    selectAggregateField(0, 'Distance', 'Link-distance');
+    cy.closeSettingsPane('Aggregate Settings');
+
+    assertAggregateTableMatchesModel(0, 'Link-distance');
+    assertAggregateGroupCellsUsePercentageFormat(false);
+
+    readDisplayedAggregateRows(0).then((decimalRows) => {
+      const decimalGroupNames = decimalRows.map((row) => row.groupName);
+
+      openGlobalFilteringTab();
+      setTN93DistanceDisplayFormat('percentage');
+      cy.closeGlobalSettings();
+
+      cy.window()
+        .its('commonService.visuals.aggregate.SelectedDataFields')
+        .should('deep.equal', ['Link-distance']);
+
+      assertAggregateGroupCellsUsePercentageFormat(true);
+      assertAggregateTableMatchesModel(0, 'Link-distance');
+
+      readDisplayedAggregateRows(0).then((percentageRows) => {
+        expect(percentageRows.map((row) => row.groupName), 'percentage distance groups')
+          .to.not.deep.equal(decimalGroupNames);
+      });
+
+      openGlobalFilteringTab();
+      setTN93DistanceDisplayFormat('decimal');
+      cy.closeGlobalSettings();
+
+      assertAggregateGroupCellsUsePercentageFormat(false);
+      assertAggregateTableMatchesModel(0, 'Link-distance');
+
+      readDisplayedAggregateRows(0).then((resetRows) => {
+        expect(resetRows.map((row) => row.groupName), 'decimal distance groups restored')
+          .to.deep.equal(decimalGroupNames);
+      });
+    });
   });
 
   it('sorts aggregate rows by group, count, and percent from the table headers', () => {

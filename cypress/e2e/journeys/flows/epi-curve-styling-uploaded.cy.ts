@@ -19,8 +19,12 @@ type WinWithMT = Window & {
 };
 
 const profile = getProfile('timeline-covid-node-link');
+const styleProfile = getProfile('color-by-uploaded-categorical');
 const changedThreshold = 22;
 const fixedNodeColor = '#ff0000';
+const epiLineageBlue = '#3998f5';
+const editedColoradoColor = '#000000';
+const targetLineage = 'B.1.617.2';
 
 const getEpiSettingsDialog = (): Cypress.Chainable<JQuery<HTMLElement>> =>
   cy.get('.p-dialog:visible', { timeout: 10000 })
@@ -131,6 +135,105 @@ const closeGlobalSettingsIfVisible = (): void => {
 
 const switchGlobalSettingsTab = (label: 'Filtering' | 'Styling'): void => {
   cy.contains('#global-settings-modal .nav-link', label, { timeout: 15000 }).click({ force: true });
+};
+
+const getApp = (win: WinWithMT) => {
+  const app = win.commonService?.visuals?.microbeTrace;
+
+  expect(app, 'microbeTrace host app').to.exist;
+  expect(app?._goldenLayoutHostComponent, 'golden layout host').to.exist;
+
+  return app;
+};
+
+const focusAppTab = (tabLabel: string): void => {
+  cy.window().then((win: unknown) => {
+    const app = getApp(win as WinWithMT);
+    const tabIndex = app.homepageTabs.findIndex((tab: any) => tab.label === tabLabel);
+
+    expect(tabIndex, `tab index for ${tabLabel}`).to.be.greaterThan(-1);
+
+    app._goldenLayoutHostComponent.focusComponent(tabLabel);
+    app.setActiveTabProperties(tabIndex);
+  });
+
+  cy.wait(50, { log: false });
+  cy.window().its('commonService.activeTab').should('equal', tabLabel);
+};
+
+const getDockedNodeColorCard = (): Cypress.Chainable<JQuery<HTMLElement>> =>
+  cy.contains('.key-table-card__header h5', 'Node Colors', { timeout: 15000 })
+    .parents('.key-table-card')
+    .first();
+
+const floatDockedNodeColorTable = (): void => {
+  getDockedNodeColorCard()
+    .find('button[title="Float table"]')
+    .click({ force: true });
+};
+
+const changeColorTableEntry = (tableSelector: string, value: string, nextColor: string): void => {
+  cy.get(`${tableSelector} td[data-value="${value}"]`, { timeout: 15000 })
+    .closest('tr')
+    .find('input[type="color"]')
+    .should('have.length', 1)
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = nextColor;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  cy.get(`${tableSelector} td[data-value="${value}"]`)
+    .closest('tr')
+    .find('input[type="color"]')
+    .should('have.value', nextColor);
+};
+
+const assertColorTableEntryColor = (tableSelector: string, value: string, expectedColor: string): void => {
+  cy.get(`${tableSelector} td[data-value="${value}"]`, { timeout: 15000 })
+    .closest('tr')
+    .find('input[type="color"]')
+    .should(($input) => {
+      expect(
+        colorMatchesHex(String($input.val() || ''), expectedColor),
+        `${value} color table value`,
+      ).to.equal(true);
+    });
+};
+
+const assertEpiLegendItemColor = (label: string, expectedColor: string): void => {
+  cy.get('#epiCurveSVG .epiCurve-epi-curve text', { timeout: 15000 })
+    .should(($texts) => {
+      const text = $texts
+        .toArray()
+        .find((candidate) => String(candidate.textContent || '').trim() === label);
+
+      expect(text, `Epi legend label ${label}`).to.exist;
+
+      const marker = text?.previousElementSibling as SVGElement | null;
+
+      expect(String(marker?.tagName || '').toLowerCase(), `Epi legend marker for ${label}`).to.equal('circle');
+
+      const fill = String(marker?.style?.fill || marker?.getAttribute('fill') || Cypress.$(marker as Element).css('fill') || '');
+
+      expect(colorMatchesHex(fill, expectedColor), `Epi legend color for ${label}`).to.equal(true);
+    });
+};
+
+const assertLineageEpiColorStillBlue = (): void => {
+  assertEpiLegendItemColor(targetLineage, epiLineageBlue);
+
+  readUniqueEpiCurveFills().should((fills) => {
+    expect(
+      fills.some((fill) => colorMatchesHex(fill, epiLineageBlue)),
+      `${targetLineage} blue appears in rendered Epi bars`,
+    ).to.equal(true);
+    expect(
+      fills.some((fill) => colorMatchesHex(fill, editedColoradoColor)),
+      'global State table black does not bleed into rendered Epi bars',
+    ).to.equal(false);
+  });
 };
 
 describe('Journey Flow - Epi Curve styling on uploaded data', () => {
@@ -332,5 +435,64 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
         'fixed node-color should collapse the rendered Epi bars to one configured fill',
       ).to.equal(true);
     });
+  });
+});
+
+describe('Journey Flow - Epi Curve color table isolation on uploaded style data', () => {
+  beforeEach(() => {
+    launchProfileToEpiCurve(styleProfile);
+    assertAfterLaunchCounts(styleProfile);
+    openEpiCurveSettingsDialog();
+    selectEpiCurveDropdown('Date Field', 'CollectionDate');
+    assertEpiCurveHasBars();
+    ensureEpiSettingsDialogOpen();
+  });
+
+  afterEach(() => {
+    closeDialogIfVisible('Node Color Table');
+    closeDialogIfVisible('Epi Curve Settings');
+    closeGlobalSettingsIfVisible();
+  });
+
+  it('keeps Lineage-colored Epi bars isolated when the global State color table changes and floats', () => {
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Color By', 'Lineage');
+    setEpiCurveLegendPosition('Right');
+
+    cy.window()
+      .its('commonService.session.style.widgets.epiCurve-stackColorBy')
+      .should('equal', 'Lineage');
+    assertLineageEpiColorStillBlue();
+
+    closeDialogIfVisible('Epi Curve Settings');
+
+    cy.openGlobalSettings();
+    switchGlobalSettingsTab('Styling');
+    selectVisiblePrimeOption('#node-color-variable', 'State');
+
+    cy.window()
+      .its('commonService.session.style.widgets.node-color-variable')
+      .should('equal', 'State');
+
+    closeGlobalSettingsIfVisible();
+
+    focusAppTab('Docked Key Tables');
+    cy.get('#key-tables-node-table td[data-value="Colorado"]', { timeout: 15000 })
+      .should('exist');
+    changeColorTableEntry('#key-tables-node-table', 'Colorado', editedColoradoColor);
+
+    focusAppTab('Epi Curve');
+    cy.get('#epiCurveSVG', { timeout: 15000 }).should('be.visible');
+    assertLineageEpiColorStillBlue();
+
+    focusAppTab('Docked Key Tables');
+    floatDockedNodeColorTable();
+    cy.get('#global-settings-node-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#node-color-table', { timeout: 15000 }).should('be.visible');
+    assertColorTableEntryColor('#node-color-table', 'Colorado', editedColoradoColor);
+
+    focusAppTab('Epi Curve');
+    cy.get('#epiCurveSVG', { timeout: 15000 }).should('be.visible');
+    assertLineageEpiColorStillBlue();
   });
 });
