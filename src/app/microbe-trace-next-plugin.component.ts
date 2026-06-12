@@ -3928,14 +3928,25 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return str;
     }
 
+    officialInstance(): boolean {
+        let url: URL;
+        try {
+            url = new URL(this.currentUrl, window.location.origin);
+        } catch {
+            return false;
+        }
 
-    officialInstance () {
-        const prodVal = RegExp(/https:\/\/microbetrace.cdc.gov\/MicrobeTrace/);
-        const devVal = RegExp(/https:\/\/cdcgov.github.io\/MicrobeTrace/);
-        const localVal = RegExp(/localhost/);
-        if (prodVal.test(this.currentUrl) || devVal.test(this.currentUrl) || localVal.test(this.currentUrl)) {
+        const hostname = url.hostname.toLowerCase();
+        const pathname = url.pathname.replace(/\/+$/, '');
+        if (hostname === 'localhost') {
             return true;
-        } 
+        }
+        if (url.protocol !== 'https:') {
+            return false;
+        }
+
+        const isMicrobeTracePath = pathname === '/MicrobeTrace' || pathname.startsWith('/MicrobeTrace/');
+        return (isMicrobeTracePath && (hostname === 'microbetrace.cdc.gov' || hostname === 'cdcgov.github.io'));
     }
 
     getHeight() {
