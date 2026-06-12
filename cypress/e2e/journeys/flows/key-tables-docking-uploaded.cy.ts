@@ -328,6 +328,112 @@ const changeColorTableEntry = (tableSelector: string, value: string, nextColor: 
     .should('have.value', nextColor);
 };
 
+const editTableLabel = (tableSelector: string, value: string, nextLabel: string): void => {
+  cy.get(`${tableSelector} td[data-value="${value}"]`, { timeout: 15000 })
+    .should('have.length.at.least', 1)
+    .first()
+    .scrollIntoView()
+    .should('be.visible')
+    .then(($cell) => {
+      const cell = $cell.get(0);
+      const eventWindow = cell.ownerDocument.defaultView ?? window;
+      cell.setAttribute('contenteditable', 'true');
+      cell.focus();
+      cell.textContent = nextLabel;
+      cell.dispatchEvent(new eventWindow.FocusEvent('blur'));
+      cell.dispatchEvent(new eventWindow.Event('focusout', { bubbles: true }));
+    });
+
+  cy.get(`${tableSelector} td[data-value="${value}"]`, { timeout: 15000 })
+    .should('have.length.at.least', 1)
+    .first()
+    .scrollIntoView()
+    .should('be.visible')
+    .should(($cell) => {
+      expect(String($cell.text()).replace(/\s+/g, ' ').trim()).to.equal(nextLabel);
+    });
+};
+
+const assertTableLabel = (tableSelector: string, value: string, expectedLabel: string): void => {
+  cy.get(`${tableSelector} td[data-value="${value}"]`, { timeout: 15000 })
+    .should('have.length.at.least', 1)
+    .first()
+    .scrollIntoView()
+    .should('be.visible')
+    .should(($cell) => {
+      const tableId = $cell.closest('table').attr('id') || '(no table)';
+      const cardTitle = $cell.closest('.key-table-card').find('.key-table-card__header h5').text().trim();
+      const details = `${tableId}:${cardTitle || '(no card)'}:${String($cell.text()).replace(/\s+/g, ' ').trim()}`;
+
+      expect(
+        String($cell.text()).replace(/\s+/g, ' ').trim(),
+        `label for ${tableSelector} ${value}: ${details}`,
+      ).to.equal(expectedLabel);
+    });
+};
+
+const renderedHeaderCells = ($cells: JQuery<HTMLElement>, tableSelector: string): JQuery<HTMLElement> => (
+  $cells.filter((_index, cell) => {
+    const $table = Cypress.$(cell).closest('table');
+
+    return $table.is(tableSelector) && (
+      $table.is(':visible') ||
+      $table.find('td:visible, input:visible, select:visible').length > 0
+    );
+  }) as JQuery<HTMLElement>
+);
+
+const editTableHeader = (
+  tableSelector: string,
+  tableKey: string,
+  columnKey: string,
+  nextLabel: string,
+): void => {
+  cy.get(`${tableSelector} [data-table-key="${tableKey}"][data-column-key="${columnKey}"]`, { timeout: 15000 })
+    .should(($cells) => {
+      expect(renderedHeaderCells($cells, tableSelector).length).to.be.at.least(1);
+    })
+    .then(($cells) => {
+      const cell = renderedHeaderCells($cells, tableSelector).get(0);
+      const eventWindow = cell.ownerDocument.defaultView ?? window;
+      cell.focus();
+      cell.textContent = nextLabel;
+      cell.dispatchEvent(new eventWindow.FocusEvent('blur'));
+      cell.dispatchEvent(new eventWindow.Event('focusout', { bubbles: true }));
+    });
+
+  assertTableHeader(tableSelector, tableKey, columnKey, nextLabel);
+};
+
+const assertTableHeader = (
+  tableSelector: string,
+  tableKey: string,
+  columnKey: string,
+  expectedLabel: string,
+): void => {
+  cy.get(`${tableSelector} [data-table-key="${tableKey}"][data-column-key="${columnKey}"]`, { timeout: 15000 })
+    .should(($cells) => {
+      expect(renderedHeaderCells($cells, tableSelector).length).to.be.at.least(1);
+    })
+    .should(($cells) => {
+      const $headers = renderedHeaderCells($cells, tableSelector);
+      const details = $headers.toArray().map((cell, index) => {
+        const $cell = Cypress.$(cell);
+        const tableId = $cell.closest('table').attr('id') || '(no table)';
+        const text = String($cell.text()).replace(/\s+/g, ' ').trim();
+
+        return `${index}:${tableId}:${text}`;
+      }).join(' | ');
+
+      $headers.toArray().forEach((cell) => {
+        expect(
+          String(Cypress.$(cell).text()).replace(/\s+/g, ' ').trim(),
+          `rendered headers for ${tableSelector} ${tableKey}.${columnKey}: ${details}`,
+        ).to.equal(expectedLabel);
+      });
+    });
+};
+
 const getVisibleLeafNodesByValue = (win: WinWithMT, field: string, value: string) => {
   const cyInstance = win.cytoscapeInstance;
 
@@ -427,6 +533,36 @@ const assertNodeShapeTableState = (variable: string, value: string, expectedShap
   });
 };
 
+const assertNodeValueName = (value: string, expectedName: string): void => {
+  cy.window().should((win: unknown) => {
+    const typedWindow = win as WinWithMT;
+    expect(
+      typedWindow.commonService.session.style.nodeValueNames?.[value],
+      `stored display name for ${value}`,
+    ).to.equal(expectedName);
+  });
+};
+
+const assertPolygonValueName = (value: string, expectedName: string): void => {
+  cy.window().should((win: unknown) => {
+    const typedWindow = win as WinWithMT;
+    expect(
+      typedWindow.commonService.session.style.polygonValueNames?.[value],
+      `stored group display name for ${value}`,
+    ).to.equal(expectedName);
+  });
+};
+
+const assertKeyTableColumnName = (table: string, column: string, expectedName: string): void => {
+  cy.window().should((win: unknown) => {
+    const typedWindow = win as WinWithMT;
+    expect(
+      typedWindow.commonService.session.style.keyTableColumnNames?.[`${table}.${column}`],
+      `stored column name for ${table}.${column}`,
+    ).to.equal(expectedName);
+  });
+};
+
 const assertGroupColorTableState = (groupValue: string, expectedColor: string): void => {
   cy.window().should((win: unknown) => {
     const typedWindow = win as WinWithMT;
@@ -507,6 +643,14 @@ const enableFloatingGroupColorTable = (groupByLabel: 'Subtype' | 'Cluster' = 'Su
   cy.window().its('commonService.session.style.widgets.polygon-color-table-visible').should('equal', 'Show');
   closeTwoDSettingsIfVisible();
   assertFloatingGroupColorTableVisible(true);
+};
+
+const clearNodeLinkShapeKeyTables = (): void => {
+  cy.window().then((win: unknown) => {
+    getApp(win as WinWithMT).resetKeyTablesForNewDataset?.();
+  });
+
+  assertDockedViewOpen(false);
 };
 
 describe('Journey Flow - Docked key tables on uploaded data', () => {
@@ -812,20 +956,123 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     });
   });
 
+  it('keeps node color and node shape display names across table rebuilds', () => {
+    const floridaLabel = 'Florida retained label';
+    const personDockedLabel = 'r';
+    const personFloatingLabel = 'w';
+    const nodeColorHeader = 'Patient State Header';
+    const nodeColorCountHeader = 'Patient Count Header';
+    const linkColorHeader = 'Exposure Link Header';
+    const nodeShapeHeader = 'Node Type Shape Header';
+    const updatedFloridaColor = '#cc3300';
+
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    enableKeyTablesFromGlobalSettings('Dock');
+    selectDockedCardVariable('node-color', 'State');
+    selectDockedCardVariable('link-color', 'Contact type');
+    selectDockedCardVariable('node-shape', 'Node type');
+    focusAppTab('Docked Key Tables');
+
+    editTableHeader('#key-tables-node-table', 'node-color', 'value', nodeColorHeader);
+    editTableHeader('#key-tables-node-table', 'node-color', 'count', nodeColorCountHeader);
+    editTableHeader('#key-tables-link-table', 'link-color', 'value', linkColorHeader);
+    editTableHeader('#key-tables-node-shape-table', 'node-shape', 'value', nodeShapeHeader);
+    assertKeyTableColumnName('node-color', 'value', nodeColorHeader);
+    assertKeyTableColumnName('node-color', 'count', nodeColorCountHeader);
+    assertKeyTableColumnName('link-color', 'value', linkColorHeader);
+    assertKeyTableColumnName('node-shape', 'value', nodeShapeHeader);
+
+    editTableLabel('#key-tables-node-table', 'Florida', floridaLabel);
+    assertNodeValueName('Florida', floridaLabel);
+
+    changeColorTableEntry('#key-tables-node-table', 'Florida', updatedFloridaColor);
+    assertTableLabel('#key-tables-node-table', 'Florida', floridaLabel);
+    assertTableHeader('#key-tables-node-table', 'node-color', 'value', nodeColorHeader);
+    assertTableHeader('#key-tables-node-table', 'node-color', 'count', nodeColorCountHeader);
+
+    floatDockedTable('node-color');
+    assertFloatingDialogVisible('node-color', true);
+    assertTableLabel('#node-color-table', 'Florida', floridaLabel);
+    assertTableHeader('#node-color-table', 'node-color', 'value', nodeColorHeader);
+
+    dockFloatingTable('node-color');
+    focusAppTab('Docked Key Tables');
+    assertTableLabel('#key-tables-node-table', 'Florida', floridaLabel);
+    assertTableHeader('#key-tables-node-table', 'node-color', 'value', nodeColorHeader);
+
+    selectDockedCardVariable('node-color', 'Profession');
+    selectDockedCardVariable('node-color', 'State');
+    assertTableLabel('#key-tables-node-table', 'Florida', floridaLabel);
+    assertTableHeader('#key-tables-node-table', 'node-color', 'value', nodeColorHeader);
+
+    selectDockedCardVariable('link-color', 'Exposure');
+    selectDockedCardVariable('link-color', 'Contact type');
+    assertTableHeader('#key-tables-link-table', 'link-color', 'value', linkColorHeader);
+
+    cy.window().then((win: unknown) => {
+      const app = getApp(win as WinWithMT);
+      app.onTimelineChanged('Collection_Date');
+      app.refreshDockedKeyTablesView?.();
+    });
+    cy.window().its('commonService.session.style.widgets.node-timeline-variable').should('equal', 'Collection_Date');
+    assertTableLabel('#key-tables-node-table', 'Florida', floridaLabel);
+    assertTableHeader('#key-tables-node-table', 'node-color', 'value', nodeColorHeader);
+
+    editTableLabel('#key-tables-node-shape-table', 'Person', personDockedLabel);
+    assertNodeValueName('Person', personDockedLabel);
+    assertTableHeader('#key-tables-node-shape-table', 'node-shape', 'value', nodeShapeHeader);
+
+    floatDockedTable('node-shape');
+    assertFloatingDialogVisible('node-shape', true);
+    assertTableLabel('#node-shape-table', 'Person', personDockedLabel);
+    assertTableHeader('#node-shape-table', 'node-shape', 'value', nodeShapeHeader);
+
+    editTableLabel('#node-shape-table', 'Person', personFloatingLabel);
+    assertNodeValueName('Person', personFloatingLabel);
+
+    dockFloatingTable('node-shape');
+    focusAppTab('Docked Key Tables');
+    assertNodeValueName('Person', personFloatingLabel);
+    assertTableLabel('#key-tables-node-shape-table', 'Person', personFloatingLabel);
+    assertTableHeader('#key-tables-node-shape-table', 'node-shape', 'value', nodeShapeHeader);
+
+    selectDockedCardVariable('node-color', 'Profession');
+    selectDockedCardVariable('node-color', 'State');
+    assertTableLabel('#key-tables-node-shape-table', 'Person', personFloatingLabel);
+    assertTableHeader('#key-tables-node-shape-table', 'node-shape', 'value', nodeShapeHeader);
+    assertNodeValueName('Florida', floridaLabel);
+    assertNodeValueName('Person', personFloatingLabel);
+    assertKeyTableColumnName('node-color', 'value', nodeColorHeader);
+    assertKeyTableColumnName('node-color', 'count', nodeColorCountHeader);
+    assertKeyTableColumnName('link-color', 'value', linkColorHeader);
+    assertKeyTableColumnName('node-shape', 'value', nodeShapeHeader);
+  });
+
   it('lets the 2D group color table dock, stay grouped by the 2D settings selection, and edit group colors', () => {
     const updatedSubtypeBColor = '#ff8800';
+    const floatingSubtypeBLabel = 'Subtype B retained label';
+    const dockedSubtypeBLabel = 'Subtype B docked label';
+    const floatingGroupHeader = 'Subtype Group Header';
+    const dockedGroupHeader = 'Docked Group Header';
     const expectedSubtypeBColor = normalizeColor(hexToRgbString(updatedSubtypeBColor));
     let subtypeDBaselineColor = '';
 
     launchProfileToTwoD(groupingProfile);
     assertAfterLaunchCounts(groupingProfile);
 
+    clearNodeLinkShapeKeyTables();
     enableFloatingGroupColorTable('Subtype');
 
     assertActiveTab('2D Network');
     assertGroupColorTableDockedState(false);
     assertDockedViewOpen(true);
     assertFloatingGroupColorTableVisible(true);
+    editTableHeader(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', floatingGroupHeader);
+    assertKeyTableColumnName('polygon-color', 'value', floatingGroupHeader);
+    editTableLabel(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'B', floatingSubtypeBLabel);
+    assertPolygonValueName('B', floatingSubtypeBLabel);
 
     cy.window().then((win: unknown) => {
       const typedWindow = win as WinWithMT;
@@ -855,6 +1102,8 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
       cy.get('td[data-value="B"]', { timeout: 15000 }).should('exist');
       cy.get('td[data-value="D"]', { timeout: 15000 }).should('exist');
     });
+    assertTableHeader(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', floatingGroupHeader);
+    assertTableLabel(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'B', floatingSubtypeBLabel);
     cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
 
     focusAppTab('2D Network');
@@ -866,6 +1115,12 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     focusAppTab('Docked Key Tables');
     changeColorTableEntry(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'B', updatedSubtypeBColor);
     assertGroupColorTableState('B', updatedSubtypeBColor);
+    assertTableLabel(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'B', floatingSubtypeBLabel);
+    assertTableHeader(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', floatingGroupHeader);
+    editTableHeader(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', dockedGroupHeader);
+    assertKeyTableColumnName('polygon-color', 'value', dockedGroupHeader);
+    editTableLabel(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'B', dockedSubtypeBLabel);
+    assertPolygonValueName('B', dockedSubtypeBLabel);
 
     // Hidden-tab group color refreshes can lag briefly on slower Windows hosts.
     cy.wait(500);
@@ -899,5 +1154,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     assertGroupColorTableDockedState(false);
     assertDockedViewOpen(true);
     assertFloatingGroupColorTableVisible(true);
+    assertTableHeader(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', dockedGroupHeader);
+    assertTableLabel(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'B', dockedSubtypeBLabel);
   });
 });
