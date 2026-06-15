@@ -1,5 +1,6 @@
 /// <reference types="cypress" />
 
+import * as XLSX from 'xlsx';
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -44,8 +45,8 @@ const expectTrimmedCellText = (index: number, text: string): void => {
 describe('Journey Flow - Network Statistics view', () => {
   const profile = getProfile('network-statistics-panel');
 
-  it('recalculates filter-aware statistics and exports the current rows', () => {
-    const exportPath = 'cypress/downloads/network_statistics_view.csv';
+  it('recalculates filter-aware statistics and exports each section to its own workbook sheet', () => {
+    const exportPath = 'cypress/downloads/network_statistics_view.xlsx';
 
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
@@ -103,20 +104,49 @@ describe('Journey Flow - Network Statistics view', () => {
     installSaveAsCaptureHook();
     cy.get('[data-testid="network-statistics-export"]').click({ force: true });
     cy.get('[data-testid="network-statistics-export-confirm"]').click({ force: true });
-    writeCapturedDownloadToDisk('network_statistics.csv', exportPath);
-    cy.readFile(exportPath, 'utf8').should((csvText) => {
-      expect(csvText).to.include('Network Statistics Summary');
-      expect(csvText).to.include('Metric,Value');
-      expect(csvText).to.include('Nodes,6');
-      expect(csvText).to.include('Clusters,1');
-      expect(csvText).to.include('Degree Distribution');
-      expect(csvText).to.include('Degree,Node Count,Fraction');
-      expect(csvText).to.include('Node Centrality');
-      expect(csvText).to.include('Node ID,Cluster ID,Degree,Normalized Degree,Betweenness,Normalized Betweenness');
-      expect(csvText).to.include('Cluster ID,Node Count,Link Count,Density,Average Degree,Max Degree,Diameter,Diameter Approximate,Member IDs');
-      expect(csvText).not.to.include('record_type');
-      expect(csvText).not.to.include('component_id');
-      expect(csvText).not.to.include('componentCount');
+    writeCapturedDownloadToDisk('network_statistics.xlsx', exportPath);
+    cy.readFile(exportPath, 'binary').should((binaryWorkbook) => {
+      const workbook = XLSX.read(binaryWorkbook, { type: 'binary' });
+      expect(workbook.SheetNames).to.deep.equal([
+        'Summary',
+        'Degree Distribution',
+        'Node Centrality',
+        'Clusters',
+      ]);
+
+      const summaryRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets.Summary, { header: 1 });
+      const degreeRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets['Degree Distribution'], { header: 1 });
+      const centralityRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets['Node Centrality'], { header: 1 });
+      const clusterRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets.Clusters, { header: 1 });
+
+      expect(summaryRows[0]).to.deep.equal(['Metric', 'Value']);
+      expect(summaryRows).to.deep.include(['Nodes', 6]);
+      expect(summaryRows).to.deep.include(['Clusters', 1]);
+      expect(degreeRows[0]).to.deep.equal(['Degree', 'Node Count', 'Fraction']);
+      expect(centralityRows[0]).to.deep.equal([
+        'Node ID',
+        'Cluster ID',
+        'Degree',
+        'Normalized Degree',
+        'Betweenness',
+        'Normalized Betweenness',
+      ]);
+      expect(clusterRows[0]).to.deep.equal([
+        'Cluster ID',
+        'Node Count',
+        'Link Count',
+        'Density',
+        'Average Degree',
+        'Max Degree',
+        'Diameter',
+        'Diameter Approximate',
+        'Member IDs',
+      ]);
+
+      const workbookText = JSON.stringify(workbook.Sheets);
+      expect(workbookText).not.to.include('record_type');
+      expect(workbookText).not.to.include('component_id');
+      expect(workbookText).not.to.include('componentCount');
     });
 
     cy.openGlobalSettings();

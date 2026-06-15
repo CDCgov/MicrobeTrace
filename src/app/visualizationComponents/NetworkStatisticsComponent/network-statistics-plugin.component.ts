@@ -13,6 +13,7 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import {
+  buildNetworkStatisticsExportSections,
   NetworkStatisticsResult,
   serializeNetworkStatisticsCsv,
 } from '@app/contactTraceCommonServices/network-statistics';
@@ -282,9 +283,38 @@ export class NetworkStatisticsComponent
     });
   }
 
-  exportVisualization(): void {
-    this.exportNetworkStatisticsCsv();
+  async exportVisualization(): Promise<void> {
+    await this.exportNetworkStatisticsWorkbook();
     this.ShowNetworkStatisticsExportPane = false;
+  }
+
+  async exportNetworkStatisticsWorkbook(): Promise<void> {
+    if (!this.networkStatisticsResult) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    buildNetworkStatisticsExportSections(this.networkStatisticsResult).forEach((section) => {
+      const worksheet = xlsx.utils.aoa_to_sheet(section.rows);
+      xlsx.utils.book_append_sheet(workbook, worksheet, section.sheetName);
+    });
+
+    const excelBuffer = xlsx.write(workbook, {
+      bookType: 'xlsx',
+      type: 'array',
+    });
+    const blob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
+    });
+    const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.xlsx`;
+    const testSaveAs = (window as any).__mtTestSaveAs;
+    if (typeof testSaveAs === 'function') {
+      testSaveAs(blob, fileName);
+      return;
+    }
+
+    saveAs(blob, fileName);
   }
 
   exportNetworkStatisticsCsv(): void {

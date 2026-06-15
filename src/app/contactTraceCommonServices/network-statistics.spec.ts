@@ -1,4 +1,8 @@
-import { computeNetworkStatistics, serializeNetworkStatisticsCsv } from './network-statistics';
+import {
+  buildNetworkStatisticsExportSections,
+  computeNetworkStatistics,
+  serializeNetworkStatisticsCsv,
+} from './network-statistics';
 
 describe('computeNetworkStatistics', () => {
   it('computes a fully clustered triangle', () => {
@@ -120,5 +124,45 @@ describe('computeNetworkStatistics', () => {
     expect(csv).toContain('Clusters\r\nCluster ID,Node Count,Link Count,Density,Average Degree,Max Degree,Diameter,Diameter Approximate,Member IDs');
     expect(csv).not.toContain('record_type');
     expect(csv).not.toContain('component_id');
+  });
+
+  it('builds separate export sections for workbook sheets', () => {
+    const result = computeNetworkStatistics({
+      nodes: [{ _id: 'A' }, { _id: 'B' }, { _id: 'C' }],
+      links: [
+        { source: 'A', target: 'B', visible: true },
+      ],
+    });
+
+    const sections = buildNetworkStatisticsExportSections(result);
+
+    expect(sections.map((section) => section.sheetName)).toEqual([
+      'Summary',
+      'Degree Distribution',
+      'Node Centrality',
+      'Clusters',
+    ]);
+    expect(sections[0].rows[0]).toEqual(['Metric', 'Value']);
+    expect(sections[0].rows).toContain(['Nodes', 3]);
+    expect(sections[1].rows[0]).toEqual(['Degree', 'Node Count', 'Fraction']);
+    expect(sections[2].rows[0]).toEqual([
+      'Node ID',
+      'Cluster ID',
+      'Degree',
+      'Normalized Degree',
+      'Betweenness',
+      'Normalized Betweenness',
+    ]);
+    expect(sections[3].rows[0]).toEqual([
+      'Cluster ID',
+      'Node Count',
+      'Link Count',
+      'Density',
+      'Average Degree',
+      'Max Degree',
+      'Diameter',
+      'Diameter Approximate',
+      'Member IDs',
+    ]);
   });
 });
