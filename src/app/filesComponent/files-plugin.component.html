@@ -262,7 +262,7 @@
   <br/>
 
   <div class="m-portlet" style="padding: 1px">
-    <div class="d-flex justify-content-center">
+    <div class="d-flex justify-content-center" style="gap: 5px;">
       <span>
         <input type="file" id="data-files1" class="d-none" multiple="true" onclick="this.value=null;" (change)="processFiles($event.target.files)">
         <label for="data-files1" class="btn btn-primary btn-nr floater mb-0">Add File(s)</label>
@@ -272,14 +272,14 @@
       </span>
       @if (!commonService.session?.network?.launched) {
         <span>
-          <button id="launch" class="btn btn-success files-launch-action" (click)="launchClick()" title="Please select a Network CSV or FASTA File" [disabled]="!hasLaunchableFiles">Launch</button>
+          <button id="launch" class="btn btn-success files-launch-action" (click)="launchClick({ resetSettings: true })" title="Please select a Network CSV or FASTA File" [disabled]="!hasLaunchableFiles">Launch</button>
         </span>
       } @else {
         <span>
           <button id="launch" data-testid="files-update-button" class="btn btn-success files-launch-action" (click)="launchClick()" title="Update data without resetting settings" [disabled]="!hasLaunchableFiles">Update</button>
         </span>
         <span>
-          <button id="launch-reset-settings" data-testid="files-update-reset-settings-button" class="btn btn-warning files-launch-action" (click)="launchClick({ resetSettings: true })" title="Update data and reset all settings" [disabled]="!hasLaunchableFiles">Update + Reset Settings</button>
+          <button id="launch-reset-settings" data-testid="files-update-reset-settings-button" class="btn btn-danger files-launch-action" (click)="launchClick({ resetSettings: true })" title="Update data and reset all settings" [disabled]="!hasLaunchableFiles">Update + Reset Settings</button>
         </span>
       }
     </div>

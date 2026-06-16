@@ -222,7 +222,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const widgets = this.commonService.session.style.widgets;
     Object.assign(this.commonService.GlobalSettingsModel, {
       SelectedColorNodesByVariable: widgets['node-color-variable'] ?? 'None',
-      SelectedColorLinksByVariable: widgets['link-color-variable'] ?? 'None',
+      SelectedColorLinksByVariable: widgets['link-color-variable'] ?? 'origin',
       SelectedNodeSymbolVariable: widgets['node-symbol-variable'] ?? 'None',
       SelectedNodeColorVariable: widgets['node-color'] ?? '#1f77b4',
       SelectedLinkColorVariable: widgets['link-color'] ?? '#a6cee3',
@@ -290,7 +290,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const microbeTrace = this.commonService.visuals?.microbeTrace as any;
     if (microbeTrace) {
       microbeTrace.SelectedColorNodesByVariable = widgets['node-color-variable'] ?? 'None';
-      microbeTrace.SelectedColorLinksByVariable = widgets['link-color-variable'] ?? 'None';
+      microbeTrace.SelectedColorLinksByVariable = widgets['link-color-variable'] ?? 'origin';
       microbeTrace.SelectedNodeSymbolVariable = widgets['node-symbol-variable'] ?? 'None';
       microbeTrace.SelectedNodeColorVariable = widgets['node-color'] ?? '#1f77b4';
       microbeTrace.SelectedLinkColorVariable = widgets['link-color'] ?? '#a6cee3';
@@ -912,10 +912,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.updateLegacyNodeSymbols();
     }
 
-    if (options.resetSettings) {
-      this.resetSettingsForLaunch();
-    }
-
     const thresholdOnLaunch = parseFloat(String(
       $('#default-distance-threshold').val() ??
       this.SelectedDefaultDistanceThresholdVariable ??
@@ -936,6 +932,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedDefaultViewVariable ??
       this.commonService.session.style.widgets["default-view"]
     );
+
+    if (options.resetSettings) {
+      this.resetSettingsForLaunch();
+    }
 
 
     console.log('launch click');
