@@ -156,7 +156,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
-        SelectedColorLinksByVariable: 'None',
+        SelectedColorLinksByVariable: 'origin',
         SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
@@ -164,8 +164,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedStatisticsTypesVariable: 'Hide',
         SelectedClusterMinimumSizeVariable: 0,
         SelectedLinkSortVariable: 'Distance',
-        SelectedLinkThresholdVariable: 0.015,
-        SelectedDistanceMetricVariable: 'tn93',
+        SelectedLinkThresholdVariable: 16,
+        SelectedDistanceMetricVariable: 'snps',
         SelectedLinkColorTableTypesVariable: 'Dock',
         SelectedNodeColorTableTypesVariable: 'Dock',
         SelectedNodeShapeTableTypesVariable: 'Dock',
@@ -377,7 +377,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'choropleth-transparency': 0.3,
             'cluster-minimum-size': 1,
             'default-view': '2D Network', // 'Phylogenetic Tree' 'Alignment View'
-            'default-distance-metric': 'tn93',
+            'default-distance-metric': 'snps',
             'filtering-epsilon': -8,
             'flow-showNodes': 'selected',
             'gantt-date-list': '',
@@ -418,7 +418,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-opacity': 0,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
-            'link-threshold': 0.015,
+            'link-threshold': 16,
             'tn93-distance-display-format': 'decimal',
             'link-tooltip-variable': ['None'],
             'link-width': 3,
@@ -1690,6 +1690,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         } else {
             newLink.target = newLink.target.trim();
         }
+
+        newLink.origin = this.normalizeLinkOrigins(newLink.origin);
+        this.setLinkAllOrigins(newLink, this.getLinkAllOrigins(newLink));
     
         if (!matrix[newLink.source]) {
             matrix[newLink.source] = {};
@@ -1703,7 +1706,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         const ids = [newLink.source, newLink.target].sort();
         const id = `${ids[0]}-${ids[1]}`;
-
         let linkIsNew = 1;
 
         const sdlinks = serv.session.data.links;
@@ -1718,11 +1720,13 @@ export class CommonService extends AppComponentBase implements OnInit {
              // Ensure id is consistent during merge ---
              newLink.id = oldLink.id || id; // Prefer existing ID
 
-            let myorigin = this.uniq(newLink.origin.concat(oldLink.origin));
+            let myorigin = this.uniq(this.getLinkAllOrigins(newLink).concat(this.getLinkAllOrigins(oldLink)));
             // console.log(JSON.stringify(myorigin));
 
             // Ensure no empty origins
             myorigin = myorigin.filter(origin => origin != '');
+            this.setLinkAllOrigins(oldLink, myorigin);
+            this.setLinkAllOrigins(newLink, myorigin);
 
              // --- Start: Logic to manage global origin order ---
             if (myorigin.length > 1) {
@@ -1777,6 +1781,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             _.merge(oldLink, newLink);
 
             oldLink.origin = myorigin;
+            this.setLinkAllOrigins(oldLink, myorigin);
 
 
             if(newLink["bidirectional"]){
@@ -1791,11 +1796,12 @@ export class CommonService extends AppComponentBase implements OnInit {
              // Ensure id is consistent during merge ---
              newLink.id = oldLink.id || id; // Prefer existing ID
 
-            const origin = this.uniq(newLink.origin.concat(oldLink.origin));
+            const origin = this.uniq(this.getLinkAllOrigins(newLink).concat(this.getLinkAllOrigins(oldLink)));
             if(origin.length > 1) {
                 newLink.hasDistance = true;
             }
             Object.assign(oldLink, newLink, { origin: origin });
+            this.setLinkAllOrigins(oldLink, origin);
             linkIsNew = 0;
 
         } else {
@@ -1826,6 +1832,8 @@ export class CommonService extends AppComponentBase implements OnInit {
     
             }
 
+               newLink.origin = this.getLinkAllOrigins(newLink);
+               this.setLinkAllOrigins(newLink, newLink.origin);
                this.syncLinkDistanceOrigins(newLink);
                // Always add the new link without merging
                sdlinks.push(newLink);
@@ -1840,12 +1848,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(!this.session.style.widgets['link-origin-array-order']){
             this.session.style.widgets['link-origin-array-order'] = [];
         }
-        if (newLink.origin.length > 1 && this.session.style.widgets['link-origin-array-order'].length === 0) {
-            this.session.style.widgets['link-origin-array-order'] = newLink.origin;
+        const newLinkAllOrigins = this.getLinkAllOrigins(newLink);
+        if (newLinkAllOrigins.length > 1 && this.session.style.widgets['link-origin-array-order'].length === 0) {
+            this.session.style.widgets['link-origin-array-order'] = [...newLinkAllOrigins];
         }
 
         const normalizedLink = matrix[newLink.source]?.[newLink.target] ?? matrix[newLink.target]?.[newLink.source];
         if (normalizedLink) {
+            this.setLinkAllOrigins(normalizedLink, this.getLinkAllOrigins(normalizedLink));
             this.syncLinkDistanceOrigins(normalizedLink);
         }
         
@@ -1880,6 +1890,49 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         }
         return out;
+    }
+
+    private normalizeLinkOrigins(origins: any): string[] {
+        const originArray = Array.isArray(origins)
+            ? origins
+            : (origins === undefined || origins === null ? [] : [origins]);
+
+        return this.uniq(
+            originArray
+                .map((origin: any) => typeof origin === 'string' ? origin : String(origin))
+                .filter((origin: string) => origin.length > 0)
+        );
+    }
+
+    private getLinkAllOrigins(link: any): string[] {
+        const canonicalOrigins = this.normalizeLinkOrigins(link?._originAll);
+
+        if (canonicalOrigins.length > 0) {
+            return canonicalOrigins;
+        }
+
+        return this.normalizeLinkOrigins(link?.origin);
+    }
+
+    private setLinkAllOrigins(link: any, origins: any): string[] {
+        const normalizedOrigins = this.normalizeLinkOrigins(origins);
+        link._originAll = normalizedOrigins;
+        return normalizedOrigins;
+    }
+
+    private orderLinkOriginsForDisplay(origins: any, globalOrder: any): string[] {
+        const normalizedOrigins = this.normalizeLinkOrigins(origins);
+        const normalizedOrder = this.normalizeLinkOrigins(globalOrder);
+
+        if (normalizedOrigins.length < 2 || normalizedOrder.length < 2) {
+            return normalizedOrigins;
+        }
+
+        const originSet = new Set(normalizedOrigins);
+        const orderedOrigins = normalizedOrder.filter(origin => originSet.has(origin));
+        const remainingOrigins = normalizedOrigins.filter(origin => !normalizedOrder.includes(origin));
+
+        return orderedOrigins.concat(remainingOrigins);
     }
 
     getLinkDistanceOrigins(link: any): string[] {
@@ -1960,6 +2013,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
 
             link.origin = remainingOrigins;
+            this.setLinkAllOrigins(link, remainingOrigins);
 
             if (remainingDistanceOrigins.length > 0) {
                 link.distanceOrigins = remainingDistanceOrigins;
@@ -2193,7 +2247,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         //If anything here seems eccentric, assume it's to maintain compatibility with
         //session files from older versions of MicrobeTrace.
         this.beginDataLoad();
-        $("#launch").prop("disabled", true);
+        $(".files-launch-action, #launch").prop("disabled", true);
 
          // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
@@ -3146,13 +3200,12 @@ align(params): Promise<any> {
         );
         if (hasNewickBackedSource && typeof newickString === 'string' && newickString.trim().length > 0) {
             const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
-            const distanceOrigin = firstDistanceLink?.distanceOrigin || this.session.files?.find(file =>
+            const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
+            const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
                 file?.format === 'newick' || file?.format === 'auspice' ||
                 file?.datatype === 'newick' || file?.datatype === 'auspice'
             )?.name || 'Newick Tree';
-            const origin = Array.isArray(firstDistanceLink?.origin) && firstDistanceLink.origin.length
-                ? firstDistanceLink.origin
-                : [distanceOrigin];
+            const origin = [distanceOrigin];
 
             return this.workerComputeService.computePatristicNearestNeighborEdges(
                 newickString,
@@ -3218,15 +3271,22 @@ align(params): Promise<any> {
 
     ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
         const newickString = this.session.data?.newickString;
-        if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+        const hasNewickBackedSource = this.session.files?.some(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        );
+
+        if (!hasNewickBackedSource || typeof newickString !== 'string' || newickString.trim().length === 0) {
             return Promise.resolve(null);
         }
 
         const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
-        const distanceOrigin = firstDistanceLink?.distanceOrigin || this.session.files?.find(file => file?.format === 'newick')?.name || 'Newick Tree';
-        const origin = Array.isArray(firstDistanceLink?.origin) && firstDistanceLink.origin.length
-            ? firstDistanceLink.origin
-            : [distanceOrigin];
+        const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
+        const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        )?.name || 'Newick Tree';
+        const origin = [distanceOrigin];
 
         return this.workerComputeService.ensurePatristicEdgesForThreshold(
             threshold,
@@ -3305,6 +3365,8 @@ align(params): Promise<any> {
             nodeFields: this.session.data.nodeFields.length,
             linkFields: this.session.data.linkFields.length
         });
+
+        // Files tab updates now choose explicitly whether settings are preserved or reset.
 
         // TODO:: See if this is needed
         // this.foldMultiSelect();
@@ -3433,6 +3495,9 @@ align(params): Promise<any> {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
           this.setLinkVisibility(true);
+          // Link origin filtering can change the active color-domain during data updates.
+          this.createLinkColorMap();
+          this.visuals?.microbeTrace?.publishUpdateLinkColor?.();
           this.updateStatistics();
           if (!silent) this.store.setNetworkUpdated(true);
           let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
@@ -3926,8 +3991,7 @@ align(params): Promise<any> {
     };
 
     /**
-     * Sets the following objects back to default values: commonService.temp.matrix, commonService.temp.tree, commonService.session.data, commonService.session.network,
-     * commonService.session.style.widgets. Filters 'Demo_outbreak_NodeList.csv' from files
+     * Rebuilds loaded graph data while preserving the current analysis settings.
      */
     resetData() {
 
@@ -3958,15 +4022,6 @@ align(params): Promise<any> {
 
         this.session.files = files;
         this.session.meta = meta;
-        this.session.style.widgets = this.defaultWidgets();
-        
-
-        // default values are 'tn93' and 0.015, so not sure if this if statement is every true
-        if (this.session.style.widgets['default-distance-metric'] !== 'snps' &&
-          this.session.style.widgets['link-threshold'] >= 1) {
-          this.visuals.microbeTrace.SelectedLinkThresholdVariable = this.session.style.widgets['link-threshold'];
-          this.visuals.microbeTrace.onLinkThresholdChanged();
-        }
     };
 
     getJurisdictions(): Promise<JurisdictionItem[]>{
@@ -4272,7 +4327,7 @@ align(params): Promise<any> {
         let clusters = this.session.data.clusters;
         let n = links.length;
         let visibleLinks = 0;
-        const globalOriginOrder = this.session.style.widgets['link-origin-array-order']; // Get the global order once
+        const globalOriginOrder = this.normalizeLinkOrigins(this.session.style.widgets['link-origin-array-order']);
     
     
         if(this.debugMode) {
@@ -4288,24 +4343,19 @@ align(params): Promise<any> {
     
             const link = links[i]; // Reference to the object in session.data.links
             const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const allOrigins = this.getLinkAllOrigins(link);
 
-            // *** Step 1: Use a copy for checks ***
-            let finalOrigins = [...link.origin]; // Copy origins for visibility logic
-    
-            let visible = true;
-            let overrideNN = false;
-            let originWasFiltered = false; // *** Step 2: Add flag ***
-    
-            // Add back the distance origin to the *copy* if it was removed (Safeguard)
-            // Check against original link.origin, add to finalOrigins if needed
             distanceOrigins.forEach(distanceOrigin => {
-                if (!finalOrigins.includes(distanceOrigin)) {
-                    finalOrigins.push(distanceOrigin);
-                }
-                if (!link.origin.includes(distanceOrigin)) {
-                    link.origin.push(distanceOrigin);
+                if (!allOrigins.includes(distanceOrigin)) {
+                    allOrigins.push(distanceOrigin);
                 }
             });
+            this.setLinkAllOrigins(link, allOrigins);
+
+            let finalOrigins = [...allOrigins];
+
+            let visible = true;
+            let overrideNN = false;
     
     
             // Visibility Logic based on metric/threshold/hasDistance
@@ -4314,7 +4364,6 @@ align(params): Promise<any> {
                 if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
                     // Filter the *copy* for visibility check
                     finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
-                    originWasFiltered = true; // *** Mark as filtered ***
                     overrideNN = true;
                     visible = true;
                 } else {
@@ -4332,14 +4381,13 @@ align(params): Promise<any> {
                              }).length > 0
                         ) {
                             // Filter the *copy* for visibility check
-                             finalOrigins = finalOrigins.filter(fileName => {
-                                 const hasAuspice = /[Aa]uspice/.test(fileName);
-                                 const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
-                                 return fileName && !includesDistanceOrigin && !hasAuspice;
-                             });
-                             originWasFiltered = true; // *** Mark as filtered ***
-                             overrideNN = true;
-                             visible = true;
+                              finalOrigins = finalOrigins.filter(fileName => {
+                                  const hasAuspice = /[Aa]uspice/.test(fileName);
+                                  const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
+                                  return fileName && !includesDistanceOrigin && !hasAuspice;
+                              });
+                              overrideNN = true;
+                              visible = true;
                          }
                          // If only distance origin existed and it's above threshold, 'visible' remains false.
                     }
@@ -4357,10 +4405,9 @@ align(params): Promise<any> {
                  if (!visible && wasVisible) { // Check if NN made it invisible
                       // Check *copy* for other origins
                      if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
-                         // Filter the *copy*
-                         finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
-                         originWasFiltered = true; // *** Mark as filtered ***
-                         visible = true; // Keep visible due to non-distance origin
+                          // Filter the *copy*
+                          finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
+                          visible = true; // Keep visible due to non-distance origin
                      }
                  }
             }
@@ -4371,30 +4418,7 @@ align(params): Promise<any> {
                 visible = visible && cluster.visible;
             }
     
-            // --- Step 3: Apply Final Origin Array Conditionally ---
-            if (visible) {
-                 if (originWasFiltered) {
-                     // If filtering occurred *during visibility checks*, assign the filtered result
-                     link.origin = finalOrigins;
-                 } else if (link.origin.length > 1 && globalOriginOrder.length > 1) {
-                      // If NO filtering occurred, it's visible, has multiple origins,
-                      // and global order exists, apply the global order.
-                     // Check if the link's current origins fundamentally match the global order content
-                     // (ignoring order initially) to prevent applying the wrong order set.
-                     const linkOriginSet = new Set(link.origin);
-                     const globalOrderSet = new Set(globalOriginOrder);
-                     if (linkOriginSet.size === globalOrderSet.size && [...linkOriginSet].every(item => globalOrderSet.has(item))) {
-                        link.origin = globalOriginOrder;
-                     } else {
-                        // Log a warning if sets don't match - indicates potential issue in global order management
-                         console.warn("Link origin set doesn't match global order set. Not applying global order.", link.id, link.origin, globalOriginOrder);
-                         // Keep link.origin as it was after addLink
-                     }
-                 }
-                 // If visible and single origin, or global order not set/relevant,
-                 // link.origin correctly retains its value from addLink.
-            }
-            // If not visible, link.origin is left as is.
+            link.origin = this.orderLinkOriginsForDisplay(finalOrigins, globalOriginOrder);
     
             link.visible = visible; // Set final visibility
             if (visible) visibleLinks++;

@@ -92,6 +92,8 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   }
 
   cy.get('body').then(($body) => {
+    if (!resolvedOptions.skipDemoSession) return;
+
     const continueButton = $body.find(`${byTestId(testIds.appSampleDatasetButton)}:visible`);
     if (!continueButton.length) return;
 
@@ -993,8 +995,8 @@ export function ensureAlignmentView(): void {
   });
 }
 
-export function launchProfileToTwoD(profile: DatasetProfile): void {
-  visitAppAndAcceptEula();
+export function launchProfileToTwoD(profile: DatasetProfile, visitOptions: JourneyVisitOptions = {}): void {
+  visitAppAndAcceptEula(visitOptions);
   cy.loadFiles(profile.files);
   applyPreLaunchFileSettings(profile);
   ensurePreLaunchProfileSynced(profile);

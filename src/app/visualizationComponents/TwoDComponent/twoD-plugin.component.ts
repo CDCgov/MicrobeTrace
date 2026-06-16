@@ -3497,13 +3497,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let color = this.widgets['link-color'];
         let finalColor;
         let alphaValue;
+        const linkColorValue = (() => {
+            const value = link[variable];
+            if (String(variable).toLowerCase() === 'origin' && Array.isArray(value)) {
+                return value.length > 1 ? 'Duo-Link' : value[0];
+            }
+            return value;
+        })();
 
         //if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
             //finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
             //alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
         //} else {
-        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-        alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
+        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(linkColorValue);
+        alphaValue = this.commonService.temp.style.linkAlphaMap(linkColorValue)
         //}
 
         if (this.overideTransparency) {

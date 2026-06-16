@@ -129,10 +129,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     @ViewChild('linkColorTable') linkColorTable!: ElementRef;
     @ViewChild('nodeShapeTable') nodeShapeTable!: ElementRef;
 
-    public metric: string = "tn93";
+    public metric: string = "snps";
     public ambiguity: string = "Average";
     public launchView: string = "2D Network";
-    public threshold: string = "0.015";
+    public threshold: string = "16";
 
     commitHash: string = commitHash;
     widgets: object; 
@@ -261,7 +261,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedNodeSymbolVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
-    SelectedColorLinksByVariable: string = 'None';
+    SelectedColorLinksByVariable: string = 'origin';
 
     SelectedTimelineVariable: string = 'None';
     timelineSpeedOptions: number[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
@@ -1494,7 +1494,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * @param files (Files List)
      */
     prepareFilesLists($event) {
-
+        this.commonService.session.network.launched = false;
         if(this.commonService.debugMode) {
             console.log("Trying to prepare files");
         }
@@ -2533,15 +2533,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const widgets = this.commonService.session.style.widgets;
 
         this.SelectedColorNodesByVariable = 'None';
-        this.SelectedColorLinksByVariable = 'None';
+        this.SelectedColorLinksByVariable = 'origin';
         this.SelectedNodeSymbolVariable = 'None';
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = 'None';
-        this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'None';
+        this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'origin';
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
 
         widgets['node-color-variable'] = 'None';
-        widgets['link-color-variable'] = 'None';
+        widgets['link-color-variable'] = 'origin';
         widgets['node-symbol-variable'] = 'None';
 
         this.commonService.session.style.nodeColorsTable = {};
@@ -2688,9 +2688,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             : [];
         aggregateValues.forEach((value, i) => {
             let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
-            if (aggregates[value] == 0) {
-                return;
-            }
+            const hasBlankAggregate = aggregates[value] == 0;
+            const aggregateCountText = hasBlankAggregate ? '' : aggregates[value];
+            const aggregateFrequencyText = hasBlankAggregate || vlinks.length === 0
+                ? ''
+                : (aggregates[value] / vlinks.length).toLocaleString();
                 // console.log('link color aggregates value: ', aggregates[value]);
                 // console.log('link color value: ', value);
                 // console.log('link color map: ', this.commonService.temp.style.linkColorMap);
@@ -2772,8 +2774,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 "<td data-value='" + value + "'>" +
                 (this.commonService.session.style.linkValueNames[value] ? this.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) +
                 "</td>" +
-                `<td class='tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}>` + aggregates[value] + "</td>" +
-                `<td class='tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}>` + (aggregates[value] / vlinks.length).toLocaleString() + "</td>" +
+                `<td class='tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}>` + aggregateCountText + "</td>" +
+                `<td class='tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}>` + aggregateFrequencyText + "</td>" +
                 "</tr>"
             );
 
@@ -4465,10 +4467,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               break;
             }
             case "Add Data": {
-                
+
                 // If files tab exists, go to it
-                if(this.homepageTabs.length > 1 && this.homepageTabs.findIndex(x => x.label === "Files") !== -1) {
-                    this._goldenLayoutHostComponent.focusComponent("Files");
+                if(this.homepageTabs.findIndex(x => x.label === "Files") !== -1) {
+                    this.focusHomepageTab("Files");
                 } else {
                     this.addComponent('Files');
                 }
