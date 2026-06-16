@@ -1152,6 +1152,7 @@ export function setGlobalLinkThreshold(threshold: number | string): void {
   const nextThreshold = String(threshold);
 
   cy.get('#link-threshold')
+    .scrollIntoView()
     .should('be.visible')
     .then(($input) => {
       const input = $input.get(0) as HTMLInputElement;

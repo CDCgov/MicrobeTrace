@@ -1989,6 +1989,75 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.refreshTemplateState();
   }
 
+  private normalizeFileTypeSignal(value: any): string {
+    return String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  private inferTabularFileFormat(
+    file: any,
+    headers: any[] = [],
+    hints: { isFasta?: boolean; isNewick?: boolean; isAuspice?: boolean } = {}
+  ): string {
+    const explicitFormat = String(file?.format ?? '').toLowerCase();
+    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice'];
+    if (knownFormats.includes(explicitFormat)) {
+      return explicitFormat;
+    }
+
+    if (hints.isAuspice) {
+      return 'auspice';
+    }
+    if (hints.isFasta) {
+      return 'fasta';
+    }
+    if (hints.isNewick) {
+      return 'newick';
+    }
+
+    const normalizedHeaders = (headers || []).map(header => this.normalizeFileTypeSignal(header));
+    const hasHeader = (aliases: string[]) => aliases.some(alias => normalizedHeaders.includes(this.normalizeFileTypeSignal(alias)));
+    const hasHeaderPair = (sourceAliases: string[], targetAliases: string[]) => hasHeader(sourceAliases) && hasHeader(targetAliases);
+    const normalizedFileName = this.normalizeFileTypeSignal(file?.name);
+    const fileNameIncludes = (signals: string[]) => signals.some(signal => normalizedFileName.includes(this.normalizeFileTypeSignal(signal)));
+
+    const hasLinkHeaders = hasHeaderPair(
+      ['source', 'src', 'from', 'id1', 'node1', 'nodea', 'sample1', 'case1'],
+      ['target', 'dst', 'to', 'id2', 'node2', 'nodeb', 'sample2', 'case2']
+    );
+
+    if (hasLinkHeaders) {
+      return 'link';
+    }
+
+    if (fileNameIncludes(['link', 'links', 'linklist', 'edge', 'edges', 'edgelist', 'contacttracing', 'contacttrace'])) {
+      return 'link';
+    }
+
+    if (fileNameIncludes(['node', 'nodes', 'nodelist', 'metadata', 'meta', 'sample', 'samples', 'isolate', 'isolates'])) {
+      return 'node';
+    }
+
+    const hasNodeHeaders = hasHeader([
+      'id',
+      '_id',
+      'nodeid',
+      'sampleid',
+      'caseid',
+      'isolateid',
+      'accession',
+      'strain',
+      'virusname',
+      'seq',
+      'sequence'
+    ]);
+
+    if (hasNodeHeaders) {
+      return 'node';
+    }
+
+    return normalizedHeaders.length > 2 ? 'node' : 'link';
+  }
+
   /**
    * Gets information from file about extension, file type, and header and uses that information to addTableTile for file-table
    */
@@ -2004,7 +2073,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
-    const isNode = this.commonService.includes(file.name.toLowerCase(), 'node') || (file.format && file.format.toLowerCase() === 'node');
+    const tableFormatHints = { isFasta, isNewick, isAuspice };
     if (isXL) {
       try {
         const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
@@ -2032,12 +2101,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           data = [file.contents];
         }
 
-        addTableTile(Object.keys(data[0]).map(this.commonService.filterXSS), this);
+        const detectedFormat = addTableTile(Object.keys(data[0]).map(this.commonService.filterXSS), this);
 
-        if (!isFasta && !isNewick && isNode) {
+        if (detectedFormat === 'node') {
           this.loadNodes(file.name, data, true);
         }
-        if (!isFasta && !isNewick && !isNode) {
+        if (detectedFormat === 'link') {
           this.loadEdges(file.name, data, true);
         }
 
@@ -2055,12 +2124,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         header: true,
         skipEmptyLines: true,
         complete: output => {
-          addTableTile(output.meta.fields.map(this.commonService.filterXSS), this);
+          const detectedFormat = addTableTile(output.meta.fields.map(this.commonService.filterXSS), this);
 
-          if (!isFasta && !isNewick && isNode) {
+          if (detectedFormat === 'node') {
             this.loadNodes(file.name, output, false);
           }
-          if (!isFasta && !isNewick && !isNode) {
+          if (detectedFormat === 'link') {
             this.loadEdges(file.name, output, false);
           }
 
@@ -2089,6 +2158,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       console.log('addTableTile: ', headers);
       const parentContext = context;
+      const detectedFormat = parentContext.inferTabularFileFormat(file, headers, tableFormatHints);
+      const isNode = detectedFormat === 'node';
+      const showsColumnMapping = detectedFormat === 'node' || detectedFormat === 'link';
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
       const fnamerow = $('<div class="row w-100"></div>');
       $('<div class="file-name col"></div>')
@@ -2110,23 +2182,23 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         .append('<span class="p-1">' + file.name + '</span>')
         .append(`
                     <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
-                      <label class="btn btn-light${!isFasta && !isNewick && !isNode && !isAuspice ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${!isFasta && !isNewick && !isNode ? ' checked' : ''}>Link
+                      <label class="btn btn-light${detectedFormat === 'link' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${detectedFormat === 'link' ? ' checked' : ''}>Link
                       </label>
-                      <label class="btn btn-light${!isFasta && !isNewick && isNode ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${!isFasta && !isNewick && isNode ? ' checked' : ''}>Node
+                      <label class="btn btn-light${detectedFormat === 'node' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${detectedFormat === 'node' ? ' checked' : ''}>Node
                       </label>
-                      <label class="btn btn-light">
-                        <input type="radio" name="options-${file.name}" data-type="matrix" autocomplete="off">Matrix
+                      <label class="btn btn-light${detectedFormat === 'matrix' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="matrix" autocomplete="off"${detectedFormat === 'matrix' ? ' checked' : ''}>Matrix
                       </label>
-                      <label class="btn btn-light${isFasta ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="fasta" autocomplete="off"${isFasta ? ' checked' : ''}>FASTA
+                      <label class="btn btn-light${detectedFormat === 'fasta' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="fasta" autocomplete="off"${detectedFormat === 'fasta' ? ' checked' : ''}>FASTA
                       </label>
-                      <label class="btn btn-light${isNewick ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="newick" autocomplete="off"${isNewick ? ' checked' : ''}>Newick
+                      <label class="btn btn-light${detectedFormat === 'newick' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="newick" autocomplete="off"${detectedFormat === 'newick' ? ' checked' : ''}>Newick
                       </label>
-                      <label class="btn btn-light${isAuspice ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="auspice" autocomplete="off"${isAuspice ? ' checked' : ''}>Auspice
+                      <label class="btn btn-light${detectedFormat === 'auspice' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="auspice" autocomplete="off"${detectedFormat === 'auspice' ? ' checked' : ''}>Auspice
                       </label>
                     </div>`).appendTo(fnamerow);
 
@@ -2134,15 +2206,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const optionsrow = $('<div class="row w-100"></div>');
       const options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
       optionsrow.append(`
-                  <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
+                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
                     <label for="file-${file.name}-field-1">${isNode ? 'ID' : 'Source'}</label>
                     <select id="file-${file.name}-field-1" class="form-control form-control-sm">${options}</select>
                   </div>
-                  <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
+                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
                     <label for="file-${file.name}-field-2">${isNode ? 'Sequence' : 'Target'}</label>
                     <select id="file-${file.name}-field-2" class="form-control form-control-sm">${options}</select>
                   </div>
-                  <div class='col-4 '${isFasta || isNewick ? ' style="display: none;"' : ''} data-file='${file.name}'>
+                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
                     <label for="file-${file.name}-field-3">Distance</label>
                     <select id="file-${file.name}-field-3" class="form-control form-control-sm">${options}</select>
                   </div>`);
@@ -2181,7 +2253,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const fileTable = parentContext.rootHtmlElement.querySelector('#file-table');
       if (!fileTable) {
         console.log('Skipping file table row render because the Files view is no longer mounted.', file.name);
-        return;
+        return detectedFormat;
       }
 
       root.appendTo(fileTable);
@@ -2225,6 +2297,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       root.find('input[type="radio"]').on("change", refit);
       refit();
+      return detectedFormat;
     }
   };
 
