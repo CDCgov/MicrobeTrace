@@ -37,40 +37,34 @@ describe('AppComponent', () => {
     expect(compiled.querySelector('.runtime-error-banner')).toBeNull();
   });
 
-  it('renders recoverable runtime issues as warnings with details', () => {
+  it('does not render recoverable runtime warnings as banners', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    reportRuntimeError({ source: 'angular.error', error: new Error('Column metadata could not be read') });
+    reportRuntimeError({ source: 'angular.error', error: new RangeError('Maximum call stack size exceeded') });
     fixture.detectChanges();
 
     const compiled: HTMLElement = fixture.debugElement.nativeElement;
-    const banner = compiled.querySelector('.runtime-error-banner');
-
-    expect(banner).not.toBeNull();
-    expect(banner.getAttribute('data-severity')).toBe('warning');
-    expect(banner.getAttribute('role')).toBe('status');
-    expect(banner.textContent).toContain('Runtime issue detected');
-    expect(banner.textContent).toContain('Summary: Error: Column metadata could not be read');
-    expect(banner.textContent).toContain('Source: App component or action');
+    expect(compiled.querySelector('.runtime-error-banner')).toBeNull();
+    expect(compiled.textContent).not.toContain('Maximum call stack size exceeded');
   });
 
-  it('renders bootstrap failures as warnings', () => {
+  it('renders application-breaking runtime issues as critical banners', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    reportRuntimeError({ source: 'bootstrap', error: new Error('Bootstrap failed') });
+    reportRuntimeError({ source: 'bootstrap', error: new Error('Bootstrap failed'), severity: 'critical' });
     fixture.detectChanges();
 
     const compiled: HTMLElement = fixture.debugElement.nativeElement;
     const banner = compiled.querySelector('.runtime-error-banner');
 
     expect(banner).not.toBeNull();
-    expect(banner.getAttribute('data-severity')).toBe('warning');
-    expect(banner.getAttribute('role')).toBe('status');
-    expect(banner.textContent).toContain('Runtime issue detected');
+    expect(banner.getAttribute('data-severity')).toBe('critical');
+    expect(banner.getAttribute('role')).toBe('alert');
+    expect(banner.textContent).toContain('Application startup error');
     expect(banner.textContent).toContain('Source: Application startup');
   });
 
   it('dismisses the runtime banner', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    reportRuntimeError({ source: 'window.error', error: 'Resize observer loop completed' });
+    reportRuntimeError({ source: 'window.error', error: 'Startup failed after route activation', severity: 'critical' });
     fixture.detectChanges();
 
     const compiled: HTMLElement = fixture.debugElement.nativeElement;
