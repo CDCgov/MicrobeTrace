@@ -131,7 +131,24 @@
           </div>
         </ng-template>
         <div style="max-height: 50vh">
-          <table #linkColorTable id="link-color-table" style="width:100%;height:100%;"></table>
+          <style-key-table
+            tableId="link-color-table"
+            tableKey="link-color"
+            controlType="color"
+            controlHeader="Color"
+            [valueHeader]="linkColorTableHeaders.value"
+            [countHeader]="linkColorTableHeaders.count"
+            [frequencyHeader]="linkColorTableHeaders.frequency"
+            [showCounts]="this.widgets['link-color-table-counts']"
+            [showFrequencies]="this.widgets['link-color-table-frequencies']"
+            [editable]="linkColorTableEditable"
+            [rows]="linkColorRows"
+            (columnNameChange)="onStyleKeyTableColumnNameChange($event)"
+            (rowNameChange)="onLinkColorRowNameChange($event)"
+            (sortChange)="onStyleKeyTableSort('link-color', $event)"
+            (colorChange)="onLinkColorTableColorChange($event)"
+            (alphaRequest)="onLinkColorAlphaRequested($event)">
+          </style-key-table>
         </div>
       </p-dialog>
 
@@ -162,7 +179,24 @@
           </div>
         </ng-template>
         <div style="max-height: 50vh">
-          <table #nodeColorTable id="node-color-table" style="width:100%;height:100%;"></table>
+          <style-key-table
+            tableId="node-color-table"
+            tableKey="node-color"
+            controlType="color"
+            controlHeader="Color"
+            [valueHeader]="nodeColorTableHeaders.value"
+            [countHeader]="nodeColorTableHeaders.count"
+            [frequencyHeader]="nodeColorTableHeaders.frequency"
+            [showCounts]="this.widgets['node-color-table-counts']"
+            [showFrequencies]="this.widgets['node-color-table-frequencies']"
+            [editable]="nodeColorTableEditable"
+            [rows]="nodeColorRows"
+            (columnNameChange)="onStyleKeyTableColumnNameChange($event)"
+            (rowNameChange)="onNodeColorRowNameChange($event)"
+            (sortChange)="onStyleKeyTableSort('node-color', $event)"
+            (colorChange)="onNodeColorTableColorChange($event)"
+            (alphaRequest)="onNodeColorAlphaRequested($event)">
+          </style-key-table>
         </div>
       </p-dialog>
 
@@ -193,71 +227,24 @@
           </div>
         </ng-template>
         <div class="col-12" style="width:100%;max-height:50vh;" title="Node shape selection.">
-          <table #nodeShapeTable id="node-shape-table" style="width:100%;height:100%;">
-            <tr>
-              <th class="table-header-row">
-                <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="value" [textContent]="getKeyTableColumnDisplayName('node-shape', 'value', 'Node ' + commonService.titleize(SelectedNodeSymbolVariable))" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'value')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
-              </th>
-              @if (widgets['node-symbol-table-counts']) {
-                <th class="table-header-row tableCount">
-                  <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="count" [textContent]="getKeyTableColumnDisplayName('node-shape', 'count', 'Count')" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'count')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
-                </th>
-              }
-              @if (widgets['node-symbol-table-frequencies']) {
-                <th class="table-header-row tableFrequency">
-                  <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="frequency" [textContent]="getKeyTableColumnDisplayName('node-shape', 'frequency', 'Frequency')" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'frequency')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
-                </th>
-              }
-              <th>Shape</th>
-            </tr>
-            @for (group of shapeAggregates; track group.rawValue) {
-              <tr>
-                <td
-                  contenteditable
-                  [attr.data-value]="group.rawValue"
-                  [textContent]="getNodeValueDisplayName(group.rawValue)"
-                  (blur)="onNodeShapeNameBlur($event, group.rawValue)">
-                </td>
-                @if (widgets['node-symbol-table-counts']) {
-                  <td class="tableCount">{{group.count}}</td>
-                }
-                @if (widgets['node-symbol-table-frequencies']) {
-                  <td class="tableFrequency">{{group.frequency}}</td>
-                }
-                <td>
-                  <p-treeSelect
-                    [options]="symbolMappingTree"
-                    [panelStyle]="{ width: '23rem' }"
-                    panelStyleClass="shapeTreeSelectPanel"
-                    selectionMode="single"
-                    appendTo="body"
-                    class="width-percent-100"
-                    [ngModel]="getNodeShapeTableValue(group.rawValue)"
-                    (ngModelChange)="onNodeShapeTableTreeChange($event, group.rawValue)"
-                    styleClass="shapeDropdown"
-                    (onShow)="onShapeTreeShow(commonService.temp.style.nodeSymbolMap(group.rawValue))"
-                  >
-                    <ng-template pTemplate="value" let-node let-placeholder="placeholder">
-                      @if (node?.data) {
-                        <div class="shape-tree-value">
-                          <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
-                          {{ node.data.name }}
-                        </div>
-                      } @else {
-                        <span>{{ placeholder }}</span>
-                      }
-                    </ng-template>
-                    <ng-template pTemplate="shape" let-node>
-                      <div class="shape-tree-node">
-                        <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
-                        {{ node.data.name }}
-                      </div>
-                    </ng-template>
-                  </p-treeSelect>
-                </td>
-              </tr>
-            }
-          </table>
+          <style-key-table
+            tableId="node-shape-table"
+            tableKey="node-shape"
+            controlType="shape"
+            controlHeader="Shape"
+            [valueHeader]="getKeyTableColumnDisplayName('node-shape', 'value', 'Node ' + commonService.titleize(SelectedNodeSymbolVariable))"
+            [countHeader]="getKeyTableColumnDisplayName('node-shape', 'count', 'Count')"
+            [frequencyHeader]="getKeyTableColumnDisplayName('node-shape', 'frequency', 'Frequency')"
+            [showCounts]="this.widgets['node-symbol-table-counts']"
+            [showFrequencies]="this.widgets['node-symbol-table-frequencies']"
+            [rows]="nodeShapeRows"
+            [shapeOptions]="symbolMappingTree"
+            (columnNameChange)="onStyleKeyTableColumnNameChange($event)"
+            (rowNameChange)="onNodeShapeRowNameChange($event)"
+            (sortChange)="onStyleKeyTableSort('node-shape', $event)"
+            (shapeChange)="onNodeShapeTableShapeChange($event)"
+            (shapePanelRequest)="onNodeShapeTablePanelRequest($event)">
+          </style-key-table>
         </div>
       </p-dialog>
     </div>

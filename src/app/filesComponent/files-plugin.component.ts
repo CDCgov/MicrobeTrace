@@ -2391,7 +2391,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
           }
         }))
+        // ABCDEFG: DOM text reinterpreted as HTML
         .append('<span class="p-1">' + file.name + '</span>')
+        // ABCDEFG: DOM text reinterpreted as HTML
         .append(`
                     <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
                       <label class="btn btn-light${detectedFormat === 'link' ? ' active' : ''}">
@@ -2417,6 +2419,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       fnamerow.appendTo(root);
       const optionsrow = $('<div class="row w-100"></div>');
       const options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
+      // ABCDEFG: DOM text reinterpreted as HTML
       optionsrow.append(`
                   <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
                     <label for="file-${file.name}-field-1">${isNode ? 'ID' : 'Source'}</label>

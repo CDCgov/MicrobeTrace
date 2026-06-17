@@ -25,6 +25,16 @@ import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
+import {
+    StyleKeyTableAlphaRequest,
+    StyleKeyTableColorChange,
+    StyleKeyTableColumnNameChange,
+    StyleKeyTableRow,
+    StyleKeyTableRowNameChange,
+    StyleKeyTableShapeChange,
+    StyleKeyTableShapePanelRequest,
+    StyleKeyTableSortColumn
+} from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     NODE_SHAPE_GROUPS,
@@ -158,6 +168,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private preserveNextKeyTablesRemoval: boolean = false;
 
     private thresholdDebouncer: Subject<number> = new Subject<number>();
+    nodeColorRows: StyleKeyTableRow[] = [];
+    linkColorRows: StyleKeyTableRow[] = [];
+    nodeColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
+    linkColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
+    nodeColorTableEditable = true;
+    linkColorTableEditable = true;
+    private nodeColorDomain: string[] = [];
+    private linkColorDomain: string[] = [];
+    private colorTableSortState: Record<string, { column: StyleKeyTableSortColumn; ascending: boolean }> = {};
 
     showExportTablesMenu: boolean = false;
     ExportTablesFilename: string = '';
@@ -1007,10 +1026,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         const floatingTable = table === 'node-color'
-            ? this.nodeColorTable?.nativeElement
+            ? document.querySelector('#node-color-table')
             : table === 'link-color'
-                ? this.linkColorTable?.nativeElement
-                : this.nodeShapeTable?.nativeElement;
+                ? document.querySelector('#link-color-table')
+                : document.querySelector('#node-shape-table');
 
         return floatingTable as HTMLTableElement | undefined;
     }
@@ -2102,6 +2121,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         });
     }
 
+    get nodeShapeRows(): StyleKeyTableRow[] {
+        return this.shapeAggregates.map(group => ({
+            rawValue: group.rawValue,
+            trackKey: `node-shape-${String(group.rawValue)}`,
+            displayName: this.getNodeValueDisplayName(group.rawValue),
+            count: group.count,
+            frequency: group.frequency,
+            shapeSelection: this.getNodeShapeTableValue(group.rawValue),
+            shapeKey: this.commonService.temp.style.nodeSymbolMap?.(group.rawValue) ?? null
+        }));
+    }
+
     private getNodeValueNameMap(): Record<string, string> {
         const style = this.commonService.session.style;
         if (!style.nodeValueNames || typeof style.nodeValueNames !== 'object') {
@@ -2646,7 +2677,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onLinkColorTableChanged(silent);
         if (this.isKeyTableDocked('link-color')) {
           this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-          $('#link-color-table').empty();
+          this.linkColorRows = [];
+          this.linkColorDomain = [];
           this.refreshKeyTablesView();
         }
         if (!silent) {
@@ -2685,238 +2717,54 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }));
     }
 
-    // The actual function that builds your color table
-  generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
-    const valueColumnName = this.getKeyTableColumnDisplayName('link-color', 'value', 'Link ' + this.commonService.titleize(this.SelectedColorLinksByVariable));
-    const countColumnName = this.getKeyTableColumnDisplayName('link-color', 'count', 'Count');
-    const frequencyColumnName = this.getKeyTableColumnDisplayName('link-color', 'frequency', 'Frequency');
-    const linkColorTable = $(tableId).empty().append(
-      '<tr>' +
-      "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='link-color' data-column-key='value'>" +
-        valueColumnName +
-      "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable data-table-key='link-color' data-column-key='count'>${countColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable data-table-key='link-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-      '<th>Color</th>' +
-      '</tr>'
-    );
+    generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
+        this.linkColorTableEditable = isEditable;
+        this.linkColorTableHeaders = {
+            value: this.getKeyTableColumnDisplayName('link-color', 'value', 'Link ' + this.commonService.titleize(this.SelectedColorLinksByVariable)),
+            count: this.getKeyTableColumnDisplayName('link-color', 'count', 'Count'),
+            frequency: this.getKeyTableColumnDisplayName('link-color', 'frequency', 'Frequency')
+        };
 
-    const aggregates = this.commonService.createLinkColorMap();
+        if (!this.commonService.session.style.linkValueNames) {
+            this.commonService.session.style.linkValueNames = {};
+        }
 
-    const vlinks = this.commonService.getVisibleLinks();
-
-    const aggregateValues = Object.keys(aggregates);
-        const disabled: string = isEditable ? '' : 'disabled';
-
-        const duoLinkSegments = this.SelectedColorLinksByVariable == 'origin'
+        const aggregates = this.commonService.createLinkColorMap();
+        const vlinks = this.commonService.getVisibleLinks();
+        const aggregateValues = Object.keys(aggregates);
+        this.linkColorDomain = aggregateValues;
+        const duoLinkSegments = this.SelectedColorLinksByVariable === 'origin'
             ? this.getDuoLinkSwatchSegments(aggregateValues)
             : [];
-        aggregateValues.forEach((value, i) => {
-            let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
-            const hasBlankAggregate = aggregates[value] == 0;
+
+        this.linkColorRows = aggregateValues.map((value, i) => {
+            const duoLinkRow = value === 'Duo-Link' && this.SelectedColorLinksByVariable === 'origin';
+            const hasBlankAggregate = aggregates[value] === 0;
             const aggregateCountText = hasBlankAggregate ? '' : aggregates[value];
             const aggregateFrequencyText = hasBlankAggregate || vlinks.length === 0
                 ? ''
                 : (aggregates[value] / vlinks.length).toLocaleString();
-                // console.log('link color aggregates value: ', aggregates[value]);
-                // console.log('link color value: ', value);
-                // console.log('link color map: ', this.commonService.temp.style.linkColorMap);
-                // console.log('link color map value: ', this.commonService.temp.style.linkColorMap(value));
-            
+            const linkValueNames = this.commonService.session.style.linkValueNames;
+            const displayName = Object.prototype.hasOwnProperty.call(linkValueNames, value)
+                ? linkValueNames[value]
+                : this.commonService.titleize(String(value));
 
-            // Grab color of link from session
-            const color = this.commonService.temp.style.linkColorMap(value);
-
-            // Create color input element with color value and assign id to retrieve new value on change
-            const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.linkAlphaMap(value)}; border:none" ${disabled}>`)
-                .on("change", e => {
-                    // need to update the value in the dom which is used when exportings
-                    e.currentTarget.attributes[1].value = e.target['value'];
-                    e.currentTarget.style['opacity'] = this.commonService.temp.style.linkAlphaMap(value);
-
-                    const nextColor = e.target['value'];
-                    const selectedVariable = this.SelectedColorLinksByVariable;
-                    const linkColorKeys = this.commonService.session.style.linkColorsTableKeys?.[selectedVariable] || aggregateValues;
-                    const key = linkColorKeys.findIndex(k => k === value);
-                    const resolvedKey = key >= 0 ? key : i;
-                    const variableColors = this.commonService.session.style.linkColorsTable?.[selectedVariable] || [];
-
-                    // Need to get value from id since "this" keyword is used by angular
-                    // Update that value at the index in the color table
-                    variableColors.splice(resolvedKey, 1, nextColor);
-                    this.commonService.session.style.linkColorsTable[selectedVariable] = variableColors;
-                    this.commonService.session.style.linkColorsTableHistory[value] = nextColor;
-                    (this.commonService.session.style.linkColors as any).splice(resolvedKey, 1, nextColor);
-
-                    // Generate new color map with updated table
-                    this.commonService.temp.style.linkColorMap = d3
-                        .scaleOrdinal(this.commonService.session.style.linkColorsTable[selectedVariable])
-                        .domain(linkColorKeys);
-
-
-                    // Call the updateLinkColor method in all tabs
-                    this.publishUpdateLinkColor()
-
-                    if (this.SelectedColorLinksByVariable == 'origin') {
-                        this.updateDuoLinkCell(value, nextColor, e.currentTarget.style['opacity'])
-                    }
-
-                });
-
-            const alphainput = duoLinkRow ? $(``) : $(`<a class="transparency-symbol">⇳</a>`)
-                .on("click", e => {
-
-                    $("#color-transparency-wrapper").css({
-                        top: e.clientY + 129,
-                        left: e.clientX,
-                        display: "block"
-                    });
-
-                    $("#color-transparency")
-                        .off("change")
-                        .val(this.commonService.session.style.linkAlphas[i])
-                        .one("change", (f) => {
-
-                            // Update table with new alpha value
-                            // Need to get value from id since "this" keyword is used by angular
-                            this.commonService.session.style.linkAlphas.splice(i, 1, parseFloat((f.target['value'] as string)));
-                            this.commonService.temp.style.linkAlphaMap = d3
-                                .scaleOrdinal(this.commonService.session.style.linkAlphas)
-                                .domain(aggregateValues);
-                            $("#color-transparency-wrapper").fadeOut();
-
-                            colorinput.trigger('change', this.commonService.temp.style.linkColorMap(value))
-                            // this.goldenLayout.componentInstances[1].updateLinkColor();
-
-                            if (this.SelectedColorLinksByVariable == 'origin') {
-                                this.updateDuoLinkCell(value, this.commonService.temp.style.linkColorMap(value), f.target['value'] as string)
-                            }
-                        });
-                });
-
-            const row = $(
-                "<tr>" +
-                "<td data-value='" + value + "'>" +
-                (this.commonService.session.style.linkValueNames[value] ? this.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) +
-                "</td>" +
-                `<td class='tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}>` + aggregateCountText + "</td>" +
-                `<td class='tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}>` + aggregateFrequencyText + "</td>" +
-                "</tr>"
-            );
-
-
-            let duoCell;
-            if (duoLinkRow) {
-                duoCell = $("<td></td>").append(
-                $("<div></div>")
-                    .css({  height: "25px", width: "50px", display: "flex", background: "#F0F0F0", padding: "4px"})
-                    .append($("<div></div>").css({ border: "1px solid #777777", height: "17px", width: "42px", display: "inline-block" })
-                        .append($("<span></span>")
-                            .addClass("duo-link-color-segment")
-                            .attr("data-duo-index", "0")
-                            .css({
-                                height: "100%",
-                                width: "50%",
-                                background: duoLinkSegments[0]?.color ?? "#f0f0f0",
-                                opacity: duoLinkSegments[0]?.opacity ?? 1,
-                                'vertical-align': "top",
-                                display: "inline-block"
-                            }))
-                        .append($("<span></span>")
-                            .addClass("duo-link-color-segment")
-                            .attr("data-duo-index", "1")
-                            .css({
-                                height: "100%",
-                                width: "50%",
-                                background: duoLinkSegments[1]?.color ?? "#f0f0f0",
-                                opacity: duoLinkSegments[1]?.opacity ?? 1,
-                                'vertical-align': "top",
-                                display: "inline-block"
-                            })))
-                );
-            }
-            const nonEditCell = `<td style="background-color:${color}"></td>`;
-
-            if (duoLinkRow) {
-                row.append(duoCell)
-            } else if (isEditable) {
-                row.append($("<td></td>").append(colorinput).append(alphainput));
-            } else {
-                row.append(nonEditCell);
-            }
-
-            linkColorTable.append(row);
-
+            return {
+                rawValue: value,
+                trackKey: `link-color-${String(value)}`,
+                displayName,
+                count: aggregateCountText,
+                frequency: aggregateFrequencyText,
+                color: this.commonService.temp.style.linkColorMap(value),
+                alpha: this.commonService.temp.style.linkAlphaMap(value),
+                index: i,
+                duoSegments: duoLinkRow ? duoLinkSegments : undefined
+            };
         });
 
-        if (isEditable) {
-            if (!this.commonService.session.style.linkValueNames) {
-                this.commonService.session.style.linkValueNames = {};
-            }
-
-            linkColorTable
-                .find("td[data-value]")
-                .on("dblclick", function () {
-                    $(this).attr("contenteditable", "true").focus();
-                })
-                .on("focusout", (event) => {
-                    const $cell = $(event.currentTarget);
-                    const rawValue = $cell.data("value");
-                    $cell.attr("contenteditable", "false");
-
-                    if (rawValue === undefined || rawValue === null) {
-                        return;
-                    }
-
-                    this.commonService.session.style.linkValueNames[String(rawValue)] = $cell.text();
-                    this.cdref.markForCheck();
-                });
-
-            linkColorTable
-                .find("[data-table-key][data-column-key]")
-                .on("focusout", (event) => {
-                    const cell = event.currentTarget as HTMLElement;
-                    this.setKeyTableColumnDisplayName(
-                        String(cell.getAttribute('data-table-key')),
-                        String(cell.getAttribute('data-column-key')),
-                        cell.textContent ?? ''
-                    );
-                });
-        }
-
-        let isAscending = true;  // add this line before the click event handler
-        this.updateCountFreqTable('link-color')
+        this.applyStyleKeyTableSort('link-color');
         $('#linkColorTableSettings').on('mouseleave', () => $('#linkColorTableSettings').delay(500).css('display', 'none'));
-
-        // console lof the rows in the table
-        $(tableId).off('click', '.sort-button').on('click', '.sort-button', function() {
-            const table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
-            isAscending = !isAscending;  // replace 'this.asc' with 'isAscending'
-            if (!isAscending){rows = rows.reverse();}
-            for (let i = 0; i < rows.length; i++){
-                table.append(rows[i]);
-            }
-        });
-        
-        
-        function comparer(index) {
-            return function(a, b) {
-                const valA = getCellValue(a, index), valB = getCellValue(b, index);
-                return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
-            }
-        }
-        
-        function getCellValue(row, index){ 
-            const value = $(row).children('td').eq(index).text();
-            return value;
-        }        
-     }
-
-    updateDuoLinkCell(originValue: string, color: string, opacity: string) {
-        const index = this.duoLinkOrigins.findIndex(origin => origin === originValue);
-        if (index !== 0 && index !== 1) return;
-        $(`.duo-link-color-segment[data-duo-index="${index}"]`).css({ background: color, opacity: opacity })
+        this.cdref.markForCheck();
     }
 
     public onTimelineChanged(e) : void {
@@ -3275,7 +3123,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.SelectedColorNodesByVariable !== "None") {
             if (!shouldFloatNodeColorTable) {
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                $('#node-color-table').empty();
+                this.nodeColorRows = [];
+                this.nodeColorDomain = [];
                 this.commonService.createNodeColorMap();
                 this.refreshKeyTablesView();
 
@@ -3297,7 +3146,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // if color nodes by equals None, then hide node color table
         } else {
 
-            $('#node-color-table').empty();
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
             this.applyKeyTableDisplayMode('node-color', silent);
             this.refreshKeyTablesView();
 
@@ -3309,181 +3159,212 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
-        const valueColumnName = this.getKeyTableColumnDisplayName('node-color', 'value', 'Node ' + this.commonService.titleize(this.SelectedColorNodesByVariable));
-        const countColumnName = this.getKeyTableColumnDisplayName('node-color', 'count', 'Count');
-        const frequencyColumnName = this.getKeyTableColumnDisplayName('node-color', 'frequency', 'Frequency');
-        const nodeColorTable = $(tableId)
-        .empty()
-        .append(
-            "<tr>" +
-            "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='node-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-            `<th class='table-header-row tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='node-color' data-column-key='count'>${countColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-            `<th class='table-header-row tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='node-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-            "<th>Color</th>" +
-            "</tr>"
-        );
-
+        this.nodeColorTableEditable = isEditable;
+        this.nodeColorTableHeaders = {
+            value: this.getKeyTableColumnDisplayName('node-color', 'value', 'Node ' + this.commonService.titleize(this.SelectedColorNodesByVariable)),
+            count: this.getKeyTableColumnDisplayName('node-color', 'count', 'Count'),
+            frequency: this.getKeyTableColumnDisplayName('node-color', 'frequency', 'Frequency')
+        };
 
         this.getNodeValueNameMap();
 
-
         const aggregates = this.commonService.createNodeColorMap();
-
         const vnodes = this.commonService.getVisibleNodes();
-
         const aggregateValues = Object.keys(aggregates);
+        this.nodeColorDomain = aggregateValues;
 
-        const disabled = isEditable ? '' : 'disabled';
+        this.nodeColorRows = aggregateValues
+            .map((value, i) => ({ value, i }))
+            .filter(({ value }) => aggregates[value] >= 1)
+            .map(({ value, i }) => ({
+                rawValue: value,
+                trackKey: `node-color-${String(value)}`,
+                displayName: this.getNodeValueDisplayName(value),
+                count: aggregates[value],
+                frequency: vnodes.length === 0 ? '' : (aggregates[value] / vnodes.length).toLocaleString(),
+                color: this.commonService.temp.style.nodeColorMap(value),
+                alpha: this.commonService.temp.style.nodeAlphaMap(value),
+                index: i
+            }));
 
-        aggregateValues.forEach((value, i) => {
-            if (aggregates[value] < 1) return;
-
-            const color = this.commonService.temp.style.nodeColorMap(value);
-
-            const colorinput = $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.nodeAlphaMap(value)}; border:none" ${disabled}>`)
-                .on("change", e => {
-                    // need to update the value in the dom which is used when exportings
-                    e.currentTarget.attributes[1].value = e.target['value'];
-                    e.currentTarget.style['opacity'] = this.commonService.temp.style.nodeAlphaMap(value);
-
-                    if(this.commonService.debugMode) {
-                        console.log('color: ', this.SelectedColorNodesByVariable);
-                        console.log('color2: ',  this.commonService.session.style.nodeColorsTableKeys);                    
-                    }
- 
-                    const nextColor = e.target['value'];
-                    let key = this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
-                    this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, nextColor);
-
-                    // Update this variable's history without changing matching values
-                    // that belong to other node fields.
-                    const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory;
-                    const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
-                    const variableHistory = storedVariableHistory
-                        && typeof storedVariableHistory === 'object'
-                        && !Array.isArray(storedVariableHistory)
-                        ? storedVariableHistory
-                        : {};
-                    nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
-                    variableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
-
-                  
-
-                    //if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
-                          // Update table with new alpha value
-                        // Need to get value from id since "this" keyword is used by angular
-                        this.commonService.session.style.nodeColors.splice(i, 1, nextColor);
-                        this.commonService.temp.style.nodeColorMap = d3
-                            .scaleOrdinal(this.commonService.session.style.nodeColors)
-                            .domain(aggregateValues);
-                        // temp.style.nodeColorMap = d3
-                            // .scaleOrdinal(session.style.nodeColorsTable[variable])
-                            // .domain(session.style.nodeColorsTableKeys[variable]);
-                        // } else {
-                        //     let temKey = this.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
-                        //     this.commonService.temp.style.nodeColor.splice(temKey, 1, e);
-                        //     this.commonService.temp.style.nodeColorMap = d3
-                        //         .scaleOrdinal(this.commonService.temp.style.nodeColor)
-                        //         .domain(this.commonService.temp.style.nodeColorKeys);
-                        // }
-
-                    this.publishUpdateNodeColors();
-
-                });
-
-            const alphainput = $(`<a class="transparency-symbol">⇳</a>`).on("click", e => {
-
-                $("#color-transparency-wrapper").css({
-                    top: e.clientY + 129,
-                    left: e.clientX,
-                    display: "block"
-                });
-
-                $("#color-transparency")
-                    .off("change")
-                    .val(this.commonService.session.style.nodeAlphas[i])
-                    .one("change", f => {
-
-                        // Update table with new alpha value
-                        // Need to get value from id since "this" keyword is used by angular
-                        const alphaValue = this.commonService.clampStyleAlpha(parseFloat(f.target['value'] as string));
-                        this.commonService.session.style.nodeAlphas.splice(i, 1, alphaValue);
-
-                        this.commonService.temp.style.nodeAlphaMap = d3
-                            .scaleOrdinal(this.commonService.session.style.nodeAlphas)
-                            .domain(aggregateValues);
-
-                        colorinput.css('opacity', alphaValue);
-                        this.publishUpdateNodeColors();
-                        $("#color-transparency-wrapper").fadeOut();
-
-                    });
-            });
-
-            const nonEditCell = `<td style="background-color:${color}"></td>`;
-
-            const cell = $("<td></td>")
-                .append(colorinput)
-                .append(alphainput);
-
-            const row = $(
-                "<tr>" +
-                "<td data-value='" + value + "'>" +
-                this.getNodeValueDisplayName(value) +
-                "</td>" +
-                `<td class='tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}>` + aggregates[value] + "</td>" +
-                `<td class='tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}>` + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" +
-                "</tr>"
-            ).append(isEditable ? cell : nonEditCell);
-
-            nodeColorTable.append(row);
-        });
-
-        if (isEditable) {
-            nodeColorTable
-                .find("td[data-value]")
-                .on("dblclick", function () {
-                    $(this).attr("contenteditable", "true").focus();
-                })
-                .on("focusout", (event) => {
-                    const $this = $(event.currentTarget);
-                    $this.attr("contenteditable", "false");
-
-                    this.setNodeValueDisplayName($this.data("value"), $this.text());
-                });
-
-            nodeColorTable
-                .find("[data-table-key][data-column-key]")
-                .on("focusout", (event) => {
-                    const cell = event.currentTarget as HTMLElement;
-                    this.setKeyTableColumnDisplayName(
-                        String(cell.getAttribute('data-table-key')),
-                        String(cell.getAttribute('data-column-key')),
-                        cell.textContent ?? ''
-                    );
-                });
-        }
-
-        this.updateCountFreqTable('node-color');
+        this.applyStyleKeyTableSort('node-color');
         $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
-        
-        $(tableId).off('click', '.sort-button').on('click', '.sort-button', function() {
-            const table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
-            this.asc = !this.asc; // using property 'asc' on DOM object instead of jQuery data function
-            if (!this.asc){rows = rows.reverse();}
-            for (let i = 0; i < rows.length; i++){table.append(rows[i]);}
-        });
-        
-        function comparer(index) {
-            return function(a, b) {
-                const valA = getCellValue(a, index), valB = getCellValue(b, index);
-                return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
-            }
-        }
-        
-        function getCellValue(row, index){ return $(row).children('td').eq(index).text() }
+        this.cdref.markForCheck();
+    }
 
+    onStyleKeyTableColumnNameChange(change: StyleKeyTableColumnNameChange): void {
+        this.setKeyTableColumnDisplayName(change.table, change.column, change.displayName);
+    }
+
+    onNodeColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.setNodeValueDisplayName(change.value, change.displayName);
+    }
+
+    onLinkColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        if (!this.commonService.session.style.linkValueNames) {
+            this.commonService.session.style.linkValueNames = {};
+        }
+
+        this.commonService.session.style.linkValueNames[String(change.value)] = change.displayName;
+        this.cdref.markForCheck();
+    }
+
+    onNodeShapeRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.setNodeValueDisplayName(change.value, change.displayName);
+    }
+
+    onNodeColorTableColorChange(change: StyleKeyTableColorChange): void {
+        const value = change.value;
+        const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
+        const tableKeys = this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? aggregateValues;
+        const key = tableKeys.findIndex(k => k === value);
+        const resolvedKey = key >= 0 ? key : change.row.index ?? 0;
+        const nextColor = change.color;
+
+        this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(resolvedKey, 1, nextColor);
+        const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory;
+        const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
+        const variableHistory = storedVariableHistory
+            && typeof storedVariableHistory === 'object'
+            && !Array.isArray(storedVariableHistory)
+            ? storedVariableHistory
+            : {};
+        nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
+        variableHistory[tableKeys[resolvedKey]] = nextColor;
+        this.commonService.session.style.nodeColors.splice(change.row.index ?? resolvedKey, 1, nextColor);
+        this.commonService.temp.style.nodeColorMap = d3
+            .scaleOrdinal(this.commonService.session.style.nodeColors)
+            .domain(aggregateValues);
+
+        this.generateNodeColorTable('', true);
+        this.publishUpdateNodeColors();
+    }
+
+    onLinkColorTableColorChange(change: StyleKeyTableColorChange): void {
+        if (change.row.duoSegments?.length) {
+            return;
+        }
+
+        const value = change.value;
+        const selectedVariable = this.SelectedColorLinksByVariable;
+        const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
+        const linkColorKeys = this.commonService.session.style.linkColorsTableKeys?.[selectedVariable] || aggregateValues;
+        const key = linkColorKeys.findIndex(k => k === value);
+        const resolvedKey = key >= 0 ? key : change.row.index ?? 0;
+        const nextColor = change.color;
+        const variableColors = this.commonService.session.style.linkColorsTable?.[selectedVariable] || [];
+
+        variableColors.splice(resolvedKey, 1, nextColor);
+        this.commonService.session.style.linkColorsTable[selectedVariable] = variableColors;
+        this.commonService.session.style.linkColorsTableHistory[value] = nextColor;
+        (this.commonService.session.style.linkColors as any).splice(resolvedKey, 1, nextColor);
+        this.commonService.temp.style.linkColorMap = d3
+            .scaleOrdinal(this.commonService.session.style.linkColorsTable[selectedVariable])
+            .domain(linkColorKeys);
+
+        this.generateNodeLinkTable('', true);
+        this.publishUpdateLinkColor();
+    }
+
+    onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.showColorAlphaPicker(
+            request,
+            this.commonService.session.style.nodeAlphas[request.row.index ?? 0],
+            alphaValue => {
+                const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
+                const index = request.row.index ?? 0;
+                const alpha = this.commonService.clampStyleAlpha(alphaValue);
+                this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
+                this.commonService.temp.style.nodeAlphaMap = d3
+                    .scaleOrdinal(this.commonService.session.style.nodeAlphas)
+                    .domain(aggregateValues);
+                this.generateNodeColorTable('', true);
+                this.publishUpdateNodeColors();
+            }
+        );
+    }
+
+    onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.showColorAlphaPicker(
+            request,
+            this.commonService.session.style.linkAlphas[request.row.index ?? 0],
+            alphaValue => {
+                const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
+                const index = request.row.index ?? 0;
+                this.commonService.session.style.linkAlphas.splice(index, 1, parseFloat(String(alphaValue)));
+                this.commonService.temp.style.linkAlphaMap = d3
+                    .scaleOrdinal(this.commonService.session.style.linkAlphas)
+                    .domain(aggregateValues);
+                this.generateNodeLinkTable('', true);
+                this.publishUpdateLinkColor();
+            }
+        );
+    }
+
+    onNodeShapeTableShapeChange(change: StyleKeyTableShapeChange): void {
+        this.onNodeShapeTableTreeChange(change.selectedNode, change.value);
+    }
+
+    onNodeShapeTablePanelRequest(request: StyleKeyTableShapePanelRequest): void {
+        this.onShapeTreeShow(request.shapeKey);
+    }
+
+    onStyleKeyTableSort(table: 'node-color' | 'link-color' | 'node-shape', column: StyleKeyTableSortColumn): void {
+        if (table === 'node-shape') {
+            this.onNodeShapeSort(column === 'value' ? 'key' : column);
+            return;
+        }
+
+        const previous = this.colorTableSortState[table];
+        const ascending = previous?.column === column ? !previous.ascending : true;
+        this.colorTableSortState[table] = { column, ascending };
+        this.applyStyleKeyTableSort(table);
+        this.cdref.markForCheck();
+    }
+
+    private applyStyleKeyTableSort(table: 'node-color' | 'link-color'): void {
+        const sortState = this.colorTableSortState[table];
+        if (!sortState) {
+            return;
+        }
+
+        const rows = table === 'node-color' ? [...this.nodeColorRows] : [...this.linkColorRows];
+        rows.sort((a, b) => this.compareStyleKeyTableRows(a, b, sortState.column, sortState.ascending));
+
+        if (table === 'node-color') {
+            this.nodeColorRows = rows;
+        } else {
+            this.linkColorRows = rows;
+        }
+    }
+
+    private compareStyleKeyTableRows(a: StyleKeyTableRow, b: StyleKeyTableRow, column: StyleKeyTableSortColumn, ascending: boolean): number {
+        const aValue = column === 'count' ? a.count : column === 'frequency' ? a.frequency : a.displayName;
+        const bValue = column === 'count' ? b.count : column === 'frequency' ? b.frequency : b.displayName;
+        const aNumber = Number(aValue);
+        const bNumber = Number(bValue);
+        const comparison = !isNaN(aNumber) && !isNaN(bNumber)
+            ? aNumber - bNumber
+            : String(aValue).localeCompare(String(bValue));
+
+        return ascending ? comparison : -comparison;
+    }
+
+    private showColorAlphaPicker(request: StyleKeyTableAlphaRequest, currentAlpha: number, onChange: (alphaValue: number) => void): void {
+        $("#color-transparency-wrapper").css({
+            top: request.event.clientY + 129,
+            left: request.event.clientX,
+            display: "block"
+        });
+
+        $("#color-transparency")
+            .off("change")
+            .val(currentAlpha)
+            .one("change", event => {
+                onChange(parseFloat((event.target['value'] as string)));
+                $("#color-transparency-wrapper").fadeOut();
+                this.cdref.markForCheck();
+            });
     }
 
     /**
@@ -3554,6 +3435,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         } else {
             return;
         }
+        this.cdref.markForCheck();
         const countSelector = tableName == 'node-color'
             ? '#global-settings-node-color-table .tableCount, #key-tables-node-table .tableCount'
             : tableName == 'link-color'
@@ -5061,7 +4943,30 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     clearTable(tableId) {
-        const linkColorTable = $(tableId).empty();
+        if (tableId === '#node-color-table' || tableId === 'node-color-table'
+            || tableId === '#key-tables-node-table' || tableId === 'key-tables-node-table') {
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
+
+        if (tableId === '#link-color-table' || tableId === 'link-color-table'
+            || tableId === '#key-tables-link-table' || tableId === 'key-tables-link-table') {
+            this.linkColorRows = [];
+            this.linkColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
+
+        if (tableId === '#node-shape-table' || tableId === 'node-shape-table'
+            || tableId === '#key-tables-node-shape-table' || tableId === 'key-tables-node-shape-table') {
+            this.shapeAggregates = [];
+            this.cdref.markForCheck();
+            return;
+        }
+
+        $(tableId).empty();
     }
 
     private normalizeKeyTableDisplayMode(value: any): KeyTableDisplayMode {
@@ -5130,16 +5035,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private clearFloatingKeyTable(table: KeyTableName): void {
         if (table === 'node-color') {
-            $('#node-color-table').empty();
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
+            this.cdref.markForCheck();
             return;
         }
 
         if (table === 'link-color') {
-            $('#link-color-table').empty();
+            this.linkColorRows = [];
+            this.linkColorDomain = [];
+            this.cdref.markForCheck();
             return;
         }
 
         this.shapeAggregates = [];
+        this.cdref.markForCheck();
     }
 
     private buildFloatingKeyTable(table: KeyTableName): void {

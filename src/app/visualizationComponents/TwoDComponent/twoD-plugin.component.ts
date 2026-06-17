@@ -23,6 +23,14 @@ import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
+import {
+    StyleKeyTableAlphaRequest,
+    StyleKeyTableColorChange,
+    StyleKeyTableColumnNameChange,
+    StyleKeyTableRow,
+    StyleKeyTableRowNameChange,
+    StyleKeyTableSortColumn
+} from '../KeyTablesComponent/style-key-table.component';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -403,6 +411,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeRadiusSizeVariable: number = 50;
 
     SelectedNetworkTableTypeVariable: PolygonColorTableDisplayMode = "Dock";
+    polygonColorRows: StyleKeyTableRow[] = [];
+    polygonColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
 
     // Link Tab
     SelectedLinkTooltipVariable: any = "None";
@@ -1968,155 +1978,128 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const countColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'count', 'Count') ?? 'Count';
         const frequencyColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'frequency', 'Frequency') ?? 'Frequency';
 
-        let polygonColorTable = $(tableSelector)
-            .empty()
-            .append(            
-                "<tr>" +
-                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
-                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='count'>${countColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                "<th>Color</th>" +
-                "</tr>");
-            //.append(polygonHeader)
-            // .append(countHeader)
-            // .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
-            // .append("<th>Color</th>");
-        
+        this.polygonColorTableHeaders = {
+            value: valueColumnName,
+            count: countColumnName,
+            frequency: frequencyColumnName
+        };
+
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
-        let aggregates = this.commonService.createPolygonColorMap().reduce((acc, item) => {
+        const aggregates = this.commonService.createPolygonColorMap().reduce((acc, item) => {
             acc[item.key] = item.values.length;
             return acc;
         }, {} as Record<string, number>)
-        let values = Object.keys(aggregates);
+        const values = Object.keys(aggregates);
 
-        // By default both are set to "DESC", if one changed the other is set to ""; Default sort is by counts DESC
         if (this.widgets["polygon-color-table-counts-sort"] == "ASC") {
-            values.sort(function (a, b) { return aggregates[a] - aggregates[b] });
+            values.sort((a, b) => aggregates[a] - aggregates[b]);
         } else if (this.widgets["polygon-color-table-name-sort"] == "ASC") {
-            values.sort(function (a, b) { return a as any - (b as any) });
+            values.sort((a, b) => String(a).localeCompare(String(b)));
         } else if (this.widgets["polygon-color-table-counts-sort"] == "DESC") {
-            values.sort(function (a, b) { return aggregates[b] - aggregates[a] });
-        } else { // if (this.widgets["polygon-color-table-name-sort"] == "DESC")
-            values.sort(function (a, b) { return b as any - (a as any) });
+            values.sort((a, b) => aggregates[b] - aggregates[a]);
+        } else {
+            values.sort((a, b) => String(b).localeCompare(String(a)));
         }
 
         let total = 0;
         values.forEach(d => total += aggregates[d]);
 
-        let that = this;
+        this.polygonColorRows = values.map(value => {
+            const polygonValueNames = this.commonService.session.style['polygonValueNames'];
+            const displayName = Object.prototype.hasOwnProperty.call(polygonValueNames, value)
+                ? polygonValueNames[value]
+                : this.commonService.titleize(String(value));
+            const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == value);
 
-        values.forEach((value, i) => {
-            let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '" style="opacity:' + that.commonService.temp.style.polygonAlphaMap(value) +'; border:none">')
-                .on("change", function (e) {
-                    let locInPolygonColors = that.commonService.temp.polygonGroups.find(x => x.key == value).index
-                    // need to update the value in the dom which is used when exportings
-                    e.currentTarget.attributes[1].value = e.target['value'];
-                    e.currentTarget.style['opacity'] = that.commonService.temp.style.polygonAlphaMap(value);
-
-                    that.commonService.session.style['polygonColors'].splice(locInPolygonColors, 1, $(this).val() as string);
-                    that.commonService.createPolygonColorMap()
-                    that.updateGroupNodeColors();
-                });
-            let alphainput = $("<a class='transparency-symbol'>⇳</a>").on("click", e => {
-                $("#color-transparency-wrapper").css({
-                    top: e.clientY + 129,
-                    left: e.clientX,
-                    display: "block"
-                });
-                $("#color-transparency")
-                    .off("change")
-                    .val(that.commonService.temp.style.polygonAlphaMap(value))
-                    .one("change", function () {
-                        let locInPolygonAlphas = that.commonService.temp.polygonGroups.find(x => x.key == value).index
-                        that.commonService.session.style['polygonAlphas'].splice(locInPolygonAlphas, 1, parseFloat($(this).val() as string));
-                        that.commonService.temp.style.polygonAlphaMap = d3
-                            .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
-                            .domain(that.commonService.temp.polygonGroups.map(d => d.key));
-                        $("#color-transparency-wrapper").fadeOut();
-                        colorinput.trigger('change', that.commonService.temp.style.polygonColorMap(value))
-                    });
-            });
-            let cell = $("<td></td>")
-                .append(colorinput)
-                .append(alphainput);
-
-            let row = $(
-                "<tr>" +
-                "<td data-value='" + value + "'>" +
-                (that.commonService.session.style['polygonValueNames'][value] ? that.commonService.session.style['polygonValueNames'][value] : that.commonService.titleize("" + value)) +
-                "</td>" +
-                `<td class='tableCount' ${that.widgets["polygon-color-table-counts"] ? "" : "style='display: none'"}>${aggregates[value]}</td>` + 
-                `<td class='tableFrequency' ${that.widgets["polygon-color-table-frequencies"] ? "" : "style='display: none'"}>${(aggregates[value] / total).toLocaleString()}</td>` +
-                "</tr>"
-            ).append(cell);
-
-            polygonColorTable.append(row);
+            return {
+                rawValue: value,
+                trackKey: `polygon-color-${String(value)}`,
+                displayName,
+                count: aggregates[value],
+                frequency: total === 0 ? '' : (aggregates[value] / total).toLocaleString(),
+                color: this.commonService.temp.style.polygonColorMap(value),
+                alpha: this.commonService.temp.style.polygonAlphaMap(value),
+                index: polygonGroup?.index
+            };
         });
 
-        // PRE D3
-        // this.commonService.temp.style.polygonColorMap = d3
-        //   .scaleOrdinal(this.commonService.session.style['polygonColors'])
-        //   .domain(values);
-        //   this.commonService.temp.style.polygonAlphaMap = d3
-        //   .scaleOrdinal(this.commonService.session.style['polygonAlphas'])
-        //   .domain(values);
+        this.cdref.markForCheck();
+    }
 
-        polygonColorTable
-            .find("td[data-value]")
-            .on("dblclick", function () {
-                $(this).attr("contenteditable", "true").focus();
-            })
-            .on("focusout", function () {
-                let $this = $(this);
-                $this.attr("contenteditable", "false");
-                that.commonService.session.style['polygonValueNames'][$this.data("value")] = $this.text();
-            });
+    onPolygonKeyTableColumnNameChange(change: StyleKeyTableColumnNameChange): void {
+        this.commonService.visuals.microbeTrace?.setKeyTableColumnDisplayName(
+            change.table,
+            change.column,
+            change.displayName
+        );
+        this.cdref.markForCheck();
+    }
 
-        polygonColorTable
-            .find("[data-table-key][data-column-key]")
-            .on("focusout", function (event) {
-                const cell = event.currentTarget as HTMLElement;
-                microbeTrace?.setKeyTableColumnDisplayName(
-                    String(cell.getAttribute('data-table-key')),
-                    String(cell.getAttribute('data-column-key')),
-                    cell.textContent ?? ''
+    onPolygonColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        if (!this.commonService.session.style['polygonValueNames']) {
+            this.commonService.session.style['polygonValueNames'] = {};
+        }
+
+        this.commonService.session.style['polygonValueNames'][String(change.value)] = change.displayName;
+        this.cdref.markForCheck();
+    }
+
+    onPolygonColorTableColorChange(change: StyleKeyTableColorChange): void {
+        const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == change.value);
+        const locInPolygonColors = polygonGroup?.index ?? change.row.index;
+        if (locInPolygonColors === undefined || locInPolygonColors === null) {
+            return;
+        }
+
+        this.commonService.session.style['polygonColors'].splice(locInPolygonColors, 1, change.color);
+        this.commonService.createPolygonColorMap();
+        this.updatePolygonColors();
+        this.updateGroupNodeColors();
+    }
+
+    onPolygonColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        $("#color-transparency-wrapper").css({
+            top: request.event.clientY + 129,
+            left: request.event.clientX,
+            display: "block"
+        });
+
+        $("#color-transparency")
+            .off("change")
+            .val(this.commonService.temp.style.polygonAlphaMap(request.value))
+            .one("change", event => {
+                const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == request.value);
+                const locInPolygonAlphas = polygonGroup?.index ?? request.row.index;
+                if (locInPolygonAlphas === undefined || locInPolygonAlphas === null) {
+                    return;
+                }
+
+                this.commonService.session.style['polygonAlphas'].splice(
+                    locInPolygonAlphas,
+                    1,
+                    parseFloat((event.target['value'] as string))
                 );
+                this.commonService.temp.style.polygonAlphaMap = d3
+                    .scaleOrdinal(this.commonService.session.style['polygonAlphas'])
+                    .domain(this.commonService.temp.polygonGroups.map(d => d.key));
+                $("#color-transparency-wrapper").fadeOut();
+                this.updatePolygonColors();
+                this.updateGroupNodeColors();
             });
+    }
 
-
-        // The sorting functionality is added here
-        $(tableSelector).off('click', 'th .sort-button').on('click', 'th .sort-button', function (e) {
-            let isAscending: boolean;
-            let index: number;
-            if (e.currentTarget.classList.value.includes('sortName')) {
-                index = 0;
-                isAscending = that.widgets["polygon-color-table-name-sort"] == "DESC" ? true : false;
-                that.widgets["polygon-color-table-name-sort"] = isAscending ? "ASC" : "DESC";
-                that.widgets["polygon-color-table-counts-sort"] = "";
-            } else {
-                index = 1;
-                isAscending = that.widgets["polygon-color-table-counts-sort"] == "DESC" ? true : false;
-                that.widgets["polygon-color-table-counts-sort"] = isAscending ? "ASC" : "DESC";
-                that.widgets["polygon-color-table-name-sort"] = "";
-            }
-            let table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer(index));
-            if (!isAscending) { rows = rows.reverse(); }
-            for (let i = 0; i < rows.length; i++) { table.append(rows[i]); }
-        });
-
-        function comparer(index) {
-            return function (a, b) {
-                let valA = getCellValue(a, index), valB = getCellValue(b, index);
-                console.log(`Comparing: ${valA} and ${valB}`);  // New line
-                return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
-            }
+    onPolygonColorSort(column: StyleKeyTableSortColumn): void {
+        if (column === 'value') {
+            const isAscending = this.widgets["polygon-color-table-name-sort"] === "DESC";
+            this.widgets["polygon-color-table-name-sort"] = isAscending ? "ASC" : "DESC";
+            this.widgets["polygon-color-table-counts-sort"] = "";
+        } else {
+            const isAscending = this.widgets["polygon-color-table-counts-sort"] === "DESC";
+            this.widgets["polygon-color-table-counts-sort"] = isAscending ? "ASC" : "DESC";
+            this.widgets["polygon-color-table-name-sort"] = "";
         }
 
-        function getCellValue(row, index) {
-            return $(row).children('td').eq(index).text();
-        }
-
+        this.updatePolygonColors();
     }
 
     private getDockedPolygonColorTableSelector(): string {
@@ -2130,14 +2113,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private clearPolygonColorTables(): void {
-        $('#polygon-color-table').empty();
-        $(this.getDockedPolygonColorTableSelector()).empty();
+        this.polygonColorRows = [];
+        this.cdref.markForCheck();
     }
 
     public getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
-        return this.isPolygonColorTableDocked
-            ? document.querySelector(this.getDockedPolygonColorTableSelector()) as HTMLTableElement | undefined
-            : this.polygonColorTable?.nativeElement;
+        const selector = this.isPolygonColorTableDocked
+            ? this.getDockedPolygonColorTableSelector()
+            : '#polygon-color-table';
+        return document.querySelector(selector) as HTMLTableElement | undefined;
     }
 
     private normalizePolygonColorTableDisplayMode(value: any): PolygonColorTableDisplayMode {
@@ -2184,7 +2168,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     public clearDockedPolygonColorTable(): void {
-        $(this.getDockedPolygonColorTableSelector()).empty();
+        this.cdref.markForCheck();
     }
 
     public dockPolygonColorTableIfVisible(): boolean {
@@ -2337,7 +2321,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             //$('.polygons-label-row').slideUp();
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-value-row").slideUp();
-            $("#polygon-color-table").empty();
+            this.polygonColorRows = [];
+            this.cdref.markForCheck();
         }
 
         this.syncPolygonColorTableVisibility();
@@ -2513,7 +2498,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['polygons-color-show'] = false;
             $("#polygon-color-value-row").slideDown();
             $("#polygon-color-table-row").slideUp();
-            $("#polygon-color-table").empty();
+            this.polygonColorRows = [];
+            this.cdref.markForCheck();
             this.syncPolygonColorTableVisibility();
             setTimeout(() => {
                 // first removes polygons, if needed second call add them back
@@ -2962,7 +2948,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.updateGroupAssignmentsNoLinkFast(e);
             if (this.widgets['polygons-color-show'] == true) {
                 console.log('centerPolygons: show ');
-                $("#polygon-color-table").empty();
                 this.updatePolygonColors();
                 this.updateGroupNodeColors();
             }
@@ -2971,7 +2956,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.widgets['polygons-color-show'] == true) {
             console.log('centerPolygons: show ');
-            $("#polygon-color-table").empty();
             this.updateGroupAssignments(e);
             this.updatePolygonColors();
             this.updateGroupNodeColors();
@@ -4390,6 +4374,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (table == 'polygon-color') {
             this.updateCountFreqTable(table);
         }
+        this.cdref.markForCheck();
     }
 
     /**
@@ -4417,6 +4402,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (tableName == 'polygon-color') {
             showCount = this.widgets['polygon-color-table-counts'];
             showFreq = this.widgets['polygon-color-table-frequencies'];
+            this.cdref.markForCheck();
         }
         const tableSelector = tableName == 'polygon-color'
             ? this.getActivePolygonColorTableSelector()
