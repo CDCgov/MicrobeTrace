@@ -11,6 +11,23 @@ import type {
   PatristicProgressResponse,
   PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
+import {
+  BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
+  buildSupportSnapshot,
+  isSupportStable,
+  mergeSplitCounts,
+  normalizeBootstrapReplicateCount,
+  supportPercentBySplitKey,
+} from '../workers/phylogenetic-bootstrap-utils';
+import type {
+  PhylogeneticBootstrapBatchResponse,
+  PhylogeneticBootstrapComputeOptions,
+  PhylogeneticBootstrapComputeResult,
+  PhylogeneticBootstrapErrorResponse,
+  PhylogeneticBootstrapProgress,
+  PhylogeneticBootstrapWorkerRequest,
+  PhylogeneticBootstrapWorkerResponse,
+} from '../workers/phylogenetic-bootstrap.types';
 
 interface ComputePatristicOptions {
   origin?: string[];
@@ -602,6 +619,231 @@ export class WorkerComputeService {
         nnWorker.terminate();
         sub.unsubscribe();
       });
+    });
+  }
+
+  // --- Phylogenetic Bootstrap Worker Pool -----------------------------------
+
+  private phylogeneticBootstrapJobId = 0;
+  private phylogeneticBootstrapWorkers: Worker[] = [];
+  private phylogeneticBootstrapCancel: (() => void) | null = null;
+
+  private terminatePhylogeneticBootstrapWorkers(): void {
+    this.phylogeneticBootstrapWorkers.forEach(worker => {
+      try {
+        worker.terminate();
+      } catch {
+        // Ignore cleanup errors from already-terminated workers.
+      }
+    });
+    this.phylogeneticBootstrapWorkers = [];
+  }
+
+  private chooseBootstrapWorkerCount(requestedReplicates: number, batchSize: number, workerCount?: number): number {
+    const requestedWorkers = Math.round(Number(workerCount));
+    if (Number.isFinite(requestedWorkers) && requestedWorkers > 0) {
+      return Math.min(Math.ceil(requestedReplicates / batchSize), Math.max(1, requestedWorkers));
+    }
+
+    const hardwareConcurrency = typeof navigator !== 'undefined'
+      ? Number(navigator.hardwareConcurrency || 0)
+      : 0;
+    const defaultWorkers = Number.isFinite(hardwareConcurrency) && hardwareConcurrency > 1
+      ? Math.min(4, hardwareConcurrency - 1)
+      : 2;
+
+    return Math.min(Math.ceil(requestedReplicates / batchSize), Math.max(1, defaultWorkers));
+  }
+
+  public cancelPhylogeneticBootstrapJob(): void {
+    const jobId = this.phylogeneticBootstrapJobId;
+    this.phylogeneticBootstrapWorkers.forEach(worker => {
+      try {
+        worker.postMessage({ type: 'CANCEL', jobId } as PhylogeneticBootstrapWorkerRequest);
+      } catch {
+        // The worker may already be gone.
+      }
+    });
+
+    if (this.phylogeneticBootstrapCancel) {
+      this.phylogeneticBootstrapCancel();
+    } else {
+      this.terminatePhylogeneticBootstrapWorkers();
+    }
+  }
+
+  public computePhylogeneticBootstrap(
+    options: PhylogeneticBootstrapComputeOptions,
+  ): Promise<PhylogeneticBootstrapComputeResult> {
+    this.cancelPhylogeneticBootstrapJob();
+
+    const labels = Array.isArray(options.labels) ? options.labels.map(label => String(label)) : [];
+    const sequences = Array.isArray(options.sequences) ? options.sequences.map(sequence => String(sequence).toUpperCase()) : [];
+    const baseSplitKeys = Array.isArray(options.baseSplitKeys) ? [...options.baseSplitKeys] : [];
+    const requestedReplicates = normalizeBootstrapReplicateCount(options.replicates);
+    const batchSize = Math.max(1, Math.min(50, Math.round(Number(options.batchSize) || 10)));
+    const stabilityWindow = Math.max(1, Math.round(Number(options.stabilityWindow) || 100));
+    const stabilityTolerancePercent = Number.isFinite(Number(options.stabilityTolerancePercent))
+      ? Math.max(0, Number(options.stabilityTolerancePercent))
+      : BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT;
+
+    if (labels.length !== sequences.length) {
+      return Promise.reject(new Error('Bootstrap labels and sequences must have the same length.'));
+    }
+    if (labels.length < 3) {
+      return Promise.reject(new Error('Bootstrap requires at least 3 taxa.'));
+    }
+    if (!baseSplitKeys.length) {
+      return Promise.reject(new Error('The current tree has no internal splits that can receive bootstrap support.'));
+    }
+
+    const splitCounts: Record<string, number> = {};
+    baseSplitKeys.forEach(key => { splitCounts[key] = 0; });
+
+    const jobId = ++this.phylogeneticBootstrapJobId;
+    const workerTotal = this.chooseBootstrapWorkerCount(requestedReplicates, batchSize, options.workerCount);
+    const workers = Array.from({ length: workerTotal }, () => this.computer.getPhylogeneticBootstrapWorker());
+    this.phylogeneticBootstrapWorkers = workers;
+
+    return new Promise<PhylogeneticBootstrapComputeResult>((resolve, reject) => {
+      let nextBatchId = 0;
+      let remainingReplicates = requestedReplicates;
+      let activeBatches = 0;
+      let completedReplicates = 0;
+      let settled = false;
+      const snapshots: Array<{ replicates: number; support: Record<string, number> }> = [];
+
+      const reportProgress = (stable: boolean, stoppedEarly: boolean): void => {
+        const progress: PhylogeneticBootstrapProgress = {
+          completedReplicates,
+          requestedReplicates,
+          progressPercent: Math.min(100, (completedReplicates / requestedReplicates) * 100),
+          stoppedEarly,
+          stable,
+        };
+        options.onProgress?.(progress);
+      };
+
+      const cleanup = (): void => {
+        this.phylogeneticBootstrapCancel = null;
+        this.terminatePhylogeneticBootstrapWorkers();
+      };
+
+      const finish = (stable: boolean, stoppedEarly: boolean): void => {
+        if (settled) return;
+        settled = true;
+        const supportBySplitKey = supportPercentBySplitKey(baseSplitKeys, splitCounts, completedReplicates);
+        cleanup();
+        resolve({
+          requestedReplicates,
+          completedReplicates,
+          stoppedEarly,
+          stable,
+          splitCounts: { ...splitCounts },
+          supportBySplitKey,
+        });
+      };
+
+      const fail = (error: Error): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      this.phylogeneticBootstrapCancel = () => fail(new Error('Bootstrap calculation cancelled.'));
+
+      const maybeStopWhenStable = (): boolean => {
+        if (!options.stopWhenStable || completedReplicates < stabilityWindow) {
+          return false;
+        }
+
+        const currentSupport = buildSupportSnapshot(baseSplitKeys, splitCounts, completedReplicates);
+        const previous = snapshots
+          .filter(snapshot => snapshot.replicates > 0 && snapshot.replicates <= completedReplicates - stabilityWindow)
+          .sort((a, b) => b.replicates - a.replicates)[0];
+
+        snapshots.push({ replicates: completedReplicates, support: currentSupport });
+        if (!previous) {
+          return false;
+        }
+
+        return isSupportStable(baseSplitKeys, previous.support, currentSupport, stabilityTolerancePercent);
+      };
+
+      const dispatchNext = (worker: Worker): void => {
+        if (settled || remainingReplicates <= 0) {
+          if (!settled && activeBatches === 0 && completedReplicates >= requestedReplicates) {
+            reportProgress(false, false);
+            finish(false, false);
+          }
+          return;
+        }
+
+        const replicates = Math.min(batchSize, remainingReplicates);
+        remainingReplicates -= replicates;
+        activeBatches++;
+        const batchId = ++nextBatchId;
+        const seed = (Date.now() + jobId * 1000003 + batchId * 9176 + Math.floor(Math.random() * 0xffffffff)) >>> 0;
+
+        worker.postMessage({
+          type: 'RUN_BATCH',
+          jobId,
+          batchId,
+          labels,
+          sequences,
+          baseSplitKeys,
+          replicates,
+          seed,
+        } as PhylogeneticBootstrapWorkerRequest);
+      };
+
+      const handleBatchComplete = (worker: Worker, msg: PhylogeneticBootstrapBatchResponse): void => {
+        activeBatches--;
+        completedReplicates += msg.replicates;
+        mergeSplitCounts(splitCounts, msg.splitCounts, baseSplitKeys);
+
+        const stable = maybeStopWhenStable();
+        const stoppedEarly = stable && completedReplicates < requestedReplicates;
+        reportProgress(stable, stoppedEarly);
+
+        if (stable) {
+          finish(true, stoppedEarly);
+          return;
+        }
+
+        if (remainingReplicates <= 0 && activeBatches === 0) {
+          finish(false, false);
+          return;
+        }
+
+        dispatchNext(worker);
+      };
+
+      const handleWorkerMessage = (worker: Worker, event: MessageEvent<PhylogeneticBootstrapWorkerResponse>): void => {
+        const msg = event.data;
+        if (!msg || msg.jobId !== jobId || settled) return;
+
+        if (msg.type === 'ERROR') {
+          const error = msg as PhylogeneticBootstrapErrorResponse;
+          fail(new Error(error.message));
+          return;
+        }
+
+        handleBatchComplete(worker, msg);
+      };
+
+      workers.forEach(worker => {
+        worker.addEventListener('message', (event: MessageEvent<PhylogeneticBootstrapWorkerResponse>) => {
+          handleWorkerMessage(worker, event);
+        });
+        worker.addEventListener('error', (error: ErrorEvent) => {
+          fail(new Error(error.message || 'Phylogenetic bootstrap worker failed.'));
+        });
+      });
+
+      reportProgress(false, false);
+      workers.forEach(dispatchNext);
     });
   }
 

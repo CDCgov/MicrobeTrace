@@ -61,6 +61,13 @@ export class WorkerModule implements OnInit {
     return new InlineWorker('parseFasta');
   }
 
+  public getPhylogeneticBootstrapWorker(): Worker {
+    return new Worker(
+      new URL('./phylogenetic-bootstrap.worker', import.meta.url),
+      { type: 'module', name: 'mt-phylogenetic-bootstrap' }
+    );
+  }
+
   /**
    * Get or create the dedicated patristic distance engine worker.
    *
