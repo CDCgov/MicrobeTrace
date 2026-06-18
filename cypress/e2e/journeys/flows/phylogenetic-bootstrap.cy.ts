@@ -39,23 +39,21 @@ const openBootstrapTab = (): void => {
   cy.get('@phyloSettings').find('#bootstrap-replicates').should('be.visible');
 };
 
-const selectBootstrapReplicatePreset = (label: string): void => {
-  cy.get('@phyloSettings').find('#bootstrap-replicates').click({ force: true });
-  cy.contains('li[role="option"]', label).click({ force: true });
-};
-
 const selectBootstrapDecimals = (label: string): void => {
   cy.get('@phyloSettings').find('#bootstrap-decimal-length').click({ force: true });
   cy.contains('li[role="option"]', label).click({ force: true });
 };
 
-const calculateSmallBootstrap = (): void => {
-  selectBootstrapReplicatePreset('Custom');
-  cy.get('@phyloSettings').find('#bootstrap-custom-replicates')
+const setBootstrapReplicates = (replicates: string): void => {
+  cy.get('@phyloSettings').find('#bootstrap-replicates')
     .should('be.visible')
     .clear({ force: true })
-    .type('5', { force: true })
+    .type(replicates, { force: true })
     .blur();
+};
+
+const calculateSmallBootstrap = (): void => {
+  setBootstrapReplicates('5');
   cy.get('@phyloSettings').find('#calculate-bootstrap').click({ force: true });
   cy.get('#bootstrap-status', { timeout: 60000 }).should('contain.text', 'Bootstrap support calculated');
 };
@@ -88,9 +86,10 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       .its('commonService.session.style.widgets')
       .should((widgets) => {
         expect(widgets['tree-bootstrap-stop-when-stable']).to.equal(false);
-        expect(widgets['tree-bootstrap-replicate-preset']).to.equal('100');
+        expect(widgets['tree-bootstrap-custom-replicates']).to.equal(100);
         expect(widgets['tree-bootstrap-decimal-length']).to.equal(1);
       });
+    cy.get('@phyloSettings').find('#bootstrap-replicates').should('have.value', '100');
     cy.get('@phyloSettings').find('#calculate-bootstrap').should('not.be.disabled');
 
     calculateSmallBootstrap();
@@ -115,12 +114,8 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       expect(win.commonService.session.data.newickString).to.equal(newickAfterBootstrap);
     });
 
-    selectBootstrapReplicatePreset('Custom');
-    cy.get('@phyloSettings').find('#bootstrap-custom-replicates')
-      .clear({ force: true })
-      .type('5000', { force: true })
-      .blur()
-      .should('have.value', '1000');
+    setBootstrapReplicates('5000');
+    cy.get('@phyloSettings').find('#bootstrap-replicates').should('have.value', '1000');
   });
 
   it('shows bootstrap as unavailable for matrix-only and Newick-only phylogeny inputs', () => {
@@ -143,7 +138,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
 
     openPhyloSettingsDialog();
     openBootstrapTab();
-    selectBootstrapReplicatePreset('200');
+    setBootstrapReplicates('200');
     cy.get('@phyloSettings').find('#bootstrap-stop-stable').contains('Enable').click({ force: true });
 
     cy.window().then((win: WinWithMT) => {

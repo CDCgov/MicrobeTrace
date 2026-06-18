@@ -252,17 +252,9 @@
         <div class="form-group row" title="Number of bootstrap replicates">
           <div class="col-5"><label for="bootstrap-replicates">Replicates</label></div>
           <div class="col-7">
-            <p-select id="bootstrap-replicates" appendTo="body" [options]="BootstrapReplicatePresetOptions" class="width-percent-100" [(ngModel)]="SelectedBootstrapReplicatePreset" (ngModelChange)="onBootstrapReplicatePresetChange($event)"> </p-select>
+            <input type="number" id="bootstrap-replicates" class="form-control form-control-sm" min="1" max="1000" step="1" [(ngModel)]="SelectedBootstrapCustomReplicates" (change)="onBootstrapCustomReplicatesChange($event)" (blur)="onBootstrapCustomReplicatesChange($event)">
           </div>
         </div>
-        @if (SelectedBootstrapReplicatePreset === 'custom') {
-          <div class="form-group row" title="Custom bootstrap replicate count">
-            <div class="col-5"><label for="bootstrap-custom-replicates">Custom Count</label></div>
-            <div class="col-7">
-              <input type="number" id="bootstrap-custom-replicates" class="form-control form-control-sm" min="1" max="1000" step="1" [(ngModel)]="SelectedBootstrapCustomReplicates" (change)="onBootstrapCustomReplicatesChange($event)" (blur)="onBootstrapCustomReplicatesChange($event)">
-            </div>
-          </div>
-        }
         <div class="form-group row" title="Stop bootstrap calculation when support values stabilize">
           <div class="col-5"><label for="bootstrap-stop-stable">Stop When Stable</label></div>
           <div class="col-7">

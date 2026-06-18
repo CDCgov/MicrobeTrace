@@ -134,18 +134,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   //SelectedBranchTooltipShowVariable = false;
 
   // Bootstrap Tab
-  BootstrapReplicatePresetOptions: SelectItem[] = [
-    { label: '100', value: '100' },
-    { label: '200', value: '200' },
-    { label: 'Custom', value: 'custom' },
-  ];
   BootstrapDecimalLengthOptions: SelectItem[] = [
     { label: '0', value: 0 },
     { label: '1', value: 1 },
     { label: '2', value: 2 },
     { label: '3', value: 3 },
   ];
-  SelectedBootstrapReplicatePreset: '100' | '200' | 'custom' = this.settings['tree-bootstrap-replicate-preset'] ?? '100';
   SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? 100);
   SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? false;
   SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? 1);
@@ -987,10 +981,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   private getSelectedBootstrapReplicateCount(): number {
-    if (this.SelectedBootstrapReplicatePreset === 'custom') {
-      return normalizeBootstrapReplicateCount(this.SelectedBootstrapCustomReplicates);
-    }
-    return normalizeBootstrapReplicateCount(this.SelectedBootstrapReplicatePreset);
+    return normalizeBootstrapReplicateCount(this.SelectedBootstrapCustomReplicates);
   }
 
   private getBootstrapInput(): {
@@ -1063,11 +1054,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   getBootstrapUnavailableReason(): string {
     return this.getBootstrapInput().reason || '';
-  }
-
-  onBootstrapReplicatePresetChange(event) {
-    this.SelectedBootstrapReplicatePreset = event;
-    this.settings['tree-bootstrap-replicate-preset'] = this.SelectedBootstrapReplicatePreset;
   }
 
   onBootstrapCustomReplicatesChange(event) {
@@ -1551,7 +1537,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   if(this.settings['tree-tooltip-show'] != this.SelectedLeafTooltipShowVariable) this.SelectedLeafTooltipShowVariable = this.settings['tree-tooltip-show']
 
   // Bootstrap
-  if (this.settings['tree-bootstrap-replicate-preset']) this.SelectedBootstrapReplicatePreset = this.settings['tree-bootstrap-replicate-preset']
   this.SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? this.SelectedBootstrapCustomReplicates)
   this.SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? this.SelectedBootstrapStopWhenStable
   this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? this.SelectedBootstrapDecimalLength)
