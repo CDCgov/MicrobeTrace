@@ -4196,6 +4196,27 @@ align(params): Promise<any> {
         return (JSON.stringify(thing).length / 1024 / 1024).toLocaleString() + 'MB';
     };
 
+    normalizeStyleCategoryValue(value: any): string {
+        if (value === undefined || value === null) {
+            return 'null';
+        }
+
+        if (typeof value === 'number' && Number.isNaN(value)) {
+            return 'null';
+        }
+
+        if (typeof value === 'string') {
+            const trimmedValue = value.trim().toLowerCase();
+            if (trimmedValue === '' || trimmedValue === 'nan') {
+                return 'null';
+            }
+
+            return String(value);
+        }
+
+        return String(value);
+    }
+
     /**
      * Converts commonly used titles to a standard output; for less common titles nothing is changed
      * @param {string} title 

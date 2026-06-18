@@ -377,11 +377,11 @@ function hexToRgbString(hex: string): string {
           .scrollIntoView()
           .should('exist')
           .within(() => {
-            cy.get('#polygon-color-table-toggle').contains('Show').click({ force: true });
+            cy.get('#polygon-color-table-toggle').contains('Dock').click({ force: true });
           });
   
         cy.window().its('commonService.session.style.widgets.polygon-color-table-visible')
-          .should('equal', 'Show');
+          .should('equal', 'Dock');
   
         // Optional: change some group colors if specified
         if (g.changeGroupColors?.groups?.length) {
