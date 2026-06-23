@@ -1695,6 +1695,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var lcv = this.commonService.session.style.widgets['link-color-variable'];
         var opacity = 1 - this.commonService.session.style.widgets['map-link-transparency'];
         var links = this.commonService.getVisibleLinks();
+        const getLinkColorValue = (link: any) => {
+            const value = link[lcv];
+            if (String(lcv).toLowerCase() === 'origin' && Array.isArray(value)) {
+                return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
+            }
+            return this.commonService.normalizeStyleCategoryValue(value);
+        };
     
         var features: Layer[] = [];
     
@@ -1739,7 +1746,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     ], {
                         color: lcv === "None" ?
                             this.commonService.session.style.widgets['link-color'] :
-                            this.commonService.temp.style.linkColorMap(d[lcv]),
+                            this.commonService.temp.style.linkColorMap(getLinkColorValue(d)),
                         opacity: opacity
                     });
     

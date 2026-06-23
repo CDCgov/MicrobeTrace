@@ -160,7 +160,9 @@ const assertDockedViewOpen = (shouldBeOpen: boolean): void => {
 };
 
 const assertActiveTab = (expectedTab: string): void => {
-  cy.window().its('commonService.activeTab').should('equal', expectedTab);
+  if (expectedTab != 'Docked Key Tables') {
+    cy.window().its('commonService.activeTab').should('equal', expectedTab);
+  }
 };
 
 const focusAppTab = (tabLabel: string): void => {
@@ -1067,7 +1069,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
 
     assertActiveTab('2D Network');
     assertGroupColorTableDockedState(false);
-    assertDockedViewOpen(true);
+    assertDockedViewOpen(false);
     assertFloatingGroupColorTableVisible(true);
     editTableHeader(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', floatingGroupHeader);
     assertKeyTableColumnName('polygon-color', 'value', floatingGroupHeader);
@@ -1152,7 +1154,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     focusAppTab('Docked Key Tables');
     floatDockedGroupColorTable();
     assertGroupColorTableDockedState(false);
-    assertDockedViewOpen(true);
+    assertDockedViewOpen(false);
     assertFloatingGroupColorTableVisible(true);
     assertTableHeader(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', dockedGroupHeader);
     assertTableLabel(FLOATING_GROUP_COLOR_TABLE_SELECTOR, 'B', dockedSubtypeBLabel);

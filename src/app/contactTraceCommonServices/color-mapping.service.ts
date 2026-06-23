@@ -235,8 +235,10 @@ export class ColorMappingService {
     let updatedLinkColors = [...linkColors];
     let updatedLinkAlphas = [...linkAlphas];
 
+    const hasLinkColorsTableForVariable = Array.isArray(updatedLinkColorsTable[linkColorVariable]);
+
     // If no existing color array for the chosen link variable
-    if (!updatedLinkColorsTable[linkColorVariable]) {
+    if (!hasLinkColorsTableForVariable) {
       updatedLinkColorsTable[linkColorVariable] = updatedLinkColors;
     } else {
       updatedLinkColors = [...updatedLinkColorsTable[linkColorVariable]];
@@ -261,10 +263,28 @@ export class ColorMappingService {
     });
 
     let multiLinkCount = 0;
+    const emptyValueKey = 'null';
+    const emptyValueColor = '#EAE553';
+    const isOriginColorVariable = String(linkColorVariable).toLowerCase() === 'origin';
 
-    const ensureAggregateKey = (value: any): string | null => {
-      if (value === undefined || value === null || value === '') {
-        return null;
+    const ensureAggregateKey = (value: any, includeEmpty = false): string | null => {
+      const trimmedStringValue = typeof value === 'string' ? value.trim().toLowerCase() : null;
+      const isEmptyValue = value === undefined ||
+        value === null ||
+        (typeof value === 'number' && Number.isNaN(value)) ||
+        trimmedStringValue === '' ||
+        trimmedStringValue === 'nan';
+
+      if (isEmptyValue) {
+        if (!includeEmpty) {
+          return null;
+        }
+
+        if (!Object.prototype.hasOwnProperty.call(aggregates, emptyValueKey)) {
+          aggregates[emptyValueKey] = 0;
+        }
+
+        return emptyValueKey;
       }
 
       const key = String(value);
@@ -284,7 +304,7 @@ export class ColorMappingService {
           ? l.origin
           : [l.origin];
         const originKeys = origins
-          .map(ensureAggregateKey)
+          .map(origin => ensureAggregateKey(origin))
           .filter((key): key is string => key !== null);
 
         if (originKeys.length > 1) {
@@ -294,7 +314,7 @@ export class ColorMappingService {
         }
 
       } else {
-        const val = ensureAggregateKey(l[linkColorVariable]);
+        const val = ensureAggregateKey(l[linkColorVariable], true);
         if (val !== null) {
           aggregates[val] += 1;
         }
@@ -305,7 +325,6 @@ export class ColorMappingService {
       aggregates["Duo-Link"] = multiLinkCount;
     }
 
-    const isOriginColorVariable = String(linkColorVariable).toLowerCase() === 'origin';
     let distinctValues = Object.keys(aggregates);
     if (isOriginColorVariable) {
       const originRank = (value: string): number => {
@@ -327,9 +346,9 @@ export class ColorMappingService {
       : d3.schemePaired;
     const candidatePalette = linkColors.filter((color): color is string => typeof color === 'string');
     const uniqueCandidatePalette = Array.from(new Set(candidatePalette));
-    const basePalette = uniqueCandidatePalette.length > 1
-      ? uniqueCandidatePalette
-      : defaultLinkPalette;
+    const needsDefaultPalette = uniqueCandidatePalette.length <= 1 ||
+      (!hasLinkColorsTableForVariable && uniqueCandidatePalette.length < distinctValues.length);
+    const basePalette = needsDefaultPalette ? defaultLinkPalette : uniqueCandidatePalette;
     const fallbackPalette = basePalette.length ? basePalette : ['#a6cee3'];
     const colorsByKey = new Map<string, string>();
     const resetExpandedOriginColors = isOriginColorVariable &&
@@ -351,7 +370,7 @@ export class ColorMappingService {
 
     const existingColorsByValue = new Map<string, string>();
     const usedColors = new Set<string>();
-    const repairDuplicateOriginColors = isOriginColorVariable;
+    const repairDuplicateColors = isOriginColorVariable || uniqueCandidatePalette.length < distinctValues.length;
 
     distinctValues.forEach((val) => {
       const existingColor = colorsByKey.get(val);
@@ -361,7 +380,7 @@ export class ColorMappingService {
           return;
         }
 
-        if (repairDuplicateOriginColors && usedColors.has(existingColor)) {
+        if (repairDuplicateColors && usedColors.has(existingColor)) {
           delete updatedLinkColorsTableHistory[val];
           return;
         }
@@ -376,6 +395,12 @@ export class ColorMappingService {
       const existingColor = existingColorsByValue.get(val);
       if (existingColor) {
         return existingColor;
+      }
+
+      if (val === emptyValueKey && !usedColors.has(emptyValueColor)) {
+        usedColors.add(emptyValueColor);
+        updatedLinkColorsTableHistory[val] = emptyValueColor;
+        return emptyValueColor;
       }
 
       const preferredPalette = fallbackPalette
