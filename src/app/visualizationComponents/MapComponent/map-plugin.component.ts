@@ -24,7 +24,7 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
-import { getMapNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getMapNodeShapeDataUri, getSegmentedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 
 declare var google: any;
 
@@ -516,17 +516,22 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
     }
 
-    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean, fillOpacity: number): L.Icon {
+    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean, fillOpacity: number, segments: any[] = []): L.Icon {
         const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
         const safeFill = fillColor || '#000000';
         const safeStroke = strokeColor || '#000000';
         const safeFillOpacity = this.commonService.clampStyleAlpha(fillOpacity, 1);
         const strokeWidth = this.getStrokeWidth(normalizedShapeKey, selected);
         const shapeStrokeColor = isCustomNodeIconShape(normalizedShapeKey) && !selected ? (normalizedShapeKey == 'lettuce' ? '#ffffff' : '#000000') : safeStroke; // default for unselected shapes is black except for lettuce
-        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}`;
+        const segmentKey = segments.length > 1
+            ? segments.map(segment => `${segment.color}:${segment.alpha}:${segment.weight}`).join(',')
+            : '';
+        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}|${segmentKey}|${selected ? safeStroke : ''}`;
 
         if (!this.mapNodeIconCache[cacheKey]) {
-            this.mapNodeIconCache[cacheKey] = getMapNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity);
+            this.mapNodeIconCache[cacheKey] = segments.length > 1
+                ? getSegmentedNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity, segments, selected ? safeStroke : null)
+                : getMapNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity);
         }
 
         return icon({
@@ -1652,9 +1657,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             const strokeColor = d.selected ? selectedColor : '#000000';
             const strokeWidth = d.selected ? 36 : 16;
             const shapeKey = this.getNodeShapeKey(d);
+            const mixedSegments = nodeStyle.segments ?? [];
 
             let nodeMarker: MarkerWithData = L.marker(L.latLng(d._jlat, d._jlon), {
-                icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, d.selected, nodeFillOpacity),
+                icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, d.selected, nodeFillOpacity, mixedSegments),
                 opacity: 1,
                 fillOpacity: nodeFillOpacity,
                 fillColor: nodeStyle.color,

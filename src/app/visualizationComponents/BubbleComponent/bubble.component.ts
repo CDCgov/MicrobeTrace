@@ -13,8 +13,9 @@ import svg from 'cytoscape-svg';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { getSegmentedNodeShapeDataUri } from '@app/contactTraceCommonServices/node-shapes';
 
-type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
+type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any, mixedColorImage?: string }//selected: boolean }
 
 type BubblePieExportSlice = {
   label: string;
@@ -330,6 +331,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           nodeSize: size,
           nodeColor: node.color,
           nodeOpacity: node.opacity,
+          mixedColorImage: node.mixedColorImage,
           label: node.id,
           counts: node.counts,
           totalCount: node.totalCount,
@@ -430,6 +432,20 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
             'background-color': 'data(nodeColor)',
             // @ts-ignore
             'background-opacity': 'data(nodeOpacity)'
+        }
+      },
+      {
+        selector: 'node[mixedColorImage]',
+        css: {
+            // @ts-ignore
+            'background-image': 'data(mixedColorImage)',
+            'background-fit': 'contain',
+            'background-clip': 'none',
+            'background-repeat': 'no-repeat',
+            // @ts-ignore
+            'background-image-opacity': 1,
+            'background-opacity': 0,
+            'border-width': 0
         }
       },
       {
@@ -894,16 +910,21 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       let previousTotal = node.totalCount;
       node.totalCount = 0;
       currentNodes.forEach(cNode => {
-        let currentCategory = cNode[colorCategory];
-        let index = node.counts.findIndex((countItem) => countItem.label == currentCategory)
-        if (index == -1) {
-          node.counts.push({
-            label: currentCategory,
-            count: 1
-          })
-        } else {
-          node.counts[index].count += 1
-        }
+        const currentCategories = colorCategory === 'None'
+          ? [this.commonService.session.style.widgets['node-color']]
+          : this.commonService.getNodeColorCategoriesForValue(cNode[colorCategory]);
+        const categoryWeight = currentCategories.length > 0 ? 1 / currentCategories.length : 1;
+        currentCategories.forEach(currentCategory => {
+          let index = node.counts.findIndex((countItem) => countItem.label == currentCategory)
+          if (index == -1) {
+            node.counts.push({
+              label: currentCategory,
+              count: categoryWeight
+            })
+          } else {
+            node.counts[index].count += categoryWeight
+          }
+        })
         node.totalCount += 1;
       })
       if (previousTotal != node.totalCount) {
@@ -918,6 +939,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     const colorVariable = this.commonService.session.style.widgets['node-color-variable'];
     const syntheticNode = colorVariable === 'None' ? undefined : { [colorVariable]: value };
     return this.commonService.getNodeFillStyle(syntheticNode);
+  }
+
+  private getMixedColorImageForNode(nodeData: any, fillColor: string, fillOpacity: number): string | undefined {
+    const segments = this.commonService.getNodeFillStyle(nodeData).segments;
+    if (!segments || segments.length < 2) {
+      return undefined;
+    }
+
+    return getSegmentedNodeShapeDataUri('ellipse', fillColor, '#000000', 22, fillOpacity, segments);
   }
 
   /**
@@ -973,6 +1003,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
       node.color = nodeStyle.color;
       node.opacity = nodeStyle.alpha;
+      node.mixedColorImage = this.getMixedColorImageForNode(currentFullNode, nodeStyle.color, nodeStyle.alpha);
     })
 
     if (this.cy && this.cy.nodes().length > 0) {
@@ -982,6 +1013,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         if (!currentNode) return;
         node.data('nodeColor', currentNode.color);
         node.data('nodeOpacity', currentNode.opacity);
+        if (currentNode.mixedColorImage) {
+          node.data('mixedColorImage', currentNode.mixedColorImage);
+        } else {
+          node.removeData('mixedColorImage');
+        }
       });
       this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -1234,6 +1270,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
         node.color = nodeStyle.color;
         node.opacity = nodeStyle.alpha;
+        node.mixedColorImage = this.getMixedColorImageForNode(currentFullNode, nodeStyle.color, nodeStyle.alpha);
       })
     } else {
       this.updateColors();

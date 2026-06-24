@@ -14,7 +14,7 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
-import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getSegmentedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -236,6 +236,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             nodeSize: node.nodeSize,
             nodeColor: node.nodeColor,
             bgOpacity: node.bgOpacity,
+            mixedColorImage: node.mixedColorImage,
             borderWidth: node.borderWidth,
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
@@ -243,6 +244,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             shapeKey,
             ...getCustomNodeShapeData(shapeKey, node.nodeColor)
         };
+    }
+
+    private getMixedColorNodeImage(node: any, shapeKey: string, fillColor: string, fillOpacity: number): string | undefined {
+        const segments = this.commonService.getNodeFillStyle(node).segments;
+        if (!segments || segments.length < 2) {
+            return undefined;
+        }
+
+        const strokeWidth = Math.max(16, Number(this.getNodeBorderWidth(node)) * 8);
+        return getSegmentedNodeShapeDataUri(
+            shapeKey,
+            fillColor,
+            '#000000',
+            strokeWidth,
+            fillOpacity,
+            segments
+        );
     }
 
     private yieldToBrowser(): Promise<void> {
@@ -704,6 +722,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node);
 	            node.borderWidth = this.getNodeBorderWidth(node);
 	            const shapeKey = this.getNodeShape(node);
+	            node.mixedColorImage = this.getMixedColorNodeImage(node, shapeKey, node.nodeColor, node.bgOpacity);
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
@@ -718,6 +737,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node); // <-- Added for dynamic node color
 	            node.borderWidth = this.getNodeBorderWidth(node);
 	            const shapeKey = this.getNodeShape(node);
+	            node.mixedColorImage = this.getMixedColorNodeImage(node, shapeKey, node.nodeColor, node.bgOpacity);
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
@@ -824,6 +844,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'border-width': 0
                 }
             },
+            {
+                selector: 'node[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'over',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
+                    'border-width': 0
+                }
+            },
                 {
                     selector: '.hidden',
                     css: {
@@ -843,6 +880,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-color': '#ffffff',
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)'
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'over',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
+                    'border-width': 0
                 }
             },
             // Apply styles only to nodes with fontSize defined
@@ -927,6 +978,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-color': '#ffffff',
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)',
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'over',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
                 }
@@ -4909,8 +4975,14 @@ private updateArrowStyles(): void {
 	            node.data('nodeColor', newColor);
             node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
+            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
+            const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, newColor, opacity);
+            if (mixedColorImage) {
+                node.data('mixedColorImage', mixedColorImage);
+            } else {
+                node.removeData('mixedColorImage');
+            }
 
-            const shapeKey = node.data('shapeKey');
             if (isCustomNodeIconShape(shapeKey)) {
                 const customShapeData = getCustomNodeShapeData(shapeKey, newColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
@@ -5640,9 +5712,15 @@ scaleLinkWidth() {
 	            const shapeKey = this.getNodeShape(fullNode);
 	            node.data('shapeKey', shapeKey);
             node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
+            const [nodeColor, nodeOpacity] = this.getNodeColor(fullNode);
+            const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, nodeColor, nodeOpacity);
+            if (mixedColorImage) {
+                node.data('mixedColorImage', mixedColorImage);
+            } else {
+                node.removeData('mixedColorImage');
+            }
 
 	            if (isCustomNodeIconShape(shapeKey)) {
-	                const nodeColor = node.data('nodeColor') || this.getNodeColor(fullNode)[0];
                 const customShapeData = getCustomNodeShapeData(shapeKey, nodeColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
                 node.data('customIconKey', customShapeData.customIconKey);

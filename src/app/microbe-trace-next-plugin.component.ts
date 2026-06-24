@@ -260,6 +260,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorNodesByVariable: string = 'None';
     SelectedNodeSymbolVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
+    NodeMixedColorsEnabled: boolean = false;
     SelectedLinkColorVariable: string = '#1f77b4';
     SelectedColorLinksByVariable: string = 'origin';
 
@@ -561,6 +562,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedColorNodesByVariable = this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable;
         this.SelectedNodeSymbolVariable = this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable ?? this.commonService.session.style.widgets['node-symbol-variable'];
         this.SelectedNodeColorVariable = this.commonService.session.style.widgets['node-color'];
+        this.NodeMixedColorsEnabled = !!this.commonService.session.style.widgets['node-mixed-colors-enabled'];
         this.SelectedColorLinksByVariable = this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable;
 
         this.SelectedTimelineVariable = this.commonService.session.style.widgets['node-timeline-variable'];
@@ -1791,6 +1793,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.getGlobalSettingsData();
             this.onColorNodesByChanged();
         }
+
+        if (this.NodeMixedColorsEnabled !== !!this.widgets['node-mixed-colors-enabled']) {
+            this.NodeMixedColorsEnabled = !!this.widgets['node-mixed-colors-enabled'];
+            this.onNodeMixedColorsEnabledChanged();
+        }
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
@@ -1969,6 +1976,25 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if(!silent) this.publishUpdateNodeColors();
         
+    }
+
+    onNodeMixedColorsEnabledChanged(silent: boolean = false) {
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.NodeMixedColorsEnabled;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabled = this.NodeMixedColorsEnabled;
+
+        if (this.SelectedColorNodesByVariable !== 'None') {
+            this.commonService.createNodeColorMap();
+
+            if (this.getKeyTableDisplayMode('node-color') !== 'Hide') {
+                this.generateNodeColorTable('#node-color-table');
+            }
+
+            this.refreshKeyTablesView();
+        }
+
+        if (!silent) {
+            this.publishUpdateNodeColors();
+        }
     }
 
     /**
@@ -2535,12 +2561,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedColorNodesByVariable = 'None';
         this.SelectedColorLinksByVariable = 'origin';
         this.SelectedNodeSymbolVariable = 'None';
+        this.NodeMixedColorsEnabled = false;
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = 'None';
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'origin';
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabled = false;
 
         widgets['node-color-variable'] = 'None';
+        widgets['node-mixed-colors-enabled'] = false;
         widgets['link-color-variable'] = 'origin';
         widgets['node-symbol-variable'] = 'None';
 
@@ -3182,6 +3211,25 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
     }
 
+    private normalizeSelectValue(value: any, fallback: string = 'None'): string {
+        if (value && typeof value === 'object' && 'value' in value) {
+            return String(value.value ?? fallback);
+        }
+
+        if (value === undefined || value === null || value === '') {
+            return fallback;
+        }
+
+        return String(value);
+    }
+
+    public hasNodeColorVariableSelected(): boolean {
+        const selected = this.normalizeSelectValue(
+            this.SelectedColorNodesByVariable ?? this.commonService.session?.style?.widgets?.['node-color-variable']
+        );
+        return selected !== 'None';
+    }
+
     showLinkColorTable() {
         console.log('onLinkColorTableChanged - show');
         if (this.isKeyTableDocked('link-color')) {
@@ -3220,6 +3268,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
     onColorNodesByChanged(silent: boolean = false) {
 
+        this.SelectedColorNodesByVariable = this.normalizeSelectValue(this.SelectedColorNodesByVariable);
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
@@ -3695,7 +3744,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedLinkThresholdVariable = this.commonService.session.style.widgets['link-threshold'];
         this.syncThresholdDisplayFromStoredValue();
         this.commonService.GlobalSettingsModel.SelectedNodeColorVariable = this.SelectedNodeColorVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabled = this.NodeMixedColorsEnabled;
         this.commonService.session.style.widgets['node-color'] = this.SelectedNodeColorVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.NodeMixedColorsEnabled;
         this.commonService.session.style.widgets['link-color'] = this.SelectedLinkColorVariable;
 
         this.commonService.session.style.widgets['node-color-variable'] = this.SelectedColorNodesByVariable;
@@ -5106,6 +5157,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          //Styling|Nodes
          this.SelectedNodeColorVariable = this.commonService.session.style.widgets["node-color"];
          this.onNodeColorChanged(true);
+         this.NodeMixedColorsEnabled = !!this.commonService.session.style.widgets['node-mixed-colors-enabled'];
  
  
          //Styling|Color Links By
