@@ -225,6 +225,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       SelectedColorLinksByVariable: widgets['link-color-variable'] ?? 'origin',
       SelectedNodeSymbolVariable: widgets['node-symbol-variable'] ?? 'None',
       SelectedNodeColorVariable: widgets['node-color'] ?? '#1f77b4',
+      SelectedNodeMixedColorsEnabled: widgets['node-mixed-colors-enabled'] ?? false,
       SelectedLinkColorVariable: widgets['link-color'] ?? '#a6cee3',
       SelectedPruneWithTypesVariable: 'None',
       SelectedStatisticsTypesVariable: 'Hide',
@@ -293,6 +294,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       microbeTrace.SelectedColorLinksByVariable = widgets['link-color-variable'] ?? 'origin';
       microbeTrace.SelectedNodeSymbolVariable = widgets['node-symbol-variable'] ?? 'None';
       microbeTrace.SelectedNodeColorVariable = widgets['node-color'] ?? '#1f77b4';
+      microbeTrace.NodeMixedColorsEnabled = widgets['node-mixed-colors-enabled'] ?? false;
       microbeTrace.SelectedLinkColorVariable = widgets['link-color'] ?? '#a6cee3';
       microbeTrace.SelectedBackgroundColorVariable = widgets['background-color'] ?? '#ffffff';
       microbeTrace.SelectedDistanceMetricVariable = widgets['default-distance-metric'] ?? 'snps';

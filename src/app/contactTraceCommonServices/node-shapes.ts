@@ -50,11 +50,16 @@ export interface MixedNodeShapeSegment {
     weight?: number;
 }
 
+<<<<<<< HEAD
 export interface MixedNodeShapeDataUriOptions {
     customShapePadding?: number;
     customShapeViewBoxPadding?: number;
     fillCanvas?: boolean;
     includeStroke?: boolean;
+=======
+export interface SegmentedNodeShapeDataUriOptions {
+    customShapePadding?: number;
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 }
 
 export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
@@ -917,6 +922,27 @@ function buildBasicNodeShapeDataUri(
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+<<<<<<< HEAD
+=======
+function getSegmentedBorderArcPath(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startFraction: number,
+    endFraction: number
+): string {
+    const startAngle = -Math.PI / 2 + startFraction * Math.PI * 2;
+    const endAngle = -Math.PI / 2 + endFraction * Math.PI * 2;
+    const startX = roundSvgCoordinate(centerX + radius * Math.cos(startAngle));
+    const startY = roundSvgCoordinate(centerY + radius * Math.sin(startAngle));
+    const endX = roundSvgCoordinate(centerX + radius * Math.cos(endAngle));
+    const endY = roundSvgCoordinate(centerY + radius * Math.sin(endAngle));
+    const largeArcFlag = endFraction - startFraction > 0.5 ? 1 : 0;
+
+    return `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`;
+}
+
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 interface WeightedMixedNodeShapeSegment {
     segment: MixedNodeShapeSegment;
     startFraction: number;
@@ -927,10 +953,13 @@ function formatSvgFraction(value: number): string {
     return Number(value.toFixed(6)).toString();
 }
 
+<<<<<<< HEAD
 function formatSvgPercent(value: number): string {
     return `${formatSvgFraction(Math.min(1, Math.max(0, value)) * 100)}%`;
 }
 
+=======
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 function getWeightedMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): WeightedMixedNodeShapeSegment[] {
     const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
     const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
@@ -951,6 +980,7 @@ function getWeightedMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): W
     });
 }
 
+<<<<<<< HEAD
 function buildMixedFillGradientDefinition(
     gradientId: string,
     segments: MixedNodeShapeSegment[],
@@ -1014,6 +1044,65 @@ function buildMixedBasicNodeShapeContent(
 }
 
 function buildMixedCustomNodeShapeContent(
+=======
+function buildSegmentedCircleBorderPaths(
+    segments: MixedNodeShapeSegment[],
+    strokeWidth: number,
+    radius: number = 124
+): string {
+    return getWeightedMixedNodeShapeSegments(segments).map(({ segment, startFraction, endFraction }) => {
+        const path = getSegmentedBorderArcPath(150, 150, radius, startFraction, endFraction);
+        return `<path d="${path}" fill="none" stroke="${sanitizeSvgColor(segment.color)}" stroke-opacity="${sanitizeSvgOpacity(segment.alpha)}" stroke-width="${strokeWidth}" stroke-linecap="butt"/>`;
+    }).join('');
+}
+
+function buildSegmentedPathBorderPaths(
+    path: string,
+    segments: MixedNodeShapeSegment[],
+    strokeWidth: number,
+    extraAttributes: string = ''
+): string {
+    const pathLength = 100;
+
+    return getWeightedMixedNodeShapeSegments(segments).map(({ segment, startFraction, endFraction }) => {
+        const dashLength = Math.max(0, endFraction - startFraction) * pathLength;
+        const dashGap = Math.max(0, pathLength - dashLength);
+        const dashOffset = -startFraction * pathLength;
+
+        return `<path d="${path}" fill="none" stroke="${sanitizeSvgColor(segment.color)}" stroke-opacity="${sanitizeSvgOpacity(segment.alpha)}" stroke-width="${strokeWidth}" stroke-linecap="butt" stroke-linejoin="round" pathLength="${pathLength}" stroke-dasharray="${formatSvgFraction(dashLength)} ${formatSvgFraction(dashGap)}" stroke-dashoffset="${formatSvgFraction(dashOffset)}" ${extraAttributes}/>`;
+    }).join('');
+}
+
+function buildSelectedPathBorder(path: string, selectedStrokeColor: string | null | undefined, strokeWidth: number, extraAttributes: string = ''): string {
+    if (!selectedStrokeColor) {
+        return '';
+    }
+
+    return `<path d="${path}" fill="none" stroke="${sanitizeSvgColor(selectedStrokeColor)}" stroke-width="${Math.max(3, strokeWidth + 4)}" stroke-linecap="round" stroke-linejoin="round" ${extraAttributes}/>`;
+}
+
+function buildSegmentedRectBorderPaths(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+    segments: MixedNodeShapeSegment[],
+    strokeWidth: number
+): string {
+    const pathLength = 100;
+
+    return getWeightedMixedNodeShapeSegments(segments).map(({ segment, startFraction, endFraction }) => {
+        const dashLength = Math.max(0, endFraction - startFraction) * pathLength;
+        const dashGap = Math.max(0, pathLength - dashLength);
+        const dashOffset = -startFraction * pathLength;
+
+        return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="none" stroke="${sanitizeSvgColor(segment.color)}" stroke-opacity="${sanitizeSvgOpacity(segment.alpha)}" stroke-width="${strokeWidth}" stroke-linejoin="round" pathLength="${pathLength}" stroke-dasharray="${formatSvgFraction(dashLength)} ${formatSvgFraction(dashGap)}" stroke-dashoffset="${formatSvgFraction(dashOffset)}"/>`;
+    }).join('');
+}
+
+function buildSegmentedCustomShapeContent(
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     definition: CustomNodeShapeDefinition,
     fillColor: string,
     strokeColor: string,
@@ -1021,6 +1110,7 @@ function buildMixedCustomNodeShapeContent(
     fillOpacity: number,
     segments: MixedNodeShapeSegment[],
     selectedStrokeColor?: string | null,
+<<<<<<< HEAD
     options: MixedNodeShapeDataUriOptions = {}
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
@@ -1043,12 +1133,92 @@ function buildMixedCustomNodeShapeContent(
         `<g transform="translate(0,${definition.height}) scale(1,-1)">`,
         `<path d="${definition.fillPath ?? definition.path}" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" stroke="none"/>`,
         outlinePath,
+=======
+    options: SegmentedNodeShapeDataUriOptions = {}
+): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const customShapePadding = Math.min(100, Math.max(0, Number(options.customShapePadding ?? 40)));
+    const customShapeSize = Math.max(1, 300 - (customShapePadding * 2));
+    const haloStrokeWidth = Math.max(18, strokeWidth * 4);
+    const selectedHaloStrokeWidth = selectedStrokeColor ? haloStrokeWidth + 8 : haloStrokeWidth;
+    const haloInset = selectedHaloStrokeWidth / 2 + 2;
+    const haloSize = Math.max(1, 300 - (haloInset * 2));
+    const haloRadius = Math.max(8, Math.min(haloSize * 0.18, 48));
+    const selectedBorder = selectedStrokeColor
+        ? `<rect x="${haloInset}" y="${haloInset}" width="${haloSize}" height="${haloSize}" rx="${haloRadius}" ry="${haloRadius}" fill="none" stroke="${sanitizeSvgColor(selectedStrokeColor)}" stroke-width="${selectedHaloStrokeWidth}" stroke-linejoin="round"/>`
+        : '';
+    const segmentedBorder = buildSegmentedRectBorderPaths(haloInset, haloInset, haloSize, haloSize, haloRadius, segments, haloStrokeWidth);
+    const fallbackBorder = segmentedBorder || `<rect x="${haloInset}" y="${haloInset}" width="${haloSize}" height="${haloSize}" rx="${haloRadius}" ry="${haloRadius}" fill="none" stroke="${safeStroke}" stroke-width="${haloStrokeWidth}" stroke-linejoin="round"/>`;
+
+    return [
+        selectedBorder,
+        fallbackBorder,
+        `<svg x="${customShapePadding}" y="${customShapePadding}" width="${customShapeSize}" height="${customShapeSize}" viewBox="${definition.viewBox}" preserveAspectRatio="xMidYMid meet">`,
+        `<g transform="translate(0,${definition.height}) scale(1,-1)">`,
+        `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>`,
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
         '</g>',
         '</svg>'
     ].join('');
 }
 
+<<<<<<< HEAD
 export function getMixedNodeShapeDataUri(
+=======
+function getBasicSegmentedShapePath(normalizedShapeKey: string): string | null {
+    if (normalizedShapeKey === 'barrel') {
+        return 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z';
+    }
+
+    return buildBasicNodeShapePath(normalizedShapeKey);
+}
+
+function buildSegmentedBasicShapeContent(
+    normalizedShapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number,
+    segments: MixedNodeShapeSegment[],
+    selectedStrokeColor?: string | null
+): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+
+    if (normalizedShapeKey === 'ellipse') {
+        const selectedBorder = selectedStrokeColor
+            ? `<circle cx="150" cy="150" r="124" fill="none" stroke="${sanitizeSvgColor(selectedStrokeColor)}" stroke-width="${Math.max(3, strokeWidth + 4)}"/>`
+            : '';
+        const segmentedBorder = buildSegmentedCircleBorderPaths(segments, strokeWidth);
+        const fallbackBorder = segmentedBorder || `<circle cx="150" cy="150" r="124" fill="none" stroke="${safeStroke}" stroke-width="${strokeWidth}"/>`;
+
+        return `<circle cx="150" cy="150" r="108" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>${selectedBorder}${fallbackBorder}`;
+    }
+
+    const path = getBasicSegmentedShapePath(normalizedShapeKey);
+
+    if (!path) {
+        const selectedBorder = selectedStrokeColor
+            ? `<circle cx="150" cy="150" r="124" fill="none" stroke="${sanitizeSvgColor(selectedStrokeColor)}" stroke-width="${Math.max(3, strokeWidth + 4)}"/>`
+            : '';
+        const segmentedBorder = buildSegmentedCircleBorderPaths(segments, strokeWidth);
+        const fallbackBorder = segmentedBorder || `<circle cx="150" cy="150" r="124" fill="none" stroke="${safeStroke}" stroke-width="${strokeWidth}"/>`;
+
+        return `<circle cx="150" cy="150" r="108" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>${selectedBorder}${fallbackBorder}`;
+    }
+
+    const selectedBorder = buildSelectedPathBorder(path, selectedStrokeColor, strokeWidth);
+    const segmentedBorder = buildSegmentedPathBorderPaths(path, segments, strokeWidth);
+    const fallbackBorder = segmentedBorder || `<path d="${path}" fill="none" stroke="${safeStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+    return `<path d="${path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>${selectedBorder}${fallbackBorder}`;
+}
+
+export function getSegmentedNodeShapeDataUri(
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     shapeKey: string,
     fillColor: string,
     strokeColor: string,
@@ -1056,14 +1226,23 @@ export function getMixedNodeShapeDataUri(
     fillOpacity: number = 1,
     segments: MixedNodeShapeSegment[] = [],
     selectedStrokeColor?: string | null,
+<<<<<<< HEAD
     options: MixedNodeShapeDataUriOptions = {}
+=======
+    options: SegmentedNodeShapeDataUriOptions = {}
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 ): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     const safeStroke = sanitizeSvgColor(strokeColor);
     const safeStrokeWidth = Math.max(1, Number(strokeWidth) || 1);
     const shapeContent = isCustomNodeShape(normalizedShapeKey)
+<<<<<<< HEAD
         ? buildMixedCustomNodeShapeContent(CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey], fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options)
         : buildMixedBasicNodeShapeContent(normalizedShapeKey, fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options);
+=======
+        ? buildSegmentedCustomShapeContent(CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey], fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options)
+        : buildSegmentedBasicShapeContent(normalizedShapeKey, fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor);
+>>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" aria-hidden="true">${shapeContent}</svg>`;
 
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;

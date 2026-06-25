@@ -1,0 +1,5 @@
+ID,Genotype,_jlat,_jlon,seq
+sample-1,1a,38.100,-86.100,AAAAAAAAAA
+sample-2,2a,38.120,-86.120,AAAAAAAATA
+sample-3,3a,38.140,-86.140,AAAAAAATAA
+sample-4,2a/3a,38.160,-86.160,AAAAAATAAA
