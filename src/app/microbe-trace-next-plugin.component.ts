@@ -31,6 +31,12 @@ import {
     NodeShapeOption,
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
+import {
+    NETWORK_SUBSET_FILTER_OPERATOR_OPTIONS,
+    type NetworkSubsetFilterOperator,
+    type NetworkSubsetFilterRule,
+    type NetworkSubsetFilterTarget
+} from './contactTraceCommonServices/network-subset-filter';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -238,6 +244,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         { label: 'Decimal', value: 'decimal' },
         { label: 'Percentage', value: 'percentage' }
     ];
+    SubsetFilterOperatorOptions = NETWORK_SUBSET_FILTER_OPERATOR_OPTIONS;
+    SubsetNodeFieldList: SelectItem[] = [];
+    SubsetLinkFieldList: SelectItem[] = [];
+    SelectedNodeSubsetField: string = '_id';
+    SelectedNodeSubsetOperator: NetworkSubsetFilterOperator = 'equals';
+    NodeSubsetFilterValue: string = '';
+    SelectedLinkSubsetField: string = 'origin';
+    SelectedLinkSubsetOperator: NetworkSubsetFilterOperator = 'contains';
+    LinkSubsetFilterValue: string = '';
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
     thresholdStabilityExpanded: boolean = false;
@@ -3506,6 +3521,131 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     };
 
+    private getDefaultSubsetField(target: NetworkSubsetFilterTarget): string {
+        const fields = target === 'node' ? this.SubsetNodeFieldList : this.SubsetLinkFieldList;
+        const preferredField = target === 'node' ? '_id' : 'origin';
+        const preferred = fields.find(field => field.value === preferredField);
+
+        return preferred?.value || fields[0]?.value || '';
+    }
+
+    private syncSubsetFilterControlsFromSession(): void {
+        const subsetFilter = this.commonService.normalizeNetworkSubsetFilter();
+        const nodeRule = subsetFilter.node;
+        const linkRule = subsetFilter.link;
+
+        this.SelectedNodeSubsetField = nodeRule?.field || this.getDefaultSubsetField('node');
+        this.SelectedNodeSubsetOperator = nodeRule?.operator || 'equals';
+        this.NodeSubsetFilterValue = nodeRule?.value === undefined || nodeRule?.value === null
+            ? ''
+            : String(nodeRule.value);
+
+        this.SelectedLinkSubsetField = linkRule?.field || this.getDefaultSubsetField('link');
+        this.SelectedLinkSubsetOperator = linkRule?.operator || 'contains';
+        this.LinkSubsetFilterValue = linkRule?.value === undefined || linkRule?.value === null
+            ? ''
+            : String(linkRule.value);
+
+        this.cdref.markForCheck();
+    }
+
+    hasActiveNetworkSubsetFilter(): boolean {
+        return this.commonService.hasActiveNetworkSubsetFilter();
+    }
+
+    hasActiveNodeSubsetFilter(): boolean {
+        return !!this.commonService.normalizeNetworkSubsetFilter().node;
+    }
+
+    hasActiveLinkSubsetFilter(): boolean {
+        return !!this.commonService.normalizeNetworkSubsetFilter().link;
+    }
+
+    getNetworkSubsetFilterDescription(): string {
+        return this.commonService.getNetworkSubsetFilterDescription();
+    }
+
+    getNetworkSubsetExportScopeLabel(): string {
+        const description = this.getNetworkSubsetFilterDescription();
+
+        return description
+            ? `Export scope: filtered visible network (${description})`
+            : 'Export scope: full visible network';
+    }
+
+    canApplyNodeSubsetFilter(): boolean {
+        return !!this.SelectedNodeSubsetField
+            && this.SelectedNodeSubsetField !== 'None'
+            && String(this.NodeSubsetFilterValue || '').trim().length > 0;
+    }
+
+    canApplyLinkSubsetFilter(): boolean {
+        return !!this.SelectedLinkSubsetField
+            && this.SelectedLinkSubsetField !== 'None'
+            && String(this.LinkSubsetFilterValue || '').trim().length > 0;
+    }
+
+    applyNodeSubsetFilter(): void {
+        if (!this.canApplyNodeSubsetFilter()) {
+            return;
+        }
+
+        this.applySubsetFilter({
+            target: 'node',
+            field: this.SelectedNodeSubsetField,
+            operator: this.SelectedNodeSubsetOperator,
+            value: this.NodeSubsetFilterValue,
+        });
+    }
+
+    applyLinkSubsetFilter(): void {
+        if (!this.canApplyLinkSubsetFilter()) {
+            return;
+        }
+
+        this.applySubsetFilter({
+            target: 'link',
+            field: this.SelectedLinkSubsetField,
+            operator: this.SelectedLinkSubsetOperator,
+            value: this.LinkSubsetFilterValue,
+        });
+    }
+
+    clearNodeSubsetFilter(): void {
+        this.commonService.clearNetworkSubsetFilter('node');
+        this.syncSubsetFilterControlsFromSession();
+        this.refreshNetworkAfterSubsetFilterChange();
+    }
+
+    clearLinkSubsetFilter(): void {
+        this.commonService.clearNetworkSubsetFilter('link');
+        this.syncSubsetFilterControlsFromSession();
+        this.refreshNetworkAfterSubsetFilterChange();
+    }
+
+    clearNetworkSubsetFilter(): void {
+        this.commonService.clearNetworkSubsetFilter();
+        this.syncSubsetFilterControlsFromSession();
+        this.refreshNetworkAfterSubsetFilterChange();
+    }
+
+    private applySubsetFilter(rule: NetworkSubsetFilterRule): void {
+        this.commonService.setNetworkSubsetFilter(rule);
+        this.syncSubsetFilterControlsFromSession();
+        this.refreshNetworkAfterSubsetFilterChange();
+    }
+
+    private refreshNetworkAfterSubsetFilterChange(): void {
+        if (this.commonService.session.data.nodes.length === 0) {
+            return;
+        }
+
+        this.commonService.setLinkVisibility(false, false);
+        this.commonService.updateNetworkVisuals(false, true);
+        this.refreshThresholdStabilityPanel(false);
+        this.cdref.markForCheck();
+    }
+
 
     updateGlobalSettingsModel() {
 
@@ -3596,6 +3736,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         });
 
+        this.SubsetNodeFieldList = this.FieldList.filter(field => field.value !== 'None');
+        this.SubsetLinkFieldList = this.ToolTipFieldList.filter(field => field.value !== 'None');
+        this.syncSubsetFilterControlsFromSession();
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         //this.commonService.updateThresholdHistogram();
@@ -4882,6 +5025,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.session.network.settingsLoaded = false;
         this.getGlobalSettingsData();
+        this.syncSubsetFilterControlsFromSession();
 
         //Filtering|Prune With
         this.SelectedPruneWithTypesVariable = this.commonService.session.style.widgets["link-show-nn"] ? "Nearest Neighbor" : "None";

@@ -27,6 +27,16 @@ import {
     type StoredDistanceEdgeCache,
     type ThresholdSweepSummary
 } from './threshold-analysis';
+import {
+    applyNetworkSubsetVisibility as applyNetworkSubsetVisibilityToData,
+    createEmptyNetworkSubsetFilter,
+    describeNetworkSubsetFilter,
+    hasActiveNetworkSubsetFilter,
+    normalizeNetworkSubsetFilterState,
+    type NetworkSubsetFilterRule,
+    type NetworkSubsetFilterState,
+    type NetworkSubsetFilterTarget
+} from './network-subset-filter';
 import * as tn93 from 'tn93';
 
 interface SequencePairwiseLinkGuardrails {
@@ -313,6 +323,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeFilter: {},
             linkFilter: {},
             clusterFilter: {},
+            subsetFilter: createEmptyNetworkSubsetFilter(),
             nodeFilteredValues: [],
             linkFilteredValues: [],
             clusterFilteredValues: [],
@@ -656,6 +667,71 @@ export class CommonService extends AppComponentBase implements OnInit {
     temp: any = this.tempSkeleton();
     session = this.sessionSkeleton();
     private dataLoadGeneration = 0;
+
+    public normalizeNetworkSubsetFilter(): NetworkSubsetFilterState {
+        this.session.data.subsetFilter = normalizeNetworkSubsetFilterState(this.session.data.subsetFilter);
+        return this.session.data.subsetFilter;
+    }
+
+    public hasActiveNetworkSubsetFilter(): boolean {
+        return hasActiveNetworkSubsetFilter(this.normalizeNetworkSubsetFilter());
+    }
+
+    public getNetworkSubsetFilterDescription(): string {
+        return describeNetworkSubsetFilter(
+            this.normalizeNetworkSubsetFilter(),
+            (field: string) => this.titleize(field)
+        );
+    }
+
+    public setNetworkSubsetFilter(rule: NetworkSubsetFilterRule): void {
+        const subsetFilter = this.normalizeNetworkSubsetFilter();
+        subsetFilter[rule.target] = { ...rule };
+        this.session.data.subsetFilter = normalizeNetworkSubsetFilterState(subsetFilter);
+        this.applyNetworkSubsetVisibility();
+    }
+
+    public clearNetworkSubsetFilter(target?: NetworkSubsetFilterTarget): void {
+        const subsetFilter = this.normalizeNetworkSubsetFilter();
+
+        if (target) {
+            subsetFilter[target] = null;
+        } else {
+            subsetFilter.node = null;
+            subsetFilter.link = null;
+        }
+
+        this.session.data.subsetFilter = subsetFilter;
+        this.applyNetworkSubsetVisibility();
+    }
+
+    public applyNetworkSubsetVisibility(): { visibleNodes: number; visibleLinks: number } {
+        return applyNetworkSubsetVisibilityToData(
+            this.session.data.nodes || [],
+            this.session.data.links || [],
+            this.normalizeNetworkSubsetFilter()
+        );
+    }
+
+    private isSubsetVisibleNode(node: any): boolean {
+        return node?._subsetVisible !== false;
+    }
+
+    private isSubsetVisibleLink(link: any): boolean {
+        return link?._subsetVisible !== false;
+    }
+
+    private getSubsetVisibleClusterIds(): Set<number> {
+        const visibleClusterIds = new Set<number>();
+
+        (this.session.data.nodes || []).forEach((node: any) => {
+            if (this.isSubsetVisibleNode(node) && node.cluster !== null && node.cluster !== undefined) {
+                visibleClusterIds.add(Number(node.cluster));
+            }
+        });
+
+        return visibleClusterIds;
+    }
 
     public clampStyleAlpha(value: any, fallback = 1): number {
         const numericValue = Number(value);
@@ -2279,6 +2355,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         ['nodeFields', 'linkFields', 'clusterFields', 'nodeExclusions'].forEach(v => {
             if (oldSession.data[v]) this.session.data[v] = this.uniq(this.session.data[v].concat(oldSession.data[v]));
         });
+        this.session.data.subsetFilter = normalizeNetworkSubsetFilterState(oldSession.data?.subsetFilter);
 
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
@@ -2348,6 +2425,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         this.session.data.nodeFilteredValues = nodes;
+        this.applyNetworkSubsetVisibility();
 
         // TODO:: DO WE NEED THIS
         //Add links for nodes with no edges
@@ -3427,6 +3505,8 @@ align(params): Promise<any> {
             .map(link => getVisibleLinkKey(link))
         );
 
+        this.setLinkVisibility(true, false);
+
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -3505,6 +3585,7 @@ align(params): Promise<any> {
     };
 
     private buildNonTimelineVisibleClusterSummary() {
+        this.applyNetworkSubsetVisibility();
         const nodes = this.session.data.nodeFilteredValues || [];
         const metric = this.session.style.widgets["link-sort-variable"];
         const minClusterSize = Number(this.session.style.widgets["cluster-minimum-size"] ?? 1);
@@ -3516,6 +3597,15 @@ align(params): Promise<any> {
 
         summary.clusters.forEach(cluster => {
             cluster.visible = cluster.nodes >= minClusterSize;
+        });
+        const subsetVisibleClusterIds = new Set<number>();
+        nodes.forEach((node: any, index: number) => {
+            if (this.isSubsetVisibleNode(node)) {
+                subsetVisibleClusterIds.add(summary.nodeClusterByIndex[index]);
+            }
+        });
+        summary.clusters.forEach(cluster => {
+            cluster.visible = cluster.visible && subsetVisibleClusterIds.has(cluster.id);
         });
 
         return summary;
@@ -3535,7 +3625,7 @@ align(params): Promise<any> {
             const node = nodes[i];
             const clusterId = summary.nodeClusterByIndex[i];
             const cluster = summary.clusters[clusterId];
-            const visibleIgnoringTimeline = !cluster || cluster.visible;
+            const visibleIgnoringTimeline = this.isSubsetVisibleNode(node) && (!cluster || cluster.visible);
 
             if (!visibleIgnoringTimeline) {
                 continue;
@@ -4165,6 +4255,7 @@ align(params): Promise<any> {
     tagClusters(): Promise<void> {
         return new Promise<void>(resolve => {
             const start = Date.now();
+            this.applyNetworkSubsetVisibility();
             const metric = this.session.style.widgets["link-sort-variable"];
             const summary = buildVisibleClusterSummary(
                 this.session.data.nodes,
@@ -4212,7 +4303,7 @@ align(params): Promise<any> {
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
-            node.visible = true;
+            node.visible = this.isSubsetVisibleNode(node);
             const cluster = clusters[node.cluster];
 
             if (cluster) {
@@ -4271,6 +4362,7 @@ align(params): Promise<any> {
         let n = links.length;
         let visibleLinks = 0;
         const globalOriginOrder = this.session.style.widgets['link-origin-array-order']; // Get the global order once
+        this.applyNetworkSubsetVisibility();
     
     
         if(this.debugMode) {
@@ -4290,7 +4382,7 @@ align(params): Promise<any> {
             // *** Step 1: Use a copy for checks ***
             let finalOrigins = [...link.origin]; // Copy origins for visibility logic
     
-            let visible = true;
+            let visible = this.isSubsetVisibleLink(link);
             let overrideNN = false;
             let originWasFiltered = false; // *** Step 2: Add flag ***
     
@@ -4306,45 +4398,47 @@ align(params): Promise<any> {
             });
     
     
-            // Visibility Logic based on metric/threshold/hasDistance
-            if (link[metric] == null) { // No distance value for the current metric
-                 // Check for non-distance origins using the *copy*
-                if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
-                    // Filter the *copy* for visibility check
-                    finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
-                    originWasFiltered = true; // *** Mark as filtered ***
-                    overrideNN = true;
-                    visible = true;
-                } else {
-                    visible = false;
-                }
-            } else { // Has a distance value for the current metric
-                if (link.hasDistance) {
-                    visible = link[metric] <= threshold;
-                    if (!visible) {
-                         // Distance is above threshold. Check for other origins using the *copy*.
-                        if (finalOrigins.filter(fileName => {
-                                 const hasAuspice = /[Aa]uspice/.test(fileName); // Preserved Auspice check
-                                 const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
-                                 return fileName && !includesDistanceOrigin && !hasAuspice;
-                             }).length > 0
-                        ) {
-                            // Filter the *copy* for visibility check
-                             finalOrigins = finalOrigins.filter(fileName => {
-                                 const hasAuspice = /[Aa]uspice/.test(fileName);
-                                 const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
-                                 return fileName && !includesDistanceOrigin && !hasAuspice;
-                             });
-                             originWasFiltered = true; // *** Mark as filtered ***
-                             overrideNN = true;
-                             visible = true;
-                         }
-                         // If only distance origin existed and it's above threshold, 'visible' remains false.
+            if (visible) {
+                // Visibility Logic based on metric/threshold/hasDistance
+                if (link[metric] == null) { // No distance value for the current metric
+                    // Check for non-distance origins using the *copy*
+                    if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
+                        // Filter the *copy* for visibility check
+                        finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
+                        originWasFiltered = true; // *** Mark as filtered ***
+                        overrideNN = true;
+                        visible = true;
+                    } else {
+                        visible = false;
                     }
-                } else {
-                    // Has a distance value but hasDistance is false? Treat as always visible.
-                    overrideNN = true;
-                    visible = true;
+                } else { // Has a distance value for the current metric
+                    if (link.hasDistance) {
+                        visible = link[metric] <= threshold;
+                        if (!visible) {
+                            // Distance is above threshold. Check for other origins using the *copy*.
+                            if (finalOrigins.filter(fileName => {
+                                    const hasAuspice = /[Aa]uspice/.test(fileName); // Preserved Auspice check
+                                    const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
+                                    return fileName && !includesDistanceOrigin && !hasAuspice;
+                                }).length > 0
+                            ) {
+                                // Filter the *copy* for visibility check
+                                finalOrigins = finalOrigins.filter(fileName => {
+                                    const hasAuspice = /[Aa]uspice/.test(fileName);
+                                    const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
+                                    return fileName && !includesDistanceOrigin && !hasAuspice;
+                                });
+                                originWasFiltered = true; // *** Mark as filtered ***
+                                overrideNN = true;
+                                visible = true;
+                            }
+                            // If only distance origin existed and it's above threshold, 'visible' remains false.
+                        }
+                    } else {
+                        // Has a distance value but hasDistance is false? Treat as always visible.
+                        overrideNN = true;
+                        visible = true;
+                    }
                 }
             }
     
@@ -4431,13 +4525,14 @@ align(params): Promise<any> {
         let min = this.session.style.widgets["cluster-minimum-size"];
         let clusters = this.session.data.clusters;
         let n = clusters.length;
+        const subsetVisibleClusterIds = this.getSubsetVisibleClusterIds();
         if (this.debugMode) {
             console.log('cluster nodes ', clusters);
         }
         for (let i = 0; i < n; i++) {
             const cluster = clusters[i];
            
-            cluster.visible = cluster.nodes >= min;
+            cluster.visible = cluster.nodes >= min && subsetVisibleClusterIds.has(cluster.id);
         }
         if (!silent) $(document).trigger("cluster-visibility");//$window.trigger("cluster-visibility");
         // console.log("Cluster Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");

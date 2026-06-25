@@ -84,6 +84,13 @@
       </div>
     }
 
+    @if (hasActiveNetworkSubsetFilter()) {
+      <div id="network-subset-filter-notice" class="network-subset-filter-notice" data-testid="network-subset-filter-notice" role="status">
+        <span>Subset active: {{ getNetworkSubsetFilterDescription() }}</span>
+        <button type="button" class="btn btn-sm btn-link" data-testid="network-subset-filter-clear" (click)="clearNetworkSubsetFilter()">Clear</button>
+      </div>
+    }
+
     <div #visualwrapper id="visualwrapper" class="kt-container  kt-grid__item kt-grid__item--fluid " style="margin: 6px 6px 0 6px;" [style.height.px]="getHeight()">
       <div class="kt-portlet kt-portlet--mobile" style="height:100%">
         <div class="kt-portlet__head kt-portlet__head--lg" style="height:100%">
@@ -365,6 +372,72 @@
                   </div>
                   <div class="col-8">
                     <input type="number" id="cluster-minimum-size" data-testid="filter-minimum-cluster-size" class="form-control form-control-sm" min="1" value="1" step="1" [(ngModel)]="SelectedClusterMinimumSizeVariable" (ngModelChange)="onMinimumClusterSizeChanged()">
+                  </div>
+                </div>
+                <div class="subset-filter-section" data-testid="network-subset-filter-section">
+                  <div class="subset-filter-section__heading">Subset</div>
+                  @if (hasActiveNetworkSubsetFilter()) {
+                    <div class="subset-filter-section__active" data-testid="network-subset-filter-settings-active">
+                      Subset active: {{ getNetworkSubsetFilterDescription() }}
+                    </div>
+                  }
+                  <div class="subset-filter-rule" data-testid="network-subset-node-rule">
+                    <div class="subset-filter-rule__label">Filter nodes where</div>
+                    <div class="subset-filter-rule__grid">
+                      <p-select
+                        inputId="node-subset-field"
+                        data-testid="network-subset-node-field"
+                        [options]="SubsetNodeFieldList"
+                        appendTo="body"
+                        [(ngModel)]="SelectedNodeSubsetField">
+                      </p-select>
+                      <p-select
+                        inputId="node-subset-operator"
+                        data-testid="network-subset-node-operator"
+                        [options]="SubsetFilterOperatorOptions"
+                        appendTo="body"
+                        [(ngModel)]="SelectedNodeSubsetOperator">
+                      </p-select>
+                      <input
+                        type="text"
+                        id="node-subset-value"
+                        data-testid="network-subset-node-value"
+                        class="form-control form-control-sm"
+                        [(ngModel)]="NodeSubsetFilterValue">
+                    </div>
+                    <div class="subset-filter-rule__actions">
+                      <button type="button" class="btn btn-primary btn-sm" data-testid="network-subset-node-apply" [disabled]="!canApplyNodeSubsetFilter()" (click)="applyNodeSubsetFilter()">Apply Filter</button>
+                      <button type="button" class="btn btn-light btn-sm" data-testid="network-subset-node-clear" [disabled]="!hasActiveNodeSubsetFilter()" (click)="clearNodeSubsetFilter()">Clear Filter</button>
+                    </div>
+                  </div>
+                  <div class="subset-filter-rule" data-testid="network-subset-link-rule">
+                    <div class="subset-filter-rule__label">Filter links where</div>
+                    <div class="subset-filter-rule__grid">
+                      <p-select
+                        inputId="link-subset-field"
+                        data-testid="network-subset-link-field"
+                        [options]="SubsetLinkFieldList"
+                        appendTo="body"
+                        [(ngModel)]="SelectedLinkSubsetField">
+                      </p-select>
+                      <p-select
+                        inputId="link-subset-operator"
+                        data-testid="network-subset-link-operator"
+                        [options]="SubsetFilterOperatorOptions"
+                        appendTo="body"
+                        [(ngModel)]="SelectedLinkSubsetOperator">
+                      </p-select>
+                      <input
+                        type="text"
+                        id="link-subset-value"
+                        data-testid="network-subset-link-value"
+                        class="form-control form-control-sm"
+                        [(ngModel)]="LinkSubsetFilterValue">
+                    </div>
+                    <div class="subset-filter-rule__actions">
+                      <button type="button" class="btn btn-primary btn-sm" data-testid="network-subset-link-apply" [disabled]="!canApplyLinkSubsetFilter()" (click)="applyLinkSubsetFilter()">Apply Filter</button>
+                      <button type="button" class="btn btn-light btn-sm" data-testid="network-subset-link-clear" [disabled]="!hasActiveLinkSubsetFilter()" (click)="clearLinkSubsetFilter()">Clear Filter</button>
+                    </div>
                   </div>
                 </div>
                 <div id="filtering-wrapper">
@@ -687,6 +760,7 @@
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-body" style="min-width: 400px; height: 100%;">
+            <div class="export-scope-label" data-testid="dashboard-export-scope">{{ getNetworkSubsetExportScopeLabel() }}</div>
             <div class="form-group row">
               <div class="col-9">
                 <input id="dashboard-export-filename" data-testid="dashboard-export-filename" type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="ExportDashboardFilename" />
@@ -734,6 +808,7 @@
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-body" style="min-width: 400px; height: 100%;">
+          <div class="export-scope-label" data-testid="table-export-scope">{{ getNetworkSubsetExportScopeLabel() }}</div>
           <div class="form-group row">
             <div class="col-9">
               <input type="text" class="form-control form-control-sm" placeholder="Filename" [(ngModel)]="ExportTablesFilename" />
