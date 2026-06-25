@@ -16,7 +16,7 @@ import { GraphData } from '@app/visualizationComponents/TwoDComponent/data';
 import { CommonStoreService } from './common-store.services';
 import { LayoutConfig } from 'golden-layout';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
-import { ColorMappingService } from './color-mapping.service';
+import { ColorMappingService, NodeFillStyle, getMixedNodeColorSegments } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
 import {
     buildStoredDistanceEdgeCache,
@@ -156,6 +156,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
+        SelectedNodeMixedColorsEnabledVariable: false,
         SelectedColorLinksByVariable: 'origin',
         SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
@@ -459,6 +460,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-color-table-counts': true,
             'node-color-table-frequencies': false,
             'node-color-variable': 'None',
+            'node-mixed-colors-enabled': false,
             'node-highlight': false,
             'node-label-size': 16,
             'node-label-variable': 'None',
@@ -668,7 +670,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         return Math.min(1, Math.max(0, numericValue));
     }
 
-    public getNodeFillStyle(node: any): { color: string; alpha: number } {
+    public getNodeFillStyle(node: any): NodeFillStyle {
         const widgets = this.session.style.widgets;
         const variable = widgets['node-color-variable'];
         const fallbackColor = widgets['node-color'] || '#1f77b4';
@@ -681,6 +683,35 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
+        const mixedColorsEnabled = widgets['node-mixed-colors-enabled'] === true;
+        if (mixedColorsEnabled) {
+            const segments = getMixedNodeColorSegments(
+                value,
+                this.temp.style.nodeColorMap,
+                this.temp.style.nodeAlphaMap,
+                fallbackColor,
+                1
+            ).map(segment => ({
+                ...segment,
+                alpha: this.clampStyleAlpha(segment.alpha, 1)
+            }));
+
+            if (segments.length > 1) {
+                return {
+                    color: segments[0].color,
+                    alpha: segments[0].alpha,
+                    segments
+                };
+            }
+
+            if (segments.length === 1) {
+                return {
+                    color: segments[0].color,
+                    alpha: segments[0].alpha
+                };
+            }
+        }
+
         let color = fallbackColor;
         let alpha = 1;
 
@@ -3801,7 +3832,8 @@ align(params): Promise<any> {
         nodeColorsTable,
         nodeColorsTableKeys,
         nodeColorsTableHistory,
-        this.debugMode
+        this.debugMode,
+        this.session.style.widgets['node-mixed-colors-enabled'] === true
         );
     
         // 3) Store the results back into session & temp

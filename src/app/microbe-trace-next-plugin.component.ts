@@ -258,6 +258,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedStatisticsTypesVariable: string = 'Show';
 
     SelectedColorNodesByVariable: string = 'None';
+    SelectedNodeMixedColorsEnabledVariable: boolean = false;
     SelectedNodeSymbolVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
@@ -559,6 +560,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedStatisticsTypesVariable = this.commonService.GlobalSettingsModel.SelectedStatisticsTypesVariable;
 
         this.SelectedColorNodesByVariable = this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable;
+        this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
         this.SelectedNodeSymbolVariable = this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable ?? this.commonService.session.style.widgets['node-symbol-variable'];
         this.SelectedNodeColorVariable = this.commonService.session.style.widgets['node-color'];
         this.SelectedColorLinksByVariable = this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable;
@@ -1791,6 +1793,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.getGlobalSettingsData();
             this.onColorNodesByChanged();
         }
+        this.SelectedNodeMixedColorsEnabledVariable = this.widgets['node-mixed-colors-enabled'] === true;
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
@@ -3221,6 +3224,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     onColorNodesByChanged(silent: boolean = false) {
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
             this.ensureKeyTablesViewOpen(false);
@@ -3281,6 +3286,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
             this.exportTables['node-color'] = false;
         }
+    }
+
+    onNodeMixedColorsEnabledChanged(silent: boolean = false) {
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable === true;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
+
+        if (this.SelectedColorNodesByVariable === 'None') {
+            return;
+        }
+
+        this.onColorNodesByChanged(silent);
     }
 
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
@@ -3699,6 +3715,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.session.style.widgets['link-color'] = this.SelectedLinkColorVariable;
 
         this.commonService.session.style.widgets['node-color-variable'] = this.SelectedColorNodesByVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
         this.commonService.session.style.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
         this.commonService.session.style.widgets['node-symbol-table-visible'] = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['link-threshold-variable'] = this.SelectedDistanceMetricVariable;
@@ -3712,6 +3729,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = this.SelectedDistanceMetricVariable;
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = this.SelectedNodeSymbolVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable === true;
         this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['selected-color'] = this.SelectedColorVariable;
         this.commonService.session.style.widgets['selected-node-stroke-color'] = this.SelectedColorVariable;
@@ -5101,6 +5119,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         //Styling|Color Nodes By
          this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
+         this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
          this.onColorNodesByChanged(false);
 
          //Styling|Nodes

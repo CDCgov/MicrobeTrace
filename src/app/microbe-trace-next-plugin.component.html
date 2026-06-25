@@ -513,6 +513,16 @@
                     </div>
                   </div>
 
+                  @if (SelectedColorNodesByVariable !== 'None') {
+                    <div class="form-group row" title="Show mixed values such as 2a/3a as multiple color bands inside each node.">
+                      <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
+                      <div class="col-7">
+                        <p-checkbox inputId="node-mixed-colors-enabled" [(ngModel)]="SelectedNodeMixedColorsEnabledVariable" (ngModelChange)="onNodeMixedColorsEnabledChanged()" binary="true"></p-checkbox>
+                        <label for="node-mixed-colors-enabled" class="ml-2">Show mixed values as multi-color nodes</label>
+                      </div>
+                    </div>
+                  }
+
                   @if (SelectedColorNodesByVariable === 'None') {
                     <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
                       <div class="col-5"><label for="node-color">Nodes</label></div>

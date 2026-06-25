@@ -1,6 +1,85 @@
 import { Injectable } from '@angular/core';
 import * as d3 from 'd3';
 
+export interface NodeColorSegment {
+  value: string;
+  color: string;
+  alpha: number;
+  weight: number;
+}
+
+export interface NodeFillStyle {
+  color: string;
+  alpha: number;
+  segments?: NodeColorSegment[];
+}
+
+export function parseMixedNodeColorValue(value: any): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+
+  values.forEach(item => {
+    if (item === undefined || item === null) {
+      return;
+    }
+
+    if (typeof item === 'number' && Number.isNaN(item)) {
+      return;
+    }
+
+    String(item)
+      .split(/\s+(?:and)\s+|[/,;+|]/i)
+      .map(token => token.trim())
+      .filter(token => {
+        const normalized = token.toLowerCase();
+        return !!token && normalized !== 'null' && normalized !== 'undefined' && normalized !== 'nan';
+      })
+      .forEach(token => {
+        if (seen.has(token)) {
+          return;
+        }
+
+        seen.add(token);
+        tokens.push(token);
+      });
+  });
+
+  return tokens;
+}
+
+export function getMixedNodeColorSegments(
+  value: any,
+  colorMap: ((value: any) => string) | null | undefined,
+  alphaMap: ((value: any) => number) | null | undefined,
+  fallbackColor: string,
+  fallbackAlpha: number = 1
+): NodeColorSegment[] {
+  return parseMixedNodeColorValue(value).map(token => {
+    let color = fallbackColor;
+    let alpha = fallbackAlpha;
+
+    try {
+      color = colorMap?.(token) || fallbackColor;
+    } catch {
+      color = fallbackColor;
+    }
+
+    try {
+      alpha = alphaMap?.(token) ?? fallbackAlpha;
+    } catch {
+      alpha = fallbackAlpha;
+    }
+
+    return {
+      value: token,
+      color,
+      alpha,
+      weight: 1
+    };
+  });
+}
+
 /**
  * A dedicated service for node, link, polygon color mapping.
  * It is "pure" in that it does NOT own or mutate your session object.
@@ -47,7 +126,8 @@ export class ColorMappingService {
     nodeColorsTable: any,
     nodeColorsTableKeys: any,
     nodeColorsTableHistory: any,
-    debugMode: boolean
+    debugMode: boolean,
+    splitMixedValues: boolean = false
   ): {
     aggregates: Record<string, number>;
     colorMap: d3.ScaleOrdinal<string, string>;
@@ -114,12 +194,23 @@ export class ColorMappingService {
     // Compute aggregates by scanning all node values
     const aggregates: Record<string, number> = {};
     nodes.forEach(d => {
-      const val = d[nodeColorVariable];
       if (!d.visible) {
         // If node is not visible, you can decide to skip or do aggregates[val] = 0;
         return;
       }
-      aggregates[val] = (aggregates[val] || 0) + 1;
+
+      const rawValue = d[nodeColorVariable];
+      const mixedTokens = splitMixedValues ? parseMixedNodeColorValue(rawValue) : [];
+
+      if (mixedTokens.length > 0) {
+        const tokenWeight = 1 / mixedTokens.length;
+        mixedTokens.forEach(token => {
+          aggregates[token] = (aggregates[token] || 0) + tokenWeight;
+        });
+        return;
+      }
+
+      aggregates[rawValue] = (aggregates[rawValue] || 0) + 1;
     });
 
     const distinctValues = Object.keys(aggregates);
