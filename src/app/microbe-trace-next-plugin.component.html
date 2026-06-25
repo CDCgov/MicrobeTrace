@@ -521,16 +521,16 @@
                       </div>
                     </div>
                   }
-                  <div id="node-mixed-colors-row" class="form-group row" title="Display mixed node-color values as segmented node borders using their component colors.">
-                    <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
-                    <div class="col-7">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="node-mixed-colors-enabled" [disabled]="!hasNodeColorVariableSelected()" [(ngModel)]="NodeMixedColorsEnabled" (ngModelChange)="onNodeMixedColorsEnabledChanged()">
-                        <label class="form-check-label" for="node-mixed-colors-enabled">Show mixed values as multi-color nodes</label>
+                  @if (hasNodeColorVariableSelected()) {
+                    <div id="node-mixed-colors-row" class="form-group row" title="Display mixed node-color values as segmented node borders using their component colors.">
+                      <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
+                      <div class="col-7">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="node-mixed-colors-enabled" [(ngModel)]="NodeMixedColorsEnabled" (ngModelChange)="onNodeMixedColorsEnabledChanged()">
+                          <label class="form-check-label" for="node-mixed-colors-enabled">Show mixed values as multi-color nodes</label>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  @if (hasNodeColorVariableSelected()) {
                     <div id="node-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
                       <div class="col-5"><label>Node Color Table</label></div>
                       <div class="col-7">

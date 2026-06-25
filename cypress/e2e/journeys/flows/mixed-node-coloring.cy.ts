@@ -76,8 +76,8 @@ describe('Journey Flow - mixed node coloring', () => {
     launchProfileToTwoD(profile);
 
     openGlobalStylingTab();
-    cy.get('#node-mixed-colors-row').should('be.visible');
-    cy.get('#node-mixed-colors-enabled').should('be.visible').and('be.disabled');
+    cy.get('#node-mixed-colors-row').should('not.exist');
+    cy.get('#node-mixed-colors-enabled').should('not.exist');
     selectPrimeOption('#node-color-variable', 'Genotype');
     cy.get('#node-mixed-colors-enabled').should('be.visible').and('be.enabled').check();
     cy.window().its('commonService.session.style.widgets.node-mixed-colors-enabled').should('equal', true);
