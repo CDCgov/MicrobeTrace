@@ -125,6 +125,25 @@ const searchForFieldValue = (field: string, value: string): void => {
 const searchForNode = (nodeId: string): void =>
   searchForFieldValue('_id', nodeId);
 
+const showFloatingNodeColorTable = (): void => {
+  cy.get('#node-color-table-row')
+    .contains('.p-togglebutton-label', 'Show')
+    .click({ force: true });
+  cy.window().its('commonService.visuals.microbeTrace.SelectedNodeColorTableTypesVariable').should('equal', 'Show');
+};
+
+const closeFloatingLinkColorTableIfPresent = (): void => {
+  cy.get('body').then($body => {
+    const linkColorHeader = $body.find('.p-dialog-header:contains("Link Color Table")');
+    if (linkColorHeader.length) {
+      cy.wrap(linkColorHeader)
+        .parents('.p-dialog')
+        .find('button.p-dialog-close-button')
+        .click({ force: true });
+    }
+  });
+};
+
 /**
  * Tests for the Map visualization component.
  */
@@ -676,10 +695,7 @@ describe('Map View', () => {
       cy.wait(200)
 
       cy.closeSettingsPane('Geospatial Settings');
-      cy.contains('.p-dialog-header', 'Link Color Table')
-        .parents('.p-dialog')
-        .find('button.p-dialog-close-button')
-        .click();
+      closeFloatingLinkColorTableIfPresent();
 
       let NC_node: any;
       cy.window().then((win: any) => {
@@ -719,10 +735,7 @@ describe('Map View', () => {
       cy.wait(200)
 
       cy.closeSettingsPane('Geospatial Settings');
-      cy.contains('.p-dialog-header', 'Link Color Table')
-        .parents('.p-dialog')
-        .find('button.p-dialog-close-button')
-        .click();
+      closeFloatingLinkColorTableIfPresent();
 
       let test_link: any;
       cy.window().then((win: any) => {
@@ -758,10 +771,7 @@ describe('Map View', () => {
     
     it('should select a node by clicking on it', () => {
       cy.closeSettingsPane('Geospatial Settings');
-      cy.contains('.p-dialog-header', 'Link Color Table')
-        .parents('.p-dialog')
-        .find('button.p-dialog-close-button')
-        .click();
+      closeFloatingLinkColorTableIfPresent();
 
       let NC_node: any;
       cy.window().then((win: any) => {
@@ -933,6 +943,7 @@ describe('Map View', () => {
 
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Lineage').click()
+      showFloatingNodeColorTable();
       cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
       cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
       cy.get('#color-transparency').invoke('val', tableAlpha).trigger('change');

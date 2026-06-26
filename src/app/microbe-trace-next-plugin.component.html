@@ -513,7 +513,6 @@
                     </div>
                   </div>
 
-<<<<<<< HEAD
                   @if (SelectedColorNodesByVariable !== 'None') {
                     <div class="form-group row" title="Show mixed values such as 2a/3a as multiple color bands inside each node.">
                       <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
@@ -525,9 +524,6 @@
                   }
 
                   @if (SelectedColorNodesByVariable === 'None') {
-=======
-                  @if (!hasNodeColorVariableSelected()) {
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
                     <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
                       <div class="col-5"><label for="node-color">Nodes</label></div>
                       <div class="col-7">
@@ -536,15 +532,6 @@
                     </div>
                   }
                   @if (hasNodeColorVariableSelected()) {
-                    <div id="node-mixed-colors-row" class="form-group row" title="Display mixed node-color values as segmented node borders using their component colors.">
-                      <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
-                      <div class="col-7">
-                        <div class="form-check">
-                          <input class="form-check-input" type="checkbox" id="node-mixed-colors-enabled" [(ngModel)]="NodeMixedColorsEnabled" (ngModelChange)="onNodeMixedColorsEnabledChanged()">
-                          <label class="form-check-label" for="node-mixed-colors-enabled">Show mixed values as multi-color nodes</label>
-                        </div>
-                      </div>
-                    </div>
                     <div id="node-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
                       <div class="col-5"><label>Node Color Table</label></div>
                       <div class="col-7">

@@ -261,7 +261,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedNodeMixedColorsEnabledVariable: boolean = false;
     SelectedNodeSymbolVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
-    NodeMixedColorsEnabled: boolean = false;
     SelectedLinkColorVariable: string = '#1f77b4';
     SelectedColorLinksByVariable: string = 'origin';
 
@@ -564,7 +563,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
         this.SelectedNodeSymbolVariable = this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable ?? this.commonService.session.style.widgets['node-symbol-variable'];
         this.SelectedNodeColorVariable = this.commonService.session.style.widgets['node-color'];
-        this.NodeMixedColorsEnabled = !!this.commonService.session.style.widgets['node-mixed-colors-enabled'];
         this.SelectedColorLinksByVariable = this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable;
 
         this.SelectedTimelineVariable = this.commonService.session.style.widgets['node-timeline-variable'];
@@ -1492,6 +1490,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onSearch();
     }
 
+    private hideWelcomeOverlay(duration: JQuery.Duration = 'slow'): void {
+        const overlay = $('#overlay');
+        overlay.css('pointer-events', 'none');
+        overlay.find('.dnd-input').css('pointer-events', 'none');
+        overlay.fadeOut(duration);
+    }
+
 
     /**
      * Convert Files list to normal array list
@@ -1520,7 +1525,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
  
         // this.homepageTabs[1].isActive = false;
         this.homepageTabs[0].isActive = true;
-        $('#overlay').fadeOut();
+        this.hideWelcomeOverlay();
         $('.ui-tabview-nav').fadeTo("slow", 1);
         $('.m-portlet').fadeTo("slow", 1);
         this.showExport = false;
@@ -1654,7 +1659,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
      public continueClicked() : void {
         // this._removeGlView('Files');
-        $('#overlay').fadeOut("slow");
+        this.hideWelcomeOverlay("slow");
         $('.ui-tabview-nav').fadeTo("slow", 1);
         $('.m-portlet').fadeTo("slow", 1);
     }
@@ -1795,15 +1800,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.getGlobalSettingsData();
             this.onColorNodesByChanged();
         }
-<<<<<<< HEAD
         this.SelectedNodeMixedColorsEnabledVariable = this.widgets['node-mixed-colors-enabled'] === true;
-=======
-
-        if (this.NodeMixedColorsEnabled !== !!this.widgets['node-mixed-colors-enabled']) {
-            this.NodeMixedColorsEnabled = !!this.widgets['node-mixed-colors-enabled'];
-            this.onNodeMixedColorsEnabledChanged();
-        }
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
@@ -1984,24 +1981,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         
     }
 
-    onNodeMixedColorsEnabledChanged(silent: boolean = false) {
-        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.NodeMixedColorsEnabled;
-        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabled = this.NodeMixedColorsEnabled;
-
-        if (this.SelectedColorNodesByVariable !== 'None') {
-            this.commonService.createNodeColorMap();
-
-            if (this.getKeyTableDisplayMode('node-color') !== 'Hide') {
-                this.generateNodeColorTable('#node-color-table');
-            }
-
-            this.refreshKeyTablesView();
-        }
-
-        if (!silent) {
-            this.publishUpdateNodeColors();
-        }
-    }
 
     /**
      * calls updateNodeColors() for each view
@@ -2567,12 +2546,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedColorNodesByVariable = 'None';
         this.SelectedColorLinksByVariable = 'origin';
         this.SelectedNodeSymbolVariable = 'None';
-        this.NodeMixedColorsEnabled = false;
+        this.SelectedNodeMixedColorsEnabledVariable = false;
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = 'None';
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'origin';
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
-        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabled = false;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = false;
 
         widgets['node-color-variable'] = 'None';
         widgets['node-mixed-colors-enabled'] = false;
@@ -3763,9 +3742,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedLinkThresholdVariable = this.commonService.session.style.widgets['link-threshold'];
         this.syncThresholdDisplayFromStoredValue();
         this.commonService.GlobalSettingsModel.SelectedNodeColorVariable = this.SelectedNodeColorVariable;
-        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabled = this.NodeMixedColorsEnabled;
         this.commonService.session.style.widgets['node-color'] = this.SelectedNodeColorVariable;
-        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.NodeMixedColorsEnabled;
         this.commonService.session.style.widgets['link-color'] = this.SelectedLinkColorVariable;
 
         this.commonService.session.style.widgets['node-color-variable'] = this.SelectedColorNodesByVariable;
@@ -4456,7 +4433,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               this.homepageTabs[0].isActive = true;
               console.log("Trying to launch");
               this.homepageTabs[0].componentRef.instance.launchClick();
-              $('#overlay').fadeOut();
+              this.hideWelcomeOverlay();
               $('.ui-tabview-nav').fadeTo("slow", 1);
               $('.m-portlet').fadeTo("slow", 1);
             }
@@ -5179,7 +5156,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
          //Styling|Nodes
          this.SelectedNodeColorVariable = this.commonService.session.style.widgets["node-color"];
          this.onNodeColorChanged(true);
-         this.NodeMixedColorsEnabled = !!this.commonService.session.style.widgets['node-mixed-colors-enabled'];
  
  
          //Styling|Color Links By

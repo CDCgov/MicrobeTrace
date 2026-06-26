@@ -14,7 +14,6 @@ export interface NodeFillStyle {
   segments?: NodeColorSegment[];
 }
 
-<<<<<<< HEAD
 export function parseMixedNodeColorValue(value: any): string[] {
   const values = Array.isArray(value) ? value : [value];
   const seen = new Set<string>();
@@ -81,8 +80,6 @@ export function getMixedNodeColorSegments(
   });
 }
 
-=======
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 /**
  * A dedicated service for node, link, polygon color mapping.
  * It is "pure" in that it does NOT own or mutate your session object.
@@ -204,11 +201,7 @@ export class ColorMappingService {
     nodeColorsTableKeys: any,
     nodeColorsTableHistory: any,
     debugMode: boolean,
-<<<<<<< HEAD
     splitMixedValues: boolean = false
-=======
-    mixedColorsEnabled: boolean = false
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
   ): {
     aggregates: Record<string, number>;
     colorMap: d3.ScaleOrdinal<string, string>;
@@ -280,7 +273,6 @@ export class ColorMappingService {
         return;
       }
 
-<<<<<<< HEAD
       const rawValue = d[nodeColorVariable];
       const mixedTokens = splitMixedValues ? parseMixedNodeColorValue(rawValue) : [];
 
@@ -293,13 +285,6 @@ export class ColorMappingService {
       }
 
       aggregates[rawValue] = (aggregates[rawValue] || 0) + 1;
-=======
-      const values = this.getNodeColorCategoriesForValue(d[nodeColorVariable], mixedColorsEnabled);
-      const weight = values.length > 0 ? 1 / values.length : 1;
-      values.forEach(val => {
-        aggregates[val] = (aggregates[val] || 0) + weight;
-      });
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     });
 
     const distinctValues = Object.keys(aggregates);

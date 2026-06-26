@@ -23,11 +23,7 @@ import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-<<<<<<< HEAD
 import { getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
-=======
-import { getCustomNodeShapeVectorData, getSegmentedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 
 /**
  * @title PhylogeneticComponent
@@ -405,8 +401,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       return;
     }
 
-    const mixedSegments = fillStyle.segments ?? [];
-
     if (this.SelectedLeafNodeUseGlobalShapesVariable) {
       const shapeKey = resolveNodeShapeForNode(
         nodeData,
@@ -415,16 +409,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         this.commonService.temp.style.nodeSymbolMap
       );
       const strokeColor = isSelected ? selectedColor : shapeKey == 'lettuce'? '#ffffff' : '#000000';
-
-      if (mixedSegments.length > 1) {
-        this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity, mixedSegments);
-        nodeSelection
-          .style('fill', fillColor)
-          .style('fill-opacity', 0)
-          .style('stroke', 'transparent')
-          .style('stroke-width', '0px');
-        return;
-      }
 
       if (shapeKey === 'ellipse') {
         let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
@@ -441,16 +425,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       }
 
       this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity, mixedSegments);
-      nodeSelection
-        .style('fill', fillColor)
-        .style('fill-opacity', 0)
-        .style('stroke', 'transparent')
-        .style('stroke-width', '0px');
-      return;
-    }
-
-    if (mixedSegments.length > 1) {
-      this.renderLeafNodeShapeOverlay(node, 'ellipse', leafSize, fillColor, isSelected ? selectedColor : '#000000', isSelected, fillOpacity, mixedSegments);
       nodeSelection
         .style('fill', fillColor)
         .style('fill-opacity', 0)
@@ -477,11 +451,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     );
   }
 
-<<<<<<< HEAD
   private getLeafNodeFillStyle(nodeData: any): { color: string; alpha: number; segments?: any[] } {
-=======
-  private getLeafNodeFillStyle(nodeData: any): any {
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     return this.visuals.phylogenetic.commonService.getNodeFillStyle(nodeData);
   }
 
@@ -602,7 +572,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
   }
 
-<<<<<<< HEAD
   private getLeafShapeDataUri(
     shapeKey: string,
     fillColor: string,
@@ -615,204 +584,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       ? segments.map(segment => `${segment.value ?? ''}:${segment.color}:${segment.alpha ?? fillOpacity}:${segment.weight ?? 1}`).join(',')
       : '';
     const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}|${segmentKey}`;
-=======
-  private getLeafShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number, segments: any[] = [], selectedStrokeColor?: string | null): string {
-    const segmentKey = segments.length > 1
-      ? segments.map(segment => `${segment.color}:${segment.alpha}:${segment.weight}`).join(',')
-      : '';
-    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}|${segmentKey}|${selectedStrokeColor ?? ''}`;
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     const cachedUri = this.treeLeafShapeUriCache.get(cacheKey);
     if (cachedUri) {
       return cachedUri;
     }
 
     const dataUri = segments.length > 1
-<<<<<<< HEAD
       ? getMixedNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, null, { customShapePadding: 0, customShapeViewBoxPadding: 0 })
-=======
-      ? getSegmentedNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, selectedStrokeColor, { customShapePadding: 12 })
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
       : getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
     this.treeLeafShapeUriCache.set(cacheKey, dataUri);
     return dataUri;
-  }
-
-  private buildPaddedSvgViewBox(viewBox: string, padding: number): string {
-    const dimensions = String(viewBox || '').trim().split(/\s+/).map(value => Number(value));
-    if (dimensions.length !== 4 || dimensions.some(value => Number.isNaN(value))) {
-      return viewBox;
-    }
-
-    const [minX, minY, width, height] = dimensions;
-    return `${minX - padding} ${minY - padding} ${width + padding * 2} ${height + padding * 2}`;
-  }
-
-  private getPaddedSvgViewBox(viewBox: string, padding: number): { minX: number; minY: number; width: number; height: number; value: string } | null {
-    const dimensions = String(viewBox || '').trim().split(/\s+/).map(value => Number(value));
-    if (dimensions.length !== 4 || dimensions.some(value => Number.isNaN(value))) {
-      return null;
-    }
-
-    const [minX, minY, width, height] = dimensions;
-    const paddedViewBox = {
-      minX: minX - padding,
-      minY: minY - padding,
-      width: width + padding * 2,
-      height: height + padding * 2,
-      value: `${minX - padding} ${minY - padding} ${width + padding * 2} ${height + padding * 2}`
-    };
-
-    return paddedViewBox;
-  }
-
-  private formatSvgFraction(value: number): string {
-    return Number(value.toFixed(6)).toString();
-  }
-
-  private getWeightedMixedSegments(segments: any[]): Array<{ segment: any; startFraction: number; endFraction: number }> {
-    const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
-    const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
-    if (validSegments.length < 2 || totalWeight <= 0) {
-      return [];
-    }
-
-    let startFraction = 0;
-    return validSegments.map((segment, index) => {
-      const segmentWeight = Number(segment.weight ?? 1);
-      const endFraction = index === validSegments.length - 1
-        ? 1
-        : startFraction + (segmentWeight / totalWeight);
-      const weightedSegment = { segment, startFraction, endFraction };
-      startFraction = endFraction;
-
-      return weightedSegment;
-    });
-  }
-
-  private renderLeafNodeCustomMixedShapeOverlay(
-    parentNode: SVGGElement,
-    shapeKey: string,
-    leafSize: number,
-    fillColor: string,
-    strokeColor: string,
-    isSelected: boolean,
-    fillOpacity: number,
-    segments: any[]
-  ): boolean {
-    const vectorData = getCustomNodeShapeVectorData(shapeKey);
-    if (!vectorData) {
-      return false;
-    }
-
-    d3.select(parentNode).selectAll('image.tidytree-node-shape-overlay').remove();
-
-    const diameter = leafSize * 2;
-    const overlayDiameter = diameter * getTreeNodeShapeScale(shapeKey);
-    const overlayImageDiameter = overlayDiameter + 4;
-    const overlayOffset = overlayImageDiameter / 2;
-    const viewBoxPadding = 32;
-    const paddedViewBox = this.getPaddedSvgViewBox(vectorData.viewBox, viewBoxPadding);
-    const viewBoxValue = paddedViewBox?.value ?? this.buildPaddedSvgViewBox(vectorData.viewBox, viewBoxPadding);
-    const segmentStrokeWidth = viewBoxPadding * 0.55;
-    const selectionStrokeWidth = segmentStrokeWidth + 10;
-    const weightedSegments = this.getWeightedMixedSegments(segments);
-
-    const overlaySelection = d3.select(parentNode)
-      .selectAll<SVGSVGElement, number>('svg.tidytree-node-shape-overlay')
-      .data([0]);
-
-    const overlay = overlaySelection
-      .join(
-        enter => enter
-          .insert('svg', 'text')
-          .attr('class', 'tidytree-node-shape-overlay')
-          .style('pointer-events', 'none'),
-        update => update
-      )
-      .attr('x', -overlayOffset)
-      .attr('y', -overlayOffset)
-      .attr('width', overlayImageDiameter)
-      .attr('height', overlayImageDiameter)
-      .attr('viewBox', viewBoxValue)
-      .attr('preserveAspectRatio', 'xMidYMid meet')
-      .attr('overflow', 'visible');
-
-    const halo = overlay
-      .selectAll<SVGGElement, number>('g.tidytree-node-shape-mixed-halo')
-      .data([0])
-      .join('g')
-      .attr('class', 'tidytree-node-shape-mixed-halo');
-
-    halo.selectAll('*').remove();
-
-    if (paddedViewBox) {
-      const haloInset = viewBoxPadding * 0.45;
-      const haloX = paddedViewBox.minX + haloInset;
-      const haloY = paddedViewBox.minY + haloInset;
-      const haloWidth = Math.max(1, paddedViewBox.width - haloInset * 2);
-      const haloHeight = Math.max(1, paddedViewBox.height - haloInset * 2);
-      const haloRadius = Math.min(haloWidth, haloHeight) * 0.18;
-
-      if (isSelected) {
-        halo
-          .append('rect')
-          .attr('x', haloX)
-          .attr('y', haloY)
-          .attr('width', haloWidth)
-          .attr('height', haloHeight)
-          .attr('rx', haloRadius)
-          .attr('ry', haloRadius)
-          .attr('fill', 'none')
-          .attr('stroke', strokeColor)
-          .attr('stroke-width', selectionStrokeWidth)
-          .attr('stroke-linejoin', 'round');
-      }
-
-      weightedSegments.forEach(({ segment, startFraction, endFraction }) => {
-        const dashLength = Math.max(0, endFraction - startFraction) * 100;
-        const dashGap = Math.max(0, 100 - dashLength);
-        const dashOffset = -startFraction * 100;
-        const alpha = Number(segment.alpha ?? 1);
-        const safeAlpha = Number.isFinite(alpha)
-          ? Math.min(1, Math.max(0, alpha))
-          : 1;
-
-        halo
-          .append('rect')
-          .attr('x', haloX)
-          .attr('y', haloY)
-          .attr('width', haloWidth)
-          .attr('height', haloHeight)
-          .attr('rx', haloRadius)
-          .attr('ry', haloRadius)
-          .attr('fill', 'none')
-          .attr('stroke', segment.color)
-          .attr('stroke-opacity', safeAlpha)
-          .attr('stroke-width', segmentStrokeWidth)
-          .attr('stroke-linejoin', 'round')
-          .attr('pathLength', 100)
-          .attr('stroke-dasharray', `${this.formatSvgFraction(dashLength)} ${this.formatSvgFraction(dashGap)}`)
-          .attr('stroke-dashoffset', this.formatSvgFraction(dashOffset));
-      });
-    }
-
-    const content = overlay
-      .selectAll<SVGGElement, number>('g.tidytree-node-shape-vector')
-      .data([0])
-      .join('g')
-      .attr('class', 'tidytree-node-shape-vector')
-      .attr('transform', `translate(0,${vectorData.height}) scale(1,-1)`);
-
-    content.selectAll('*').remove();
-    content
-      .append('path')
-      .attr('d', vectorData.fillPath)
-      .attr('fill', fillColor)
-      .attr('fill-opacity', fillOpacity)
-      .attr('stroke', 'none');
-
-    return true;
   }
 
   private renderLeafNodeShapeOverlay(
@@ -830,22 +611,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       return;
     }
 
-    if (segments.length > 1 && isCustomNodeIconShape(shapeKey)) {
-      if (this.renderLeafNodeCustomMixedShapeOverlay(parentNode, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity, segments)) {
-        return;
-      }
-    }
-
     d3.select(parentNode).selectAll('svg.tidytree-node-shape-overlay').remove();
 
     const diameter = leafSize * 2;
-<<<<<<< HEAD
     const strokeWidth = this.getLeafShapeStrokeWidth(shapeKey, isSelected);
     const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments);
-=======
-    const strokeWidth = this.getLeafShapeStrokeWidth(shapeKey, isSelected, segments.length > 1);
-    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, isSelected ? strokeColor : null);
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     const overlayDiameter = diameter * getTreeNodeShapeScale(shapeKey);
     const overlayImageDiameter = overlayDiameter + 4;
     const overlayOffset = overlayImageDiameter / 2;

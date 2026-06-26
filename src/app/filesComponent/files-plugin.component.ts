@@ -642,6 +642,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         this.commonService.applySession(defaultSession).then(() => {
           this.populateTable();
+          this.dismissWelcomeOverlay();
         });
         this.commonService.session.network.launched = true;
         this.commonService.session.network.initialLoad = true;
@@ -750,7 +751,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   private dismissWelcomeOverlay() {
-    $('#overlay').stop(true, true).fadeOut('fast');
+    const overlay = $('#overlay');
+    overlay.css('pointer-events', 'none');
+    overlay.find('.dnd-input').css('pointer-events', 'none');
+    overlay.stop(true, true).fadeOut('fast');
     $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
     $('.m-portlet').stop(true, true).fadeTo('fast', 1);
   }
@@ -899,6 +903,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Calls creatLaunchSequences to process the data files loaded.
    */
   launchClick(options: { resetSettings?: boolean } = {}) {
+
+     this.dismissWelcomeOverlay();
 
      // Set to false to indicate that the network is not fully loaded  as new network is launching
      const loadGeneration = this.commonService.beginDataLoad();

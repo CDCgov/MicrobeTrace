@@ -14,11 +14,7 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
-<<<<<<< HEAD
 import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
-=======
-import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getSegmentedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -269,7 +265,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return undefined;
         }
 
-<<<<<<< HEAD
         const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
         const isCustomShape = isCustomNodeIconShape(normalizedShapeKey);
 
@@ -305,19 +300,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-=======
-        const strokeWidth = Math.max(16, Number(this.getNodeBorderWidth(node)) * 8);
-        return getSegmentedNodeShapeDataUri(
-            shapeKey,
-            fillColor,
-            '#000000',
-            strokeWidth,
-            fillOpacity,
-            segments
-        );
-    }
-
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
     private yieldToBrowser(): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -906,22 +888,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-image': 'data(mixedColorImage)',
                     'background-image-containment': 'over',
                     'background-fit': 'contain',
-<<<<<<< HEAD
                     'background-clip': 'node',
-=======
-                    'background-clip': 'none',
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
                     'background-position-x': '50%',
                     'background-position-y': '50%',
                     'background-repeat': 'no-repeat',
                     // @ts-ignore
                     'background-image-opacity': 1,
                     'background-opacity': 0,
-<<<<<<< HEAD
                     'border-width': 'data(borderWidth)'
-=======
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage][customIconKey]',
+                css: {
                     'border-width': 0
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
                 }
             },
                 {
@@ -943,20 +923,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-color': '#ffffff',
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)'
-                }
-            },
-            {
-                selector: 'node[!isParent][mixedColorImage]',
-                css: {
-                    // @ts-ignore
-                    'background-image': 'data(mixedColorImage)',
-                    'background-image-containment': 'over',
-                    'background-fit': 'contain',
-                    'background-clip': 'none',
-                    // @ts-ignore
-                    'background-image-opacity': 1,
-                    'background-opacity': 0,
-                    'border-width': 0
                 }
             },
             // Apply styles only to nodes with fontSize defined
@@ -1052,11 +1018,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-image': 'data(mixedColorImage)',
                     'background-image-containment': 'over',
                     'background-fit': 'contain',
-<<<<<<< HEAD
                     'background-clip': 'node',
-=======
-                    'background-clip': 'none',
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
                     // @ts-ignore
                     'background-image-opacity': 1,
                     'background-opacity': 0,
@@ -5297,22 +5259,12 @@ private updateArrowStyles(): void {
 	        this.cy.nodes().forEach(node => {
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const [newColor, opacity] = this.getNodeColor(fullNode);
-	            node.data('nodeColor', newColor);
+            node.data('nodeColor', newColor);
             node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
-            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
-            const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, newColor, opacity);
-            if (mixedColorImage) {
-                node.data('mixedColorImage', mixedColorImage);
-            } else {
-                node.removeData('mixedColorImage');
-            }
 
-<<<<<<< HEAD
             const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
             this.setMixedColorNodeImageData(node, fullNode, shapeKey, newColor, opacity);
-=======
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
             if (isCustomNodeIconShape(shapeKey)) {
                 const customShapeData = getCustomNodeShapeData(shapeKey, newColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
@@ -5970,7 +5922,8 @@ scaleLinkWidth() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
             if (this.isGroupNode(node)) return;
-	            const newBorderWidth = this.getNodeBorderWidth(this.getFullNodeDataForCyNode(node));
+	            const fullNode = this.getFullNodeDataForCyNode(node);
+	            const newBorderWidth = this.getNodeBorderWidth(fullNode);
 	            node.data('borderWidth', newBorderWidth);
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
@@ -6043,16 +5996,7 @@ scaleLinkWidth() {
             node.data('shapeKey', shapeKey);
             node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
             const [nodeColor, nodeOpacity] = this.getNodeColor(fullNode);
-<<<<<<< HEAD
             this.setMixedColorNodeImageData(node, fullNode, shapeKey, nodeColor, nodeOpacity);
-=======
-            const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, nodeColor, nodeOpacity);
-            if (mixedColorImage) {
-                node.data('mixedColorImage', mixedColorImage);
-            } else {
-                node.removeData('mixedColorImage');
-            }
->>>>>>> 660c7154f44e9ff241dcee8b5abe4e2d72d6de52
 
 	            if (isCustomNodeIconShape(shapeKey)) {
                 const customShapeData = getCustomNodeShapeData(shapeKey, nodeColor);

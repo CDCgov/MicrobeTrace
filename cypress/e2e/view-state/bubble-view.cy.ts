@@ -3,6 +3,13 @@ import { visitAppAndAcceptEula } from '../../support/journey-helpers';
 let takeScreenshots = false;
 const getCy = () => cy.window().then(win => win.commonService.visuals.bubble.cy)
 
+const showFloatingNodeColorTable = (): void => {
+  cy.get('#node-color-table-row')
+    .contains('.p-togglebutton-label', 'Show')
+    .click({ force: true });
+  cy.window().its('commonService.visuals.microbeTrace.SelectedNodeColorTableTypesVariable').should('equal', 'Show');
+};
+
 describe('Bubble View', () => {
   const selectors = {
     container: '#cyBubble',
@@ -204,6 +211,7 @@ describe('Bubble View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Lineage').click()
+      showFloatingNodeColorTable();
       cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
       cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
       cy.get('#color-transparency').invoke('val', alpha).trigger('change');
@@ -225,6 +233,7 @@ describe('Bubble View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Lineage').click()
+      showFloatingNodeColorTable();
       cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
       cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
       cy.get('#color-transparency').invoke('val', alpha).trigger('change');
@@ -565,11 +574,18 @@ describe('Bubble View', () => {
     })
     
     it('changes color of node and link during timeline and then ensures color is kept after timeline ends', () => {
+      cy.openGlobalSettings();
+      cy.contains('#global-settings-modal .nav-link', 'Styling').click({ force: true });
+      cy.get('#node-color-variable').click();
+      cy.get('li[role="option"]').contains('State').click();
+      showFloatingNodeColorTable();
+      cy.closeGlobalSettings();
+
       cy.get('#timeline-play-button').should('contain', 'Play').click();
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
 
-      cy.get('#key-tables-node-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#node-color-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
 
       cy.window().its('commonService.visuals.bubble').then(bubble => {
         let penNode = bubble.cy.nodes('[id = "MZ415508"]')[0]
