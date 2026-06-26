@@ -36,6 +36,15 @@ p-dialog {
     position: relative;
 }
 
+#global-settings-modal {
+    z-index: 1000;
+}
+
+#global-settings-modal .p-dialog-content {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+
 .sort-button {
     cursor: pointer;
 }
@@ -261,6 +270,11 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
     font-weight: 300;
 }
 
+.version-font {
+    font-weight: 300;
+    font-size: .7rem;
+}
+
 .navbar-logo {
     color: white;
 }
@@ -308,16 +322,27 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
 
   #overlay {
     position: fixed; /* Sit on top of the page content */
-    display: block; /* Hidden by default */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: clamp(36px, 12vh, 160px);
     width: 100%; /* Full width (cover the whole page) */
-    height: 100%; /* Full height (cover the whole page) */
+    height: auto;
+    min-height: 0;
     top: 64px;
     left: 0;
     right: 0;
     bottom: 0;
+    box-sizing: border-box;
+    padding: clamp(48px, 8vh, 96px) clamp(16px, 5vw, 48px) clamp(24px, 8vh, 96px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    z-index: 4; /* Specify a stack order in case you're using a different order for other elements */
+    z-index: 11; /* Keep the welcome overlay above the URL warning banner on short screens. */
 
     .dnd-input {
         opacity: 0;
@@ -328,8 +353,6 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
         top: 0;
         left: 0;
       }
-    display: flex;
-    flex-direction: column;
   }
 
   .m-content {
@@ -381,23 +404,25 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
   }
 
   .welcome-msg {
-    margin-top: 355px;
+    margin-top: auto;
+    max-width: 100%;
     text-align: center;
 }
 
 .files-msg {
-    font-size: 20px;
+    font-size: clamp(16px, 2.5vw, 20px);
     z-index: -20;
 }
 
 .top {
-    font-size: 65px;
+    font-size: clamp(36px, 7vw, 65px);
+    line-height: 1.15;
 }
 
 .bottom {
-    font-size: 25px;
+    font-size: clamp(18px, 2.8vw, 25px);
     font-weight: 500;
-    margin-top: 30px;
+    margin-top: clamp(12px, 3vh, 30px);
 }
 
 .microbe {
@@ -412,14 +437,21 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
 }
 
 .add-data-container {
-    margin-top: 200px;
+    margin-bottom: auto;
+    width: min(100%, 720px);
     display: flex;
     flex-direction: column;
     text-align: center;
 }
 
 .add-btns{
-    margin-top: 40px;
+    margin-top: clamp(20px, 5vh, 40px);
+}
+
+.add-data-container .here-link {
+    position: relative;
+    z-index: 5;
+    font-size: clamp(16px, 2.5vw, 20px);
 }
 
 .launch-options-container {
@@ -432,8 +464,8 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
 }
 
 .mt-icon {
-    width: 65px;
-    height: 65px;
+    width: clamp(42px, 8vw, 65px);
+    height: clamp(42px, 8vw, 65px);
 }
 
 .dropdown-symbol {

@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -14,12 +14,32 @@ import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/ex
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
-type DataRecord = { index: number, id: string, x: number; y: number, color: string, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
+type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
+
+type BubblePieExportSlice = {
+  label: string;
+  count: number;
+  color: string;
+  opacity: number;
+  fraction: number;
+};
+
+interface BubblePieSvgExportReplacement {
+  borderWidth: number;
+  nodeId: string;
+  totalCount: number;
+  exportHeight: number;
+  exportWidth: number;
+  exportX: number;
+  exportY: number;
+  slices: BubblePieExportSlice[];
+}
 
 @Component({
-  selector: 'bubble-component',
-  templateUrl: './bubble.component.html',
-  styleUrls: ['./bubble.component.scss']
+    selector: 'bubble-component',
+    templateUrl: './bubble.component.html',
+    styleUrls: ['./bubble.component.scss'],
+    standalone: false
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -110,14 +130,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.viewHeight = 600;
     } 
     
-    this.selectedFieldList.push({ label: "None", value: "None"})
-    this.commonService.session.data['nodeFields'].map((d) => {
-      if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(d)) return;
-      this.selectedFieldList.push({
-        label: this.commonService.capitalize(d.replace("_", "")),
-        value: d
-      });
-    })
+    this.rebuildSelectedFieldList();
 
     this.setWidgets();
     this.updateAxisValues('X');
@@ -133,7 +146,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     })
     this.container.on('show', () => { 
         this.viewActive = true; 
-        this.setSelectedNodes(this);
+        this.syncFromSessionState();
         setTimeout(() => {
           this.goldenLayoutComponentResize();
         }, 5)
@@ -159,15 +172,32 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       }
     })
 
+    this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.syncFromSessionState();
+    });
+
+    this.store.networkUpdated$.pipe(takeUntil(this.destroy$)).subscribe((networkUpdated) => {
+      if (this.viewActive && networkUpdated) {
+        this.syncFromSessionState();
+        this.store.setNetworkUpdated(false);
+      }
+    });
+
     $( document ).on( "node-visibility", function( ) {
       //console.log('node visi event')
       that.updateVisibleNodes()
-      that.updateNodes();
+      if (!that.SelectedNodeCollapsingTypeVariable) {
+        that.updateNodes();
+      }
     });
   }
 
   ngAfterViewInit(): void {
     this.generateCytoscape();
+    if (this.SelectedNodeCollapsingTypeVariable) {
+      this.refreshCollapsedData();
+    }
+    this.markBubbleRendered();
   }
 
   ngOnDestroy(): void {
@@ -181,6 +211,80 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cyContainer = null;
   }
 
+  private rebuildSelectedFieldList() {
+    this.selectedFieldList = [{ label: "None", value: "None"}];
+
+    this.commonService.session.data['nodeFields'].forEach((field) => {
+      if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(field)) return;
+      this.selectedFieldList.push({
+        label: this.commonService.capitalize(field.replace("_", "")),
+        value: field
+      });
+    });
+  }
+
+  private refreshCollapsedData(sortData = false) {
+    this.visibleData = [];
+    this.svgDefs = {};
+    this.getCollapsedData(sortData, true);
+  }
+
+  private markBubbleRendered(): void {
+    if (!this.viewActive) {
+      return;
+    }
+
+    // Bubble can be the first launched view, so it must explicitly release
+    // the shared processing modal after its first Cytoscape draw completes.
+    window.setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    }, 0);
+  }
+
+  private compareDateCategories(left: unknown, right: unknown): number {
+    const leftTime = Date.parse(left as string);
+    const rightTime = Date.parse(right as string);
+    const leftValid = !Number.isNaN(leftTime);
+    const rightValid = !Number.isNaN(rightTime);
+
+    if (leftValid && rightValid) {
+      return leftTime - rightTime;
+    }
+
+    if (leftValid) {
+      return -1;
+    }
+
+    if (rightValid) {
+      return 1;
+    }
+
+    // Preserve insertion order between invalid/missing buckets.
+    return 0;
+  }
+
+  private syncFromSessionState() {
+    this.visuals.bubble = this;
+    this.widgets = this.commonService.session.style.widgets;
+    this.rebuildSelectedFieldList();
+    this.setWidgets();
+    this.updateAxisValues('X');
+    this.updateAxisValues('Y');
+    this.svgDefs = {};
+    this.getData();
+
+    if (!this.cy) {
+      return;
+    }
+
+    if (!this.SelectedNodeCollapsingTypeVariable) {
+      this.updateNodes();
+    }
+
+    this.onNodeSizeChange();
+    this.setSelectedNodes(this);
+  }
+
   setWidgets() {
     if (this.widgets['bubble-x'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-x']))) {
       this.xVariable = 'cluster';
@@ -190,8 +294,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
 
     if (this.widgets['bubble-y'] == undefined || !(this.selectedFieldList.map(x=> x.value).includes(this.widgets['bubble-y']))) {
-      this.xVariable = 'None';
-      this.widgets['bubble-y'] = this.xVariable;
+      this.yVariable = 'None';
+      this.widgets['bubble-y'] = this.yVariable;
     } else {
       this.yVariable = this.widgets['bubble-y']
     }
@@ -225,6 +329,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           id: node.id,
           nodeSize: size,
           nodeColor: node.color,
+          nodeOpacity: node.opacity,
           label: node.id,
           counts: node.counts,
           totalCount: node.totalCount,
@@ -322,7 +427,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       {
         selector: 'node[nodeColor]',
         css: {
-            'background-color': 'data(nodeColor)'
+            'background-color': 'data(nodeColor)',
+            // @ts-ignore
+            'background-opacity': 'data(nodeOpacity)'
         }
       },
       {
@@ -444,10 +551,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.syncCySelectionFromSession();
   
     // Existing hover events
-    this.cy.on('mouseover', 'node', (evt) => {
+    this.cy.on('mouseover', 'node', (evt: any, pos?) => {
+      const rp = evt.renderedPosition || pos;
       const node = evt.target;
       if (node.classes().length > 0) return;
-      this.showTooltip(node.data(), evt.originalEvent);
+      this.showTooltip(node.data(), rp);
     });
   
     this.cy.on('mouseout', 'node', () => {
@@ -456,7 +564,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
   
 
-  showTooltip(d, e) {
+  showTooltip(d, pos) {
     let tooltipHTML: string = '';
     if (this.SelectedNodeCollapsingTypeVariable) {
       tooltipHTML = `
@@ -489,7 +597,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     } else {
       tooltipHTML = `${d.id}`
     }
-    let [X, Y] = this.getRelativeMousePosition(event);
+    let [X, Y] = [pos.x, pos.y];
     
     this.toolTip.nativeElement.innerHTML = tooltipHTML;
     Object.assign(this.toolTip.nativeElement.style, {
@@ -537,17 +645,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         x: 0,
         y: 0,
         color: '#ff00ff',
+        opacity: 1,
         Xgroup: 0,
         Ygroup: 0,
         strokeColor: node.selected ? this.commonService.session.style.widgets['selected-color']: '#000000',
         totalCount: 1
       }
-      if (this.xVariable != undefined || this.xVariable != 'None') {
+      if (this.xVariable != undefined && this.xVariable != 'None') {
         let nodeX = node[this.xVariable];
         let locX = this.X_categories.indexOf(nodeX);
         nodeDR.Xgroup = locX;
       }
-      if (this.yVariable != undefined || this.yVariable != 'None') {
+      if (this.yVariable != undefined && this.yVariable != 'None') {
         let nodeY = node[this.yVariable];
         let locY = this.Y_categories.indexOf(nodeY);
         nodeDR.Ygroup = locY;
@@ -570,27 +679,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * updates values of visibleNodes based on SelectedNodeCollapsingTypeVariable and if timeline mode is active
    */
   updateVisibleNodes() {
-    // if no timeline and not collapsed
-    if (this.widgets["node-timeline-variable"] == 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
-      this.visibleData = this.allData;
-    // if timeline and not collapse
-    } else if (this.widgets["node-timeline-variable"] != 'None' && this.SelectedNodeCollapsingTypeVariable == false) {
-      let visibleNodes = this.commonService.getVisibleNodes();
-      if (visibleNodes.length == this.visibleData.length) { return }
-      this.visibleData = [];
-      this.allData.forEach(node => {
-        if (visibleNodes.find(vNode => vNode._id == node.id)) {
-          this.visibleData.push(node);
-        }
-      })
+    if (this.SelectedNodeCollapsingTypeVariable == false) {
+      const visibleNodeIds = new Set(
+        this.commonService.getVisibleNodes().map(node => String(node._id ?? node.id))
+      );
+
+      this.visibleData = this.allData.filter(node => visibleNodeIds.has(String(node.id)));
     // if no timeline and collapse
     } else if (this.widgets["node-timeline-variable"] == 'None'){
       // console.log(this.commonService.getVisibleNodes().length, this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0))
-      this.getCollapsedData(false, false)
+      this.refreshCollapsedData(false)
     // if timeline and collapse
     } else {
-      if (this.commonService.getVisibleNodes().length == this.visibleData.reduce((sum, obj) => sum + obj.totalCount, 0)) { return }
-      this.getCollapsedData(false, false);
+      this.refreshCollapsedData(false);
     } 
     
 
@@ -621,7 +722,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         })
 
         if (this.xVarDate) {
-          this.X_categories.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+          this.X_categories.sort((a, b) => this.compareDateCategories(a, b))
         }
       }
     } else { // axis == 'Y'
@@ -642,7 +743,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         })
 
         if (this.yVarDate) {
-          this.Y_categories.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())                   
+          this.Y_categories.sort((a, b) => this.compareDateCategories(a, b))
         }
       }
     }
@@ -682,11 +783,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.allData.forEach(node => {
         let X_group = 0, Y_group = 0;
         let currentFullNode = fullNodes.find(fNode => fNode.index == node.index)
-        if (this.xVariable != undefined || this.xVariable != 'None') {
+        if (!currentFullNode) {
+          return;
+        }
+        if (this.xVariable != undefined && this.xVariable != 'None') {
           let nodeX = currentFullNode[this.xVariable];
           X_group = this.X_categories.indexOf(nodeX);
         }
-        if (this.yVariable != undefined || this.yVariable != 'None') {
+        if (this.yVariable != undefined && this.yVariable != 'None') {
           let nodeY = currentFullNode[this.yVariable];
           Y_group = this.Y_categories.indexOf(nodeY);
         }
@@ -701,6 +805,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
             x: X_group,
             y: Y_group,
             color: node.color,
+            opacity: node.opacity,
             Xgroup: X_group,
             Ygroup: Y_group,
             strokeColor: '#000000',
@@ -715,6 +820,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     let changedVisibleNodes = this.generateCollapsedCounts();
     this.generatePieChartsSVGDefs(changedVisibleNodes);
 
+    // Bubble can load in collapsed mode before Cytoscape is initialized.
+    // Build the aggregate state now and apply the pie styling once `cy` exists.
+    if (!this.cy) {
+      return;
+    }
+
     this.cy.remove('node');
     this.updateNodes();
 
@@ -727,7 +838,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         let size = this.nodeSize * Math.sqrt(node.totalCount);
         let svgPattern = `<svg width='${size}' height='${size}' xmlns='http://www.w3.org/2000/svg'><defs>${this.svgDefs[`node${i}`]}</defs><circle fill="url(#node${i})" cx='${size/2}' cy='${size/2}' r='${size/2}'/></svg>`;
         let b64 = 'data:image/svg+xml;base64,' + btoa(svgPattern);
-        this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-fit': 'cover', 'background-image': b64})
+        this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-opacity': 0, 'background-fit': 'cover', 'background-image': b64})
       }
     })
     this.cy.style().update();
@@ -803,6 +914,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return changedVisibleNodes;
   }
 
+  private getNodeFillStyleForColorValue(value: any): { color: string; alpha: number } {
+    const colorVariable = this.commonService.session.style.widgets['node-color-variable'];
+    const syntheticNode = colorVariable === 'None' ? undefined : { [colorVariable]: value };
+    return this.commonService.getNodeFillStyle(syntheticNode);
+  }
+
   /**
    * @returns a string representing the SVG def of the patterns needed to generate the pie chart
    */
@@ -817,14 +934,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       let proportions = []
       let coordinates = []
       let colors = [];
+      let opacities = [];
       node.counts.forEach(x => {
         let proportion = proportions.reduce((acc, cv) => acc+cv, 0) + x.count/node.totalCount
         let xPos = Math.cos(2 * Math.PI * proportion)
         let yPos = Math.sin(2 * Math.PI * proportion)
+        const nodeStyle = this.getNodeFillStyleForColorValue(x.label);
         
         proportions.push(x.count/node.totalCount)
         coordinates.push([xPos, yPos])
-        colors.push(this.commonService.temp.style.nodeColorMap(x.label))
+        colors.push(nodeStyle.color)
+        opacities.push(nodeStyle.alpha)
       })
 
       patternString += `<pattern id='node${indexNumber}' viewBox='-1 -1 2 2' style='transform: rotate(-.25turn)' width='100%' height='100%'>` ;
@@ -832,7 +952,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         let arcStart = i == 0 ? '1 0': coordinates[i-1][0] + ' ' + coordinates[i-1][1];
         let largeArcFlag = proportions[i] > .5 ? 1: 0 
         let arcEnd = i == coordinates.length-1 ? '1 0' : coordinates[i][0] + ' ' + coordinates[i][1]
-        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${colors[i]}' />`
+        patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${colors[i]}' fill-opacity='${opacities[i]}' />`
       }
       patternString += '</pattern>'
       this.svgDefs[`node${indexNumber}`] = (patternString);
@@ -843,21 +963,25 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * Updates the color of the nodes in allData
    */
   updateColors() {
-    let fillcolor = this.commonService.session.style.widgets['node-color']
-    let colorVariable = this.commonService.session.style.widgets['node-color-variable']
-
     let fullNodes = this.commonService.session.data.nodeFilteredValues;
 
     this.allData.forEach(node => {
       let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
-      node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
+      if (!currentFullNode) {
+        return;
+      }
+      const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
+      node.color = nodeStyle.color;
+      node.opacity = nodeStyle.alpha;
     })
 
     if (this.cy && this.cy.nodes().length > 0) {
       this.cy.nodes().forEach(node => {
         if (node.classes().length > 0) return;
         let currentNode = this.allData.find(dataNode => dataNode.id == node.id());
+        if (!currentNode) return;
         node.data('nodeColor', currentNode.color);
+        node.data('nodeOpacity', currentNode.opacity);
       });
       this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -892,7 +1016,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   onNodeCollapsingChange() {
     this.widgets['bubble-collapsed'] = this.SelectedNodeCollapsingTypeVariable;
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.getCollapsedData(true);
+      this.refreshCollapsedData(true);
     } else {
       this.cy.remove('node');
       this.getData();
@@ -968,11 +1092,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.updateAxisValues(axis)
     this.svgDefs = {};
     if (this.SelectedNodeCollapsingTypeVariable) {
-      this.getCollapsedData(true);
+      this.refreshCollapsedData(true);
     } else {
       this.getData();
+      this.updateNodes();
     }
-    this.updateNodes();
   }
 
   /**
@@ -981,7 +1105,20 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    */
   sortData(sortVariable) {
     let allNodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodeFilteredValues));
-    allNodes.sort((a, b) => new Date(a[sortVariable]).getTime() - new Date(b[sortVariable]).getTime())
+    const getSortTime = (value: any): number => {
+      if (value === null || value === undefined) {
+        return Number.NEGATIVE_INFINITY;
+      }
+
+      if (typeof value === 'string' && value.trim().toLowerCase() === 'null') {
+        return Number.NEGATIVE_INFINITY;
+      }
+
+      const time = new Date(value).getTime();
+      return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+    };
+
+    allNodes.sort((a, b) => getSortTime(a[sortVariable]) - getSortTime(b[sortVariable]))
     
     let allData = []
     allNodes.forEach(node => {
@@ -1072,26 +1209,31 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.visibleData.forEach((node, i) => {
         if ( node.totalCount == 1 || node.counts.length == 1) {
           let currrentVar = node.counts[0].label
-          //console.log(node, currrentVar)
-          this.cy.style().selector(`#${node.id}`).style({ 'background-color': this.commonService.temp.style.nodeColorMap(currrentVar)})
+          const nodeStyle = this.getNodeFillStyleForColorValue(currrentVar);
+          this.cy.style().selector(`#${node.id}`).style({
+            'background-color': nodeStyle.color,
+            'background-opacity': nodeStyle.alpha
+          })
           return;
         } else {
           let size = this.nodeSize * Math.sqrt(node.totalCount);
           let svgPattern = `<svg width='${size}' height='${size}' xmlns='http://www.w3.org/2000/svg'><defs>${this.svgDefs[`node${i}`]}</defs><circle fill="url(#node${i})" cx='${size/2}' cy='${size/2}' r='${size/2}'/></svg>`;
           let b64 = 'data:image/svg+xml;base64,' + btoa(svgPattern);
-          this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-fit': 'cover', 'background-image': b64})
+          this.cy.style().selector(`#cNode${i}`).style({ 'background-color': 'transparent', 'background-opacity': 0, 'background-fit': 'cover', 'background-image': b64})
         }
       })
       this.cy.style().update();
 
-      let fillcolor = this.commonService.session.style.widgets['node-color']
-      let colorVariable = this.commonService.session.style.widgets['node-color-variable']
-  
       let fullNodes = this.commonService.session.data.nodeFilteredValues;
   
       this.allData.forEach(node => {
         let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
-        node.color = colorVariable == 'None' ? fillcolor : this.commonService.temp.style.nodeColorMap(currentFullNode[colorVariable]);
+        if (!currentFullNode) {
+          return;
+        }
+        const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
+        node.color = nodeStyle.color;
+        node.opacity = nodeStyle.alpha;
       })
     } else {
       this.updateColors();
@@ -1151,9 +1293,31 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   openRefreshScreen() {}
-  onRecallSession() {}
-  onLoadNewData() {}
-  onFilterDataChange() {}
+  onRecallSession() {
+    this.syncFromSessionState();
+  }
+  onLoadNewData() {
+    this.syncFromSessionState();
+  }
+  onFilterDataChange() {
+    this.widgets = this.commonService.session.style.widgets;
+    this.updateAxisValues('X');
+    this.updateAxisValues('Y');
+    this.svgDefs = {};
+    this.getData();
+
+    if (!this.SelectedNodeCollapsingTypeVariable) {
+      this.updateNodes();
+    }
+
+    this.setSelectedNodes(this);
+
+    if (this.viewActive) {
+      setTimeout(() => {
+        this.goldenLayoutComponentResize();
+      }, 5);
+    }
+  }
 
   /**
  * On click of center button, show centers the view
@@ -1187,6 +1351,307 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cdref.detectChanges();
   }
 
+  private formatSvgNumber(value: number): string {
+    if (!Number.isFinite(value)) {
+      return '0';
+    }
+
+    return Number(value.toFixed(4)).toString();
+  }
+
+  private getSvgLengthAttribute(element: Element, attributeName: string): number | null {
+    const attributeValue = element.getAttribute(attributeName);
+    if (!attributeValue) {
+      return null;
+    }
+
+    const numericValue = parseFloat(attributeValue);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  private getSvgImageHref(image: Element): string | null {
+    const xlinkNamespace = 'http://www.w3.org/1999/xlink';
+    return image.getAttribute('href')
+      || image.getAttributeNS(xlinkNamespace, 'href')
+      || image.getAttribute('xlink:href');
+  }
+
+  private getSvgTranslateTransform(element: Element): { x: number; y: number } | null {
+    const transformValue = element.getAttribute('transform');
+    if (!transformValue) {
+      return null;
+    }
+
+    const translateMatch = transformValue.match(/translate\(\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*,?\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*\)/i);
+    if (!translateMatch) {
+      return null;
+    }
+
+    const x = parseFloat(translateMatch[1]);
+    const y = parseFloat(translateMatch[2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+
+    return { x, y };
+  }
+
+  private getBubbleSvgExportScale(svgElement: Element): number {
+    if (!this.cy) {
+      return 1;
+    }
+
+    const graphBounds = this.cy.elements().boundingBox();
+    const svgWidth = this.getSvgLengthAttribute(svgElement, 'width');
+    const graphWidth = Math.ceil(graphBounds.w);
+    if (!svgWidth || !Number.isFinite(svgWidth) || graphWidth <= 0) {
+      return 1;
+    }
+
+    return svgWidth / graphWidth;
+  }
+
+  private getCollapsedPieSvgExportReplacementList(exportScale: number): BubblePieSvgExportReplacement[] {
+    const replacements: BubblePieSvgExportReplacement[] = [];
+    if (!this.cy || !this.SelectedNodeCollapsingTypeVariable) {
+      return replacements;
+    }
+
+    const graphBounds = this.cy.elements().boundingBox();
+    if (!Number.isFinite(graphBounds.x1) || !Number.isFinite(graphBounds.y1)) {
+      return replacements;
+    }
+
+    this.visibleData.forEach((dataNode) => {
+      const totalCount = Number(dataNode.totalCount || 0);
+      const counts = Array.isArray(dataNode.counts)
+        ? dataNode.counts.filter((count) => Number(count?.count || 0) > 0)
+        : [];
+
+      if (totalCount <= 1 || counts.length <= 1) {
+        return;
+      }
+
+      const cyNode = this.cy.getElementById(String(dataNode.id));
+      if (cyNode.empty()) {
+        return;
+      }
+
+      const position = cyNode.position();
+      const nodeWidth = Number(cyNode.width()) || Number(cyNode.data('nodeSize')) || 0;
+      const nodeHeight = Number(cyNode.height()) || Number(cyNode.data('nodeSize')) || nodeWidth;
+      const borderWidth = Number(cyNode.numericStyle('border-width')) || 3;
+      if (
+        !Number.isFinite(position.x)
+        || !Number.isFinite(position.y)
+        || !Number.isFinite(nodeWidth)
+        || !Number.isFinite(nodeHeight)
+        || nodeWidth <= 0
+        || nodeHeight <= 0
+      ) {
+        return;
+      }
+
+      const sliceTotal = counts.reduce((sum, count) => sum + Number(count.count || 0), 0);
+      if (sliceTotal <= 0) {
+        return;
+      }
+
+      replacements.push({
+        borderWidth: borderWidth * exportScale,
+        nodeId: String(dataNode.id),
+        totalCount,
+        exportHeight: nodeHeight * exportScale,
+        exportWidth: nodeWidth * exportScale,
+        exportX: (position.x - graphBounds.x1 - nodeWidth / 2) * exportScale,
+        exportY: (position.y - graphBounds.y1 - nodeHeight / 2) * exportScale,
+        slices: counts.map((count) => {
+          const label = String(count.label);
+          const countValue = Number(count.count || 0);
+          const nodeStyle = this.getNodeFillStyleForColorValue(label);
+
+          return {
+            label,
+            count: countValue,
+            color: nodeStyle.color,
+            opacity: nodeStyle.alpha,
+            fraction: countValue / sliceTotal,
+          };
+        }),
+      });
+    });
+
+    return replacements;
+  }
+
+  private findMatchingCollapsedPieSvgExportReplacement(
+    image: Element,
+    replacements: BubblePieSvgExportReplacement[],
+    usedReplacements: Set<BubblePieSvgExportReplacement>
+  ): BubblePieSvgExportReplacement | null {
+    const imageWidth = this.getSvgLengthAttribute(image, 'width');
+    const imageHeight = this.getSvgLengthAttribute(image, 'height');
+    const imageTranslate = this.getSvgTranslateTransform(image) || { x: 0, y: 0 };
+    const imageX = this.getSvgLengthAttribute(image, 'x') || 0;
+    const imageY = this.getSvgLengthAttribute(image, 'y') || 0;
+    if (imageWidth === null || imageHeight === null) {
+      return null;
+    }
+
+    let bestMatch: BubblePieSvgExportReplacement | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const replacement of replacements) {
+      if (usedReplacements.has(replacement)) {
+        continue;
+      }
+
+      const score =
+        Math.abs(replacement.exportX - (imageTranslate.x + imageX))
+        + Math.abs(replacement.exportY - (imageTranslate.y + imageY))
+        + Math.abs(replacement.exportWidth - imageWidth)
+        + Math.abs(replacement.exportHeight - imageHeight);
+      if (score < bestScore) {
+        bestScore = score;
+        bestMatch = replacement;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  private getBubblePieSlicePath(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startFraction: number,
+    endFraction: number
+  ): string {
+    const startAngle = -Math.PI / 2 + startFraction * 2 * Math.PI;
+    const endAngle = -Math.PI / 2 + endFraction * 2 * Math.PI;
+    const startX = centerX + radius * Math.cos(startAngle);
+    const startY = centerY + radius * Math.sin(startAngle);
+    const endX = centerX + radius * Math.cos(endAngle);
+    const endY = centerY + radius * Math.sin(endAngle);
+    const largeArcFlag = endFraction - startFraction > 0.5 ? 1 : 0;
+
+    return [
+      'M', this.formatSvgNumber(centerX), this.formatSvgNumber(centerY),
+      'L', this.formatSvgNumber(startX), this.formatSvgNumber(startY),
+      'A', this.formatSvgNumber(radius), this.formatSvgNumber(radius), '0', `${largeArcFlag}`, '1', this.formatSvgNumber(endX), this.formatSvgNumber(endY),
+      'Z',
+    ].join(' ');
+  }
+
+  private createBubblePieVectorExportElement(
+    doc: XMLDocument,
+    sourceImage: SVGImageElement,
+    replacement: BubblePieSvgExportReplacement
+  ): SVGGElement {
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+    const vectorGroup = doc.createElementNS(svgNamespace, 'g');
+    vectorGroup.setAttribute('class', 'bubble-export-pie');
+    vectorGroup.setAttribute('data-mt-export', 'bubble-pie');
+    vectorGroup.setAttribute('data-mt-node-id', replacement.nodeId);
+    vectorGroup.setAttribute('data-mt-total-count', `${replacement.totalCount}`);
+    vectorGroup.setAttribute('aria-hidden', 'true');
+
+    const attributesToCopy = ['clip-path', 'opacity', 'style'];
+    attributesToCopy.forEach((attributeName) => {
+      const attributeValue = sourceImage.getAttribute(attributeName);
+      if (attributeValue) {
+        vectorGroup.setAttribute(attributeName, attributeValue);
+      }
+    });
+
+    const imageTransform = sourceImage.getAttribute('transform');
+    if (imageTransform) {
+      vectorGroup.setAttribute('transform', imageTransform);
+    }
+
+    const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
+    const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
+    const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
+    const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
+    const centerX = imageX + imageWidth / 2;
+    const centerY = imageY + imageHeight / 2;
+    const radius = Math.min(imageWidth, imageHeight) / 2;
+    let sliceStart = 0;
+
+    replacement.slices.forEach((slice, index) => {
+      const sliceEnd = index === replacement.slices.length - 1 ? 1 : sliceStart + slice.fraction;
+      const path = doc.createElementNS(svgNamespace, 'path');
+      path.setAttribute('class', 'bubble-export-pie-slice');
+      path.setAttribute('data-mt-export', 'bubble-pie-slice');
+      path.setAttribute('data-mt-node-id', replacement.nodeId);
+      path.setAttribute('data-mt-slice-label', slice.label);
+      path.setAttribute('data-mt-slice-count', `${slice.count}`);
+      path.setAttribute('data-mt-slice-fraction', this.formatSvgNumber(slice.fraction));
+      path.setAttribute('fill', slice.color);
+      path.setAttribute('fill-opacity', this.formatSvgNumber(slice.opacity));
+      path.setAttribute('stroke', 'none');
+      path.setAttribute('d', this.getBubblePieSlicePath(centerX, centerY, radius, sliceStart, sliceEnd));
+      vectorGroup.appendChild(path);
+      sliceStart = sliceEnd;
+    });
+
+    const outline = doc.createElementNS(svgNamespace, 'circle');
+    const outlineStrokeWidth = Math.min(replacement.borderWidth, radius);
+    outline.setAttribute('class', 'bubble-export-pie-outline');
+    outline.setAttribute('data-mt-export', 'bubble-pie-outline');
+    outline.setAttribute('data-mt-node-id', replacement.nodeId);
+    outline.setAttribute('cx', this.formatSvgNumber(centerX));
+    outline.setAttribute('cy', this.formatSvgNumber(centerY));
+    outline.setAttribute('r', this.formatSvgNumber(Math.max(0, radius - outlineStrokeWidth / 2)));
+    outline.setAttribute('fill', 'none');
+    outline.setAttribute('stroke', '#000000');
+    outline.setAttribute('stroke-width', this.formatSvgNumber(outlineStrokeWidth));
+    vectorGroup.appendChild(outline);
+
+    return vectorGroup;
+  }
+
+  private replaceExportedCollapsedPieImagesWithVectorPies(doc: XMLDocument): void {
+    const svgElement = doc.documentElement;
+    const exportScale = this.getBubbleSvgExportScale(svgElement);
+    const replacementList = this.getCollapsedPieSvgExportReplacementList(exportScale);
+    if (replacementList.length === 0) {
+      return;
+    }
+
+    const images = Array.from(doc.getElementsByTagName('image'))
+      .filter((image) => {
+        const href = this.getSvgImageHref(image);
+        return !!href && href.startsWith('data:image/png;base64,');
+      });
+    const usedReplacements = new Set<BubblePieSvgExportReplacement>();
+
+    images.forEach((image) => {
+      const replacement = this.findMatchingCollapsedPieSvgExportReplacement(image, replacementList, usedReplacements);
+      if (!replacement || !image.parentNode) {
+        return;
+      }
+
+      usedReplacements.add(replacement);
+      const vectorElement = this.createBubblePieVectorExportElement(doc, image as SVGImageElement, replacement);
+      image.parentNode.replaceChild(vectorElement, image);
+    });
+  }
+
+  private vectorizeCollapsedPieSvgExport(content: string): string {
+    if (!this.SelectedNodeCollapsingTypeVariable) {
+      return content;
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'image/svg+xml');
+    if (doc.getElementsByTagName('parsererror').length > 0) {
+      return content;
+    }
+
+    this.replaceExportedCollapsedPieImagesWithVectorPies(doc);
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }
+
   exportVisualization() {
     const exportOptions: ExportOptions = {
       filename: this.BubbleExportFileName,
@@ -1201,6 +1666,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.BubbleExportFileType == 'svg') {
       let options = { scale: 1, full: true, bg: '#ffffff'};
       let content = (this.cy as any).svg(options);
+      content = this.vectorizeCollapsedPieSvgExport(content);
 
       this.exportService.requestSVGExport([], content, true, false); 
     } else {

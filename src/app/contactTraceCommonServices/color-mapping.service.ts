@@ -93,6 +93,24 @@ export class ColorMappingService {
       updatedNodeColors = [...updatedColorsTable[nodeColorVariable]];
     }
 
+    const storedKeysForVariable = Array.isArray(updatedColorsTableKeys[nodeColorVariable])
+      ? updatedColorsTableKeys[nodeColorVariable]
+      : [];
+    updatedNodeColors = updatedNodeColors.map((candidateColor, index) => {
+      if (typeof candidateColor === 'string') {
+        return candidateColor;
+      }
+
+      const fallbackKey = String(storedKeysForVariable[index] ?? '');
+      const fallbackHistoryColor = updatedColorsTableHistory?.[fallbackKey];
+      if (typeof fallbackHistoryColor === 'string') {
+        return fallbackHistoryColor;
+      }
+
+      const paletteColor = nodeColors[index % Math.max(nodeColors.length, 1)];
+      return typeof paletteColor === 'string' ? paletteColor : '#1f77b4';
+    });
+
     // Compute aggregates by scanning all node values
     const aggregates: Record<string, number> = {};
     nodes.forEach(d => {
@@ -123,22 +141,19 @@ export class ColorMappingService {
       );
     }
 
-    // Maintain “color history” to keep consistent color assignment
-    const historyKeys = Object.keys(updatedColorsTableHistory);
-
     // For each distinct value, see if we have a color in the “history”
     distinctValues.forEach((val, i) => {
-      const indexInHistory = historyKeys.indexOf(val);
-      if (indexInHistory !== -1) {
-        // We previously assigned a color to this value
-        updatedNodeColors[i] = updatedColorsTableHistory[val];
-      } else {
-        // Not in history -> record it
-        updatedColorsTableHistory[val] = updatedNodeColors[i];
+      const historyColor = updatedColorsTableHistory[val];
+      
+      if (typeof historyColor === 'string') {
+        updatedNodeColors[i] = historyColor;
+        return;
       }
       if (val === 'null') {
         updatedNodeColors[i] = '#EAE553';
       }
+
+      updatedColorsTableHistory[val] = updatedNodeColors[i];
     });
 
     // We store this updated array back into the “table”
@@ -180,6 +195,7 @@ export class ColorMappingService {
     linkAlphas: number[],
     linkColorsTable: any,
     linkColorsTableKeys: any,
+    linkColorsTableHistory: any,
     debugMode: boolean
   ): {
     aggregates: Record<string, number>;
@@ -189,6 +205,7 @@ export class ColorMappingService {
     updatedLinkAlphas: number[];
     updatedLinkColorsTable: any;
     updatedLinkColorsTableKeys: any;
+    updatedLinkColorsTableHistory: any;
   } {
     
 
@@ -202,7 +219,8 @@ export class ColorMappingService {
         updatedLinkColors: linkColors,
         updatedLinkAlphas: linkAlphas,
         updatedLinkColorsTable: linkColorsTable,
-        updatedLinkColorsTableKeys: linkColorsTableKeys
+        updatedLinkColorsTableKeys: linkColorsTableKeys,
+        updatedLinkColorsTableHistory: linkColorsTableHistory
       };
     }
     
@@ -213,67 +231,189 @@ export class ColorMappingService {
 
     const updatedLinkColorsTable = linkColorsTable || {};
     const updatedLinkColorsTableKeys = linkColorsTableKeys || {};
+    let updatedLinkColorsTableHistory = linkColorsTableHistory || {};
     let updatedLinkColors = [...linkColors];
     let updatedLinkAlphas = [...linkAlphas];
 
+    const hasLinkColorsTableForVariable = Array.isArray(updatedLinkColorsTable[linkColorVariable]);
+
     // If no existing color array for the chosen link variable
-    if (!updatedLinkColorsTable[linkColorVariable]) {
+    if (!hasLinkColorsTableForVariable) {
       updatedLinkColorsTable[linkColorVariable] = updatedLinkColors;
     } else {
       updatedLinkColors = [...updatedLinkColorsTable[linkColorVariable]];
     }
 
-    let multiLinkCount = 0; // Initialize Multi-Link count
+    const storedKeysForVariable = Array.isArray(updatedLinkColorsTableKeys[linkColorVariable])
+      ? updatedLinkColorsTableKeys[linkColorVariable]
+      : [];
+    updatedLinkColors = updatedLinkColors.map((candidateColor, index) => {
+      if (typeof candidateColor === 'string') {
+        return candidateColor;
+      }
+
+      const fallbackKey = String(storedKeysForVariable[index] ?? '');
+      const fallbackHistoryColor = updatedLinkColorsTableHistory?.[fallbackKey];
+      if (typeof fallbackHistoryColor === 'string') {
+        return fallbackHistoryColor;
+      }
+
+      const paletteColor = linkColors[index % Math.max(linkColors.length, 1)];
+      return typeof paletteColor === 'string' ? paletteColor : '#a6cee3';
+    });
+
+    let multiLinkCount = 0;
+    const emptyValueKey = 'null';
+    const emptyValueColor = '#EAE553';
+    const isOriginColorVariable = String(linkColorVariable).toLowerCase() === 'origin';
+
+    const ensureAggregateKey = (value: any, includeEmpty = false): string | null => {
+      const trimmedStringValue = typeof value === 'string' ? value.trim().toLowerCase() : null;
+      const isEmptyValue = value === undefined ||
+        value === null ||
+        (typeof value === 'number' && Number.isNaN(value)) ||
+        trimmedStringValue === '' ||
+        trimmedStringValue === 'nan';
+
+      if (isEmptyValue) {
+        if (!includeEmpty) {
+          return null;
+        }
+
+        if (!Object.prototype.hasOwnProperty.call(aggregates, emptyValueKey)) {
+          aggregates[emptyValueKey] = 0;
+        }
+
+        return emptyValueKey;
+      }
+
+      const key = String(value);
+      if (!Object.prototype.hasOwnProperty.call(aggregates, key)) {
+        aggregates[key] = 0;
+      }
+
+      return key;
+    };
 
     // Collect aggregates
     const aggregates: Record<string, number> = {};
     links.forEach(l => {
       if (!l.visible) return;
       if (linkColorVariable.toLowerCase() === 'origin') {
-        // If origin is an array of strings
-        l.origin.forEach(o => {
-          aggregates[o] = (aggregates[o] || 0) + 1;
-        });
+        const origins = Array.isArray(l.origin)
+          ? l.origin
+          : [l.origin];
+        const originKeys = origins
+          .map(origin => ensureAggregateKey(origin))
+          .filter((key): key is string => key !== null);
 
-        // Count Multi-Links separately
-        if (l.origin.length == 2) {  
-            multiLinkCount++;
+        if (originKeys.length > 1) {
+          multiLinkCount++;
+        } else if (originKeys.length === 1) {
+          aggregates[originKeys[0]] += 1;
         }
 
       } else {
-        const val = l[linkColorVariable];
-        aggregates[val] = (aggregates[val] || 0) + 1;
+        const val = ensureAggregateKey(l[linkColorVariable], true);
+        if (val !== null) {
+          aggregates[val] += 1;
+        }
       }
     });
 
-    // Add Multi-Link to aggregates if it exists
     if (multiLinkCount > 0) {
-        aggregates["Duo-Link"] = multiLinkCount;
+      aggregates["Duo-Link"] = multiLinkCount;
     }
 
-    // Adjust counts for other links by subtracting Multi-Link count
-    Object.keys(aggregates).forEach(key => {
-        if (key !== "Duo-Link") {
-            aggregates[key] -= multiLinkCount; // Subtract Multi-Link count
-        }
-    });
+    let distinctValues = Object.keys(aggregates);
+    if (isOriginColorVariable) {
+      const originRank = (value: string): number => {
+        if (value === 'Duo-Link') return 2;
+        if (value === 'Genetic Distance') return 1;
+        return 0;
+      };
 
-    const distinctValues = Object.keys(aggregates);
+      distinctValues = distinctValues.sort((left, right) => originRank(left) - originRank(right));
+    }
 
 
 
     // Possibly handle “multi-link” or other specifics if needed
     // For now, we skip that for clarity. If needed, you can replicate your duo-link logic.
 
-    // Expand link colors if needed
-    if (distinctValues.length > updatedLinkColors.length) {
-      let expandedColors: string[] = [];
-      let neededTimes = Math.ceil(distinctValues.length / updatedLinkColors.length);
-      while (neededTimes-- > 0) {
-        expandedColors = expandedColors.concat(updatedLinkColors);
+    const defaultLinkPalette = linkColorVariable === 'source' || linkColorVariable === 'target'
+      ? [d3.schemeCategory10[0]].concat(d3.schemeCategory10.slice(2))
+      : d3.schemePaired;
+    const candidatePalette = linkColors.filter((color): color is string => typeof color === 'string');
+    const uniqueCandidatePalette = Array.from(new Set(candidatePalette));
+    const needsDefaultPalette = uniqueCandidatePalette.length <= 1 ||
+      (!hasLinkColorsTableForVariable && uniqueCandidatePalette.length < distinctValues.length);
+    const basePalette = needsDefaultPalette ? defaultLinkPalette : uniqueCandidatePalette;
+    const fallbackPalette = basePalette.length ? basePalette : ['#a6cee3'];
+    const colorsByKey = new Map<string, string>();
+    const resetExpandedOriginColors = isOriginColorVariable &&
+      distinctValues.length > 1 &&
+      uniqueCandidatePalette.length <= 1;
+
+    storedKeysForVariable.forEach((key, index) => {
+      const color = updatedLinkColors[index];
+      if (typeof color === 'string') {
+        colorsByKey.set(String(key), color);
       }
-      updatedLinkColors = expandedColors;
-    }
+    });
+
+    Object.entries(updatedLinkColorsTableHistory || {}).forEach(([key, color]) => {
+      if (typeof color === 'string') {
+        colorsByKey.set(key, color);
+      }
+    });
+
+    const existingColorsByValue = new Map<string, string>();
+    const usedColors = new Set<string>();
+    const repairDuplicateColors = isOriginColorVariable || uniqueCandidatePalette.length < distinctValues.length;
+
+    distinctValues.forEach((val) => {
+      const existingColor = colorsByKey.get(val);
+      if (existingColor) {
+        if (resetExpandedOriginColors) {
+          delete updatedLinkColorsTableHistory[val];
+          return;
+        }
+
+        if (repairDuplicateColors && usedColors.has(existingColor)) {
+          delete updatedLinkColorsTableHistory[val];
+          return;
+        }
+
+        existingColorsByValue.set(val, existingColor);
+        usedColors.add(existingColor);
+        updatedLinkColorsTableHistory[val] = existingColor;
+      }
+    });
+
+    updatedLinkColors = distinctValues.map((val, index) => {
+      const existingColor = existingColorsByValue.get(val);
+      if (existingColor) {
+        return existingColor;
+      }
+
+      if (val === emptyValueKey && !usedColors.has(emptyValueColor)) {
+        usedColors.add(emptyValueColor);
+        updatedLinkColorsTableHistory[val] = emptyValueColor;
+        return emptyValueColor;
+      }
+
+      const preferredPalette = fallbackPalette
+        .slice(index)
+        .concat(fallbackPalette.slice(0, index));
+      const nextColor = preferredPalette.find(color => !usedColors.has(color))
+        || fallbackPalette[index % fallbackPalette.length]
+        || '#a6cee3';
+
+      usedColors.add(nextColor);
+      updatedLinkColorsTableHistory[val] = nextColor;
+      return nextColor;
+    });
 
     // Expand link alphas if needed
     if (distinctValues.length > updatedLinkAlphas.length) {
@@ -304,7 +444,8 @@ export class ColorMappingService {
       updatedLinkColors,
       updatedLinkAlphas,
       updatedLinkColorsTable,
-      updatedLinkColorsTableKeys
+      updatedLinkColorsTableKeys,
+      updatedLinkColorsTableHistory
     };
   }
 

@@ -1,10 +1,10 @@
 import { Injector, Component, Output, EventEmitter, 
-  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, ViewContainerRef,
+  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy, ViewContainerRef,
   ViewChild} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import * as _ from 'lodash';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as domToImage from 'html-to-image';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
@@ -15,15 +15,19 @@ import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { Subject, takeUntil } from 'rxjs';
+import * as d3 from 'd3';
 //import * as plotlyjs from 'plotly.js-dist-min';
 
 
 @Component({
-  selector: 'HeatmapComponent',
-  templateUrl: './heatmap.component.html',
-  styleUrls: ['./heatmap.component.scss']
+    selector: 'HeatmapComponent',
+    templateUrl: './heatmap.component.html',
+    styleUrls: ['./heatmap.component.scss'],
+    standalone: false
 })
-export class HeatmapComponent extends BaseComponentDirective implements OnInit {
+export class HeatmapComponent extends BaseComponentDirective implements OnInit, OnDestroy {
 
   @ViewChild('heatmapContainer', { read: ElementRef }) heatmapContainerRef: ElementRef;  
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
@@ -65,6 +69,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
   SelectedDistanceMatrixFilenameVariable: string = "distance_matrix.csv";
   heatmapLabels: string[];
   heatmapMetric: string;
+  private destroy$ = new Subject<void>();
     
   constructor(injector: Injector,
         private eventManager: EventManager,
@@ -76,6 +81,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         private renderer: Renderer2,
         private exportService: ExportService,
         private plotlyModule: PlotlyModule,
+        private store: CommonStoreService,
       ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
@@ -103,7 +109,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
       'yaxis.autorange': true
     }
     PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
-    this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+    this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
   }
   
   ngOnInit(): void {
@@ -148,9 +154,68 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
+      this.redrawHeatmap();
     })
 
+    this.store.networkUpdated$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((networkUpdated) => {
+        if (this.viewActive && networkUpdated) {
+          this.redrawHeatmap();
+          this.store.setNetworkUpdated(false);
+        }
+      });
+
     this.redrawHeatmap();
+  }
+
+  private usesPercentageDistanceDisplay(): boolean {
+    return this.commonService.tn93PercentageDisplayEnabled('heatmap-distance');
+  }
+
+  private formatHeatmapDistanceValue(
+    value: number | null | undefined,
+    options: {
+      decimals?: number;
+      trimTrailingZeros?: boolean;
+      includeSuffix?: boolean;
+    } = {}
+  ): string {
+    return this.commonService.formatDisplayedDistanceValue(value, 'heatmap-distance', options);
+  }
+
+  private buildFormattedHeatmapMatrix(matrix: any[]): string[][] {
+    return (matrix || []).map((row) => (
+      Array.isArray(row)
+        ? row.map((value) => this.formatHeatmapDistanceValue(Number(value)))
+        : []
+    ));
+  }
+
+  private buildHeatmapColorbar(matrix: any[]): any {
+    const numericValues = (matrix || [])
+      .flatMap((row) => Array.isArray(row) ? row : [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+
+    if (numericValues.length === 0) {
+      return undefined;
+    }
+
+    const minValue = Math.min(...numericValues);
+    const maxValue = Math.max(...numericValues);
+    const epsilon = Math.abs(maxValue - minValue) * 1e-12 || 1e-12;
+    const tickValues = minValue === maxValue
+      ? [minValue]
+      : d3.ticks(minValue, maxValue, 8)
+        .filter((value) => value >= minValue - epsilon && value <= maxValue + epsilon);
+    const colorbarTickValues = tickValues.length > 0 ? tickValues : [minValue, maxValue];
+
+    return {
+      tickmode: 'array',
+      tickvals: colorbarTickValues,
+      ticktext: colorbarTickValues.map((value) => this.formatHeatmapDistanceValue(value)),
+    };
   }
 
   drawHeatmap(config: object): void {
@@ -169,7 +234,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
         yLabels.reverse();
       }
 
-      this.heatmapData = [{
+      const heatmapTrace: any = {
         x: xLabels,
         y: yLabels,
         z: dm,
@@ -179,7 +244,16 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
           [0.5, this.medColor],
           [1, this.hiColor]
         ]
-      }]
+      };
+
+      heatmapTrace.colorbar = this.buildHeatmapColorbar(dm);
+
+      if (this.usesPercentageDistanceDisplay()) {
+        heatmapTrace.customdata = this.buildFormattedHeatmapMatrix(dm);
+        heatmapTrace.hovertemplate = 'X: %{x}<br>Y: %{y}<br>Distance: %{customdata}<extra></extra>';
+      }
+
+      this.heatmapData = [heatmapTrace]
 
 /*      const parentElement = this.heatmapContainerRef.nativeElement.parentElement;
     const width = parentElement.clientWidth;
@@ -201,7 +275,13 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
       //  this.Plotly.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
 
-      this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+      const plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
+      this.plot = plot;
+
+      Promise.resolve(plot).then(() => {
+        this.setBackground();
+        this.store.setNetworkRendered(true);
+      });
     });
   }
 
@@ -274,7 +354,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     }
 
     this.drawHeatmap(config);
-    this.setBackground();
   }
 
   setBackground(): void {
@@ -345,6 +424,20 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
     this.redrawHeatmap();
   }
 
+  updateShowLabels(showLabels: boolean): void {
+    this.heatmapShowLabels = showLabels;
+    this.commonService.session.style.widgets["heatmap-axislabels-show"] = this.heatmapShowLabels;
+    this.redrawHeatmap();
+  }
+
+  updateVisualization(): void {
+    this.redrawHeatmap();
+  }
+
+  refreshDistanceDisplayFormat(): void {
+    this.redrawHeatmap();
+  }
+
   saveImage(): void {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
@@ -372,7 +465,15 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   fixGradient(el: HTMLElement): HTMLElement {
     const insertionPoint = el.getElementsByClassName("gradient_filled");
+    if (!insertionPoint.length) {
+      return el;
+    }
+
     const startingUrl = insertionPoint[0]["style"]["fill"];
+    if (!startingUrl || !startingUrl.includes("#")) {
+      return el;
+    }
+
     const idVal = startingUrl.substring(startingUrl.indexOf("#"));
     insertionPoint[0]["style"]["fill"] = 'url("'+idVal;
     return el;
@@ -380,23 +481,46 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit {
 
   saveDistanceMatrix(): void {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
-    const labelArray = cloneDeep(this.heatmapLabels);
-    this.commonService.getDM().then(({dm, _}) => {
-      let csvContent = "data:text/csv;charset=utf-8,";
+    this.commonService.getDM().then(({dm, labels}) => {
+      const xLabels = (labels || []).map((label) => String(label));
+      const yLabels = cloneDeep(xLabels);
+      let matrix = cloneDeep(dm);
+
+      if (this.invertX) {
+        matrix = matrix.map((row) => Array.isArray(row) ? [...row].reverse() : row);
+        xLabels.reverse();
+      }
+
+      if (this.invertY) {
+        matrix = [...matrix].reverse();
+        yLabels.reverse();
+      }
+
+      const exportedMatrix = this.usesPercentageDistanceDisplay()
+        ? matrix.map((row) => Array.isArray(row)
+          ? row.map((value) => this.formatHeatmapDistanceValue(Number(value)))
+          : row)
+        : matrix;
+
+      let csvContent = "";
       if (this.heatmapShowLabels) {
-        labelArray.unshift("");
-        csvContent += labelArray.join(",") + "\n";
-        for(let i=0; i<dm.length; i++) {
-          dm[i].unshift(this.heatmapLabels[i]);
-          csvContent += dm[i].join(",") + "\n";
+        csvContent += ["", ...xLabels].join(",") + "\n";
+        for (let i = 0; i < exportedMatrix.length; i++) {
+          csvContent += [yLabels[i], ...exportedMatrix[i]].join(",") + "\n";
         }
       } else {
-        csvContent += dm.map(e => e.join(",")).join("\n");
+        csvContent += exportedMatrix.map((row) => row.join(",")).join("\n");
       }
-      saveAs(csvContent, fileName);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      saveAs(blob, fileName);
     });
     
-  } 
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace

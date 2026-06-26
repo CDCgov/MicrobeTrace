@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "description": "Example reviewed performance budget config. Copy to budgets.json only after thresholds are reviewed from stable baseline runs.",
+  "budgets": {
+    "average-graph-1600n-3200l": {
+      "totalMeasuredMs": {
+        "enabled": false,
+        "warningMs": 12000,
+        "failureMs": 15000,
+        "note": "Example only. Replace with p95-derived thresholds before enabling."
+      },
+      "launchToFullyLoadedMs": {
+        "enabled": false,
+        "warningMs": 7000,
+        "failureMs": 9000,
+        "note": "Example only. Replace with p95-derived thresholds before enabling."
+      },
+      "longTasks.maxDurationMs": {
+        "enabled": false,
+        "warningMs": 1000,
+        "failureMs": 1500,
+        "note": "Example only. Replace with p95-derived thresholds before enabling."
+      }
+    },
+    "average-newick-500": {
+      "app.performance.patristic.lastEdgeBatch.durationMs": {
+        "enabled": false,
+        "warningMs": 1500,
+        "failureMs": 2250,
+        "note": "Example app-side worker metric budget; enable after repeated Newick baseline runs."
+      }
+    }
+  }
+}

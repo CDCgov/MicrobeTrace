@@ -18,14 +18,6 @@
           "builder": "@angular-eslint/builder:lint",
           "options": {
             "eslintConfig": ".eslintrc.json",
-            "tsConfig": [
-              "tsconfig.app.json",
-              "tsconfig.spec.json",
-              "e2e/tsconfig.json"
-            ],
-            "exclude": [
-              "**/node_modules/**"
-            ],
             "lintFilePatterns": [
                   "src/**/*.ts",
                   "src/**/*.html"
@@ -33,13 +25,16 @@
           }
         },
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "statsJson": true,
-            "outputPath": "dist/MicrobeTrace",
+            "outputPath": {
+              "base": "dist/MicrobeTrace",
+              "browser": ""
+            },
             "index": "src/index.html",
-            "main": "src/main.ts",
-            "polyfills": "src/polyfills.ts",
+            "polyfills": [
+              "src/polyfills.ts"
+            ],
             "tsConfig": "src/tsconfig.app.json",
             "stylePreprocessorOptions": {
               "includePaths": [
@@ -48,17 +43,41 @@
             },
             "assets": [
               "src/favicon.ico",
-              "src/assets",
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets",
+                "ignore": [
+                  "metronic/app/core/**"
+                ]
+              },
               "src/assets/common/data",
               "src/assets/images/Logo.png",
               "src/outbreaknorm.microbetrace",
               "src/outbreakover.microbetrace",
               "src/COVID_DummySession.microbetrace",
               "src/assets/parse-csv-matrix.js",
-              "src/assets/papaparse.min.js"
+              "src/assets/papaparse.min.js",
+              {
+                "glob": "localforage.min.js",
+                "input": "node_modules/localforage/dist",
+                "output": "assets/embed/vendor"
+              }
             ],
             "styles": [
 
+              {
+                "input": "node_modules/@fontsource/roboto/300.css"
+              },
+              {
+                "input": "node_modules/@fontsource/roboto/400.css"
+              },
+              {
+                "input": "node_modules/@fontsource/roboto/500.css"
+              },
+              {
+                "input": "node_modules/material-icons/iconfont/material-icons.css"
+              },
               {
                 "input": "src/microbetrace-theme.scss"
               },
@@ -90,10 +109,8 @@
                 "input": "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css"
               }
             ],
-            "scripts": [
-              "src/assets/metronic/assets/vendors/base/vendors.bundle.js",
-              "src/assets/metronic/assets/demo/default/base/scripts.bundle.js"
-            ]
+            "scripts": [],
+            "browser": "src/main.ts"
           },
           "configurations": {
             "development": {
@@ -101,14 +118,12 @@
               "sourceMap": true,
               "namedChunks": true,
               "extractLicenses": true,
-              "vendorChunk": true,
-              "buildOptimizer": false,
               "watch": true,
               "budgets": [
                 {
                   "type": "initial",
                   "maximumWarning": "2mb",
-                  "maximumError": "6mb"
+                  "maximumError": "35mb"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -128,14 +143,16 @@
                   "with": "src/environments/version.prod.ts"
                 }
               ],
-              "optimization": false,
-              "outputHashing": "none",
-              "sourceMap": true,
+              "optimization": {
+                "scripts": true,
+                "styles": true,
+                "fonts": false
+              },
+              "outputHashing": "all",
+              "sourceMap": false,
               "namedChunks": false,
               "aot": false,
-              "extractLicenses": false,
-              "vendorChunk": true,
-              "buildOptimizer": false,
+              "extractLicenses": true,
               "budgets": [
                 {
                   "type": "initial",
@@ -181,27 +198,20 @@
             "scripts": [],
             "assets": [
               "src/favicon.ico",
-              "src/assets"
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets",
+                "ignore": [
+                  "metronic/app/core/**"
+                ]
+              },
+              {
+                "glob": "localforage.min.js",
+                "input": "node_modules/localforage/dist",
+                "output": "assets/embed/vendor"
+              }
             ]
-          }
-        }
-      }
-    },
-    "MicrobeTrace-e2e": {
-      "root": "e2e/",
-      "projectType": "application",
-      "prefix": "",
-      "architect": {
-        "e2e": {
-          "builder": "@angular-devkit/build-angular:protractor",
-          "options": {
-            "protractorConfig": "e2e/protractor.conf.js",
-            "devServerTarget": "MicrobeTrace:serve"
-          },
-          "configurations": {
-            "production": {
-              "devServerTarget": "MicrobeTrace:serve:production"
-            }
           }
         }
       }
@@ -211,6 +221,32 @@
     "analytics": false,
     "cache": {
       "enabled": false
+    }
+  },
+  "schematics": {
+    "@schematics/angular:component": {
+      "type": "component"
+    },
+    "@schematics/angular:directive": {
+      "type": "directive"
+    },
+    "@schematics/angular:service": {
+      "type": "service"
+    },
+    "@schematics/angular:guard": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:interceptor": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:module": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:pipe": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:resolver": {
+      "typeSeparator": "."
     }
   }
 }

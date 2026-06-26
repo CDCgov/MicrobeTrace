@@ -1,20 +1,44 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
+about: Propose new MicrobeTrace behavior not already covered by a user story.
 title: ''
 labels: "[issue-type] enhancement"
 assignees: billswitzer2, ells, mossy426
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Problem / Opportunity
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+Describe the user problem, workflow gap, or analysis need.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Proposed Behavior
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+Describe what MicrobeTrace should do.
+
+## User Value
+
+As a MicrobeTrace user, I want [capability], so that [analysis or workflow benefit].
+
+## Feature Area / View
+
+Examples: Data Import, 2D Network, Map, Dashboard, Global Settings, Session/Export
+
+## Inputs / Data Shape
+
+- File type(s):
+- Required columns:
+- Optional columns:
+- Example fixtures or sample data:
+
+## Acceptance Criteria
+
+- Given...
+- When...
+- Then...
+
+## Related Work
+
+- Existing user story:
+- Existing bug:
+- Cypress coverage:
+- Docs/manual:

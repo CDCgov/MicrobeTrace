@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MicrobeTrace — AI-Assisted Developer Onboarding</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0a0e1a;
+    color: #e0e6f0;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  .infographic {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 50px;
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    display: block;
+    width: 120px;
+    height: 3px;
+    background: linear-gradient(90deg, #00d4ff, #7b61ff, #ff6b9d);
+    margin: 20px auto 0;
+    border-radius: 2px;
+  }
+  .header .badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #1a1f35, #252b45);
+    border: 1px solid #2a3055;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #7b9fff;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 42px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #ffffff, #a0b4e0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .header .subtitle {
+    font-size: 17px;
+    color: #7a8bb5;
+    font-weight: 400;
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+
+  /* ── Core Principle Banner ── */
+  .principle-banner {
+    background: linear-gradient(135deg, #111833, #1a2040);
+    border: 1px solid #252f55;
+    border-radius: 16px;
+    padding: 32px 40px;
+    margin-bottom: 50px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .principle-banner::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #7b61ff, transparent);
+  }
+  .principle-banner .icon { font-size: 28px; margin-bottom: 12px; }
+  .principle-banner h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .principle-banner p {
+    color: #8a9cc5;
+    font-size: 14px;
+    max-width: 650px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── Section Titles ── */
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+    margin-top: 50px;
+  }
+  .section-title .num {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .section-title h2 {
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  /* ── System Map ── */
+  .system-map {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .system-card {
+    background: linear-gradient(135deg, #111833, #151d38);
+    border: 1px solid #1e2a4a;
+    border-radius: 14px;
+    padding: 24px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .system-card:hover { border-color: #3a4a7a; }
+  .system-card .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 14px;
+  }
+  .system-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #fff;
+  }
+  .system-card .file-path {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: #5a6d9a;
+    margin-bottom: 10px;
+  }
+  .system-card p {
+    font-size: 13px;
+    color: #8a9cc5;
+    line-height: 1.55;
+  }
+  .system-card .loc {
+    display: inline-block;
+    background: rgba(255,255,255,0.06);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6a7faa;
+    margin-top: 8px;
+  }
+
+  /* color accents */
+  .accent-blue .card-icon { background: rgba(0,212,255,0.12); }
+  .accent-blue h3 { color: #5ad4ff; }
+  .accent-purple .card-icon { background: rgba(123,97,255,0.12); }
+  .accent-purple h3 { color: #a58bff; }
+  .accent-pink .card-icon { background: rgba(255,107,157,0.12); }
+  .accent-pink h3 { color: #ff8ab0; }
+  .accent-green .card-icon { background: rgba(0,214,143,0.12); }
+  .accent-green h3 { color: #4adeb0; }
+
+  .num-blue { background: rgba(0,212,255,0.15); color: #5ad4ff; }
+  .num-purple { background: rgba(123,97,255,0.15); color: #a58bff; }
+  .num-green { background: rgba(0,214,143,0.15); color: #4adeb0; }
+  .num-pink { background: rgba(255,107,157,0.15); color: #ff8ab0; }
+  .num-orange { background: rgba(255,170,60,0.15); color: #ffb84d; }
+
+  /* ── Flow arrow connector ── */
+  .flow-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0;
+    color: #2a3a66;
+    font-size: 20px;
+  }
+
+  /* ── Data Flow Diagram ── */
+  .data-flow {
+    background: linear-gradient(135deg, #111833, #151d38);
+    border: 1px solid #1e2a4a;
+    border-radius: 14px;
+    padding: 30px;
+    margin-top: 16px;
+  }
+  .data-flow h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #5a6d9a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .flow-node {
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .flow-arrow {
+    color: #3a4a6a;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .flow-blue { background: rgba(0,212,255,0.1); color: #5ad4ff; border: 1px solid rgba(0,212,255,0.2); }
+  .flow-purple { background: rgba(123,97,255,0.1); color: #a58bff; border: 1px solid rgba(123,97,255,0.2); }
+  .flow-pink { background: rgba(255,107,157,0.1); color: #ff8ab0; border: 1px solid rgba(255,107,157,0.2); }
+  .flow-green { background: rgba(0,214,143,0.1); color: #4adeb0; border: 1px solid rgba(0,214,143,0.2); }
+
+  /* ── Workflow ── */
+  .workflow {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .workflow-step {
+    background: linear-gradient(135deg, #111833, #151d38);
+    border: 1px solid #1e2a4a;
+    border-radius: 14px;
+    padding: 28px 24px;
+    text-align: center;
+    position: relative;
+  }
+  .workflow-step .step-num {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+    margin: 0 auto 14px;
+  }
+  .workflow-step h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .workflow-step p {
+    font-size: 13px;
+    color: #7a8bb5;
+    line-height: 1.55;
+  }
+  .workflow-step ul {
+    text-align: left;
+    list-style: none;
+    margin-top: 12px;
+  }
+  .workflow-step ul li {
+    font-size: 12px;
+    color: #8a9cc5;
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+  .workflow-step ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #4a5a8a;
+  }
+
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    padding-left: 30px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, #7b61ff, #00d4ff, #4adeb0, #ff6b9d);
+    border-radius: 2px;
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 28px;
+    padding-left: 24px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 6px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+  }
+  .timeline-item:nth-child(1)::before { border-color: #7b61ff; background: rgba(123,97,255,0.3); }
+  .timeline-item:nth-child(2)::before { border-color: #00d4ff; background: rgba(0,212,255,0.3); }
+  .timeline-item:nth-child(3)::before { border-color: #4adeb0; background: rgba(0,214,143,0.3); }
+  .timeline-item:nth-child(4)::before { border-color: #ff6b9d; background: rgba(255,107,157,0.3); }
+  .timeline-item .week {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+  }
+  .timeline-item:nth-child(1) .week { color: #a58bff; }
+  .timeline-item:nth-child(2) .week { color: #5ad4ff; }
+  .timeline-item:nth-child(3) .week { color: #4adeb0; }
+  .timeline-item:nth-child(4) .week { color: #ff8ab0; }
+  .timeline-item h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .timeline-item p {
+    font-size: 13px;
+    color: #7a8bb5;
+    line-height: 1.55;
+  }
+  .timeline-item .tasks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .timeline-item .task-tag {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #8a9cc5;
+    font-weight: 500;
+  }
+
+  /* ── PR Checklist ── */
+  .pr-checklist {
+    background: linear-gradient(135deg, #111833, #151d38);
+    border: 1px solid #1e2a4a;
+    border-radius: 14px;
+    padding: 28px 32px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  .pr-checklist .pr-line {
+    padding: 5px 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .pr-comment { color: #5a6d9a; }
+  .pr-heading { color: #ff8ab0; font-weight: 700; }
+  .pr-check { color: #4adeb0; }
+  .pr-field { color: #a58bff; }
+  .pr-value { color: #8a9cc5; }
+
+  /* ── Roles Grid ── */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .role-card {
+    background: linear-gradient(135deg, #111833, #151d38);
+    border: 1px solid #1e2a4a;
+    border-radius: 14px;
+    padding: 28px;
+  }
+  .role-card .role-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 12px;
+  }
+  .role-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 14px;
+  }
+  .role-card ul {
+    list-style: none;
+  }
+  .role-card ul li {
+    font-size: 13px;
+    color: #8a9cc5;
+    padding: 5px 0;
+    padding-left: 20px;
+    position: relative;
+  }
+  .role-card ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12px;
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+  }
+  .role-you li::before { background: #7b61ff; }
+  .role-new li::before { background: #00d4ff; }
+
+  /* ── Refactor Target ── */
+  .refactor-target {
+    background: linear-gradient(135deg, #111833, #151d38);
+    border: 1px solid #1e2a4a;
+    border-radius: 14px;
+    padding: 28px;
+  }
+  .refactor-target h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #5a6d9a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+  .refactor-from {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .refactor-blob {
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .blob-big {
+    background: rgba(255,107,157,0.08);
+    color: #ff8ab0;
+    border-color: rgba(255,107,157,0.2);
+    flex-shrink: 0;
+  }
+  .refactor-outputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .refactor-out {
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .refactor-out .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .out-1 { background: rgba(0,212,255,0.08); color: #5ad4ff; border: 1px solid rgba(0,212,255,0.15); }
+  .out-1 .dot { background: #00d4ff; }
+  .out-2 { background: rgba(123,97,255,0.08); color: #a58bff; border: 1px solid rgba(123,97,255,0.15); }
+  .out-2 .dot { background: #7b61ff; }
+  .out-3 { background: rgba(0,214,143,0.08); color: #4adeb0; border: 1px solid rgba(0,214,143,0.15); }
+  .out-3 .dot { background: #00d68f; }
+  .out-4 { background: rgba(255,170,60,0.08); color: #ffb84d; border: 1px solid rgba(255,170,60,0.15); }
+  .out-4 .dot { background: #ffaa3c; }
+
+  .split-arrow {
+    font-size: 24px;
+    color: #2a3a66;
+  }
+
+  /* ── Key Insight Callout ── */
+  .insight-callout {
+    background: linear-gradient(135deg, #0f1a30, #141f3a);
+    border: 1px solid #1e2a4a;
+    border-left: 3px solid #7b61ff;
+    border-radius: 0 14px 14px 0;
+    padding: 24px 28px;
+    margin-top: 40px;
+    margin-bottom: 10px;
+  }
+  .insight-callout h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a58bff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .insight-callout p {
+    font-size: 14px;
+    color: #8a9cc5;
+    line-height: 1.6;
+  }
+  .insight-callout strong { color: #e0e6f0; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    margin-top: 50px;
+    padding-top: 30px;
+    border-top: 1px solid #1a2040;
+    color: #3a4a6a;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="infographic">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <div class="badge">MicrobeTrace Developer Guide</div>
+    <h1>AI-Assisted Developer<br>Onboarding</h1>
+    <p class="subtitle">A governance-first workflow for contributing to MicrobeTrace using AI code generation — no Angular expertise required.</p>
+  </div>
+
+  <!-- ═══ CORE PRINCIPLE ═══ -->
+  <div class="principle-banner">
+    <div class="icon">&#x1F9E0;</div>
+    <h2>You're an operator, not a traditional developer.</h2>
+    <p>Your job is to <strong style="color:#fff;">reason about the system</strong>, direct AI to generate code, and <strong style="color:#fff;">prove correctness</strong>. Deep Angular knowledge is not the goal — understanding MicrobeTrace's data model and verification discipline is.</p>
+  </div>
+
+  <!-- ═══ 1. SYSTEM BOUNDARIES ═══ -->
+  <div class="section-title">
+    <div class="num num-blue">1</div>
+    <h2>Know the System Boundaries</h2>
+  </div>
+
+  <div class="system-map">
+    <div class="system-card accent-blue">
+      <div class="card-icon">&#x1F4E1;</div>
+      <h3>State Store</h3>
+      <div class="file-path">CommonStoreService</div>
+      <p>All components react to these observables. BehaviorSubjects emit state changes. Breaking a subject breaks the entire app.</p>
+      <span class="loc">160 LOC — read all of it</span>
+    </div>
+    <div class="system-card accent-purple">
+      <div class="card-icon">&#x2699;&#xFE0F;</div>
+      <h3>Business Logic</h3>
+      <div class="file-path">CommonService</div>
+      <p>Filtering, coloring, distance metrics, worker coordination. Where most bugs originate. The main refactoring target.</p>
+      <span class="loc">3,597 LOC — understand what, not how</span>
+    </div>
+    <div class="system-card accent-pink">
+      <div class="card-icon">&#x1F4CA;</div>
+      <h3>Visualizations</h3>
+      <div class="file-path">visualizationComponents/*</div>
+      <p>13 view components (2D Network, Map, Timeline, etc). Tightly coupled to CommonService. Changes ripple across views.</p>
+      <span class="loc">10,000+ LOC combined</span>
+    </div>
+    <div class="system-card accent-green">
+      <div class="card-icon">&#x2705;</div>
+      <h3>Test Oracle</h3>
+      <div class="file-path">cypress/oracle/*</div>
+      <p>Independent computation of expected filtering behavior. Your correctness guarantee. 59 Cypress specs validate against it.</p>
+      <span class="loc">The source of truth</span>
+    </div>
+  </div>
+
+  <div class="data-flow">
+    <h4>Data Flow — How State Moves</h4>
+    <div class="flow-row">
+      <span class="flow-node flow-blue">&#x1F4C1; File Upload</span>
+      <span class="flow-arrow">&#x2192;</span>
+      <span class="flow-node flow-purple">&#x2699;&#xFE0F; CommonService (transform + filter)</span>
+      <span class="flow-arrow">&#x2192;</span>
+      <span class="flow-node flow-blue">&#x1F4E1; CommonStore (emit state)</span>
+      <span class="flow-arrow">&#x2192;</span>
+      <span class="flow-node flow-pink">&#x1F4CA; Views (subscribe + render)</span>
+    </div>
+  </div>
+
+  <!-- ═══ 2. EVERY-TASK WORKFLOW ═══ -->
+  <div class="section-title">
+    <div class="num num-purple">2</div>
+    <h2>Every-Task Workflow</h2>
+  </div>
+
+  <div class="workflow">
+    <div class="workflow-step">
+      <div class="step-num num-purple">1</div>
+      <h3>Propose</h3>
+      <p>Before touching code, define scope.</p>
+      <ul>
+        <li>What files will change?</li>
+        <li>What behavior changes?</li>
+        <li>What could break?</li>
+        <li>How will you verify?</li>
+      </ul>
+    </div>
+    <div class="workflow-step">
+      <div class="step-num num-blue">2</div>
+      <h3>Execute with AI</h3>
+      <p>Use Codex / Claude to generate:</p>
+      <ul>
+        <li>Implementation code</li>
+        <li>Unit tests (required)</li>
+        <li>Edge case handling</li>
+        <li>Explain why output is correct</li>
+      </ul>
+    </div>
+    <div class="workflow-step">
+      <div class="step-num num-green">3</div>
+      <h3>Verify &amp; PR</h3>
+      <p>Prove the change is safe.</p>
+      <ul>
+        <li>Unit tests pass</li>
+        <li>59 Cypress specs pass</li>
+        <li>Manual check documented</li>
+        <li>PR checklist complete</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="insight-callout">
+    <h4>Key Rule</h4>
+    <p>If you <strong>can't verify it</strong>, it doesn't get committed. Verification is where the real learning happens.</p>
+  </div>
+
+  <!-- ═══ 3. FIRST MISSION: REFACTOR ═══ -->
+  <div class="section-title">
+    <div class="num num-green">3</div>
+    <h2>First Mission — Refactor CommonService</h2>
+  </div>
+
+  <div class="refactor-target">
+    <h4>Break the God Service into focused modules</h4>
+    <div class="refactor-from">
+      <div class="refactor-blob blob-big">CommonService · 3,597 LOC<br><span style="font-size:11px;font-weight:400;color:#aa6a80;">filtering + coloring + metrics + workers</span></div>
+      <span class="split-arrow">&#x27A1;</span>
+      <div class="refactor-outputs">
+        <div class="refactor-out out-1"><span class="dot"></span>GraphFilteringService</div>
+        <div class="refactor-out out-2"><span class="dot"></span>ColorMappingService</div>
+        <div class="refactor-out out-3"><span class="dot"></span>MetricsComputeService</div>
+        <div class="refactor-out out-4"><span class="dot"></span>WorkerCoordinationService</div>
+      </div>
+    </div>
+    <p style="font-size:13px;color:#6a7faa;margin-top:12px;line-height:1.6;">Each extraction: <strong style="color:#8a9cc5;">write unit tests first</strong> (define expected behavior) → <strong style="color:#8a9cc5;">move code</strong> → <strong style="color:#8a9cc5;">verify all 59 Cypress specs still pass</strong>. One service at a time.</p>
+  </div>
+
+  <!-- ═══ 4. ONBOARDING TIMELINE ═══ -->
+  <div class="section-title">
+    <div class="num num-pink">4</div>
+    <h2>Onboarding Timeline</h2>
+  </div>
+
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="week">Week 1 — Orientation</div>
+      <h3>Learn the system, not the framework</h3>
+      <p>No code changes. Build your mental model.</p>
+      <div class="tasks">
+        <span class="task-tag">Read cypress-architecture.md</span>
+        <span class="task-tag">Read CommonStoreService (160 LOC)</span>
+        <span class="task-tag">Skim CommonService</span>
+        <span class="task-tag">Run all Cypress specs</span>
+        <span class="task-tag">Use every view in the app</span>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="week">Week 2–3 — First Extraction</div>
+      <h3>Extract filtering logic from CommonService</h3>
+      <p>Write unit tests for threshold/NN/epsilon behavior, then extract into GraphFilteringService.</p>
+      <div class="tasks">
+        <span class="task-tag">Define expected behavior</span>
+        <span class="task-tag">Write unit tests (AI-assisted)</span>
+        <span class="task-tag">Extract service</span>
+        <span class="task-tag">Verify Cypress suite</span>
+        <span class="task-tag">Submit PR with checklist</span>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="week">Week 4+ — Expand</div>
+      <h3>Continue service extractions</h3>
+      <p>Continue CommonService decomposition. Add unit test coverage for each extracted service.</p>
+      <div class="tasks">
+        <span class="task-tag">ColorMappingService consolidation</span>
+        <span class="task-tag">MetricsComputeService extraction</span>
+        <span class="task-tag">Unit tests per service</span>
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="week">Ongoing</div>
+      <h3>Earn expanded authority</h3>
+      <p>As you demonstrate consistent, verified work — scope expands to visualization components and new features.</p>
+      <div class="tasks">
+        <span class="task-tag">Visualization refactoring</span>
+        <span class="task-tag">Feature development</span>
+        <span class="task-tag">Architecture input</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 5. PR REQUIREMENTS ═══ -->
+  <div class="section-title">
+    <div class="num num-orange">5</div>
+    <h2>PR Checklist — Required for Every Submission</h2>
+  </div>
+
+  <div class="pr-checklist">
+    <div class="pr-line"><span class="pr-heading">## What changed</span></div>
+    <div class="pr-line"><span class="pr-comment">&lt;!-- 1-2 sentences describing the change --&gt;</span></div>
+    <div class="pr-line">&nbsp;</div>
+    <div class="pr-line"><span class="pr-heading">## Files modified</span></div>
+    <div class="pr-line"><span class="pr-comment">&lt;!-- list every file --&gt;</span></div>
+    <div class="pr-line">&nbsp;</div>
+    <div class="pr-line"><span class="pr-heading">## What could break</span></div>
+    <div class="pr-line"><span class="pr-comment">&lt;!-- which views, which data flows --&gt;</span></div>
+    <div class="pr-line">&nbsp;</div>
+    <div class="pr-line"><span class="pr-heading">## Verification</span></div>
+    <div class="pr-line"><span class="pr-check">- [ ]</span> <span class="pr-value">Unit tests pass  (npm run test)</span></div>
+    <div class="pr-line"><span class="pr-check">- [ ]</span> <span class="pr-value">Cypress journeys pass  (npm run e2e:journeys:flows)</span></div>
+    <div class="pr-line"><span class="pr-check">- [ ]</span> <span class="pr-value">Manual check: [describe what you looked at]</span></div>
+    <div class="pr-line">&nbsp;</div>
+    <div class="pr-line"><span class="pr-heading">## AI usage</span></div>
+    <div class="pr-line"><span class="pr-comment">&lt;!-- What did you prompt for? What did you modify? --&gt;</span></div>
+  </div>
+
+  <!-- ═══ 6. ROLES ═══ -->
+  <div class="section-title">
+    <div class="num num-blue">6</div>
+    <h2>Role Split</h2>
+  </div>
+
+  <div class="roles-grid">
+    <div class="role-card role-you">
+      <div class="role-label" style="color:#a58bff;">Architect — You</div>
+      <h3>Govern &amp; Approve</h3>
+      <ul>
+        <li>Architecture decisions</li>
+        <li>System invariants</li>
+        <li>Final PR approval</li>
+        <li>Scope definition</li>
+        <li>Risk assessment</li>
+      </ul>
+    </div>
+    <div class="role-card role-new">
+      <div class="role-label" style="color:#5ad4ff;">Operator — New Dev</div>
+      <h3>Execute &amp; Verify</h3>
+      <ul>
+        <li>AI-directed implementation</li>
+        <li>Unit test authoring</li>
+        <li>Refactoring execution</li>
+        <li>Verification & documentation</li>
+        <li>Expanding authority over time</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="insight-callout" style="border-left-color: #00d4ff; margin-top: 24px;">
+    <h4>The New Skill Ceiling</h4>
+    <p>He doesn't need to master Angular. He needs to master <strong>system reasoning</strong>, <strong>validation discipline</strong>, and <strong>how to interrogate AI output</strong>. That's the skillset that scales — frameworks change, verification doesn't.</p>
+  </div>
+
+  <div class="footer">
+    MicrobeTrace · AI-Assisted Development Protocol · 2026
+  </div>
+
+</div>
+</body>
+</html>

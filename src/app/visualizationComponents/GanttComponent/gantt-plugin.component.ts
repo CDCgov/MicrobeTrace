@@ -1,11 +1,11 @@
-import { Injector, Component, Output, EventEmitter, OnInit,
+import { Injector, Component, Output, EventEmitter, OnInit, AfterViewInit,
   ViewChild, ViewContainerRef, ElementRef, ChangeDetectorRef, Inject } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '@app/helperClasses/dialogSettings';
 import * as _ from 'lodash';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as domToImage from 'html-to-image';
 import { CustomShapes } from '@app/helperClasses/customShapes';
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -16,14 +16,16 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
 
 @Component({
-  selector: 'GanttComponent',
-  templateUrl: './gantt-plugin.component.html',
-  styleUrls: ['./gantt-plugin.component.scss']
+    selector: 'GanttComponent',
+    templateUrl: './gantt-plugin.component.html',
+    styleUrls: ['./gantt-plugin.component.scss'],
+    standalone: false
 })
-export class GanttComponent extends BaseComponentDirective implements OnInit {
+export class GanttComponent extends BaseComponentDirective implements OnInit, AfterViewInit {
   @ViewChild('ganttContainer', {read: ViewContainerRef}) ganttContainer: ViewContainerRef;
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   viewActive: boolean = true;
@@ -71,12 +73,29 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   showGrid: boolean = true;
   gridWidthY = 20;
   gridWidthX = 120;
+  ganttViewWidth = 0;
   currentOpacity = 0.9
   fontSize = 14;
+  private readonly ganttChartStartX = 150;
+  private readonly autoGridColumnCount = 8;
+  private readonly minGridWidthX = 20;
+  private readonly maxGridWidthX = 200;
+  private readonly gridWidthXStep = 10;
+  private gridWidthXManuallyChanged = false;
 
   SelectedNetworkExportFileTypeListVariable = 'png';
   GanttSettingsDialogSettings: DialogSettings = new DialogSettings('#gantt-settings-pane', false);
   isExportClosed: boolean;
+
+  private markGanttRendered(): void {
+    if (this.nodeIds.length === 0) return;
+
+    // Gantt can be the first rendered view on launch, so it must release the
+    // shared processing modal without waiting for the 2D network render path.
+    setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    });
+  }
 
   constructor(injector: Injector,
               private eventManager: EventManager,
@@ -87,7 +106,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
               ganttChartService: GanttChartService,
               private cdref: ChangeDetectorRef,
               private gtmService: GoogleTagManagerService,
-              private exportService: ExportService) {
+              private exportService: ExportService,
+              private store: CommonStoreService) {
 
     super(elRef.nativeElement);
 
@@ -141,18 +161,18 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
         });
     });
 
-    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-    
-
     // this.createGanttEntry();
-    this.ganttChartData = [this.makeBlankEntry()];
+    this.ganttChartData = [];
     this.openSettings();
+    this.markGanttRendered();
     
     // this.ganttChartData = [this.makeGanttEntry("_blank", "Ipstart", "Ipend", "#2ca02c")];
     this.goldenLayoutComponentResize();
 
-    this.container.on('resize', () => { this.goldenLayoutComponentResize() })
+    this.container.on('resize', () => {
+      this.goldenLayoutComponentResize();
+      this.cdref.detectChanges();
+    })
     this.container.on('hide', () => { 
       this.viewActive = false; 
       this.cdref.detectChanges();
@@ -160,8 +180,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
-      this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-      this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
     })
   }
 
@@ -179,20 +197,90 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   goldenLayoutComponentResize() {
     $('.gantt-plugin').height($('ganttcomponent').height()-19);
     $('.gantt-plugin').width($('ganttcomponent').width()-1)
+    this.ganttViewWidth = this.getGanttViewWidth();
+    this.applyAutoGridWidthX();
+  }
+
+  private getGanttViewWidth(): number {
+    const ganttElement = this.rootHtmlElement.querySelector('.gantt-plugin') as HTMLElement | null;
+    const widthCandidates = [
+      ganttElement?.getBoundingClientRect().width,
+      this.rootHtmlElement.getBoundingClientRect().width,
+      $('ganttcomponent').width() as number | undefined
+    ];
+
+    return widthCandidates.find(
+      (width): width is number => typeof width === 'number' && Number.isFinite(width) && width > 0
+    ) || 0;
+  }
+
+  private calculateAutoGridWidthX(): number | null {
+    const viewWidth = this.getGanttViewWidth();
+    if (!viewWidth) {
+      return null;
+    }
+
+    const steppedWidth =
+      (Math.floor((viewWidth - this.ganttChartStartX) / this.autoGridColumnCount / this.gridWidthXStep) - 1)
+      * this.gridWidthXStep;
+    return Math.min(this.maxGridWidthX, Math.max(this.minGridWidthX, steppedWidth));
+  }
+
+  private applyAutoGridWidthX(): void {
+    if (this.gridWidthXManuallyChanged) {
+      return;
+    }
+
+    const autoGridWidthX = this.calculateAutoGridWidthX();
+    if (autoGridWidthX == null || autoGridWidthX === this.gridWidthX) {
+      return;
+    }
+
+    this.gridWidthX = autoGridWidthX;
+    this.ganttChartElement?.updateGridWidthX(this.gridWidthX);
+  }
+
+  private getRawGanttFieldValue(nodeData: any, field: string): string | null {
+    const rawDateValues = nodeData?._rawDateValues;
+    const rawValue = rawDateValues && Object.prototype.hasOwnProperty.call(rawDateValues, field)
+      ? rawDateValues[field]
+      : nodeData?.[field];
+
+    if (rawValue == null) {
+      return null;
+    }
+
+    const normalizedValue = String(rawValue).trim();
+    return normalizedValue.length > 0 && normalizedValue !== 'null' ? normalizedValue : null;
+  }
+
+  private normalizeGanttDateValue(dateValue: string | null): string | null {
+    if (!dateValue) {
+      return null;
+    }
+
+    const hasTimeZone: RegExp = /GMT.\d{4}/;
+    return hasTimeZone.test(dateValue) ? dateValue.substring(4, 15) : dateValue;
   }
 
   makeGanttEntry(dateName: string, startVariable: string, endVariable: string, entryColor: string): object {
     const timeline = {};
 
     this.nodeIds.forEach( (element: string) => {
+      timeline[element] = [];
       const nodeData = this.visuals.gantt.commonService.session.data.nodes.filter(x => x._id == element)
+      if (!nodeData.length) {
+        return;
+      }
+
       const hasTimeZone: RegExp = /GMT.\d{4}/;
       const startDate = hasTimeZone.exec(nodeData[0][startVariable])? nodeData[0][startVariable].substring(4,15) : nodeData[0][startVariable];
       const endDate = hasTimeZone.exec(nodeData[0][endVariable])? nodeData[0][endVariable].substring(4,15) : nodeData[0][endVariable];
-      const regExp: RegExp = /^.*$/;
-      if (startDate && endDate && regExp.exec(startDate) && regExp.exec(endDate)) {
-        const entry = [{ from: startDate, to: endDate, info: dateName }]
-        timeline[element] = entry;
+      if (
+        this.commonService.hasValidTimelineDateValue(startDate) &&
+        this.commonService.hasValidTimelineDateValue(endDate)
+      ) {
+        timeline[element].push({ from: startDate, to: endDate, info: dateName });
       }
     })
 
@@ -200,7 +288,15 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     return ganttEntry;
   }
 
+  canCreateGanttEntry(): boolean {
+    return Boolean(this.GanttStartVariable);
+  }
+
   createGanttEntry(): void {
+    if (!this.canCreateGanttEntry()) {
+      return;
+    }
+
     if (!this.GanttEntryName) this.GanttEntryName = `Entry ${this.ganttEntryCount + 1}`
     this.ganttEntryCount += 1;
     if (!this.GanttEndVariable) {
@@ -223,11 +319,13 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
     this.resetEntryForm();
     this.visuals.gantt.GanttSettingsDialogSettings.setVisibility(false);
 
-    if (this.ganttEntryCount == 1) {
-      this.changeFontSize();
-      this.gridWidthX = this.ganttChartElement.gridWidthX;
-    }
+  }
 
+  ngAfterViewInit(): void {
+    setTimeout(() => {
+      this.goldenLayoutComponentResize();
+      this.cdref.detectChanges();
+    });
   }
 
   removeGanttEntry(entryName): void {
@@ -248,13 +346,20 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   updateEntryColor(entryName: string, event: Event): void {
     const color = (event.target as HTMLInputElement).value;
     const startingData = cloneDeep(this.ganttChartData);
+    const updatedEntries = cloneDeep(this.ganttEntries);
     for (let i=0; i<startingData.length; i++){
       if (startingData[i]["name"] === entryName){
         startingData[i]["color"] = color;
       }
     }
+    for (let i=0; i<updatedEntries.length; i++){
+      if (updatedEntries[i]["entryName"] === entryName){
+        updatedEntries[i]["color"] = color;
+      }
+    }
+    this.ganttEntries = updatedEntries;
     this.ganttChartData = startingData;
-
+    this.cdref.detectChanges();
   }
 
   openOpacityBar(e, entryName = '') {
@@ -322,6 +427,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   }
 
   changeGridWidthX() {
+    this.gridWidthXManuallyChanged = true;
     this.ganttChartElement.updateGridWidthX(this.gridWidthX)
   }
 
@@ -341,6 +447,17 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
   listGanttEntries(): object[] {
     return this.ganttEntries;
   }
+
+  private closeExportPane(): void {
+    this.ShowGanttExportPane = false;
+    this.isExportClosed = true;
+    this.cdref.detectChanges();
+  }
+
+  onCloseExport() {
+    this.isExportClosed = true;
+  }
+
   saveImage(event): void {
     const fileName = this.SelectedGanttChartImageFilenameVariable;
     const domId = 'gantt';
@@ -350,11 +467,13 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
       domToImage.toPng(content).then(
         dataUrl => {
           saveAs(dataUrl, fileName);
+          this.closeExportPane();
       });
     } else if (exportImageType === 'jpeg') {
         domToImage.toJpeg(content, { quality: 0.85 }).then(
           dataUrl => {
             saveAs(dataUrl, fileName);
+            this.closeExportPane();
           });
     } else if (exportImageType === 'svg') {
         // The tooltips were being displayed as black bars, so I add a rule to hide them.
@@ -370,6 +489,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit {
         svgContent = serializer.serializeToString(deserialized);
         const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
         saveAs(blob, fileName);
+        this.closeExportPane();
     }
 
   }

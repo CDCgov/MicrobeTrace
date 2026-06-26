@@ -9,7 +9,7 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 
 import * as Papa from 'papaparse';
 import JSZip from 'jszip';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 //import pdfMake from 'pdfmake/build/pdfmake.js';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';
@@ -18,9 +18,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
-  selector: 'AggregateComponent',
-  templateUrl: './aggregate.component.html',
-  styleUrls: ['./aggregate.component.scss'],
+    selector: 'AggregateComponent',
+    templateUrl: './aggregate.component.html',
+    styleUrls: ['./aggregate.component.scss'],
+    standalone: false
 })
 export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -114,20 +115,20 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     })
     this.container.on('show', () => { 
       this.viewActive = true; 
+      this.refreshTables();
       this.cdref.detectChanges();
     })
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      let tableUpdated = false;
-      this.SelectedDataFields.forEach((field, i) => {
-        if (field.split('-')[1] == 'cluster' || field.split('-')[0] == 'Cluster') {
-          this.updateTable(i);
-          tableUpdated = true;
-        }
-      })
-      if (tableUpdated) { 
-        this.cdref.detectChanges(); 
-        this.updateTableColWidth(); 
+      if (this.viewActive) {
+        this.refreshTables();
+      }
+    })
+
+    this.store.networkUpdated$.pipe(takeUntil(this.destroy$)).subscribe((networkUpdated) => {
+      if (this.viewActive && networkUpdated) {
+        this.refreshTables();
+        this.store.setNetworkUpdated(false);
       }
     })
   }
@@ -141,7 +142,59 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     this.destroy$.complete();
   }
 
+  private normalizeAggregateGroupValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return 'null';
+    }
+
+    if (typeof value === 'string') {
+      const trimmedValue = value.trim();
+      return trimmedValue === '' ? 'null' : trimmedValue;
+    }
+
+    return String(value);
+  }
+
+  private shouldFormatAggregateGroupValue(dataset: string, field: string): boolean {
+    const normalizedDataset = String(dataset || '').toLowerCase();
+    const normalizedField = String(field || '').toLowerCase();
+
+    return (normalizedDataset === 'link' && normalizedField === 'distance')
+      || (normalizedDataset === 'cluster' && normalizedField === 'mean_genetic_distance');
+  }
+
+  private formatAggregateGroupValue(dataset: string, field: string, value: string): string {
+    if (!this.shouldFormatAggregateGroupValue(dataset, field)) {
+      return value;
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return value;
+    }
+
+    const displayField = String(dataset || '').toLowerCase() === 'cluster'
+      ? 'mean_genetic_distance'
+      : 'distance';
+
+    return this.commonService.formatDisplayedDistanceValue(numericValue, displayField);
+  }
+
+  private refreshTables() {
+    if (!Array.isArray(this.SelectedDataFields) || this.SelectedDataFields.length === 0) {
+      this.SelectedDataFields = ['Node-cluster'];
+    }
+
+    this.SelectedDataFields.forEach((_, index) => this.updateTable(index));
+    this.cdref.detectChanges();
+    setTimeout(() => this.updateTableColWidth(), 0);
+  }
+
   updateTable(i) {
+    if (!this.SelectedDataFields[i]) {
+      this.SelectedDataFields[i] = 'Node-cluster';
+    }
+
     let fullField = this.SelectedDataFields[i].split('-')
     let dataset = fullField[0];
     let field = fullField.slice(1).join('-');
@@ -151,34 +204,35 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     let rawdata;
 
     if (dataset == 'Node') {
-      rawdata = this.commonService.getVisibleNodes();
+      rawdata = this.commonService.getVisibleNodesIgnoringTimeline();
       tableColumns = [{field:'groupName', header: this.commonService.capitalize(field)}, {field:'count', header:'Number of Nodes'}, {field:'percent', header:'Percent of Total Nodes'}];
     } else if (dataset == 'Link') {
-      rawdata = this.commonService.getVisibleLinks();
+      rawdata = this.commonService.getVisibleLinksIgnoringTimeline();
       tableColumns = [{field:'groupName', header: this.commonService.capitalize(field)}, {field:'count', header:'Number of Links'}, {field:'percent', header:'Percent of Total Links'}];
     } else {
-      rawdata = this.commonService.getVisibleClusters();
+      rawdata = this.commonService.getVisibleClustersIgnoringTimeline();
       tableColumns = [{field:'groupName', header: this.commonService.capitalize(field)}, {field:'count', header:'Number of Clusters'}, {field:'percent', header:'Percent of Total Clusters'}];
     }   
     
-    // populate count array [{}, {}, ...] where each item/object is a row
-    var data = [];
+    const groupedRows = new Map<string, { groupName: string; count: number; percent?: number }>();
 
     rawdata.forEach(row => {
-      var match = data.find(arow => arow.groupName == row[field]);
+      const groupName = this.normalizeAggregateGroupValue(row?.[field]);
+      const match = groupedRows.get(groupName);
+
       if (match) {
         match['count']++;
       } else {
-        data.push({ groupName: row[field], count: 1 });
+        groupedRows.set(groupName, { groupName, count: 1 });
       }
       total++;
     });
 
+    const data = Array.from(groupedRows.values());
+
     data.forEach(row => {
-      row['percent'] = (row['count']*100/total)
-      if (row.groupName == null) {
-        row.groupName = 'null'
-      }
+      row['percent'] = total === 0 ? 0 : (row['count']*100/total)
+      row['groupName'] = this.formatAggregateGroupValue(dataset, field, row['groupName']);
     })
     
     this.SelectedDataTables[i] = {
@@ -246,6 +300,10 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
   }
 
   formatTableTitle(inputString) {
+    if (typeof inputString !== 'string' || !inputString.length) {
+      return '';
+    }
+
     let fullField = inputString.split('-')
     //let datasetName = this.commonService.capitalize(fullField[0]);
     let colGroupName = this.commonService.capitalize(fullField.slice(1).join('-'));
@@ -254,12 +312,21 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
   updateNodeColors() {}
   updateLinkColor() {}
-  updateVisualization() {}
+  updateVisualization() {
+    this.refreshTables();
+  }
+  refreshDistanceDisplayFormat() {
+    this.refreshTables();
+  }
   applyStyleFileSettings() {}
   openRefreshScreen() {}
   onRecallSession() {}
-  onLoadNewData() {}
-  onFilterDataChange() {}
+  onLoadNewData() {
+    this.refreshTables();
+  }
+  onFilterDataChange() {
+    this.refreshTables();
+  }
 
   openSettings() {
     console.log("open settings pushed");
@@ -398,7 +465,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
 
   updateDataField(i,e) {
     console.log(`data field ${i} changed\nBefore: ${this.SelectedDataFields[0]}, ${this.SelectedDataFields[1]}, ${this.SelectedDataFields[2]}`);
-    console.log(e);
+    console.debug('Aggregate data field change payload:', e);
     this.SelectedDataFields[i] = e.value;
     console.log(`After: ${this.SelectedDataFields[0]}, ${this.SelectedDataFields[1]}, ${this.SelectedDataFields[2]}`);
     this.updateTable(i); 

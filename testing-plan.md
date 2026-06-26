@@ -1,305 +1,168 @@
 # MicrobeTrace Testing Plan
 
-## Table of Contents
-1. [Introduction](#introduction)
-2. [Objectives](#objectives)
-3. [Scope](#scope)
-4. [Testing Strategies](#testing-strategies)
-   - [1. Unit Testing with Jasmine/Karma](#1-unit-testing-with-jasminekarma)
-   - [2. Integration Testing with Jasmine/Karma](#2-integration-testing-with-jasminekarma)
-   - [3. End-to-End (E2E) Testing with Selenium](#3-end-to-end-e2e-testing-with-selenium)
-   - [4. Visual Regression Testing](#4-visual-regression-testing)
-5. [Tools and Technologies](#tools-and-technologies)
-6. [Test Coverage Goals](#test-coverage-goals)
-7. [Test Cases and Scenarios](#test-cases-and-scenarios)
-8. [Roles and Responsibilities](#roles-and-responsibilities)
-9. [Timeline](#timeline)
-10. [Continuous Integration/Continuous Deployment (CI/CD) Integration](#continuous-integrationcontinuous-deployment-ci-cd-integration)
-11. [Reporting and Metrics](#reporting-and-metrics)
-12. [Maintenance and Updates](#maintenance-and-updates)
-13. [Conclusion](#conclusion)
-
----
-
-## Introduction
-
-This Testing Plan outlines a comprehensive approach to ensure the quality, reliability, and performance of the **MicrobeTrace** client-side application. Given the application's complexity, which includes dynamic visualizations, user interactions, and extensive data handling, a multi-faceted testing strategy is essential to deliver a robust and user-friendly experience.
-
-## Objectives
-
-- **Ensure Functional Accuracy:** Validate that all features operate as intended.
-- **Maintain Visual Integrity:** Ensure visualizations render correctly across various scenarios and configurations.
-- **Enhance User Experience:** Confirm that user interactions are smooth, intuitive, and free of defects.
-- **Facilitate Continuous Improvement:** Integrate testing seamlessly into the development lifecycle for ongoing quality assurance.
-
-## Scope
-
-The testing plan covers the following aspects of MicrobeTrace:
-
-- **Unit Testing:** Testing individual components and services.
-- **Integration Testing:** Ensuring different parts of the application work together seamlessly.
-- **End-to-End (E2E) Testing:** Simulating real user interactions to validate complete workflows.
-- **Visual Regression Testing:** Ensuring the visual aspects of the application remain consistent over time.
-
-## Testing Strategies
-
-### 1. Unit Testing with Jasmine/Karma
-
-**Purpose:** Validate the functionality of individual components, services, and utilities in isolation.
-
-**Approach:**
-
-- **Component Testing:**
-  - Test Angular components (e.g., `TwoDComponent`, `FilesComponent`) to ensure they render correctly based on inputs.
-  - Verify component lifecycle hooks (`OnInit`, `OnDestroy`) function as expected.
-  
-- **Service Testing:**
-  - Test services like `CommonService` to ensure methods handle data processing accurately.
-  - Mock dependencies to isolate service functionality.
-
-- **Utility Functions:**
-  - Test utility functions (e.g., `convertName`, `delayFunction`) for correct outputs given various inputs.
-
-**Examples:**
-  - Verify that `FilesComponent` correctly processes different file types (JSON, CSV, XLSX).
-  - Ensure `CommonService` accurately updates session states when thresholds change.
-
-**Components**
-- Microbetraceplugin - Wrapper component for app + golden layout + holds timeline player
-- Files - Adding/updating files
-- 2D 
-- Timeline (Epi Curve)
-- Aggregate 
-- Alignment
-- Bubble
-- Crosstab
-- Gantt
-- Heatmap
-- Map
-- Phylogenetic
-- Table
-
-**Services**
-- Common - shared service that's accessed by all components that retrieves, stores, and manipulates session data
-
-### 2. Integration Testing with Jasmine/Karma
-
-**Purpose:** Ensure that different modules and components interact correctly.
-
-**Approach:**
-
-- **Component-Module Interaction:**
-  - Test interactions between `FilesComponent` and `CommonService`.
-  
-- **Service Dependencies:**
-  - Validate that `CommonService` correctly collaborates with other services and components, such as updating visualization states based on user inputs.
-
-- **Data Flow:**
-  - Ensure data flows seamlessly between components, services, and utilities without loss or corruption.
-
-**Examples:**
-- Test that uploading a file through `FilesComponent` correctly invokes `CommonService` methods and updates the visualization.
-- Verify that changing a distance threshold in the settings appropriately updates the network visualization.
-
-### 3. End-to-End (E2E) Testing with Selenium
-
-**Purpose:** Simulate real user interactions to validate complete workflows and ensure the application behaves as expected from the user's perspective.
-
-**Approach:**
-
-- **User Workflow Simulation:**
-  - Automate user actions such as uploading files, adjusting settings, and interacting with visualizations.
-  
-- **Visual Verification:**
-  - Although Selenium doesn’t inherently support visual comparisons, integrate it with visual regression tools to ensure visual elements render correctly after interactions.
-
-**Examples:**
-- Automate the process of loading different file types and verify that the corresponding visualizations update accordingly.
-- Simulate user interactions like setting distance thresholds and ensure the network visualization reflects these changes accurately.
-
-### 4. Visual Regression Testing
-
-**Purpose:** Ensure the visual aspects of the application remain consistent over time and that UI changes do not introduce unintended visual defects.
-
-**Approach:**
-
-- **Baseline Image Capture:**
-  - Capture screenshots of various application states representing different user interactions and configurations.
-
-- **Comparison and Detection:**
-  - Compare current screenshots against baseline images to detect visual discrepancies.
-
-- **Integration with E2E Tests:**
-  - Trigger visual regression tests as part of the E2E testing workflow to automate visual verification.
-
-**Tools:**
-- **BackstopJS:** An open-source tool for visual regression testing.
-- **Applitools Eyes:** An AI-powered visual testing tool offering advanced features.
-- **Resemble.js:** A JavaScript library for image comparison.
-
-**Examples:**
-- After setting a specific distance threshold, capture the updated network visualization and compare it against the expected baseline.
-- Verify that loading a new dataset results in the correct visual representation without unintended UI changes.
-
-## Tools and Technologies
-
-- **Unit and Integration Testing:**
-  - **Jasmine:** A behavior-driven development framework for testing JavaScript code.
-  - **Karma:** A test runner that allows executing tests in real browsers.
-  
-- **End-to-End Testing:**
-  - **Selenium WebDriver:** Automates browser interactions for testing.
-  - **WebDriverIO:** A modern testing framework built on top of Selenium WebDriver.
-  
-- **Visual Regression Testing:**
-  - **BackstopJS:** For capturing and comparing screenshots.
-  - **Applitools Eyes:** For AI-powered visual testing and smart comparisons.
-  - **Resemble.js:** For custom image comparisons within test scripts.
-  
-- **Build and CI/CD Integration:**
-  - **Jenkins/GitHub Actions/GitLab CI:** For orchestrating automated test executions.
-  
-## Test Coverage Goals
-
-- **Unit Tests:**
-  - Achieve at least 80% code coverage for all critical components and services.
-  
-- **Integration Tests:**
-  - Ensure all major interactions between components and services are tested.
-  
-- **E2E Tests:**
-  - Cover primary user workflows and edge cases, ensuring the application functions correctly under various scenarios.
-  
-- **Visual Regression:**
-  - Establish baseline images for all critical UI states and ensure new changes do not introduce visual defects.
-
-## Test Cases and Scenarios
-
-### Unit Testing Scenarios
-
-- **FilesComponent:**
-  - Test file upload functionality for different file types (JSON, CSV, XLSX).
-  - Verify correct parsing and processing of uploaded data.
-  
-- **CommonService:**
-  - Test methods for adding nodes and links.
-  - Validate state management when updating visualization settings.
-  
-- **Utility Functions:**
-  - Ensure `convertName` accurately maps view identifiers to user-friendly names.
-  - Verify `delayFunction` correctly invokes callbacks after specified delays.
-
-### Integration Testing Scenarios
-
-- **Component-Service Interaction:**
-  - Test that `FilesComponent` correctly invokes `CommonService` methods upon file upload.
-  
-- **Data Flow:**
-  - Ensure that changes in `CommonService` state are accurately reflected in `TwoDComponent` visualizations.
-  
-- **Combined Functionality:**
-  - Test the entire flow from file upload to visualization rendering.
-
-### End-to-End Testing Scenarios
-
-- **File Upload and Visualization:**
-  - Automate uploading a JSON file and verify that the network visualization updates correctly.
-  
-- **Settings Adjustment:**
-  - Simulate adjusting distance thresholds and verify visual updates.
-  
-- **User Interaction:**
-  - Automate user interactions such as clicking, dragging, and setting parameters to ensure the UI responds as expected.
-
-### Visual Regression Testing Scenarios
-
-- **Initial Load:**
-  - Capture and verify the default state of the application upon initial load.
-  
-- **After File Upload:**
-  - Capture and verify the visualization state after uploading different file types.
-  
-- **After Settings Change:**
-  - Capture and verify the visualization after adjusting various settings like distance thresholds and label orientations.
-
-## Roles and Responsibilities
-
-| **Role**                 | **Responsibilities**                                                                  |
-|--------------------------|---------------------------------------------------------------------------------------|
-| **QA Engineers**         | Develop and execute unit, integration, E2E, and visual regression tests. |
-| **Developers**           | Write and maintain unit and integration tests. Fix issues identified during testing. Collaborate with QA for test case development. |
-
-
-## Timeline
-
-| **Milestone**                        | **Description**                           | **Duration** | **Responsible**            |
-|--------------------------------------|-------------------------------------------|--------------|----------------------------|
-| **Develop Unit Tests**               | Write tests for components and services.  | 1 Week      | QA Engineers, Developers   |
-| **Develop Integration Tests**        | Test interactions between modules.        | 2 Weeks      | QA Engineers, Developers   |
-| **Develop E2E Tests**                | Automate user workflows with Selenium.    | 2 Weeks      | QA Engineers               |
-| **Develop Visual Regression Tests**  | Setup visual testing with BackstopJS.     | 2 Weeks      | QA Engineers               |
-| ** Optional CI/CD Integration**                | Integrate tests into CI/CD pipelines.     | 2 Weeks      | DevOps, QA Engineers       |
-
-*Total Estimated Duration: 7 Weeks w/o CI/CD integration*
-
-## Continuous Integration/Continuous Deployment (CI/CD) Integration
-
-- **Automated Test Execution:**
-  - Integrate unit, integration, E2E, and visual regression tests into the CI pipeline.
-  - Ensure tests are triggered on every code commit and pull request.
-  
-- **Reporting:**
-  - Generate and publish test reports automatically.
-  - Notify the team of test failures via preferred communication channels (e.g., Slack, Email).
-  
-- **Pipeline Configuration:**
-  - Use tools like Jenkins, GitHub Actions, or GitLab CI to orchestrate the testing workflows.
-  - Parallelize test executions where possible to reduce feedback time.
-
-## Reporting and Metrics
-
-- **Test Coverage Reports:**
-  - Generate reports to visualize code coverage metrics, aiming for high coverage in critical areas.
-  
-- **Test Execution Reports:**
-  - Document test run results, including pass/fail status, execution time, and error logs.
-  
-- **Visual Regression Reports:**
-  - Highlight visual discrepancies with side-by-side image comparisons and percentage differences.
-  
-- **Defect Tracking:**
-  - Log and track bugs detected during testing using tools like Jira or GitHub Issues.
-  - Prioritize and assign defects for resolution.
-
-## Maintenance and Updates
-
-- **Regular Test Suite Reviews:**
-  - Periodically review and update test cases to align with application changes.
-  
-- **Baseline Image Updates:**
-  - Update visual regression baselines when intentional UI changes are made.
-  
-- **Dependency Management:**
-  - Keep testing tools and libraries up-to-date to leverage new features and security patches.
-  
-- **Documentation:**
-  - Maintain comprehensive documentation of test cases, environments, and procedures for onboarding and reference.
-
-## Conclusion
-
-Implementing this comprehensive testing plan will ensure that **MicrobeTrace** delivers a robust, reliable, and visually consistent experience to its users. By leveraging a combination of unit, integration, E2E, and visual regression testing, the team can proactively identify and address issues, maintain high-quality standards, and facilitate continuous improvement throughout the application's lifecycle.
-
----
-
-**Appendix**
-
-- **References:**
-  - [Jasmine Documentation](https://jasmine.github.io/)
-  - [Karma Documentation](https://karma-runner.github.io/)
-  - [Selenium Documentation](https://www.selenium.dev/documentation/)
-  - [BackstopJS Documentation](https://github.com/garris/BackstopJS)
-  - [Applitools Eyes Documentation](https://applitools.com/docs/)
-  - [WebDriverIO Documentation](https://webdriver.io/docs/gettingstarted.html)
-  - [Cypress Documentation](https://www.cypress.io/)
-  - [Resemble.js GitHub](https://github.com/rsmbl/Resemble.js/)
-  - [Storybook Documentation](https://storybook.js.org/)
+This file is the current entry point for active testing docs in this repo.
+
+The older generic plan was retired because it no longer matched the codebase or the Cypress-first workflow now used on `cypressTesting`.
+
+## Active Testing Docs
+
+- `docs/testing/test-runner-quick-reference.md`
+  - Quick commands for targeted unit and Cypress runs, plus guidance on when to run a narrow slice versus the broader suites.
+- `docs/testing/cypress-architecture.md`
+  - Current maintained Cypress structure, selector rules, and migration rules.
+- `docs/testing/README.md`
+  - Testing-doc index for core Cypress docs and view-specific folders.
+- `docs/testing/views/`
+  - View-specific checklist, QA tracker, and bug-log folders.
+- `docs/performance/performance-baseline-plan.md`
+  - Plan for discovering performance baselines, dataset tiers, responsiveness probes, and future timing budgets.
+- `docs/performance/genetic-distance-refactor-performance-comparison.md`
+  - Before/after performance comparison for the genetic-distance and Newick/patristic refactor.
+- `docs/performance/performance-dataset-strategy-for-bioinformaticians.md`
+  - Bioinformatics-facing guidance on synthetic fixtures, real datasets, and representative performance shapes.
+- `docs/performance/problem-10k-node-only-performance.md`
+  - Case study for the `problem_10k.csv` node-only fixture, including the launch/OOM root cause, 2D grouping optimizations, and before/after measurements.
+
+## Current Test Layers
+
+- Unit and integration tests
+  - Angular component and service tests run through the existing test setup.
+  - Targeted unit runs are supported with Angular's `--include` flag.
+- End-to-end tests
+  - Cypress is the active E2E framework.
+  - File-ingestion coverage lives under `cypress/e2e/ingestion/`.
+  - Uploaded-data journeys live under `cypress/e2e/journeys/flows/`.
+  - Pure 2D view-state checks live under `cypress/e2e/view-state/`.
+  - Targeted Cypress runs are supported through the local pass-through script plus `--spec`.
+  - `npm run start:local-cypress` is the stable local app server for Cypress work and disables Angular file watching and live reload so Cypress artifact writes do not trigger rebuilds mid-run.
+- Legacy-disabled specs
+  - Retired or fixture-broken Cypress specs live under `cypress/e2e/legacy-disabled/` and are excluded from the maintained suite.
+- Contract tests
+  - Known observed-vs-intended behavior differences should be tracked in Cypress contract coverage rather than normalized into smoke baselines.
+
+## 2D Network Testing Scope
+
+- Load to 2D from supported file types.
+- General Settings filtering behavior.
+- General Settings styling behavior.
+- 2D settings for nodes, links, layout, and grouping.
+- Cross-feature combinations such as filtering plus grouping and filtering plus style.
+- Fixture gaps that block high-value automation.
+
+## Map Testing Scope
+
+- Uploaded launch and switch-to-Map smoke coverage.
+- Geospatial field mapping by zipcode and explicit latitude/longitude.
+- Map-specific filtering, styling, and timeline behavior on uploaded data.
+- Leaflet control mechanics, layers, tooltips, selection, export, and persistence.
+- Migration of high-value sample-data-only Map coverage into maintained uploaded-data journeys.
+
+## Gantt Testing Scope
+
+- Uploaded launch and switch-to-Gantt smoke coverage on node-bearing fixtures.
+- Uploaded date-range and single-date entry creation on supported date-bearing fields.
+- Rendered SVG row-count and bar-width assertions on uploaded data.
+- Uploaded Gantt export coverage and known export-flow deviations.
+- Migration of remaining Gantt settings and multi-entry behaviors into maintained uploaded-data journeys.
+
+## Sankey Testing Scope
+
+- Uploaded launch and switch-to-Sankey smoke coverage across supported input file types.
+- Sankey-specific variable selection, minimum-variable gating, and SVG render-state checks.
+- Sankey visual settings such as link coloring, label sizing, tooltip behavior, and export on uploaded data.
+- Migration of any high-value sample-data-only Sankey mechanics into maintained uploaded-data journeys.
+
+## Aggregate Testing Scope
+
+- Uploaded launch and switch-to-Aggregate smoke coverage across supported input file types.
+- Aggregate settings coverage for per-table field selection, add/delete table mechanics, and visible-data synchronization.
+- Aggregate export behavior for JSON, XLSX, CSV zip, and PDF outputs.
+- Normalization and display-label behavior for sparse uploaded categorical fields.
+
+## Alignment Testing Scope
+
+- Uploaded launch and switch-to-Alignment smoke coverage across supported sequence-bearing file types.
+- Alignment-specific rendering checks for canvas rows, excluded nodes, and top SVG state.
+- Alignment settings coverage for high-value layout controls on uploaded data.
+- Alignment export behavior for image, FASTA, and CSV outputs.
+- Migration of direct-launch and sequence-type gaps into maintained uploaded-data journeys.
+
+## Bubble Testing Scope
+
+- Uploaded launch and switch-to-Bubble smoke coverage across the main file-type matrix.
+- Bubble-specific controls such as axis assignment, node sizing, collapse, and aggregate tooltip behavior.
+- Bubble color-mapping, selection sync, and export behavior on uploaded data.
+- Migration of high-value sample-data-only Bubble mechanics into maintained uploaded-data journeys.
+
+## Table Testing Scope
+
+- Uploaded launch and switch-to-Table smoke coverage across supported input file types.
+- Table dataset switching for Nodes, Links, and Clusters.
+- Table filtering, selection sync, and selected-row ordering on uploaded data.
+- Table settings and export behavior for CSV and XLSX outputs.
+- Migration of direct-launch and column-picker gaps into maintained uploaded-data journeys.
+
+## Waterfall Testing Scope
+
+- Uploaded launch and switch-to-Waterfall smoke coverage across representative file types.
+- Waterfall cluster summary rendering from uploaded network state.
+- Cluster -> node -> link drilldown behavior on uploaded data.
+- Migration of high-value Waterfall table behavior into maintained uploaded-data journeys.
+
+## Phylogenetic Tree Testing Scope
+
+- Uploaded direct-launch smoke coverage from supported tree-capable file types.
+- D3 + SVG tree rendering checks tied to uploaded leaf counts and stored Newick state.
+- Uploaded tree export and high-value tree settings on maintained journeys.
+- Migration of high-value sample-data-only tree mechanics into maintained uploaded-data journeys.
+
+## Update Rules
+
+- Keep `docs/testing/cypress-architecture.md` aligned with the actual folder structure and npm scripts.
+- Update the checklist and QA tracker together for the surface you changed:
+  - `docs/testing/views/2d-network/2d-network-cypress-checklist.md` and `docs/testing/views/2d-network/2d-network-cypress-qa-tracker.csv`
+  - `docs/testing/views/map/map-view-cypress-checklist.md` and `docs/testing/views/map/map-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/epi-curve/epi-curve-cypress-checklist.md` and `docs/testing/views/epi-curve/epi-curve-cypress-qa-tracker.csv`
+  - `docs/testing/views/gantt-chart/gantt-chart-cypress-checklist.md` and `docs/testing/views/gantt-chart/gantt-chart-cypress-qa-tracker.csv`
+  - `docs/testing/views/aggregate/aggregate-view-cypress-checklist.md` and `docs/testing/views/aggregate/aggregate-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/sankey/sankey-view-cypress-checklist.md` and `docs/testing/views/sankey/sankey-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/crosstab/crosstab-view-cypress-checklist.md` and `docs/testing/views/crosstab/crosstab-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/alignment/alignment-view-cypress-checklist.md` and `docs/testing/views/alignment/alignment-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/bubble/bubble-view-cypress-checklist.md` and `docs/testing/views/bubble/bubble-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/dashboard/dashboard-cypress-checklist.md` and `docs/testing/views/dashboard/dashboard-cypress-qa-tracker.csv`
+  - `docs/testing/views/heatmap/heatmap-view-cypress-checklist.md` and `docs/testing/views/heatmap/heatmap-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/table/table-view-cypress-checklist.md` and `docs/testing/views/table/table-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/waterfall/waterfall-view-cypress-checklist.md` and `docs/testing/views/waterfall/waterfall-view-cypress-qa-tracker.csv`
+  - `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-checklist.md` and `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-qa-tracker.csv`
+- Update the matching bug log whenever maintained Cypress coverage exposes or resolves a product bug:
+  - `docs/testing/views/2d-network/2d-network-cypress-bug-log.csv` for 2D Network
+  - `docs/testing/views/map/map-view-cypress-bug-log.csv` for Map
+  - `docs/testing/views/epi-curve/epi-curve-cypress-bug-log.csv` for Epi Curve
+  - `docs/testing/views/gantt-chart/gantt-chart-cypress-bug-log.csv` for Gantt
+  - `docs/testing/views/aggregate/aggregate-view-cypress-bug-log.csv` for Aggregate
+  - `docs/testing/views/sankey/sankey-view-cypress-bug-log.csv` for Sankey
+  - `docs/testing/views/crosstab/crosstab-view-cypress-bug-log.csv` for Crosstab
+  - `docs/testing/views/alignment/alignment-view-cypress-bug-log.csv` for Alignment View
+  - `docs/testing/views/bubble/bubble-view-cypress-bug-log.csv` for Bubble
+  - `docs/testing/views/dashboard/dashboard-cypress-bug-log.csv` for Dashboard
+  - `docs/testing/views/heatmap/heatmap-view-cypress-bug-log.csv` for Heatmap
+  - `docs/testing/views/table/table-view-cypress-bug-log.csv` for Table
+  - `docs/testing/views/waterfall/waterfall-view-cypress-bug-log.csv` for Waterfall
+  - `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-bug-log.csv` for Phylogenetic Tree
+- When a journey is added, move its tracker row from `Missing` or `Partial` to `Covered`.
+- Add the exact current Cypress spec path in the CSV once coverage exists.
+- When current product behavior differs from intended behavior, keep both expectations instead of changing the intended value to make the test pass.
+- Document the divergence in the matching bug log and list the spec that caught it plus the specs that must remain green after the fix.
+- Track missing fixtures explicitly in the CSV instead of burying them in notes.
+
+## Immediate Priority
+
+- Port the highest-risk sample-data-only 2D setting tests into profile-driven uploaded-data journeys.
+- Port the highest-value sample-data-only Map control tests into profile-driven uploaded-data journeys.
+- Port the highest-value remaining Gantt settings and multi-entry behaviors into maintained uploaded-data journeys.
+- Promote the new Alignment direct-launch and sequence-type gaps from blocked tracker rows into maintained uploaded-data journeys once the product path is stable.
+- Port the highest-value sample-data-only Bubble controls into profile-driven uploaded-data journeys.
+- Promote the remaining high-value Table gaps such as direct-launch and column-picker coverage into maintained uploaded-data journeys.
+- Port the highest-value sample-data-only Phylogenetic Tree controls into uploaded-data journeys.
+- Add uploaded-data 2D link label and link width journeys next.
+- Keep new Cypress work inside the maintained `journeys` and `view-state` buckets instead of adding more root-level mixed specs.

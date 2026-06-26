@@ -28,16 +28,24 @@ export function generateCanvas(seqs, config) {
         let seq = seqs[i].toUpperCase();
         if (seq.length > longest) longest = seq.length;
       }
-      let ch = Math.ceil(config.height);
-      let cw = Math.ceil(config.width);
-      let width = longest * config.width;
-      let height = seqs.length * config.height;
+      let ch = Math.max(1, Math.ceil(config.height));
+      let cw = Math.max(1, Math.ceil(config.width));
+      let width = Math.max(1, Math.ceil(longest * config.width));
+      let height = Math.max(1, Math.ceil(seqs.length * config.height));
       let canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       let context = canvas.getContext('2d', { alpha: false });
+      if (!context) {
+        resolve(canvas);
+        return;
+      }
       context.fillStyle = config.colors['ambig'];
       context.fillRect(0, 0, width, height);
+      if (n === 0 || longest === 0) {
+        resolve(canvas);
+        return;
+      }
       Object.keys(config.colors).forEach(nucleotide => {
         if(nucleotide == 'ambig') return;
         context.fillStyle = config.colors[nucleotide];

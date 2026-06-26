@@ -4,15 +4,11 @@ import { getProfilesByTag } from '../datasets/profile';
 import type { DatasetProfile } from '../datasets/profile';
 
 import {
-  visitAppAndAcceptEula,
-  launchAndWaitForProcessing,
-  goTo2DNetworkView,
   assertAfterLaunchCounts,
   enableGroupingShow,
   assertGroupedByCluster,
-  applyPreLaunchSessionSettings,
-  applyTwoDGroupingFromProfile,
-  assertGroupingMembershipFromProfile
+  assertGroupingMembershipFromProfile,
+  launchProfileToTwoD,
 } from '../../../support/journey-helpers';
 
 describe('Journey Flow - Grouping (basic) - Cluster', () => {
@@ -20,25 +16,12 @@ describe('Journey Flow - Grouping (basic) - Cluster', () => {
 
   profiles.forEach((profile: DatasetProfile) => {
     it(profile.title, () => {
-      visitAppAndAcceptEula();
-
-      cy.loadFiles(profile.files);
-
-      applyPreLaunchSessionSettings(profile);
-
-      launchAndWaitForProcessing(60000);
-
-      goTo2DNetworkView();
-
+      launchProfileToTwoD(profile);
       assertAfterLaunchCounts(profile);
 
-      // Either keep the old explicit calls...
       enableGroupingShow('cluster');
       assertGroupedByCluster();
       assertGroupingMembershipFromProfile(profile);
-
-      // ...or let the profile drive grouping behavior (including colors/labels):
-      // applyTwoDGroupingFromProfile(profile);
     });
   });
 });

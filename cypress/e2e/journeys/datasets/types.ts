@@ -43,12 +43,99 @@ export type ExpectedCounts = {
   singletons?: number;
 };
 
+export type ExpectationMode = 'observed' | 'intended';
+
+export type SplitExpectation<T> = {
+  observed: T;
+  intended?: T;
+  note?: string;
+};
+
+export type ExpectedValue<T> = T | SplitExpectation<T>;
+
+const isSplitExpectation = <T>(value: ExpectedValue<T>): value is SplitExpectation<T> => {
+  return typeof value === 'object' && value !== null && 'observed' in value;
+};
+
+export const resolveExpected = <T>(
+  value: ExpectedValue<T> | undefined,
+  mode: ExpectationMode = 'observed',
+): T | undefined => {
+  if (value === undefined) return undefined;
+  if (!isSplitExpectation(value)) return value;
+
+  if (mode === 'intended') {
+    return value.intended ?? value.observed;
+  }
+
+  return value.observed;
+};
+
+export const hasExpectedDeviation = <T>(value: ExpectedValue<T> | undefined): boolean => {
+  if (!value || !isSplitExpectation(value)) return false;
+  return value.intended !== undefined && value.intended !== value.observed;
+};
+
 export type JourneyExpectations = {
-  afterLaunch?: ExpectedCounts;
+  afterLaunch?: ExpectedValue<ExpectedCounts>;
+
+  timeline?: {
+    field: string;
+    checkpoints: Array<{
+      id: string;
+      date: string;
+      after?: ExpectedValue<ExpectedCounts>;
+    }>;
+  };
+
+  filtering?: {
+    minimumClusterSize?: {
+      from: number;
+      to: number;
+      after: ExpectedValue<ExpectedCounts>;
+      hiddenNodeIds?: string[];
+      reveal?: {
+        expectedCounts: ExpectedValue<ExpectedCounts>;
+        restoredNodeIds?: string[];
+      };
+    };
+
+    epsilonAfterNearestNeighbor?: {
+      fromExponent: number;
+      steps: Array<{
+        toExponent: number;
+        after: ExpectedValue<{ visibleLinks: number }>;
+        note?: string;
+      }>;
+    };
+
+    mixedOriginNearestNeighbor?: {
+      multiOriginLinks: number;
+      cancel: ExpectedValue<{ visibleLinks: number }>;
+      confirm: ExpectedValue<{ visibleLinks: number }>;
+      preservedLinkIds?: string[];
+      thresholdFlow?: {
+        toThreshold: number;
+        afterThreshold: ExpectedValue<{ visibleLinks: number }>;
+        afterNearestNeighbor: ExpectedValue<{ visibleLinks: number }>;
+        afterReveal: ExpectedValue<{ visibleLinks: number }>;
+        thresholdPreservedLinkIds?: string[];
+      };
+    };
+
+    metricSwitch?: {
+      steps: Array<{
+        toMetric: DistanceMetric;
+        expectedThreshold: number;
+        after: ExpectedValue<{ visibleLinks: number }>;
+      }>;
+    };
+  };
 
   nn?: {
-    before: { visibleLinks: number };
-    after: { visibleLinks: number };
+    labelLinksWith?: LinkLabelVariable;
+    before: ExpectedValue<{ visibleLinks: number }>;
+    after: ExpectedValue<{ visibleLinks: number }>;
   };
 
   applyStyle?: {
@@ -83,13 +170,20 @@ export type JourneyExpectations = {
     thresholdChange?: {
       from: number;
       to: number;
-      expectedVisibleLinksAfter: number;
+      expectedVisibleLinksAfter: ExpectedValue<number>;
       expectPolygonsUnchanged: boolean;
+      note?: string;
     };
 
     changeGroupColors?: {
       groups: string[];
+      colorsByGroup?: Record<string, string>;
     };
+  };
+
+  alignment?: {
+    visibleSequences: number;
+    excludedNodeIds?: string[];
   };
 
 

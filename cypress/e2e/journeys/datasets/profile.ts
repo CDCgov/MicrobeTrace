@@ -9,11 +9,33 @@ import type { DatasetProfile } from './types';
 import { NN_PROFILES } from './profiles/nn';
 import { STYLE_PROFILES } from './profiles/style';
 import { GROUPING_PROFILES } from './profiles/grouping';
+import { FILTERING_PROFILES } from './profiles/filtering';
+import { NEWICK_PROFILES } from './profiles/newick';
+import { LOAD_PROFILES } from './profiles/load';
+import { LINK_PROFILES } from './profiles/links';
+import { COLOR_BY_PROFILES } from './profiles/color-by';
+import { TIMELINE_PROFILES } from './profiles/timeline';
+import { MAP_PROFILES } from './profiles/map';
+import { GANTT_PROFILES } from './profiles/gantt';
+import { ALIGNMENT_PROFILES } from './profiles/alignment';
+import { HEATMAP_PROFILES } from './profiles/heatmap';
+import { PHYLO_PROFILES } from './profiles/phylo';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
+  ...LOAD_PROFILES,
   ...NN_PROFILES,
   ...STYLE_PROFILES,
   ...GROUPING_PROFILES,
+  ...FILTERING_PROFILES,
+  ...NEWICK_PROFILES,
+  ...LINK_PROFILES,
+  ...COLOR_BY_PROFILES,
+  ...TIMELINE_PROFILES,
+  ...MAP_PROFILES,
+  ...HEATMAP_PROFILES,
+  ...GANTT_PROFILES,
+  ...ALIGNMENT_PROFILES,
+  ...PHYLO_PROFILES,
 ];
 
 export const DATASET_PROFILE_MAP: Record<string, DatasetProfile> = DATASET_PROFILES

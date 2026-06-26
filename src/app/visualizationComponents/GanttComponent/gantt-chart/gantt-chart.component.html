@@ -1,71 +1,83 @@
 <svg [attr.width]="width" [attr.height]="height" version="1.1" xmlns="http://www.w3.org/2000/svg" >
-<pattern [attr.id]="gridID" 
-[attr.x]="ganttChartService.xPadding + 150" [attr.y]="ganttChartService.yPadding" 
-[attr.width]="gridWidthX" [attr.height]="gridWidthY" 
-patternUnits="userSpaceOnUse">
+  <pattern [attr.id]="gridID"
+    [attr.x]="chartStartX" [attr.y]="ganttChartService.yPadding"
+    [attr.width]="gridWidthX" [attr.height]="gridWidthY"
+    patternUnits="userSpaceOnUse">
     <path [attr.d]="gridPath" fill="none" stroke="#444444" stroke-width="0.5" />
-</pattern>
+  </pattern>
 
-<rect [attr.x]="ganttChartService.xPadding + 150" 
-[attr.y]="ganttChartService.yPadding" 
-[attr.width]="ganttChartService.rectWidth" 
-[attr.height]="ganttChartService.rectHeight" 
-stroke="#444444" [attr.fill]="gridFill" stroke-width="1"/>
+  <rect [attr.x]="chartStartX"
+    [attr.y]="ganttChartService.yPadding"
+    [attr.width]="ganttChartService.rectWidth"
+    [attr.height]="ganttChartService.rectHeight"
+    stroke="#444444" [attr.fill]="gridFill" stroke-width="1"/>
 
-<g *ngFor="let x of xAxis; index as i" [ngStyle]="{'transform': x.transform}">
-<text *ngIf="gridWidthX > 70 || (i%2==0 && gridWidthX > 30) || i%4 == 0" class="x-axis-text" text-anchor="middle" dominant-baseline="middle" [ngStyle]="{'font-size': fontSize}">{{x.value}}</text>
-</g>
+    @for (x of xAxis; track x.id; let i = $index) {
+      <g [ngStyle]="{'transform': x.transform}">
+        <text *ngIf="gridWidthX > 70 || (i%2==0 && gridWidthX > 30) || i%4 == 0" class="x-axis-text" text-anchor="middle" dominant-baseline="middle" [ngStyle]="{'font-size': fontSize}">{{x.value}}</text>
+      </g>
+    }
 
-<text
-*ngFor="let y of yAxis" class="y-axis-text" text-anchor="end" [ngStyle]="{'font-size': fontSize}"
-[attr.y]="y.yPos" [attr.x]="150+ganttChartService.xPadding-15">{{y.value}}</text>
+    @for (y of yAxis; track y.id) {
+      <text class="y-axis-text" text-anchor="end" [ngStyle]="{'font-size': fontSize}"
+      [attr.y]="y.yPos" [attr.x]="chartStartX - 15">{{y.value}}</text>
+    }
+
+      @if (ganttChartService.hasRenderableDateRange) {
+        <!-- Legend -->
+        <rect [attr.x]="chartStartX"
+          [attr.y]="ganttChartService.yPadding * 2 + ganttChartService.rectHeight + 20" 
+          [attr.width]="ganttChartService.legendWidth" 
+          [attr.height]="ganttChartService.legendHeight" 
+          fill="#f1f1f1" />
 
 
-<!-- Legend -->
-<rect [attr.x]="ganttChartService.xPadding + 150"
-[attr.y]="ganttChartService.yPadding * 2 + ganttChartService.rectHeight + 20" 
-[attr.width]="ganttChartService.legendWidth" 
-[attr.height]="ganttChartService.legendHeight" 
-fill="#f1f1f1" />
-
-
-<g *ngFor="let legendLine of ganttChartService.legend; index as i">
-  <g *ngFor="let legendEntry of legendLine; index as j">
-      <rect *ngIf="ganttChartService.legendWidth" 
-      [attr.x]="ganttChartService.xPadding + 150 + ganttChartService.legendWidth / 3 * 0.1 + ganttChartService.legendWidth / 3 * j" 
-      [attr.y]="ganttChartService.yPadding * 2 + 40 + ganttChartService.rectHeight + 40*i" 
-      [attr.width]="40" 
-      [attr.height]="20" 
-      rx="6" ry="6"
-      [attr.opacity]="legendEntry.opacity ?? 0.9"
-      [attr.fill]="legendEntry.color" />
-
-      <!-- <path class="legend-line" [attr.d]="computeLegendPath(i)" fill="none" [attr.stroke]="x.color" /> -->
-      <text class="axis-text" dominant-baseline="middle"
-      [attr.x]="ganttChartService.xPadding + 150 + ganttChartService.legendWidth / 3 * 0.1 + ganttChartService.legendWidth / 3 * j + 50" 
-      [attr.y]="ganttChartService.yPadding * 2 + 40 + ganttChartService.rectHeight + 10 + 40*i" class="small"> {{ legendEntry.name }} </text>
-  </g>
-</g>
-  <g *ngFor="let phase of ganttChartService.ganttPhases; index as i">
-    <g id="component" *ngFor="let ganttEntry of phaseTimelines[phase]; index as j">
-        <rect class="gantt-entry"
-        [attr.x]="xPadding + 150 + ganttChartService.transformGanttDate(ganttEntry.from)" 
-        [attr.y]="i * gridWidthY + yPadding + (gridWidthY - min(20, gridWidthY))/2" 
-        [attr.width]="getWidth(ganttEntry)"
-        [attr.height]="min(20, gridWidthY)" 
-        rx="6" ry="6"
-        [attr.fill]="ganttEntry.color"
-        [attr.opacity]="ganttEntry.opacity ?? 0.9" />
-
-        <!-- [attr.x]="x + 150 + ganttChartService.transformGanttDate(ganttEntry.from)" 
-        [attr.y]="i * 60 + y + 20"  -->
+              @for (legendLine of ganttChartService.legend; track $index; let i = $index) {
+                <g>
+                  @for (legendEntry of legendLine; track legendEntry.id; let j = $index) {
+                    <g>
+                      @if (ganttChartService.legendWidth) {
+                        <rect
+                          [attr.x]="chartStartX + ganttChartService.legendWidth / 3 * 0.1 + ganttChartService.legendWidth / 3 * j"
+                          [attr.y]="ganttChartService.yPadding * 2 + 40 + ganttChartService.rectHeight + 40*i"
+                          [attr.width]="40"
+                          [attr.height]="20"
+                          rx="6" ry="6"
+                          [attr.opacity]="legendEntry.opacity ?? 0.9"
+                          [attr.fill]="legendEntry.color" />
+                      }
+                      <!-- <path class="legend-line" [attr.d]="computeLegendPath(i)" fill="none" [attr.stroke]="x.color" /> -->
+                      <text class="axis-text" dominant-baseline="middle"
+                        [attr.x]="chartStartX + ganttChartService.legendWidth / 3 * 0.1 + ganttChartService.legendWidth / 3 * j + 50"
+                      [attr.y]="ganttChartService.yPadding * 2 + 40 + ganttChartService.rectHeight + 10 + 40*i" class="small"> {{ legendEntry.name }} </text>
+                    </g>
+                  }
+                </g>
+              }
+      }
+      @for (phase of ganttChartService.ganttPhases; track $index; let i = $index) {
+        <g>
+          @for (ganttEntry of phaseTimelines[phase]; track $index; let j = $index) {
+            <g id="component">
+              <rect class="gantt-entry"
+                [attr.x]="chartStartX + ganttChartService.transformGanttDate(ganttEntry.from)"
+                [attr.y]="i * gridWidthY + yPadding + (gridWidthY - min(20, gridWidthY))/2"
+                [attr.width]="getWidth(ganttEntry)"
+                [attr.height]="min(20, gridWidthY)"
+                rx="6" ry="6"
+                [attr.fill]="ganttEntry.color"
+                [attr.opacity]="ganttEntry.opacity ?? 0.9" />
+                <!-- [attr.x]="x + 150 + ganttChartService.transformGanttDate(ganttEntry.from)"
+                [attr.y]="i * 60 + y + 20"  -->
         <g class="tooltip" [ngStyle]="{
-          'transform': 'translate(' + (xPadding + 150 + ganttChartService.transformGanttDate(ganttEntry.to) - ((ganttChartService.transformGanttDate(ganttEntry.to) - ganttChartService.transformGanttDate(ganttEntry.from)) / 2)) + 'px, ' + (i * 60 + yPadding - 5) + 'px)',
+          'transform': 'translate(' + (chartStartX + ganttChartService.transformGanttDate(ganttEntry.to) - ((ganttChartService.transformGanttDate(ganttEntry.to) - ganttChartService.transformGanttDate(ganttEntry.from)) / 2)) + 'px, ' + (i * 60 + yPadding - 5) + 'px)',
           'display': ganttEntry.toolTip}" 
-        opacity="0.9">
-          <rect rx="5" width="200" height="25"></rect>
-          <text x="15" y="16">{{ ganttEntry.info }}</text>
+                  opacity="0.9">
+                  <rect rx="5" width="200" height="25"></rect>
+                  <text x="15" y="16">{{ ganttEntry.info }}</text>
+                </g>
+              </g>
+            }
           </g>
-    </g>
-  </g>
-</svg>
+        }
+      </svg>

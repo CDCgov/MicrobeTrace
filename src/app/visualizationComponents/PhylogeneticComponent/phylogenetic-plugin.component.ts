@@ -4,8 +4,7 @@
 } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
-import * as saveAs from 'file-saver';
-import * as domToImage from 'html-to-image';
+import { saveAs } from 'file-saver';
 import { SelectItem } from 'primeng/api';
 import { DialogSettings } from '@app/helperClasses/dialogSettings';
 import * as _ from 'lodash';
@@ -18,20 +17,22 @@ import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { runInThisContext } from 'vm';
 //import { MatHint } from '@angular/material/form-field';
-import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 
 import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
 
 /**
  * @title PhylogeneticComponent
  */
 @Component({
-  selector: 'PhylogeneticComponent',
-  templateUrl: './phylogenetic-plugin.component.html',
-  styleUrls: ['./phylogenetic-plugin.component.scss']
+    selector: 'PhylogeneticComponent',
+    templateUrl: './phylogenetic-plugin.component.html',
+    styleUrls: ['./phylogenetic-plugin.component.scss'],
+    standalone: false
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 
@@ -64,6 +65,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   maxNodeWidth: number = 15;
   nodeMid: number = 1;
   debugMode = false;
+  hasNewickFile: boolean;
 
 
 
@@ -98,6 +100,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedLeafTooltipVariable = '_id';
   //LeafTooltipFieldList: object[] = [];
   SelectedLeafNodeShowVariable = this.settings['tree-leaf-node-show'] ?? true;
+  SelectedLeafNodeUseGlobalShapesVariable = this.settings['tree-leaf-node-use-global-shapes'] ?? false;
   SelectedLeafNodeSizeVariable: string = this.settings['tree-leaf-node-radius-variable'] ?? 'None';
   SelectedLeafNodeSize: number = this.settings['tree-leaf-node-size'] ?? 5;
   SelectedLeafNodeColorVariable = this.settings['node-color'];
@@ -110,7 +113,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedBranchSizeVariable = 3;
   SelectedBranchLabelSizeVariable: 12 = 12;
   SelectedLinkColorVariable = this.settings['link-color'];
-  SelectedBranchLabelShowVariable: false = false;
+  SelectedBranchLabelShowVariable: boolean = false;
   SelectedBranchDistanceShowVariable = !(this.settings['tree-branch-distances-hide'] ?? true); // inverse of its widget; defaults to false
   SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size'] ?? 12;
   //SelectedBranchTooltipShowVariable = false;
@@ -118,6 +121,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   hideShowOptions: object = [
     { label: 'Hide', value: false },
     { label: 'Show', value: true }
+  ];
+  enableDisableOptions: object = [
+    { label: 'Disable', value: false },
+    { label: 'Enable', value: true }
   ];
 
   // Export Settings
@@ -144,10 +151,13 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   ShowAdvancedExport = true;
 
-  PhylogeneticTreeExportDialogSettings: DialogSettings = new DialogSettings('#phylotree-settings-pane', false);
+  PhylogeneticTreeDialogSettings: DialogSettings = new DialogSettings('#phylotree-settings-pane', false);
 
   //ContextSelectedNodeAttributes: { attribute: string, value: string }[] = [];
   tree: TidyTree = null;
+  originalTreeData: any = null;
+  hasTreeBeenModifiedFromOriginal = false;
+  private treeLeafShapeUriCache = new Map<string, string>();
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
@@ -166,6 +176,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     this.visuals = commonService.visuals;
     this.commonService.visuals.phylogenetic = this;
+  }
+
+  private markTreeRendered(): void {
+    window.requestAnimationFrame(() => {
+      this.store.setNetworkRendered(true);
+      this.store.setNetworkUpdated(false);
+      this.commonService.session.network.rendering = false;
+      this.commonService.demoNetworkRendered = true;
+    });
   }
 
   openTree = async () => {
@@ -187,6 +206,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       const tree = this.buildTree(newickString);
       this.tree = tree;
       this.commonService.visuals.phylogenetic.tree = tree;
+      this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
+      this.hasTreeBeenModifiedFromOriginal = false;
       //this.mergeNodeData();
       this.hideTooltip();
       this.styleTree();
@@ -198,11 +219,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         const tree = this.buildTree(newickString);
         this.tree = tree;
         this.commonService.visuals.phylogenetic.tree = tree;
+        this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
+        this.hasTreeBeenModifiedFromOriginal = false;
         //this.mergeNodeData();
         this.hideTooltip();
         this.styleTree();
       //});
     }
+    this.hasNewickFile = this.commonService.session.files.some(file => file.format == 'newick');
+    this.markTreeRendered();
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 
@@ -351,32 +376,148 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   styleLeafNode = (node, data) => {
-    let nodes = this.visuals.phylogenetic.commonService.session.data.nodes;
     let leafSize: number;
-    const variable = this.visuals.phylogenetic.commonService.session.style.widgets['node-color-variable'];
     leafSize = this.getLeafSize(data.data.id, this.SelectedLeafNodeSizeVariable);
     const selectedColor = this.SelectedSelectedLeafNodeColorVariable;
-    const nodeData = nodes.find(n => n._id === data.data.id);
+    const nodeData = this.getLeafNodeData(data.data.id);
     const isSelected = !!(nodeData && nodeData.selected);
-    d3.select(node)
+    const fillStyle = this.getLeafNodeFillStyle(nodeData);
+    const fillColor = fillStyle.color;
+    const fillOpacity = fillStyle.alpha;
+    const nodeSelection = d3.select(node);
+
+    nodeSelection
       .attr('r', leafSize)
-      .style('stroke', isSelected ? selectedColor : '#000000')
-      .style('stroke-width', isSelected ? '3px' : '1px');
+      .style('pointer-events', 'all');
 
-    if (variable === 'None') {
-      d3.select(node).style('fill', this.SelectedLeafNodeColorVariable);
-    } else {
-      d3.select(node).style('fill', d => {
-        const node_values = nodes.filter(m => m._id === (d as any).data.id);
-        const node_color = this.visuals.phylogenetic.commonService.temp.style.nodeColorMap(node_values[0][variable]);
-        return node_color;
-      });
-      // d3.select(node).style('opacity', d => this.visuals.phylogenetic.commonService.temp.style.nodeAlphaMap(d[variable]));
-
-      //  this.context.microbeTrace.generateNodeColorTable("#node-color-table-bottom", false);
+    if (!this.SelectedLeafNodeShowVariable) {
+      this.removeLeafNodeShapeOverlay(node);
+      nodeSelection
+        .style('fill-opacity', 0)
+        .style('stroke', 'transparent')
+        .style('stroke-width', '0px');
+      return;
     }
 
+    if (this.SelectedLeafNodeUseGlobalShapesVariable) {
+      const shapeKey = resolveNodeShapeForNode(
+        nodeData,
+        this.commonService.session.style.widgets,
+        this.commonService.session.style,
+        this.commonService.temp.style.nodeSymbolMap
+      );
+      const strokeColor = isSelected ? selectedColor : shapeKey == 'lettuce'? '#ffffff' : '#000000';
 
+      if (shapeKey === 'ellipse') {
+        let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
+        this.removeLeafNodeShapeOverlay(node);
+        nodeSelection
+          .style('fill', fillColor)
+          .style('fill-opacity', fillOpacity)
+          .style('stroke', strokeColor)
+          .style('stroke-width', strokeWidth);
+        return;
+      }
+
+      this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity);
+      nodeSelection
+        .style('fill', fillColor)
+        .style('fill-opacity', 0)
+        .style('stroke', 'transparent')
+        .style('stroke-width', '0px');
+      return;
+    }
+
+    this.removeLeafNodeShapeOverlay(node);
+    let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
+    nodeSelection
+      .style('fill', fillColor)
+      .style('fill-opacity', fillOpacity)
+      .style('stroke', isSelected ? selectedColor : '#000000')
+      .style('stroke-width', strokeWidth);
+  }
+
+  private getLeafNodeData(nodeId: string): any {
+    return this.visuals.phylogenetic.commonService.session.data.nodes.find(
+      node => node._id === nodeId || node.id === nodeId
+    );
+  }
+
+  private getLeafNodeFillStyle(nodeData: any): { color: string; alpha: number } {
+    return this.visuals.phylogenetic.commonService.getNodeFillStyle(nodeData);
+  }
+
+  private removeLeafNodeShapeOverlay(node: SVGElement): void {
+    const parentNode = node.parentNode as SVGGElement | null;
+    if (!parentNode) {
+      return;
+    }
+
+    d3.select(parentNode).selectAll('image.tidytree-node-shape-overlay').remove();
+  }
+
+  private getLeafShapeStrokeWidth(shapeKey: string, isSelected: boolean): number {
+    if (shapeKey == 'lettuce') {
+      return isSelected ? 10 : 3;
+    } else if (shapeKey == 'ship' || shapeKey == 'tick' || shapeKey == 'swab') {
+        return isSelected ? 12 : 5;
+    } else if (isCustomNodeIconShape(shapeKey)) {
+        return isSelected ? 20 : 10;
+    } else {
+        return isSelected ? 48 : 16;
+    }
+  }
+
+  private getLeafShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number): string {
+    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}`;
+    const cachedUri = this.treeLeafShapeUriCache.get(cacheKey);
+    if (cachedUri) {
+      return cachedUri;
+    }
+
+    const dataUri = getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
+    this.treeLeafShapeUriCache.set(cacheKey, dataUri);
+    return dataUri;
+  }
+
+  private renderLeafNodeShapeOverlay(
+    node: SVGElement,
+    shapeKey: string,
+    leafSize: number,
+    fillColor: string,
+    strokeColor: string,
+    isSelected: boolean,
+    fillOpacity: number
+  ): void {
+    const parentNode = node.parentNode as SVGGElement | null;
+    if (!parentNode) {
+      return;
+    }
+
+    const diameter = leafSize * 2;
+    const strokeWidth = this.getLeafShapeStrokeWidth(shapeKey, isSelected);
+    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
+    const overlayDiameter = diameter * getTreeNodeShapeScale(shapeKey);
+    const overlayOffset = overlayDiameter / 2;
+    const overlaySelection = d3.select(parentNode)
+      .selectAll<SVGImageElement, number>('image.tidytree-node-shape-overlay')
+      .data([0]);
+
+    overlaySelection
+      .join(
+        enter => enter
+          .insert('image', 'text')
+          .attr('class', 'tidytree-node-shape-overlay')
+          .style('pointer-events', 'none'),
+        update => update
+      )
+      .attr('x', -overlayOffset)
+      .attr('y', -overlayOffset)
+      .attr('width', overlayDiameter+4)
+      .attr('height', overlayDiameter+4)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .attr('href', shapeUri)
+      .attr('xlink:href', shapeUri);
   }
 
   buildTree(newick): TidyTree {
@@ -489,7 +630,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   openSettings() {
-    this.visuals.phylogenetic.PhylogeneticTreeExportDialogSettings.setVisibility(true);
+    this.visuals.phylogenetic.PhylogeneticTreeDialogSettings.setVisibility(true);
     // this.context.twoD.ShowStatistics = !this.context.twoD.Show2DSettingsPane;
   }
 
@@ -497,9 +638,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   openExport() {
     this.ShowPhylogeneticExportPane = true;
 
-    this.visuals.microbeTrace.GlobalSettingsDialogSettings.setStateBeforeExport();
-    this.visuals.microbeTrace.GlobalSettingsLinkColorDialogSettings.setStateBeforeExport();
-    this.visuals.microbeTrace.GlobalSettingsNodeColorDialogSettings.setStateBeforeExport();
     this.isExportClosed = false;
 
   }
@@ -614,11 +752,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-vertical-stretch'] = this.SelectedVerticalStretchVariable
   }
 
-  // onBranchLabelShowChange(event) {
-  //   this.SelectedBranchLabelShowVariable = event;
-  //   this.tree.setBranchLabels(event);
-  //   this.styleTree();
-  // }
+  onBranchLabelShowChange(event) {
+    this.SelectedBranchLabelShowVariable = event;
+    this.tree.setBranchLabels(event);
+    this.styleTree();
+  }
 
   onBranchLabelSizeChange(event) {
     this.SelectedBranchLabelSizeVariable = event;
@@ -650,6 +788,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.styleTree();
   }
 
+  onBranchNodeLabelChange(event) {
+    this.SelectedBranchLabelShowVariable
+  }
+
   // onBranchTooltipShowChange(event) {
   //   this.SelectedBranchTooltipShowVariable = event;
   //   this.styleTree();
@@ -672,10 +814,40 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.DisplayGlobalSettingsDialogEvent.emit('Styling');
   }
 
+  private ensureGlobalNodeShapeTableVisible(): void {
+    const microbeTrace = this.visuals?.microbeTrace;
+    const selectedNodeSymbolVariable = this.commonService.session.style.widgets['node-symbol-variable']
+      ?? microbeTrace?.SelectedNodeSymbolVariable
+      ?? 'None';
+    const isDocked = microbeTrace?.isKeyTableDocked?.('node-shape') ?? false;
+    const isTreeActive = this.commonService.activeTab === PhylogeneticComponent.componentTypeName;
+
+    if (!microbeTrace
+      || !this.SelectedLeafNodeUseGlobalShapesVariable
+      || selectedNodeSymbolVariable === 'None'
+      || (!isDocked && !isTreeActive)) {
+      return;
+    }
+
+    microbeTrace.onNodeShapeByChanged(true, true, selectedNodeSymbolVariable);
+  }
+
   onLeafNodeShowChange(event) {
     this.SelectedLeafNodeShowVariable = event;
-    this.tree.setLeafNodes(this.SelectedLeafNodeShowVariable);
+    if (this.tree) {
+      this.tree.setLeafNodes(this.SelectedLeafNodeShowVariable);
+    }
+    this.styleTree();
     this.settings['tree-leaf-node-show'] = this.SelectedLeafNodeShowVariable
+  }
+
+  onLeafNodeUseGlobalShapesChange(event) {
+    this.SelectedLeafNodeUseGlobalShapesVariable = event;
+    this.styleTree();
+    this.settings['tree-leaf-node-use-global-shapes'] = this.SelectedLeafNodeUseGlobalShapesVariable
+    if (this.SelectedLeafNodeUseGlobalShapesVariable) {
+      this.ensureGlobalNodeShapeTableVisible();
+    }
   }
 
   onLeafNodeSizeChange(event) {
@@ -715,33 +887,88 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const selectedColor = this.visuals.phylogenetic.commonService.GlobalSettingsModel.SelectedColorVariable;
   }
 
+  updateNodeShapes() {
+    this.styleTree();
+  }
+
   updateLinkColor() {
     const linkColor = this.visuals.phylogenetic.commonService.session.style.widgets['link-color'];
     this.SelectedLinkColorVariable = linkColor;
     this.styleTree();
   }
 
-  saveImage(event) {
-    const thisTree = this.commonService.visuals.phylogenetic.tree;
-    const fileName = this.SelectedTreeImageFilenameVariable;
-    const treeId = 'phylocanvas';
-    const exportImageType = this.SelectedNetworkExportFileTypeListVariable;
-    const content = document.getElementById(treeId);
-    if (exportImageType === 'png') {
-      domToImage.toPng(content, {backgroundColor: '#ffffff'}).then(
-        dataUrl => {
-          saveAs(dataUrl, fileName);
-        });
-    } else if (exportImageType === 'jpeg') {
-      domToImage.toJpeg(content, { quality: 0.85 }).then(
-        dataUrl => {
-          saveAs(dataUrl, fileName);
-        });
-    } else if (exportImageType === 'svg') {
-      const svgContent = this.exportService.unparseSVG(content);
-      const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-      saveAs(blob, fileName);
+  private shouldExportNodeColorTable(): boolean {
+    return this.commonService.session.style.widgets['node-color-variable'] !== 'None';
+  }
+
+  private shouldExportNodeShapeTable(): boolean {
+    const useGlobalShapes = this.commonService.session.style.widgets['tree-leaf-node-use-global-shapes']
+      ?? this.SelectedLeafNodeUseGlobalShapesVariable;
+    return !!useGlobalShapes && this.commonService.session.style.widgets['node-symbol-variable'] !== 'None';
+  }
+
+  private getExportSvgContent(): string {
+    const svgElement = document.querySelector('#phylocanvas svg') as HTMLElement | null;
+    if (!svgElement) {
+      return '';
     }
+
+    const svgContent = this.exportService.unparseSVG(svgElement);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+    const svgNode = doc.documentElement;
+    const rect = svgElement.getBoundingClientRect();
+    const width = Math.ceil(rect.width || parseFloat(svgNode.getAttribute('width')) || 0);
+    const height = Math.ceil(rect.height || parseFloat(svgNode.getAttribute('height')) || 0);
+
+    if (width > 0) {
+      svgNode.setAttribute('width', `${width}`);
+      svgNode.style.width = `${width}px`;
+    }
+    if (height > 0) {
+      svgNode.setAttribute('height', `${height}`);
+      svgNode.style.height = `${height}px`;
+    }
+
+    return new XMLSerializer().serializeToString(svgNode);
+  }
+
+  saveImage(event) {
+    const exportOptions: ExportOptions = {
+      filename: this.SelectedTreeImageFilenameVariable,
+      filetype: this.SelectedNetworkExportFileTypeListVariable,
+      scale: this.SelectedNetworkExportScaleVariable,
+      quality: this.SelectedNetworkExportQualityVariable,
+    };
+
+    this.exportService.setExportOptions(exportOptions);
+
+    const exportNodeTable = this.shouldExportNodeColorTable();
+    const exportNodeShapeTable = this.shouldExportNodeShapeTable();
+    const content = document.getElementById('phylocanvas') as HTMLElement | null;
+
+    if (!content) {
+      console.error('Phylogenetic export container not found');
+      return;
+    }
+
+    if (exportNodeShapeTable) {
+      this.ensureGlobalNodeShapeTableVisible();
+    }
+
+    if (this.SelectedNetworkExportFileTypeListVariable === 'svg') {
+      const svgContent = this.getExportSvgContent();
+      if (!svgContent) {
+        console.error('Phylogenetic SVG element not found');
+        return;
+      }
+
+      this.exportService.requestSVGExport([], svgContent, exportNodeTable, false, exportNodeShapeTable);
+    } else {
+      this.exportService.requestExport([content], exportNodeTable, false, exportNodeShapeTable);
+    }
+
+    this.ShowPhylogeneticExportPane = false;
     console.log('Export Success!')
 
   }
@@ -773,6 +1000,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.event.preventDefault();
     this.hideTooltip();
     const tree = this.tree;
+    const clickedNode = d?.[0];
+    const isBranchNode = !!(clickedNode && clickedNode.children && clickedNode.children.length > 0);
     let [x, y] = this.getRelativeMousePosition();
     const leftVal = this.getContextLeftVal(x);
     const topVal = this.getContextTopVal(y);
@@ -785,22 +1014,65 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       .style('top', `${topVal}px`);
     d3.select('#reroot').on('click', c => {
       tree.setData(d[0].data.reroot());
+      this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
+      this.cdref.detectChanges();
     });
     d3.select('#rotate').on('click', c => {
       tree.setData(d[0].data.rotate().getRoot());
+      this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
+      this.cdref.detectChanges();
     });
     d3.select('#flip').on('click', c => {
       tree.setData(d[0].data.flip().getRoot());
+      this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
+      this.cdref.detectChanges();
     });
+    d3.select('#view-subtree')
+      .style('display', isBranchNode ? 'block' : 'none')
+      .on('click', c => {
+        if (!isBranchNode) return;
+        this.viewSubtree(d);
+        this.hideContextMenu();
+      });
     d3.select('#phylocanvas svg').on('click', c => {
       this.hideContextMenu();
     });
+  }
+
+  viewSubtree = (d) => {
+    if (!this.tree) return;
+
+    const clickedNode = d?.[0];
+    const isBranchNode = !!(clickedNode && clickedNode.children && clickedNode.children.length > 0);
+    if (!isBranchNode) return;
+
+    const subtreeData = clickedNode.data?.clone ? clickedNode.data.clone() : clickedNode.data;
+    // Normalize subtree root so weighted ruler starts at 0 for subtree view.
+    if (subtreeData) {
+      subtreeData.length = 0;
+    }
+    this.tree.setData(subtreeData);
+    this.hasTreeBeenModifiedFromOriginal = true;
+    this.styleTree();
+    this.openCenter();
+    this.cdref.detectChanges();
+  }
+
+  restoreFullTree = () => {
+    if (!this.tree || !this.originalTreeData) return;
+
+    const fullTreeData = this.originalTreeData.clone ? this.originalTreeData.clone() : this.originalTreeData;
+    this.tree.setData(fullTreeData);
+    this.hasTreeBeenModifiedFromOriginal = false;
+    this.styleTree();
+    this.openCenter();
+    this.cdref.detectChanges();
   }
 
   hideContextMenu = () => {
@@ -939,6 +1211,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   // Leaf Nodes
   if (this.settings['tree-leaf-node-show'] != this.SelectedLeafNodeShowVariable) this.SelectedLeafNodeShowVariable = this.settings['tree-leaf-node-show']
+  if ((this.settings['tree-leaf-node-use-global-shapes'] ?? false) != this.SelectedLeafNodeUseGlobalShapesVariable) this.SelectedLeafNodeUseGlobalShapesVariable = this.settings['tree-leaf-node-use-global-shapes'] ?? false
   if (this.settings['tree-leaf-node-size'] != this.SelectedLeafNodeSize) this.SelectedLeafNodeSize = this.settings['tree-leaf-node-size']
   if (this.settings['tree-leaf-node-radius-variable'] != this.SelectedLeafNodeSizeVariable) this.SelectedLeafNodeSizeVariable = this.settings['tree-leaf-node-radius-variable']
 
@@ -958,6 +1231,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   // Final redraw
   this.styleTree();
+  if (this.SelectedLeafNodeUseGlobalShapesVariable) {
+    this.ensureGlobalNodeShapeTableVisible();
+  }
   this.openCenter()
 }
 

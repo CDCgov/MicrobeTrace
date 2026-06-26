@@ -7,7 +7,22 @@
 
 :host {
     position: absolute;
+    inset: 0;
+    display: block;
     overflow: hidden;
+}
+
+.m-content {
+    height: 100%;
+    overflow: hidden;
+}
+
+#file-panel {
+    box-sizing: border-box;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 24px;
 }
 
 mat-drawer-content {
@@ -40,6 +55,16 @@ mat-drawer-content {
 #file-prompt {
     z-index: 1;
     position: relative;
+}
+
+#file-panel.files-drop-zone {
+    box-sizing: border-box;
+    min-height: calc(100% - 85px);
+}
+
+#file-panel.files-drop-zone.fileover {
+    outline: 2px dashed #5d78ff;
+    outline-offset: -8px;
 }
 
 

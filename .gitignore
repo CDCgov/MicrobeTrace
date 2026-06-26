@@ -20,6 +20,7 @@
 /src/app/contactTraceCommonServices/sample.json
 /src/app/contactTraceCommonServices/sampleAll.json
 /src/app/LangChain
+/src/environments/version.prod.ts
 
 
 # IDEs and editors
@@ -71,3 +72,10 @@ cypress/downloads/*
 
 # Maven
 target/
+
+# Local Tomcat harness
+tomcat-server/apache-tomcat-*/
+tomcat-server/logs/
+tomcat-server/work/
+tomcat-server/temp/
+tomcat-server/webapps/*

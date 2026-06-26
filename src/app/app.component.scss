@@ -18,3 +18,116 @@ body .ui-tabview .ui-tabview-panels .ui-tabview-panel {
     --vis-graph-node-label-background: black;
   }
 
+.runtime-error-banner {
+    position: sticky;
+    top: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.runtime-error-banner--warning {
+    border-color: #d49a1f;
+    background: #fff6dd;
+    color: #3b2a00;
+}
+
+.runtime-error-banner--critical {
+    border-color: #5f1717;
+    background: #7a1f1f;
+    color: #ffffff;
+}
+
+.runtime-error-banner__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.runtime-error-banner__heading,
+.runtime-error-banner__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.runtime-error-banner__severity {
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.runtime-error-banner--warning .runtime-error-banner__severity {
+    background: #9a6500;
+    color: #ffffff;
+}
+
+.runtime-error-banner--critical .runtime-error-banner__severity {
+    background: rgba(255, 255, 255, 0.18);
+    color: inherit;
+}
+
+.runtime-error-banner__message,
+.runtime-error-banner__summary {
+    overflow-wrap: anywhere;
+}
+
+.runtime-error-banner__summary {
+    font-weight: 500;
+}
+
+.runtime-error-banner__meta {
+    font-size: 0.78rem;
+    opacity: 0.82;
+}
+
+.runtime-error-banner__details {
+    max-width: min(100%, 72rem);
+    font-size: 0.78rem;
+}
+
+.runtime-error-banner__details summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.runtime-error-banner__details pre {
+    max-height: 9rem;
+    margin: 0.35rem 0 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.runtime-error-banner__dismiss {
+    flex-shrink: 0;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+@media (max-width: 640px) {
+    .runtime-error-banner {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .runtime-error-banner__dismiss {
+        align-self: flex-start;
+    }
+}

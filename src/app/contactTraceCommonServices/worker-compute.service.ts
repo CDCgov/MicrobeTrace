@@ -1,7 +1,70 @@
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import * as patristic from 'patristic';
 import { WorkerModule } from '../workers/workModule';
+import type {
+  PatristicWorkerRequest,
+  PatristicWorkerResponse,
+  PatristicEdgeBatchResponse,
+  PatristicTreeReadyResponse,
+  PatristicNearestNeighborBatchResponse,
+  PatristicProgressResponse,
+  PatristicErrorResponse,
+} from '../workers/patristic-engine.types';
+
+interface ComputePatristicOptions {
+  origin?: string[];
+  distanceOrigin?: string;
+  check?: any;
+  maxEdges?: number;
+  batchSize?: number;
+}
+
+interface PatristicVisibleEdgeGuardrails {
+  warningThreshold: number;
+  hardLimit: number;
+}
+
+interface PatristicGuardrailResult {
+  warningThreshold: number;
+  hardLimit: number;
+  matchedEdgeCount: number;
+  warningHit: boolean;
+  hardLimitHit: boolean;
+  threshold: number;
+  message: string;
+}
+
+interface PatristicMergeResult {
+  newLinks: number;
+  totalLinks: number;
+  leafNames: string[];
+  guardrail?: PatristicGuardrailResult;
+}
+
+interface PatristicNearestNeighborMergeResult {
+  newLinks: number;
+  totalLinks: number;
+  leafNames: string[];
+  selectedLinks: number;
+}
+
+interface PatristicAnalysisEdge {
+  sourceIndex: number;
+  targetIndex: number;
+  value: number;
+}
+
+interface PatristicDistanceAnalysisResult {
+  edges: PatristicAnalysisEdge[];
+  totalPairs: number;
+  skipped: boolean;
+  skipReason?: string;
+}
+
+const DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD = 75000;
+const DEFAULT_NEWICK_VISIBLE_LINK_HARD_LIMIT = 100000;
+const DEFAULT_NEWICK_THRESHOLD_ANALYSIS_PAIR_LIMIT = 500000;
 
 /**
  * This service delegates all Worker-based computations.
@@ -542,71 +605,639 @@ export class WorkerComputeService {
     });
   }
 
+  // ─── Patristic Distance Engine ───────────────────────────────────────────
+
+  /** Currently active patristic job ID for cancellation. */
+  private patristicJobId = 0;
+  /** Leaf names from the last initialized tree (set by TREE_READY). */
+  private patristicLeafNames: string[] = [];
+  private patristicNewickString = '';
+  private patristicGeneratedMaxThreshold = -Infinity;
+  private patristicOrigin: string[] = ['Newick Tree'];
+  private patristicDistanceOrigin = 'Newick Tree';
+  private patristicTreeInitCount = 0;
+
+  private recordPatristicPerformance(session: any, patch: any): void {
+    if (!session?.meta) return;
+    if (!session.meta.performance) {
+      session.meta.performance = {};
+    }
+
+    const current = session.meta.performance.patristic || {};
+    session.meta.performance.patristic = {
+      ...current,
+      ...patch,
+      treeInitCount: this.patristicTreeInitCount,
+      updatedAt: Date.now(),
+    };
+  }
+
+  private treeReadyTelemetry(treeReady: PatristicTreeReadyResponse): any {
+    return {
+      leafCount: treeReady.leafCount,
+      nodeCount: treeReady.nodeCount,
+      maxDistance: treeReady.maxDistance,
+      maxRootDepth: treeReady.maxRootDepth,
+      timings: treeReady.timings,
+    };
+  }
+
+  private getPatristicVisibleEdgeGuardrails(session?: any): PatristicVisibleEdgeGuardrails {
+    const overrides = session?.meta?.guardrails || {};
+    const overrideWarning = Number(overrides.newickVisibleLinkWarningThreshold);
+    const overrideHardLimit = Number(overrides.newickVisibleLinkHardLimit);
+    const hardLimit = Number.isFinite(overrideHardLimit) && overrideHardLimit > 0
+      ? Math.floor(overrideHardLimit)
+      : DEFAULT_NEWICK_VISIBLE_LINK_HARD_LIMIT;
+    const warningThreshold = Number.isFinite(overrideWarning) && overrideWarning > 0
+      ? Math.floor(overrideWarning)
+      : DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD;
+
+    return {
+      hardLimit,
+      warningThreshold: Math.min(warningThreshold, hardLimit),
+    };
+  }
+
+  private formatCount(value: number): string {
+    return Math.floor(value).toLocaleString();
+  }
+
+  private buildPatristicGuardrailResult(
+    threshold: number,
+    matchedEdgeCount: number,
+    guardrails: PatristicVisibleEdgeGuardrails,
+    hardLimitHit: boolean,
+  ): PatristicGuardrailResult | undefined {
+    const warningHit = hardLimitHit || matchedEdgeCount >= guardrails.warningThreshold;
+    if (!warningHit) return undefined;
+
+    const message = hardLimitHit
+      ? `Newick threshold ${threshold} exceeded the ${this.formatCount(guardrails.hardLimit)} visible-link browser guardrail. MicrobeTrace did not add the additional Newick links for this threshold; lower the threshold, filter the network, or subset the tree before rendering.`
+      : `Newick threshold ${threshold} produced ${this.formatCount(matchedEdgeCount)} visible links, which may render slowly in the browser. Consider filtering, subsetting, or using a stricter threshold.`;
+
+    return {
+      warningThreshold: guardrails.warningThreshold,
+      hardLimit: guardrails.hardLimit,
+      matchedEdgeCount,
+      warningHit,
+      hardLimitHit,
+      threshold,
+      message,
+    };
+  }
+
+  private clearPatristicGuardrailWarnings(session: any, thresholdToKeep?: number): void {
+    if (!session || !Array.isArray(session.warnings)) return;
+
+    session.warnings = session.warnings.filter((warning: any) => {
+      if (warning?.type !== 'newick-visible-link-guardrail') {
+        return true;
+      }
+
+      return thresholdToKeep !== undefined && Number(warning.threshold) === Number(thresholdToKeep);
+    });
+  }
+
+  private recordPatristicGuardrailWarning(session: any, guardrail?: PatristicGuardrailResult): void {
+    if (!session || !guardrail?.message) {
+      this.clearPatristicGuardrailWarnings(session);
+      return;
+    }
+
+    if (!Array.isArray(session.warnings)) {
+      session.warnings = [];
+    }
+
+    const id = `newick-visible-link-guardrail-${guardrail.threshold}-${guardrail.hardLimit}`;
+    const existingIndex = session.warnings.findIndex((warning: any) => warning?.id === id);
+    const warning = {
+      id,
+      type: 'newick-visible-link-guardrail',
+      severity: guardrail.hardLimitHit ? 'error' : 'warning',
+      message: guardrail.message,
+      threshold: guardrail.threshold,
+      matchedEdgeCount: guardrail.matchedEdgeCount,
+      warningThreshold: guardrail.warningThreshold,
+      hardLimit: guardrail.hardLimit,
+      hardLimitHit: guardrail.hardLimitHit,
+      updatedAt: Date.now(),
+    };
+
+    if (existingIndex >= 0) {
+      session.warnings[existingIndex] = warning;
+    } else {
+      session.warnings.push(warning);
+    }
+  }
+
+  private getPatristicThresholdAnalysisPairLimit(session?: any): number {
+    const overrideLimit = Number(session?.meta?.guardrails?.newickThresholdAnalysisPairLimit);
+    return Number.isFinite(overrideLimit) && overrideLimit > 0
+      ? Math.floor(overrideLimit)
+      : DEFAULT_NEWICK_THRESHOLD_ANALYSIS_PAIR_LIMIT;
+  }
+
   /**
-   * Compute Triangulation, adding invisible placeholders for missing edges, etc.
+   * Initialize the patristic engine with a Newick string.
+   * This preprocesses the tree (flatten, LCA build) in the worker.
+   * The preprocessing is cached in the worker across threshold changes.
+   *
+   * @returns Promise that resolves with tree metadata when ready.
    */
-  public computeTriangulation(
-    session: any,
-    temp: any,
-    addLink: (link: any, check: any) => number
-  ): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const metric = session.style.widgets['link-sort-variable'];
-      this.getDM(session).then(dm => {
-        const triangulationWorker = this.computer.getTriangulationWorker() as unknown as Worker;
-        triangulationWorker.postMessage({ matrix: dm });
-        
-        const sub = this.fromWorker(triangulationWorker).subscribe((response: MessageEvent<any>) => {
-          if (response.data === 'Error') {
-            return reject('Triangulation washed out');
+  public initPatristicTree(newickString: string): Promise<PatristicTreeReadyResponse> {
+    return new Promise((resolve, reject) => {
+      const worker = this.computer.getPatristicWorker();
+      const jobId = ++this.patristicJobId;
+
+      const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+        const msg = event.data;
+        if (msg.jobId !== jobId) return;
+
+        switch (msg.type) {
+          case 'TREE_READY':
+            this.patristicLeafNames = msg.leafNames;
+            this.patristicNewickString = newickString;
+            this.patristicGeneratedMaxThreshold = -Infinity;
+            this.patristicTreeInitCount++;
+            worker.removeEventListener('message', handler);
+            resolve(msg);
+            break;
+          case 'ERROR':
+            worker.removeEventListener('message', handler);
+            reject(new Error(msg.message));
+            break;
+          // Ignore PROGRESS for now
+        }
+      };
+
+      worker.addEventListener('message', handler);
+      worker.postMessage({
+        type: 'INIT_TREE',
+        jobId,
+        newickString,
+      } as PatristicWorkerRequest);
+    });
+  }
+
+  /**
+   * Request thresholded patristic edges from the worker.
+   * The tree must have been initialized via initPatristicTree() first.
+   *
+   * Streams edge batches as an Observable. Each batch contains:
+   * - sources: Uint32Array of leaf indices
+   * - targets: Uint32Array of leaf indices
+   * - distances: Float32Array of patristic distances
+   * - done: boolean indicating if this is the last batch
+   *
+   * Use getPatristicLeafNames() to map leaf indices to node IDs.
+   *
+   * @param threshold - Maximum patristic distance to include
+   * @param maxEdges - Optional cap on total edges
+   * @param batchSize - Edges per batch (default 10000)
+   * @returns Observable of edge batches
+   */
+  public buildPatristicEdges(
+    threshold: number,
+    maxEdges?: number,
+    batchSize?: number
+  ): Observable<PatristicEdgeBatchResponse> {
+    const subject = new Subject<PatristicEdgeBatchResponse>();
+    const worker = this.computer.getPatristicWorker();
+    const jobId = ++this.patristicJobId;
+
+    const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+      const msg = event.data;
+      if (msg.jobId !== jobId) return;
+
+      switch (msg.type) {
+        case 'EDGE_BATCH':
+          subject.next(msg);
+          if (msg.done) {
+            worker.removeEventListener('message', handler);
+            subject.complete();
           }
-          if (session.debugMode) {
-            console.log(
-              'Triangulation Transit time: ',
-              (Date.now() - response.data.start).toLocaleString(),
-              'ms'
-            );
+          break;
+        case 'ERROR':
+          worker.removeEventListener('message', handler);
+          subject.error(new Error(msg.message));
+          break;
+        // Ignore PROGRESS for now (can be added to a separate subject)
+      }
+    };
+
+    worker.addEventListener('message', handler);
+    worker.postMessage({
+      type: 'BUILD_EDGES',
+      jobId,
+      threshold,
+      maxEdges,
+      batchSize,
+    } as PatristicWorkerRequest);
+
+    return subject.asObservable();
+  }
+
+  public buildPatristicNearestNeighborEdges(
+    epsilon: number,
+    batchSize?: number
+  ): Observable<PatristicNearestNeighborBatchResponse> {
+    const subject = new Subject<PatristicNearestNeighborBatchResponse>();
+    const worker = this.computer.getPatristicWorker();
+    const jobId = ++this.patristicJobId;
+
+    const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+      const msg = event.data;
+      if (msg.jobId !== jobId) return;
+
+      switch (msg.type) {
+        case 'NN_EDGE_BATCH':
+          subject.next(msg);
+          if (msg.done) {
+            worker.removeEventListener('message', handler);
+            subject.complete();
           }
-          const mergeStart = Date.now();
-          const decoder = new TextDecoder('utf-8');
-          const matrixObj = JSON.parse(decoder.decode(new Uint8Array(response.data.matrix)));
-  
-          // Use the labels from the temp object (not session.temp)
-          const labels = Object.keys(temp.matrix);
-          const n = labels.length;
-          for (let i = 0; i < n; i++) {
-            const source = labels[i];
-            const row = temp.matrix[source];
-            for (let j = 0; j < i; j++) {
-              const target = labels[j];
-              // If the temporary matrix is missing an entry, call the addLink callback.
-              if (!row[target]) {
-                addLink(
-                  {
-                    source: source,
-                    target: target,
-                    origin: ['Triangulation'],
-                    visible: false
-                  },
-                  false // or whatever "check" flag you need
-                );
-              }
-              // Update the distance for this metric.
-              row[target][metric] = matrixObj[i][j];
+          break;
+        case 'ERROR':
+          worker.removeEventListener('message', handler);
+          subject.error(new Error(msg.message));
+          break;
+        // Ignore PROGRESS for now
+      }
+    };
+
+    worker.addEventListener('message', handler);
+    worker.postMessage({
+      type: 'BUILD_NEAREST_NEIGHBOR_EDGES',
+      jobId,
+      epsilon,
+      batchSize,
+    } as PatristicWorkerRequest);
+
+    return subject.asObservable();
+  }
+
+  public setPatristicMetadata(origin?: string[], distanceOrigin?: string): void {
+    if (origin?.length) {
+      this.patristicOrigin = [...origin];
+    }
+    if (distanceOrigin) {
+      this.patristicDistanceOrigin = distanceOrigin;
+    }
+  }
+
+  private async mergePatristicEdges(
+    threshold: number,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any,
+    options: ComputePatristicOptions = {}
+  ): Promise<PatristicMergeResult> {
+    const leafNames = this.patristicLeafNames.map(filterXSS);
+    const origin = options.origin?.length ? options.origin : this.patristicOrigin;
+    const distanceOrigin = options.distanceOrigin || this.patristicDistanceOrigin;
+    const check = options.check ?? true;
+    const edgeStart = Date.now();
+    const guardrails = this.getPatristicVisibleEdgeGuardrails(session);
+    const usingGuardrailLimit = options.maxEdges === undefined;
+    const effectiveMaxEdges = usingGuardrailLimit ? guardrails.hardLimit + 1 : options.maxEdges;
+
+    return new Promise((resolve, reject) => {
+      let newLinks = 0;
+      let totalLinks = 0;
+      let finalTimings: PatristicEdgeBatchResponse['timings'] | undefined;
+      const pendingLinks: any[] = [];
+
+      this.buildPatristicEdges(threshold, effectiveMaxEdges, options.batchSize).subscribe({
+        next: (batch) => {
+          const n = batch.sources.length;
+          for (let k = 0; k < n; k++) {
+            const sourceIdx = batch.sources[k];
+            const targetIdx = batch.targets[k];
+            pendingLinks.push({
+              source: leafNames[sourceIdx],
+              target: leafNames[targetIdx],
+              origin: [...origin],
+              distance: batch.distances[k],
+              distanceOrigin,
+              hasDistance: true,
+            });
+          }
+          if (batch.done) {
+            finalTimings = batch.timings;
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => {
+          const matchedEdgeCount = finalTimings?.emittedEdgeCount ?? pendingLinks.length;
+          const hardLimitHit =
+            (usingGuardrailLimit && Boolean(finalTimings?.maxEdgesHit)) ||
+            matchedEdgeCount > guardrails.hardLimit;
+          const guardrail = this.buildPatristicGuardrailResult(
+            threshold,
+            matchedEdgeCount,
+            guardrails,
+            hardLimitHit,
+          );
+
+          if (!hardLimitHit) {
+            for (const link of pendingLinks) {
+              newLinks += addLink(link, check);
+              totalLinks++;
             }
-          }
-          if (session.debugMode) {
-            console.log(
-              'Triangulation Merge time: ',
-              (Date.now() - mergeStart).toLocaleString(),
-              'ms'
+            this.patristicGeneratedMaxThreshold = Math.max(
+              this.patristicGeneratedMaxThreshold,
+              threshold
             );
           }
-          resolve();
-          triangulationWorker.terminate();
-          sub.unsubscribe();
-        });
+
+          this.recordPatristicGuardrailWarning(session, guardrail);
+
+          if (session?.debugMode) {
+            console.log(
+              'Patristic edge generation + merge time:',
+              (Date.now() - edgeStart).toLocaleString(),
+              'ms',
+              `(${hardLimitHit ? 0 : totalLinks} edges added below threshold ${threshold})`
+            );
+          }
+          this.recordPatristicPerformance(session, {
+            edgeGeneration: {
+              threshold,
+              newLinks,
+              totalLinks,
+              matchedEdgeCount,
+              mergeMs: Date.now() - edgeStart,
+              timings: finalTimings,
+              guardrail,
+            },
+          });
+          resolve({ newLinks, totalLinks, leafNames, guardrail });
+        },
       });
     });
+  }
+
+  /**
+   * Convenience method: Initialize tree and build edges in one call.
+   * Returns all qualifying edges as flat arrays once complete.
+   *
+   * This is the main integration point for files-plugin.component.ts.
+   *
+   * @param newickString - Newick format tree string
+   * @param threshold - Maximum patristic distance to include
+   * @param addLink - Callback to add each link to session (CommonService.addLink)
+   * @param filterXSS - Callback to sanitize leaf names
+   * @param session - Session object for debug logging
+   * @returns Promise resolving to { newLinks, totalLinks, leafNames }
+   */
+  public async computePatristicEdges(
+    newickString: string,
+    threshold: number,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any,
+    options: ComputePatristicOptions = {}
+  ): Promise<PatristicMergeResult & { treeReady: PatristicTreeReadyResponse }> {
+    const start = Date.now();
+    this.setPatristicMetadata(options.origin, options.distanceOrigin);
+
+    // Step 1: Initialize tree (flatten + LCA)
+    const treeReady = await this.initPatristicTree(newickString);
+    this.recordPatristicPerformance(session, {
+      treeReady: this.treeReadyTelemetry(treeReady),
+    });
+
+    if (session?.debugMode) {
+      console.log(
+        'Patristic tree preprocessing time:',
+        (Date.now() - start).toLocaleString(),
+        'ms',
+        `(${treeReady.leafCount} leaves, ${treeReady.nodeCount} nodes)`
+      );
+    }
+
+    // Step 2: Stream thresholded edges
+    const merged = await this.mergePatristicEdges(
+      threshold,
+      addLink,
+      filterXSS,
+      session,
+      { ...options, check: options.check ?? false }
+    );
+    return { ...merged, treeReady };
+  }
+
+  public async computePatristicNearestNeighborEdges(
+    newickString: string,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session: any,
+    temp: any,
+    options: ComputePatristicOptions = {}
+  ): Promise<PatristicNearestNeighborMergeResult & { treeReady?: PatristicTreeReadyResponse }> {
+    if (!newickString) {
+      return {
+        newLinks: 0,
+        totalLinks: 0,
+        selectedLinks: 0,
+        leafNames: [],
+      };
+    }
+
+    const start = Date.now();
+    this.setPatristicMetadata(options.origin, options.distanceOrigin);
+
+    let treeReady: PatristicTreeReadyResponse | undefined;
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      treeReady = await this.initPatristicTree(newickString);
+      this.recordPatristicPerformance(session, {
+        treeReady: this.treeReadyTelemetry(treeReady),
+      });
+    }
+
+    const leafNames = this.patristicLeafNames.map(filterXSS);
+    const origin = options.origin?.length ? options.origin : this.patristicOrigin;
+    const distanceOrigin = options.distanceOrigin || this.patristicDistanceOrigin;
+    const check = options.check ?? true;
+    const rawEpsilon = Number(session?.style?.widgets?.["filtering-epsilon"]);
+    const epsilon = Number.isFinite(rawEpsilon) ? Math.pow(10, rawEpsilon) : 0;
+
+    for (const link of session?.data?.links || []) {
+      link.nn = false;
+    }
+
+    return new Promise((resolve, reject) => {
+      let newLinks = 0;
+      let totalLinks = 0;
+      let selectedLinks = 0;
+      let finalTimings: PatristicNearestNeighborBatchResponse['timings'] | undefined;
+
+      this.buildPatristicNearestNeighborEdges(epsilon, options.batchSize).subscribe({
+        next: (batch) => {
+          const n = batch.sources.length;
+          for (let k = 0; k < n; k++) {
+            const source = leafNames[batch.sources[k]];
+            const target = leafNames[batch.targets[k]];
+            const link = {
+              source,
+              target,
+              origin: [...origin],
+              distance: batch.distances[k],
+              distanceOrigin,
+              hasDistance: true,
+            };
+            newLinks += addLink(link, check);
+            totalLinks++;
+            selectedLinks++;
+
+            const normalizedLink =
+              temp?.matrix?.[source]?.[target] ??
+              temp?.matrix?.[target]?.[source];
+            if (normalizedLink) {
+              normalizedLink.nn = true;
+            }
+          }
+          if (batch.done) {
+            finalTimings = batch.timings;
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => {
+          if (session?.debugMode) {
+            console.log(
+              'Patristic nearest-neighbor generation + merge time:',
+              (Date.now() - start).toLocaleString(),
+              'ms',
+              `(${selectedLinks} selected Newick edges)`
+            );
+          }
+          this.recordPatristicPerformance(session, {
+            nearestNeighbor: {
+              epsilon,
+              newLinks,
+              totalLinks,
+              selectedLinks,
+              mergeMs: Date.now() - start,
+              timings: finalTimings,
+            },
+          });
+          resolve({ newLinks, totalLinks, selectedLinks, leafNames, treeReady });
+        },
+      });
+    });
+  }
+
+  public async ensurePatristicEdgesForThreshold(
+    threshold: number,
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any,
+    options: ComputePatristicOptions & { newickString?: string } = {}
+  ): Promise<PatristicMergeResult | null> {
+    const newickString = options.newickString || this.patristicNewickString;
+    if (!newickString || !Number.isFinite(threshold) || threshold < 0) {
+      return null;
+    }
+
+    this.setPatristicMetadata(options.origin, options.distanceOrigin);
+
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      const treeReady = await this.initPatristicTree(newickString);
+      this.recordPatristicPerformance(session, {
+        treeReady: this.treeReadyTelemetry(treeReady),
+      });
+    }
+
+    if (threshold <= this.patristicGeneratedMaxThreshold) {
+      this.clearPatristicGuardrailWarnings(session, threshold);
+      return {
+        newLinks: 0,
+        totalLinks: 0,
+        leafNames: this.patristicLeafNames.map(filterXSS),
+      };
+    }
+
+    return this.mergePatristicEdges(
+      threshold,
+      addLink,
+      filterXSS,
+      session,
+      { ...options, check: options.check ?? true }
+    );
+  }
+
+  public collectPatristicDistanceAnalysisEdges(
+    session?: any,
+    options: { maxPairs?: number; batchSize?: number } = {}
+  ): Promise<PatristicDistanceAnalysisResult> {
+    const leafCount = this.patristicLeafNames.length;
+    const totalPairs = (leafCount * (leafCount - 1)) / 2;
+    const maxPairs = Number.isFinite(Number(options.maxPairs))
+      ? Number(options.maxPairs)
+      : this.getPatristicThresholdAnalysisPairLimit(session);
+
+    if (!leafCount || totalPairs <= 0) {
+      return Promise.resolve({ edges: [], totalPairs, skipped: false });
+    }
+
+    if (totalPairs > maxPairs) {
+      return Promise.resolve({
+        edges: [],
+        totalPairs,
+        skipped: true,
+        skipReason: `Newick threshold analysis skipped ${this.formatCount(totalPairs)} pairwise distances above the ${this.formatCount(maxPairs)} analysis limit.`,
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      const edges: PatristicAnalysisEdge[] = [];
+
+      this.buildPatristicEdges(Number.POSITIVE_INFINITY, totalPairs + 1, options.batchSize).subscribe({
+        next: (batch) => {
+          const n = batch.sources.length;
+          for (let k = 0; k < n; k++) {
+            edges.push({
+              sourceIndex: batch.sources[k],
+              targetIndex: batch.targets[k],
+              value: batch.distances[k],
+            });
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => resolve({ edges, totalPairs, skipped: false }),
+      });
+    });
+  }
+
+  /**
+   * Cancel any active patristic computation.
+   */
+  public cancelPatristicJob(): void {
+    const worker = this.computer.getPatristicWorker();
+    worker.postMessage({
+      type: 'CANCEL',
+      jobId: this.patristicJobId,
+    } as PatristicWorkerRequest);
+  }
+
+  /**
+   * Get leaf names from the last initialized patristic tree.
+   * Useful for mapping leaf indices in edge batches to node IDs.
+   */
+  public getPatristicLeafNames(): string[] {
+    return this.patristicLeafNames;
+  }
+
+  /**
+   * Terminate the patristic worker entirely.
+   * Call when loading a new session or cleaning up.
+   */
+  public terminatePatristicWorker(): void {
+    this.computer.terminatePatristicWorker();
+    this.patristicLeafNames = [];
+    this.patristicNewickString = '';
+    this.patristicGeneratedMaxThreshold = -Infinity;
+    this.patristicTreeInitCount = 0;
   }
 }

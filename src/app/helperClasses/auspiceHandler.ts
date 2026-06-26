@@ -173,12 +173,16 @@ export default class AuspiceHandler {
   public run = (jsonObj) => {
     const newickString =  this.treeToNewick(jsonObj.tree, false, true);
     const fullTree = this.parseAuspice(jsonObj);
-    const distanceMatrix = patristic.parseNewick(newickString).toMatrix();
     const updatedTree = this.combineMutations(fullTree);
-    this.makeLinksFromMatrix(distanceMatrix);
     const bareNewickString =  this.treeToNewick(jsonObj.tree, false, false);
     this.nodeList = this.addLatLong(this.nodeList, jsonObj.meta);
-    return { nodes: this.nodeList, links: this.linkList, tree: updatedTree, newick: bareNewickString};
+    return {
+      nodes: this.nodeList,
+      links: [],
+      tree: updatedTree,
+      newick: bareNewickString,
+      newickWithLabels: newickString,
+    };
   }
 
 }

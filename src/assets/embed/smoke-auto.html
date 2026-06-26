@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MicrobeTrace Embed Auto Smoke</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 40px;
+    }
+    button {
+      font-size: 16px;
+      padding: 12px 18px;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 16px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Partner Embed Auto-Detect Smoke Test</h1>
+  <button id="open-microbetrace">Open In MicrobeTrace</button>
+  <pre id="status">Idle</pre>
+
+  <script src="./microbetrace-embed.js"></script>
+  <script>
+    const status = document.getElementById('status');
+    const files = [
+      {
+        name: 'smoke_nodes.csv',
+        mimeType: 'text/csv',
+        contents: 'id,seq,group\nA,ACTG,alpha\nB,ACTA,beta\n'
+      },
+      {
+        name: 'smoke_links.csv',
+        mimeType: 'text/csv',
+        contents: 'source,target,distance\nA,B,1\n'
+      }
+    ];
+
+    MicrobeTraceEmbed.attachButton('#open-microbetrace', {
+      target: 'http://127.0.0.1:4200',
+      partnerId: 'local-dev',
+      files,
+      metadata: {
+        datasetName: 'Embed Auto Smoke',
+        sourceApp: 'asset smoke page'
+      },
+      onSuccess(result) {
+        status.textContent = 'Stored handoff ' + result.handoffId;
+      },
+      onError(error) {
+        status.textContent = 'Error: ' + error.message;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -16,6 +16,20 @@ export interface MicobeTraceNextPluginEvents{
 export interface StashObjects  {
     session: any
     tabs: HomePageTabItem[]
+    dashboardLayout?: any
+    dashboardState?: DashboardState
+}
+
+export interface DashboardRestoreState {
+    dashboardLayout: any
+    tabs: HomePageTabItem[]
+    dashboardState?: DashboardState
+}
+
+export interface DashboardState {
+    keyTables?: {
+        dockedTables?: Record<string, boolean>
+    }
 }
 
 export interface StashObject  {

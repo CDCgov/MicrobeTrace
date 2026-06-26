@@ -1,0 +1,4 @@
+source,target,distance,score
+A,B,0.010,0.90
+A,C,0.020,0.20
+C,D,0.030,0.05

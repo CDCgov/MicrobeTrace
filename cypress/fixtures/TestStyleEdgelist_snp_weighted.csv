@@ -1,0 +1,13 @@
+source,target,Contact type,,Exposure,Case status confirmed?,distance
+797703,797980,sports team,,high,Y,0.01
+797703,415508,sports team,,med,N,0.04
+375596,797980,classroom,,low,Y,0.09
+797748,375596,family member,,high,N,0.02
+797735,797519,family member,,low,Y,0.03
+G1,797735,classroom,,low,N,0.08
+G3,797965,classroom,,low,N,0.07
+G2,797832,classroom,,low,Y,0.15
+505967,415508,sports team,,low,N,0.12
+797965,375596,family member,,low,Y,0.25
+797832,797980,sports team,,low,Y,0.50
+797839,798055,classroom,,low,Y,0.55

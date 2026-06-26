@@ -3,7 +3,7 @@ import { EventManager } from '@angular/platform-browser';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
-import * as saveAs from 'file-saver';
+import { saveAs } from 'file-saver';
 // import pdfMake from 'pdfmake/build/pdfmake.js';
 // import pdfFonts from 'pdfmake/build/vfs_fonts.js'
 
@@ -17,9 +17,10 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { values } from 'lodash';
 
 @Component({
-  selector: 'CrosstabComponent',
-  templateUrl: './crosstab-plugin.component.html',
-  styleUrls: ['./crosstab-plugin.component.scss']
+    selector: 'CrosstabComponent',
+    templateUrl: './crosstab-plugin.component.html',
+    styleUrls: ['./crosstab-plugin.component.scss'],
+    standalone: false
 })
 export class CrosstabComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
@@ -93,6 +94,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     this.setWidgets();
 
     this.updateTable();
+    this.markCrosstabRendered();
 
     // offsets: 70 table-wrapper padding-top, 10 table-wrapper padding-bottom
     let pFooterHeight = this.selectedSize == 'small' ? 41 : this.selectedSize == 'large' ? 65 : 57;
@@ -109,14 +111,22 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       this.cdref.detectChanges();
     })
     this.container.on('show', () => { 
-        this.viewActive = true; 
+        this.viewActive = true;
+        this.refreshFromSession();
+        this.markCrosstabRendered();
         this.cdref.detectChanges();
+    })
+
+    this.store.networkUpdated$.pipe(takeUntil(this.destroy$)).subscribe((networkUpdated) => {
+      if (this.viewActive && networkUpdated) {
+        this.refreshFromSession();
+        this.store.setNetworkUpdated(false);
+      }
     })
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
       if (this.xVariable == "cluster" || this.yVariable == "cluster") {
-        this.onDataChange();
-        this.cdref.detectChanges();
+        this.refreshFromSession();
       }
     })
   }
@@ -157,7 +167,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    */
   updateTable() {
     var xValues = [], yValues = [];
-    let rawdata = this.commonService.getVisibleNodes();
+    let rawdata = this.commonService.getVisibleNodesIgnoringTimeline();
 
     // get values for X and Y axis
     rawdata.forEach(row => {
@@ -305,12 +315,15 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   }
 
   formatTableTitle() {
-    if (this.xVariable != 'None' && this.yVariable != 'None') {
-      return `${this.commonService.capitalize(this.xVariable.replace("_", ""))} vs ${this.commonService.capitalize(this.yVariable.replace("_",""))}`
-    } else if (this.xVariable != 'None') {
-      return `${this.commonService.capitalize(this.xVariable.replace("_", ""))}`
-    } else if (this.yVariable != 'None') {
-      return `${this.commonService.capitalize(this.yVariable.replace("_",""))}`
+    const xVariable = typeof this.xVariable === 'string' ? this.xVariable : 'None';
+    const yVariable = typeof this.yVariable === 'string' ? this.yVariable : 'None';
+
+    if (xVariable != 'None' && yVariable != 'None') {
+      return `${this.commonService.capitalize(xVariable.replace("_", ""))} vs ${this.commonService.capitalize(yVariable.replace("_",""))}`
+    } else if (xVariable != 'None') {
+      return `${this.commonService.capitalize(xVariable.replace("_", ""))}`
+    } else if (yVariable != 'None') {
+      return `${this.commonService.capitalize(yVariable.replace("_",""))}`
     } else {
       return ''
     }
@@ -324,7 +337,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     this.widgets['crosstab-xVariable'] = this.xVariable;
     this.widgets['crosstab-yVariable'] = this.yVariable;
 
-    this.updateTable();
+    this.refreshFromSession();
   }
 
 
@@ -346,6 +359,28 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
 
   updateNodeColors() {  }
   updateVisualization() {  }
+
+  private markCrosstabRendered() {
+    if (this.commonService.session.data.nodes.length === 0) return;
+
+    // Crosstab can be the first rendered view on launch, so it must release the
+    // shared processing modal without waiting for the 2D network render path.
+    setTimeout(() => {
+      this.store.setNetworkRendered(true);
+    });
+  }
+
+  private refreshFromSession() {
+    this.widgets = this.commonService.session.style.widgets;
+    this.updateFieldLists();
+
+    if (typeof this.xVariable !== 'string' || typeof this.yVariable !== 'string') {
+      this.setWidgets();
+    }
+
+    this.updateTable();
+    this.cdref.detectChanges();
+  }
 
   applyStyleFileSettings() { 
     this.widgets = (window as any).context.commonService.session.style.widgets;
@@ -381,17 +416,17 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       this.widgets['crosstab-useProportion'] = false;
     }
 
-    this.updateTable();
+    this.refreshFromSession();
    }
 
   updateLinkColor() {  }
   openRefreshScreen() { }
   onRecallSession() {  }
   onLoadNewData() { 
-    this.updateTable();
+    this.refreshFromSession();
    }
   onFilterDataChange() { 
-    this.updateTable();
+    this.refreshFromSession();
    }
 
   /**
@@ -412,47 +447,47 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    * Exports visualization as csv file or calls saveAsExcelFile to save as Excel
    */
   async exportVisualization() {
-    if (this.SelectedCrossTabExportFileType == 'xlsx') {
-      this.saveAsExcelFile();
-  } else if (this.SelectedCrossTabExportFileType == 'csv') {
-      this.dataTable.exportFilename = this.SelectedCrossTabExportFilename;
-      this.dataTable.value.push(this.totalRow)
-      this.dataTable.exportCSV()
-      this.dataTable.value.pop()
-  } else if (this.SelectedCrossTabExportFileType == 'json') {
-    let keys = Object.keys(this.SelectedTableData.data[0])
-    let data = this.SelectedTableData.data.map(row => {
-      let output = {}
-      keys.forEach(key => {
-        if (key == 'Total') return;
-        else if (row[key] == 'null') {
-          output[key] = null;
-        } else {
-          output[key] = row[key]
-        }
-      })
-      return output;
-    })
-    let blob = new Blob([JSON.stringify(data)], { type: "application/json;charset=utf-8"});
-    saveAs(blob, this.SelectedCrossTabExportFilename +'.json');
-  } else {
-    let columns = ['col']
-    this.SelectedTableData.tableColumns.forEach(col => {
-      if (col.header != '') {
-        columns.push(col.header)
-      }
-    })
-
-    let dataBody = [this.SelectedTableData.tableColumns.map(col => {
-      if (col.header == '') return this.commonService.capitalize(this.yVariable)      
-      return this.commonService.capitalize(col.header);
-    })].concat(this.SelectedTableData.data.map(formatData)).concat([formatData(this.totalRow)]);
-    
-    function formatData(dataRow) {
-      return columns.map(header => dataRow[header])
-    }
-
     try {
+      if (this.SelectedCrossTabExportFileType == 'xlsx') {
+        this.saveAsExcelFile();
+      } else if (this.SelectedCrossTabExportFileType == 'csv') {
+        this.dataTable.exportFilename = this.SelectedCrossTabExportFilename;
+        this.dataTable.value.push(this.totalRow)
+        this.dataTable.exportCSV()
+        this.dataTable.value.pop()
+      } else if (this.SelectedCrossTabExportFileType == 'json') {
+        let keys = Object.keys(this.SelectedTableData.data[0])
+        let data = this.SelectedTableData.data.map(row => {
+          let output = {}
+          keys.forEach(key => {
+            if (key == 'Total') return;
+            else if (row[key] == 'null') {
+              output[key] = null;
+            } else {
+              output[key] = row[key]
+            }
+          })
+          return output;
+        })
+        let blob = new Blob([JSON.stringify(data)], { type: "application/json;charset=utf-8"});
+        saveAs(blob, this.SelectedCrossTabExportFilename +'.json');
+      } else {
+        let columns = ['col']
+        this.SelectedTableData.tableColumns.forEach(col => {
+          if (col.header != '') {
+            columns.push(col.header)
+          }
+        })
+
+        let dataBody = [this.SelectedTableData.tableColumns.map(col => {
+          if (col.header == '') return this.commonService.capitalize(this.yVariable)      
+          return this.commonService.capitalize(col.header);
+        })].concat(this.SelectedTableData.data.map(formatData)).concat([formatData(this.totalRow)]);
+        
+        function formatData(dataRow) {
+          return columns.map(header => dataRow[header])
+        }
+
       const { default: pdfMake } = await import('pdfmake/build/pdfmake.js');
       const { default: pdfFonts } = await import('pdfmake/build/vfs_fonts.js');
       pdfMake.vfs = pdfFonts;
@@ -496,12 +531,13 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
           }
         }
       }).download(this.SelectedCrossTabExportFilename + '.pdf');
+      }
     } catch (error) {
-      console.error('Unable to export pdf: ', error); 
+      console.error('Unable to export crosstab: ', error); 
+    } finally {
+      this.exportOpen = false;
+      this.cdref.detectChanges();
     }
-  }
-
-  this.exportOpen = !this.exportOpen;
   }
 
   /**

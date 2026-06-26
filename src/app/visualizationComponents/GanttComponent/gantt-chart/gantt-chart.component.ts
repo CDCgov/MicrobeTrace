@@ -1,11 +1,12 @@
 import { Component, OnInit, OnChanges, Input, ElementRef, ChangeDetectorRef } from '@angular/core';
-import { colorSchemes } from '../constants/color-schemes';
+//import { colorSchemes } from '../constants/color-schemes';
 import { GanttChartService } from './gantt-chart.service';
 
 @Component({
   selector: 'ngx-gantt-chart',
   templateUrl: './gantt-chart.component.html',
   styleUrls: ['./gantt-chart.component.scss'],
+  standalone: false
 })
 export class GanttChartComponent implements OnInit, OnChanges {
 
@@ -13,18 +14,17 @@ export class GanttChartComponent implements OnInit, OnChanges {
   @Input() width: number;
   @Input() colorScheme = 'colorful';
   @Input() customColorScheme: string[] = [];
+  @Input() gridWidthX: number = 120;
+  @Input() gridWidthY: number = 20;
+  @Input() fontSize = 14;
 
   componentID;
+  chartStartX = 150;
   xPadding = 60;
   yPadding = this.xPadding / 2;
   phaseTimelines;
   height: number;
   min(n1: number, n2: number): number { return Math.min(n1, n2)  }
-  fontSize = 14;
-
-  gridWidthX: number = 150;
-  gridWidthY: number = 20;
-
   gridPrecisionX: number;
 
   gridID: string;
@@ -53,64 +53,63 @@ export class GanttChartComponent implements OnInit, OnChanges {
     return this.monthNames[monthIndex] + ' ' + day + ', ' + year;
   }
 
-  shortenDate(date) {
-    if (typeof date === "string"){
-      date = date.replace('January', 'Jan');
-      date = date.replace('February', 'Feb');
-      date = date.replace('March', 'Mar');
-      date = date.replace('April', 'Apr');
-      date = date.replace('May', 'May');
-      date = date.replace('June', 'Jun');
-      date = date.replace('July', 'Jul');
-      date = date.replace('August', 'Aug');
-      date = date.replace('September', 'Sep');
-      date = date.replace('October', 'Oct');
-      date = date.replace('November', 'Nov');
-      date = date.replace('December', 'Dec');
+  formatAxisDate(date: any): string {
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return String(date);
     }
-    return date;
+
+    return parsedDate.toLocaleDateString('en-US');
+  }
+
+  private getGridColumnCount(): number {
+    return Math.max(1, this.ganttChartService.gridColumnCount || 8);
+  }
+
+  private getParentWidth(): number {
+    const host = this.currentElement.nativeElement as HTMLElement;
+    const parent = host.parentElement;
+    if (!parent) {
+      return 0;
+    }
+
+    const parentWidth = parent.getBoundingClientRect().width;
+    return Number.isFinite(parentWidth) && parentWidth > 0 ? parentWidth : 0;
+  }
+
+  private syncChartWidth(): void {
+    const requiredWidth =
+      this.chartStartX +
+      this.ganttChartService.rectWidth +
+      10 +
+      this.fontSize * 2.5;
+    const baseWidth = this.getParentWidth() || this.width || 0;
+
+    this.width = Math.max(baseWidth, requiredWidth);
   }
 
   computeGrid() {
     this.cdref.detectChanges();
-    // compute the min date and max date
-    // const oneDay = 24 * 60 * 60 * 1000;
-    // const dateRange = Math.round(Math.abs(
-    //     (this.ganttChartService.ganttMaxDate.getTime()
-    //      - this.ganttChartService.ganttMinDate.getTime()
-    //      ) / (oneDay)));
-    let flag = 0;
-    let qts = 1;
-
-    // 3m --> 1 week  --> 12
-    // 6m --> 2 weeks --> 12
-    // 9m --> 3 weeks --> 12
-
-    while (flag === 0) {
-      if (this.ganttChartService.ganttDateRange <= 90 * qts) {
-        this.gridPrecisionX = 7 * qts;
-        flag = 1;
-      } else qts = qts + 1;
-    }
-
-    // console.log(this.gridPrecisionX);
+    this.gridPrecisionX = this.ganttChartService.gridPrecisionX || 7;
 
     this.gridPath = 'M 0 0 H' + this.gridWidthX + ' V' + this.gridWidthY + ' H 0 Z'
 
     this.xAxis = [];
     this.yAxis = [];
+    if (!this.ganttChartService.hasRenderableDateRange) {
+      this.calculateLabelYPos();
+      return;
+    }
 
-    let date = this.ganttChartService.ganttMinDate;
-    // let xPos = this.ganttChartService.transformGanttDate(date) + this.ganttChartService.xPadding + 150;
     const yTrans = this.ganttChartService.rectHeight + this.ganttChartService.yPadding + 10;
-    // let transform = 'translate(' + xPos + 'px, ' + yTrans + 'px)';
-    // this.xAxis.push({xPos: xPos, value: date, transform: transform});
-    while (new Date(date) <= new Date(this.ganttChartService.ganttMaxDate)) {
-      // console.log(date);
-      const xPos = this.ganttChartService.transformGanttDate(date) + this.ganttChartService.xPadding + 150;
+    const gridColumnCount = this.getGridColumnCount();
+
+    for (let xCount = 0; xCount <= gridColumnCount; xCount++) {
+      const date = this.addDays(this.ganttChartService.ganttMinDate, xCount * this.gridPrecisionX);
+      const xPos = this.chartStartX + xCount * this.gridWidthX;
       const transform = 'translate(' + xPos + 'px, ' + yTrans + 'px)';
-      this.xAxis.push({xPos, value: this.shortenDate(date), transform});
-      date = this.addDays(date, this.gridPrecisionX);
+
+      this.xAxis.push({id: xCount, xPos, value: this.formatAxisDate(date), transform});
     }
 
     this.calculateLabelYPos();
@@ -127,16 +126,14 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
 
   setDimensions() {
-    if (this.width) this.height = this.width - this.xPadding;
-    else {
-      const host = this.currentElement.nativeElement;
-      if (host.parentNode != null) {
-        const dims = host.parentNode.getBoundingClientRect();
-        this.width = dims.width;
-        this.height = this.width - this.xPadding;
-      }
+    const parentWidth = this.getParentWidth();
+    if (parentWidth) {
+      this.width = parentWidth;
+      this.height = this.width - this.xPadding;
+    } else if (this.width) {
+      this.height = this.width - this.xPadding;
     }
-    
+
      /*
      console.log('---set dimensions---');
      console.log('width: ' + this.width);
@@ -146,19 +143,19 @@ export class GanttChartComponent implements OnInit, OnChanges {
      
   }
 
-  setColors() {
-    let cnt = 0;
-    for (const team of this.data) {
-      if (!team.color) {
-        if (this.customColorScheme.length > 0) {
-          team.color = this.customColorScheme[cnt % this.customColorScheme.length];
-        } else {
-          team.color = colorSchemes[this.colorScheme][cnt % 10];
-        }
-        cnt++;
-      }
-    }
-  }
+  // setColors() {
+  //   let cnt = 0;
+  //   for (const team of this.data) {
+  //     if (!team.color) {
+  //       if (this.customColorScheme.length > 0) {
+  //         team.color = this.customColorScheme[cnt % this.customColorScheme.length];
+  //       } else {
+  //         team.color = colorSchemes[this.colorScheme][cnt % 10];
+  //       }
+  //       cnt++;
+  //     }
+  //   }
+  // }
 
   definePhaseTimelines() {
     this.phaseTimelines = {};
@@ -201,7 +198,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
     this.setDimensions();
     this.gridID = 'grid' + this.componentID;
     this.gridFill = `url(#${this.gridID})`
-    this.setDefaultGridWidthX();
+    this.normalizeGridWidthX();
     this.ganttChartService.setValues({
       componentID: this.componentID,
       width: this.width,
@@ -211,6 +208,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
       gridWidthX: this.gridWidthX,
       gridWidthY: this.gridWidthY
     });
+    this.syncChartWidth();
     this.height = this.ganttChartService.height;
     this.definePhaseTimelines();
     this.computeGrid();
@@ -218,6 +216,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
   ngOnChanges() {
     this.setDimensions();
+    this.normalizeGridWidthX();
     this.ganttChartService.setValues({
       componentID: this.componentID,
       width: this.width,
@@ -227,13 +226,25 @@ export class GanttChartComponent implements OnInit, OnChanges {
       gridWidthX: this.gridWidthX,
       gridWidthY: this.gridWidthY
     });
+    this.syncChartWidth();
     this.height = this.ganttChartService.height;
     this.definePhaseTimelines();
     this.computeGrid();
   }
 
-  setDefaultGridWidthX() {
-    this.gridWidthX = this.width ? (Math.floor((this.width - this.xPadding - 150) / 8 / 10) - 1) * 10 : 120;
+  private calculateDefaultGridWidthX(): number {
+    const predictedWidth = this.width
+      ? (Math.floor((this.width - this.chartStartX) / 8 / 10) - 1) * 10
+      : 120;
+
+    return Math.min(200, Math.max(20, predictedWidth));
+  }
+
+  private normalizeGridWidthX() {
+    const parsedWidth = Number(this.gridWidthX);
+    this.gridWidthX = Number.isFinite(parsedWidth) && parsedWidth > 0
+      ? parsedWidth
+      : this.calculateDefaultGridWidthX();
   }
   calculateLabelYPos() {
     this.yAxis = [];
@@ -241,7 +252,7 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
     for (const phase of this.ganttChartService.ganttPhases) {
       const yPos = this.gridWidthY * (cnt+.5) + this.ganttChartService.yPadding + 5
-      this.yAxis.push({yPos, value: phase });
+      this.yAxis.push({id: cnt, yPos, value: phase });
       cnt++;
     }
   }
@@ -254,9 +265,6 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
   updateGridWidthX(gridWidthX) {
     this.gridWidthX = gridWidthX;
-    this.ganttChartService.rectWidth = gridWidthX * 8;
-    this.width = gridWidthX * 8 + 210 + 10 + this.fontSize*2.5;
-    this.computeGrid();
     this.ngOnChanges();
   }
 
@@ -267,6 +275,6 @@ export class GanttChartComponent implements OnInit, OnChanges {
 
   updateFontSize(fontSize: number) {
     this.fontSize = fontSize;
-    this.width = this.gridWidthX * 8 + 210 + 10 + this.fontSize*2.5;
+    this.syncChartWidth();
   }
 }

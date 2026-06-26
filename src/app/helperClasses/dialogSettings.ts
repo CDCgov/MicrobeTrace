@@ -27,7 +27,7 @@ export class DialogSettings {
 
     private dialogControlId: string;
 
-    private stateBeforeExport: {
+    private stateBeforeExport?: {
         isVisible: boolean,
         top?: number,
         left?: number
@@ -83,9 +83,19 @@ export class DialogSettings {
     }
 
     restoreStateAfterExport() {
+        if (!this.stateBeforeExport) {
+            return;
+        }
+
         this.isVisible = this.stateBeforeExport.isVisible;
         this.top = this.stateBeforeExport.top;
         this.left = this.stateBeforeExport.left;
+    }
+
+    setPosition(top: number, left: number) {
+        this.top = top;
+        this.left = left;
+        this.stateBeforeExport = undefined;
     }
 
 

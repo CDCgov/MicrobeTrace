@@ -1,5 +1,5 @@
 import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
-import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
 import * as Papa from 'papaparse';
@@ -9,14 +9,44 @@ import { WorkerModule } from '../workers/workModule';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
 import AuspiceHandler from '@app/helperClasses/auspiceHandler';
 import { AppComponentBase } from '@shared/common/app-component-base';
-import { StashObjects, StashObject } from '../helperClasses/interfaces';
+import { DashboardRestoreState, HomePageTabItem, StashObjects, StashObject } from '../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { HttpClient } from '@angular/common/http';
 import { GraphData } from '@app/visualizationComponents/TwoDComponent/data';
 import { CommonStoreService } from './common-store.services';
+import { LayoutConfig } from 'golden-layout';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
 import { ColorMappingService } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
+import {
+    buildStoredDistanceEdgeCache,
+    buildThresholdSweepSummary,
+    buildVisibleClusterSummary,
+    type ThresholdAnalysisBaseEdge,
+    type ThresholdAnalysisPairEdge,
+    type StoredDistanceEdgeCache,
+    type ThresholdSweepSummary
+} from './threshold-analysis';
+import * as tn93 from 'tn93';
+
+interface SequencePairwiseLinkGuardrails {
+    warningThreshold: number;
+    hardLimit: number;
+}
+
+interface SequencePairwiseLinkGuardrailResult {
+    warningThreshold: number;
+    hardLimit: number;
+    pairCount: number;
+    sequenceCount: number;
+    warningHit: boolean;
+    hardLimitHit: boolean;
+    metric: string;
+    message: string;
+}
+
+const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
+const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
 
 @Directive()
 @Injectable({
@@ -34,6 +64,79 @@ export class CommonService extends AppComponentBase implements OnInit {
     computer: WorkerModule;
 
     activeTab: string = 'Files';
+    pendingDashboardRestore: DashboardRestoreState | null = null;
+
+    private readonly restorableDashboardViews = new Set<string>([
+        '2D Network',
+        'Map',
+        'Table',
+        'Epi Curve',
+        'Phylogenetic Tree',
+        'Alignment View',
+        'Crosstab',
+        'Aggregate',
+        'Gantt Chart',
+        'Heatmap',
+        'Bubble',
+        'Sankey',
+        'Waterfall'
+    ]);
+
+    private readonly legacyViewNameMap: { [key: string]: string } = {
+        '2d_network': '2D Network',
+        '2dnetwork': '2D Network',
+        'network': '2D Network',
+        'geo_map': 'Map',
+        'geomap': 'Map',
+        'map': 'Map',
+        'table': 'Table',
+        'timeline': 'Epi Curve',
+        'epi_curve': 'Epi Curve',
+        'epicurve': 'Epi Curve',
+        'phylogenetic_tree': 'Phylogenetic Tree',
+        'phylogenetictree': 'Phylogenetic Tree',
+        'tree': 'Phylogenetic Tree',
+        'sequences': 'Alignment View',
+        'sequence': 'Alignment View',
+        'alignment': 'Alignment View',
+        'alignment_view': 'Alignment View',
+        'crosstab': 'Crosstab',
+        'cross_tab': 'Crosstab',
+        'aggregate': 'Aggregate',
+        'gantt': 'Gantt Chart',
+        'gantt_chart': 'Gantt Chart',
+        'heatmap': 'Heatmap',
+        'bubble': 'Bubble',
+        'sankey': 'Sankey',
+        'waterfall': 'Waterfall',
+        'files': 'Files'
+    };
+
+    private readonly nonStyleableNodeFields = new Set<string>([
+        'seq',
+        'sequence',
+        '_seq',
+        '_seqint',
+        '_cigar',
+        'data'
+    ]);
+
+    private readonly lowPriorityStyleableNodeFields = new Set<string>([
+        'index',
+        '_id',
+        'id',
+        'selected',
+        'cluster',
+        'visible',
+        'degree',
+        'origin',
+        'hasdistance',
+        'x',
+        'y',
+        'vx',
+        'vy',
+        'foci'
+    ]);
 
     thirtyColorPalette: string[] = [
         "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
@@ -46,23 +149,6 @@ export class CommonService extends AppComponentBase implements OnInit {
     // Set this to true to enable the debug mode/console logs to appear
     public debugMode: boolean = false;
 
-    private linkElementSource = new BehaviorSubject<HTMLElement | null>(null);
-    private nodeElementSource = new BehaviorSubject<HTMLElement | null>(null);
-
-    currentLinkTableElement = this.linkElementSource.asObservable();
-
-    currentNodeTableElement = this.nodeElementSource.asObservable();
-
-
-    setLinkTableElement(element: HTMLElement | null) {
-        this.linkElementSource.next(element);
-    }
-
-    setNodeTableElement(element: HTMLElement | null) {
-        this.nodeElementSource.next(element);
-    }
-
-
     // Using lodash's debounce, for example
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
         this.updateNetworkVisuals();
@@ -70,23 +156,115 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
-        SelectedColorLinksByVariable: 'None',
+        SelectedColorLinksByVariable: 'origin',
+        SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
         SelectedLinkColorVariable: '#a6cee3',
         SelectedPruneWithTypesVariable: 'None',
         SelectedStatisticsTypesVariable: 'Hide',
         SelectedClusterMinimumSizeVariable: 0,
         SelectedLinkSortVariable: 'Distance',
-        SelectedLinkThresholdVariable: 0.015,
-        SelectedDistanceMetricVariable: 'tn93',
-        SelectedLinkColorTableTypesVariable: 'Hide',
-        SelectedNodeColorTableTypesVariable: 'Hide',
+        SelectedLinkThresholdVariable: 16,
+        SelectedDistanceMetricVariable: 'snps',
+        SelectedLinkColorTableTypesVariable: 'Dock',
+        SelectedNodeColorTableTypesVariable: 'Dock',
+        SelectedNodeShapeTableTypesVariable: 'Dock',
 
         SelectedColorVariable: '#ff8300',
         SelectedBackgroundColorVariable: '#ffffff',
         SelectedApplyStyleVariable: '',
         SelectedRevealTypesVariable: 'Everything'
     };
+
+    // Helper functions for TN93 distance display values
+    private normalizeDisplayedDistanceField(linkField: string = 'distance'): string {
+        return String(linkField || 'distance').toLowerCase();
+    }
+
+    private isTN93DisplayField(linkField: string = 'distance'): boolean {
+        const normalizedField = this.normalizeDisplayedDistanceField(linkField);
+        return normalizedField === 'distance'
+            || normalizedField === 'mean_genetic_distance'
+            || normalizedField === 'heatmap-distance';
+    }
+
+    tn93PercentageDisplayEnabled(linkField: string = 'distance'): boolean {
+        return this.isTN93DisplayField(linkField)
+            && String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'tn93'
+            && String(this.session?.style?.widgets?.['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage';
+    }
+
+    toDisplayedDistanceValue(value: number, linkField: string = 'distance'): number {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return numericValue;
+        }
+
+        return this.tn93PercentageDisplayEnabled(linkField)
+            ? Number((numericValue * 100).toFixed(3))
+            : numericValue;
+    }
+
+    fromDisplayedDistanceValue(value: number, linkField: string = 'distance'): number {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return numericValue;
+        }
+
+        return this.tn93PercentageDisplayEnabled(linkField)
+            ? numericValue / 100
+            : numericValue;
+    }
+
+    formatDisplayedDistanceValue(
+        value: number | null | undefined,
+        linkField: string = 'distance',
+        options: {
+            decimals?: number;
+            trimTrailingZeros?: boolean;
+            includeSuffix?: boolean;
+        } = {}
+    ): string {
+        if (value === null || value === undefined) {
+            return 'N/A';
+        }
+
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue)) {
+            return 'N/A';
+        }
+
+        const normalizedField = this.normalizeDisplayedDistanceField(linkField);
+        const displayedValue = this.toDisplayedDistanceValue(numericValue, linkField);
+        const usePercentageDisplay = this.tn93PercentageDisplayEnabled(linkField);
+        const includeSuffix = options.includeSuffix !== false;
+        const decimals = options.decimals !== undefined && Number.isFinite(Number(options.decimals))
+            ? Math.max(0, Math.floor(Number(options.decimals)))
+            : normalizedField === 'distance'
+                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
+                : this.isTN93DisplayField(linkField)
+                    ? 3
+                    : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
+
+        if (decimals === 0) {
+            const formattedValue = Math.round(displayedValue).toLocaleString();
+            return usePercentageDisplay && includeSuffix
+                ? `${formattedValue}%`
+                : formattedValue;
+        }
+
+        let formattedValue = displayedValue.toFixed(decimals);
+        if (options.trimTrailingZeros !== false) {
+            formattedValue = formattedValue.replace(/\.?0+$/, '');
+        }
+
+        return usePercentageDisplay && includeSuffix
+            ? `${formattedValue}%`
+            : formattedValue;
+    }
 
     // check for not interfering with networks outside of inital demo
     demoNetworkRendered: boolean = false;
@@ -199,7 +377,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'choropleth-transparency': 0.3,
             'cluster-minimum-size': 1,
             'default-view': '2D Network', // 'Phylogenetic Tree' 'Alignment View'
-            'default-distance-metric': 'tn93',
+            'default-distance-metric': 'snps',
             'filtering-epsilon': -8,
             'flow-showNodes': 'selected',
             'gantt-date-list': '',
@@ -230,16 +408,18 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-color': '#a6cee3',
             'link-color-table-counts': true,
             'link-color-table-frequencies': false,
-            'link-color-variable': 'None',
+            'link-color-variable': 'origin',
             'link-directed': false,
             'link-bidirectional': false,
             'link-label-variable': 'None',
             'link-label-decimal-length' : 3,
+            'link-label-size': 16,
             'link-length': 50,
             'link-opacity': 0,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
-            'link-threshold': 0.015,
+            'link-threshold': 16,
+            'tn93-distance-display-format': 'decimal',
             'link-tooltip-variable': ['None'],
             'link-width': 3,
             "link-width-max":27,
@@ -248,6 +428,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-width-reciprocal': false,
             'link-origin-array-order': [],
             'map-basemap-show': true,
+            'map-auto-expand-selected': true,
             'map-collapsing-on': true,
             'map-counties-show': false,
             'map-countries-show': false,
@@ -263,6 +444,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-link-transparency': 0,
             'map-node-jitter': -2,
             'map-node-show': true,
+            'map-node-size': 24,
             'map-node-tooltip-variable': '_id',
             'map-node-transparency': 0,
             'map-satellite-show': false,
@@ -290,7 +472,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-symbol-table-counts': true,
             'node-symbol-table-frequencies': false,
             'node-symbol-variable': 'None',
-            'node-symbol-table-visible': 'Hide',
+            'node-symbol-table-visible': 'Dock',
             'node-timeline-variable' : 'None',
             'node-tooltip-variable': ['_id'],
             'physics-tree-branch-type': 'Straight',
@@ -308,13 +490,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             'polygon-color-table-counts': true,
             'polygon-color-table-frequencies': false,
             'polygons-color-show': false,
-            'polygons-foci': 'cluster',
+            'polygons-foci': 'None',
             'polygons-gather-force': 0,
             'polygons-label-show' : false,
             'polygon-label-orientation' : 'top',
             'polygons-label-size' : 16,
             'polygons-show' : false,
-            'polygon-color-table-visible': false,
+            'polygon-color-table-visible': 'Dock',
             'reference-source-file': true,
             'reference-source-first': false,
             'reference-source-consensus': false,
@@ -341,6 +523,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-labels-show': false,
             'tree-leaf-label-show': false,
             'tree-leaf-label-size': 12,
+            'tree-leaf-node-use-global-shapes': false,
             'tree-leaf-node-radius-variable': 'None',
             'tree-leaf-node-show': true,
             'tree-leaf-node-size': 5,
@@ -378,7 +561,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 loadTime: 0,
                 readyTime: Date.now(),
                 startTime: 0,
-                anySequences: false
+                anySequences: false,
+                performance: {}
             },
             network: {
                 allPinned: false,
@@ -401,6 +585,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 linkAlphas: [1],
                 linkColors: d3.schemePaired,
                 linkValueNames: {},
+                keyTableColumnNames: {},
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
                 nodeColorsTable: {},
@@ -409,6 +594,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 },
                 nodeColorsTableKeys: {},
                 linkColorsTable: {},
+                linkColorsTableHistory: {},
                 linkColorsTableKeys: {},
                 nodeSymbols: [
                     'ellipse',
@@ -448,6 +634,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             mapData: {},
             matrix: {},
             messageTimeout: null,
+            analysis: {
+                version: 0,
+                storedDistanceCache: {},
+                thresholdSweepCache: {},
+                patristicDistanceCache: {}
+            },
             /* functions in style object get replaced If user decides to color a node, link, or polygon variable.
              * these functions are replaced with one from the d3 package usind d3.scaleOrdinal(...).domain(...)
              */
@@ -465,6 +657,394 @@ export class CommonService extends AppComponentBase implements OnInit {
     }
     temp: any = this.tempSkeleton();
     session = this.sessionSkeleton();
+    private dataLoadGeneration = 0;
+
+    public clampStyleAlpha(value: any, fallback = 1): number {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return fallback;
+        }
+
+        return Math.min(1, Math.max(0, numericValue));
+    }
+
+    public getNodeFillStyle(node: any): { color: string; alpha: number } {
+        const widgets = this.session.style.widgets;
+        const variable = widgets['node-color-variable'];
+        const fallbackColor = widgets['node-color'] || '#1f77b4';
+
+        if (variable === 'None' || !variable || !node) {
+            return {
+                color: fallbackColor,
+                alpha: this.clampStyleAlpha(1 - Number(widgets['node-opacity'] ?? 0), 1)
+            };
+        }
+
+        const value = node[variable];
+        let color = fallbackColor;
+        let alpha = 1;
+
+        try {
+            color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+        } catch {
+            color = fallbackColor;
+        }
+
+        try {
+            alpha = this.temp.style.nodeAlphaMap?.(value) ?? 1;
+        } catch {
+            alpha = 1;
+        }
+
+        return {
+            color,
+            alpha: this.clampStyleAlpha(alpha, 1)
+        };
+    }
+
+    beginDataLoad(): number {
+        this.dataLoadGeneration += 1;
+        return this.dataLoadGeneration;
+    }
+
+    getDataLoadGeneration(): number {
+        return this.dataLoadGeneration;
+    }
+
+    isCurrentDataLoad(loadGeneration: number): boolean {
+        return loadGeneration === this.dataLoadGeneration;
+    }
+
+    recordPerformanceTiming(category: string, name: string, startedAt: number, extra: Record<string, any> = {}) {
+        this.recordPerformanceDuration(category, name, Date.now() - startedAt, extra);
+    }
+
+    private readPerformanceMemorySnapshot(): Record<string, number> | null {
+        const memory = typeof window !== 'undefined'
+            ? (window.performance as any)?.memory
+            : null;
+
+        if (!memory) return null;
+
+        const usedJSHeapSize = Number(memory.usedJSHeapSize);
+        const totalJSHeapSize = Number(memory.totalJSHeapSize);
+        const jsHeapSizeLimit = Number(memory.jsHeapSizeLimit);
+
+        if (
+            !Number.isFinite(usedJSHeapSize) &&
+            !Number.isFinite(totalJSHeapSize) &&
+            !Number.isFinite(jsHeapSizeLimit)
+        ) {
+            return null;
+        }
+
+        return {
+            usedJSHeapSize: Number.isFinite(usedJSHeapSize) ? usedJSHeapSize : null,
+            totalJSHeapSize: Number.isFinite(totalJSHeapSize) ? totalJSHeapSize : null,
+            jsHeapSizeLimit: Number.isFinite(jsHeapSizeLimit) ? jsHeapSizeLimit : null
+        };
+    }
+
+    private toFinitePerformanceNumber(value: any): number | null {
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue) ? numericValue : null;
+    }
+
+    private buildWorkerTimingExtra(
+        responseData: any,
+        requestStartedAt: number,
+        responseReceivedAt: number
+    ): Record<string, number | null> {
+        const workerFinishedAt = this.toFinitePerformanceNumber(responseData?.start);
+
+        return {
+            workerComputeDurationMs: this.toFinitePerformanceNumber(responseData?.computeDurationMs),
+            roundTripDurationMs: responseReceivedAt - requestStartedAt,
+            responseTransitDurationMs: workerFinishedAt !== null
+                ? responseReceivedAt - workerFinishedAt
+                : null
+        };
+    }
+
+    private buildGraphDensitySnapshot(extra: Record<string, any>): Record<string, number> | null {
+        const nodeCount = this.toFinitePerformanceNumber(extra.visibleNodes ?? extra.nodes);
+        const edgeCount = this.toFinitePerformanceNumber(extra.visibleLinks ?? extra.edges ?? extra.links);
+
+        if (nodeCount === null || edgeCount === null) return null;
+
+        const maxUndirectedEdges = nodeCount > 1 ? (nodeCount * (nodeCount - 1)) / 2 : 0;
+
+        return {
+            nodeCount,
+            edgeCount,
+            maxUndirectedEdges,
+            edgeDensity: maxUndirectedEdges > 0 ? edgeCount / maxUndirectedEdges : 0
+        };
+    }
+
+    private enrichPerformanceExtra(extra: Record<string, any>): Record<string, any> {
+        const memory = extra.memory !== undefined ? extra.memory : this.readPerformanceMemorySnapshot();
+        const graphDensity = extra.graphDensity !== undefined
+            ? extra.graphDensity
+            : this.buildGraphDensitySnapshot(extra);
+
+        return {
+            ...extra,
+            ...(memory ? { memory } : {}),
+            ...(graphDensity ? { graphDensity } : {})
+        };
+    }
+
+    recordPerformanceDuration(category: string, name: string, durationMs: number, extra: Record<string, any> = {}) {
+        if (!this.session?.meta || !Number.isFinite(durationMs)) return;
+
+        const meta = this.session.meta as any;
+        if (!meta.performance) meta.performance = {};
+        if (!meta.performance[category]) meta.performance[category] = {};
+
+        meta.performance[category][name] = {
+            durationMs,
+            recordedAt: Date.now(),
+            ...this.enrichPerformanceExtra(extra)
+        };
+    }
+
+    private getAnalysisCache() {
+        if (!this.temp.analysis) {
+            this.temp.analysis = {
+                version: 0,
+                storedDistanceCache: {},
+                thresholdSweepCache: {},
+                patristicDistanceCache: {}
+            };
+        }
+
+        if (!this.temp.analysis.storedDistanceCache) {
+            this.temp.analysis.storedDistanceCache = {};
+        }
+
+        if (!this.temp.analysis.thresholdSweepCache) {
+            this.temp.analysis.thresholdSweepCache = {};
+        }
+
+        if (!this.temp.analysis.patristicDistanceCache) {
+            this.temp.analysis.patristicDistanceCache = {};
+        }
+
+        return this.temp.analysis;
+    }
+
+    private invalidateThresholdAnalysisCache() {
+        const analysis = this.getAnalysisCache();
+        analysis.version++;
+        analysis.storedDistanceCache = {};
+        analysis.thresholdSweepCache = {};
+    }
+
+    private storedDistanceCacheMatchesCurrentNodes(cache: StoredDistanceEdgeCache): boolean {
+        const nodes = this.session.data.nodes || [];
+        if (cache.nodeIds.length !== nodes.length) {
+            return false;
+        }
+
+        return nodes.every((node, index) => {
+            const nodeId = String(node?._id ?? node?.id ?? '');
+            return cache.nodeIds[index] === nodeId;
+        });
+    }
+
+    private getStoredDistanceEdgeCache(metric = this.session.style.widgets["link-sort-variable"]): StoredDistanceEdgeCache {
+        const analysis = this.getAnalysisCache();
+        const patristicCache = analysis.patristicDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
+
+        if (patristicCache) {
+            if (!this.storedDistanceCacheMatchesCurrentNodes(patristicCache)) {
+                delete analysis.patristicDistanceCache[metric];
+                delete analysis.storedDistanceCache[metric];
+            } else {
+                patristicCache.version = analysis.version;
+                analysis.storedDistanceCache[metric] = patristicCache;
+                return patristicCache;
+            }
+        }
+
+        const cached = analysis.storedDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
+
+        if (cached && cached.version === analysis.version) {
+            return cached;
+        }
+
+        const rebuilt = buildStoredDistanceEdgeCache(
+            this.session.data.nodes,
+            this.session.data.links,
+            metric,
+            analysis.version
+        );
+
+        analysis.storedDistanceCache[metric] = rebuilt;
+        return rebuilt;
+    }
+
+    public setPatristicThresholdAnalysisEdges(
+        metric: string,
+        leafNames: string[],
+        edges: ThresholdAnalysisPairEdge[]
+    ): void {
+        const analysis = this.getAnalysisCache();
+        const nodeIds = this.session.data.nodes.map((node) => String(node?._id ?? node?.id ?? ''));
+        const nodeIndexById: Record<string, number> = Object.create(null);
+
+        nodeIds.forEach((nodeId, index) => {
+            nodeIndexById[nodeId] = index;
+        });
+
+        const leafIndexToNodeIndex = leafNames.map((leafName) => nodeIndexById[String(leafName)]);
+        const sortedEdges = edges
+            .map((edge, linkIndex) => {
+                const sourceIndex = leafIndexToNodeIndex[edge.sourceIndex];
+                const targetIndex = leafIndexToNodeIndex[edge.targetIndex];
+
+                if (
+                    sourceIndex === undefined ||
+                    targetIndex === undefined ||
+                    sourceIndex === targetIndex ||
+                    !Number.isFinite(edge.value)
+                ) {
+                    return null;
+                }
+
+                return {
+                    linkIndex,
+                    sourceId: nodeIds[sourceIndex],
+                    targetId: nodeIds[targetIndex],
+                    sourceIndex,
+                    targetIndex,
+                    value: edge.value
+                };
+            })
+            .filter((edge): edge is StoredDistanceEdgeCache['sortedEdges'][number] => edge !== null);
+
+        sortedEdges.sort((a, b) => {
+            if (a.value !== b.value) {
+                return a.value - b.value;
+            }
+
+            if (a.sourceId !== b.sourceId) {
+                return a.sourceId.localeCompare(b.sourceId);
+            }
+
+            return a.targetId.localeCompare(b.targetId);
+        });
+
+        analysis.patristicDistanceCache[metric] = {
+            metric,
+            version: analysis.version,
+            nodeIds,
+            nodeIndexById,
+            sortedEdges,
+            sortedValues: sortedEdges.map((edge) => edge.value)
+        };
+        analysis.storedDistanceCache[metric] = analysis.patristicDistanceCache[metric];
+        analysis.thresholdSweepCache = {};
+    }
+
+    public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
+        const analysis = this.getAnalysisCache();
+        const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
+        const cacheKey = `${metric}|nn:${showNN ? 1 : 0}`;
+        const cached = analysis.thresholdSweepCache[cacheKey] as ThresholdSweepSummary | undefined;
+
+        if (cached && cached.version === analysis.version) {
+            return cached;
+        }
+
+        const distanceCache = this.getStoredDistanceEdgeCache(metric);
+        const summary = buildThresholdSweepSummary(
+            distanceCache,
+            this.getThresholdAnalysisBaseEdges(metric, distanceCache),
+            this.getThresholdAnalysisExcludedLinkIndexes(metric)
+        );
+        analysis.thresholdSweepCache[cacheKey] = summary;
+        return summary;
+    }
+
+    private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
+        const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
+
+        this.session.data.links.forEach((link) => {
+            const sourceIndex = cache.nodeIndexById[link.source];
+            const targetIndex = cache.nodeIndexById[link.target];
+
+            if (
+                sourceIndex === undefined ||
+                targetIndex === undefined ||
+                sourceIndex === targetIndex
+            ) {
+                return;
+            }
+
+            const rawMetricValue = link?.[metric];
+            const metricValue = typeof rawMetricValue === 'number'
+                ? rawMetricValue
+                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
+                    ? Number(rawMetricValue)
+                    : NaN);
+            const hasNumericMetric = Number.isFinite(metricValue);
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const origins = Array.isArray(link?.origin) ? link.origin : [];
+            const hasNonDistanceOrigin = origins.some((originName: string) => {
+                const hasAuspice = /[Aa]uspice/.test(originName);
+                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
+            });
+            const isThresholdControlled = hasNumericMetric && link.hasDistance;
+            const isAlwaysVisible = hasNonDistanceOrigin || !isThresholdControlled;
+
+            if (!isAlwaysVisible) {
+                return;
+            }
+
+            const edgeKey = sourceIndex < targetIndex
+                ? `${sourceIndex}:${targetIndex}`
+                : `${targetIndex}:${sourceIndex}`;
+
+            if (!edgesByKey.has(edgeKey)) {
+                edgesByKey.set(edgeKey, { sourceIndex, targetIndex });
+            }
+        });
+
+        return Array.from(edgesByKey.values());
+    }
+
+    private getThresholdAnalysisExcludedLinkIndexes(metric: string): Set<number> {
+        if (!this.session.style.widgets["link-show-nn"]) {
+            return new Set<number>();
+        }
+
+        const excludedIndexes = new Set<number>();
+
+        this.session.data.links.forEach((link, linkIndex) => {
+            const rawMetricValue = link?.[metric];
+            const metricValue = typeof rawMetricValue === 'number'
+                ? rawMetricValue
+                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
+                    ? Number(rawMetricValue)
+                    : NaN);
+            const hasNumericMetric = Number.isFinite(metricValue);
+            const isThresholdControlled = hasNumericMetric && link.hasDistance;
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const origins = Array.isArray(link?.origin) ? link.origin : [];
+            const hasNonDistanceOrigin = origins.some((originName: string) => {
+                const hasAuspice = /[Aa]uspice/.test(originName);
+                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
+            });
+
+            if (isThresholdControlled && !link.nn && !hasNonDistanceOrigin) {
+                excludedIndexes.add(linkIndex);
+            }
+        });
+
+        return excludedIndexes;
+    }
 
 
     /**
@@ -519,6 +1099,47 @@ export class CommonService extends AppComponentBase implements OnInit {
         return s.charAt(0).toUpperCase() + s.slice(1)
     }
 
+    isStyleableNodeField(field: string): boolean {
+        const normalizedField = `${field ?? ''}`.trim();
+        return normalizedField.length > 0 && !this.nonStyleableNodeFields.has(normalizedField.toLowerCase());
+    }
+
+    getStyleableNodeFields(): string[] {
+        const seenFields = new Set<string>();
+        const fields = this.session?.data?.nodeFields || [];
+        const styleableFields = fields.filter(field => {
+            const normalizedField = `${field ?? ''}`;
+            const normalizedKey = normalizedField.toLowerCase();
+
+            if (!this.isStyleableNodeField(normalizedField) || seenFields.has(normalizedKey)) {
+                return false;
+            }
+
+            seenFields.add(normalizedKey);
+            return true;
+        });
+
+        const metadataFields = styleableFields.filter(field => !this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
+        const builtInFields = styleableFields.filter(field => this.lowPriorityStyleableNodeFields.has(`${field}`.toLowerCase()));
+
+        return metadataFields.concat(builtInFields);
+    }
+
+    hasValidTimelineDateValue(value: any): boolean {
+        if (value == null) {
+            return false;
+        }
+
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+                return false;
+            }
+        }
+
+        return moment(value).isValid();
+    }
+
 
     /**
      * Set commonService.session and commonService.temp back to default values
@@ -567,6 +1188,300 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
+    public normalizeViewName(value: any): string | null {
+        if (value === null || value === undefined) {
+            return null;
+        }
+
+        const rawValue = String(value).trim();
+        if (!rawValue) {
+            return null;
+        }
+
+        const lookupKey = rawValue.toLowerCase().replace(/[\s-]+/g, '_');
+        return this.legacyViewNameMap[lookupKey] ?? rawValue;
+    }
+
+    private normalizeRestorableDashboardViewName(value: any): string | null {
+        const viewName = this.normalizeViewName(value);
+
+        if (!viewName || !this.restorableDashboardViews.has(viewName)) {
+            return null;
+        }
+
+        return viewName;
+    }
+
+    private normalizeRegisteredDashboardViewName(value: any): string | null {
+        const viewName = this.normalizeViewName(value);
+
+        if (!viewName || (viewName !== 'Files' && !this.restorableDashboardViews.has(viewName))) {
+            return null;
+        }
+
+        return viewName;
+    }
+
+    private getLegacyLayoutViewName(layoutItem: any, includeFiles: boolean = false): string | null {
+        const normalizeViewName = includeFiles
+            ? (value: any) => this.normalizeRegisteredDashboardViewName(value)
+            : (value: any) => this.normalizeRestorableDashboardViewName(value);
+
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            return normalizeViewName(layoutItem);
+        }
+
+        if (layoutItem.type === 'component') {
+            return normalizeViewName(
+                layoutItem.componentType ??
+                layoutItem.componentName ??
+                layoutItem.title
+            );
+        }
+
+        return normalizeViewName(
+            layoutItem.componentType ??
+            layoutItem.componentName ??
+            (
+                ['row', 'column', 'stack'].includes(String(layoutItem.type).toLowerCase())
+                    ? null
+                    : layoutItem.type
+            )
+        );
+    }
+
+    private collectLegacyLayoutViewNames(layoutItem: any, viewNames: string[] = []): string[] {
+        const viewName = this.getLegacyLayoutViewName(layoutItem);
+
+        if (viewName && !viewNames.includes(viewName)) {
+            viewNames.push(viewName);
+        }
+
+        const childItems = Array.isArray(layoutItem?.content)
+            ? layoutItem.content
+            : layoutItem?.root
+                ? [layoutItem.root]
+                : [];
+
+        childItems.forEach(child => this.collectLegacyLayoutViewNames(child, viewNames));
+
+        return viewNames;
+    }
+
+    private buildDashboardTabStackLayout(viewNames: string[], activeLabel?: string): any {
+        const activeItemIndex = Math.max(viewNames.findIndex(viewName => viewName === activeLabel), 0);
+
+        return {
+            root: {
+                type: 'stack',
+                activeItemIndex,
+                content: viewNames.map(viewName => ({
+                    type: 'component',
+                    componentType: viewName,
+                    title: viewName
+                }))
+            }
+        };
+    }
+
+    private formatGoldenLayoutSize(value: any, unit: any, fallbackUnit: string): string | undefined {
+        if (value === null || value === undefined) {
+            return undefined;
+        }
+
+        if (typeof value === 'string') {
+            return value;
+        }
+
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+            return undefined;
+        }
+
+        const sizeUnit = typeof unit === 'string' && unit.trim() ? unit.trim() : fallbackUnit;
+        return `${numericValue}${sizeUnit}`;
+    }
+
+    private normalizeGoldenLayoutSizeFields(layoutItem: any): void {
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            return;
+        }
+
+        const formattedSize = this.formatGoldenLayoutSize(layoutItem.size, layoutItem.sizeUnit, 'fr');
+        if (formattedSize !== undefined) {
+            layoutItem.size = formattedSize;
+        } else {
+            delete layoutItem.size;
+        }
+
+        const formattedMinSize = this.formatGoldenLayoutSize(layoutItem.minSize, layoutItem.minSizeUnit, 'px');
+        if (formattedMinSize !== undefined) {
+            layoutItem.minSize = formattedMinSize;
+        } else {
+            delete layoutItem.minSize;
+        }
+
+        delete layoutItem.sizeUnit;
+        delete layoutItem.minSizeUnit;
+    }
+
+    private normalizeGoldenLayoutDimensionFields(layoutConfig: any): void {
+        const dimensions = layoutConfig?.dimensions;
+        if (!dimensions || typeof dimensions !== 'object') {
+            return;
+        }
+
+        const minHeight = this.formatGoldenLayoutSize(dimensions.defaultMinItemHeight, dimensions.defaultMinItemHeightUnit, 'px');
+        if (minHeight !== undefined) {
+            dimensions.defaultMinItemHeight = minHeight;
+        }
+
+        const minWidth = this.formatGoldenLayoutSize(dimensions.defaultMinItemWidth, dimensions.defaultMinItemWidthUnit, 'px');
+        if (minWidth !== undefined) {
+            dimensions.defaultMinItemWidth = minWidth;
+        }
+
+        delete dimensions.defaultMinItemHeightUnit;
+        delete dimensions.defaultMinItemWidthUnit;
+    }
+
+    private toLoadableDashboardLayoutConfig(layoutConfig: any): any {
+        if (!layoutConfig || typeof layoutConfig !== 'object') {
+            return null;
+        }
+
+        if (layoutConfig.resolved === true) {
+            try {
+                return LayoutConfig.fromResolved(layoutConfig as any);
+            } catch {
+                const fallbackLayout = { ...layoutConfig };
+                delete fallbackLayout.resolved;
+                this.normalizeGoldenLayoutDimensionFields(fallbackLayout);
+                return fallbackLayout;
+            }
+        }
+
+        const loadableLayout = { ...layoutConfig };
+        delete loadableLayout.resolved;
+        this.normalizeGoldenLayoutDimensionFields(loadableLayout);
+        return loadableLayout;
+    }
+
+    public normalizeDashboardLayout(layoutConfig: any): any {
+        const loadableLayout = this.toLoadableDashboardLayoutConfig(layoutConfig);
+        const normalizedLayout = loadableLayout?.root
+            ? this.normalizeDashboardLayoutViewNames(loadableLayout)
+            : null;
+
+        return normalizedLayout?.root ? normalizedLayout : null;
+    }
+
+    private normalizeDashboardLayoutViewNames(layoutItem: any): any {
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            const componentName = this.normalizeRegisteredDashboardViewName(layoutItem);
+            return componentName
+                ? {
+                    type: 'component',
+                    componentType: componentName,
+                    title: componentName
+                }
+                : null;
+        }
+
+        if (Array.isArray(layoutItem)) {
+            return layoutItem.map(child => this.normalizeDashboardLayoutViewNames(child));
+        }
+
+        const normalizedItem = { ...layoutItem };
+        this.normalizeGoldenLayoutSizeFields(normalizedItem);
+        const componentName = this.getLegacyLayoutViewName(normalizedItem, true);
+
+        if (componentName) {
+            return {
+                ...normalizedItem,
+                type: 'component',
+                componentType: componentName,
+                title: componentName
+            };
+        }
+
+        const itemType = String(normalizedItem.type ?? '').toLowerCase();
+        const isContainerItem = ['row', 'column', 'stack'].includes(itemType);
+        if (normalizedItem.type && !isContainerItem && itemType !== 'component' && !normalizedItem.root) {
+            return null;
+        }
+
+        if (normalizedItem.root) {
+            normalizedItem.root = this.normalizeDashboardLayoutViewNames(normalizedItem.root);
+        }
+
+        if (Array.isArray(normalizedItem.openPopouts)) {
+            normalizedItem.openPopouts = normalizedItem.openPopouts
+                .map(child => this.normalizeDashboardLayoutViewNames(child))
+                .filter(Boolean);
+        }
+
+        if (Array.isArray(normalizedItem.content)) {
+            normalizedItem.content = normalizedItem.content
+                .map(child => this.normalizeDashboardLayoutViewNames(child))
+                .filter(Boolean);
+        }
+
+        if (isContainerItem && (!Array.isArray(normalizedItem.content) || normalizedItem.content.length === 0)) {
+            return null;
+        }
+
+        return normalizedItem;
+    }
+
+    private buildLegacyDashboardRestoreState(oldSession: any, savedTabs: HomePageTabItem[]): DashboardRestoreState | null {
+        const viewNames = this.collectLegacyLayoutViewNames(oldSession?.layout);
+        const defaultView = this.normalizeRestorableDashboardViewName(oldSession?.style?.widgets?.['default-view']);
+        const defaultViewWasInLayout = !defaultView || viewNames.includes(defaultView);
+        const normalizedLegacyLayout = oldSession?.layout
+            ? this.normalizeDashboardLayoutViewNames(
+                oldSession.layout.root
+                    ? oldSession.layout
+                    : { root: oldSession.layout }
+            )
+            : null;
+
+        savedTabs
+            .map(tab => this.normalizeRestorableDashboardViewName(tab.label))
+            .forEach(viewName => {
+                if (viewName && !viewNames.includes(viewName)) {
+                    viewNames.push(viewName);
+                }
+            });
+
+        if (defaultView && !viewNames.includes(defaultView)) {
+            viewNames.unshift(defaultView);
+        }
+
+        if (viewNames.length <= 1) {
+            return null;
+        }
+
+        const savedActiveLabel = savedTabs
+            .filter(tab => tab.isActive)
+            .map(tab => this.normalizeRestorableDashboardViewName(tab.label))
+            .find((viewName): viewName is string => !!viewName && viewNames.includes(viewName));
+        const activeLabel = savedActiveLabel ?? defaultView ?? viewNames[0];
+
+        return {
+            dashboardLayout: normalizedLegacyLayout?.root && defaultViewWasInLayout
+                ? normalizedLegacyLayout
+                : this.buildDashboardTabStackLayout(viewNames, activeLabel),
+            tabs: viewNames.map(viewName => ({
+                label: viewName,
+                tabTitle: viewName,
+                isActive: viewName === activeLabel,
+                componentRef: null,
+                templateRef: null
+            }))
+        };
+    }
+
     public cleanupData(): void {
     
         this.session.data = this.sessionSkeleton().data;
@@ -579,6 +1494,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     
         // Reset visualization states
         this.session.network.isFullyLoaded = false;
+        this.session.warnings = [];
     }
 
     // public cleanupWorkers(): void {
@@ -741,6 +1657,7 @@ export class CommonService extends AppComponentBase implements OnInit {
           newElement.data = newNode.data.data;
         }
         this.session.data.nodes.push(newElement);
+        this.invalidateThresholdAnalysisCache();
 
         return 1;
     };
@@ -773,6 +1690,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         } else {
             newLink.target = newLink.target.trim();
         }
+
+        newLink.origin = this.normalizeLinkOrigins(newLink.origin);
+        this.setLinkAllOrigins(newLink, this.getLinkAllOrigins(newLink));
     
         if (!matrix[newLink.source]) {
             matrix[newLink.source] = {};
@@ -786,7 +1706,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         const ids = [newLink.source, newLink.target].sort();
         const id = `${ids[0]}-${ids[1]}`;
-
         let linkIsNew = 1;
 
         const sdlinks = serv.session.data.links;
@@ -794,15 +1713,20 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (matrix[newLink.source][newLink.target]) {
 
             const oldLink = matrix[newLink.source][newLink.target];
+            const oldDistanceOrigins = this.getLinkDistanceOrigins(oldLink);
+            const newDistanceOrigins = this.getLinkDistanceOrigins(newLink);
+            const mergedDistanceOrigins = this.uniq(oldDistanceOrigins.concat(newDistanceOrigins));
 
              // Ensure id is consistent during merge ---
              newLink.id = oldLink.id || id; // Prefer existing ID
 
-            let myorigin = this.uniq(newLink.origin.concat(oldLink.origin));
+            let myorigin = this.uniq(this.getLinkAllOrigins(newLink).concat(this.getLinkAllOrigins(oldLink)));
             // console.log(JSON.stringify(myorigin));
 
             // Ensure no empty origins
             myorigin = myorigin.filter(origin => origin != '');
+            this.setLinkAllOrigins(oldLink, myorigin);
+            this.setLinkAllOrigins(newLink, myorigin);
 
              // --- Start: Logic to manage global origin order ---
             if (myorigin.length > 1) {
@@ -837,6 +1761,11 @@ export class CommonService extends AppComponentBase implements OnInit {
                 newLink.distanceOrigin = oldLink.distanceOrigin;
             }
 
+            if (mergedDistanceOrigins.length > 0) {
+                oldLink.distanceOrigins = mergedDistanceOrigins;
+                newLink.distanceOrigins = mergedDistanceOrigins;
+            }
+
             oldLink["origin"] = myorigin;
             newLink["origin"] = myorigin;
             // console.log("old link isL " + `${JSON.stringify(oldLink)} ${JSON.stringify(newLink)}`);
@@ -852,6 +1781,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             _.merge(oldLink, newLink);
 
             oldLink.origin = myorigin;
+            this.setLinkAllOrigins(oldLink, myorigin);
 
 
             if(newLink["bidirectional"]){
@@ -866,11 +1796,12 @@ export class CommonService extends AppComponentBase implements OnInit {
              // Ensure id is consistent during merge ---
              newLink.id = oldLink.id || id; // Prefer existing ID
 
-            const origin = this.uniq(newLink.origin.concat(oldLink.origin));
+            const origin = this.uniq(this.getLinkAllOrigins(newLink).concat(this.getLinkAllOrigins(oldLink)));
             if(origin.length > 1) {
                 newLink.hasDistance = true;
             }
             Object.assign(oldLink, newLink, { origin: origin });
+            this.setLinkAllOrigins(oldLink, origin);
             linkIsNew = 0;
 
         } else {
@@ -900,6 +1831,10 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }, newLink);
     
             }
+
+               newLink.origin = this.getLinkAllOrigins(newLink);
+               this.setLinkAllOrigins(newLink, newLink.origin);
+               this.syncLinkDistanceOrigins(newLink);
                // Always add the new link without merging
                sdlinks.push(newLink);
                matrix[newLink.source][newLink.target] = newLink;
@@ -913,15 +1848,23 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(!this.session.style.widgets['link-origin-array-order']){
             this.session.style.widgets['link-origin-array-order'] = [];
         }
-        if (newLink.origin.length > 1 && this.session.style.widgets['link-origin-array-order'].length === 0) {
-            this.session.style.widgets['link-origin-array-order'] = newLink.origin;
+        const newLinkAllOrigins = this.getLinkAllOrigins(newLink);
+        if (newLinkAllOrigins.length > 1 && this.session.style.widgets['link-origin-array-order'].length === 0) {
+            this.session.style.widgets['link-origin-array-order'] = [...newLinkAllOrigins];
+        }
+
+        const normalizedLink = matrix[newLink.source]?.[newLink.target] ?? matrix[newLink.target]?.[newLink.source];
+        if (normalizedLink) {
+            this.setLinkAllOrigins(normalizedLink, this.getLinkAllOrigins(normalizedLink));
+            this.syncLinkDistanceOrigins(normalizedLink);
         }
         
         if((newLink.source === "MZ798055" && newLink.target === "MZ375596") || (newLink.source === "MZ375596" && newLink.target === "MZ798055")){
             console.log('new link 222: ', JSON.stringify(newLink));
         }
-    
-       
+
+        this.invalidateThresholdAnalysisCache();
+
         return linkIsNew;
 
         // TODO Remove when not needed
@@ -947,6 +1890,170 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
         }
         return out;
+    }
+
+    private normalizeLinkOrigins(origins: any): string[] {
+        const originArray = Array.isArray(origins)
+            ? origins
+            : (origins === undefined || origins === null ? [] : [origins]);
+
+        return this.uniq(
+            originArray
+                .map((origin: any) => typeof origin === 'string' ? origin : String(origin))
+                .filter((origin: string) => origin.length > 0)
+        );
+    }
+
+    private getLinkAllOrigins(link: any): string[] {
+        const canonicalOrigins = this.normalizeLinkOrigins(link?._originAll);
+
+        if (canonicalOrigins.length > 0) {
+            return canonicalOrigins;
+        }
+
+        return this.normalizeLinkOrigins(link?.origin);
+    }
+
+    private setLinkAllOrigins(link: any, origins: any): string[] {
+        const normalizedOrigins = this.normalizeLinkOrigins(origins);
+        link._originAll = normalizedOrigins;
+        return normalizedOrigins;
+    }
+
+    private orderLinkOriginsForDisplay(origins: any, globalOrder: any): string[] {
+        const normalizedOrigins = this.normalizeLinkOrigins(origins);
+        const normalizedOrder = this.normalizeLinkOrigins(globalOrder);
+
+        if (normalizedOrigins.length < 2 || normalizedOrder.length < 2) {
+            return normalizedOrigins;
+        }
+
+        const originSet = new Set(normalizedOrigins);
+        const orderedOrigins = normalizedOrder.filter(origin => originSet.has(origin));
+        const remainingOrigins = normalizedOrigins.filter(origin => !normalizedOrder.includes(origin));
+
+        return orderedOrigins.concat(remainingOrigins);
+    }
+
+    getLinkDistanceOrigins(link: any): string[] {
+        const explicitOrigins = Array.isArray(link?.distanceOrigins)
+            ? link.distanceOrigins.filter((origin: any) => typeof origin === 'string' && origin.length > 0)
+            : [];
+
+        if (explicitOrigins.length > 0) {
+            return this.uniq(explicitOrigins);
+        }
+
+        if (typeof link?.distanceOrigin === 'string' && link.distanceOrigin.length > 0) {
+            return [link.distanceOrigin];
+        }
+
+        return [];
+    }
+
+    syncLinkDistanceOrigins(link: any): void {
+        const distanceOrigins = this.getLinkDistanceOrigins(link);
+
+        if (distanceOrigins.length > 0) {
+            link.distanceOrigins = distanceOrigins;
+            if (!link.distanceOrigin || !distanceOrigins.includes(link.distanceOrigin)) {
+                link.distanceOrigin = distanceOrigins[0];
+            }
+            return;
+        }
+
+        delete link.distanceOrigins;
+        if (!link.hasDistance) {
+            delete link.distanceOrigin;
+        }
+    }
+
+    private isDistanceBackedOrigin(originName: string, distanceOrigins: string[]): boolean {
+        return distanceOrigins.some(distanceOrigin => {
+            return Boolean(originName) && Boolean(distanceOrigin) && originName.includes(distanceOrigin);
+        });
+    }
+
+    private rebuildLinkMatrix(): void {
+        this.temp.matrix = [];
+
+        this.session.data.links.forEach((link, index) => {
+            link.index = index;
+
+            if (!this.temp.matrix[link.source]) {
+                this.temp.matrix[link.source] = {};
+            }
+
+            if (!this.temp.matrix[link.target]) {
+                this.temp.matrix[link.target] = {};
+            }
+
+            this.temp.matrix[link.source][link.target] = link;
+            this.temp.matrix[link.target][link.source] = link;
+        });
+    }
+
+    private removeGeneticDistanceLinks(): void {
+        const retainedLinks = this.session.data.links.filter((link) => {
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const hasGeneticDistance = distanceOrigins.includes('Genetic Distance');
+
+            if (!hasGeneticDistance) {
+                this.syncLinkDistanceOrigins(link);
+                return true;
+            }
+
+            const remainingOrigins = Array.isArray(link.origin)
+                ? link.origin.filter((origin: string) => origin !== 'Genetic Distance')
+                : [];
+            const remainingDistanceOrigins = distanceOrigins.filter(origin => origin !== 'Genetic Distance');
+
+            if (remainingOrigins.length === 0) {
+                return false;
+            }
+
+            link.origin = remainingOrigins;
+            this.setLinkAllOrigins(link, remainingOrigins);
+
+            if (remainingDistanceOrigins.length > 0) {
+                link.distanceOrigins = remainingDistanceOrigins;
+                link.distanceOrigin = remainingDistanceOrigins[0];
+                link.hasDistance = true;
+            } else {
+                link.hasDistance = false;
+                delete link.distanceOrigins;
+                delete link.distanceOrigin;
+                delete link.distance;
+            }
+
+            return true;
+        });
+
+        this.session.data.links = retainedLinks;
+        this.rebuildLinkMatrix();
+    }
+
+    async recomputeSequenceDerivedLinksForCurrentMetric(): Promise<boolean> {
+        if (!this.session.meta.anySequences) {
+            return false;
+        }
+
+        const subset = this.session.data.nodes.filter(this.hasSeq);
+        if (subset.length === 0) {
+            return false;
+        }
+
+        subset.forEach((node: any) => {
+            if (!node._seqInt && node.seq) {
+                node._seqInt = tn93.toInts(node.seq);
+            }
+        });
+
+        this.removeGeneticDistanceLinks();
+        await this.computeLinks(subset);
+        this.rebuildLinkMatrix();
+
+        return true;
     }
 
     public getSelectedNode(nodes: any[]): any {
@@ -996,7 +2103,9 @@ export class CommonService extends AppComponentBase implements OnInit {
           borderWidth: link.borderWidth ?? 1 // Default border width for links
         }));
 
-        console.log('--- TWOD convertToGraphDataArray end, ',links);
+        if (this.debugMode) {
+            console.log('--- TWOD convertToGraphDataArray end, ', links);
+        }
 
       
         return {
@@ -1137,7 +2246,8 @@ export class CommonService extends AppComponentBase implements OnInit {
     async applySession(stashObject: StashObjects) {
         //If anything here seems eccentric, assume it's to maintain compatibility with
         //session files from older versions of MicrobeTrace.
-        $("#launch").prop("disabled", true);
+        this.beginDataLoad();
+        $(".files-launch-action, #launch").prop("disabled", true);
 
          // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
@@ -1171,6 +2281,24 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const oldSession = stashObject.session;
+        const savedTabs = Array.isArray(stashObject.tabs) ? stashObject.tabs : [];
+
+        const normalizedDefaultView = this.normalizeViewName(oldSession?.style?.widgets?.['default-view']);
+        if (normalizedDefaultView && oldSession?.style?.widgets) {
+            oldSession.style.widgets['default-view'] = normalizedDefaultView;
+        }
+
+        const savedDashboardLayout = stashObject.dashboardLayout ?? oldSession?.dashboardLayout;
+        const normalizedDashboardLayout = this.normalizeDashboardLayout(savedDashboardLayout);
+
+        this.pendingDashboardRestore = normalizedDashboardLayout?.root
+            ? {
+                dashboardLayout: normalizedDashboardLayout,
+                tabs: savedTabs,
+                dashboardState: stashObject.dashboardState ?? oldSession?.dashboardState,
+            }
+            : this.buildLegacyDashboardRestoreState(oldSession, savedTabs);
+
         console.log('this.temp: ', this.temp);
         this.temp.matrix = [];
         this.session.files = oldSession.files;
@@ -1208,10 +2336,20 @@ export class CommonService extends AppComponentBase implements OnInit {
             if (oldSession.data[v]) this.session.data[v] = this.uniq(this.session.data[v].concat(oldSession.data[v]));
         });
 
+        if (typeof oldSession.data?.newickString === 'string') {
+            this.session.data.newickString = oldSession.data.newickString;
+        }
+        if (oldSession.data?.tree) {
+            this.session.data.tree = oldSession.data.tree;
+        }
+
         // TODO: See about this process data functionality.  DO we need this?
         this.processData();
 
         if (oldSession.network) this.session.network = oldSession.network;
+
+        this.session.network.initialLoad = true;
+        this.session.network.launched = true;
 
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
@@ -1226,6 +2364,15 @@ export class CommonService extends AppComponentBase implements OnInit {
             // if the value is an object, convert it to string "#000000"
             if (typeof this.session.style.nodeColorsTableHistory[key] == 'object') {
                 this.session.style.nodeColorsTableHistory[key] = "#000000";
+            }
+        })
+
+        if (!this.session.style.linkColorsTableHistory) {
+            this.session.style.linkColorsTableHistory = {};
+        }
+        Object.keys(this.session.style.linkColorsTableHistory).forEach(key => {
+            if (typeof this.session.style.linkColorsTableHistory[key] == 'object') {
+                this.session.style.linkColorsTableHistory[key] = "#000000";
             }
         })
 
@@ -1632,145 +2779,6 @@ parseFASTA(text): Promise<any> {
         return nodeCount;
     };
 
-    /**
-     * Generates new sequences
-     * ported from https://github.com/CDCgov/SeqSpawnR/blob/91d5857dbda5998839a002fbecae0f494dca960a/R/SequenceSpawner.R
-     * @param {string} idPrefix - prefix to label generated sequences
-     * @param {number} count - number of sequences to generate
-     * @param {number} snps - number of snps to add to a new sequence is random value from 0 - snps
-     * @param {string} seed -reference sequence for generating new sequences 
-     * @returns list of objects representings seq, each seq objects has {id: string, seq: string}
-     */
-    generateSeqs(idPrefix, count?, snps?, seed?) {
-        const start = Date.now();
-        if (!count) count = 1000;
-        if (!snps) snps = 100;
-        if (!seed) seed = this.session.data.reference;
-
-        const sampleCodons = [
-            "GCA",
-            "GCC",
-            "GCG",
-            "GCT",
-            "AAC",
-            "AAT",
-            "GAC",
-            "GAT",
-            "TGC",
-            "TGT",
-            "GAC",
-            "GAT",
-            "GAA",
-            "GAG",
-            "TTC",
-            "TTT",
-            "GGA",
-            "GGC",
-            "GGG",
-            "GGT",
-            "CAC",
-            "CAT",
-            "ATA",
-            "ATC",
-            "ATT",
-            "AAA",
-            "AAG",
-            "CTA",
-            "CTC",
-            "CTG",
-            "CTT",
-            "TTA",
-            "TTG",
-            "ATG",
-            "AAC",
-            "AAT",
-            "CCA",
-            "CCC",
-            "CCG",
-            "CCT",
-            "CAA",
-            "CAG",
-            "AGA",
-            "AGG",
-            "CGA",
-            "CGC",
-            "CGG",
-            "CGT",
-            "AGC",
-            "AGT",
-            "TCA",
-            "TCC",
-            "TCG",
-            "TCT",
-            "ACA",
-            "ACC",
-            "ACG",
-            "ACT",
-            "GTA",
-            "GTC",
-            "GTG",
-            "GTT",
-            "TGG",
-            "TAC",
-            "TAT",
-            "CAA",
-            "CAG",
-            "GAA",
-            "GAG"
-        ];
-        const sampleSNPs = ["A", "C", "G", "T"];
-
-        const sample = (vec, nCodons) => {
-            const samples = [];
-            for (let x = 0; x < nCodons; x++) {
-                let idx = Math.floor(this.r01() * vec.length);
-                samples.push(vec[idx]);
-            }
-            return samples;
-        }
-
-        const seqs = [];
-
-        seqs.push({ id: idPrefix + "0", seq: seed });
-
-        while (seqs.length < count) {
-            // number codons to vary
-            let nCodons = Math.floor(this.r01() * 10) + 1;
-
-            // randomly select this many to check for existence
-            const randomCodonSet = sample(sampleCodons, nCodons).join("");
-
-            // try again if not present
-            if (seqs[seqs.length - 1].seq.indexOf(randomCodonSet) == -1) continue;
-
-            // sequence to mutate
-            let oldseed = seqs[Math.floor(this.r01() * seqs.length)].seq;
-
-            // select codons to replace randomCodonSet
-            const replacementCodonSet = sample(sampleCodons, nCodons).join("");
-
-            // replace codon set
-            let newseed = oldseed.replace(randomCodonSet, replacementCodonSet);
-
-            // add snp substitutions randomly across entire sequence
-            // - randomly sample addedSNP
-            // - randomly pick SNPS to replace
-            let addedSNPs = Math.floor(this.r01() * snps);
-            for (let j = 0; j < addedSNPs; j++) {
-                let randomSNP = sample(sampleSNPs, 1)[0];
-                let locOfSNP = Math.floor(this.r01() * seed.length);
-                newseed =
-                    newseed.substr(0, locOfSNP) + randomSNP + newseed.substr(locOfSNP + 1);
-            }
-
-            seqs.push({ id: idPrefix + "" + seqs.length, seq: newseed });
-        }
-        if(this.debugMode) {
-            console.log("Sequence spawn time:", (Date.now() - start).toLocaleString(), 'ms');
-        }
-        return seqs;
-    };
-
     // Align function using a fresh align worker
 align(params): Promise<any> {
     return new Promise(resolve => {
@@ -1822,14 +2830,22 @@ align(params): Promise<any> {
       nodes = this.session.data.nodes.filter(d => d.seq);
     }
     return new Promise(resolve => {
+      const requestStart = Date.now();
       const consensusWorker = this.computer.getConsensusWorker();
       consensusWorker.postMessage({ data: nodes });
       
       const sub = consensusWorker.onmessage().subscribe((response) => {
+        const responseReceivedAt = Date.now();
         if (this.debugMode) {
-          console.log("Consensus Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+          console.log("Consensus Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
         }
-        resolve(this.decode(new Uint8Array(response.data.consensus)));
+        const consensus = this.decode(new Uint8Array(response.data.consensus));
+        this.recordPerformanceDuration('sequence', 'computeConsensus', responseReceivedAt - requestStart, {
+          sequences: nodes.length,
+          sequenceLength: consensus.length,
+          ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
+        });
+        resolve(consensus);
         consensusWorker.terminate();
         sub.unsubscribe();
       });
@@ -1840,6 +2856,7 @@ align(params): Promise<any> {
   // Compute ambiguity counts using a fresh ambiguity counts worker
   computeAmbiguityCounts(): Promise<void> {
     return new Promise(resolve => {
+      const requestStart = Date.now();
       let nodes = this.session.data.nodes;
       let subset = nodes.filter(d => d.seq);
       const subsetLength = subset.length;
@@ -1848,7 +2865,8 @@ align(params): Promise<any> {
       ambiguityWorker.postMessage(subset);
       
       const sub = ambiguityWorker.onmessage().subscribe((response) => {
-        console.log("Ambiguity Count Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+        const responseReceivedAt = Date.now();
+        console.log("Ambiguity Count Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
         const start = Date.now();
         const dists = new Float32Array(response.data.counts);
         for (let j = 0; j < subsetLength; j++) {
@@ -1856,6 +2874,11 @@ align(params): Promise<any> {
         }
         this.session.data.nodeFields.push('_ambiguity');
         console.log("Ambiguity Count Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        this.recordPerformanceDuration('sequence', 'computeAmbiguityCounts', Date.now() - requestStart, {
+          sequences: subsetLength,
+          mergeDurationMs: Date.now() - start,
+          ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
+        });
         resolve();
         ambiguityWorker.terminate();
         sub.unsubscribe();
@@ -1867,7 +2890,7 @@ align(params): Promise<any> {
   // Compute consensus distances using a fresh consensus worker
   computeConsensusDistances(): Promise<void> {
     return new Promise(resolve => {
-      let start = Date.now();
+      const requestStart = Date.now();
       let nodes = this.session.data.nodes;
       let nodesLength = nodes.length;
       let subset = [];
@@ -1885,18 +2908,25 @@ align(params): Promise<any> {
         data: {
           consensus: this.session.data['consensus'],
           subset: subset,
-          start: start
+          start: requestStart
         }
       });
       const sub = consensusWorker.onmessage().subscribe((response) => {
+        const responseReceivedAt = Date.now();
         const dists = new Uint16Array(response.data.dists);
-        console.log("Consensus Difference Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-        start = Date.now();
+        console.log("Consensus Difference Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
+        const mergeStart = Date.now();
         for (let j = 0; j < subsetLength; j++) {
           nodes[subset[j].index]._diff = dists[j];
         }
         this.session.data.nodeFields.push('_diff');
-        console.log("Consensus Difference Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+        console.log("Consensus Difference Merge time: ", (Date.now() - mergeStart).toLocaleString(), "ms");
+        this.recordPerformanceDuration('sequence', 'computeConsensusDistances', Date.now() - requestStart, {
+          nodes: nodesLength,
+          sequences: subsetLength,
+          mergeDurationMs: Date.now() - mergeStart,
+          ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
+        });
         resolve();
         consensusWorker.terminate();
         sub.unsubscribe();
@@ -1905,29 +2935,133 @@ align(params): Promise<any> {
   }
   
   
+  private getSequencePairwiseLinkGuardrails(): SequencePairwiseLinkGuardrails {
+    const overrides = (this.session?.meta as any)?.guardrails || {};
+    const warningThreshold = Number(overrides.sequencePairwiseLinkWarningThreshold);
+    const hardLimit = Number(overrides.sequencePairwiseLinkHardLimit);
+
+    return {
+      warningThreshold: Number.isFinite(warningThreshold) && warningThreshold > 0
+        ? warningThreshold
+        : DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD,
+      hardLimit: Number.isFinite(hardLimit) && hardLimit > 0
+        ? hardLimit
+        : DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT
+    };
+  }
+
+  private formatPerformanceCount(value: number): string {
+    return Number(value || 0).toLocaleString();
+  }
+
+  private buildSequencePairwiseLinkGuardrail(
+    sequenceCount: number,
+    pairCount: number,
+    metric: string,
+    guardrails: SequencePairwiseLinkGuardrails
+  ): SequencePairwiseLinkGuardrailResult | null {
+    const hardLimitHit = pairCount > guardrails.hardLimit;
+    const warningHit = hardLimitHit || pairCount >= guardrails.warningThreshold;
+
+    if (!warningHit) return null;
+
+    const message = hardLimitHit
+      ? `FASTA ${metric.toUpperCase()} distance generation would create ${this.formatPerformanceCount(pairCount)} pairwise genetic links, above the ${this.formatPerformanceCount(guardrails.hardLimit)} browser guardrail. MicrobeTrace skipped genetic-link generation for this sequence set; subset the FASTA, lower the analysis scope, or import a precomputed distance edge list.`
+      : `FASTA ${metric.toUpperCase()} distance generation will create ${this.formatPerformanceCount(pairCount)} pairwise genetic links, above the ${this.formatPerformanceCount(guardrails.warningThreshold)} browser warning threshold. This may take longer and use more memory in browser-based MicrobeTrace.`;
+
+    return {
+      warningThreshold: guardrails.warningThreshold,
+      hardLimit: guardrails.hardLimit,
+      pairCount,
+      sequenceCount,
+      warningHit,
+      hardLimitHit,
+      metric,
+      message
+    };
+  }
+
+  private recordSequencePairwiseLinkGuardrailWarning(guardrail?: SequencePairwiseLinkGuardrailResult | null): void {
+    if (!guardrail?.message) return;
+
+    if (!Array.isArray(this.session.warnings)) {
+      this.session.warnings = [];
+    }
+
+    const id = `sequence-pairwise-link-guardrail-${guardrail.metric}-${guardrail.sequenceCount}-${guardrail.hardLimit}`;
+    const existingIndex = this.session.warnings.findIndex((warning: any) => warning?.id === id);
+    const warning = {
+      id,
+      type: 'sequence-pairwise-link-guardrail',
+      severity: guardrail.hardLimitHit ? 'error' : 'warning',
+      message: guardrail.message,
+      metric: guardrail.metric,
+      sequenceCount: guardrail.sequenceCount,
+      pairCount: guardrail.pairCount,
+      warningThreshold: guardrail.warningThreshold,
+      hardLimit: guardrail.hardLimit,
+      hardLimitHit: guardrail.hardLimitHit,
+      recordedAt: Date.now()
+    };
+
+    if (existingIndex >= 0) {
+      this.session.warnings[existingIndex] = warning;
+    } else {
+      this.session.warnings.push(warning);
+    }
+  }
+
   // Compute links using a fresh links worker
   computeLinks(subset): Promise<any> {
     return new Promise(resolve => {
+      const computeLinksStart = Date.now();
       let k = 0;
+      const metric = this.session.style.widgets['default-distance-metric'];
+      const n = subset.length;
+      const pairCount = (n * (n - 1)) / 2;
+      const guardrails = this.getSequencePairwiseLinkGuardrails();
+      const guardrail = this.buildSequencePairwiseLinkGuardrail(n, pairCount, metric, guardrails);
+
+      this.recordSequencePairwiseLinkGuardrailWarning(guardrail);
+
+      if (guardrail?.hardLimitHit) {
+        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+          metric,
+          sequences: n,
+          pairCount,
+          generatedLinks: 0,
+          skippedByGuardrail: true,
+          workerComputeDurationMs: null,
+          roundTripDurationMs: null,
+          responseTransitDurationMs: null,
+          mergeDurationMs: 0,
+          guardrail
+        });
+        resolve(0);
+        return;
+      }
+
       const linksWorker = this.computer.getLinksWorker();
+      const workerRequestStart = Date.now();
       linksWorker.postMessage({
         nodes: subset,
-        metric: this.session.style.widgets['default-distance-metric'],
+        metric,
         strategy: this.session.style.widgets["ambiguity-resolution-strategy"],
         threshold: this.session.style.widgets["ambiguity-threshold"]
       });
       
       const sub = linksWorker.onmessage().subscribe((response) => {
-        let dists = this.session.style.widgets['default-distance-metric'].toLowerCase() === 'snps'
+        const responseReceivedAt = Date.now();
+        const workerTiming = this.buildWorkerTimingExtra(response.data, workerRequestStart, responseReceivedAt);
+        let dists = metric.toLowerCase() === 'snps'
           ? new Uint16Array(response.data.links)
           : new Float32Array(response.data.links);
         
         if (this.debugMode) {
-          console.log("Links Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+          console.log("Links Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
         }
-        let start = Date.now();
+        const start = Date.now();
         let check = this.session.files.length > 1;
-        let n = subset.length;
         let l = 0;
         console.log('link same compute---', n);
         for (let i = 0; i < n; i++) {
@@ -1948,6 +3082,18 @@ align(params): Promise<any> {
         if (this.debugMode) {
           console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
         }
+        const mergeDurationMs = Date.now() - start;
+        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+          metric,
+          sequences: n,
+          pairCount,
+          generatedLinks: k,
+          skippedByGuardrail: false,
+          workerDurationMs: workerTiming.responseTransitDurationMs,
+          mergeDurationMs,
+          ...workerTiming,
+          ...(guardrail ? { guardrail } : {})
+        });
         resolve(k);
         linksWorker.terminate();
         sub.unsubscribe();
@@ -2045,82 +3191,75 @@ align(params): Promise<any> {
           }
         });
       }
-      
-
-      computeDirectionality(): Promise<void> {
-        return new Promise(resolve => {
-          const directionalityWorker = this.computer.getDirectionalityWorker();
-          directionalityWorker.postMessage({
-            links: this.session.data.links,
-            tree: this.temp.tree
-          });
-          const sub = directionalityWorker.onmessage().subscribe((response) => {
-            const flips = new Uint8Array(response.data.output);
-            if (this.debugMode) {
-              console.log("Directionality Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-            }
-            const start = Date.now();
-            const n = flips.length;
-            for (let i = 0; i < n; i++) {
-              if (flips[i]) {
-                let fliplink = this.session.data.links[i];
-                let fliptemp = fliplink.source;
-                fliplink.source = fliplink.target;
-                fliplink.target = fliptemp;
-                fliplink.directed = true;
-              }
-            }
-            if (this.debugMode) {
-              console.log("Directionality Integration time: ", (Date.now() - start).toLocaleString(), "ms");
-            }
-            resolve();
-            directionalityWorker.terminate();
-            sub.unsubscribe();
-          });
-        });
-      }
-      
 
       computeMST(): Promise<void> {
+        const newickString = this.session.data?.newickString;
+        const hasNewickBackedSource = this.session.files?.some(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        );
+        if (hasNewickBackedSource && typeof newickString === 'string' && newickString.trim().length > 0) {
+            const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
+            const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
+            const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
+                file?.format === 'newick' || file?.format === 'auspice' ||
+                file?.datatype === 'newick' || file?.datatype === 'auspice'
+            )?.name || 'Newick Tree';
+            const origin = [distanceOrigin];
+
+            return this.workerComputeService.computePatristicNearestNeighborEdges(
+                newickString,
+                this.addLink.bind(this),
+                this.filterXSS,
+                this.session,
+                this.temp,
+                {
+                    origin,
+                    distanceOrigin,
+                    check: true,
+                }
+            ).then(() => undefined);
+        }
+
         return new Promise((resolve, reject) => {
             const links = this.session.data.links;
-        const found = links.find(l => 
-        (l.source === "MZ712879" && l.target === "MZ745515") ||
-        (l.source === "MZ745515" && l.target === "MZ712879")
-        );
-        console.log(" common service Found link in links array?", found);
-          const mstWorker = this.computer.getMSTWorker();
-          mstWorker.postMessage({
-            links: this.session.data.links,
-            matrix: this.temp.matrix,
-            epsilon: this.session.style.widgets["filtering-epsilon"],
-            metric: this.session.style.widgets['link-sort-variable']
-          });
-          const sub = mstWorker.onmessage().subscribe((response) => {
-            if (response.data === "Error") {
-              return reject("MST washed out");
-            }
-            const output = new Uint8Array(response.data.links);
-            if (this.debugMode) {
-              console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-            }
-            const start = Date.now();
-            let links = this.session.data.links;
-            const numLinks = links.length;
-            console.log('-----setting NN');
-            for (let i = 0; i < numLinks; i++) {
-              links[i].nn = output[i] ? true : false;
-              if(output[i] ? true : false){
-                console.log('-- NN true: ', _.cloneDeep(links[i]));
-              }
-            }
-            if (this.debugMode) {
-              console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
-            }
-            resolve();
-            mstWorker.terminate();
-            sub.unsubscribe();
-          });
+            const found = links.find(l =>
+                (l.source === "MZ712879" && l.target === "MZ745515") ||
+                (l.source === "MZ745515" && l.target === "MZ712879")
+            );
+            console.log(" common service Found link in links array?", found);
+            const mstWorker = this.computer.getMSTWorker();
+            mstWorker.postMessage({
+                links: this.session.data.links,
+                matrix: this.temp.matrix,
+                epsilon: this.session.style.widgets["filtering-epsilon"],
+                metric: this.session.style.widgets['link-sort-variable']
+            });
+            const sub = mstWorker.onmessage().subscribe((response) => {
+                if (response.data === "Error") {
+                    return reject("MST washed out");
+                }
+                const output = new Uint8Array(response.data.links);
+                if (this.debugMode) {
+                    console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+                }
+                const start = Date.now();
+                let links = this.session.data.links;
+                const numLinks = links.length;
+                console.log('-----setting NN');
+                for (let i = 0; i < numLinks; i++) {
+                    links[i].nn = output[i] ? true : false;
+                    if(output[i] ? true : false){
+                        console.log('-- NN true: ', _.cloneDeep(links[i]));
+                    }
+                }
+                if (this.debugMode) {
+                    console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+                }
+                resolve();
+                mstWorker.terminate();
+                sub.unsubscribe();
+            });
         });
       }
       
@@ -2128,39 +3267,79 @@ align(params): Promise<any> {
 
       computeNN(): Promise<void> {
         return this.workerComputeService.computeNN(this.session, this.temp);
-      }
-      
+    }
 
-     public computeTriangulation() {
-        this.workerComputeService.computeTriangulation(this.session, this.temp, this.addLink.bind(this))
-        .then(() => {
-          // continue processing after triangulation is complete
-        })
-        .catch(error => {
-          console.error('Error in triangulation:', error);
-        });
+    ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
+        const newickString = this.session.data?.newickString;
+        const hasNewickBackedSource = this.session.files?.some(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        );
+
+        if (!hasNewickBackedSource || typeof newickString !== 'string' || newickString.trim().length === 0) {
+            return Promise.resolve(null);
+        }
+
+        const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
+        const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
+        const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        )?.name || 'Newick Tree';
+        const origin = [distanceOrigin];
+
+        return this.workerComputeService.ensurePatristicEdgesForThreshold(
+            threshold,
+            this.addLink.bind(this),
+            this.filterXSS,
+            this.session,
+            {
+                origin,
+                distanceOrigin,
+                check: true,
+                newickString,
+            }
+        );
     }
 
     async runHamsters() {
 
+        const runHamstersStart = Date.now();
         console.log('running hamsters');
-        if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
+        //if (!this.session.style.widgets['triangulate-false']) this.computeTriangulation();
         // this.computeNN();
-        console.log('run ham computeTree');
-        await this.computeTree();
-        console.log('compute tree end');
-        if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
+        let hasDistances = this.session.data.links.some(l => l.hasDistance === true && l.distance > 0)
+        let hasNewickString = typeof this.session.data.newickString === 'string' && this.session.data.newickString.trim().length > 0;
+        let computedTree = false;
+        if (hasDistances && this.session.data.links.length <= 2500 && !hasNewickString) {
+            console.log('run ham computeTree');
+            const newickString = await this.computeTree();
+            this.session.data.newickString = newickString;
+            computedTree = true;
+            console.log('compute tree end');
+        }
+        //if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
         this.finishUp();
+        this.recordPerformanceTiming('load', 'runHamsters', runHamstersStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            hasDistances,
+            hasNewickString,
+            computedTree
+        });
     };
 
     /**
-     * Sets node/link values to null when they aren't present. Check each field in nodeField and linkFields, and if the key includes 'date', sets any null or empty string
-     * value to the min date value found. Populates options for #search-field, #link-sort-variable, #node-color-variable, #link-color-variable, set value for #default-distance-metric.
-     * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility, setLinkVisibilty, setNodeVisibility functions. Updates network statistic table.
+     * Sets node/link values to null when they aren't present. Populates options for
+     * #search-field, #link-sort-variable, #node-color-variable, #link-color-variable,
+     * and sets the value for #default-distance-metric.
+     * Next calls updateThresholdHistogram, tagClusters, setClusterVisibility,
+     * setLinkVisibilty, and setNodeVisibility. Updates network statistic table.
      * Launches default view.
      */
     async finishUp() {
 
+        const finishUpStart = Date.now();
         clearTimeout(this.temp.messageTimeout);
 
         console.log('----- finishUp called');
@@ -2169,6 +3348,7 @@ align(params): Promise<any> {
         console.log('----- finishUp -- node/link fields');
 
         // cycles through each node and link and if variable in nodeFields/linkFields not a key for the node/link, it is added with value of null
+        const fieldNormalizationStart = Date.now();
         ["node", "link"].forEach(v => {
             let n = this.session.data[v + "s"].length;
             let fields = this.session.data[v + "Fields"];
@@ -2179,42 +3359,14 @@ align(params): Promise<any> {
                 });
             }
         });
+        this.recordPerformanceTiming('load', 'finishUpFieldNormalization', fieldNormalizationStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            nodeFields: this.session.data.nodeFields.length,
+            linkFields: this.session.data.linkFields.length
+        });
 
-        console.log('----- finishUp -- patch missing date fields');
-
-         // patch missing date fields to earliest date in the the data
-        let fields = this.session.data["nodeFields"];
-        let nodeSkeleton = this.dataSkeleton();
-        let fieldsToCheck = fields.filter(f => !nodeSkeleton.nodeFields.includes(f) && f != '_ambiguity' && f != '_diff'); 
-        let n = this.session.data.nodes.length;
-        let k = fieldsToCheck.length;
-        // for each field in fieldsToCheck (fieldsToCheck are nodeFields that are not default from dataSkeleton() and also not '_ambiguity' and not '_diff' )
-        for (let j = 0; j < k; j++) {
-            const field = fieldsToCheck[j];
-            const times = [];
-            // for each node check if node[field] is valid time and if so push to times []
-            for (let i = 0; i < n; i++) {
-                let node = this.session.data.nodes[i];
-                if (node[field] != null) {
-                    const time = moment(node[field]); 
-                    if (time.isValid() && isNaN(node[field])) //#315
-                        times.push(time.toDate());
-                }
-            }
-
-            // If column has the word date in it, date expected to be in column 
-            if (field.toLowerCase().includes("date")){
-        
-                const minTime = Math.min(...times);
-                const minTimeString = new Date(minTime).toString();
-                // for each node d, if d[field] == null or empty string ("", " ", "  " ...) set d[field] to minTimeString
-                this.session.data.nodes.forEach(d => {
-                    if (d[field] == null || (d[field] && String(d[field]).trim() == "") || d[field] == 'null')  {
-                        d[field] = minTimeString;
-                    } 
-                });
-            }
-        };
+        // Files tab updates now choose explicitly whether settings are preserved or reset.
 
         // TODO:: See if this is needed
         // this.foldMultiSelect();
@@ -2231,7 +3383,7 @@ align(params): Promise<any> {
         $("#node-color-variable")
             .html(
                 "<option selected>None</option>" +
-                this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);
@@ -2318,21 +3470,53 @@ align(params): Promise<any> {
         // }, 1000);
         $(".hideForHIVTrace").css("display", "flex");
         this.store.updatecurrentThresholdStepSize(this.session.style.widgets["default-distance-metric"]);
+        this.recordPerformanceTiming('load', 'finishUpSync', finishUpStart, {
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            defaultView: this.session.style.widgets['default-view']
+        });
     };
 
 
-    updateNetworkVisuals(silent: boolean = false) {
+    updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
+        const updateStart = Date.now();
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+        const getVisibleLinkKey = (link: any): string => String(
+          link.id ?? link.index ?? [link.source, link.target, link.distance].join('|')
+        );
+        const prevVisibleLinkKeys = new Set(
+          this.session.data.links
+            .filter(link => link.visible)
+            .map(link => getVisibleLinkKey(link))
+        );
+
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
           this.setLinkVisibility(true);
+          // Link origin filtering can change the active color-domain during data updates.
+          this.createLinkColorMap();
+          this.visuals?.microbeTrace?.publishUpdateLinkColor?.();
           this.updateStatistics();
           if (!silent) this.store.setNetworkUpdated(true);
           let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
           let updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
-          if (!silent && (prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters || prevVisNodeCount != updatedVisNodeCount)) {
+          const updatedVisibleLinkKeys = new Set(
+            this.session.data.links
+              .filter(link => link.visible)
+              .map(link => getVisibleLinkKey(link))
+          );
+          const visibleLinksChanged =
+            prevVisibleLinkKeys.size !== updatedVisibleLinkKeys.size ||
+            Array.from(prevVisibleLinkKeys).some((key) => !updatedVisibleLinkKeys.has(key));
+
+          if (!silent && (
+            prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters ||
+            prevVisNodeCount != updatedVisNodeCount ||
+            visibleLinksChanged ||
+            forceClusterUpdate
+          )) {
             console.log('Triggering cluster count update')
             this.store.triggerClusterUpdate();
           }
@@ -2340,8 +3524,20 @@ align(params): Promise<any> {
           console.log('---- Update network visuals end');
 
           console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
+            const firstLoad = !this.session.network.isFullyLoaded;
+            this.recordPerformanceTiming('network', 'updateNetworkVisuals', updateStart, {
+                silent,
+                forceClusterUpdate,
+                firstLoad,
+                nodes: this.session.data.nodes.length,
+                links: this.session.data.links.length,
+                clusters: this.session.data.clusters.length,
+                visibleNodes: updatedVisNodeCount,
+                visibleClusters: updatedNumberOfVisibleClusters,
+                visibleLinks: updatedVisibleLinkKeys.size
+            });
             // If network wasn't loaded already, launch default view
-            if (!this.session.network.isFullyLoaded) {
+            if (firstLoad) {
                 this.session.meta.loadTime = Date.now() - this.session.meta.startTime;
                 console.log("Total load time Update Network:", this.session.meta.loadTime.toLocaleString(), "ms");
                 this.launchView(this.session.style.widgets['default-view']);
@@ -2372,6 +3568,56 @@ align(params): Promise<any> {
                 }
             }
         }
+        return out;
+    };
+
+    private buildNonTimelineVisibleClusterSummary() {
+        const nodes = this.session.data.nodeFilteredValues || [];
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const minClusterSize = Number(this.session.style.widgets["cluster-minimum-size"] ?? 1);
+        const summary = buildVisibleClusterSummary(
+            nodes,
+            this.getVisibleLinksIgnoringTimeline(),
+            metric
+        );
+
+        summary.clusters.forEach(cluster => {
+            cluster.visible = cluster.nodes >= minClusterSize;
+        });
+
+        return summary;
+    };
+
+    /**
+     * Gets nodes that remain available to non-target data views when Timeline is active.
+     * This preserves the current non-timeline filtering state (for example cluster visibility)
+     * while ignoring the timeline-specific node visibility gate.
+     */
+    getVisibleNodesIgnoringTimeline(copy: any = false) {
+        const nodes = this.session.data.nodeFilteredValues || [];
+        const summary = this.buildNonTimelineVisibleClusterSummary();
+        const out = [];
+
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const clusterId = summary.nodeClusterByIndex[i];
+            const cluster = summary.clusters[clusterId];
+            const visibleIgnoringTimeline = !cluster || cluster.visible;
+
+            if (!visibleIgnoringTimeline) {
+                continue;
+            }
+
+            const normalizedNode = {
+                ...node,
+                cluster: clusterId,
+                degree: summary.degrees[i] ?? 0,
+                visible: true,
+            };
+
+            out.push(copy ? JSON.parse(JSON.stringify(normalizedNode)) : normalizedNode);
+        }
+
         return out;
     };
 
@@ -2407,6 +3653,31 @@ align(params): Promise<any> {
     };
 
     /**
+     * Gets links for non-target data views while preserving all non-timeline filters.
+     * Link visibility is currently computed independently of the timeline node gate, so the
+     * existing visible-link contract is already the correct non-timeline dataset source.
+     */
+    getVisibleLinksIgnoringTimeline(copy: any = false) {
+        return this.getVisibleLinks(copy);
+    };
+
+    /**
+     * Gets visible clusters for non-target data views while ignoring the timeline-specific node gate.
+     * Cluster visibility is recomputed from the current non-timeline visible graph so hidden tabs and
+     * non-target data views do not depend on mutable session cluster state.
+     */
+    getVisibleClustersIgnoringTimeline(copy: any = false) {
+        const visibleClusters = this.buildNonTimelineVisibleClusterSummary().clusters
+            .filter(cluster => cluster.visible);
+
+        if (!copy) {
+            return visibleClusters;
+        }
+
+        return visibleClusters.map(cluster => JSON.parse(JSON.stringify(cluster)));
+    };
+
+    /**
      * Gets a list of all visible cluster objects
      * @param {boolean} [copy=false] - optional boolean value to set if you want to deepcopy the cluster
      * @returns a list of cluster objects
@@ -2439,42 +3710,68 @@ align(params): Promise<any> {
      */
     updateStatistics() {
 
-        if ($("#network-statistics-hide").is(":checked")) return;
+        const start = Date.now();
+        if ($("#network-statistics-hide").is(":checked")) {
+            this.recordPerformanceTiming('statistics', 'updateStatistics', start, {
+                skipped: true,
+                reason: 'hidden'
+            });
+            return;
+        }
         let vnodes = this.getVisibleNodes();
         let vlinks = this.getVisibleLinks();
         console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
-        if (this.session.style.widgets["timeline-date-field"] == 'None') {
+        let singletons = 0;
+        const timelineDateField = this.session.style.widgets["timeline-date-field"];
+        const timelineMode = timelineDateField != 'None';
+        if (!timelineMode) {
             linkCount = vlinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
               cluster => cluster.visible && cluster.nodes > 1).length;
+            singletons = vnodes.filter(d => d.degree == 0).length;
         } else {
-            let n = vlinks.length;
-            for (let i = 0; i < n; i++) {
-                const src = vnodes.find(d => d._id == vlinks[i].source || d.id == vlinks[i].source);
-                const tgt = vnodes.find(d => d._id == vlinks[i].target || d.id == vlinks[i].target);
-                if (src && tgt) linkCount++;
-            }
-            
-            n = vnodes.length;
-            const clusters = {};
-            for (let i = 0; i < n; i++) {
-                const id = vnodes[i].cluster;
-                if (clusters[id]) clusters[id]++;
-                else clusters[id] = 1;
-            }
-            clusterCount = this.session.data.clusters.filter(cluster => clusters[cluster.id] && clusters[cluster.id]>0 && cluster.visible && cluster.nodes > 1).length;
+            const metric = this.session.style.widgets["link-sort-variable"];
+            const visibleNodeIds = new Set(
+                vnodes.map(node => String(node._id ?? node.id ?? ''))
+            );
+            const timelineLinks = vlinks.filter(link => {
+                return visibleNodeIds.has(String(link.source)) && visibleNodeIds.has(String(link.target));
+            });
+            const timelineSummary = buildVisibleClusterSummary(
+                vnodes,
+                timelineLinks.map(link => ({ ...link, visible: true })),
+                metric
+            );
 
+            linkCount = timelineLinks.length;
+            clusterCount = timelineSummary.clusterCount;
+            singletons = timelineSummary.singletonCount;
         }
-        const singletons = vnodes.filter(d => d.degree == 0).length;
         $("#numberOfSelectedNodes").text(vnodes.filter(d => d.selected).length.toLocaleString());
         $("#numberOfNodes").text(vnodes.length.toLocaleString());
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
-        $("#currentLinkThreshold").text(this.session.style.widgets['link-threshold'].toLocaleString());
+        $("#currentLinkThreshold").text(this.formatDisplayedDistanceValue(
+            Number(this.session.style.widgets['link-threshold']),
+            this.session.style.widgets['link-sort-variable']
+        ));
+        this.recordPerformanceTiming('statistics', 'updateStatistics', start, {
+            timelineMode,
+            timelineDateField,
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            clusters: this.session.data.clusters.length,
+            visibleNodes: vnodes.length,
+            rawVisibleLinks: vlinks.length,
+            visibleLinks: linkCount,
+            visibleClusters: clusterCount,
+            singletonNodes: singletons,
+            selectedNodes: vnodes.filter(d => d.selected).length
+        });
     };
 
    /**
@@ -2563,6 +3860,7 @@ align(params): Promise<any> {
         const linkAlphas = this.session.style.linkAlphas;       // e.g. [1, 1, ...]
         const linkColorsTable = this.session.style.linkColorsTable;
         const linkColorsTableKeys = this.session.style.linkColorsTableKeys;
+        const linkColorsTableHistory = this.session.style.linkColorsTableHistory;
         
         // 2) Delegate to colorMappingService
         const result = this.colorMappingService.createLinkColorMap(
@@ -2572,6 +3870,7 @@ align(params): Promise<any> {
           linkAlphas,
           linkColorsTable,
           linkColorsTableKeys,
+          linkColorsTableHistory,
           this.debugMode
         );
 
@@ -2585,6 +3884,7 @@ align(params): Promise<any> {
         this.session.style.linkAlphas       = result.updatedLinkAlphas;
         this.session.style.linkColorsTable  = result.updatedLinkColorsTable;
         this.session.style.linkColorsTableKeys = result.updatedLinkColorsTableKeys;
+        this.session.style.linkColorsTableHistory = result.updatedLinkColorsTableHistory;
       
         console.log('create link color map 1: ', this.session.style.linkColorsTable);
         console.log('create link color map 2: ', this.session.style.linkColorsTableKeys);
@@ -2633,7 +3933,9 @@ align(params): Promise<any> {
             }));
 
             this.temp.polygonGroups = polygonGroups;
-            this.session.style.widgets['polygon-color-table-visible'] = true;
+            if (this.session.style.widgets['polygon-color-table-visible'] == null) {
+                this.session.style.widgets['polygon-color-table-visible'] = 'Dock';
+            }
         }
 
         const result = this.colorMappingService.createPolygonColorMap(
@@ -2689,8 +3991,7 @@ align(params): Promise<any> {
     };
 
     /**
-     * Sets the following objects back to default values: commonService.temp.matrix, commonService.temp.tree, commonService.session.data, commonService.session.network,
-     * commonService.session.style.widgets. Filters 'Demo_outbreak_NodeList.csv' from files
+     * Rebuilds loaded graph data while preserving the current analysis settings.
      */
     resetData() {
 
@@ -2721,15 +4022,6 @@ align(params): Promise<any> {
 
         this.session.files = files;
         this.session.meta = meta;
-        this.session.style.widgets = this.defaultWidgets();
-        
-
-        // default values are 'tn93' and 0.015, so not sure if this if statement is every true
-        if (this.session.style.widgets['default-distance-metric'] !== 'snps' &&
-          this.session.style.widgets['link-threshold'] >= 1) {
-          this.visuals.microbeTrace.SelectedLinkThresholdVariable = this.session.style.widgets['link-threshold'];
-          this.visuals.microbeTrace.onLinkThresholdChanged();
-        }
     };
 
     getJurisdictions(): Promise<JurisdictionItem[]>{
@@ -2740,7 +4032,7 @@ align(params): Promise<any> {
             })
             .catch(error => {
                 console.error('Error fetching jurisdictions:', error);
-                throw error;
+                throw new Error('Unable to load jurisdiction reference data.');
             });
 
         // let options : any = {
@@ -2904,6 +4196,27 @@ align(params): Promise<any> {
         return (JSON.stringify(thing).length / 1024 / 1024).toLocaleString() + 'MB';
     };
 
+    normalizeStyleCategoryValue(value: any): string {
+        if (value === undefined || value === null) {
+            return 'null';
+        }
+
+        if (typeof value === 'number' && Number.isNaN(value)) {
+            return 'null';
+        }
+
+        if (typeof value === 'string') {
+            const trimmedValue = value.trim().toLowerCase();
+            if (trimmedValue === '' || trimmedValue === 'nan') {
+                return 'null';
+            }
+
+            return String(value);
+        }
+
+        return String(value);
+    }
+
     /**
      * Converts commonly used titles to a standard output; for less common titles nothing is changed
      * @param {string} title 
@@ -2929,115 +4242,35 @@ align(params): Promise<any> {
      */
     tagClusters(): Promise<void> {
         return new Promise<void>(resolve => {
-            let start = Date.now();
-            let clusters = this.session.data.clusters = [];
-            let nodes = this.session.data.nodes,
-                links = this.session.data.links,
-                labels = nodes.map(d => d._id);
-            const numNodes = nodes.length,
-                numLinks = links.length;
-            let tempnodes = this.temp.nodes = [];
-            let lsv = this.session.style.widgets["link-sort-variable"];
+            const start = Date.now();
+            const metric = this.session.style.widgets["link-sort-variable"];
+            const summary = buildVisibleClusterSummary(
+                this.session.data.nodes,
+                this.session.data.links,
+                metric
+            );
 
-            /**
-             * A function that performs a depth-first search.
-             * @param id - The ID of the node to start the search from.
-             * @param cluster - The cluster to search in.
-             * @returns {void}
-             */
-            const DFS = (id, cluster) => {
-                // if id is found in tempNode exit function
-                if (tempnodes.indexOf(id) >= 0) return;
-                // else add it, and continue DFS
-                tempnodes.push(id);
-                let node: any = {};
-                for (let i = 0; i < numNodes; i++) {
-                    const d = nodes[i];
-                    if (!d._id) {
-                        d._id = d.id;
-                    }
-                    if (d._id == id) {
-                        node = d;
-                        break;
-                    }
-                }
-                const clusterID = cluster.id;
-                node.cluster = clusterID;
-                cluster.nodes++;
-                let row = this.temp.matrix[id];
-                if (!row) return;
-                for (let j = 0; j < numNodes; j++) {
-                    const l = row[labels[j]];
-                    if (!l) continue;
-                    if (!l.visible) continue;
-                    l.cluster = clusterID;
-                    cluster.links++;
-                    cluster.sum_distances += l[lsv];
-                    if (tempnodes.length == numNodes) return;
-                    // recursively call DFS on both source and target
-                    DFS(l.source, cluster);
-                    DFS(l.target, cluster);
-                }
-            }; // DFS function close
+            this.session.data.clusters = summary.clusters;
+            this.temp.nodes = [];
 
-           nodes.forEach(d => {
-                d.degree = 0;
-                const id = d._id;
+            this.session.data.nodes.forEach((node, index) => {
+                node.cluster = summary.nodeClusterByIndex[index];
+                node.degree = summary.degrees[index];
+            });
 
-                // if id isn't in temp nodes, add new cluster and do DFS
-                if (tempnodes.indexOf(id) == -1) {
+            this.session.data.links.forEach((link, index) => {
+                link.cluster = summary.linkClusterByIndex[index];
+            });
 
-                    const cluster = {
-                        id: clusters.length > 0 ? clusters.length : 0,
-                        nodes: 0,
-                        links: 0,
-                        sum_distances: 0,
-                        links_per_node: 0,
-                        mean_genetic_distance: undefined,
-                        visible: true
-                    };
-
-
-                    clusters.push(cluster);
-                    DFS(id, cluster);
-                    if (tempnodes.length == numNodes) return;
-                }
-            })
-
-            if(this.debugMode) {
+            if (this.debugMode) {
                 console.log("Cluster Tagging time:", (Date.now() - start).toLocaleString(), "ms");
             }
-
-            start = Date.now();
-            //This is O(N^3)
-            //TODO: Refactor using temp.matrix to get O(N^2)
-            for (let m = 0; m < numLinks; m++) {
-                const l = links[m];
-                if (!l.visible) continue;
-                let s = false,
-                    t = false;
-                for (let n = 0; n < numNodes; n++) {
-                    const node = nodes[n];
-                    if (l.source == node._id) {
-                        s = true;
-                        node.degree++;
-                    }
-                    if (l.target == node._id) {
-                        t = true;
-                        node.degree++;
-                    }
-                    if (s && t) break;
-                }
-            }
-            // console.log('clustersssss: ' , clusters);
-            clusters.forEach(c => {
-                c.links = c.links / 2;
-                c.links_per_node = c.links / c.nodes;
-                c.mean_genetic_distance = c.sum_distances / 2 / c.links;
+            this.recordPerformanceTiming('network', 'tagClusters', start, {
+                nodes: this.session.data.nodes.length,
+                links: this.session.data.links.length,
+                clusters: this.session.data.clusters.length,
+                metric
             });
-            if(this.debugMode) {
-                console.log("Degree Computation time:", (Date.now() - start).toLocaleString(), "ms");
-            }
             resolve();
         });
     };
@@ -3053,6 +4286,7 @@ align(params): Promise<any> {
         let nodes = this.session.data.nodes,
             clusters = this.session.data.clusters;
         let n = nodes.length;
+        let visibleNodes = 0;
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
@@ -3067,8 +4301,15 @@ align(params): Promise<any> {
                 node.visible = node.visible && cluster.visible;
             }
             if (dateField != "None") {
-                node.visible = node.visible && (moment(this.session.state.timeEnd).toDate() >= moment(node[dateField]).toDate() || node[dateField] == null);
+                const rawDateValue = node[dateField];
+                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                    node.visible =
+                        node.visible &&
+                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                }
             }
+
+            if (node.visible) visibleNodes++;
 
             // if (node._id === "NIMR_NG894803") {
             //     console.log('setting node vis 2: ', _.cloneDeep(node));
@@ -3079,8 +4320,15 @@ align(params): Promise<any> {
             $(document).trigger("node-visibility");
         } 
 
+        this.recordPerformanceTiming('network', 'setNodeVisibility', start, {
+            nodes: n,
+            visibleNodes,
+            silent,
+            dateField
+        });
+
         if(this.debugMode) {
-            console.log('--- Set node viz nodes length: ', nodes.filter(n => n.visible).length);
+            console.log('--- Set node viz nodes length: ', visibleNodes);
             console.log("Node Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");        
         }
        
@@ -3099,7 +4347,8 @@ align(params): Promise<any> {
         let links = this.session.data.links;
         let clusters = this.session.data.clusters;
         let n = links.length;
-        const globalOriginOrder = this.session.style.widgets['link-origin-array-order']; // Get the global order once
+        let visibleLinks = 0;
+        const globalOriginOrder = this.normalizeLinkOrigins(this.session.style.widgets['link-origin-array-order']);
     
     
         if(this.debugMode) {
@@ -3114,34 +4363,28 @@ align(params): Promise<any> {
         for (let i = 0; i < n; i++) {
     
             const link = links[i]; // Reference to the object in session.data.links
-    
-            // *** Step 1: Use a copy for checks ***
-            let finalOrigins = [...link.origin]; // Copy origins for visibility logic
-    
+            const distanceOrigins = this.getLinkDistanceOrigins(link);
+            const allOrigins = this.getLinkAllOrigins(link);
+
+            distanceOrigins.forEach(distanceOrigin => {
+                if (!allOrigins.includes(distanceOrigin)) {
+                    allOrigins.push(distanceOrigin);
+                }
+            });
+            this.setLinkAllOrigins(link, allOrigins);
+
+            let finalOrigins = [...allOrigins];
+
             let visible = true;
             let overrideNN = false;
-            let originWasFiltered = false; // *** Step 2: Add flag ***
-    
-            // Add back the distance origin to the *copy* if it was removed (Safeguard)
-            // Check against original link.origin, add to finalOrigins if needed
-            if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
-                 if (!finalOrigins.includes(link.distanceOrigin)) { // Avoid duplicates in copy
-                    finalOrigins.push(link.distanceOrigin);
-                 }
-            }
-            // Also ensure distanceOrigin exists in original if it should
-             if ( link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
-                 link.origin.push(link.distanceOrigin); // Ensure original has it too if missing
-             }
     
     
             // Visibility Logic based on metric/threshold/hasDistance
             if (link[metric] == null) { // No distance value for the current metric
                  // Check for non-distance origins using the *copy*
-                if (finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin)).length > 0) {
+                if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
                     // Filter the *copy* for visibility check
-                    finalOrigins = finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin));
-                    originWasFiltered = true; // *** Mark as filtered ***
+                    finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
                     overrideNN = true;
                     visible = true;
                 } else {
@@ -3154,19 +4397,18 @@ align(params): Promise<any> {
                          // Distance is above threshold. Check for other origins using the *copy*.
                         if (finalOrigins.filter(fileName => {
                                  const hasAuspice = /[Aa]uspice/.test(fileName); // Preserved Auspice check
-                                 const includesDistanceOrigin = link.distanceOrigin && fileName.includes(link.distanceOrigin);
+                                 const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
                                  return fileName && !includesDistanceOrigin && !hasAuspice;
                              }).length > 0
                         ) {
                             // Filter the *copy* for visibility check
-                             finalOrigins = finalOrigins.filter(fileName => {
-                                 const hasAuspice = /[Aa]uspice/.test(fileName);
-                                 const includesDistanceOrigin = link.distanceOrigin && fileName.includes(link.distanceOrigin);
-                                 return fileName && !includesDistanceOrigin && !hasAuspice;
-                             });
-                             originWasFiltered = true; // *** Mark as filtered ***
-                             overrideNN = true;
-                             visible = true;
+                              finalOrigins = finalOrigins.filter(fileName => {
+                                  const hasAuspice = /[Aa]uspice/.test(fileName);
+                                  const includesDistanceOrigin = this.isDistanceBackedOrigin(fileName, distanceOrigins);
+                                  return fileName && !includesDistanceOrigin && !hasAuspice;
+                              });
+                              overrideNN = true;
+                              visible = true;
                          }
                          // If only distance origin existed and it's above threshold, 'visible' remains false.
                     }
@@ -3183,11 +4425,10 @@ align(params): Promise<any> {
                  visible = visible && link.nn;
                  if (!visible && wasVisible) { // Check if NN made it invisible
                       // Check *copy* for other origins
-                     if (finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin)).length > 0) {
-                         // Filter the *copy*
-                         finalOrigins = finalOrigins.filter(fileName => !link.distanceOrigin || !fileName.includes(link.distanceOrigin));
-                         originWasFiltered = true; // *** Mark as filtered ***
-                         visible = true; // Keep visible due to non-distance origin
+                     if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
+                          // Filter the *copy*
+                          finalOrigins = finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins));
+                          visible = true; // Keep visible due to non-distance origin
                      }
                  }
             }
@@ -3198,32 +4439,10 @@ align(params): Promise<any> {
                 visible = visible && cluster.visible;
             }
     
-            // --- Step 3: Apply Final Origin Array Conditionally ---
-            if (visible) {
-                 if (originWasFiltered) {
-                     // If filtering occurred *during visibility checks*, assign the filtered result
-                     link.origin = finalOrigins;
-                 } else if (link.origin.length > 1 && globalOriginOrder.length > 1) {
-                      // If NO filtering occurred, it's visible, has multiple origins,
-                      // and global order exists, apply the global order.
-                     // Check if the link's current origins fundamentally match the global order content
-                     // (ignoring order initially) to prevent applying the wrong order set.
-                     const linkOriginSet = new Set(link.origin);
-                     const globalOrderSet = new Set(globalOriginOrder);
-                     if (linkOriginSet.size === globalOrderSet.size && [...linkOriginSet].every(item => globalOrderSet.has(item))) {
-                        link.origin = globalOriginOrder;
-                     } else {
-                        // Log a warning if sets don't match - indicates potential issue in global order management
-                         console.warn("Link origin set doesn't match global order set. Not applying global order.", link.id, link.origin, globalOriginOrder);
-                         // Keep link.origin as it was after addLink
-                     }
-                 }
-                 // If visible and single origin, or global order not set/relevant,
-                 // link.origin correctly retains its value from addLink.
-            }
-            // If not visible, link.origin is left as is.
+            link.origin = this.orderLinkOriginsForDisplay(finalOrigins, globalOriginOrder);
     
             link.visible = visible; // Set final visibility
+            if (visible) visibleLinks++;
     
         } // End of loop
     
@@ -3235,6 +4454,16 @@ align(params): Promise<any> {
         }
     
     
+        this.recordPerformanceTiming('network', 'setLinkVisibility', start, {
+            links: n,
+            visibleLinks,
+            silent,
+            checkCluster,
+            metric,
+            threshold,
+            showNN
+        });
+
         if(this.debugMode) {
             console.log("Link Visibility Setting time:", (Date.now() - start).toLocaleString(), "ms");
         }
@@ -3249,7 +4478,9 @@ align(params): Promise<any> {
         let min = this.session.style.widgets["cluster-minimum-size"];
         let clusters = this.session.data.clusters;
         let n = clusters.length;
-        console.log('cluster nodes ', clusters);
+        if (this.debugMode) {
+            console.log('cluster nodes ', clusters);
+        }
         for (let i = 0; i < n; i++) {
             const cluster = clusters[i];
            
@@ -3298,6 +4529,7 @@ align(params): Promise<any> {
         let width = 260,
         height = 48,
         svg = null;
+        const readout = $("#threshold-sparkline-readout");
 
         // Update histogram so that it can be altered outside of the main wrapper 
         if(histogram){
@@ -3310,19 +4542,20 @@ align(params): Promise<any> {
         .attr("width", width)
         .attr("height", height);
 
-        // add all link distances to data, find max and min distances
-        let lsv = this.session.style.widgets["link-sort-variable"],
-            n = this.session.data.links.length,
-            max = Number.MIN_SAFE_INTEGER,
-            min = Number.MAX_SAFE_INTEGER,
-            data = Array(n),
-            dist = null;
-        for (let i = 0; i < n; i++) {
-            dist = this.session.data.links[i][lsv];
-            data[i] = dist;
-            if (dist < min) min = dist;
-            if (dist > max) max = dist;
+        const lsv = this.session.style.widgets["link-sort-variable"];
+        const distanceCache = this.getStoredDistanceEdgeCache(lsv);
+        const data = [...distanceCache.sortedValues];
+        const sweepSummary = this.getThresholdSweepSummary(lsv);
+
+        if (data.length === 0) {
+            if (readout.length > 0) {
+                readout.text("No threshold readout available");
+            }
+            return;
         }
+
+        let min = data[0];
+        let max = data[data.length - 1];
 
         // Add all link distances to data, find max and min distances
         // const links = this.session.data.links;
@@ -3350,6 +4583,11 @@ align(params): Promise<any> {
         let range = max - min;
         let ticks = 40;
 
+        if (range === 0) {
+            range = 1;
+            max = min + range;
+        }
+
         const x = d3
             .scaleLinear()
             .domain([min, max])
@@ -3365,6 +4603,16 @@ align(params): Promise<any> {
             .domain([0, d3.max(bins, d => (d as any).length)])
             .range([height, 0]);
 
+        const formatThresholdValue = (value: number) => this.formatDisplayedDistanceValue(value, lsv);
+        const formatClusterCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'cluster' : 'clusters'}`;
+        const setDefaultReadout = () => {
+            if (readout.length === 0) {
+                return;
+            }
+
+            readout.text("Hover chart for cluster count");
+        };
+
         const bar = svg
             .selectAll(".bar")
             .data(bins)
@@ -3379,17 +4627,128 @@ align(params): Promise<any> {
             .attr("width", 6)
             .attr("height", d => height - y(d.length));
 
+        let clusterY = null;
+        let hoverGuide = null;
+        let hoverDot = null;
+
+        if (sweepSummary.thresholds.length > 0) {
+            const maxClusterCount = Math.max(...sweepSummary.clusterCounts, 1);
+            clusterY = d3
+                .scaleLinear()
+                .domain([0, maxClusterCount])
+                .range([height - 2, 2]);
+
+            const clusterLine = d3
+                .line<number>()
+                .curve(d3.curveStepAfter)
+                .x((_, index) => x(sweepSummary.thresholds[index]))
+                .y((value) => clusterY(value));
+
+            svg
+                .append("path")
+                .datum(sweepSummary.clusterCounts)
+                .attr("class", "threshold-cluster-sweep")
+                .attr("fill", "none")
+                .attr("stroke", "#ff8300")
+                .attr("stroke-width", 1.5)
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("opacity", 0.9)
+                .attr("pointer-events", "none")
+                .attr("d", clusterLine);
+
+            hoverGuide = svg
+                .append("line")
+                .attr("class", "threshold-cluster-hover-guide")
+                .attr("y1", 2)
+                .attr("y2", height - 2)
+                .attr("stroke", "#ff8300")
+                .attr("stroke-width", 1)
+                .attr("stroke-dasharray", "2,2")
+                .attr("opacity", 0)
+                .attr("pointer-events", "none");
+
+            hoverDot = svg
+                .append("circle")
+                .attr("class", "threshold-cluster-hover-dot")
+                .attr("r", 3)
+                .attr("fill", "#ff8300")
+                .attr("stroke", "#ffffff")
+                .attr("stroke-width", 1)
+                .attr("opacity", 0)
+                .attr("pointer-events", "none");
+        }
+
         let that = this;
+        setDefaultReadout();
+
+        function getHoveredThresholdValue() {
+            const xc = Math.max(0, Math.min(width, (d3 as any).mouse(svg.node())[0]));
+            return x.invert(xc);
+        }
 
         /**
          * Uses the position on the histogram to set the link thresehold value
          */
         function updateThreshold() {
-            let xc = (d3 as any).mouse(svg.node())[0];
-            let decimalPlaces = (that.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? 3 : 0;
+            const hoveredThreshold = getHoveredThresholdValue();
+            that.session.style.widgets["link-threshold"] = hoveredThreshold;
 
-            that.session.style.widgets["link-threshold"] = (xc / width) * range * 1.05 + min;
-            $("#link-threshold").val(parseFloat(that.session.style.widgets["link-threshold"].toFixed(decimalPlaces)));
+            if (
+                that.visuals &&
+                that.visuals.microbeTrace &&
+                typeof that.visuals.microbeTrace.syncThresholdDisplayFromStoredValue === 'function'
+            ) {
+                that.visuals.microbeTrace.syncThresholdDisplayFromStoredValue();
+            } else {
+                $("#link-threshold").val(that.toDisplayedDistanceValue(hoveredThreshold, lsv));
+            }
+        }
+
+        function updateHoverReadout() {
+            if (readout.length === 0 || sweepSummary.thresholds.length === 0 || !clusterY) {
+                return;
+            }
+
+            const hoveredThreshold = getHoveredThresholdValue();
+            let closestIndex = 0;
+            let closestDistance = Math.abs(sweepSummary.thresholds[0] - hoveredThreshold);
+
+            for (let index = 1; index < sweepSummary.thresholds.length; index++) {
+                const distance = Math.abs(sweepSummary.thresholds[index] - hoveredThreshold);
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    closestIndex = index;
+                }
+            }
+
+            const thresholdValue = sweepSummary.thresholds[closestIndex];
+            const clusterCount = sweepSummary.clusterCounts[closestIndex];
+            readout.text(`Orange line at ${formatThresholdValue(thresholdValue)}: ${formatClusterCount(clusterCount)}`);
+
+            if (hoverGuide) {
+                hoverGuide
+                    .attr("x1", x(thresholdValue))
+                    .attr("x2", x(thresholdValue))
+                    .attr("opacity", 0.7);
+            }
+
+            if (hoverDot) {
+                hoverDot
+                    .attr("cx", x(thresholdValue))
+                    .attr("cy", clusterY(clusterCount))
+                    .attr("opacity", 1);
+            }
+        }
+
+        function clearHoverReadout() {
+            setDefaultReadout();
+            if (hoverGuide) {
+                hoverGuide.attr("opacity", 0);
+            }
+            if (hoverDot) {
+                hoverDot.attr("opacity", 0);
+            }
         }
 
         svg.on("click", () => {
@@ -3398,23 +4757,36 @@ align(params): Promise<any> {
         });
 
         svg.on("mouseover", () => {
-            let xc = (d3 as any).mouse(svg.node())[0];
-            $('#filtering-threshold').prop('title', "Whats the maximum genetic distance you're willing to call a link? " + ((this.session.style.widgets['default-distance-metric'].toLowerCase() === "tn93") ? ((xc / width) * range * 1.05 + min).toLocaleString() : Math.round(((xc / width) * range * 1.05 + min)).toLocaleString()));
+            updateHoverReadout();
+            const hoveredThreshold = getHoveredThresholdValue();
+            $('#filtering-threshold').prop('title', `Set the maximum genetic distance allowed for threshold-controlled links. Current hover: ${formatThresholdValue(hoveredThreshold)}.`);
           });
+
+        svg.on("mousemove", () => {
+            updateHoverReadout();
+        });
+
+        svg.on("mouseleave", () => {
+            clearHoverReadout();
+        });
 
         svg.on("mousedown", () => {
             (d3 as any).event.preventDefault();
-            svg.on("mousemove", updateThreshold);
+            svg.on("mousemove", () => {
+                updateThreshold();
+                updateHoverReadout();
+            });
             svg.on("mouseup mouseleave", () => {
                 this._debouncedUpdateNetworkVisuals();
+                clearHoverReadout();
                 svg
-                    .on("mousemove", null)
+                    .on("mousemove", updateHoverReadout)
                     .on("mouseup", null)
-                    .on("mouseleave", null);
+                    .on("mouseleave", clearHoverReadout);
             });
         });
 
-        data = [];
+        data.length = 0;
 
     };
 
