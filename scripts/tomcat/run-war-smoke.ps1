@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 function Show-Usage {
     @"
-Usage: run-war-smoke.cmd [--skip-build] [--war path\to\MicrobeTrace_*.war] [--context ROOT]
+Usage: run-war-smoke.cmd [--skip-build] [--war path\to\MicrobeTrace_<version>.war] [--context ROOT]
 
 Options:
   --skip-build       Do not run scripts\build-war.cmd before deployment.
