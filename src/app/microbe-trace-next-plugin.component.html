@@ -367,6 +367,72 @@
                     <input type="number" id="cluster-minimum-size" data-testid="filter-minimum-cluster-size" class="form-control form-control-sm" min="1" value="1" step="1" [(ngModel)]="SelectedClusterMinimumSizeVariable" (ngModelChange)="onMinimumClusterSizeChanged()">
                   </div>
                 </div>
+                <div id="network-subset-filtering" class="network-subset-filtering" data-testid="network-subset-filtering">
+                  <hr>
+                  @if (isNetworkSubsetFilterActive()) {
+                    <div id="network-subset-active" class="alert alert-info py-2" data-testid="network-subset-active">
+                      <strong>Subset active:</strong> {{ getNetworkSubsetFilterLabel() }}
+                    </div>
+                  }
+                  <div class="form-group row" title="Show only nodes that match this field and value.">
+                    <div class="col-4"><label for="network-subset-node-field">Subset Nodes</label></div>
+                    <div class="col-8">
+                      <select id="network-subset-node-field" data-testid="network-subset-node-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetNodeField" (ngModelChange)="onNetworkSubsetNodeFieldChanged($event)">
+                        @for (field of FieldList; track field.value) {
+                          <option [value]="field.value">{{ field.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <select id="network-subset-node-operator" data-testid="network-subset-node-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetNodeOperator">
+                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
+                          <option [value]="operator.value">{{ operator.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <input id="network-subset-node-value" data-testid="network-subset-node-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-node-value-options" [ngModel]="SelectedNetworkSubsetNodeValue" (ngModelChange)="onNetworkSubsetNodeValueChanged($event)">
+                      <datalist id="network-subset-node-value-options" data-testid="network-subset-node-value-options">
+                        @for (option of NetworkSubsetNodeValueOptions; track option) {
+                          <option [value]="option"></option>
+                        }
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Show only links that match this field and value.">
+                    <div class="col-4"><label for="network-subset-link-field">Subset Links</label></div>
+                    <div class="col-8">
+                      <select id="network-subset-link-field" data-testid="network-subset-link-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetLinkField" (ngModelChange)="onNetworkSubsetLinkFieldChanged($event)">
+                        @for (field of ToolTipFieldList; track field.value) {
+                          <option [value]="field.value">{{ field.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <select id="network-subset-link-operator" data-testid="network-subset-link-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetLinkOperator">
+                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
+                          <option [value]="operator.value">{{ operator.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <input id="network-subset-link-value" data-testid="network-subset-link-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-link-value-options" [ngModel]="SelectedNetworkSubsetLinkValue" (ngModelChange)="onNetworkSubsetLinkValueChanged($event)">
+                      <datalist id="network-subset-link-value-options" data-testid="network-subset-link-value-options">
+                        @for (option of NetworkSubsetLinkValueOptions; track option) {
+                          <option [value]="option"></option>
+                        }
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-8 offset-4">
+                      <div class="d-flex">
+                        <button type="button" id="network-subset-apply" data-testid="network-subset-apply" class="btn btn-primary btn-sm flex-fill mr-2" (click)="applyNetworkSubsetFilter()">Apply Subset</button>
+                        <button type="button" id="network-subset-clear" data-testid="network-subset-clear" class="btn btn-light btn-sm flex-fill" (click)="clearNetworkSubsetFilter()">Clear</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div id="filtering-wrapper">
                   <div class="form-group row" title="By what variable would you like to prune links from the network?">
                     <div class="col-4"><label for="link-sort-variable">Filter Links on</label></div>
