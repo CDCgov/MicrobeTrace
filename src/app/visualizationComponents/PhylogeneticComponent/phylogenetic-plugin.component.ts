@@ -5,7 +5,7 @@
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
-import { SelectItem } from 'primeng/api';
+import { ConfirmationService, SelectItem } from 'primeng/api';
 import { DialogSettings } from '@app/helperClasses/dialogSettings';
 import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
@@ -47,7 +47,8 @@ import type {
     selector: 'PhylogeneticComponent',
     templateUrl: './phylogenetic-plugin.component.html',
     styleUrls: ['./phylogenetic-plugin.component.scss'],
-    standalone: false
+    standalone: false,
+    providers: [ConfirmationService]
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 
@@ -202,7 +203,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService,
-    private workerComputeService: WorkerComputeService) {
+    private workerComputeService: WorkerComputeService,
+    private confirmationService: ConfirmationService) {
 
     super(elRef.nativeElement);
 
@@ -1146,13 +1148,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
   }
 
-  async calculateBootstrapSupport() {
-    const input = this.getBootstrapInput();
-    if (!input.available) {
-      this.BootstrapStatusMessage = input.reason || 'Bootstrap is unavailable for the current tree.';
-      return;
-    }
-
+  private async runBootstrapSupportCalculation(input: {
+    labels: string[];
+    sequences: string[];
+    baseSplitKeys: string[];
+  }): Promise<void> {
     const replicates = this.getSelectedBootstrapReplicateCount();
     this.BootstrapRunning = true;
     this.BootstrapProgressValue = 0;
@@ -1189,6 +1189,39 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.BootstrapRunning = false;
       this.cdref.detectChanges();
     }
+  }
+
+  calculateBootstrapSupport() {
+    const input = this.getBootstrapInput();
+    if (!input.available) {
+      this.BootstrapStatusMessage = input.reason || 'Bootstrap is unavailable for the current tree.';
+      return;
+    }
+
+    const bootstrapInput = {
+      labels: input.labels || [],
+      sequences: input.sequences || [],
+      baseSplitKeys: input.baseSplitKeys || [],
+    };
+
+    this.confirmationService.confirm({
+      message: `Bootstrap support generates replicate trees by resampling columns from the alignment. It will not work with tree or distance matrix inputs.
+       Are you sure that you want to proceed?`,
+      closable: false,
+      closeOnEscape: false,
+      icon: 'pi pi-exclamation-triangle',
+      rejectButtonProps: {
+        label: 'Cancel',
+        severity: 'secondary',
+        outlined: true,
+      },
+      acceptButtonProps: {
+        label: 'Confirm',
+      },
+      accept: () => {
+        void this.runBootstrapSupportCalculation(bootstrapInput);
+      },
+    });
   }
 
   onCloseExport() {

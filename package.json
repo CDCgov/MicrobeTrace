@@ -42,6 +42,8 @@
     "e2e:perf:realistic": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:realistic:local",
     "e2e:perf:dunes:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1,perfDunesSamples=1 --spec \"cypress/e2e/performance/dunes-samples.perf.cy.ts\"",
     "e2e:perf:dunes": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:dunes:local",
+    "e2e:perf:bootstrap:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1,perfBootstrap=1 --spec \"cypress/e2e/performance/phylogenetic-bootstrap.perf.cy.ts\"",
+    "e2e:perf:bootstrap": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:bootstrap:local",
     "e2e:perf:summarize": "node scripts/summarize-performance-runs.js --min-samples 5",
     "e2e:perf:budgets:propose": "node scripts/propose-performance-budgets.js --min-samples 5",
     "e2e:perf:budgets:check": "node scripts/check-performance-budgets.js",

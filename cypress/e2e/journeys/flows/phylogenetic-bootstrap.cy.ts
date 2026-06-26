@@ -20,6 +20,7 @@ const SELECTORS = {
   settingsButton: '#tool-btn-container-phylo a[title="Settings"]',
   internalNodeLabels: '#phylocanvas svg g.tidytree-node-internal text',
 };
+const BOOTSTRAP_CONFIRMATION_TEXT = 'Bootstrap support generates replicate trees by resampling columns from the alignment';
 
 const openPhyloSettingsDialog = (): void => {
   cy.get(SELECTORS.settingsButton).click({ force: true });
@@ -52,9 +53,23 @@ const setBootstrapReplicates = (replicates: string): void => {
     .blur();
 };
 
+const assertBootstrapConfirmationVisible = (): void => {
+  cy.contains('.p-dialog:visible', BOOTSTRAP_CONFIRMATION_TEXT, { timeout: 15000 })
+    .as('bootstrapConfirmDialog')
+    .should('contain.text', 'will not work with tree or distance matrix inputs')
+    .and('contain.text', 'Are you sure that you want to proceed?');
+};
+
+const confirmBootstrapCalculation = (): void => {
+  assertBootstrapConfirmationVisible();
+  cy.get('@bootstrapConfirmDialog').contains('button', 'Confirm').click({ force: true });
+  cy.contains('.p-dialog:visible', BOOTSTRAP_CONFIRMATION_TEXT).should('not.exist');
+};
+
 const calculateSmallBootstrap = (): void => {
   setBootstrapReplicates('5');
   cy.get('@phyloSettings').find('#calculate-bootstrap').click({ force: true });
+  confirmBootstrapCalculation();
   cy.get('#bootstrap-status', { timeout: 60000 }).should('contain.text', 'Bootstrap support calculated');
 };
 
@@ -91,6 +106,11 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       });
     cy.get('@phyloSettings').find('#bootstrap-replicates').should('have.value', '100');
     cy.get('@phyloSettings').find('#calculate-bootstrap').should('not.be.disabled');
+    cy.get('@phyloSettings').find('#calculate-bootstrap').click({ force: true });
+    assertBootstrapConfirmationVisible();
+    cy.get('@bootstrapConfirmDialog').contains('button', 'Cancel').click({ force: true });
+    cy.contains('.p-dialog:visible', BOOTSTRAP_CONFIRMATION_TEXT).should('not.exist');
+    cy.get('#bootstrap-status').should('not.exist');
 
     calculateSmallBootstrap();
 
@@ -165,6 +185,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     });
 
     cy.get('@phyloSettings').find('#calculate-bootstrap').click({ force: true });
+    confirmBootstrapCalculation();
     cy.get('#bootstrap-status', { timeout: 15000 }).should('contain.text', 'stabilized after 100 replicates');
     assertBootstrapLabelsVisible();
   });
