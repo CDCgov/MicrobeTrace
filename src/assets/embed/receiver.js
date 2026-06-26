@@ -14,6 +14,8 @@
   var nonce = params.get('nonce');
   var handled = false;
   var timeoutId = null;
+  var allowlistConfig = null;
+  var allowedTargetOrigins = [];
 
   function setStatus(status, details) {
     if (statusNode) {
@@ -30,19 +32,28 @@
     }
   }
 
-  function fail(message, targetOrigin) {
+  function postMessageToAllowedOrigins(message, targetOrigins) {
+    if (!Array.isArray(targetOrigins)) {
+      return;
+    }
+    targetOrigins.forEach(function (targetOrigin) {
+      postMessageToOpener(message, targetOrigin);
+    });
+  }
+
+  function fail(message, targetOrigins) {
     if (handled) {
       return;
     }
     handled = true;
     window.clearTimeout(timeoutId);
     setStatus('Unable to load this partner handoff.', message);
-    postMessageToOpener({
+    postMessageToAllowedOrigins({
       type: ERROR_TYPE,
       partnerId: partnerId,
       nonce: nonce,
       message: message
-    }, targetOrigin || '*');
+    }, targetOrigins);
   }
 
   function isPlainObject(value) {
@@ -268,12 +279,42 @@
     });
   }
 
+  function normalizeOrigin(origin) {
+    if (typeof origin !== 'string' || !origin.trim() || origin.trim() === '*') {
+      return null;
+    }
+
+    try {
+      var parsed = new URL(origin);
+      return parsed.origin === origin.trim() ? parsed.origin : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getPartnerOrigins(config) {
+    var partners = isPlainObject(config.partners) ? config.partners : {};
+    var partnerConfig = partners[partnerId];
+
+    if (!partnerConfig || !Array.isArray(partnerConfig.origins)) {
+      throw new Error('The requested partner is not configured for handoff.');
+    }
+
+    var origins = partnerConfig.origins.map(normalizeOrigin).filter(Boolean);
+    if (!origins.length) {
+      throw new Error('The requested partner does not have any approved handoff origins.');
+    }
+
+    return origins;
+  }
+
   function validatePartner(config, origin) {
     var defaults = isPlainObject(config.defaults) ? config.defaults : {};
     var partners = isPlainObject(config.partners) ? config.partners : {};
     var partnerConfig = partners[partnerId];
+    var origins = getPartnerOrigins(config);
 
-    if (!partnerConfig || !Array.isArray(partnerConfig.origins) || !partnerConfig.origins.includes(origin)) {
+    if (!origins.includes(origin)) {
       throw new Error('The calling origin is not approved for this partner handoff.');
     }
 
@@ -392,8 +433,7 @@
     }
 
     try {
-      var config = await loadAllowlist();
-      var limits = validatePartner(config, event.origin);
+      var limits = validatePartner(allowlistConfig, event.origin);
       var payload = validatePayload(event.data, limits);
       var createdAt = Date.now();
       var handoffId = buildHandoffId();
@@ -421,36 +461,49 @@
       window.clearTimeout(timeoutId);
       window.location.replace(buildRedirectUrl(handoffId));
     } catch (error) {
-      fail(error instanceof Error ? error.message : 'Unable to validate the partner handoff payload.', event.origin);
+      var replyOrigins = allowedTargetOrigins.includes(event.origin) ? [event.origin] : [];
+      fail(error instanceof Error ? error.message : 'Unable to validate the partner handoff payload.', replyOrigins);
     }
   }
 
-  if (window.top !== window.self) {
-    fail('This page cannot run inside an embedded frame.');
-    return;
+  async function initialize() {
+    if (window.top !== window.self) {
+      fail('This page cannot run inside an embedded frame.');
+      return;
+    }
+
+    if (!openerWindow) {
+      fail('This page must be opened by an approved partner application.');
+      return;
+    }
+
+    if (!partnerId || !nonce) {
+      fail('The receiver is missing required partner handoff parameters.');
+      return;
+    }
+
+    try {
+      allowlistConfig = await loadAllowlist();
+      allowedTargetOrigins = getPartnerOrigins(allowlistConfig);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : 'Unable to load the partner allowlist configuration.');
+      return;
+    }
+
+    window.addEventListener('message', function (event) {
+      handleTransfer(event);
+    });
+
+    timeoutId = window.setTimeout(function () {
+      fail('Timed out waiting for the partner page to send the dataset.', allowedTargetOrigins);
+    }, 30000);
+
+    postMessageToAllowedOrigins({
+      type: READY_TYPE,
+      partnerId: partnerId,
+      nonce: nonce
+    }, allowedTargetOrigins);
   }
 
-  if (!openerWindow) {
-    fail('This page must be opened by an approved partner application.');
-    return;
-  }
-
-  if (!partnerId || !nonce) {
-    fail('The receiver is missing required partner handoff parameters.');
-    return;
-  }
-
-  window.addEventListener('message', function (event) {
-    handleTransfer(event);
-  });
-
-  timeoutId = window.setTimeout(function () {
-    fail('Timed out waiting for the partner page to send the dataset.');
-  }, 30000);
-
-  postMessageToOpener({
-    type: READY_TYPE,
-    partnerId: partnerId,
-    nonce: nonce
-  }, '*');
+  initialize();
 })();

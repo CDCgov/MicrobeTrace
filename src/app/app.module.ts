@@ -49,7 +49,6 @@ import { FilesComponent } from './filesComponent/files-plugin.component';
 import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component';
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
-import { CoreModule } from '@metronic/app/core/core.module';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
@@ -161,7 +160,6 @@ export class TestedComponent {
         DatePickerModule,
         PaginatorModule,
         ProgressBarModule,
-        CoreModule,
         ConfirmDialogModule,
         SelectModule,
         TreeSelectModule,
