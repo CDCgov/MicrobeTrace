@@ -47,8 +47,25 @@ describe('mixed node shape SVG helpers', () => {
     ));
 
     expect(svg).toContain('<rect x="0" y="0" width="300" height="300"');
+    expect(svg).toContain('viewBox="0 0 300 300"');
     expect(svg).toContain('fill="url(#mixed-node-fill)"');
     expect(svg).not.toContain('stroke-width="48"');
+  });
+
+  it('can pad mixed basic shape view boxes so borders scale like single-color icons', () => {
+    const svg = decodeSvgDataUri(getMixedNodeShapeDataUri(
+      'triangle',
+      '#ffffff',
+      '#000000',
+      16,
+      1,
+      segments,
+      null,
+      { basicShapeViewBoxPadding: 20 }
+    ));
+
+    expect(svg).toContain('viewBox="-20 -20 340 340"');
+    expect(svg).toContain('stroke-width="16"');
   });
 
   it('clips custom icon shapes to the selected path instead of using pie arcs', () => {

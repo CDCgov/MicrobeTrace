@@ -51,6 +51,7 @@ export interface MixedNodeShapeSegment {
 }
 
 export interface MixedNodeShapeDataUriOptions {
+    basicShapeViewBoxPadding?: number;
     customShapePadding?: number;
     customShapeViewBoxPadding?: number;
     fillCanvas?: boolean;
@@ -1061,10 +1062,15 @@ export function getMixedNodeShapeDataUri(
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     const safeStroke = sanitizeSvgColor(strokeColor);
     const safeStrokeWidth = Math.max(1, Number(strokeWidth) || 1);
-    const shapeContent = isCustomNodeShape(normalizedShapeKey)
+    const isCustomShape = isCustomNodeShape(normalizedShapeKey);
+    const basicShapeViewBoxPadding = !isCustomShape && !options.fillCanvas
+        ? Math.max(0, Number(options.basicShapeViewBoxPadding ?? 0))
+        : 0;
+    const shapeContent = isCustomShape
         ? buildMixedCustomNodeShapeContent(CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey], fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options)
         : buildMixedBasicNodeShapeContent(normalizedShapeKey, fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options);
-    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" aria-hidden="true">${shapeContent}</svg>`;
+    const viewBox = buildPaddedViewBox('0 0 300 300', basicShapeViewBoxPadding);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${viewBox}" aria-hidden="true">${shapeContent}</svg>`;
 
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }

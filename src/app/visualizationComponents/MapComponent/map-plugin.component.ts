@@ -529,7 +529,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}|${segmentKey}|${selected ? safeStroke : ''}`;
         const mixedShapeOptions = isCustomNodeIconShape(normalizedShapeKey)
             ? { customShapePadding: 0, customShapeViewBoxPadding: Math.max(20, strokeWidth) }
-            : {};
+            : { basicShapeViewBoxPadding: Math.max(20, strokeWidth) };
 
         if (!this.mapNodeIconCache[cacheKey]) {
             this.mapNodeIconCache[cacheKey] = segments.length > 1

@@ -886,7 +886,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 css: {
                     // @ts-ignore
                     'background-image': 'data(mixedColorImage)',
-                    'background-image-containment': 'over',
+                    'background-image-containment': 'inside',
                     'background-fit': 'contain',
                     'background-clip': 'node',
                     'background-position-x': '50%',
@@ -1016,7 +1016,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 css: {
                     // @ts-ignore
                     'background-image': 'data(mixedColorImage)',
-                    'background-image-containment': 'over',
+                    'background-image-containment': 'inside',
                     'background-fit': 'contain',
                     'background-clip': 'node',
                     // @ts-ignore
