@@ -14,35 +14,50 @@ export interface NodeFillStyle {
   segments?: NodeColorSegment[];
 }
 
+function isNullLikeNodeColorValue(value: any): boolean {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (typeof value === 'number' && Number.isNaN(value)) {
+    return true;
+  }
+
+  const textValue = String(value).trim();
+  const normalizedValue = textValue.toLowerCase();
+  return !textValue
+    || normalizedValue === 'null'
+    || normalizedValue === 'undefined'
+    || normalizedValue === 'nan'
+    || normalizedValue === 'n/a';
+}
+
+function splitMixedNodeColorText(value: string): string[] {
+  return value
+    .replace(/\bn\/a\b/ig, '')
+    .split(/\s+(?:and)\s+|[/,;+|]/i)
+    .map(token => token.trim())
+    .filter(token => !isNullLikeNodeColorValue(token));
+}
+
 export function parseMixedNodeColorValue(value: any): string[] {
   const values = Array.isArray(value) ? value : [value];
   const seen = new Set<string>();
   const tokens: string[] = [];
 
   values.forEach(item => {
-    if (item === undefined || item === null) {
+    if (isNullLikeNodeColorValue(item)) {
       return;
     }
 
-    if (typeof item === 'number' && Number.isNaN(item)) {
-      return;
-    }
+    splitMixedNodeColorText(String(item)).forEach(token => {
+      if (seen.has(token)) {
+        return;
+      }
 
-    String(item)
-      .split(/\s+(?:and)\s+|[/,;+|]/i)
-      .map(token => token.trim())
-      .filter(token => {
-        const normalized = token.toLowerCase();
-        return !!token && normalized !== 'null' && normalized !== 'undefined' && normalized !== 'nan';
-      })
-      .forEach(token => {
-        if (seen.has(token)) {
-          return;
-        }
-
-        seen.add(token);
-        tokens.push(token);
-      });
+      seen.add(token);
+      tokens.push(token);
+    });
   });
 
   return tokens;
@@ -94,21 +109,12 @@ export class ColorMappingService {
   constructor() {}
 
   public normalizeStyleCategoryValue(value: any): string {
-    if (value === undefined || value === null) {
-      return 'null';
-    }
-
-    if (typeof value === 'number' && Number.isNaN(value)) {
+    if (isNullLikeNodeColorValue(value)) {
       return 'null';
     }
 
     if (typeof value === 'string') {
       const trimmedValue = value.trim();
-      const normalizedValue = trimmedValue.toLowerCase();
-      if (trimmedValue === '' || normalizedValue === 'nan') {
-        return 'null';
-      }
-
       return trimmedValue;
     }
 
@@ -116,27 +122,12 @@ export class ColorMappingService {
   }
 
   private parseScalarMixedColorValue(value: any): string[] {
-    if (value === undefined || value === null) {
-      return [];
-    }
-
-    if (typeof value === 'number' && Number.isNaN(value)) {
+    if (isNullLikeNodeColorValue(value)) {
       return [];
     }
 
     const textValue = String(value).trim();
-    const normalizedValue = textValue.toLowerCase();
-    if (!textValue || normalizedValue === 'null' || normalizedValue === 'nan') {
-      return [];
-    }
-
-    return textValue
-      .split(/\s*(?:\/|,|;|\+|\|)\s*|\s+and\s+/i)
-      .map(part => part.trim())
-      .filter(part => {
-        const normalizedPart = part.toLowerCase();
-        return !!part && normalizedPart !== 'null' && normalizedPart !== 'nan';
-      });
+    return splitMixedNodeColorText(textValue);
   }
 
   public parseMixedColorValue(value: any): string[] {
@@ -273,18 +264,12 @@ export class ColorMappingService {
         return;
       }
 
-      const rawValue = d[nodeColorVariable];
-      const mixedTokens = splitMixedValues ? parseMixedNodeColorValue(rawValue) : [];
+      const categories = this.getNodeColorCategoriesForValue(d[nodeColorVariable], splitMixedValues);
+      const categoryWeight = splitMixedValues && categories.length > 1 ? 1 / categories.length : 1;
 
-      if (mixedTokens.length > 0) {
-        const tokenWeight = 1 / mixedTokens.length;
-        mixedTokens.forEach(token => {
-          aggregates[token] = (aggregates[token] || 0) + tokenWeight;
-        });
-        return;
-      }
-
-      aggregates[rawValue] = (aggregates[rawValue] || 0) + 1;
+      categories.forEach(category => {
+        aggregates[category] = (aggregates[category] || 0) + categoryWeight;
+      });
     });
 
     const distinctValues = Object.keys(aggregates);

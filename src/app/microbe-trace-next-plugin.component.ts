@@ -3358,7 +3358,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const disabled = isEditable ? '' : 'disabled';
 
         aggregateValues.forEach((value, i) => {
-            if (aggregates[value] < 1) return;
+            const aggregateCount = Number(aggregates[value] ?? 0);
+            if (aggregateCount <= 0) return;
 
             const color = this.commonService.temp.style.nodeColorMap(value);
 
@@ -3444,8 +3445,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 "<td data-value='" + value + "'>" +
                 this.getNodeValueDisplayName(value) +
                 "</td>" +
-                `<td class='tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}>` + aggregates[value] + "</td>" +
-                `<td class='tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}>` + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" +
+                `<td class='tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}>` + aggregateCount + "</td>" +
+                `<td class='tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}>` + (aggregateCount / vnodes.length).toLocaleString() + "</td>" +
                 "</tr>"
             ).append(isEditable ? cell : nonEditCell);
 
