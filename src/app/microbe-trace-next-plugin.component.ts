@@ -1490,14 +1490,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onSearch();
     }
 
-    private hideWelcomeOverlay(duration: JQuery.Duration = 'slow'): void {
-        const overlay = $('#overlay');
-        overlay.css('pointer-events', 'none');
-        overlay.find('.dnd-input').css('pointer-events', 'none');
-        overlay.fadeOut(duration);
-    }
-
-
     /**
      * Convert Files list to normal array list
      * @param files (Files List)
@@ -1525,7 +1517,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
  
         // this.homepageTabs[1].isActive = false;
         this.homepageTabs[0].isActive = true;
-        this.hideWelcomeOverlay();
+        $('#overlay').fadeOut();
         $('.ui-tabview-nav').fadeTo("slow", 1);
         $('.m-portlet').fadeTo("slow", 1);
         this.showExport = false;
@@ -1659,7 +1651,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
      public continueClicked() : void {
         // this._removeGlView('Files');
-        this.hideWelcomeOverlay("slow");
+        $('#overlay').fadeOut("slow");
         $('.ui-tabview-nav').fadeTo("slow", 1);
         $('.m-portlet').fadeTo("slow", 1);
     }
@@ -4434,7 +4426,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               this.homepageTabs[0].isActive = true;
               console.log("Trying to launch");
               this.homepageTabs[0].componentRef.instance.launchClick();
-              this.hideWelcomeOverlay();
+              $('#overlay').fadeOut();
               $('.ui-tabview-nav').fadeTo("slow", 1);
               $('.m-portlet').fadeTo("slow", 1);
             }
