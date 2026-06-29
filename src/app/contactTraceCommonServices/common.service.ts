@@ -4529,7 +4529,7 @@ align(params): Promise<any> {
         let width = 260,
         height = 48,
         svg = null;
-        const readout = $("#threshold-sparkline-readout");
+        const getReadout = () => $("#threshold-sparkline-readout");
 
         // Update histogram so that it can be altered outside of the main wrapper 
         if(histogram){
@@ -4548,6 +4548,7 @@ align(params): Promise<any> {
         const sweepSummary = this.getThresholdSweepSummary(lsv);
 
         if (data.length === 0) {
+            const readout = getReadout();
             if (readout.length > 0) {
                 readout.text("No threshold readout available");
             }
@@ -4606,6 +4607,7 @@ align(params): Promise<any> {
         const formatThresholdValue = (value: number) => this.formatDisplayedDistanceValue(value, lsv);
         const formatClusterCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'cluster' : 'clusters'}`;
         const setDefaultReadout = () => {
+            const readout = getReadout();
             if (readout.length === 0) {
                 return;
             }
@@ -4632,21 +4634,99 @@ align(params): Promise<any> {
         let hoverDot = null;
 
         if (sweepSummary.thresholds.length > 0) {
-            const maxClusterCount = Math.max(...sweepSummary.clusterCounts, 1);
+            const maxClusterCount = sweepSummary.clusterCounts.reduce(
+                (maxCount, clusterCount) => clusterCount > maxCount ? clusterCount : maxCount,
+                1
+            );
+            const buildSweepLinePoints = () => {
+                const thresholdCount = sweepSummary.thresholds.length;
+                const maxRenderedPoints = width * 8;
+
+                if (thresholdCount <= maxRenderedPoints) {
+                    return sweepSummary.thresholds.map((threshold, index) => ({
+                        threshold,
+                        clusterCount: sweepSummary.clusterCounts[index]
+                    }));
+                }
+
+                const bucketCount = Math.max(1, width * 2);
+                const thresholdMin = sweepSummary.thresholds[0];
+                const thresholdMax = sweepSummary.thresholds[thresholdCount - 1];
+                const thresholdSpan = thresholdMax - thresholdMin || 1;
+                const selectedIndexes = new Set<number>([0, thresholdCount - 1]);
+                let currentBucket = -1;
+                let firstIndex = 0;
+                let lastIndex = 0;
+                let minIndex = 0;
+                let maxIndex = 0;
+
+                const flushBucket = () => {
+                    selectedIndexes.add(firstIndex);
+                    selectedIndexes.add(minIndex);
+                    selectedIndexes.add(maxIndex);
+                    selectedIndexes.add(lastIndex);
+                };
+
+                for (let index = 0; index < thresholdCount; index++) {
+                    const threshold = sweepSummary.thresholds[index];
+                    const bucket = Math.max(
+                        0,
+                        Math.min(
+                            bucketCount - 1,
+                            Math.floor(((threshold - thresholdMin) / thresholdSpan) * bucketCount)
+                        )
+                    );
+
+                    if (bucket !== currentBucket) {
+                        if (currentBucket !== -1) {
+                            flushBucket();
+                        }
+
+                        currentBucket = bucket;
+                        firstIndex = index;
+                        lastIndex = index;
+                        minIndex = index;
+                        maxIndex = index;
+                        continue;
+                    }
+
+                    lastIndex = index;
+
+                    if (sweepSummary.clusterCounts[index] < sweepSummary.clusterCounts[minIndex]) {
+                        minIndex = index;
+                    }
+
+                    if (sweepSummary.clusterCounts[index] > sweepSummary.clusterCounts[maxIndex]) {
+                        maxIndex = index;
+                    }
+                }
+
+                flushBucket();
+
+                return Array
+                    .from(selectedIndexes)
+                    .sort((a, b) => a - b)
+                    .map((index) => ({
+                        threshold: sweepSummary.thresholds[index],
+                        clusterCount: sweepSummary.clusterCounts[index]
+                    }));
+            };
+
+            const sweepLinePoints = buildSweepLinePoints();
             clusterY = d3
                 .scaleLinear()
                 .domain([0, maxClusterCount])
                 .range([height - 2, 2]);
 
             const clusterLine = d3
-                .line<number>()
+                .line<{ threshold: number; clusterCount: number }>()
                 .curve(d3.curveStepAfter)
-                .x((_, index) => x(sweepSummary.thresholds[index]))
-                .y((value) => clusterY(value));
+                .x((point) => x(point.threshold))
+                .y((point) => clusterY(point.clusterCount));
 
             svg
                 .append("path")
-                .datum(sweepSummary.clusterCounts)
+                .datum(sweepLinePoints)
                 .attr("class", "threshold-cluster-sweep")
                 .attr("fill", "none")
                 .attr("stroke", "#ff8300")
@@ -4687,6 +4767,34 @@ align(params): Promise<any> {
             return x.invert(xc);
         }
 
+        function getClosestSweepIndex(threshold: number): number {
+            const thresholds = sweepSummary.thresholds;
+            if (thresholds.length === 0) {
+                return -1;
+            }
+
+            let low = 0;
+            let high = thresholds.length - 1;
+
+            while (low < high) {
+                const mid = Math.floor((low + high) / 2);
+                if (thresholds[mid] < threshold) {
+                    low = mid + 1;
+                } else {
+                    high = mid;
+                }
+            }
+
+            if (low === 0) {
+                return 0;
+            }
+
+            const previous = low - 1;
+            return Math.abs(thresholds[previous] - threshold) <= Math.abs(thresholds[low] - threshold)
+                ? previous
+                : low;
+        }
+
         /**
          * Uses the position on the histogram to set the link thresehold value
          */
@@ -4706,20 +4814,16 @@ align(params): Promise<any> {
         }
 
         function updateHoverReadout() {
+            const readout = getReadout();
             if (readout.length === 0 || sweepSummary.thresholds.length === 0 || !clusterY) {
                 return;
             }
 
             const hoveredThreshold = getHoveredThresholdValue();
-            let closestIndex = 0;
-            let closestDistance = Math.abs(sweepSummary.thresholds[0] - hoveredThreshold);
+            const closestIndex = getClosestSweepIndex(hoveredThreshold);
 
-            for (let index = 1; index < sweepSummary.thresholds.length; index++) {
-                const distance = Math.abs(sweepSummary.thresholds[index] - hoveredThreshold);
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestIndex = index;
-                }
+            if (closestIndex < 0) {
+                return;
             }
 
             const thresholdValue = sweepSummary.thresholds[closestIndex];
