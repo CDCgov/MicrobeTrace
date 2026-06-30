@@ -12,10 +12,27 @@
   var openerWindow = window.opener;
   var partnerId = params.get('partnerId');
   var nonce = params.get('nonce');
+  var openerOrigin = normalizeMessageOrigin(params.get('openerOrigin')) || normalizeMessageOrigin(document.referrer);
   var handled = false;
   var timeoutId = null;
   var allowlistConfig = null;
   var allowedTargetOrigins = [];
+
+  function normalizeMessageOrigin(value) {
+    if (typeof value !== 'string' || !value.trim()) {
+      return '';
+    }
+
+    try {
+      var parsed = new URL(value);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return '';
+      }
+      return parsed.origin;
+    } catch (error) {
+      return '';
+    }
+  }
 
   function setStatus(status, details) {
     if (statusNode) {
@@ -27,7 +44,7 @@
   }
 
   function postMessageToOpener(message, targetOrigin) {
-    if (openerWindow && !openerWindow.closed) {
+    if (targetOrigin && openerWindow && !openerWindow.closed) {
       openerWindow.postMessage(message, targetOrigin);
     }
   }
@@ -48,12 +65,13 @@
     handled = true;
     window.clearTimeout(timeoutId);
     setStatus('Unable to load this partner handoff.', message);
+    var replyOrigins = Array.isArray(targetOrigins) ? targetOrigins : (openerOrigin ? [openerOrigin] : []);
     postMessageToAllowedOrigins({
       type: ERROR_TYPE,
       partnerId: partnerId,
       nonce: nonce,
       message: message
-    }, targetOrigins);
+    }, replyOrigins);
   }
 
   function isPlainObject(value) {
@@ -432,6 +450,11 @@
       return;
     }
 
+    if (openerOrigin && event.origin !== openerOrigin) {
+      fail('The partner handoff origin did not match the expected opener origin.', openerOrigin);
+      return;
+    }
+
     try {
       var limits = validatePartner(allowlistConfig, event.origin);
       var payload = validatePayload(event.data, limits);
@@ -488,6 +511,14 @@
     } catch (error) {
       fail(error instanceof Error ? error.message : 'Unable to load the partner allowlist configuration.');
       return;
+    }
+
+    if (openerOrigin) {
+      if (!allowedTargetOrigins.includes(openerOrigin)) {
+        fail('The calling origin is not approved for this partner handoff.', []);
+        return;
+      }
+      allowedTargetOrigins = [openerOrigin];
     }
 
     window.addEventListener('message', function (event) {

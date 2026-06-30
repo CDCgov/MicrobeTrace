@@ -17,6 +17,7 @@ The integration has three parts:
 - Your webapp origin must be allowlisted by the MicrobeTrace team.
 - Your users must trigger the popup from a real click or tap. Browsers will block background popup attempts.
 - Your data must fit within the partner handoff limits.
+- Use the official SDK entry point instead of linking directly to the receiver page. The SDK passes your origin to the receiver so the `postMessage` handshake can use explicit target origins.
 
 The current defaults are defined in `src/assets/embed/partner-allowlist.json`:
 
@@ -294,6 +295,7 @@ The partner handoff does not allow:
 The embed flow is intentionally restricted:
 
 - The receiver only accepts messages from allowlisted partner origins.
+- The SDK and receiver bind every cross-window message to a specific opener or receiver origin.
 - The handoff uses a one-time nonce and a one-time handoff id.
 - Payloads are schema-validated and size-limited.
 - Handoffs are stored in a separate browser-storage namespace on the MicrobeTrace origin.

@@ -17,10 +17,21 @@
     return url;
   }
 
-  function buildReceiverUrl(targetUrl, partnerId, nonce) {
+  function resolveOpenerOrigin() {
+    if (global.location && global.location.origin) {
+      return global.location.origin;
+    }
+    if (global.location && global.location.protocol && global.location.host) {
+      return global.location.protocol + '//' + global.location.host;
+    }
+    throw new Error('MicrobeTraceEmbed.open requires a browser origin.');
+  }
+
+  function buildReceiverUrl(targetUrl, partnerId, nonce, openerOrigin) {
     var receiverUrl = new URL('assets/embed/receiver.html', targetUrl);
     receiverUrl.searchParams.set('partnerId', partnerId);
     receiverUrl.searchParams.set('nonce', nonce);
+    receiverUrl.searchParams.set('openerOrigin', openerOrigin);
     return receiverUrl;
   }
 
@@ -61,7 +72,8 @@
     var normalizedOptions = normalizeOptions(options);
     var targetUrl = normalizeTarget(normalizedOptions.target);
     var nonce = buildNonce();
-    var receiverUrl = buildReceiverUrl(targetUrl, normalizedOptions.partnerId, nonce);
+    var openerOrigin = resolveOpenerOrigin();
+    var receiverUrl = buildReceiverUrl(targetUrl, normalizedOptions.partnerId, nonce, openerOrigin);
     var receiverOrigin = receiverUrl.origin;
     var popup = global.open(receiverUrl.toString(), '_blank', 'popup=yes,width=960,height=720');
 
