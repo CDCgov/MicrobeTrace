@@ -19,6 +19,7 @@ import { relativeTimeThreshold } from 'moment';
 import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
 import { ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
+import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 // import { ComponentContainer } from 'golden-layout';
 // import { ConsoleReporter } from 'jasmine';
 
@@ -127,7 +128,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private store: CommonStoreService,
     private embedHandoffService: EmbedHandoffService,
     private ngZone: NgZone,
-    private workerComputeService: WorkerComputeService
+    private workerComputeService: WorkerComputeService,
+    private graphMLService: GraphMLService
     ) {
 
     super(elRef.nativeElement);
@@ -1002,7 +1004,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const check = nFiles > 0;
 
     // sorts files based on hierarchy
-    const hierarchy = ['auspice', 'newick', 'matrix', 'link', 'node', 'fasta'];
+    const hierarchy = ['auspice', 'newick', 'matrix', 'graphml', 'link', 'node', 'fasta'];
     this.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
 
@@ -1138,6 +1140,53 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.showMessage(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from FASTA.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
         });
+
+      } else if (file.format === 'graphml') {
+
+        this.showMessage(`Parsing ${file.name} as GraphML...`);
+        try {
+          const graphML = this.graphMLService.importGraphML(file.contents, { sourceName: file.name });
+          let newNodes = 0;
+          let newLinks = 0;
+
+          graphML.nodeFields.forEach(field => {
+            if (!this.commonService.includes(this.commonService.session.data.nodeFields, field)) {
+              this.commonService.session.data.nodeFields.push(field);
+            }
+          });
+          graphML.linkFields.forEach(field => {
+            if (!this.commonService.includes(this.commonService.session.data.linkFields, field)) {
+              this.commonService.session.data.linkFields.push(field);
+            }
+          });
+
+          graphML.nodes.forEach(node => {
+            newNodes += this.commonService.addNode(node, check);
+          });
+          graphML.links.forEach(link => {
+            newLinks += this.commonService.addLink(link, check);
+          });
+
+          graphML.warnings.forEach(warning => this.showMessage(` - ${warning}`));
+
+          console.log('GraphML Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeGraphML', start, {
+            file: file.name,
+            graphs: graphML.graphIds.length,
+            newNodes,
+            totalNodes: graphML.nodes.length,
+            newLinks,
+            totalLinks: graphML.links.length,
+            warnings: graphML.warnings.length
+          });
+          this.showMessage(` - Parsed ${newNodes} New, ${graphML.nodes.length} Total Nodes from GraphML.`);
+          this.showMessage(` - Parsed ${newLinks} New, ${graphML.links.length} Total Links from ${graphML.graphIds.length} GraphML Graph${graphML.graphIds.length === 1 ? '' : 's'}.`);
+          if (fileNum === nFiles) this.processData(loadGeneration);
+        } catch (error: any) {
+          console.error('GraphML parse error:', error);
+          this.showMessage(` - Error processing GraphML file: ${error?.message || error}`);
+          this.commonService.session.network.isFullyLoaded = false;
+        }
 
       } else if (file.format === 'link') {
 
@@ -2088,16 +2137,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   private inferTabularFileFormat(
     file: any,
     headers: any[] = [],
-    hints: { isFasta?: boolean; isNewick?: boolean; isAuspice?: boolean } = {}
+    hints: { isFasta?: boolean; isNewick?: boolean; isAuspice?: boolean; isGraphML?: boolean } = {}
   ): string {
     const explicitFormat = String(file?.format ?? '').toLowerCase();
-    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice'];
+    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice', 'graphml'];
     if (knownFormats.includes(explicitFormat)) {
       return explicitFormat;
     }
 
     if (hints.isAuspice) {
       return 'auspice';
+    }
+    if (hints.isGraphML) {
+      return 'graphml';
     }
     if (hints.isFasta) {
       return 'fasta';
@@ -2162,10 +2214,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
     const isFasta = extension.indexOf('fas') > -1;
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
+    const isGraphML = extension === 'graphml' || this.graphMLService.looksLikeGraphML(file.contents);
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
-    const tableFormatHints = { isFasta, isNewick, isAuspice };
+    const tableFormatHints = { isFasta, isNewick, isAuspice, isGraphML };
     if (isXL) {
       try {
         const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
@@ -2211,6 +2264,33 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         this.nodeEdgeCheck();
         })
+    } else if (isGraphML) {
+      try {
+        const graphML = this.graphMLService.importGraphML(file.contents, { sourceName: file.name });
+        file.format = 'graphml';
+        const detectedFormat = addTableTile(['graphml_graph_id', '_id', 'source', 'target', 'distance', 'origin'], this);
+        this.nodeIds = this.nodeIds.filter(x => x.fileName !== file.name);
+        this.edgeIds = this.edgeIds.filter(x => x.fileName !== file.name);
+        this.nodeIds.push({
+          fileName: file.name,
+          ids: graphML.nodes.map(node => '' + node._id)
+        });
+        this.edgeIds.push({
+          fileName: file.name,
+          ids: graphML.links.map(link => ({
+            source: '' + link.source,
+            target: '' + link.target
+          }))
+        });
+        graphML.warnings.forEach(warning => console.warn(`GraphML ${file.name}: ${warning}`));
+        this.nodeEdgeCheck();
+        if(this.commonService.debugMode) {
+          console.log('addToTable GraphML detected format: ', detectedFormat, graphML);
+        }
+      } catch (error) {
+        console.error('Unable to read GraphML file: ', file.name, error);
+        addTableTile(['graphml_graph_id', '_id', 'source', 'target'], this);
+      }
     } else {
       Papa.parse(file.contents, {
         header: true,
@@ -2297,6 +2377,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                       </label>
                       <label class="btn btn-light${detectedFormat === 'auspice' ? ' active' : ''}">
                         <input type="radio" name="options-${file.name}" data-type="auspice" autocomplete="off"${detectedFormat === 'auspice' ? ' checked' : ''}>Auspice
+                      </label>
+                      <label class="btn btn-light${detectedFormat === 'graphml' ? ' active' : ''}">
+                        <input type="radio" name="options-${file.name}" data-type="graphml" autocomplete="off"${detectedFormat === 'graphml' ? ' checked' : ''}>GraphML
                       </label>
                     </div>`).appendTo(fnamerow);
 
