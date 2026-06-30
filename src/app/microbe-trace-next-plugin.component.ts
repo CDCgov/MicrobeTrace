@@ -18,6 +18,7 @@ import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
 import { CommonStoreService } from './contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
+import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
@@ -360,6 +361,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private el: ElementRef, 
         private store: CommonStoreService,
         private exportService: ExportService,
+        private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService
     ) {
 
@@ -4135,6 +4137,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         } else {
             this.performExport(elementsToExport, this.exportTables['node-color'], this.exportTables['link-color'], this.exportTables['node-symbol']);
         }
+    }
+
+    ExportGraphML() {
+        const graphMLExport = this.graphMLService.exportSession(this.commonService.session);
+        const blob = new Blob([graphMLExport.contents], { type: 'application/graphml+xml;charset=utf-8' });
+        this.saveGeneratedFile(blob, 'microbetrace.graphml');
     }
 
     updateExportResolution() {
