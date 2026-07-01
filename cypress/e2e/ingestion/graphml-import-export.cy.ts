@@ -264,8 +264,8 @@ describe('GraphML import/export', () => {
       expect(beta.sample_type).to.equal('contact');
       expect(beta.viral_load).to.equal(3.75);
       expect(beta.active).to.equal(false);
-      expect(beta.x).to.equal(320);
-      expect(beta.y).to.equal(210);
+      expect(beta.cx2_x).to.equal(320);
+      expect(beta.cx2_y).to.equal(210);
       expect(beta.cx2_bypass_NODE_BACKGROUND_COLOR).to.equal('#3366ff');
 
       const gamma = session.data.nodes.find((node: any) => node._id === 'Gamma');
