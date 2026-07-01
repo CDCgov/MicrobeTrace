@@ -1847,14 +1847,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, );
     }
 
-    openGraphMLImportWarnings(warnings: string[]) {
+    openNetworkImportWarnings(warnings: string[]) {
         if (!warnings.length) {
             return;
         }
 
         this.confirmationService.confirm({
-            header: 'GraphML Import Warnings',
-            message: `Some GraphML features are not supported by MicrobeTrace and were ignored during import.
+            header: 'Network Import Warnings',
+            message: `Some Network file features are not supported by MicrobeTrace and were ignored or imported as data fields.
 
 ${warnings.join('\n')}`,
             closable: false,
@@ -1865,6 +1865,10 @@ ${warnings.join('\n')}`,
                 label: 'Confirm',
             },
         });
+    }
+
+    openGraphMLImportWarnings(warnings: string[]) {
+        this.openNetworkImportWarnings(warnings);
     }
 
     onPruneWithTypesChanged(newValue: string) {

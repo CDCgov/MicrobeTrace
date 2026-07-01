@@ -5,7 +5,7 @@ import { byTestId, testIds } from './selectors';
 
 type FileLoadOptions = {
   name: string;
-  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
+  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'network' | 'MT/other';
   field1?: string;
   field2?: string;
   field3?: string;
@@ -44,6 +44,9 @@ export const getMimeTypeFromFilename = (name: string): string => {
 
   if (ext === 'csv') return 'text/csv';
   if (ext === 'json' || ext === 'microbetrace' || ext === 'style') return 'application/json';
+  if (ext === 'graphml') return 'application/graphml+xml';
+  if (ext === 'gexf') return 'application/gexf+xml';
+  if (ext === 'cx' || ext === 'cx2') return 'application/json';
   if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'nwk' || ext === 'newick') {
     return 'text/plain';
   }
