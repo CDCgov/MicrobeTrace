@@ -1847,6 +1847,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, );
     }
 
+    openGraphMLImportWarnings(warnings: string[]) {
+        if (!warnings.length) {
+            return;
+        }
+
+        this.confirmationService.confirm({
+            header: 'GraphML Import Warnings',
+            message: `Some GraphML features are not supported by MicrobeTrace and were ignored during import.
+
+${warnings.join('\n')}`,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectVisible: false,
+            acceptButtonProps: {
+                label: 'Confirm',
+            },
+        });
+    }
+
     onPruneWithTypesChanged(newValue: string) {
         if (this.userConfirmedNN == false && this.SelectedPruneWithTypesVariable == "Nearest Neighbor") {
             if (this.commonService.session.data.links.filter(l => l.origin.length > 1 && Array.isArray(l.origin)).length>0) {

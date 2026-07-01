@@ -115,6 +115,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   public title: string;
   public id: string;
 
+  private pendingGraphMLWarnings: string[] = [];
   private destroy$ = new Subject<void>();
   private loadViewSubscription?: Subscription;
 
@@ -891,6 +892,31 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.store.setLoadingMessageUpdated(msg);
   }
+
+  showGraphMLWarnings(fileName: string, warnings: string[]) {
+    if (!warnings.length) {
+      return;
+    }
+
+    this.pendingGraphMLWarnings.push(...warnings.map(warning => `${fileName}: ${warning}`));
+  }
+
+  flushGraphMLWarnings() {
+    if (!this.pendingGraphMLWarnings.length) {
+      return;
+    }
+
+    const warnings = [...this.pendingGraphMLWarnings];
+    this.pendingGraphMLWarnings = [];
+
+    const microbeTrace = this.commonService.visuals.microbeTrace;
+    if (microbeTrace?.openGraphMLImportWarnings) {
+      microbeTrace.openGraphMLImportWarnings(warnings);
+      return;
+    }
+
+    warnings.forEach(warning => this.showMessage(warning));
+  }
   
 
   /**
@@ -963,6 +989,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.commonService.session.messages = [];
     this.messages = [];
+    this.pendingGraphMLWarnings = [];
 
     if (this.commonService.debugMode) {
       console.log('session files', this.commonService.session.files);
@@ -1167,7 +1194,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             newLinks += this.commonService.addLink(link, check);
           });
 
-          graphML.warnings.forEach(warning => this.showMessage(` - ${warning}`));
+          this.showGraphMLWarnings(file.name, graphML.warnings);
 
           console.log('GraphML Parse time:', (Date.now() - start).toLocaleString(), 'ms');
           this.commonService.recordPerformanceTiming('ingestion', 'parseAndMergeGraphML', start, {
@@ -1808,6 +1835,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
       return;
     }
+
+    this.flushGraphMLWarnings();
 
     let nodes = this.commonService.session.data.nodes;
     if(this.commonService.debugMode) {
