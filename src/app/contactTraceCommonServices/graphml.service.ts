@@ -16,7 +16,7 @@ export interface GraphMLImportOptions {
     sourceName?: string;
 }
 
-export type NetworkXmlFormat = 'graphml' | 'gexf' | 'cx2';
+export type NetworkXmlFormat = 'graphml' | 'gexf' | 'cx2' | 'dot';
 
 export interface GraphMLImportResult {
     nodes: Record<string, any>[];
@@ -102,6 +102,34 @@ interface GraphMLEdgeEntry {
     record: Record<string, any>;
 }
 
+type DOTTokenType = 'id' | 'edgeop' | 'symbol' | 'eof';
+
+interface DOTToken {
+    type: DOTTokenType;
+    value: string;
+    position: number;
+    quoted?: boolean;
+}
+
+interface DOTNodeId {
+    id: string;
+    port?: string;
+    compass?: string;
+}
+
+interface DOTOperand {
+    nodes: DOTNodeId[];
+    subgraphId?: string;
+}
+
+interface DOTParseContext {
+    graphAttrs: Record<string, any>;
+    nodeDefaults: Record<string, any>;
+    edgeDefaults: Record<string, any>;
+    subgraphs: string[];
+    scopeNodeIds: Set<string>;
+}
+
 const GRAPHML_NAMESPACE = 'http://graphml.graphdrawing.org/xmlns';
 const XML_SCHEMA_INSTANCE_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
 const GRAPHML_SCHEMA_LOCATION = 'http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd';
@@ -128,8 +156,16 @@ export class GraphMLService {
         return /^2(?:\.|$)/.test(version.trim());
     }
 
+    looksLikeDOT(contents: any): boolean {
+        if (typeof contents !== 'string') {
+            return false;
+        }
+
+        return /^(?:strict\s+)?(?:graph|digraph)\b/i.test(this.stripLeadingDOTTrivia(contents));
+    }
+
     looksLikeNetworkDocument(contents: any): boolean {
-        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeCX2(contents);
+        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeCX2(contents) || this.looksLikeDOT(contents);
     }
 
     looksLikeNetworkXml(contents: any): boolean {
@@ -147,6 +183,10 @@ export class GraphMLService {
 
         if (this.looksLikeCX2(contents)) {
             return this.importCX2(contents, options);
+        }
+
+        if (this.looksLikeDOT(contents)) {
+            return this.importDOT(contents, options);
         }
 
         throw new Error('The selected file is not a supported network document.');
@@ -637,6 +677,382 @@ export class GraphMLService {
         };
     }
 
+    importDOT(contents: string, options: GraphMLImportOptions = {}): NetworkXmlImportResult {
+        const sourceName = options.sourceName || 'DOT Import';
+        const tokens = this.tokenizeDOT(contents);
+        const nodesById = new Map<string, Record<string, any>>();
+        const links: Record<string, any>[] = [];
+        const warnings: string[] = [];
+        const warnOnce = this.createWarningCollector(warnings);
+        let index = 0;
+        let edgeSequence = 1;
+        let subgraphSequence = 1;
+        let graphId = this.normalizeIdValue(sourceName);
+        let isStrict = false;
+        let isDirectedGraph = false;
+        const strictEdges = new Map<string, Record<string, any>>();
+
+        const peek = (offset = 0): DOTToken => tokens[Math.min(index + offset, tokens.length - 1)];
+        const consume = (): DOTToken => tokens[index++];
+        const isKeyword = (token: DOTToken, keyword: string): boolean =>
+            token.type === 'id' && token.quoted !== true && token.value.toLowerCase() === keyword.toLowerCase();
+        const peekKeyword = (keyword: string, offset = 0): boolean => isKeyword(peek(offset), keyword);
+        const matchKeyword = (keyword: string): boolean => {
+            if (peekKeyword(keyword)) {
+                consume();
+                return true;
+            }
+            return false;
+        };
+        const matchSymbol = (symbol: string): boolean => {
+            if (peek().type === 'symbol' && peek().value === symbol) {
+                consume();
+                return true;
+            }
+            return false;
+        };
+        const expectSymbol = (symbol: string): void => {
+            if (!matchSymbol(symbol)) {
+                this.throwDOTParseError(`Expected "${symbol}"`, peek());
+            }
+        };
+        const parseId = (): string => {
+            const token = peek();
+            if (token.type !== 'id') {
+                this.throwDOTParseError('Expected an identifier', token);
+            }
+
+            let value = consume().value;
+            while (matchSymbol('+')) {
+                const nextToken = peek();
+                if (nextToken.type !== 'id') {
+                    this.throwDOTParseError('Expected an identifier after "+"', nextToken);
+                }
+                value += consume().value;
+            }
+            return value;
+        };
+        const parseNodeIdTail = (id: string): DOTNodeId => {
+            const nodeId: DOTNodeId = { id };
+            if (!matchSymbol(':')) {
+                return nodeId;
+            }
+
+            nodeId.port = parseId();
+            if (matchSymbol(':')) {
+                nodeId.compass = parseId();
+            }
+            return nodeId;
+        };
+        const parseNodeId = (): DOTNodeId => parseNodeIdTail(parseId());
+        const parseAttrList = (): Record<string, any> => {
+            const attrs: Record<string, any> = {};
+
+            while (matchSymbol('[')) {
+                while (peek().type !== 'eof' && !(peek().type === 'symbol' && peek().value === ']')) {
+                    if (matchSymbol(';') || matchSymbol(',')) {
+                        continue;
+                    }
+
+                    const name = parseId();
+                    if (matchSymbol('=')) {
+                        attrs[name] = this.parseDOTAttributeValue(parseId(), name);
+                    } else {
+                        attrs[name] = true;
+                    }
+
+                    matchSymbol(';') || matchSymbol(',');
+                }
+                expectSymbol(']');
+            }
+
+            return attrs;
+        };
+        const cloneContext = (context: DOTParseContext, subgraphId?: string): DOTParseContext => ({
+            graphAttrs: { ...context.graphAttrs },
+            nodeDefaults: { ...context.nodeDefaults },
+            edgeDefaults: { ...context.edgeDefaults },
+            subgraphs: subgraphId ? context.subgraphs.concat([subgraphId]) : context.subgraphs.slice(),
+            scopeNodeIds: new Set<string>()
+        });
+        const addDOTSubgraphs = (record: Record<string, any>, subgraphs: string[]): void => {
+            if (subgraphs.length === 0) {
+                return;
+            }
+
+            const existing = Array.isArray(record.dot_subgraphs)
+                ? record.dot_subgraphs
+                : this.normalizeOrigins(record.dot_subgraphs);
+            record.dot_subgraphs = this.uniqStrings(existing.concat(subgraphs));
+        };
+        const addOrUpdateNode = (
+            node: DOTNodeId,
+            attrs: Record<string, any>,
+            context: DOTParseContext,
+            explicit: boolean
+        ): Record<string, any> => {
+            const id = this.normalizeIdValue(node.id);
+            const dataRecord = { ...attrs };
+            this.preserveReservedFields(dataRecord, ['id'], 'dot_attribute');
+
+            let nodeRecord = nodesById.get(id);
+            if (!nodeRecord) {
+                nodeRecord = {
+                    ...this.prefixDOTGraphData(context.graphAttrs),
+                    ...dataRecord,
+                    _id: id,
+                    id,
+                    dot_node_id: id,
+                    dot_graph_id: graphId,
+                    dot_file: sourceName
+                };
+                if (!explicit) {
+                    nodeRecord.dot_implicit_node = true;
+                }
+                this.applyGraphOrigin(nodeRecord, sourceName, false);
+                nodesById.set(id, nodeRecord);
+            } else if (explicit) {
+                Object.assign(nodeRecord, this.prefixDOTGraphData(context.graphAttrs), dataRecord);
+                if (nodeRecord.dot_implicit_node === true) {
+                    delete nodeRecord.dot_implicit_node;
+                }
+            }
+
+            addDOTSubgraphs(nodeRecord, context.subgraphs);
+            this.addNetworkSummary(nodeRecord, true);
+            context.scopeNodeIds.add(id);
+            return nodeRecord;
+        };
+        const strictEdgeKey = (source: string, target: string, directed: boolean): string => {
+            if (directed) {
+                return `${source}->${target}`;
+            }
+
+            return [source, target].sort((a, b) => a.localeCompare(b)).join('--');
+        };
+        const createEdge = (
+            sourceNode: DOTNodeId,
+            targetNode: DOTNodeId,
+            attrs: Record<string, any>,
+            context: DOTParseContext,
+            edgeop: string
+        ): void => {
+            const source = this.normalizeIdValue(sourceNode.id);
+            const target = this.normalizeIdValue(targetNode.id);
+            const directed = edgeop === '->';
+
+            if (directed && !isDirectedGraph) {
+                warnOnce('directed-edgeop-in-graph', 'DOT directed edge operator "->" appeared in a graph; imported as directed.');
+            }
+            if (!directed && isDirectedGraph) {
+                warnOnce('undirected-edgeop-in-digraph', 'DOT undirected edge operator "--" appeared in a digraph; imported as undirected.');
+            }
+
+            addOrUpdateNode(sourceNode, context.nodeDefaults, context, false);
+            addOrUpdateNode(targetNode, context.nodeDefaults, context, false);
+
+            const dataRecord = { ...attrs };
+            this.preserveReservedFields(dataRecord, ['id', 'source', 'target', 'directed'], 'dot_attribute');
+            const key = strictEdgeKey(source, target, directed);
+            let linkRecord = isStrict ? strictEdges.get(key) : undefined;
+
+            if (linkRecord) {
+                Object.assign(linkRecord, dataRecord);
+                if (sourceNode.port) linkRecord.dot_source_port = sourceNode.port;
+                if (sourceNode.compass) linkRecord.dot_source_compass = sourceNode.compass;
+                if (targetNode.port) linkRecord.dot_target_port = targetNode.port;
+                if (targetNode.compass) linkRecord.dot_target_compass = targetNode.compass;
+                return;
+            }
+
+            linkRecord = {
+                ...this.prefixDOTGraphData(context.graphAttrs),
+                ...dataRecord,
+                source,
+                target,
+                directed,
+                dot_edge_id: dataRecord.dot_attribute_id || `edge_${edgeSequence++}`,
+                dot_source_id: sourceNode.id,
+                dot_target_id: targetNode.id,
+                dot_graph_id: graphId,
+                dot_file: sourceName
+            };
+
+            if (sourceNode.port) linkRecord.dot_source_port = sourceNode.port;
+            if (sourceNode.compass) linkRecord.dot_source_compass = sourceNode.compass;
+            if (targetNode.port) linkRecord.dot_target_port = targetNode.port;
+            if (targetNode.compass) linkRecord.dot_target_compass = targetNode.compass;
+
+            addDOTSubgraphs(linkRecord, context.subgraphs);
+            links.push(linkRecord);
+            if (isStrict) {
+                strictEdges.set(key, linkRecord);
+            }
+        };
+        const parseOperand = (context: DOTParseContext): DOTOperand => {
+            if (peekKeyword('subgraph') || (peek().type === 'symbol' && peek().value === '{')) {
+                return parseSubgraph(context);
+            }
+
+            return { nodes: [parseNodeId()] };
+        };
+        const parseEdgeStatement = (left: DOTOperand, context: DOTParseContext): void => {
+            const operands = [left];
+            const edgeops: string[] = [];
+
+            while (peek().type === 'edgeop') {
+                edgeops.push(consume().value);
+                operands.push(parseOperand(context));
+            }
+
+            const attrs = {
+                ...context.edgeDefaults,
+                ...parseAttrList()
+            };
+
+            edgeops.forEach((edgeop, edgeIndex) => {
+                const sources = operands[edgeIndex].nodes;
+                const targets = operands[edgeIndex + 1].nodes;
+                if (sources.length === 0 || targets.length === 0) {
+                    warnOnce('empty-subgraph-edge', 'DOT edge statement used an empty subgraph operand; no edge was created for that operand.');
+                    return;
+                }
+
+                sources.forEach(source => targets.forEach(target => createEdge(source, target, attrs, context, edgeop)));
+            });
+        };
+        const parseSubgraph = (context: DOTParseContext): DOTOperand => {
+            let subgraphId = '';
+            if (matchKeyword('subgraph')) {
+                if (peek().type === 'id') {
+                    subgraphId = this.normalizeIdValue(parseId());
+                }
+            }
+
+            if (!subgraphId && peek().type === 'symbol' && peek().value !== '{') {
+                this.throwDOTParseError('Expected "{" after subgraph declaration', peek());
+            }
+
+            expectSymbol('{');
+            const generatedSubgraphId = subgraphId || `subgraph_${subgraphSequence++}`;
+            const subContext = cloneContext(context, subgraphId || undefined);
+            parseStmtList(subContext);
+            expectSymbol('}');
+
+            const nodes = Array.from(subContext.scopeNodeIds).map(id => ({ id }));
+            nodes.forEach(node => context.scopeNodeIds.add(node.id));
+            return {
+                nodes,
+                subgraphId: subgraphId || generatedSubgraphId
+            };
+        };
+        const parseStatement = (context: DOTParseContext): void => {
+            if (matchSymbol(';') || matchSymbol(',')) {
+                return;
+            }
+
+            if (peekKeyword('subgraph') || (peek().type === 'symbol' && peek().value === '{')) {
+                const operand = parseSubgraph(context);
+                if (peek().type === 'edgeop') {
+                    parseEdgeStatement(operand, context);
+                }
+                return;
+            }
+
+            if (
+                (peekKeyword('graph') || peekKeyword('node') || peekKeyword('edge'))
+                && peek(1).type === 'symbol'
+                && peek(1).value === '['
+            ) {
+                const domain = consume().value.toLowerCase();
+                const attrs = parseAttrList();
+                if (domain === 'graph') {
+                    Object.assign(context.graphAttrs, attrs);
+                } else if (domain === 'node') {
+                    Object.assign(context.nodeDefaults, attrs);
+                } else {
+                    Object.assign(context.edgeDefaults, attrs);
+                }
+                return;
+            }
+
+            const firstId = parseId();
+            if (matchSymbol('=')) {
+                context.graphAttrs[firstId] = this.parseDOTAttributeValue(parseId(), firstId);
+                return;
+            }
+
+            const node = parseNodeIdTail(firstId);
+            const operand = { nodes: [node] };
+            if (peek().type === 'edgeop') {
+                parseEdgeStatement(operand, context);
+                return;
+            }
+
+            addOrUpdateNode(node, {
+                ...context.nodeDefaults,
+                ...parseAttrList()
+            }, context, true);
+        };
+        const parseStmtList = (context: DOTParseContext): void => {
+            while (peek().type !== 'eof' && !(peek().type === 'symbol' && peek().value === '}')) {
+                parseStatement(context);
+                matchSymbol(';') || matchSymbol(',');
+            }
+        };
+
+        isStrict = matchKeyword('strict');
+        if (matchKeyword('digraph')) {
+            isDirectedGraph = true;
+        } else if (matchKeyword('graph')) {
+            isDirectedGraph = false;
+        } else {
+            this.throwDOTParseError('DOT file must start with graph or digraph', peek());
+        }
+
+        if (peek().type === 'id') {
+            graphId = this.normalizeIdValue(parseId());
+        }
+
+        const rootContext: DOTParseContext = {
+            graphAttrs: {
+                kind: isDirectedGraph ? 'digraph' : 'graph',
+                strict: isStrict
+            },
+            nodeDefaults: {},
+            edgeDefaults: {},
+            subgraphs: [],
+            scopeNodeIds: new Set<string>()
+        };
+
+        expectSymbol('{');
+        parseStmtList(rootContext);
+        expectSymbol('}');
+
+        if (peek().type !== 'eof') {
+            this.throwDOTParseError('Unexpected content after DOT graph', peek());
+        }
+
+        const nodes = Array.from(nodesById.values());
+        nodes.forEach(node => this.addNetworkSummary(node, true));
+        links.forEach(link => {
+            this.applyDOTEdgeOrigins(link, sourceName, graphId, false);
+            this.normalizeImportedDistance(link, this.getDistanceOriginFallback(link, sourceName));
+            this.addNetworkSummary(link, true);
+        });
+
+        return {
+            format: 'dot',
+            formatLabel: 'DOT',
+            nodes,
+            links,
+            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'label', 'origin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_node_id', 'dot_subgraphs']),
+            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_edge_id']),
+            graphIds: [graphId],
+            warnings
+        };
+    }
+
     exportSession(session: any, options: GraphMLExportOptions = {}): GraphMLExportResult {
         const data = session?.data ?? {};
         const nodes = Array.isArray(data.nodes) ? data.nodes : [];
@@ -691,6 +1107,311 @@ export class GraphMLService {
             linkCount: edgeEntries.length,
             networkCount: networkNames.length
         };
+    }
+
+    private stripLeadingDOTTrivia(contents: string): string {
+        let index = 0;
+        let lineStart = true;
+
+        while (index < contents.length) {
+            const char = contents[index];
+            const next = contents[index + 1];
+
+            if (/\s/.test(char)) {
+                lineStart = char === '\n' || char === '\r' ? true : lineStart;
+                index++;
+                continue;
+            }
+
+            if (lineStart && char === '#') {
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                lineStart = true;
+                continue;
+            }
+
+            if (char === '/' && next === '/') {
+                index += 2;
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                lineStart = true;
+                continue;
+            }
+
+            if (char === '/' && next === '*') {
+                index += 2;
+                while (index < contents.length && !(contents[index] === '*' && contents[index + 1] === '/')) {
+                    if (contents[index] === '\n' || contents[index] === '\r') {
+                        lineStart = true;
+                    }
+                    index++;
+                }
+                index = Math.min(index + 2, contents.length);
+                continue;
+            }
+
+            break;
+        }
+
+        return contents.slice(index);
+    }
+
+    private tokenizeDOT(contents: string): DOTToken[] {
+        const tokens: DOTToken[] = [];
+        let index = 0;
+        let lineStart = true;
+        const symbolChars = new Set(['{', '}', '[', ']', ';', ',', '=', ':', '+']);
+
+        const push = (type: DOTTokenType, value: string, position: number, quoted = false) => {
+            tokens.push({ type, value, position, quoted });
+            lineStart = false;
+        };
+
+        while (index < contents.length) {
+            const char = contents[index];
+            const next = contents[index + 1];
+
+            if (/\s/.test(char)) {
+                if (char === '\n' || char === '\r') {
+                    lineStart = true;
+                }
+                index++;
+                continue;
+            }
+
+            if (lineStart && char === '#') {
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                lineStart = true;
+                continue;
+            }
+
+            if (char === '/' && next === '/') {
+                index += 2;
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                lineStart = true;
+                continue;
+            }
+
+            if (char === '/' && next === '*') {
+                index += 2;
+                while (index < contents.length && !(contents[index] === '*' && contents[index + 1] === '/')) {
+                    if (contents[index] === '\n' || contents[index] === '\r') {
+                        lineStart = true;
+                    }
+                    index++;
+                }
+                if (index >= contents.length) {
+                    this.throwDOTParseError('Unterminated block comment', { type: 'eof', value: '', position: contents.length });
+                }
+                index += 2;
+                continue;
+            }
+
+            if ((char === '-' && next === '>') || (char === '-' && next === '-')) {
+                push('edgeop', char + next, index);
+                index += 2;
+                continue;
+            }
+
+            if (symbolChars.has(char)) {
+                push('symbol', char, index);
+                index++;
+                continue;
+            }
+
+            if (char === '"') {
+                const position = index;
+                let value = '';
+                index++;
+
+                while (index < contents.length) {
+                    const current = contents[index];
+                    const escaped = contents[index + 1];
+
+                    if (current === '"') {
+                        index++;
+                        push('id', value, position, true);
+                        value = '';
+                        break;
+                    }
+
+                    if (current === '\\') {
+                        if (escaped === '\r' && contents[index + 2] === '\n') {
+                            index += 3;
+                            continue;
+                        }
+                        if (escaped === '\n' || escaped === '\r') {
+                            index += 2;
+                            continue;
+                        }
+                        if (escaped === 'n') value += '\n';
+                        else if (escaped === 'r') value += '\r';
+                        else if (escaped === 't') value += '\t';
+                        else value += escaped ?? '';
+                        index += 2;
+                        continue;
+                    }
+
+                    value += current;
+                    index++;
+                }
+
+                if (value.length > 0 || index >= contents.length) {
+                    this.throwDOTParseError('Unterminated quoted string', { type: 'eof', value: '', position });
+                }
+                continue;
+            }
+
+            if (char === '<') {
+                const position = index;
+                let depth = 0;
+                let inQuote: string | null = null;
+
+                while (index < contents.length) {
+                    const current = contents[index];
+                    if (inQuote) {
+                        if (current === inQuote && contents[index - 1] !== '\\') {
+                            inQuote = null;
+                        }
+                        index++;
+                        continue;
+                    }
+
+                    if (current === '"' || current === "'") {
+                        inQuote = current;
+                        index++;
+                        continue;
+                    }
+
+                    if (current === '<') {
+                        depth++;
+                    } else if (current === '>') {
+                        depth--;
+                        if (depth === 0) {
+                            index++;
+                            push('id', contents.slice(position, index), position, true);
+                            break;
+                        }
+                    }
+                    index++;
+                }
+
+                if (depth !== 0) {
+                    this.throwDOTParseError('Unterminated HTML-like string', { type: 'eof', value: '', position });
+                }
+                continue;
+            }
+
+            const position = index;
+            while (index < contents.length) {
+                const current = contents[index];
+                const following = contents[index + 1];
+                if (
+                    /\s/.test(current)
+                    || symbolChars.has(current)
+                    || (current === '-' && (following === '>' || following === '-'))
+                    || (current === '/' && (following === '/' || following === '*'))
+                ) {
+                    break;
+                }
+                index++;
+            }
+
+            if (index === position) {
+                this.throwDOTParseError(`Unexpected character "${char}"`, { type: 'symbol', value: char, position });
+            }
+
+            push('id', contents.slice(position, index), position);
+        }
+
+        tokens.push({ type: 'eof', value: '', position: contents.length });
+        return tokens;
+    }
+
+    private parseDOTAttributeValue(rawValue: string, fieldName: string): any {
+        const value = String(rawValue ?? '').trim();
+        const field = String(fieldName ?? '').trim();
+
+        if ((field === 'origin' || field === '_originAll' || field === 'distanceOrigins') && value.includes(';')) {
+            return value.split(';').map(part => part.trim()).filter(part => part.length > 0);
+        }
+
+        if (/^\s*[\[{]/.test(value)) {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return value;
+            }
+        }
+
+        if (/^(true|false)$/i.test(value)) {
+            return value.toLowerCase() === 'true';
+        }
+
+        if (/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value)) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : value;
+        }
+
+        return value;
+    }
+
+    private prefixDOTGraphData(graphRecord: Record<string, any>): Record<string, any> {
+        const prefixed: Record<string, any> = {};
+        Object.keys(graphRecord).forEach(key => {
+            if (graphRecord[key] !== undefined && graphRecord[key] !== '') {
+                prefixed[`dot_graph_${key}`] = graphRecord[key];
+            }
+        });
+        return prefixed;
+    }
+
+    private applyDOTEdgeOrigins(
+        record: Record<string, any>,
+        sourceName: string,
+        graphOrigin: string,
+        forceGraphOrigin: boolean
+    ): void {
+        const edgeOrigins = this.normalizeOrigins(record.origin);
+        const allEdgeOrigins = this.normalizeOrigins(record._originAll);
+        const fallbackOrigins = [forceGraphOrigin ? graphOrigin : sourceName];
+        const visibleOrigins = edgeOrigins.length > 0
+            ? edgeOrigins
+            : (allEdgeOrigins.length > 0 ? allEdgeOrigins : fallbackOrigins);
+        const canonicalOrigins = allEdgeOrigins.length > 0 ? allEdgeOrigins : visibleOrigins;
+
+        if (edgeOrigins.length > 0) {
+            record.dot_edge_origin = edgeOrigins.join('; ');
+        }
+
+        if (allEdgeOrigins.length > 0) {
+            record.dot_edge_origin_all = allEdgeOrigins.join('; ');
+        }
+
+        record.origin = this.prefixGraphMLImportedOrigins(visibleOrigins, sourceName);
+        record._originAll = this.prefixGraphMLImportedOrigins(canonicalOrigins, sourceName);
+
+        const distanceOrigins = this.normalizeOrigins(record.distanceOrigins);
+        if (distanceOrigins.length > 0) {
+            record.dot_edge_distance_origins = distanceOrigins.join('; ');
+            record.distanceOrigins = this.prefixGraphMLImportedOrigins(distanceOrigins, sourceName);
+        }
+
+        const distanceOrigin = String(record.distanceOrigin ?? '').trim();
+        if (distanceOrigin.length > 0) {
+            record.dot_edge_distance_origin = distanceOrigin;
+            record.distanceOrigin = this.prefixGraphMLImportedOrigin(distanceOrigin, sourceName);
+        }
+    }
+
+    private throwDOTParseError(message: string, token: DOTToken): never {
+        throw new Error(`Unable to parse DOT file. ${message} at character ${token.position}.`);
     }
 
     private parseJSONIfPossible(contents: any): any {

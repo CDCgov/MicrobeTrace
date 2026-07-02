@@ -10,6 +10,7 @@ describe('GraphML import/export', () => {
   const staticGEXF = 'GEXF_Static_Network.gexf';
   const optionalGEXF = 'GEXF_Optional_Metadata.gexf';
   const staticCX2 = 'CX2_Static_Network.cx2';
+  const staticDOT = 'DOT_Static_Network.dot';
 
   beforeEach(() => {
     cy.visit('/?skipEula=1&skipDemoSession=1');
@@ -290,6 +291,72 @@ describe('GraphML import/export', () => {
       expect(distanceLink.distance).to.equal(7);
       expect(distanceLink.origin).to.deep.equal([staticCX2]);
       expect(distanceLink.distanceOrigin).to.equal(staticCX2);
+    });
+  });
+
+  it('imports DOT topology, attributes, direction, strict edges, and subgraph shorthand as Network files', () => {
+    cy.attach_file('#fileDropRef', staticDOT, 'text/vnd.graphviz');
+
+    cy.contains('#file-table .file-table-row', staticDOT, { timeout: 20000 })
+      .find('input[data-type="network"]')
+      .should('be.checked');
+
+    cy.get('#launch').should('not.be.disabled').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win: any) => {
+      const session = win.commonService.session;
+      expect(session.data.nodes, 'imported DOT nodes').to.have.length(5);
+      expect(session.data.links, 'imported DOT links').to.have.length(4);
+
+      const metadata = session.files.find((file: any) => file.name === staticDOT);
+      expect(metadata.format).to.equal('network');
+
+      const alpha = session.data.nodes.find((node: any) => node._id === 'Alpha');
+      expect(alpha.label).to.equal('Case Alpha');
+      expect(alpha.sample_type).to.equal('case');
+      expect(alpha.viral_load).to.equal(2.5);
+      expect(alpha.active).to.equal(true);
+      expect(alpha.dot_graph_id).to.equal('ContactNetwork');
+      expect(alpha.dot_graph_label).to.equal('DOT fixture');
+
+      const beta = session.data.nodes.find((node: any) => node._id === 'Beta');
+      expect(beta.sample_type).to.equal('contact');
+      expect(beta.active).to.equal(false);
+
+      const gamma = session.data.nodes.find((node: any) => node._id === 'Gamma');
+      expect(gamma.sample_type).to.equal('case');
+      expect(gamma.active).to.equal(true);
+
+      const delta = session.data.nodes.find((node: any) => node._id === 'Delta');
+      expect(delta.dot_subgraphs).to.deep.equal(['cluster_followup']);
+
+      const strictLink = session.data.links.find((link: any) =>
+        link.source === 'Alpha' && link.target === 'Beta',
+      );
+      expect(strictLink.directed).to.equal(true);
+      expect(strictLink.distance).to.equal(5);
+      expect(strictLink.hasDistance).to.equal(true);
+      expect(strictLink.origin).to.deep.equal([`${staticDOT}-Contact.csv`]);
+      expect(strictLink.distanceOrigin).to.equal(`${staticDOT}-Contact.csv`);
+      expect(strictLink.note).to.equal('strict replacement');
+      expect(strictLink.dot_edge_origin).to.equal('Contact.csv');
+
+      const weightedLink = session.data.links.find((link: any) =>
+        link.source === 'Beta' && link.target === 'Gamma',
+      );
+      expect(weightedLink.kind).to.equal('genetic');
+      expect(weightedLink.weight).to.equal(7);
+      expect(weightedLink.distance).to.equal(7);
+      expect(weightedLink.origin).to.deep.equal([staticDOT]);
+
+      const shorthandTargets = session.data.links
+        .filter((link: any) => link.source === 'Beta' && ['Delta', 'Epsilon'].includes(link.target))
+        .map((link: any) => link.target)
+        .sort();
+      expect(shorthandTargets).to.deep.equal(['Delta', 'Epsilon']);
     });
   });
 });

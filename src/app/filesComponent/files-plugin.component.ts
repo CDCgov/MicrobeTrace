@@ -2270,7 +2270,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
     const isFasta = extension.indexOf('fas') > -1;
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
-    const isNetworkDocument = ['graphml', 'gexf', 'cx', 'cx2'].includes(extension)
+    const isNetworkDocument = ['graphml', 'gexf', 'cx', 'cx2', 'dot', 'gv'].includes(extension)
       || this.graphMLService.looksLikeNetworkDocument(file.contents);
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
