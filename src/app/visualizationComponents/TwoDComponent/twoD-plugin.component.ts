@@ -664,6 +664,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     source: link.source,
                     target: link.target,
                     lineSelectedColor: this.widgets['selected-color'],
+                    mtRawLinkLabel: this.getRawLinkLabel(link),
                     label: this.getLinkLabel(link).text, // Existing link label
                     lineColor: this.getLinkColor({origin: originItem}).color, // Default to black if not specified
                     lineOpacity: this.getLinkColor({origin: originItem}).opacity, // Default to fully opaque if not specified
@@ -680,6 +681,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             source: link.source,
             target: link.target,
             lineSelectedColor: this.widgets['selected-color'],
+            mtRawLinkLabel: this.getRawLinkLabel(link),
             label: this.getLinkLabel(link).text, // Existing link label
             lineColor: this.getLinkColor(link).color, // Default to black if not specified
             lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
@@ -3609,6 +3611,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else if (labelVariable == 'target_index') { // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
                 return { text: link['target'] }
                 //return link['target']['index']
+            } else if (labelVariable == 'label') {
+                const labelValue = this.getRawLinkLabel(link);
+                return { text: labelValue === undefined || labelValue === null ? '' : `${labelValue}` };
             } else if (labelVariable != 'distance') {
                 return { text: `${link[labelVariable]}`  || '' };
             }
@@ -3637,6 +3642,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
         }
+    }
+
+    private getRawLinkLabel(link: any): any {
+        return link?.mtRawLinkLabel ?? link?.label;
     }
 
 

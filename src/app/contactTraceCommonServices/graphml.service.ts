@@ -16,7 +16,7 @@ export interface GraphMLImportOptions {
     sourceName?: string;
 }
 
-export type NetworkXmlFormat = 'graphml' | 'gexf' | 'cx2' | 'dot';
+export type NetworkXmlFormat = 'graphml' | 'gexf' | 'cx2' | 'dot' | 'gml';
 
 export interface GraphMLImportResult {
     nodes: Record<string, any>[];
@@ -130,6 +130,15 @@ interface DOTParseContext {
     scopeNodeIds: Set<string>;
 }
 
+type GMLTokenType = 'value' | 'symbol' | 'eof';
+
+interface GMLToken {
+    type: GMLTokenType;
+    value: string;
+    position: number;
+    quoted?: boolean;
+}
+
 const GRAPHML_NAMESPACE = 'http://graphml.graphdrawing.org/xmlns';
 const XML_SCHEMA_INSTANCE_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
 const GRAPHML_SCHEMA_LOCATION = 'http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd';
@@ -156,6 +165,19 @@ export class GraphMLService {
         return /^2(?:\.|$)/.test(version.trim());
     }
 
+    looksLikeGML(contents: any): boolean {
+        if (typeof contents !== 'string') {
+            return false;
+        }
+
+        const stripped = this.stripLeadingGMLTrivia(contents);
+        if (/^(?:strict\s+)?digraph\b/i.test(stripped) || /^(?:strict\s+)?graph\b(?!\s*\[)/i.test(stripped)) {
+            return false;
+        }
+
+        return /(?:^|\s)graph\s*\[/i.test(stripped);
+    }
+
     looksLikeDOT(contents: any): boolean {
         if (typeof contents !== 'string') {
             return false;
@@ -165,7 +187,7 @@ export class GraphMLService {
     }
 
     looksLikeNetworkDocument(contents: any): boolean {
-        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeCX2(contents) || this.looksLikeDOT(contents);
+        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeCX2(contents) || this.looksLikeGML(contents) || this.looksLikeDOT(contents);
     }
 
     looksLikeNetworkXml(contents: any): boolean {
@@ -183,6 +205,10 @@ export class GraphMLService {
 
         if (this.looksLikeCX2(contents)) {
             return this.importCX2(contents, options);
+        }
+
+        if (this.looksLikeGML(contents)) {
+            return this.importGML(contents, options);
         }
 
         if (this.looksLikeDOT(contents)) {
@@ -677,6 +703,110 @@ export class GraphMLService {
         };
     }
 
+    importGML(contents: string, options: GraphMLImportOptions = {}): NetworkXmlImportResult {
+        const sourceName = options.sourceName || 'GML Import';
+        const documentRecord = this.parseGMLDocument(contents);
+        const graphRecords = this.asGMLRecordArray(documentRecord.graph);
+        const warnings: string[] = [];
+
+        if (graphRecords.length === 0) {
+            throw new Error('GML file does not contain a graph block.');
+        }
+
+        if (graphRecords.length > 1) {
+            warnings.push('GML file contains multiple top-level graph blocks; all were imported as separate networks.');
+        }
+
+        const nodes: Record<string, any>[] = [];
+        const links: Record<string, any>[] = [];
+        const graphIds: string[] = [];
+
+        graphRecords.forEach((graphRecord, graphIndex) => {
+            const graphAttrs = this.copyGMLAttributes(graphRecord, ['node', 'edge']);
+            const graphId = this.normalizeIdValue(graphAttrs.id || graphAttrs.name || graphAttrs.label || `graph_${graphIndex + 1}`);
+            const graphOrigin = graphRecords.length > 1 ? graphId : sourceName;
+            const graphData = this.prefixGMLGraphData(graphAttrs);
+            const graphDirected = this.parseGMLDirectedValue(graphRecord.directed) === true;
+            const graphNodes = this.asGMLRecordArray(graphRecord.node);
+            const graphEdges = this.asGMLRecordArray(graphRecord.edge);
+            const gmlNodeIdToMicrobeTraceId = new Map<string, string>();
+
+            graphIds.push(graphId);
+
+            const labelCounts = this.countGMLAttributeValues(graphNodes, 'label');
+            const nameCounts = this.countGMLAttributeValues(graphNodes, 'name');
+
+            graphNodes.forEach((nodeRecordRaw, nodeIndex) => {
+                const gmlNodeId = this.normalizeIdValue(nodeRecordRaw.id ?? `node_${graphIndex + 1}_${nodeIndex + 1}`);
+                const dataRecord = this.copyGMLAttributes(nodeRecordRaw, ['id']);
+                const originalId = this.selectGMLNodeOriginalId(dataRecord, gmlNodeId, labelCounts, nameCounts);
+                const nodeRecord: Record<string, any> = {
+                    ...graphData,
+                    ...dataRecord,
+                    _id: originalId,
+                    id: originalId,
+                    gml_node_id: gmlNodeId,
+                    gml_graph_id: graphId,
+                    gml_file: sourceName
+                };
+
+                this.applyGraphOrigin(nodeRecord, graphOrigin, graphRecords.length > 1);
+                this.addNetworkSummary(nodeRecord, true);
+                nodes.push(nodeRecord);
+                gmlNodeIdToMicrobeTraceId.set(gmlNodeId, originalId);
+            });
+
+            graphEdges.forEach((edgeRecordRaw, edgeIndex) => {
+                const sourceGmlId = this.normalizeIdValue(edgeRecordRaw.source);
+                const targetGmlId = this.normalizeIdValue(edgeRecordRaw.target);
+                const source = gmlNodeIdToMicrobeTraceId.get(sourceGmlId) || sourceGmlId;
+                const target = gmlNodeIdToMicrobeTraceId.get(targetGmlId) || targetGmlId;
+                const dataRecord = this.copyGMLAttributes(edgeRecordRaw, ['id', 'source', 'target', 'directed']);
+                const edgeDirected = this.parseGMLDirectedValue(edgeRecordRaw.directed);
+                const linkRecord: Record<string, any> = {
+                    ...graphData,
+                    ...dataRecord,
+                    source,
+                    target,
+                    directed: edgeDirected === null ? graphDirected : edgeDirected,
+                    gml_edge_id: this.normalizeIdValue(edgeRecordRaw.id ?? `edge_${graphIndex + 1}_${edgeIndex + 1}`),
+                    gml_source_id: sourceGmlId,
+                    gml_target_id: targetGmlId,
+                    gml_graph_id: graphId,
+                    gml_file: sourceName
+                };
+
+                this.applyGMLEdgeOrigins(linkRecord, sourceName, graphOrigin, graphRecords.length > 1);
+                this.normalizeImportedDistance(linkRecord, this.getDistanceOriginFallback(linkRecord, sourceName));
+                this.addNetworkSummary(linkRecord, true);
+                links.push(linkRecord);
+
+                if (!gmlNodeIdToMicrobeTraceId.has(sourceGmlId)) {
+                    nodes.push(this.buildGeneratedGMLEndpointNode(source, sourceGmlId, graphId, sourceName, graphOrigin, graphRecords.length > 1, graphData));
+                    gmlNodeIdToMicrobeTraceId.set(sourceGmlId, source);
+                    warnings.push(`GML edge source "${sourceGmlId}" had no node declaration; a node was generated.`);
+                }
+
+                if (!gmlNodeIdToMicrobeTraceId.has(targetGmlId)) {
+                    nodes.push(this.buildGeneratedGMLEndpointNode(target, targetGmlId, graphId, sourceName, graphOrigin, graphRecords.length > 1, graphData));
+                    gmlNodeIdToMicrobeTraceId.set(targetGmlId, target);
+                    warnings.push(`GML edge target "${targetGmlId}" had no node declaration; a node was generated.`);
+                }
+            });
+        });
+
+        return {
+            format: 'gml',
+            formatLabel: 'GML',
+            nodes,
+            links,
+            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'label', 'name', 'origin', 'mt_networks', 'gml_graph_id', 'gml_file', 'gml_node_id']),
+            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'gml_graph_id', 'gml_file', 'gml_edge_id']),
+            graphIds,
+            warnings
+        };
+    }
+
     importDOT(contents: string, options: GraphMLImportOptions = {}): NetworkXmlImportResult {
         const sourceName = options.sourceName || 'DOT Import';
         const tokens = this.tokenizeDOT(contents);
@@ -1107,6 +1237,408 @@ export class GraphMLService {
             linkCount: edgeEntries.length,
             networkCount: networkNames.length
         };
+    }
+
+    private stripLeadingGMLTrivia(contents: string): string {
+        let index = 0;
+
+        while (index < contents.length) {
+            const char = contents[index];
+            const next = contents[index + 1];
+
+            if (/\s/.test(char)) {
+                index++;
+                continue;
+            }
+
+            if (char === '#') {
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                continue;
+            }
+
+            if (char === '/' && next === '/') {
+                index += 2;
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                continue;
+            }
+
+            if (char === '/' && next === '*') {
+                index += 2;
+                while (index < contents.length && !(contents[index] === '*' && contents[index + 1] === '/')) {
+                    index++;
+                }
+                index = Math.min(index + 2, contents.length);
+                continue;
+            }
+
+            break;
+        }
+
+        return contents.slice(index);
+    }
+
+    private tokenizeGML(contents: string): GMLToken[] {
+        const tokens: GMLToken[] = [];
+        let index = 0;
+        const symbolChars = new Set(['[', ']']);
+        const push = (type: GMLTokenType, value: string, position: number, quoted = false) => {
+            tokens.push({ type, value, position, quoted });
+        };
+
+        while (index < contents.length) {
+            const char = contents[index];
+            const next = contents[index + 1];
+
+            if (/\s/.test(char)) {
+                index++;
+                continue;
+            }
+
+            if (char === '#') {
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                continue;
+            }
+
+            if (char === '/' && next === '/') {
+                index += 2;
+                while (index < contents.length && contents[index] !== '\n') {
+                    index++;
+                }
+                continue;
+            }
+
+            if (char === '/' && next === '*') {
+                const position = index;
+                index += 2;
+                while (index < contents.length && !(contents[index] === '*' && contents[index + 1] === '/')) {
+                    index++;
+                }
+                if (index >= contents.length) {
+                    this.throwGMLParseError('Unterminated block comment', { type: 'eof', value: '', position });
+                }
+                index += 2;
+                continue;
+            }
+
+            if (symbolChars.has(char)) {
+                push('symbol', char, index);
+                index++;
+                continue;
+            }
+
+            if (char === '"' || char === "'") {
+                const quote = char;
+                const position = index;
+                let value = '';
+                let closed = false;
+                index++;
+
+                while (index < contents.length) {
+                    const current = contents[index];
+                    const escaped = contents[index + 1];
+
+                    if (current === quote) {
+                        index++;
+                        closed = true;
+                        break;
+                    }
+
+                    if (current === '\\') {
+                        if (escaped === 'n') value += '\n';
+                        else if (escaped === 'r') value += '\r';
+                        else if (escaped === 't') value += '\t';
+                        else value += escaped ?? '';
+                        index += 2;
+                        continue;
+                    }
+
+                    value += current;
+                    index++;
+                }
+
+                if (!closed) {
+                    this.throwGMLParseError('Unterminated quoted string', { type: 'eof', value: '', position });
+                }
+
+                push('value', value, position, true);
+                continue;
+            }
+
+            const position = index;
+            while (index < contents.length) {
+                const current = contents[index];
+                const following = contents[index + 1];
+                if (
+                    /\s/.test(current)
+                    || symbolChars.has(current)
+                    || current === '#'
+                    || (current === '/' && (following === '/' || following === '*'))
+                ) {
+                    break;
+                }
+                index++;
+            }
+
+            if (index === position) {
+                this.throwGMLParseError(`Unexpected character "${char}"`, { type: 'symbol', value: char, position });
+            }
+
+            push('value', contents.slice(position, index), position);
+        }
+
+        tokens.push({ type: 'eof', value: '', position: contents.length });
+        return tokens;
+    }
+
+    private parseGMLDocument(contents: string): Record<string, any> {
+        const tokens = this.tokenizeGML(contents);
+        let index = 0;
+        const peek = (): GMLToken => tokens[Math.min(index, tokens.length - 1)];
+        const consume = (): GMLToken => tokens[index++];
+        const matchSymbol = (symbol: string): boolean => {
+            if (peek().type === 'symbol' && peek().value === symbol) {
+                consume();
+                return true;
+            }
+            return false;
+        };
+        const expectSymbol = (symbol: string): void => {
+            if (!matchSymbol(symbol)) {
+                this.throwGMLParseError(`Expected "${symbol}"`, peek());
+            }
+        };
+        const parseValue = (): any => {
+            if (matchSymbol('[')) {
+                const nestedRecord = parseRecord(true);
+                expectSymbol(']');
+                return nestedRecord;
+            }
+
+            const token = peek();
+            if (token.type !== 'value') {
+                this.throwGMLParseError('Expected a value', token);
+            }
+
+            consume();
+            return this.parseGMLScalar(token);
+        };
+        const parseRecord = (untilCloseBracket: boolean): Record<string, any> => {
+            const record: Record<string, any> = {};
+
+            while (peek().type !== 'eof' && !(untilCloseBracket && peek().type === 'symbol' && peek().value === ']')) {
+                const keyToken = peek();
+                if (keyToken.type !== 'value') {
+                    this.throwGMLParseError('Expected a key', keyToken);
+                }
+                const key = consume().value;
+                const value = parseValue();
+                this.addGMLRecordValue(record, key, value);
+            }
+
+            return record;
+        };
+
+        const documentRecord = parseRecord(false);
+        if (peek().type !== 'eof') {
+            this.throwGMLParseError('Unexpected content after GML document', peek());
+        }
+
+        return documentRecord;
+    }
+
+    private parseGMLScalar(token: GMLToken): any {
+        if (token.quoted) {
+            return token.value;
+        }
+
+        const value = String(token.value ?? '').trim();
+        if (/^(true|false)$/i.test(value)) {
+            return value.toLowerCase() === 'true';
+        }
+
+        if (/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value)) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : value;
+        }
+
+        return value;
+    }
+
+    private addGMLRecordValue(record: Record<string, any>, key: string, value: any): void {
+        if (!Object.prototype.hasOwnProperty.call(record, key)) {
+            record[key] = value;
+            return;
+        }
+
+        record[key] = Array.isArray(record[key])
+            ? record[key].concat([value])
+            : [record[key], value];
+    }
+
+    private throwGMLParseError(message: string, token: GMLToken): never {
+        throw new Error(`Unable to parse GML file. ${message} at character ${token.position}.`);
+    }
+
+    private asGMLRecordArray(value: any): Record<string, any>[] {
+        const values = Array.isArray(value)
+            ? value
+            : (value === undefined || value === null ? [] : [value]);
+
+        return values.filter((entry): entry is Record<string, any> =>
+            !!entry && typeof entry === 'object' && !Array.isArray(entry)
+        );
+    }
+
+    private copyGMLAttributes(record: Record<string, any>, excludedFields: string[]): Record<string, any> {
+        const excluded = new Set(excludedFields);
+        const output: Record<string, any> = {};
+
+        Object.keys(record || {}).forEach(key => {
+            if (!excluded.has(key)) {
+                output[key] = record[key];
+            }
+        });
+
+        return output;
+    }
+
+    private countGMLAttributeValues(records: Record<string, any>[], field: string): Map<string, number> {
+        const counts = new Map<string, number>();
+
+        records.forEach(record => {
+            const value = this.normalizeOptionalValue(record[field]);
+            if (value) {
+                counts.set(value, (counts.get(value) || 0) + 1);
+            }
+        });
+
+        return counts;
+    }
+
+    private selectGMLNodeOriginalId(
+        dataRecord: Record<string, any>,
+        gmlNodeId: string,
+        labelCounts: Map<string, number>,
+        nameCounts: Map<string, number>
+    ): string {
+        const explicitId = this.normalizeOptionalValue(dataRecord._id);
+        if (explicitId) {
+            return this.normalizeIdValue(explicitId);
+        }
+
+        const label = this.normalizeOptionalValue(dataRecord.label);
+        if (label && labelCounts.get(label) === 1) {
+            return this.normalizeIdValue(label);
+        }
+
+        const name = this.normalizeOptionalValue(dataRecord.name);
+        if (name && nameCounts.get(name) === 1) {
+            return this.normalizeIdValue(name);
+        }
+
+        return gmlNodeId;
+    }
+
+    private parseGMLDirectedValue(value: any): boolean | null {
+        if (value === undefined || value === null || value === '') {
+            return null;
+        }
+
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        if (typeof value === 'number') {
+            return value !== 0;
+        }
+
+        const normalized = String(value).trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1' || normalized === 'directed') {
+            return true;
+        }
+        if (normalized === 'false' || normalized === '0' || normalized === 'undirected') {
+            return false;
+        }
+
+        return null;
+    }
+
+    private prefixGMLGraphData(graphRecord: Record<string, any>): Record<string, any> {
+        const prefixed: Record<string, any> = {};
+        Object.keys(graphRecord).forEach(key => {
+            if (graphRecord[key] !== undefined && graphRecord[key] !== '') {
+                prefixed[`gml_graph_${key}`] = graphRecord[key];
+            }
+        });
+        return prefixed;
+    }
+
+    private applyGMLEdgeOrigins(
+        record: Record<string, any>,
+        sourceName: string,
+        graphOrigin: string,
+        forceGraphOrigin: boolean
+    ): void {
+        const edgeOrigins = this.normalizeOrigins(record.origin);
+        const allEdgeOrigins = this.normalizeOrigins(record._originAll);
+        const fallbackOrigins = [forceGraphOrigin ? graphOrigin : sourceName];
+        const visibleOrigins = edgeOrigins.length > 0
+            ? edgeOrigins
+            : (allEdgeOrigins.length > 0 ? allEdgeOrigins : fallbackOrigins);
+        const canonicalOrigins = allEdgeOrigins.length > 0 ? allEdgeOrigins : visibleOrigins;
+
+        if (edgeOrigins.length > 0) {
+            record.gml_edge_origin = edgeOrigins.join('; ');
+        }
+
+        if (allEdgeOrigins.length > 0) {
+            record.gml_edge_origin_all = allEdgeOrigins.join('; ');
+        }
+
+        record.origin = this.prefixGraphMLImportedOrigins(visibleOrigins, sourceName);
+        record._originAll = this.prefixGraphMLImportedOrigins(canonicalOrigins, sourceName);
+
+        const distanceOrigins = this.normalizeOrigins(record.distanceOrigins);
+        if (distanceOrigins.length > 0) {
+            record.gml_edge_distance_origins = distanceOrigins.join('; ');
+            record.distanceOrigins = this.prefixGraphMLImportedOrigins(distanceOrigins, sourceName);
+        }
+
+        const distanceOrigin = String(record.distanceOrigin ?? '').trim();
+        if (distanceOrigin.length > 0) {
+            record.gml_edge_distance_origin = distanceOrigin;
+            record.distanceOrigin = this.prefixGraphMLImportedOrigin(distanceOrigin, sourceName);
+        }
+    }
+
+    private buildGeneratedGMLEndpointNode(
+        id: string,
+        gmlNodeId: string,
+        graphId: string,
+        sourceName: string,
+        graphOrigin: string,
+        forceGraphOrigin: boolean,
+        graphData: Record<string, any>
+    ): Record<string, any> {
+        const node = {
+            ...graphData,
+            _id: id,
+            id,
+            gml_node_id: gmlNodeId,
+            gml_graph_id: graphId,
+            gml_file: sourceName,
+            mt_generated_endpoint: true
+        };
+
+        this.applyGraphOrigin(node, graphOrigin, forceGraphOrigin);
+        this.addNetworkSummary(node, true);
+        return node;
     }
 
     private stripLeadingDOTTrivia(contents: string): string {

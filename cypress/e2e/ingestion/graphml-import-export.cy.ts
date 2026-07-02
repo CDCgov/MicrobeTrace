@@ -11,6 +11,7 @@ describe('GraphML import/export', () => {
   const optionalGEXF = 'GEXF_Optional_Metadata.gexf';
   const staticCX2 = 'CX2_Static_Network.cx2';
   const staticDOT = 'DOT_Static_Network.dot';
+  const staticGML = 'GML_Static_Network.gml';
 
   beforeEach(() => {
     cy.visit('/?skipEula=1&skipDemoSession=1');
@@ -357,6 +358,84 @@ describe('GraphML import/export', () => {
         .map((link: any) => link.target)
         .sort();
       expect(shorthandTargets).to.deep.equal(['Delta', 'Epsilon']);
+    });
+  });
+
+  it('imports GML topology, attributes, direction, and weights as Network files', () => {
+    cy.attach_file('#fileDropRef', staticGML, 'text/plain');
+
+    cy.contains('#file-table .file-table-row', staticGML, { timeout: 20000 })
+      .find('input[data-type="network"]')
+      .should('be.checked');
+
+    cy.get('#launch').should('not.be.disabled').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win: any) => {
+      const session = win.commonService.session;
+      expect(session.data.nodes, 'imported GML nodes').to.have.length(3);
+      expect(session.data.links, 'imported GML links').to.have.length(2);
+
+      const metadata = session.files.find((file: any) => file.name === staticGML);
+      expect(metadata.format).to.equal('network');
+      expect(session.data.linkFields).to.include('label');
+
+      const alpha = session.data.nodes.find((node: any) => node._id === 'Alpha');
+      expect(alpha.label).to.equal('Alpha');
+      expect(alpha.sample_type).to.equal('case');
+      expect(alpha.viral_load).to.equal(2.5);
+      expect(alpha.status).to.equal('active');
+      expect(alpha.gml_node_id).to.equal('1');
+      expect(alpha.gml_graph_id).to.equal('ContactNetwork');
+      expect(alpha.gml_graph_comment).to.equal('Static GML import fixture');
+      expect(alpha.gml_graph_IsPlanar).to.equal(1);
+
+      const contactLink = session.data.links.find((link: any) =>
+        link.source === 'Alpha' && link.target === 'Beta',
+      );
+      expect(contactLink.directed).to.equal(true);
+      expect(contactLink.label).to.equal('knows');
+      expect(contactLink.type).to.equal('contact');
+      expect(contactLink.confirmed).to.equal(true);
+      expect(contactLink.distance).to.equal(4.5);
+      expect(contactLink.hasDistance).to.equal(true);
+      expect(contactLink.origin).to.deep.equal([`${staticGML}-Contact.csv`]);
+      expect(contactLink.distanceOrigin).to.equal(`${staticGML}-Contact.csv`);
+      expect(contactLink.gml_edge_origin).to.equal('Contact.csv');
+
+      const weightedLink = session.data.links.find((link: any) =>
+        link.source === 'Beta' && link.target === 'Gamma',
+      );
+      expect(weightedLink.directed).to.equal(true);
+      expect(weightedLink.type).to.equal('genetic');
+      expect(weightedLink.confirmed).to.equal(false);
+      expect(weightedLink.weight).to.equal(7);
+      expect(weightedLink.distance).to.equal(7);
+      expect(weightedLink.origin).to.deep.equal([staticGML]);
+      expect(weightedLink.distanceOrigin).to.equal(staticGML);
+
+      const twoD = win.commonService.visuals.twoD;
+      expect(twoD, '2D view').to.exist;
+    });
+
+    cy.window({ timeout: 30000 })
+      .its('commonService.visuals.twoD.cy')
+      .should('exist');
+
+    cy.window().then((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      const cyInstance = twoD.cy;
+      const contactEdges = cyInstance.edges().filter((edge: any) =>
+        edge.data('source') === 'Alpha' && edge.data('target') === 'Beta',
+      );
+      expect(contactEdges.length, 'GML contact edge rendered in Cytoscape').to.be.greaterThan(0);
+      const contactEdge = contactEdges[0];
+      expect(contactEdge.data('label')).to.equal('');
+
+      twoD.onLinkLabelVariableChange('label');
+      expect(contactEdge.data('label')).to.equal('knows');
     });
   });
 });

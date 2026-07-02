@@ -48,6 +48,7 @@ export const getMimeTypeFromFilename = (name: string): string => {
   if (ext === 'gexf') return 'application/gexf+xml';
   if (ext === 'cx' || ext === 'cx2') return 'application/json';
   if (ext === 'dot' || ext === 'gv') return 'text/vnd.graphviz';
+  if (ext === 'gml') return 'text/plain';
   if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'nwk' || ext === 'newick') {
     return 'text/plain';
   }
