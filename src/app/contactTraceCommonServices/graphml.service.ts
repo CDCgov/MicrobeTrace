@@ -16,7 +16,7 @@ export interface GraphMLImportOptions {
     sourceName?: string;
 }
 
-export type NetworkXmlFormat = 'graphml' | 'gexf' | 'cx2' | 'dot' | 'gml';
+export type NetworkXmlFormat = 'graphml' | 'gexf' | 'xgmml' | 'cx2' | 'dot' | 'gml';
 
 export interface GraphMLImportResult {
     nodes: Record<string, any>[];
@@ -155,6 +155,14 @@ export class GraphMLService {
         return typeof contents === 'string' && /<\s*(?:[A-Za-z0-9_.-]+:)?gexf(?:\s|>)/i.test(contents);
     }
 
+    looksLikeXGMML(contents: any): boolean {
+        if (typeof contents !== 'string') {
+            return false;
+        }
+
+        return /^\s*(?:(?:<\?[^?]*\?>|<!--[\s\S]*?-->|<!DOCTYPE[\s\S]*?>)\s*)*<\s*(?:[A-Za-z0-9_.-]+:)?graph(?:\s|>)/i.test(contents);
+    }
+
     looksLikeCX2(contents: any): boolean {
         const data = this.parseJSONIfPossible(contents);
         const descriptor = Array.isArray(data) ? data[0] : null;
@@ -187,11 +195,11 @@ export class GraphMLService {
     }
 
     looksLikeNetworkDocument(contents: any): boolean {
-        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeCX2(contents) || this.looksLikeGML(contents) || this.looksLikeDOT(contents);
+        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeXGMML(contents) || this.looksLikeCX2(contents) || this.looksLikeGML(contents) || this.looksLikeDOT(contents);
     }
 
     looksLikeNetworkXml(contents: any): boolean {
-        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents);
+        return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeXGMML(contents);
     }
 
     importNetworkDocument(contents: any, options: GraphMLImportOptions = {}): NetworkXmlImportResult {
@@ -201,6 +209,10 @@ export class GraphMLService {
 
         if (this.looksLikeGEXF(contents)) {
             return this.importGEXF(contents, options);
+        }
+
+        if (this.looksLikeXGMML(contents)) {
+            return this.importXGMML(contents, options);
         }
 
         if (this.looksLikeCX2(contents)) {
@@ -261,6 +273,8 @@ export class GraphMLService {
             const graphOrigin = topLevelGraphs.length > 1 ? graphId : sourceName;
             const edgeDefault = String(graphElement.getAttribute('edgedefault') || 'undirected').toLowerCase();
             const graphRecord = this.parseDataRecord(graphElement, keys, 'graph');
+            // MicrobeTrace stores fields on nodes/links, so graph-scoped data is
+            // copied onto each record with a prefix instead of being dropped.
             const graphData = this.prefixGraphData(graphRecord);
 
             graphIds.push(graphId);
@@ -355,8 +369,8 @@ export class GraphMLService {
             formatLabel: 'GraphML',
             nodes,
             links,
-            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'origin', 'mt_networks', 'graphml_graph_id', 'graphml_file', 'graphml_node_id']),
-            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'graphml_graph_id', 'graphml_file', 'graphml_edge_id']),
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'origin', 'mt_networks', 'graphml_graph_id', 'graphml_file', 'graphml_node_id']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'graphml_graph_id', 'graphml_file', 'graphml_edge_id']),
             graphIds,
             warnings
         };
@@ -392,6 +406,8 @@ export class GraphMLService {
         const links: Record<string, any>[] = [];
         const graphIds: string[] = [];
         const featureWarnings = new Set<string>();
+        // GEXF can repeat the same optional feature on many elements; warn once
+        // per feature while still preserving the source metadata as fields.
         const warnFeature = (key: string, message: string) => {
             if (!featureWarnings.has(key)) {
                 featureWarnings.add(key);
@@ -426,6 +442,7 @@ export class GraphMLService {
                 || graphElement.hasAttribute('timeformat')
                 || graphElement.hasAttribute('timerepresentation')
             ) {
+                // Dynamic GEXF timing is data-preserved, not wired into timeline behavior.
                 warnFeature('dynamic', 'GEXF dynamic timing metadata was imported as data fields; MicrobeTrace timeline behavior was not applied.');
             }
 
@@ -531,9 +548,165 @@ export class GraphMLService {
             formatLabel: 'GEXF',
             nodes,
             links,
-            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'label', 'origin', 'mt_networks', 'gexf_graph_id', 'gexf_file', 'gexf_node_id', 'gexf_node_label', 'gexf_parent_id']),
-            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'gexf_graph_id', 'gexf_file', 'gexf_edge_id']),
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'label', 'origin', 'mt_networks', 'gexf_graph_id', 'gexf_file', 'gexf_node_id', 'gexf_node_label', 'gexf_parent_id']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'gexf_graph_id', 'gexf_file', 'gexf_edge_id']),
             graphIds,
+            warnings
+        };
+    }
+
+    importXGMML(contents: string, options: GraphMLImportOptions = {}): NetworkXmlImportResult {
+        const sourceName = options.sourceName || 'XGMML Import';
+        const doc = new DOMParser().parseFromString(contents, 'application/xml');
+        const parseError = this.getFirstElementByLocalName(doc, 'parsererror');
+
+        if (parseError) {
+            const message = (parseError.textContent || 'Unable to parse XGMML XML.').trim();
+            throw new Error(message);
+        }
+
+        const graphElement = doc.documentElement;
+        if (!graphElement || this.getLocalName(graphElement) !== 'graph') {
+            throw new Error('The selected file is not an XGMML document.');
+        }
+
+        const warnings: string[] = [];
+        const nestedGraphCount = this.getElementsByLocalName(graphElement, 'graph').length;
+        if (nestedGraphCount > 0) {
+            warnings.push('Nested XGMML graph elements were ignored.');
+        }
+
+        const graphId = this.normalizeIdValue(
+            graphElement.getAttribute('id')
+            || graphElement.getAttribute('label')
+            || sourceName
+        );
+        const graphDirected = this.parseXGMMLBooleanValue(graphElement.getAttribute('directed')) === true;
+        const graphRecord = {
+            ...this.copyXGMMLAttributes(graphElement, ['id', 'directed']),
+            ...this.parseXGMMLAttRecord(graphElement)
+        };
+        const graphData = this.prefixXGMMLGraphData(graphRecord);
+        const graphOrigin = sourceName;
+        const nodeElements = this.getChildElements(graphElement, 'node');
+        const edgeElements = this.getChildElements(graphElement, 'edge');
+        // XGMML often uses numeric node ids plus human labels; parse first so
+        // we can choose stable MicrobeTrace ids from unique labels/names.
+        const parsedNodes = nodeElements.map((nodeElement, nodeIndex) => {
+            const xgmmlNodeId = this.normalizeIdValue(nodeElement.getAttribute('id') || `node_${nodeIndex + 1}`);
+            const dataRecord = {
+                ...this.copyXGMMLAttributes(nodeElement, ['id']),
+                ...this.parseXGMMLAttRecord(nodeElement)
+            };
+            this.preserveReservedFields(dataRecord, ['id'], 'xgmml_attribute');
+            this.applyXGMMLGraphics(dataRecord, nodeElement, 'node');
+
+            return {
+                xgmmlNodeId,
+                dataRecord,
+                originalId: ''
+            };
+        });
+        const nameCounts = this.countRecordValues(parsedNodes.map(node => node.dataRecord), 'name');
+        const sharedNameCounts = this.countRecordValues(parsedNodes.map(node => node.dataRecord), 'shared name');
+        const labelCounts = this.countRecordValues(parsedNodes.map(node => node.dataRecord), 'label');
+        const nodes: Record<string, any>[] = [];
+        const links: Record<string, any>[] = [];
+        const xgmmlNodeIdToMicrobeTraceId = new Map<string, string>();
+
+        if (!graphElement.hasAttribute('directed')) {
+            warnings.push(`XGMML graph "${graphId}" has no directed flag; imported as undirected.`);
+        }
+
+        parsedNodes.forEach(parsedNode => {
+            parsedNode.originalId = this.selectXGMMLNodeOriginalId(
+                parsedNode.dataRecord,
+                parsedNode.xgmmlNodeId,
+                labelCounts,
+                nameCounts,
+                sharedNameCounts
+            );
+
+            const nodeRecord: Record<string, any> = {
+                ...graphData,
+                ...parsedNode.dataRecord,
+                _id: parsedNode.originalId,
+                id: parsedNode.originalId,
+                xgmml_node_id: parsedNode.xgmmlNodeId,
+                xgmml_graph_id: graphId,
+                xgmml_file: sourceName
+            };
+
+            if (nodeRecord.label !== undefined) {
+                nodeRecord.xgmml_node_label = nodeRecord.label;
+            }
+
+            this.applyGraphOrigin(nodeRecord, graphOrigin, false);
+            this.addNetworkSummary(nodeRecord, true);
+            nodes.push(nodeRecord);
+            xgmmlNodeIdToMicrobeTraceId.set(parsedNode.xgmmlNodeId, parsedNode.originalId);
+        });
+
+        edgeElements.forEach((edgeElement, edgeIndex) => {
+            const sourceXgmmlId = this.normalizeIdValue(edgeElement.getAttribute('source'));
+            const targetXgmmlId = this.normalizeIdValue(edgeElement.getAttribute('target'));
+            const source = xgmmlNodeIdToMicrobeTraceId.get(sourceXgmmlId) || sourceXgmmlId;
+            const target = xgmmlNodeIdToMicrobeTraceId.get(targetXgmmlId) || targetXgmmlId;
+            const dataRecord = {
+                ...this.copyXGMMLAttributes(edgeElement, ['id', 'source', 'target', 'directed']),
+                ...this.parseXGMMLAttRecord(edgeElement)
+            };
+            this.preserveReservedFields(dataRecord, ['id', 'source', 'target', 'directed'], 'xgmml_attribute');
+            this.applyXGMMLGraphics(dataRecord, edgeElement, 'edge');
+
+            const edgeDirected = this.parseXGMMLBooleanValue(edgeElement.getAttribute('directed'));
+            const weight = this.toFiniteNumber(edgeElement.getAttribute('weight') ?? dataRecord.weight);
+            const linkRecord: Record<string, any> = {
+                ...graphData,
+                ...dataRecord,
+                source,
+                target,
+                directed: edgeDirected === null ? graphDirected : edgeDirected,
+                xgmml_edge_id: edgeElement.getAttribute('id') || dataRecord.xgmml_attribute_id || `edge_1_${edgeIndex + 1}`,
+                xgmml_source_id: sourceXgmmlId,
+                xgmml_target_id: targetXgmmlId,
+                xgmml_graph_id: graphId,
+                xgmml_file: sourceName
+            };
+
+            if (linkRecord.label !== undefined) {
+                linkRecord.xgmml_edge_label = linkRecord.label;
+            }
+            if (weight !== null) {
+                linkRecord.weight = weight;
+            }
+
+            this.applyXGMMLEdgeOrigins(linkRecord, sourceName, graphOrigin, false);
+            this.normalizeImportedDistance(linkRecord, this.getDistanceOriginFallback(linkRecord, sourceName));
+            this.addNetworkSummary(linkRecord, true);
+            links.push(linkRecord);
+
+            if (!xgmmlNodeIdToMicrobeTraceId.has(sourceXgmmlId)) {
+                nodes.push(this.buildGeneratedXGMMLEndpointNode(source, sourceXgmmlId, graphId, sourceName, graphData));
+                xgmmlNodeIdToMicrobeTraceId.set(sourceXgmmlId, source);
+                warnings.push(`XGMML edge source "${sourceXgmmlId}" had no node declaration; a node was generated.`);
+            }
+
+            if (!xgmmlNodeIdToMicrobeTraceId.has(targetXgmmlId)) {
+                nodes.push(this.buildGeneratedXGMMLEndpointNode(target, targetXgmmlId, graphId, sourceName, graphData));
+                xgmmlNodeIdToMicrobeTraceId.set(targetXgmmlId, target);
+                warnings.push(`XGMML edge target "${targetXgmmlId}" had no node declaration; a node was generated.`);
+            }
+        });
+
+        return {
+            format: 'xgmml',
+            formatLabel: 'XGMML',
+            nodes,
+            links,
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'label', 'name', 'origin', 'mt_networks', 'x', 'y', 'xgmml_graph_id', 'xgmml_file', 'xgmml_node_id', 'xgmml_node_label']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'label', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'xgmml_graph_id', 'xgmml_file', 'xgmml_edge_id']),
+            graphIds: [graphId],
             warnings
         };
     }
@@ -582,6 +755,8 @@ export class GraphMLService {
             warnings.push('CX2 fragmented aspects were concatenated in file order.');
         }
 
+        // CX2 keeps schema details in declarations; aliases/defaults must be
+        // resolved before node and edge value blocks are interpreted.
         const declarations = this.parseCX2AttributeDeclarations(aspects.attributeDeclarations || []);
         const networkRecord = this.parseCX2NetworkAttributes(aspects.networkAttributes || [], declarations.networkAttributes);
         const graphId = this.normalizeIdValue(networkRecord.name || sourceName);
@@ -696,8 +871,8 @@ export class GraphMLService {
             formatLabel: 'CX2',
             nodes,
             links,
-            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'label', 'name', 'origin', 'mt_networks', 'x', 'y', 'cx2_graph_id', 'cx2_file', 'cx2_node_id', 'cx2_node_name']),
-            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'cx2_graph_id', 'cx2_file', 'cx2_edge_id']),
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'label', 'name', 'origin', 'mt_networks', 'x', 'y', 'cx2_graph_id', 'cx2_file', 'cx2_node_id', 'cx2_node_name']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'cx2_graph_id', 'cx2_file', 'cx2_edge_id']),
             graphIds: [graphId],
             warnings
         };
@@ -800,8 +975,8 @@ export class GraphMLService {
             formatLabel: 'GML',
             nodes,
             links,
-            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'label', 'name', 'origin', 'mt_networks', 'gml_graph_id', 'gml_file', 'gml_node_id']),
-            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'gml_graph_id', 'gml_file', 'gml_edge_id']),
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'label', 'name', 'origin', 'mt_networks', 'gml_graph_id', 'gml_file', 'gml_node_id']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'gml_graph_id', 'gml_file', 'gml_edge_id']),
             graphIds,
             warnings
         };
@@ -820,6 +995,7 @@ export class GraphMLService {
         let graphId = this.normalizeIdValue(sourceName);
         let isStrict = false;
         let isDirectedGraph = false;
+        // DOT "strict" graphs replace duplicate edges rather than adding them.
         const strictEdges = new Map<string, Record<string, any>>();
 
         const peek = (offset = 0): DOTToken => tokens[Math.min(index + offset, tokens.length - 1)];
@@ -853,6 +1029,7 @@ export class GraphMLService {
             }
 
             let value = consume().value;
+            // DOT allows adjacent quoted strings joined with + for a single id/label.
             while (matchSymbol('+')) {
                 const nextToken = peek();
                 if (nextToken.type !== 'id') {
@@ -1048,6 +1225,8 @@ export class GraphMLService {
                     return;
                 }
 
+                // DOT subgraph operands expand into the cross-product of their
+                // member nodes, matching Graphviz edge statement semantics.
                 sources.forEach(source => targets.forEach(target => createEdge(source, target, attrs, context, edgeop)));
             });
         };
@@ -1176,8 +1355,8 @@ export class GraphMLService {
             formatLabel: 'DOT',
             nodes,
             links,
-            nodeFields: this.collectFields(nodes, ['index', '_id', 'id', 'label', 'origin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_node_id', 'dot_subgraphs']),
-            linkFields: this.collectFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_edge_id']),
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'label', 'origin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_node_id', 'dot_subgraphs']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_edge_id']),
             graphIds: [graphId],
             warnings
         };
@@ -1444,6 +1623,8 @@ export class GraphMLService {
             return record;
         };
 
+        // GML is a recursive key/value format; duplicate keys are preserved as
+        // arrays so repeated node/edge blocks and attributes are not lost.
         const documentRecord = parseRecord(false);
         if (peek().type !== 'eof') {
             this.throwGMLParseError('Unexpected content after GML document', peek());
@@ -1876,6 +2057,7 @@ export class GraphMLService {
 
         if (/^\s*[\[{]/.test(value)) {
             try {
+                // MicrobeTrace GraphML exports arrays/objects as JSON inside data tags.
                 return JSON.parse(value);
             } catch {
                 return value;
@@ -2001,6 +2183,8 @@ export class GraphMLService {
                     return;
                 }
 
+                // Fragmented CX2 files may repeat an aspect across blocks; keep
+                // file order so later parsing sees the same concatenated stream.
                 aspects[aspectName] = aspects[aspectName] || [];
                 aspects[aspectName].push(...aspectValue);
             });
@@ -2093,6 +2277,8 @@ export class GraphMLService {
         Object.keys(rawRecord).forEach(rawName => {
             const name = declarations.nameByAlias.get(rawName) || rawName;
             const declaration = declarations.attributesByName.get(name) || declarations.attributesByName.get(rawName);
+            // CX2 value blocks can use aliases, but MicrobeTrace fields should use
+            // the declared canonical names.
             record[name] = this.parseCX2Value(rawRecord[rawName], declaration?.type || 'string', name);
         });
 
@@ -2111,6 +2297,7 @@ export class GraphMLService {
             if (typeof rawValue === 'string') {
                 const trimmed = rawValue.trim();
                 try {
+                    // Some CX2 producers serialize list values as JSON strings.
                     const parsed = JSON.parse(trimmed);
                     values = Array.isArray(parsed) ? parsed : [parsed];
                 } catch {
@@ -2615,6 +2802,264 @@ export class GraphMLService {
         return node;
     }
 
+    private copyXGMMLAttributes(element: Element, excludedFields: string[]): Record<string, any> {
+        const record: Record<string, any> = {};
+        const excluded = new Set(excludedFields.map(field => field.toLowerCase()));
+
+        Array.from(element.attributes || []).forEach(attribute => {
+            if (attribute.name === 'xmlns' || attribute.name.startsWith('xmlns:')) {
+                return;
+            }
+
+            const name = this.getXGMMLAttributeName(attribute);
+            if (!name || excluded.has(name.toLowerCase()) || excluded.has(attribute.name.toLowerCase())) {
+                return;
+            }
+
+            record[name] = this.parseXGMMLValue(attribute.value, 'string', name);
+        });
+
+        return record;
+    }
+
+    private parseXGMMLAttRecord(element: Element): Record<string, any> {
+        const record: Record<string, any> = {};
+
+        this.getChildElements(element, 'att').forEach(attElement => {
+            const name = this.normalizeOptionalValue(
+                attElement.getAttribute('name')
+                || attElement.getAttribute('label')
+                || attElement.getAttribute('id')
+            );
+
+            if (!name) {
+                return;
+            }
+
+            this.addXGMMLRecordValue(record, name, this.parseXGMMLAttValue(attElement, name));
+        });
+
+        return record;
+    }
+
+    private parseXGMMLAttValue(attElement: Element, fieldName: string): any {
+        const rawType = attElement.getAttribute('type') || 'string';
+        const type = String(rawType).toLowerCase();
+        const childAttributes = this.getChildElements(attElement, 'att');
+        const hasValueAttribute = attElement.hasAttribute('value');
+
+        if ((type === 'list' || type.endsWith('list') || type.startsWith('list_')) && childAttributes.length > 0) {
+            return childAttributes.map(child => {
+                const childName = this.normalizeOptionalValue(
+                    child.getAttribute('name')
+                    || child.getAttribute('label')
+                    || child.getAttribute('id')
+                );
+                const childValue = this.parseXGMMLAttValue(child, childName || fieldName);
+                return childName ? { name: childName, value: childValue } : childValue;
+            });
+        }
+
+        if (!hasValueAttribute && childAttributes.length > 0) {
+            return childAttributes.map(child => {
+                const childName = this.normalizeOptionalValue(
+                    child.getAttribute('name')
+                    || child.getAttribute('label')
+                    || child.getAttribute('id')
+                );
+                const childValue = this.parseXGMMLAttValue(child, childName || fieldName);
+                return childName ? { name: childName, value: childValue } : childValue;
+            });
+        }
+
+        const rawValue = hasValueAttribute
+            ? attElement.getAttribute('value')
+            : (attElement.textContent || '');
+
+        return this.parseXGMMLValue(rawValue, rawType, fieldName);
+    }
+
+    private parseXGMMLValue(rawValue: any, rawType: any, fieldName: string): any {
+        const type = String(rawType || 'string').toLowerCase();
+        const value = String(rawValue ?? '').trim();
+
+        if (type === 'boolean' || type === 'bool') {
+            const parsed = this.parseXGMMLBooleanValue(value);
+            return parsed === null ? value : parsed;
+        }
+
+        if (type === 'integer' || type === 'int' || type === 'long') {
+            const parsed = parseInt(value, 10);
+            return Number.isFinite(parsed) ? parsed : value;
+        }
+
+        if (type === 'real' || type === 'float' || type === 'double' || type === 'number') {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : value;
+        }
+
+        return this.parseGraphMLValue(value, 'string', fieldName);
+    }
+
+    private addXGMMLRecordValue(record: Record<string, any>, key: string, value: any): void {
+        if (!Object.prototype.hasOwnProperty.call(record, key)) {
+            record[key] = value;
+            return;
+        }
+
+        if (Array.isArray(record[key])) {
+            record[key].push(value);
+            return;
+        }
+
+        record[key] = [record[key], value];
+    }
+
+    private countRecordValues(records: Record<string, any>[], field: string): Map<string, number> {
+        const counts = new Map<string, number>();
+        records.forEach(record => {
+            const value = this.normalizeOptionalValue(record[field]);
+            if (value) {
+                counts.set(value, (counts.get(value) || 0) + 1);
+            }
+        });
+        return counts;
+    }
+
+    private selectXGMMLNodeOriginalId(
+        dataRecord: Record<string, any>,
+        xgmmlNodeId: string,
+        labelCounts: Map<string, number>,
+        nameCounts: Map<string, number>,
+        sharedNameCounts: Map<string, number>
+    ): string {
+        const explicitId = this.normalizeOptionalValue(dataRecord._id);
+        const name = this.normalizeOptionalValue(dataRecord.name);
+        const sharedName = this.normalizeOptionalValue(dataRecord['shared name']);
+        const label = this.normalizeOptionalValue(dataRecord.label);
+
+        // Prefer human-readable IDs only when they are unique; otherwise keep
+        // the XGMML id to avoid merging distinct nodes.
+        return this.normalizeIdValue(
+            explicitId
+            || (name && nameCounts.get(name) === 1 ? name : '')
+            || (sharedName && sharedNameCounts.get(sharedName) === 1 ? sharedName : '')
+            || (label && labelCounts.get(label) === 1 ? label : '')
+            || xgmmlNodeId
+        );
+    }
+
+    private parseXGMMLBooleanValue(value: any): boolean | null {
+        const normalized = String(value ?? '').trim().toLowerCase();
+        if (!normalized) {
+            return null;
+        }
+        if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'directed') {
+            return true;
+        }
+        if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'undirected') {
+            return false;
+        }
+        return null;
+    }
+
+    private prefixXGMMLGraphData(graphRecord: Record<string, any>): Record<string, any> {
+        const prefixed: Record<string, any> = {};
+        Object.keys(graphRecord).forEach(key => {
+            if (graphRecord[key] !== undefined && graphRecord[key] !== '') {
+                prefixed[`xgmml_graph_${key}`] = graphRecord[key];
+            }
+        });
+        return prefixed;
+    }
+
+    private applyXGMMLGraphics(record: Record<string, any>, element: Element, domain: 'node' | 'edge'): void {
+        this.getChildElements(element, 'graphics').forEach((graphicsElement, graphicsIndex) => {
+            const suffix = graphicsIndex === 0 ? '' : `_${graphicsIndex + 1}`;
+
+            Array.from(graphicsElement.attributes || []).forEach(attribute => {
+                const name = this.getXGMMLAttributeName(attribute);
+                if (!name) {
+                    return;
+                }
+
+                const numberValue = this.toFiniteNumber(attribute.value);
+                const value = numberValue === null ? attribute.value : numberValue;
+                record[`xgmml_graphics${suffix}_${name}`] = value;
+
+                if (domain === 'node' && (name === 'x' || name === 'y' || name === 'z') && numberValue !== null) {
+                    // Node coordinates are both preserved as XGMML metadata and
+                    // copied to x/y/z so existing MicrobeTrace layouts can use them.
+                    if (record[name] !== undefined) {
+                        record[`xgmml_attribute_${name}`] = record[name];
+                    }
+                    record[name] = numberValue;
+                    record[`xgmml_${name}`] = numberValue;
+                }
+            });
+        });
+    }
+
+    private applyXGMMLEdgeOrigins(
+        record: Record<string, any>,
+        sourceName: string,
+        graphOrigin: string,
+        forceGraphOrigin: boolean
+    ): void {
+        const edgeOrigins = this.normalizeOrigins(record.origin);
+        const allEdgeOrigins = this.normalizeOrigins(record._originAll);
+        const fallbackOrigins = [forceGraphOrigin ? graphOrigin : sourceName];
+        const visibleOrigins = edgeOrigins.length > 0
+            ? edgeOrigins
+            : (allEdgeOrigins.length > 0 ? allEdgeOrigins : fallbackOrigins);
+        const canonicalOrigins = allEdgeOrigins.length > 0 ? allEdgeOrigins : visibleOrigins;
+
+        if (edgeOrigins.length > 0) {
+            record.xgmml_edge_origin = edgeOrigins.join('; ');
+        }
+
+        if (allEdgeOrigins.length > 0) {
+            record.xgmml_edge_origin_all = allEdgeOrigins.join('; ');
+        }
+
+        record.origin = this.prefixGraphMLImportedOrigins(visibleOrigins, sourceName);
+        record._originAll = this.prefixGraphMLImportedOrigins(canonicalOrigins, sourceName);
+
+        const distanceOrigins = this.normalizeOrigins(record.distanceOrigins);
+        if (distanceOrigins.length > 0) {
+            record.xgmml_edge_distance_origins = distanceOrigins.join('; ');
+            record.distanceOrigins = this.prefixGraphMLImportedOrigins(distanceOrigins, sourceName);
+        }
+
+        const distanceOrigin = String(record.distanceOrigin ?? '').trim();
+        if (distanceOrigin.length > 0) {
+            record.xgmml_edge_distance_origin = distanceOrigin;
+            record.distanceOrigin = this.prefixGraphMLImportedOrigin(distanceOrigin, sourceName);
+        }
+    }
+
+    private buildGeneratedXGMMLEndpointNode(
+        id: string,
+        xgmmlNodeId: string,
+        graphId: string,
+        sourceName: string,
+        graphData: Record<string, any>
+    ): Record<string, any> {
+        const node = {
+            ...graphData,
+            _id: id,
+            id,
+            xgmml_node_id: xgmmlNodeId,
+            xgmml_graph_id: graphId,
+            xgmml_file: sourceName,
+            mt_generated_endpoint: true
+        };
+
+        this.applyGraphOrigin(node, sourceName, false);
+        this.addNetworkSummary(node, true);
+        return node;
+    }
+
     private normalizeOptionalValue(value: any): string {
         return String(value ?? '').trim();
     }
@@ -2734,6 +3179,8 @@ export class GraphMLService {
             : (allEdgeOrigins.length > 0 ? allEdgeOrigins : fallbackOrigins);
         const canonicalOrigins = allEdgeOrigins.length > 0 ? allEdgeOrigins : visibleOrigins;
 
+        // Keep original edge-origin fields for audit while using filename-scoped
+        // origins in MicrobeTrace to avoid collisions across imported files.
         if (edgeOrigins.length > 0) {
             record.graphml_edge_origin = edgeOrigins.join('; ');
         }
@@ -3009,6 +3456,10 @@ export class GraphMLService {
         return element.localName || element.nodeName.replace(/^.*:/, '');
     }
 
+    private getXGMMLAttributeName(attribute: Attr): string {
+        return attribute.localName || attribute.name.replace(/^.*:/, '');
+    }
+
     private getChildElements(element: Element | Document, localName?: string): Element[] {
         return Array.from(element.childNodes)
             .filter((node): node is Element => node.nodeType === Node.ELEMENT_NODE)
@@ -3089,6 +3540,113 @@ export class GraphMLService {
         records.forEach(record => Object.keys(record).forEach(addField));
 
         return fields;
+    }
+
+    private collectImportFields(records: Array<Record<string, any>>, preferredFields: any): string[] {
+        const rawFields = this.collectFields(records, preferredFields);
+        const rawFieldSet = new Set(rawFields);
+        const readableFields: string[] = [];
+
+        rawFields.forEach(field => {
+            const readableField = this.getReadableImportFieldName(field);
+            const canUseAlias = readableField !== field
+                && !rawFieldSet.has(readableField)
+                && !readableFields.includes(readableField)
+                && !this.recordsHaveField(records, readableField);
+
+            if (!canUseAlias) {
+                readableFields.push(field);
+                return;
+            }
+
+            // Keep raw parser keys on the records, but expose stable human-readable aliases to the views.
+            records.forEach(record => {
+                if (record[field] !== undefined && record[field] !== null) {
+                    record[readableField] = record[field];
+                }
+            });
+            readableFields.push(readableField);
+        });
+
+        return readableFields;
+    }
+
+    private recordsHaveField(records: Array<Record<string, any>>, field: string): boolean {
+        return records.some(record => Object.prototype.hasOwnProperty.call(record, field));
+    }
+
+    private getReadableImportFieldName(field: string): string {
+        const normalizedField = String(field ?? '').trim();
+        if (!normalizedField) {
+            return normalizedField;
+        }
+
+        const fieldNameOverrides: Record<string, string> = {
+            '_id': '_id',
+            'nn': 'nn',
+            'id': 'id',
+            'x': 'x',
+            'y': 'y',
+            'z': 'z'
+        };
+        if (Object.prototype.hasOwnProperty.call(fieldNameOverrides, normalizedField)) {
+            return fieldNameOverrides[normalizedField];
+        }
+
+        const readableText = normalizedField
+            .replace(/^_+/, '')
+            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!readableText || readableText === normalizedField) {
+            return normalizedField;
+        }
+
+        return readableText.split(' ')
+            .map(part => this.formatImportFieldToken(part))
+            .join(' ');
+    }
+
+    private formatImportFieldToken(part: string): string {
+        const exactNames: Record<string, string> = {
+            'attvalue': 'Attribute Value',
+            'attvalues': 'Attribute Values',
+            'attr': 'Attribute',
+            'attrs': 'Attributes',
+            'cx2': 'CX2',
+            'csv': 'CSV',
+            'dna': 'DNA',
+            'dot': 'DOT',
+            'gexf': 'GEXF',
+            'gml': 'GML',
+            'graphml': 'GraphML',
+            'hiv': 'HIV',
+            'id': 'ID',
+            'ids': 'IDs',
+            'json': 'JSON',
+            'mt': 'MicrobeTrace',
+            'rna': 'RNA',
+            'snp': 'SNP',
+            'uri': 'URI',
+            'url': 'URL',
+            'viz': 'Visualization',
+            'xml': 'XML',
+            'xgmml': 'XGMML'
+        };
+        const lowerPart = part.toLowerCase();
+
+        if (Object.prototype.hasOwnProperty.call(exactNames, lowerPart)) {
+            return exactNames[lowerPart];
+        }
+
+        if (/^\d+$/.test(part)) {
+            return part;
+        }
+
+        return lowerPart.charAt(0).toUpperCase() + lowerPart.slice(1);
     }
 
     private inferType(values: any[]): GraphMLAttributeType {

@@ -2270,7 +2270,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
     const isFasta = extension.indexOf('fas') > -1;
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
-    const isNetworkDocument = ['graphml', 'gexf', 'cx', 'cx2', 'dot', 'gv', 'gml'].includes(extension)
+    // Some network formats are uploaded as generic XML/JSON/text, so detect by
+    // extension first and then by document shape.
+    const isNetworkDocument = ['graphml', 'gexf', 'xgmml', 'cx', 'cx2', 'dot', 'gv', 'gml'].includes(extension)
       || this.graphMLService.looksLikeNetworkDocument(file.contents);
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');

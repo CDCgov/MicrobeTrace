@@ -9,6 +9,7 @@ describe('GraphML import/export', () => {
   const unsupportedGraphML = 'GraphML_Unsupported_Features.graphml';
   const staticGEXF = 'GEXF_Static_Network.gexf';
   const optionalGEXF = 'GEXF_Optional_Metadata.gexf';
+  const staticXGMML = 'XGMML_Static_Network.xgmml';
   const staticCX2 = 'CX2_Static_Network.cx2';
   const staticDOT = 'DOT_Static_Network.dot';
   const staticGML = 'GML_Static_Network.gml';
@@ -36,6 +37,19 @@ describe('GraphML import/export', () => {
       const session = win.commonService.session;
       expect(session.data.nodes, 'imported nodes').to.have.length(6);
       expect(session.data.links, 'imported links').to.have.length(5);
+      expect(session.data.nodeFields).to.include.members([
+        'MicrobeTrace Networks',
+        'GraphML Graph ID',
+        'GraphML File',
+        'GraphML Node ID',
+      ]);
+      expect(session.data.linkFields).to.include.members([
+        'Has Distance',
+        'Distance Origin',
+        'GraphML Edge ID',
+      ]);
+      expect(session.data.nodeFields).not.to.include('graphml_graph_id');
+      expect(session.data.linkFields).not.to.include('graphml_edge_id');
 
       const expectedOriginCounts = {
         [`${graphMLA}-Contact.csv`]: 1,
@@ -51,6 +65,7 @@ describe('GraphML import/export', () => {
         link.source === 'A1' && link.target === 'A2',
       );
       expect(contactOnlyLink.hasDistance).to.equal(false);
+      expect(contactOnlyLink['Has Distance']).to.equal(false);
       expect(contactOnlyLink.origin).to.deep.equal([`${graphMLA}-Contact.csv`]);
       expect(contactOnlyLink.distanceOrigin).to.be.oneOf([undefined, null]);
       expect(contactOnlyLink.graphml_edge_origin).to.equal('Contact.csv');
@@ -62,6 +77,8 @@ describe('GraphML import/export', () => {
       expect(duoLink._originAll).to.deep.equal([`${graphMLA}-Contact.csv`, `${graphMLA}-Distance.csv`]);
       expect(duoLink.distanceOrigin).to.equal(`${graphMLA}-Distance.csv`);
       expect(duoLink.distanceOrigins).to.deep.equal([`${graphMLA}-Distance.csv`]);
+      expect(duoLink['GraphML Edge ID']).to.equal(duoLink.graphml_edge_id);
+      expect(duoLink['Distance Origin']).to.equal(`${graphMLA}-Distance.csv`);
     });
 
     installSaveAsCaptureHook();
@@ -224,6 +241,71 @@ describe('GraphML import/export', () => {
       expect(link.target).to.equal('Random');
       expect(link.gexf_start).to.equal('2026-01-10');
       expect(link.gexf_spells).to.deep.equal([{ start: '2026-01-10', end: '2026-01-30' }]);
+    });
+  });
+
+  it('imports XGMML topology, attributes, direction, coordinates, and weights as Network files', () => {
+    cy.attach_file('#fileDropRef', staticXGMML, 'application/xgmml+xml');
+
+    cy.contains('#file-table .file-table-row', staticXGMML, { timeout: 20000 })
+      .find('input[data-type="network"]')
+      .should('be.checked');
+
+    cy.get('#launch').should('not.be.disabled').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win: any) => {
+      const session = win.commonService.session;
+      expect(session.data.nodes, 'imported XGMML nodes').to.have.length(3);
+      expect(session.data.links, 'imported XGMML links').to.have.length(2);
+
+      const metadata = session.files.find((file: any) => file.name === staticXGMML);
+      expect(metadata.format).to.equal('network');
+
+      const alpha = session.data.nodes.find((node: any) => node._id === 'Alpha');
+      expect(alpha.label).to.equal('Alpha');
+      expect(alpha.sample_type).to.equal('case');
+      expect(alpha.viral_load).to.equal(2.5);
+      expect(alpha.active).to.equal(true);
+      expect(alpha.xgmml_node_id).to.equal('1');
+      expect(alpha.xgmml_graph_id).to.equal('ContactNetwork');
+      expect(alpha.xgmml_graph_label).to.equal('XGMML fixture');
+      expect(alpha.xgmml_graph_description).to.equal('Static XGMML import fixture');
+
+      const beta = session.data.nodes.find((node: any) => node._id === 'Beta');
+      expect(beta.sample_type).to.equal('contact');
+      expect(beta.active).to.equal(false);
+      expect(beta.xgmml_x).to.equal(320);
+      expect(beta.xgmml_y).to.equal(210);
+      expect(beta.xgmml_graphics_fill).to.equal('#3366ff');
+
+      const contactLink = session.data.links.find((link: any) =>
+        link.source === 'Alpha' && link.target === 'Beta',
+      );
+      expect(contactLink.directed).to.equal(false);
+      expect(contactLink.label).to.equal('Alpha contact Beta');
+      expect(contactLink.interaction).to.equal('contact');
+      expect(contactLink.confirmed).to.equal(true);
+      expect(contactLink.weight).to.equal(4.5);
+      expect(contactLink.distance).to.equal(4.5);
+      expect(contactLink.hasDistance).to.equal(true);
+      expect(contactLink.origin).to.deep.equal([`${staticXGMML}-Contact.csv`]);
+      expect(contactLink.distanceOrigin).to.equal(`${staticXGMML}-Contact.csv`);
+      expect(contactLink.xgmml_edge_origin).to.equal('Contact.csv');
+      expect(contactLink.xgmml_edge_id).to.equal('100');
+
+      const weightedLink = session.data.links.find((link: any) =>
+        link.source === 'Beta' && link.target === 'Gamma',
+      );
+      expect(weightedLink.directed).to.equal(true);
+      expect(weightedLink.interaction).to.equal('genetic');
+      expect(weightedLink.confirmed).to.equal(false);
+      expect(weightedLink.weight).to.equal(7);
+      expect(weightedLink.distance).to.equal(7);
+      expect(weightedLink.origin).to.deep.equal([staticXGMML]);
+      expect(weightedLink.distanceOrigin).to.equal(staticXGMML);
     });
   });
 
