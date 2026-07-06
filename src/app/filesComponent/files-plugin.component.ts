@@ -2394,8 +2394,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       const showsColumnMapping = detectedFormat === 'node' || detectedFormat === 'link';
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
       const fnamerow = $('<div class="row w-100"></div>');
-      $('<div class="file-name col"></div>')
-        .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
+      const fileNameCell = $('<div></div>').addClass('file-name col');
+      const deleteLink = $('<a></a>')
+        .attr('href', 'javascript:void(0);')
+        .addClass('far flaticon-delete-1 align-middle p-1')
+        .attr('title', 'Remove this file')
+        .on('click', () => {
           const fileIndex = parentContext.commonService.session.files.findIndex(f => f.name === file.name);
           if (fileIndex >= 0) {
             parentContext.commonService.session.files.splice(fileIndex, 1);
@@ -2408,56 +2412,87 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           }
           root.slideUp(() => root.remove());
           parentContext.refreshTemplateState();
-        }))
-        .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
+        });
+      const downloadLink = $('<a></a>')
+        .attr('href', 'javascript:void(0);')
+        .addClass('far flaticon-download-1 align-middle p-1')
+        .attr('title', parentContext.isFileContentsEmpty(file) ? 'Unable to resave this file' : 'Resave this file')
+        .on('click', () => {
           if (parentContext.isFileContentsEmpty(file)) {
             alert('Unable to resave this file.');
           } else {
             saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
           }
-        }))
-        .append('<span class="p-1">' + file.name + '</span>')
-        .append(`
-                    <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
-                      <label class="btn btn-light${detectedFormat === 'link' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${detectedFormat === 'link' ? ' checked' : ''}>Link
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'node' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${detectedFormat === 'node' ? ' checked' : ''}>Node
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'matrix' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="matrix" autocomplete="off"${detectedFormat === 'matrix' ? ' checked' : ''}>Matrix
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'fasta' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="fasta" autocomplete="off"${detectedFormat === 'fasta' ? ' checked' : ''}>FASTA
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'newick' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="newick" autocomplete="off"${detectedFormat === 'newick' ? ' checked' : ''}>Newick
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'auspice' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="auspice" autocomplete="off"${detectedFormat === 'auspice' ? ' checked' : ''}>Auspice
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'network' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="network" autocomplete="off"${detectedFormat === 'network' ? ' checked' : ''}>Network
-                      </label>
-                    </div>`).appendTo(fnamerow);
+        });
+      if (parentContext.isFileContentsEmpty(file)) {
+        downloadLink.css('color', 'gray');
+      }
+      const fileNameText = $('<span></span>')
+        .addClass('p-1')
+        .text(file.name);
+      const formatButtons = $('<div></div>')
+        .addClass('btn-group btn-group-toggle btn-group-sm float-right')
+        .attr('data-toggle', 'buttons');
+      const formatOptions = [
+        { type: 'link', label: 'Link' },
+        { type: 'node', label: 'Node' },
+        { type: 'matrix', label: 'Matrix' },
+        { type: 'fasta', label: 'FASTA' },
+        { type: 'newick', label: 'Newick' },
+        { type: 'auspice', label: 'Auspice' },
+        { type: 'network', label: 'Network' },
+      ];
+      formatOptions.forEach(({ type, label }) => {
+        const formatLabel = $('<label></label>')
+          .addClass(`btn btn-light${detectedFormat === type ? ' active' : ''}`);
+        const formatInput = $('<input>')
+          .attr('type', 'radio')
+          .attr('name', `options-${file.name}`)
+          .attr('autocomplete', 'off')
+          .data('type', type)
+          .attr('data-type', type)
+          .prop('checked', detectedFormat === type);
+        formatLabel
+          .append(formatInput)
+          .append($('<span></span>').text(label));
+        formatButtons.append(formatLabel);
+      });
+      fileNameCell
+        .append(deleteLink)
+        .append(downloadLink)
+        .append(fileNameText)
+        .append(formatButtons)
+        .appendTo(fnamerow);
 
       fnamerow.appendTo(root);
       const optionsrow = $('<div class="row w-100"></div>');
-      const options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
-      optionsrow.append(`
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-1">${isNode ? 'ID' : 'Source'}</label>
-                    <select id="file-${file.name}-field-1" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-2">${isNode ? 'Sequence' : 'Target'}</label>
-                    <select id="file-${file.name}-field-2" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-3">Distance</label>
-                    <select id="file-${file.name}-field-3" class="form-control form-control-sm">${options}</select>
-                  </div>`);
+      const buildFieldSelect = (fieldNumber: number) => {
+        const select = $('<select></select>')
+          .attr('id', `file-${file.name}-field-${fieldNumber}`)
+          .addClass('form-control form-control-sm');
+        select.append($('<option></option>').val('None').text('None'));
+        headers.forEach(h => {
+          select.append($('<option></option>').val(h).text(parentContext.commonService.titleize(h)));
+        });
+        return select;
+      };
+      const addMappingControl = (fieldNumber: number, labelText: string) => {
+        const container = $('<div></div>')
+          .addClass('col-4')
+          .data('file', file.name)
+          .attr('data-file', file.name);
+        if (!showsColumnMapping) {
+          container.css('display', 'none');
+        }
+        const selectId = `file-${file.name}-field-${fieldNumber}`;
+        container
+          .append($('<label></label>').attr('for', selectId).text(labelText))
+          .append(buildFieldSelect(fieldNumber));
+        optionsrow.append(container);
+      };
+      addMappingControl(1, isNode ? 'ID' : 'Source');
+      addMappingControl(2, isNode ? 'Sequence' : 'Target');
+      addMappingControl(3, 'Distance');
 
       optionsrow.appendTo(root);
 
