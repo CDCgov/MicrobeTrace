@@ -1189,7 +1189,7 @@ export class GraphMLService {
         ): Record<string, any> => {
             const id = this.normalizeIdValue(node.id);
             const dataRecord = { ...attrs };
-            this.preserveReservedFields(dataRecord, ['id'], 'dot_attribute');
+            this.preserveReservedFields(dataRecord, ['id', 'label', 'Label'], 'dot_attribute');
 
             let nodeRecord = nodesById.get(id);
             if (!nodeRecord) {
@@ -1248,7 +1248,7 @@ export class GraphMLService {
             addOrUpdateNode(targetNode, context.nodeDefaults, context, false);
 
             const dataRecord = { ...attrs };
-            this.preserveReservedFields(dataRecord, ['id', 'source', 'target', 'directed'], 'dot_attribute');
+            this.preserveReservedFields(dataRecord, ['id', 'source', 'target', 'directed', 'label', 'Label'], 'dot_attribute');
             const key = strictEdgeKey(source, target, directed);
             let linkRecord = isStrict ? strictEdges.get(key) : undefined;
 
@@ -1444,8 +1444,8 @@ export class GraphMLService {
             formatLabel: 'DOT',
             nodes,
             links,
-            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'label', 'origin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_node_id', 'dot_subgraphs']),
-            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_edge_id']),
+            nodeFields: this.collectImportFields(nodes, ['index', '_id', 'id', 'dot_attribute_label', 'dot_attribute_Label', 'origin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_node_id', 'dot_subgraphs']),
+            linkFields: this.collectImportFields(links, ['index', 'source', 'target', 'distance', 'weight', 'dot_attribute_label', 'dot_attribute_Label', 'visible', 'cluster', 'origin', 'nn', 'directed', 'hasDistance', 'distanceOrigin', 'mt_networks', 'dot_graph_id', 'dot_file', 'dot_edge_id']),
             graphIds: [graphId],
             warnings
         };
@@ -3672,6 +3672,8 @@ export class GraphMLService {
 
         const fieldNameOverrides: Record<string, string> = {
             '_id': '_id',
+            'dot_attribute_label': 'Label',
+            'dot_attribute_Label': 'Label',
             'nn': 'nn',
             'id': 'id',
             'x': 'x',
