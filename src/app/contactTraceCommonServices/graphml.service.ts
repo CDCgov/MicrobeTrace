@@ -148,11 +148,11 @@ const GRAPHML_SCHEMA_LOCATION = 'http://graphml.graphdrawing.org/xmlns http://gr
 })
 export class GraphMLService {
     looksLikeGraphML(contents: any): boolean {
-        return typeof contents === 'string' && /<\s*(?:[A-Za-z0-9_.-]+:)?graphml(?:\s|>)/i.test(contents);
+        return typeof contents === 'string' && this.getLeadingXmlElementLocalName(contents) === 'graphml';
     }
 
     looksLikeGEXF(contents: any): boolean {
-        return typeof contents === 'string' && /<\s*(?:[A-Za-z0-9_.-]+:)?gexf(?:\s|>)/i.test(contents);
+        return typeof contents === 'string' && this.getLeadingXmlElementLocalName(contents) === 'gexf';
     }
 
     looksLikeXGMML(contents: any): boolean {
@@ -160,7 +160,7 @@ export class GraphMLService {
             return false;
         }
 
-        return /^\s*(?:(?:<\?[^?]*\?>|<!--[\s\S]*?-->|<!DOCTYPE[\s\S]*?>)\s*)*<\s*(?:[A-Za-z0-9_.-]+:)?graph(?:\s|>)/i.test(contents);
+        return this.getLeadingXmlElementLocalName(contents) === 'graph';
     }
 
     looksLikeCX2(contents: any): boolean {
@@ -200,6 +200,95 @@ export class GraphMLService {
 
     looksLikeNetworkXml(contents: any): boolean {
         return this.looksLikeGraphML(contents) || this.looksLikeGEXF(contents) || this.looksLikeXGMML(contents);
+    }
+
+    private getLeadingXmlElementLocalName(contents: string): string | null {
+        let index = this.skipXmlWhitespace(contents, 0);
+
+        while (index < contents.length) {
+            if (contents.startsWith('<?', index)) {
+                const declarationEnd = contents.indexOf('?>', index + 2);
+                if (declarationEnd < 0) {
+                    return null;
+                }
+                index = this.skipXmlWhitespace(contents, declarationEnd + 2);
+                continue;
+            }
+
+            if (contents.startsWith('<!--', index)) {
+                const commentEnd = contents.indexOf('-->', index + 4);
+                if (commentEnd < 0) {
+                    return null;
+                }
+                index = this.skipXmlWhitespace(contents, commentEnd + 3);
+                continue;
+            }
+
+            if (this.startsWithIgnoreCase(contents, '<!doctype', index)) {
+                const doctypeEnd = contents.indexOf('>', index + 9);
+                if (doctypeEnd < 0) {
+                    return null;
+                }
+                index = this.skipXmlWhitespace(contents, doctypeEnd + 1);
+                continue;
+            }
+
+            break;
+        }
+
+        if (contents[index] !== '<') {
+            return null;
+        }
+
+        index = this.skipXmlWhitespace(contents, index + 1);
+        const nameStart = index;
+        while (index < contents.length && this.isSimpleXmlNameChar(contents.charCodeAt(index))) {
+            index++;
+        }
+        if (index === nameStart) {
+            return null;
+        }
+
+        const delimiterCode = contents.charCodeAt(index);
+        if (contents[index] !== '>' && !this.isXmlWhitespace(delimiterCode)) {
+            return null;
+        }
+
+        const qualifiedName = contents.slice(nameStart, index);
+        const localNameStart = qualifiedName.lastIndexOf(':') + 1;
+        return qualifiedName.slice(localNameStart).toLowerCase();
+    }
+
+    private skipXmlWhitespace(contents: string, index: number): number {
+        while (index < contents.length && this.isXmlWhitespace(contents.charCodeAt(index))) {
+            index++;
+        }
+        return index;
+    }
+
+    private isXmlWhitespace(charCode: number): boolean {
+        return charCode === 9
+            || charCode === 10
+            || charCode === 11
+            || charCode === 12
+            || charCode === 13
+            || charCode === 32
+            || charCode === 160
+            || charCode === 0xFEFF;
+    }
+
+    private isSimpleXmlNameChar(charCode: number): boolean {
+        return (charCode >= 65 && charCode <= 90)
+            || (charCode >= 97 && charCode <= 122)
+            || (charCode >= 48 && charCode <= 57)
+            || charCode === 45
+            || charCode === 46
+            || charCode === 58
+            || charCode === 95;
+    }
+
+    private startsWithIgnoreCase(value: string, search: string, position: number): boolean {
+        return value.slice(position, position + search.length).toLowerCase() === search;
     }
 
     importNetworkDocument(contents: any, options: GraphMLImportOptions = {}): NetworkXmlImportResult {
