@@ -1,0 +1,3 @@
+case_id,_id,id,label,origin,visible,cluster,x,y,shape
+CaseA,Source underscore A,Source id A,Node label A,NodeSource.csv,false,99,12,34,star
+CaseB,Source underscore B,Source id B,Node label B,OtherNodeSource.csv,false,42,56,78,triangle
