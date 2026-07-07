@@ -1,2 +1,0 @@
-source,target,distance,label,origin,directed,visible,cluster
-CaseA,CaseB,5,Link label AB,LinkSource.csv,true,false,77

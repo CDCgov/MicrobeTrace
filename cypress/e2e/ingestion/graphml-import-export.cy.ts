@@ -398,14 +398,7 @@ describe('GraphML import/export', () => {
       expect(metadata.format).to.equal('network');
 
       const alpha = session.data.nodes.find((node: any) => node._id === 'Alpha');
-      expect(session.data.nodeFields).to.include('Label');
       expect(alpha.label).to.equal('Case Alpha');
-      expect(alpha.Label).to.equal('Case Alpha');
-      expect(alpha.id).to.equal('Alpha');
-      expect(alpha.dot_attribute_id).to.equal('Source Alpha ID');
-      expect(alpha.ID).to.equal('Source Alpha ID');
-      expect(alpha.Visible).to.equal(false);
-      expect(alpha.visible).to.equal(true);
       expect(alpha.sample_type).to.equal('case');
       expect(alpha.viral_load).to.equal(2.5);
       expect(alpha.active).to.equal(true);
@@ -427,17 +420,12 @@ describe('GraphML import/export', () => {
         link.source === 'Alpha' && link.target === 'Beta',
       );
       expect(strictLink.directed).to.equal(true);
-      expect(strictLink.Label).to.equal('Contact label');
-      expect(strictLink.dot_attribute_source).to.equal('Source metadata');
-      expect(strictLink.dot_attribute_target).to.equal('Target metadata');
-      expect(strictLink.dot_attribute_directed).to.equal(false);
       expect(strictLink.distance).to.equal(5);
       expect(strictLink.hasDistance).to.equal(true);
       expect(strictLink.origin).to.deep.equal([`${staticDOT}-Contact.csv`]);
       expect(strictLink.distanceOrigin).to.equal(`${staticDOT}-Contact.csv`);
       expect(strictLink.note).to.equal('strict replacement');
       expect(strictLink.dot_edge_origin).to.equal('Contact.csv');
-      expect(strictLink.dot_attribute_origin).to.equal('Contact.csv');
 
       const weightedLink = session.data.links.find((link: any) =>
         link.source === 'Beta' && link.target === 'Gamma',

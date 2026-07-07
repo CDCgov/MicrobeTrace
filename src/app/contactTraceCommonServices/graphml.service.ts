@@ -103,7 +103,6 @@ interface GraphMLEdgeEntry {
 }
 
 type DOTTokenType = 'id' | 'edgeop' | 'symbol' | 'eof';
-type ImportRecordDomain = 'node' | 'link';
 
 interface DOTToken {
     type: DOTTokenType;
@@ -130,120 +129,6 @@ interface DOTParseContext {
     subgraphs: string[];
     scopeNodeIds: Set<string>;
 }
-
-const IMPORT_DISTANCE_FIELD_NAMES = [
-    'distance',
-    'Distance',
-    'length',
-    'Length',
-    'weight',
-    'Weight',
-    'snps',
-    'SNPs',
-    'tn93',
-    'TN93',
-    'genetic_distance',
-    'mean_genetic_distance'
-];
-
-const IMPORT_NODE_RESERVED_FIELDS = [
-    'index',
-    '_id',
-    'id',
-    'label',
-    'selected',
-    'cluster',
-    'visible',
-    'degree',
-    'origin',
-    '_originAll',
-    'mt_networks',
-    'data',
-    'hasDistance',
-    'x',
-    'y',
-    'z',
-    'vx',
-    'vy',
-    'nodeSize',
-    'nodeColor',
-    'bgOpacity',
-    'borderWidth',
-    'shape',
-    'group',
-    'parent',
-    'isParent',
-    'color',
-    'size'
-];
-
-const IMPORT_LINK_RESERVED_FIELDS = [
-    'index',
-    'id',
-    'source',
-    'target',
-    'visible',
-    'cluster',
-    'origin',
-    '_originAll',
-    'nn',
-    'directed',
-    'hasDistance',
-    'distanceOrigin',
-    'distanceOrigins',
-    'mt_networks',
-    'label',
-    'mtRawLinkLabel',
-    'lineSelectedColor',
-    'lineColor',
-    'lineOpacity',
-    'width',
-    'secondLink',
-    'bidirectional',
-    ...IMPORT_DISTANCE_FIELD_NAMES
-];
-
-const IMPORT_PRESERVED_PREFIXES = [
-    'dot_attribute_',
-    'graphml_data_',
-    'gexf_attribute_',
-    'gml_attribute_',
-    'xgmml_attribute_',
-    'cx2_attribute_',
-    'node_table_',
-    'link_table_'
-];
-
-const IMPORT_NODE_TABLE_QUALIFIED_ALIAS_FIELDS = [
-    'index',
-    '_id',
-    'id',
-    'selected',
-    'cluster',
-    'visible',
-    'degree',
-    'origin',
-    '_originall',
-    'data',
-    'hasdistance'
-];
-
-const IMPORT_LINK_TABLE_QUALIFIED_ALIAS_FIELDS = [
-    'index',
-    'id',
-    'source',
-    'target',
-    'visible',
-    'cluster',
-    'origin',
-    '_originall',
-    'nn',
-    'directed',
-    'hasdistance',
-    'distanceorigin',
-    'distanceorigins',
-    ...IMPORT_DISTANCE_FIELD_NAMES.map(field => field.toLowerCase())
-];
 
 type GMLTokenType = 'value' | 'symbol' | 'eof';
 
@@ -498,7 +383,6 @@ export class GraphMLService {
                 const graphmlNodeId = this.normalizeIdValue(nodeElement.getAttribute('id'));
                 const dataRecord = this.parseDataRecord(nodeElement, keys, 'node');
                 const originalId = this.normalizeIdValue(dataRecord._id || graphmlNodeId);
-                this.preserveReservedFields(dataRecord, 'node', 'graphml_data', this.getNetworkNodePassthroughFields());
                 const nodeRecord: Record<string, any> = {
                     ...graphData,
                     ...dataRecord,
@@ -525,7 +409,6 @@ export class GraphMLService {
                 const source = graphmlNodeIdToMicrobeTraceId.get(sourceGraphmlId) || sourceGraphmlId;
                 const target = graphmlNodeIdToMicrobeTraceId.get(targetGraphmlId) || targetGraphmlId;
                 const dataRecord = this.parseDataRecord(edgeElement, keys, 'edge');
-                this.preserveReservedFields(dataRecord, 'link', 'graphml_data', this.getNetworkLinkPassthroughFields());
                 const directedAttribute = edgeElement.getAttribute('directed');
                 const directed = directedAttribute === null
                     ? edgeDefault === 'directed'
@@ -658,7 +541,6 @@ export class GraphMLService {
                 const dataRecord = this.parseGEXFDataRecord(nodeElement, attributes, 'node');
                 const label = this.normalizeOptionalValue(nodeElement.getAttribute('label'));
                 const originalId = this.normalizeIdValue(dataRecord._id || gexfNodeId);
-                this.preserveReservedFields(dataRecord, 'node', 'gexf_attribute', this.getNetworkNodePassthroughFields());
                 const hierarchyParentId = this.normalizeOptionalValue(nodeElement.getAttribute('pid') || parentId);
                 const nodeRecord: Record<string, any> = {
                     ...graphData,
@@ -703,7 +585,6 @@ export class GraphMLService {
                 const source = graphNodeIdToMicrobeTraceId.get(sourceGexfId) || sourceGexfId;
                 const target = graphNodeIdToMicrobeTraceId.get(targetGexfId) || targetGexfId;
                 const dataRecord = this.parseGEXFDataRecord(edgeElement, attributes, 'edge');
-                this.preserveReservedFields(dataRecord, 'link', 'gexf_attribute', this.getNetworkLinkPassthroughFields());
                 const label = this.normalizeOptionalValue(edgeElement.getAttribute('label'));
                 const weight = this.toFiniteNumber(edgeElement.getAttribute('weight'));
                 const linkRecord: Record<string, any> = {
@@ -806,7 +687,7 @@ export class GraphMLService {
                 ...this.copyXGMMLAttributes(nodeElement, ['id']),
                 ...this.parseXGMMLAttRecord(nodeElement)
             };
-            this.preserveReservedFields(dataRecord, 'node', 'xgmml_attribute', this.getNetworkNodePassthroughFields());
+            this.preserveReservedFields(dataRecord, ['id'], 'xgmml_attribute');
             this.applyXGMMLGraphics(dataRecord, nodeElement, 'node');
 
             return {
@@ -864,7 +745,7 @@ export class GraphMLService {
                 ...this.copyXGMMLAttributes(edgeElement, ['id', 'source', 'target', 'directed']),
                 ...this.parseXGMMLAttRecord(edgeElement)
             };
-            this.preserveReservedFields(dataRecord, 'link', 'xgmml_attribute', this.getNetworkLinkPassthroughFields());
+            this.preserveReservedFields(dataRecord, ['id', 'source', 'target', 'directed'], 'xgmml_attribute');
             this.applyXGMMLGraphics(dataRecord, edgeElement, 'edge');
 
             const edgeDirected = this.parseXGMMLBooleanValue(edgeElement.getAttribute('directed'));
@@ -1023,7 +904,7 @@ export class GraphMLService {
             const source = cxNodeIdToMicrobeTraceId.get(cxSourceId) || cxSourceId;
             const target = cxNodeIdToMicrobeTraceId.get(cxTargetId) || cxTargetId;
             const dataRecord = this.parseCX2DataRecord(edge.v, declarations.edges);
-            this.preserveReservedFields(dataRecord, 'link', 'cx2_attribute', this.getNetworkLinkPassthroughFields());
+            this.preserveReservedFields(dataRecord, ['id', 'source', 'target'], 'cx2_attribute');
             this.applyCX2BypassRecord(dataRecord, edgeBypasses.get(cxEdgeId), 'cx2_bypass');
 
             const linkRecord: Record<string, any> = {
@@ -1123,7 +1004,6 @@ export class GraphMLService {
                 const gmlNodeId = this.normalizeIdValue(nodeRecordRaw.id ?? `node_${graphIndex + 1}_${nodeIndex + 1}`);
                 const dataRecord = this.copyGMLAttributes(nodeRecordRaw, ['id']);
                 const originalId = this.selectGMLNodeOriginalId(dataRecord, gmlNodeId, labelCounts, nameCounts);
-                this.preserveReservedFields(dataRecord, 'node', 'gml_attribute', this.getNetworkNodePassthroughFields());
                 const nodeRecord: Record<string, any> = {
                     ...graphData,
                     ...dataRecord,
@@ -1146,7 +1026,6 @@ export class GraphMLService {
                 const source = gmlNodeIdToMicrobeTraceId.get(sourceGmlId) || sourceGmlId;
                 const target = gmlNodeIdToMicrobeTraceId.get(targetGmlId) || targetGmlId;
                 const dataRecord = this.copyGMLAttributes(edgeRecordRaw, ['id', 'source', 'target', 'directed']);
-                this.preserveReservedFields(dataRecord, 'link', 'gml_attribute', this.getNetworkLinkPassthroughFields());
                 const edgeDirected = this.parseGMLDirectedValue(edgeRecordRaw.directed);
                 const linkRecord: Record<string, any> = {
                     ...graphData,
@@ -1310,7 +1189,7 @@ export class GraphMLService {
         ): Record<string, any> => {
             const id = this.normalizeIdValue(node.id);
             const dataRecord = { ...attrs };
-            this.preserveReservedFields(dataRecord, 'node', 'dot_attribute', this.getNetworkNodePassthroughFields());
+            this.preserveReservedFields(dataRecord, ['id', 'label', 'Label'], 'dot_attribute');
 
             let nodeRecord = nodesById.get(id);
             if (!nodeRecord) {
@@ -1369,7 +1248,7 @@ export class GraphMLService {
             addOrUpdateNode(targetNode, context.nodeDefaults, context, false);
 
             const dataRecord = { ...attrs };
-            this.preserveReservedFields(dataRecord, 'link', 'dot_attribute', this.getNetworkLinkPassthroughFields());
+            this.preserveReservedFields(dataRecord, ['id', 'source', 'target', 'directed', 'label', 'Label'], 'dot_attribute');
             const key = strictEdgeKey(source, target, directed);
             let linkRecord = isStrict ? strictEdges.get(key) : undefined;
 
@@ -2562,6 +2441,7 @@ export class GraphMLService {
         const parsedNodes = cxNodes.map((rawNode, index) => {
             const cxNodeId = this.normalizeIdValue(rawNode.id ?? `node_${index + 1}`);
             const dataRecord = this.parseCX2DataRecord(rawNode.v, declarations);
+            this.preserveReservedFields(dataRecord, ['id'], 'cx2_attribute');
             this.applyCX2BypassRecord(dataRecord, nodeBypasses.get(cxNodeId), 'cx2_bypass');
 
             return {
@@ -2586,7 +2466,6 @@ export class GraphMLService {
             parsedNode.originalId = this.normalizeIdValue(
                 explicitId || (name && nameCounts.get(name) === 1 ? name : parsedNode.cxNodeId)
             );
-            this.preserveReservedFields(parsedNode.dataRecord, 'node', 'cx2_attribute', this.getNetworkNodePassthroughFields());
         });
 
         return parsedNodes;
@@ -2634,107 +2513,13 @@ export class GraphMLService {
         });
     }
 
-    addImportedSourceField(
-        record: Record<string, any>,
-        domain: ImportRecordDomain,
-        sourceField: any,
-        value: any,
-        prefix: string
-    ): string[] {
-        const field = this.normalizeImportFieldName(sourceField);
-        if (!field) {
-            return [];
-        }
-
-        const isReservedField = this.isReservedImportField(field, domain);
-        const storedField = isReservedField
-            ? this.getUniqueImportFieldName(record, `${prefix}_${field}`)
-            : field;
-        record[storedField] = value;
-
-        if (!isReservedField) {
-            return [storedField];
-        }
-
-        const readableField = this.getReadableImportFieldName(storedField);
-        if (
-            readableField
-            && readableField !== storedField
-            && !Object.prototype.hasOwnProperty.call(record, readableField)
-        ) {
-            record[readableField] = value;
-            return [readableField];
-        }
-
-        return [storedField];
-    }
-
-    private preserveReservedFields(
-        record: Record<string, any>,
-        domain: ImportRecordDomain,
-        prefix: string,
-        keepFields: string[] = []
-    ): void {
-        const keepFieldSet = new Set(keepFields.map(field => String(field)));
-        Object.keys(record).forEach(field => {
-            if (!this.isReservedImportField(field, domain)) {
-                return;
-            }
-
-            const storedField = this.getUniqueImportFieldName(record, `${prefix}_${field}`);
-            record[storedField] = record[field];
-
-            if (!keepFieldSet.has(field)) {
+    private preserveReservedFields(record: Record<string, any>, reservedFields: string[], prefix: string): void {
+        reservedFields.forEach(field => {
+            if (record[field] !== undefined) {
+                record[`${prefix}_${field}`] = record[field];
                 delete record[field];
             }
         });
-    }
-
-    private isReservedImportField(field: string, domain: ImportRecordDomain): boolean {
-        const fieldName = this.normalizeImportFieldName(field);
-        if (!fieldName) {
-            return false;
-        }
-
-        const reservedFields = domain === 'node'
-            ? IMPORT_NODE_RESERVED_FIELDS
-            : IMPORT_LINK_RESERVED_FIELDS;
-        const lowerField = fieldName.toLowerCase();
-        return reservedFields.some(reservedField =>
-            reservedField === fieldName || reservedField.toLowerCase() === lowerField
-        );
-    }
-
-    private normalizeImportFieldName(field: any): string {
-        return String(field ?? '').trim();
-    }
-
-    private getUniqueImportFieldName(record: Record<string, any>, baseField: string): string {
-        let field = baseField;
-        let suffix = 2;
-        while (Object.prototype.hasOwnProperty.call(record, field)) {
-            field = `${baseField}_${suffix}`;
-            suffix++;
-        }
-        return field;
-    }
-
-    private getNetworkLinkPassthroughFields(): string[] {
-        return [
-            'origin',
-            '_originAll',
-            'distanceOrigin',
-            'distanceOrigins',
-            'hasDistance',
-            'directed',
-            'label',
-            'Label',
-            ...IMPORT_DISTANCE_FIELD_NAMES
-        ];
-    }
-
-    private getNetworkNodePassthroughFields(): string[] {
-        return ['label', 'Label'];
     }
 
     private applyCX2EdgeOrigins(
@@ -3553,7 +3338,22 @@ export class GraphMLService {
     }
 
     private normalizeImportedDistance(linkRecord: Record<string, any>, distanceOrigin: string): void {
-        const distanceField = IMPORT_DISTANCE_FIELD_NAMES.find(field => this.toFiniteNumber(linkRecord[field]) !== null);
+        const distanceFields = [
+            'distance',
+            'Distance',
+            'length',
+            'Length',
+            'weight',
+            'Weight',
+            'snps',
+            'SNPs',
+            'tn93',
+            'TN93',
+            'genetic_distance',
+            'mean_genetic_distance'
+        ];
+
+        const distanceField = distanceFields.find(field => this.toFiniteNumber(linkRecord[field]) !== null);
         const distance = distanceField ? this.toFiniteNumber(linkRecord[distanceField]) : null;
         const explicitHasDistance = typeof linkRecord.hasDistance === 'boolean' ? linkRecord.hasDistance : null;
 
@@ -3837,16 +3637,7 @@ export class GraphMLService {
         const readableFields: string[] = [];
 
         rawFields.forEach(field => {
-            if (this.isDuplicateRawFieldForReadableAlias(records, field, readableFields)) {
-                return;
-            }
-
             const readableField = this.getReadableImportFieldName(field);
-            const aliasAlreadyExposed = readableField !== field && readableFields.includes(readableField);
-            if (aliasAlreadyExposed && this.isDuplicateReadableAlias(records, field, readableField)) {
-                return;
-            }
-
             const canUseAlias = readableField !== field
                 && !rawFieldSet.has(readableField)
                 && !readableFields.includes(readableField)
@@ -3869,46 +3660,6 @@ export class GraphMLService {
         return readableFields;
     }
 
-    private isDuplicateRawFieldForReadableAlias(
-        records: Array<Record<string, any>>,
-        field: string,
-        readableFields: string[]
-    ): boolean {
-        if (this.getPreservedImportSourceField(field)) {
-            return false;
-        }
-
-        const readableField = this.getReadablePreservedSourceFieldName(field);
-        if (readableField === field || !readableFields.includes(readableField)) {
-            return false;
-        }
-
-        return records.every(record => {
-            const sourceValue = record[field];
-            if (sourceValue === undefined || sourceValue === null) {
-                return true;
-            }
-
-            return record[readableField] === sourceValue;
-        });
-    }
-
-    private isDuplicateReadableAlias(records: Array<Record<string, any>>, field: string, readableField: string): boolean {
-        const preservedSourceField = this.getPreservedImportSourceField(field);
-        if (!preservedSourceField) {
-            return false;
-        }
-
-        return records.every(record => {
-            const sourceValue = record[field];
-            if (sourceValue === undefined || sourceValue === null) {
-                return true;
-            }
-
-            return record[readableField] === sourceValue;
-        });
-    }
-
     private recordsHaveField(records: Array<Record<string, any>>, field: string): boolean {
         return records.some(record => Object.prototype.hasOwnProperty.call(record, field));
     }
@@ -3921,6 +3672,8 @@ export class GraphMLService {
 
         const fieldNameOverrides: Record<string, string> = {
             '_id': '_id',
+            'dot_attribute_label': 'Label',
+            'dot_attribute_Label': 'Label',
             'nn': 'nn',
             'id': 'id',
             'x': 'x',
@@ -3929,14 +3682,6 @@ export class GraphMLService {
         };
         if (Object.prototype.hasOwnProperty.call(fieldNameOverrides, normalizedField)) {
             return fieldNameOverrides[normalizedField];
-        }
-
-        const preservedSourcePrefix = this.getPreservedImportSourcePrefix(normalizedField);
-        if (preservedSourcePrefix) {
-            return this.getReadablePreservedSourceFieldName(
-                normalizedField.slice(preservedSourcePrefix.length),
-                preservedSourcePrefix
-            );
         }
 
         const readableText = normalizedField
@@ -3993,84 +3738,6 @@ export class GraphMLService {
         }
 
         return lowerPart.charAt(0).toUpperCase() + lowerPart.slice(1);
-    }
-
-    private getPreservedImportSourceField(field: string): string | null {
-        const prefix = this.getPreservedImportSourcePrefix(field);
-        return prefix ? field.slice(prefix.length) : null;
-    }
-
-    private getPreservedImportSourcePrefix(field: string): string | null {
-        return IMPORT_PRESERVED_PREFIXES.find(candidate => field.startsWith(candidate)) || null;
-    }
-
-    private getReadablePreservedSourceFieldName(field: string, prefix: string = ''): string {
-        const normalizedField = this.normalizeImportFieldName(field);
-        const lowerField = normalizedField.toLowerCase();
-        const readableReservedFields: Record<string, string> = {
-            '_id': '_id',
-            'id': 'ID',
-            'label': 'Label',
-            'source': 'Source',
-            'target': 'Target',
-            'directed': 'Directed',
-            'origin': 'Origin',
-            '_originall': 'Origin All',
-            'distance': 'Distance',
-            'length': 'Length',
-            'weight': 'Weight',
-            'snps': 'SNPs',
-            'tn93': 'TN93',
-            'genetic_distance': 'Genetic Distance',
-            'mean_genetic_distance': 'Mean Genetic Distance',
-            'hasdistance': 'Has Distance',
-            'distanceorigin': 'Distance Origin',
-            'distanceorigins': 'Distance Origins',
-            'visible': 'Visible',
-            'selected': 'Selected',
-            'cluster': 'Cluster',
-            'degree': 'Degree',
-            'index': 'Index',
-            'x': 'X',
-            'y': 'Y',
-            'z': 'Z',
-            'vx': 'VX',
-            'vy': 'VY',
-            'nodesize': 'Node Size',
-            'nodecolor': 'Node Color',
-            'bgopacity': 'Background Opacity',
-            'borderwidth': 'Border Width',
-            'shape': 'Shape',
-            'group': 'Group',
-            'parent': 'Parent',
-            'isparent': 'Is Parent',
-            'color': 'Color',
-            'size': 'Size'
-        };
-
-        if (Object.prototype.hasOwnProperty.call(readableReservedFields, lowerField)) {
-            const readableField = readableReservedFields[lowerField];
-            const tableQualifier = this.getTableImportAliasQualifier(prefix, lowerField);
-            if (tableQualifier && lowerField === '_id') {
-                return `${tableQualifier} _ID`;
-            }
-
-            return tableQualifier ? `${tableQualifier} ${readableField}` : readableField;
-        }
-
-        return this.getReadableImportFieldName(normalizedField);
-    }
-
-    private getTableImportAliasQualifier(prefix: string, lowerField: string): string | null {
-        if (prefix === 'node_table_' && IMPORT_NODE_TABLE_QUALIFIED_ALIAS_FIELDS.includes(lowerField)) {
-            return 'Node';
-        }
-
-        if (prefix === 'link_table_' && IMPORT_LINK_TABLE_QUALIFIED_ALIAS_FIELDS.includes(lowerField)) {
-            return 'Link';
-        }
-
-        return null;
     }
 
     private inferType(values: any[]): GraphMLAttributeType {

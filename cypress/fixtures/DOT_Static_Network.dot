@@ -4,11 +4,11 @@ strict digraph ContactNetwork {
   node [sample_type="case", active=true];
   edge [kind="contact"];
 
-  Alpha [id="Source Alpha ID", label="Case Alpha", viral_load=2.5, visible=false];
+  Alpha [label="Case Alpha", viral_load=2.5];
   Beta [sample_type="contact", active=false];
   Gamma;
 
-  Alpha -> Beta [id="Source Edge ID", source="Source metadata", target="Target metadata", directed=false, label="Contact label", distance=4.5, confirmed=true, origin="Contact.csv"];
+  Alpha -> Beta [distance=4.5, confirmed=true, origin="Contact.csv"];
   Beta -> Gamma [weight=7, kind="genetic"];
   Alpha -> Beta [distance=5, note="strict replacement"];
 

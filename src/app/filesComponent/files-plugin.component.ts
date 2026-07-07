@@ -146,73 +146,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     });
   }
 
-  private addSessionDataField(fields: string[], field: string): void {
-    if (field && !this.commonService.includes(fields, field)) {
-      fields.push(field);
-    }
-  }
-
-  private addImportedTableField(
-    record: Record<string, any>,
-    fields: string[],
-    domain: 'node' | 'link',
-    key: any,
-    value: any,
-    prefix: string
-  ): void {
-    const safeKey = this.commonService.filterXSS(key);
-    if (!safeKey) return;
-
-    const safeValue = this.commonService.filterXSS(value);
-    this.graphMLService
-      .addImportedSourceField(record, domain, safeKey, safeValue, prefix)
-      .forEach(field => this.addSessionDataField(fields, field));
-  }
-
-  private addLinkEndpointNode(nodeId: any, origin: string[], check: any): number {
-    const id = this.commonService.filterXSS(`${nodeId ?? ''}`).trim();
-    if (!id) {
-      return 0;
-    }
-
-    if (check) {
-      const existingNode = this.commonService.session.data.nodes.find((node: any) => node._id === id);
-      if (existingNode) {
-        const existingOrigin = Array.isArray(existingNode.origin)
-          ? existingNode.origin
-          : (existingNode.origin === undefined || existingNode.origin === null ? [] : [existingNode.origin]);
-        existingNode.origin = this.commonService.uniq(existingOrigin.concat(origin));
-        return 0;
-      }
-    }
-
-    return this.commonService.addNode({
-      _id: id,
-      origin
-    }, true);
-  }
-
-  private buildNodeTableRecord(node: any, file: any, origin: string[]): Record<string, any> {
-    const safeNode: Record<string, any> = {
-      _id: this.commonService.filterXSS('' + node[file.field1]),
-      seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
-      origin
-    };
-
-    Object.keys(node).forEach(key => {
-      this.addImportedTableField(
-        safeNode,
-        this.commonService.session.data.nodeFields,
-        'node',
-        key,
-        node[key],
-        'node_table'
-      );
-    });
-
-    return safeNode;
-  }
-
   private isFileDragEvent(evt: DragEvent): boolean {
     const transfer = evt.dataTransfer;
     if (!transfer) {
@@ -1312,34 +1245,34 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           const safeLink = {};
           // for each key in link object
           for (let i = 0; i < n; i++) {
-            const rawKey = keys[i];
-            const key = this.commonService.filterXSS(rawKey);
-            let value = link[rawKey];
+            let key = this.commonService.filterXSS(keys[i]);
             // console.log('key is: ',key);
 
             if(key === "distance") {
               // console.log('key is distance');
-              value = parseFloat(value);
+              link[key] = parseFloat(link[key]);
             } else if (key === 'origin') {
               // related to zenhub#810: link list csv was exported from table view and unable to be loaded correctly; this code create a new linkField when it runs into field called origin 
-              link['originColumnFromFile'] = String(value ?? '').split('\n')
+              link['originColumnFromFile'] = link['origin'].split('\n')
               safeLink['originColumnFromFile'] = link['originColumnFromFile'];
+              link['origin'] = origin;
 
-              this.addSessionDataField(this.commonService.session.data.linkFields, 'originColumnFromFile');
+              if (!this.commonService.includes(this.commonService.session.data.linkFields, 'originColumnFromFile')) {
+                this.commonService.session.data.linkFields.push('originColumnFromFile');
+              }
             }
+            
+            safeLink[key] = link[key];
+            // console.log('safelink key is: ',safeLink[key]);
+            // console.log('safelink is: x',safeLink);
 
-            this.addImportedTableField(
-              safeLink,
-              this.commonService.session.data.linkFields,
-              'link',
-              key,
-              value,
-              'link_table'
-            );
+            if (!this.commonService.includes(this.commonService.session.data.linkFields, key)) {
+              this.commonService.session.data.linkFields.push(key);
+            }
           }
 
-          const src = '' + link[file.field1];
-          const tgt = '' + link[file.field2];
+          const src = '' + safeLink[file.field1];
+          const tgt = '' + safeLink[file.field2];
           const hasReverseEdge = seenTargetsBySource.get(tgt)?.has(src) ?? false;
 
           if (!seenTargetsBySource.has(src)) {
@@ -1354,7 +1287,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             origin: origin,
             visible: true,
             directed: isDistanceFieldMissing ? true : false,
-            distance: isDistanceFieldMissing ? 0 : parseFloat(link[file.field3]),
+            distance: isDistanceFieldMissing ? 0 : parseFloat(safeLink[file.field3]),
             hasDistance: isDistanceFieldMissing ? false : true,
             distanceOrigin: isDistanceFieldMissing ? '' : file.name
           } as any;
@@ -1386,13 +1319,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             if (nodeIDs.indexOf(f1) === -1) {
               t++;
               nodeIDs.push(f1);
-              n += this.addLinkEndpointNode(f1, origin, true);
+              n += this.commonService.addNode({
+                _id: '' + f1,
+                origin: origin
+              }, true);
             }
             const f2 = l[file.field2];
             if (nodeIDs.indexOf(f2) === -1) {
               t++;
               nodeIDs.push(f2);
-              n += this.addLinkEndpointNode(f2, origin, true);
+              n += this.commonService.addNode({
+                _id: '' + f2,
+                origin: origin
+              }, true);
             }
           }
 
@@ -1414,6 +1353,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             const data = results;
             data.map(forEachLink);
             this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link JSON.`);
+            if (data.length > 0)
+              Object.keys(data[0]).forEach(key => {
+                const safeKey = this.commonService.filterXSS(key);
+
+                if (!this.commonService.includes(this.commonService.session.data.linkFields, safeKey)) {
+                  this.commonService.session.data.linkFields.push(safeKey);
+                }
+              });
             let newNodes = 0, totalNodes = 0;
             const n = data.length;
             const nodeIDs = [];
@@ -1424,12 +1371,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               const f1 = l[file.field1];
               if (nodeIDs.indexOf(f1) === -1) {
                 totalNodes++;
-                newNodes += this.addLinkEndpointNode(f1, origin, true);
+                newNodes += this.commonService.addNode({
+                  _id: '' + f1,
+                  origin: origin
+                }, true);
               }
               const f2 = l[file.field2];
               if (nodeIDs.indexOf(f2) === -1) {
                 totalNodes++;
-                newNodes += this.addLinkEndpointNode(f2, origin, true);
+                newNodes += this.commonService.addNode({
+                  _id: '' + f2,
+                  origin: origin
+                }, true);
               }
             }
 
@@ -1455,6 +1408,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                 const data = results.data;
                 data.map(forEachLink);
                 this.showMessage(` - Parsed ${l} New, ${data.length} Total Links from Link CSV.`);
+                results.meta.fields.forEach(key => {
+                  const safeKey = this.commonService.filterXSS(key);
+
+                  if (!this.commonService.includes(this.commonService.session.data.linkFields, safeKey)) {
+                    this.commonService.session.data.linkFields.push(safeKey);
+                  }
+                });
                 let newNodes = 0, totalNodes = 0;
                 const n = data.length;
                 const nodeIDs = [];
@@ -1463,12 +1423,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
                   const f1 = l[file.field1];
                   if (nodeIDs.indexOf(f1) === -1) {
                     totalNodes++;
-                    newNodes += this.addLinkEndpointNode(f1, origin, true);
+                    newNodes += this.commonService.addNode({
+                      _id: '' + f1,
+                      origin: origin
+                    }, true);
                   }
                   const f2 = l[file.field2];
                   if (nodeIDs.indexOf(f2) === -1) {
                     totalNodes++;
-                    newNodes += this.addLinkEndpointNode(f2, origin, true);
+                    newNodes += this.commonService.addNode({
+                      _id: '' + f2,
+                      origin: origin
+                    }, true);
                   }
                 }
 
@@ -1500,7 +1466,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
           const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false, dateNF: 'mm/dd/yyyy'});
           data.forEach(node => {
-            const safeNode = this.buildNodeTableRecord(node, file, origin);
+            let safeNode = {
+              _id: this.commonService.filterXSS('' + node[file.field1]),
+              seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
+              origin: origin
+            };
+            Object.keys(node).forEach(key => {
+              let safeKey = this.commonService.filterXSS(key);
+              if (!this.commonService.includes(this.commonService.session.data.nodeFields, safeKey)) {
+                this.commonService.session.data.nodeFields.push(safeKey);
+              }
+              safeNode[safeKey] = this.commonService.filterXSS(node[key]);
+            });
             m += this.commonService.addNode(safeNode, check);
           });
 
@@ -1523,7 +1500,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
               if (node[file.field1] && node[file.field1].toString().trim()) {
 
-                const safeNode = this.buildNodeTableRecord(node, file, origin);
+                let safeNode = {
+                  _id: this.commonService.filterXSS('' + node[file.field1]),
+                  seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
+                  origin: origin
+                };
+
+                Object.keys(node).forEach(key => {
+                  let safeKey = this.commonService.filterXSS(key);
+                  if (!this.commonService.includes(this.commonService.session.data.nodeFields, safeKey)) {
+                    this.commonService.session.data.nodeFields.push(safeKey);
+                  }
+                  safeNode[safeKey] = this.commonService.filterXSS(node[key]);
+                });
                 m += this.commonService.addNode(safeNode, check);
               }
             })
@@ -1553,7 +1542,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
                 if (node[file.field1] && node[file.field1].toString().trim()) {
 
-                  const safeNode = this.buildNodeTableRecord(node, file, origin);
+                  let safeNode = {
+                    _id: this.commonService.filterXSS('' + node[file.field1]),
+                    seq: (!file.field2 || file.field2 === 'None') ? '' : this.commonService.filterXSS(node[file.field2]),
+                    origin: origin
+                  };
+
+                  Object.keys(node).forEach(key => {
+                    let safeKey = this.commonService.filterXSS(key);
+                    if (!this.commonService.includes(this.commonService.session.data.nodeFields, safeKey)) {
+                      this.commonService.session.data.nodeFields.push(safeKey);
+                    }
+                    safeNode[safeKey] = this.commonService.filterXSS(node[key]);
+                  });
                   m += this.commonService.addNode(safeNode, check);
                 }
               },
