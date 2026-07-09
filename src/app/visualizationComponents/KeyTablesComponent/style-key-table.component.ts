@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { getNodeShapePreviewDataUri } from '@app/contactTraceCommonServices/node-shapes';
 import { TreeNode } from 'primeng/api';
 
 export type StyleKeyTableControlType = 'color' | 'shape';
@@ -165,24 +166,28 @@ export interface StyleKeyTableShapePanelRequest {
                                 (onShow)="onShapePanelShow(row)">
                                 <ng-template pTemplate="value" let-node let-placeholder="placeholder">
                                     @if (node?.data) {
-                                        <div class="shape-tree-value">
-                                            <a
-                                                [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}"
-                                                [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}"
-                                                style="color: black;">{{ node.data.value }}</a>
-                                            {{ node.data.name }}
+                                        <div class="shape-tree-value style-key-table__shape-option">
+                                            <img
+                                                class="style-key-table__shape-preview"
+                                                [attr.data-shape-key]="node.data.key"
+                                                [src]="getShapePreviewSrc(node.data.key)"
+                                                alt=""
+                                                aria-hidden="true">
+                                            <span class="style-key-table__shape-label">{{ node.data.name }}</span>
                                         </div>
                                     } @else {
                                         <span>{{ placeholder }}</span>
                                     }
                                 </ng-template>
                                 <ng-template pTemplate="shape" let-node>
-                                    <div class="shape-tree-node">
-                                        <a
-                                            [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}"
-                                            [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}"
-                                            style="color: black;">{{ node.data.value }}</a>
-                                        {{ node.data.name }}
+                                    <div class="shape-tree-node style-key-table__shape-option">
+                                        <img
+                                            class="style-key-table__shape-preview"
+                                            [attr.data-shape-key]="node.data.key"
+                                            [src]="getShapePreviewSrc(node.data.key)"
+                                            alt=""
+                                            aria-hidden="true">
+                                        <span class="style-key-table__shape-label">{{ node.data.name }}</span>
                                     </div>
                                 </ng-template>
                             </p-treeSelect>
@@ -218,6 +223,27 @@ export interface StyleKeyTableShapePanelRequest {
             height: 100%;
             width: 50%;
         }
+
+        .style-key-table__shape-option {
+            align-items: center;
+            display: inline-flex;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .style-key-table__shape-preview {
+            display: inline-block;
+            flex: 0 0 18px;
+            height: 18px;
+            object-fit: contain;
+            width: 18px;
+        }
+
+        .style-key-table__shape-label {
+            line-height: 1.2;
+            min-width: 0;
+            white-space: normal;
+        }
     `]
 })
 export class StyleKeyTableComponent {
@@ -241,6 +267,24 @@ export class StyleKeyTableComponent {
     @Output() alphaRequest = new EventEmitter<StyleKeyTableAlphaRequest>();
     @Output() shapeChange = new EventEmitter<StyleKeyTableShapeChange>();
     @Output() shapePanelRequest = new EventEmitter<StyleKeyTableShapePanelRequest>();
+
+    private readonly shapePreviewSrcCache = new Map<string, string>();
+
+    getShapePreviewSrc(shapeKey: string | null | undefined): string {
+        const key = String(shapeKey ?? '');
+        if (!key) {
+            return '';
+        }
+
+        const cachedPreviewSrc = this.shapePreviewSrcCache.get(key);
+        if (cachedPreviewSrc) {
+            return cachedPreviewSrc;
+        }
+
+        const previewSrc = getNodeShapePreviewDataUri(key);
+        this.shapePreviewSrcCache.set(key, previewSrc);
+        return previewSrc;
+    }
 
     onEditableKeydown(event: KeyboardEvent): void {
         if (event.key !== 'Enter') {
