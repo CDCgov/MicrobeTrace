@@ -196,10 +196,20 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
         [20, 80],
         [null, 40],
       ]);
+      expect(trace.customdata, 'node-backed hover values').to.deep.equal([
+        ['20', '80'],
+        ['No Data', '40'],
+      ]);
+      expect(trace.hoverongaps, 'node-backed hover skips missing main cells').to.equal(false);
+      expect(trace.hovertemplate, 'node-backed hover uses native axis labels')
+        .to.equal('X: %{x}<br>Y: %{y}<br>HI Titer: %{customdata}<extra></extra>');
       expect(trace.colorbar.ticktext, 'node-backed numeric legend labels').to.include.members(['20', '40', '80']);
       expect(trace.colorbar.ticktext, 'node-backed numeric legend excludes literal null').to.not.include('null');
       expect(trace.colorbar.y, 'node-backed colorbar is lowered when No Data legend is present').to.be.lessThan(0.5);
       expect(missingTrace.name, 'missing trace legend label').to.equal('No Data');
+      expect(missingTrace.hoverongaps, 'missing hover skips non-missing overlay gaps').to.equal(false);
+      expect(missingTrace.hovertemplate, 'missing hover uses native axis labels')
+        .to.equal('X: %{x}<br>Y: %{y}<br>HI Titer: No Data<extra></extra>');
       expect(missingTrace.legendrank, 'missing trace legend order').to.equal(0);
       expect(missingTrace.colorscale, 'missing trace colorscale').to.deep.equal([
         [0, missingColor],

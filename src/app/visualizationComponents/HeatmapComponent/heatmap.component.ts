@@ -37,7 +37,7 @@ interface HeatmapCellInput {
 
 interface HeatmapMatrixResult {
   categories: string[];
-  customdata: string[][][];
+  customdata: string[][];
   duplicateCount: number;
   exportValues: unknown[][];
   hasMissing: boolean;
@@ -760,12 +760,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       })
     ));
 
-    const customdata = options.rawMatrix.map((row, rowIndex) => (
-      row.map((value, columnIndex) => [
-        options.xLabels[columnIndex],
-        options.yLabels[rowIndex],
-        this.formatCellDisplayValue(value, options.isDistance),
-      ])
+    const customdata = options.rawMatrix.map((row) => (
+      row.map((value) => this.formatCellDisplayValue(value, options.isDistance))
     ));
 
     const exportValues = options.rawMatrix.map((row) => (
@@ -929,8 +925,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
           [0.5, this.medColor],
           [1, this.hiColor]
         ],
+        hoverongaps: false,
         customdata: matrix.customdata,
-        hovertemplate: `X: %{customdata[0]}<br>Y: %{customdata[1]}<br>${matrix.valueLabel}: %{customdata[2]}<extra></extra>`,
+        hovertemplate: `X: %{x}<br>Y: %{y}<br>${matrix.valueLabel}: %{customdata}<extra></extra>`,
       };
 
       heatmapTrace.colorbar = this.buildHeatmapColorbar(matrix);
@@ -948,12 +945,13 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
           ],
           zmin: 0,
           zmax: 1,
+          hoverongaps: false,
           showscale: false,
           showlegend: true,
           legendrank: 0,
           name: 'No Data',
           customdata: matrix.customdata,
-          hovertemplate: `X: %{customdata[0]}<br>Y: %{customdata[1]}<br>${matrix.valueLabel}: No Data<extra></extra>`,
+          hovertemplate: `X: %{x}<br>Y: %{y}<br>${matrix.valueLabel}: No Data<extra></extra>`,
         });
       }
 
