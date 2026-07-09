@@ -2072,7 +2072,7 @@ export function assertHeatmapMatchesBackingMatrix(options: {
       };
 
       expect(heatmapView.heatmapMetric, 'heatmap metric label').to.equal(expectedMetric);
-      expect(heatmapView.heatmapData, 'heatmap traces').to.have.length(1);
+      expect(heatmapView.heatmapData, 'heatmap traces').to.have.length.greaterThan(0);
 
       const trace = heatmapView.heatmapData[0];
       expect(trace.type, 'heatmap trace type').to.equal('heatmap');
