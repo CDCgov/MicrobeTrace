@@ -2,11 +2,17 @@ import { CommonModule } from '@angular/common';
 import { TestBed, waitForAsync } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { AppComponent } from './app.component';
+import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { dismissRuntimeError, reportRuntimeError } from './runtime-security/runtime-error.store';
 
 describe('AppComponent', () => {
+  let embedHandoffServiceStub: { cleanupExpiredHandoffs: jasmine.Spy };
+
   beforeEach(waitForAsync(() => {
     dismissRuntimeError();
+    embedHandoffServiceStub = {
+      cleanupExpiredHandoffs: jasmine.createSpy('cleanupExpiredHandoffs').and.resolveTo({ scanned: 0, removed: 0, errors: 0 }),
+    };
 
     TestBed.configureTestingModule({
       imports: [
@@ -15,6 +21,9 @@ describe('AppComponent', () => {
       ],
       declarations: [
         AppComponent
+      ],
+      providers: [
+        { provide: EmbedHandoffService, useValue: embedHandoffServiceStub },
       ],
     }).compileComponents();
   }));
@@ -27,6 +36,12 @@ describe('AppComponent', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.debugElement.componentInstance;
     expect(app).toBeTruthy();
+  });
+
+  it('cleans up expired partner handoffs on startup', () => {
+    TestBed.createComponent(AppComponent);
+
+    expect(embedHandoffServiceStub.cleanupExpiredHandoffs).toHaveBeenCalled();
   });
 
   it('does not show the runtime banner by default', () => {

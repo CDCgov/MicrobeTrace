@@ -23,6 +23,11 @@ IF EXIST "%WAR_TMP_PATH%" DEL /F /Q "%WAR_TMP_PATH%"
 call npm run build -- --configuration production --base-href=./
 IF ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
+echo Installing WAR security header configuration...
+IF NOT EXIST "dist\MicrobeTrace\WEB-INF" mkdir "dist\MicrobeTrace\WEB-INF"
+copy /Y "scripts\tomcat\web.xml" "dist\MicrobeTrace\WEB-INF\web.xml" >NUL
+IF ERRORLEVEL 1 exit /b %ERRORLEVEL%
+
 call npm run verify:dist
 IF ERRORLEVEL 1 exit /b %ERRORLEVEL%
 

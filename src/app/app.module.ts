@@ -89,7 +89,11 @@ import { GlobalErrorHandler } from './runtime-security/global-error-handler';
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
-const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff');
+const hashParamsText = window.location.hash.replace(/^#/, '').includes('?')
+  ? window.location.hash.replace(/^#/, '').slice(window.location.hash.replace(/^#/, '').indexOf('?') + 1)
+  : window.location.hash.replace(/^#/, '');
+const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff')
+  || new URLSearchParams(hashParamsText).has('handoff');
 const googleTagManagerMode = analyticsDisabledForHandoff ? 'silent' : 'noisy';
 
 const routerOptions: ExtraOptions = {

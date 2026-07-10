@@ -15,6 +15,7 @@ import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { buildSafeCsvRow } from '@app/contactTraceCommonServices/export-sanitization';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
@@ -504,12 +505,12 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
       let csvContent = "";
       if (this.heatmapShowLabels) {
-        csvContent += ["", ...xLabels].join(",") + "\n";
+        csvContent += buildSafeCsvRow(["", ...xLabels]) + "\n";
         for (let i = 0; i < exportedMatrix.length; i++) {
-          csvContent += [yLabels[i], ...exportedMatrix[i]].join(",") + "\n";
+          csvContent += buildSafeCsvRow([yLabels[i], ...exportedMatrix[i]]) + "\n";
         }
       } else {
-        csvContent += exportedMatrix.map((row) => row.join(",")).join("\n");
+        csvContent += exportedMatrix.map((row) => buildSafeCsvRow(row)).join("\n");
       }
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, fileName);

@@ -44,6 +44,21 @@ export interface StoredEmbedHandoffV1 extends EmbedPayloadV1 {
     expiresAt: number;
 }
 
+export interface EmbedHandoffFileReceiptV1 {
+    name: string;
+    kind?: EmbedFileKindInput;
+    bytes: number;
+}
+
+export interface EmbedHandoffReceiptV1 {
+    partnerId: string;
+    handoffId: string;
+    createdAt: number;
+    expiresAt: number;
+    receiverUrl: string;
+    files: EmbedHandoffFileReceiptV1[];
+}
+
 export interface ImportedEmbedFile {
     name: string;
     extension: string;
@@ -70,3 +85,9 @@ export type ConsumeEmbedHandoffResult =
         handoffId: string | null;
         message: string;
       };
+
+export interface CleanupEmbedHandoffResult {
+    scanned: number;
+    removed: number;
+    errors: number;
+}
