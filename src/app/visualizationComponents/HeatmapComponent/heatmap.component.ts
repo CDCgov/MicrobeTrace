@@ -4,7 +4,6 @@ import { Injector, Component, Output, EventEmitter,
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
-import * as domToImage from 'html-to-image';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
@@ -13,7 +12,6 @@ import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
-import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
@@ -120,7 +118,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         private cdref: ChangeDetectorRef,
         private gtmService: GoogleTagManagerService,
         private renderer: Renderer2,
-        private exportService: ExportService,
         private plotlyModule: PlotlyModule,
         private store: CommonStoreService,
       ) {
@@ -1138,45 +1135,26 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.redrawHeatmap();
   }
 
-  saveImage(): void {
+  async saveImage(): Promise<void> {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
-    const exportImageType = this.SelectedNetworkExportFileTypeVariable;
+    const exportImageType = this.SelectedNetworkExportFileTypeVariable as 'png' | 'jpeg' | 'svg';
     const content = document.getElementById(domId);
-    if (content) {
-      const fixedContent = this.fixGradient(content);
-      if (exportImageType === 'png') {
-        domToImage.toPng(content).then(
-          dataUrl => {
-            saveAs(dataUrl, fileName + '.' + exportImageType);
-        });
-      } else if (exportImageType === 'jpeg') {
-          domToImage.toJpeg(content, { quality: 0.85 }).then(
-            dataUrl => {
-              saveAs(dataUrl, fileName + '.' + exportImageType);
-            });
-      } else if (exportImageType === 'svg') {
-          const svgContent = this.exportService.unparseSVG(fixedContent);
-          const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-          saveAs(blob, fileName + '.' + exportImageType);
-      }
-    }
-  }
 
-  fixGradient(el: HTMLElement): HTMLElement {
-    const insertionPoint = el.getElementsByClassName('gradient_filled');
-    if (!insertionPoint.length) {
-      return el;
+    if (!content) {
+      return;
     }
 
-    const startingUrl = insertionPoint[0]['style']['fill'];
-    if (!startingUrl || !startingUrl.includes('#')) {
-      return el;
+    try {
+      const dataUrl = await PlotlyModule.plotlyjs.toImage(content, {
+        format: exportImageType,
+        width: null,
+        height: null,
+      });
+      saveAs(dataUrl, fileName + '.' + exportImageType);
+    } catch (error) {
+      console.error('Error exporting heatmap image:', error);
     }
-
-    const idVal = startingUrl.substring(startingUrl.indexOf('#'));
-    insertionPoint[0]['style']['fill'] = 'url("' + idVal;
-    return el;
   }
 
   saveDistanceMatrix(): void {
