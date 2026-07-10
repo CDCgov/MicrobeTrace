@@ -499,6 +499,25 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     };
   }
 
+  private buildHeatmapAxisConfig(labels: string[]): any {
+    const config: any = {
+      type: 'category',
+      categoryorder: 'array',
+      categoryarray: labels,
+      tickmode: 'array',
+      tickvals: labels,
+      ticktext: labels,
+      showticklabels: this.heatmapShowLabels,
+      automargin: true,
+    };
+
+    if (!config.showticklabels) {
+      config.ticks = '';
+    }
+
+    return config;
+  }
+
   private buildNodeLookup(): Map<string, any> {
     const lookup = new Map<string, any>();
     (this.commonService.session.data?.nodes || []).forEach((node) => {
@@ -913,7 +932,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.commonService.session.warnings = filteredWarnings;
   }
 
-  drawHeatmap(config: object): void {
+  drawHeatmap(): void {
     this.buildHeatmapMatrix().then((matrix) => {
       this.lastHeatmapMatrix = matrix;
       this.heatmapLabels = matrix.xLabels;
@@ -965,8 +984,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       const marginLeft = this.heatmapShowLabels ? 90 : 10;
       const marginBottom = this.heatmapShowLabels ? 75 : 10;
       this.heatmapLayout = {
-          xaxis: config,
-          yaxis: config,
+          xaxis: this.buildHeatmapAxisConfig(matrix.xLabels),
+          yaxis: this.buildHeatmapAxisConfig(matrix.yLabels),
           width: $('#heatmap').parent().width() - 35,
           height: $('#heatmap').parent().height() - 90,
           margin: { t: 0, l: marginLeft, b: marginBottom, r: 0 },
@@ -998,19 +1017,13 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     }
 
     if (!initial) {
-      const config = {
-        autotick: false,
-        showticklabels: this.heatmapShowLabels
-      };
-      if (!config.showticklabels) {
-        config['ticks'] = '';
-      }
-
       const marginLeft = this.heatmapShowLabels ? 90 : 10;
       const marginBottom = this.heatmapShowLabels ? 75 : 10;
+      const xLabels = this.lastHeatmapMatrix?.xLabels || [];
+      const yLabels = this.lastHeatmapMatrix?.yLabels || [];
       this.heatmapLayout = {
-        xaxis: config,
-        yaxis: config,
+        xaxis: this.buildHeatmapAxisConfig(xLabels),
+        yaxis: this.buildHeatmapAxisConfig(yLabels),
         width: $('#heatmap').parent().width() - 35,
         height: $('#heatmap').parent().height() - 90,
         margin: { t: 0, l: marginLeft, b: marginBottom, r: 0 },
@@ -1024,17 +1037,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     if (!$('#heatmap').length) return;
     if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
     this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel();
-
-    const config = {
-      autotick: false,
-      showticklabels: this.heatmapShowLabels
-    };
-
-    if (!config.showticklabels) {
-      config['ticks'] = '';
-    }
-
-    this.drawHeatmap(config);
+    this.drawHeatmap();
   }
 
   setBackground(): void {
