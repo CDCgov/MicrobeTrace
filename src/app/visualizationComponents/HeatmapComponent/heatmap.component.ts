@@ -104,7 +104,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   ];
   SelectedDistanceMatrixFilenameVariable = 'distance_matrix.csv';
   heatmapLabels: string[] = [];
-  heatmapMetric: string;
+  heatmapValueDisplayLabel = HEATMAP_DISTANCE_LABEL;
   heatmapValueLabel = HEATMAP_DISTANCE_LABEL;
 
   private lastHeatmapMatrix: HeatmapMatrixResult | null = null;
@@ -273,7 +273,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.hiColor = this.widgets['heatmap-color-high'];
     this.missingColor = this.widgets['heatmap-color-missing'];
     this.summaryStatistic = this.widgets['heatmap-summary-statistic'];
-    this.heatmapMetric = String(this.widgets['default-distance-metric'] || '').toUpperCase();
+    this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel(selectedValue);
     this.heatmapValueLabel = selectedValue.source === 'distance'
       ? HEATMAP_DISTANCE_LABEL
       : this.getFieldLabel(selectedValue.variable);
@@ -398,6 +398,14 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       source: parsedSource,
       variable: parsedSource === 'distance' ? HEATMAP_DISTANCE_LABEL : variable,
     };
+  }
+
+  private getHeatmapValueDisplayLabel(selectedValue = this.parseValueKey(this.selectedValueKey)): string {
+    if (selectedValue.source === 'distance') {
+      return this.getFieldLabel(String(this.commonService.session.style.widgets['default-distance-metric'] || HEATMAP_DISTANCE_LABEL));
+    }
+
+    return this.getFieldLabel(selectedValue.variable);
   }
 
   private usesPercentageDistanceDisplay(): boolean {
@@ -1015,7 +1023,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   redrawHeatmap(): void {
     if (!$('#heatmap').length) return;
     if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
-    this.heatmapMetric = String(this.commonService.session.style.widgets['default-distance-metric'] || '').toUpperCase();
+    this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel();
 
     const config = {
       autotick: false,
@@ -1099,6 +1107,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     const selectedValue = this.parseValueKey(valueKey);
     this.commonService.session.style.widgets['heatmap-value-source'] = selectedValue.source;
     this.commonService.session.style.widgets['heatmap-value-variable'] = selectedValue.variable;
+    this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel(selectedValue);
     this.heatmapValueLabel = selectedValue.source === 'distance'
       ? HEATMAP_DISTANCE_LABEL
       : this.getFieldLabel(selectedValue.variable);
