@@ -6,6 +6,9 @@
   var READY_TYPE = 'MT_HANDOFF_READY';
   var TRANSFER_TYPE = 'MT_HANDOFF_TRANSFER';
   var ERROR_TYPE = 'MT_HANDOFF_ERROR';
+  var HANDOFF_STORAGE_PREFIX = 'handoff:';
+  var DEFAULT_HANDOFF_TTL_MS = 900000;
+  var UNSUPPORTED_WEB_CRYPTO_MESSAGE = 'MicrobeTrace partner handoff requires a modern browser with Web Crypto support.';
   var statusNode = document.getElementById('status');
   var detailsNode = document.getElementById('details');
   var params = new URLSearchParams(window.location.search);
@@ -115,6 +118,20 @@
     }
     var text = typeof value === 'string' ? value : JSON.stringify(value);
     return new TextEncoder().encode(text).length;
+  }
+
+  function buildSecureId(prefix) {
+    if (window.crypto && window.crypto.randomUUID) {
+      return prefix + window.crypto.randomUUID();
+    }
+    if (window.crypto && window.crypto.getRandomValues) {
+      var bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      return prefix + Array.prototype.map.call(bytes, function (byte) {
+        return byte.toString(16).padStart(2, '0');
+      }).join('');
+    }
+    throw new Error(UNSUPPORTED_WEB_CRYPTO_MESSAGE);
   }
 
   function containsBlockedMarkup(text) {
@@ -275,16 +292,12 @@
   }
 
   function buildHandoffId() {
-    if (window.crypto && window.crypto.randomUUID) {
-      return window.crypto.randomUUID();
-    }
-    return 'handoff-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    return buildSecureId('');
   }
 
   function buildRedirectUrl(handoffId) {
     var appRoot = new URL('../../', window.location.href);
-    appRoot.searchParams.set('handoff', handoffId);
-    appRoot.searchParams.set('skipDemoSession', '1');
+    appRoot.hash = 'handoff=' + encodeURIComponent(handoffId);
     return appRoot.toString();
   }
 
@@ -342,6 +355,83 @@
       maxTotalBytes: Number(partnerConfig.maxTotalBytes || defaults.maxTotalBytes || 52428800),
       ttlMs: Number(defaults.ttlMs || 900000)
     };
+  }
+
+  function shouldRemoveStoredHandoff(stored, now) {
+    if (!stored) {
+      return true;
+    }
+
+    try {
+      var parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
+      var sanitized = sanitizeValue(parsed, 'handoff');
+
+      if (!isPlainObject(sanitized)) {
+        return true;
+      }
+
+      var version = Number(sanitized.version);
+      var createdAt = Number(sanitized.createdAt);
+      var expiresAt = Number(sanitized.expiresAt);
+
+      if (version !== 1) {
+        return true;
+      }
+      if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) {
+        return true;
+      }
+      if (expiresAt < now) {
+        return true;
+      }
+      if (expiresAt - createdAt > DEFAULT_HANDOFF_TTL_MS) {
+        return true;
+      }
+
+      return !Array.isArray(sanitized.files) || sanitized.files.length === 0;
+    } catch (error) {
+      return true;
+    }
+  }
+
+  async function cleanupExpiredStoredHandoffs(now) {
+    if (!window.localforage || typeof window.localforage.keys !== 'function') {
+      return;
+    }
+
+    var keys = await window.localforage.keys();
+    var handoffKeys = keys.filter(function (key) {
+      return typeof key === 'string' && key.indexOf(HANDOFF_STORAGE_PREFIX) === 0;
+    });
+
+    await Promise.all(handoffKeys.map(async function (key) {
+      try {
+        var stored = await window.localforage.getItem(key);
+        if (shouldRemoveStoredHandoff(stored, now)) {
+          await window.localforage.removeItem(key);
+        }
+      } catch (error) {
+        try {
+          await window.localforage.removeItem(key);
+        } catch (removeError) {
+          // Best-effort cleanup; validation still protects the active handoff.
+        }
+      }
+    }));
+  }
+
+  function buildReceiptFiles(files) {
+    return files.map(function (file) {
+      var receipt = {
+        name: file.name,
+        bytes: measureBytes(file.contents)
+      };
+
+      if (typeof file.kind === 'string') {
+        receipt.kind = file.kind;
+      }
+
+      return receipt;
+    });
   }
 
   function validatePayload(payload, limits) {
@@ -459,7 +549,9 @@
       var limits = validatePartner(allowlistConfig, event.origin);
       var payload = validatePayload(event.data, limits);
       var createdAt = Date.now();
+      await cleanupExpiredStoredHandoffs(createdAt);
       var handoffId = buildHandoffId();
+      var expiresAt = createdAt + limits.ttlMs;
       var record = {
         version: 1,
         handoffId: handoffId,
@@ -467,7 +559,7 @@
         nonce: payload.nonce,
         metadata: payload.metadata,
         createdAt: createdAt,
-        expiresAt: createdAt + limits.ttlMs,
+        expiresAt: expiresAt,
         files: payload.files
       };
 
@@ -478,7 +570,10 @@
         status: 'stored',
         partnerId: partnerId,
         nonce: nonce,
-        handoffId: handoffId
+        handoffId: handoffId,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        files: buildReceiptFiles(payload.files)
       }, event.origin);
       handled = true;
       window.clearTimeout(timeoutId);

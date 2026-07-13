@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { sanitizeExportRows } from '@app/contactTraceCommonServices/export-sanitization';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -343,10 +344,10 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     if (this.SelectedAggregateExportFileType == 'csv.zip') {
       let zip = new JSZip();
       this.SelectedDataTables.forEach(table => {
-        let tmpData = table.data.map(item => {
+        let tmpData = sanitizeExportRows(table.data.map(item => {
           let colGroupName = table.label.split('-').slice(1).join('-')
           return { [colGroupName]: item.groupName, 'count': item.count, 'percent': item.percent+'%'}
-        })
+        }))
         
         zip.file(table.label + '.csv', Papa.unparse(tmpData))
         console.log(Papa.unparse(tmpData));
@@ -355,10 +356,10 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     } else if (this.SelectedAggregateExportFileType == 'xlsx') {
       let wb = XLSX.utils.book_new();
       this.SelectedDataTables.forEach(table => {
-        let tmpData = table.data.map(item => {
+        let tmpData = sanitizeExportRows(table.data.map(item => {
           let colGroupName = table.label.split('-').slice(1).join('-');
           return { [colGroupName]: item.groupName, 'count': item.count, 'percent': item.percent+'%'}
-        })
+        }))
 
         let ws = XLSX.utils.json_to_sheet(tmpData);
         XLSX.utils.book_append_sheet(wb, ws, table.label)

@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Partner App Demo | MicrobeTrace Embed</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #111827;
+      --muted: #5f6b7a;
+      --line: #d8dee8;
+      --panel: #f6f8fb;
+      --accent: #dd4b22;
+      --accent-dark: #9f2f13;
+      --blue: #245f9d;
+      --good: #147447;
+      --bad: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #ffffff;
+      color: var(--ink);
+      font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 38px 32px 48px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 28px;
+      justify-content: space-between;
+      padding-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 34px;
+      line-height: 1.1;
+      margin: 0 0 12px;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin: 0 0 14px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    code {
+      background: #eef2f7;
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+
+    button {
+      align-items: center;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--ink);
+      cursor: pointer;
+      display: inline-flex;
+      font: inherit;
+      font-weight: 650;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 14px;
+    }
+
+    button:hover {
+      border-color: #9aa7b7;
+    }
+
+    button:disabled {
+      color: #98a2b3;
+      cursor: not-allowed;
+    }
+
+    .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .danger {
+      border-color: #f0b8ad;
+      color: var(--bad);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1.18fr) minmax(340px, 0.82fr);
+      margin-top: 26px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      margin-top: 18px;
+    }
+
+    .step {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      min-height: 88px;
+      padding: 12px;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .step span {
+      color: var(--muted);
+      display: block;
+      font-size: 13px;
+    }
+
+    .status {
+      align-items: center;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      display: flex;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .dot {
+      background: #9aa7b7;
+      border-radius: 999px;
+      display: inline-block;
+      height: 10px;
+      width: 10px;
+    }
+
+    .status.ready .dot,
+    .status.success .dot {
+      background: var(--good);
+    }
+
+    .status.error .dot {
+      background: var(--bad);
+    }
+
+    table {
+      border-collapse: collapse;
+      margin-top: 14px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    pre {
+      background: #0f1720;
+      border-radius: 6px;
+      color: #e7edf5;
+      font-size: 13px;
+      min-height: 168px;
+      overflow: auto;
+      padding: 14px;
+      white-space: pre-wrap;
+    }
+
+    .kv {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 150px 1fr;
+      margin-top: 14px;
+    }
+
+    .kv dt {
+      color: var(--muted);
+    }
+
+    .kv dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .warning {
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        display: block;
+      }
+
+      .steps {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <section>
+        <h1>Partner application proof of concept</h1>
+        <p>
+          This page is served from <code>127.0.0.1:4300</code>, loads the real MicrobeTrace SDK from
+          <code>localhost:4200</code>, and sends a user-approved dataset through the partner handoff.
+        </p>
+        <div class="toolbar">
+          <button class="primary" id="open-approved" type="button">Open approved dataset</button>
+          <button class="danger" id="try-target-failure" type="button">Try rejected target</button>
+          <button class="danger" id="try-payload-failure" type="button">Try blocked payload</button>
+          <button id="reset-log" type="button">Clear output</button>
+        </div>
+      </section>
+      <aside class="panel warning">
+        <h2>Run locally</h2>
+        <p>Terminal 1: <code>npm start</code></p>
+        <p>Terminal 2: <code>npm run demo:partner-embed</code></p>
+        <p>Open: <code>http://127.0.0.1:4300</code></p>
+      </aside>
+    </header>
+
+    <section class="steps" aria-label="Handoff flow">
+      <div class="step"><strong>Partner app</strong><span>Authorizes export before building files.</span></div>
+      <div class="step"><strong>SDK</strong><span>Infers target from its script URL and opens receiver.</span></div>
+      <div class="step"><strong>Receiver</strong><span>Checks origin, partnerId, nonce, schema, and limits.</span></div>
+      <div class="step"><strong>Browser handoff</strong><span>Stores a short-lived handoff record.</span></div>
+      <div class="step"><strong>MicrobeTrace</strong><span>Loads <code>#handoff</code> and deletes the record.</span></div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Export candidate</h2>
+        <p>The demo sends two CSV files with explicit <code>node</code> and <code>link</code> kinds.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>id</th>
+              <th>seq</th>
+              <th>region</th>
+              <th>notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>case-001</td><td>ACTGAC</td><td>North</td><td>routine review</td></tr>
+            <tr><td>case-002</td><td>ACTAAC</td><td>North</td><td>=formula-like value</td></tr>
+            <tr><td>case-003</td><td>GCTAAC</td><td>South</td><td>approved subset</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Runtime status</h2>
+        <div class="status" id="runtime-status">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="status-text">Loading SDK from MicrobeTrace...</span>
+        </div>
+        <dl class="kv">
+          <dt>Partner origin</dt>
+          <dd id="partner-origin"></dd>
+          <dt>SDK source</dt>
+          <dd><code>http://localhost:4200/assets/embed/microbetrace-embed.js</code></dd>
+          <dt>partnerId</dt>
+          <dd><code>local-dev</code></dd>
+          <dt>target option</dt>
+          <dd>omitted on approved path</dd>
+        </dl>
+      </section>
+    </div>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Receipt or error</h2>
+        <pre id="receipt-output">No handoff has run yet.</pre>
+      </div>
+      <div class="panel">
+        <h2>Event log</h2>
+        <pre id="event-log">Ready when the SDK loads.</pre>
+      </div>
+    </section>
+  </main>
+
+  <script
+    src="http://localhost:4200/assets/embed/microbetrace-embed.js"
+    onload="window.__microbeTraceSdkLoaded = true"
+    onerror="window.__microbeTraceSdkLoadFailed = true"
+  ></script>
+  <script>
+    const PARTNER_ID = 'local-dev';
+    const statusBox = document.getElementById('runtime-status');
+    const statusText = document.getElementById('status-text');
+    const output = document.getElementById('receipt-output');
+    const logOutput = document.getElementById('event-log');
+    const partnerOrigin = document.getElementById('partner-origin');
+    const actionButtons = [
+      document.getElementById('open-approved'),
+      document.getElementById('try-target-failure'),
+      document.getElementById('try-payload-failure')
+    ];
+
+    partnerOrigin.textContent = window.location.origin;
+
+    function buildApprovedFiles() {
+      return [
+        {
+          name: 'poc_nodes.csv',
+          kind: 'node',
+          mimeType: 'text/csv',
+          contents: [
+            'id,seq,region,notes',
+            'case-001,ACTGAC,North,routine review',
+            'case-002,ACTAAC,North,=formula-like value',
+            'case-003,GCTAAC,South,approved subset'
+          ].join('\n') + '\n',
+          options: {
+            extension: 'csv',
+            field1: 'id',
+            field2: 'seq'
+          }
+        },
+        {
+          name: 'poc_links.csv',
+          kind: 'link',
+          mimeType: 'text/csv',
+          contents: [
+            'source,target,distance',
+            'case-001,case-002,1',
+            'case-002,case-003,2'
+          ].join('\n') + '\n',
+          options: {
+            extension: 'csv',
+            field1: 'source',
+            field2: 'target',
+            field3: 'distance'
+          }
+        }
+      ];
+    }
+
+    function buildOptions(overrides) {
+      return Object.assign({
+        partnerId: PARTNER_ID,
+        files: buildApprovedFiles(),
+        metadata: {
+          datasetName: 'Partner Embed POC',
+          sourceApp: 'Local partner demo'
+        }
+      }, overrides || {});
+    }
+
+    function setStatus(kind, message) {
+      statusBox.className = 'status ' + kind;
+      statusText.textContent = message;
+    }
+
+    function log(message) {
+      const stamp = new Date().toLocaleTimeString();
+      const current = logOutput.textContent === 'Ready when the SDK loads.' ? '' : logOutput.textContent + '\n';
+      logOutput.textContent = current + '[' + stamp + '] ' + message;
+    }
+
+    function showResult(value) {
+      output.textContent = JSON.stringify(value, null, 2);
+    }
+
+    function showError(error) {
+      output.textContent = 'Error: ' + (error && error.message ? error.message : String(error));
+    }
+
+    function requireSdk() {
+      if (!window.MicrobeTraceEmbed) {
+        throw new Error('MicrobeTraceEmbed did not load. Start the MicrobeTrace dev server with "npm start" on localhost:4200.');
+      }
+    }
+
+    async function runApprovedHandoff() {
+      try {
+        requireSdk();
+        setStatus('ready', 'Opening MicrobeTrace receiver...');
+        log('Starting approved handoff with target omitted.');
+        const result = await window.MicrobeTraceEmbed.open(buildOptions());
+        setStatus('success', 'Handoff stored. MicrobeTrace is loading the dataset.');
+        log('Stored handoff ' + result.handoffId + '. Receipt contains summaries only.');
+        showResult(result);
+      } catch (error) {
+        setStatus('error', 'Approved handoff failed.');
+        log('Approved handoff failed: ' + error.message);
+        showError(error);
+      }
+    }
+
+    async function runTargetFailure() {
+      try {
+        requireSdk();
+        setStatus('ready', 'Checking fail-closed target validation...');
+        log('Trying explicit cross-origin target without allowedTargetOrigins.');
+        await window.MicrobeTraceEmbed.open(buildOptions({
+          target: 'https://example.org/MicrobeTrace/'
+        }));
+      } catch (error) {
+        setStatus('error', 'SDK rejected the target before sending data.');
+        log('Expected SDK rejection: ' + error.message);
+        showError(error);
+      }
+    }
+
+    async function runPayloadFailure() {
+      try {
+        requireSdk();
+        setStatus('ready', 'Opening receiver with blocked payload...');
+        log('Trying a file that starts with script-like markup.');
+        const blockedMarkup = '<scr' + 'ipt>alert(1)</scr' + 'ipt>';
+        await window.MicrobeTraceEmbed.open(buildOptions({
+          files: [
+            {
+              name: 'blocked_nodes.csv',
+              kind: 'node',
+              mimeType: 'text/csv',
+              contents: blockedMarkup + '\n',
+              options: {
+                extension: 'csv',
+                field1: 'id',
+                field2: 'seq'
+              }
+            }
+          ]
+        }));
+      } catch (error) {
+        setStatus('error', 'Receiver rejected the payload before MicrobeTrace loaded it.');
+        log('Expected receiver rejection: ' + error.message);
+        showError(error);
+      }
+    }
+
+    document.getElementById('open-approved').addEventListener('click', runApprovedHandoff);
+    document.getElementById('try-target-failure').addEventListener('click', runTargetFailure);
+    document.getElementById('try-payload-failure').addEventListener('click', runPayloadFailure);
+    document.getElementById('reset-log').addEventListener('click', () => {
+      output.textContent = 'No handoff has run yet.';
+      logOutput.textContent = 'Ready when the SDK loads.';
+      setStatus(window.MicrobeTraceEmbed ? 'ready' : '', window.MicrobeTraceEmbed ? 'SDK loaded. Ready to run demo.' : 'Loading SDK from MicrobeTrace...');
+    });
+
+    window.addEventListener('load', () => {
+      if (window.MicrobeTraceEmbed) {
+        setStatus('ready', 'SDK loaded. Ready to run demo.');
+        log('SDK loaded from MicrobeTrace. Version ' + window.MicrobeTraceEmbed.version + '.');
+      } else {
+        setStatus('error', 'SDK failed to load from localhost:4200.');
+        log('Start MicrobeTrace with npm start, then reload this page.');
+        actionButtons.forEach((button) => {
+          button.disabled = true;
+        });
+      }
+    });
+  </script>
+</body>
+</html>

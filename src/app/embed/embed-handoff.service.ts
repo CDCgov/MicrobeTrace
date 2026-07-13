@@ -3,6 +3,7 @@ import * as Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
 import {
+    CleanupEmbedHandoffResult,
     ConsumeEmbedHandoffResult,
     EMBED_HANDOFF_ALLOWED_KINDS,
     EMBED_HANDOFF_MAX_FILE_BYTES,
@@ -49,8 +50,14 @@ export class EmbedHandoffService {
     }
 
     getPendingHandoffIdFromUrl(): string | null {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(EMBED_HANDOFF_QUERY_PARAM);
+        const queryParams = new URLSearchParams(window.location.search);
+        const queryHandoffId = queryParams.get(EMBED_HANDOFF_QUERY_PARAM);
+
+        if (queryHandoffId) {
+            return queryHandoffId;
+        }
+
+        return this.getHandoffIdFromHash(window.location.hash);
     }
 
     clearHandoffQueryParams(): void {
@@ -58,8 +65,39 @@ export class EmbedHandoffService {
         url.searchParams.delete(EMBED_HANDOFF_QUERY_PARAM);
         url.searchParams.delete('skipDemoSession');
         const normalizedSearch = url.searchParams.toString();
-        const nextUrl = `${url.pathname}${normalizedSearch ? `?${normalizedSearch}` : ''}${url.hash}`;
+        const normalizedHash = this.removeHandoffParamsFromHash(url.hash);
+        const nextUrl = `${url.pathname}${normalizedSearch ? `?${normalizedSearch}` : ''}${normalizedHash}`;
         window.history.replaceState({}, document.title, nextUrl);
+    }
+
+    async cleanupExpiredHandoffs(now = Date.now()): Promise<CleanupEmbedHandoffResult> {
+        const result: CleanupEmbedHandoffResult = { scanned: 0, removed: 0, errors: 0 };
+        const keys = await this.localStorageService.keysAsync();
+        const handoffKeys = keys.filter(key => key.startsWith(EMBED_HANDOFF_STORAGE_PREFIX));
+
+        for (const key of handoffKeys) {
+            result.scanned += 1;
+
+            try {
+                const stored = await this.localStorageService.getItemAsync<StoredEmbedHandoffV1 | string>(key);
+
+                if (this.shouldRemoveStoredHandoff(stored, now)) {
+                    await this.localStorageService.removeItemAsync(key);
+                    result.removed += 1;
+                }
+            } catch {
+                result.errors += 1;
+
+                try {
+                    await this.localStorageService.removeItemAsync(key);
+                    result.removed += 1;
+                } catch {
+                    result.errors += 1;
+                }
+            }
+        }
+
+        return result;
     }
 
     async consumePendingHandoffFromUrl(): Promise<ConsumeEmbedHandoffResult> {
@@ -102,6 +140,88 @@ export class EmbedHandoffService {
 
     private buildStorageKey(handoffId: string): string {
         return `${EMBED_HANDOFF_STORAGE_PREFIX}${handoffId}`;
+    }
+
+    private getHandoffIdFromHash(hash: string): string | null {
+        const normalizedHash = hash.replace(/^#/, '');
+
+        if (!normalizedHash) {
+            return null;
+        }
+
+        const paramText = normalizedHash.includes('?')
+            ? normalizedHash.slice(normalizedHash.indexOf('?') + 1)
+            : normalizedHash;
+        const hashParams = new URLSearchParams(paramText.replace(/^\?/, ''));
+
+        return hashParams.get(EMBED_HANDOFF_QUERY_PARAM);
+    }
+
+    private removeHandoffParamsFromHash(hash: string): string {
+        const normalizedHash = hash.replace(/^#/, '');
+
+        if (!normalizedHash) {
+            return '';
+        }
+
+        const routeIndex = normalizedHash.indexOf('?');
+        const routePrefix = routeIndex >= 0 ? normalizedHash.slice(0, routeIndex) : '';
+        const paramText = routeIndex >= 0 ? normalizedHash.slice(routeIndex + 1) : normalizedHash;
+        const hashParams = new URLSearchParams(paramText.replace(/^\?/, ''));
+
+        if (!hashParams.has(EMBED_HANDOFF_QUERY_PARAM) && !hashParams.has('skipDemoSession')) {
+            return hash;
+        }
+
+        hashParams.delete(EMBED_HANDOFF_QUERY_PARAM);
+        hashParams.delete('skipDemoSession');
+
+        const nextParams = hashParams.toString();
+
+        if (routePrefix) {
+            return nextParams ? `#${routePrefix}?${nextParams}` : `#${routePrefix}`;
+        }
+
+        return nextParams ? `#${nextParams}` : '';
+    }
+
+    private shouldRemoveStoredHandoff(stored: StoredEmbedHandoffV1 | string | null, now: number): boolean {
+        if (!stored) {
+            return true;
+        }
+
+        try {
+            const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
+            const sanitized = this.sanitizeObject(parsed, 'handoff');
+
+            if (!this.isPlainObject(sanitized)) {
+                return true;
+            }
+
+            const version = Number(sanitized.version);
+            const createdAt = Number(sanitized.createdAt);
+            const expiresAt = Number(sanitized.expiresAt);
+
+            if (version !== EMBED_HANDOFF_VERSION) {
+                return true;
+            }
+
+            if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) {
+                return true;
+            }
+
+            if (expiresAt < now) {
+                return true;
+            }
+
+            if (expiresAt - createdAt > EMBED_HANDOFF_TTL_MS) {
+                return true;
+            }
+
+            return !Array.isArray(sanitized.files) || sanitized.files.length === 0;
+        } catch {
+            return true;
+        }
     }
 
     private validateStoredHandoff(stored: StoredEmbedHandoffV1 | string, handoffId: string): StoredEmbedHandoffV1 {

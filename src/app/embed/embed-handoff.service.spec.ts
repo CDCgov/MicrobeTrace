@@ -19,6 +19,10 @@ class LocalStorageServiceStub {
     async removeItemAsync(key: string): Promise<void> {
         this.store.delete(key);
     }
+
+    async keysAsync(): Promise<string[]> {
+        return Array.from(this.store.keys());
+    }
 }
 
 describe('EmbedHandoffService', () => {
@@ -47,8 +51,7 @@ describe('EmbedHandoffService', () => {
         window.history.replaceState({}, document.title, `${window.location.pathname}${query}`);
     }
 
-    function seedValidHandoff(overrides: Record<string, unknown> = {}) {
-        const handoffId = 'handoff-test';
+    function seedValidHandoff(overrides: Record<string, unknown> = {}, handoffId = 'handoff-test') {
         const createdAt = Date.now();
         const payload = {
             version: EMBED_HANDOFF_VERSION,
@@ -107,6 +110,22 @@ describe('EmbedHandoffService', () => {
         expect(result.files[1].field1).toBe('source');
         expect(result.files[1].field2).toBe('target');
         expect(result.files[1].field3).toBe('distance');
+        expect(storage.store.has(`${EMBED_HANDOFF_STORAGE_PREFIX}${handoffId}`)).toBeFalse();
+    });
+
+    it('consumes a valid handoff from the URL hash', async () => {
+        const handoffId = seedValidHandoff({}, 'hash-handoff');
+        setUrl(`#${EMBED_HANDOFF_QUERY_PARAM}=${handoffId}`);
+
+        const result = await service.consumePendingHandoffFromUrl();
+
+        expect(result.status).toBe('success');
+        if (result.status !== 'success') {
+            fail('Expected a successful handoff result.');
+            return;
+        }
+
+        expect(result.handoffId).toBe(handoffId);
         expect(storage.store.has(`${EMBED_HANDOFF_STORAGE_PREFIX}${handoffId}`)).toBeFalse();
     });
 
@@ -249,5 +268,42 @@ describe('EmbedHandoffService', () => {
         expect(params.get('handoff')).toBeNull();
         expect(params.get('skipDemoSession')).toBeNull();
         expect(params.get('url')).toBe('https://example.com/file.json');
+    });
+
+    it('clears handoff params from the URL hash', () => {
+        setUrl('?url=https://example.com/file.json#handoff=abc&skipDemoSession=1&view=table');
+
+        service.clearHandoffQueryParams();
+
+        expect(window.location.search).toBe('?url=https%3A%2F%2Fexample.com%2Ffile.json');
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        expect(hashParams.get('handoff')).toBeNull();
+        expect(hashParams.get('skipDemoSession')).toBeNull();
+        expect(hashParams.get('view')).toBe('table');
+    });
+
+    it('removes expired and malformed handoffs during cleanup', async () => {
+        const now = Date.now();
+        const validId = 'valid-handoff';
+        const expiredId = 'expired-handoff';
+        seedValidHandoff({ createdAt: now, expiresAt: now + EMBED_HANDOFF_TTL_MS }, validId);
+        storage.store.set(`${EMBED_HANDOFF_STORAGE_PREFIX}${expiredId}`, {
+            version: EMBED_HANDOFF_VERSION,
+            partnerId: 'local-dev',
+            handoffId: expiredId,
+            createdAt: now - EMBED_HANDOFF_TTL_MS - 1000,
+            expiresAt: now - 1000,
+            files: [{ name: 'nodes.csv', kind: 'node', contents: 'id\nA\n' }],
+        });
+        storage.store.set(`${EMBED_HANDOFF_STORAGE_PREFIX}malformed`, '{bad json');
+        storage.store.set('unrelated', '{bad json');
+
+        const result = await service.cleanupExpiredHandoffs(now);
+
+        expect(result).toEqual({ scanned: 3, removed: 2, errors: 0 });
+        expect(storage.store.has(`${EMBED_HANDOFF_STORAGE_PREFIX}${validId}`)).toBeTrue();
+        expect(storage.store.has(`${EMBED_HANDOFF_STORAGE_PREFIX}${expiredId}`)).toBeFalse();
+        expect(storage.store.has(`${EMBED_HANDOFF_STORAGE_PREFIX}malformed`)).toBeFalse();
+        expect(storage.store.has('unrelated')).toBeTrue();
     });
 });
