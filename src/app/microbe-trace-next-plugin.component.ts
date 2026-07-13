@@ -26,6 +26,11 @@ import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
+    ColorAssignmentService,
+    NodeColorAssignmentParseError,
+    ParsedNodeColorAssignments
+} from './contactTraceCommonServices/color-assignment.service';
+import {
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
     NodeShapeGroupKey,
@@ -62,6 +67,11 @@ type DashboardOpenEntry = {
 };
 
 type KeyTableDisplayMode = 'Show' | 'Dock' | 'Hide';
+
+type NodeColorAssignmentStatus = {
+    kind: 'success' | 'error' | 'info';
+    message: string;
+};
 
 interface NodeShapeOptionGroup {
     key: NodeShapeGroupKey;
@@ -294,6 +304,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorVariable: string = '#ff8300';
     SelectedBackgroundColorVariable: string = '#ffffff';
     SelectedApplyStyleVariable: string = '';
+    nodeColorAssignmentStatus: NodeColorAssignmentStatus | null = null;
 
 
     activeTabNdx = null;
@@ -361,7 +372,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private el: ElementRef, 
         private store: CommonStoreService,
         private exportService: ExportService,
-        private embedHandoffService: EmbedHandoffService
+        private embedHandoffService: EmbedHandoffService,
+        private colorAssignmentService: ColorAssignmentService
     ) {
 
 
@@ -1764,6 +1776,112 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     /**
+     * Parses and applies a node color-assignment file to the field selected in
+     * Color Nodes By. Parsing is atomic; state changes only after validation
+     * and any dataset-label mismatch confirmation succeeds.
+     */
+    public onApplyNodeColorAssignments(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        const selectedField = String(this.SelectedColorNodesByVariable ?? '').trim();
+
+        if (!file) {
+            return;
+        }
+        if (!selectedField || selectedField === 'None') {
+            this.setNodeColorAssignmentStatus('error', 'Select a node color variable before choosing an assignment file.');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.setNodeColorAssignmentStatus('error', `Unable to read "${file.name}".`);
+            input.value = '';
+        };
+        reader.onload = () => {
+            try {
+                const parsed = this.colorAssignmentService.parse(
+                    String(reader.result ?? ''),
+                    selectedField,
+                    this.commonService.session.data.nodes || []
+                );
+                const applyAssignments = () => this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
+                const parsedLabel = String(parsed.datasetLabel ?? '').trim();
+                const labelMismatch = parsedLabel && parsedLabel.toLocaleLowerCase() !== selectedField.toLocaleLowerCase();
+
+                if (labelMismatch) {
+                    this.confirmationService.confirm({
+                        header: 'Confirm Color Assignment Field',
+                        message: `This file is labeled "${parsedLabel}", but "${selectedField}" is selected. Apply its colors to "${selectedField}"?`,
+                        icon: 'pi pi-exclamation-triangle',
+                        accept: applyAssignments,
+                        reject: () => this.setNodeColorAssignmentStatus(
+                            'info',
+                            `Canceled color assignments from "${file.name}".`
+                        )
+                    });
+                } else {
+                    applyAssignments();
+                }
+            } catch (error) {
+                const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
+                    ? error.message
+                    : 'The color assignment file could not be parsed.';
+                this.setNodeColorAssignmentStatus('error', message);
+            } finally {
+                input.value = '';
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    private applyParsedNodeColorAssignments(
+        parsed: ParsedNodeColorAssignments,
+        selectedField: string,
+        fileName: string
+    ): void {
+        try {
+            this.commonService.applyNodeColorAssignments(selectedField, parsed.assignments);
+
+            const currentValues = new Set<string>();
+            this.commonService.session.data.nodes.forEach(node => {
+                const rawValue = node?.[selectedField];
+                currentValues.add(String(rawValue === null ? 'null' : rawValue).trim());
+            });
+            const importedValues = Object.keys(parsed.assignments);
+            const matchedCount = importedValues.filter(value => currentValues.has(value)).length;
+            const unmappedCurrentCount = Array.from(currentValues)
+                .filter(value => !Object.prototype.hasOwnProperty.call(parsed.assignments, value))
+                .length;
+            const retainedForFutureCount = importedValues.length - matchedCount;
+
+            if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
+                this.generateNodeColorTable('#node-color-table');
+            }
+            this.refreshKeyTablesView();
+            this.publishUpdateNodeColors();
+            this.setNodeColorAssignmentStatus(
+                'success',
+                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" to ${selectedField}: ` +
+                `${matchedCount} matched current value${matchedCount === 1 ? '' : 's'}, ` +
+                `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
+                `${retainedForFutureCount} retained for future data.`
+            );
+        } catch (error) {
+            this.setNodeColorAssignmentStatus(
+                'error',
+                error instanceof Error ? error.message : 'The color assignments could not be applied.'
+            );
+        }
+    }
+
+    private setNodeColorAssignmentStatus(kind: NodeColorAssignmentStatus['kind'], message: string): void {
+        this.nodeColorAssignmentStatus = { kind, message };
+        this.cdref.markForCheck();
+    }
+
+    /**
      * Reads the file and applies the style to MicrobeTrace session.style
      * 
      */
@@ -2547,10 +2665,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.session.style.nodeColorsTable = {};
         this.commonService.session.style.nodeColorsTableKeys = {};
+        this.commonService.session.style.nodeColorAssignments = {};
         this.commonService.session.style.linkColorsTable = {};
         this.commonService.session.style.linkColorsTableKeys = {};
         this.commonService.session.style.nodeSymbolsTable = {};
         this.commonService.session.style.nodeSymbolsTableKeys = {};
+        this.nodeColorAssignmentStatus = null;
 
         KEY_TABLE_NAMES.forEach(table => {
             this.setKeyTableDisplayMode(table, 'Dock');
@@ -3220,7 +3340,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Called when SelectedColorNodesByVariable (keeps track of what variable to use to color nodes by) is changed.
      */
     onColorNodesByChanged(silent: boolean = false) {
-
+        this.nodeColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
@@ -3331,8 +3451,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     let key = this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
                     this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, nextColor);
 
-                    // Update history with new color
-                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
+                    const explicitAssignments = this.commonService.session.style.nodeColorAssignments?.[this.SelectedColorNodesByVariable];
+                    if (explicitAssignments && Object.prototype.hasOwnProperty.call(explicitAssignments, value)) {
+                        explicitAssignments[value] = nextColor;
+                    } else {
+                        // Preserve the legacy cross-field history only for values
+                        // that are not governed by a field-specific import.
+                        this.commonService.session.style.nodeColorsTableHistory[value] = nextColor;
+                    }
 
                   
 

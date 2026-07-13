@@ -588,6 +588,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 keyTableColumnNames: {},
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
+                nodeColorAssignments: {},
                 nodeColorsTable: {},
                 nodeColorsTableHistory: {
                     'null' : '#EAE553'
@@ -666,6 +667,53 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         return Math.min(1, Math.max(0, numericValue));
+    }
+
+    private ensureNodeColorAssignmentState(style: any = this.session?.style): Record<string, Record<string, string>> {
+        if (!style || typeof style !== 'object') {
+            return {};
+        }
+
+        if (!style.nodeColorAssignments || typeof style.nodeColorAssignments !== 'object' || Array.isArray(style.nodeColorAssignments)) {
+            style.nodeColorAssignments = {};
+        }
+
+        return style.nodeColorAssignments as Record<string, Record<string, string>>;
+    }
+
+    public applyNodeColorAssignments(field: string, assignments: Record<string, string>): Record<string, string> {
+        const selectedField = String(field ?? '').trim();
+        if (!selectedField || selectedField === 'None') {
+            throw new Error('Select a node color variable before applying color assignments.');
+        }
+
+        const incomingEntries = Object.entries(assignments || {});
+        const invalidEntry = incomingEntries.find(([value, color]) =>
+            !String(value).trim() || !/^#[0-9a-f]{6}$/i.test(String(color))
+        );
+        if (invalidEntry) {
+            throw new Error(`Invalid color assignment for value "${invalidEntry[0]}".`);
+        }
+
+        const assignmentState = this.ensureNodeColorAssignmentState();
+        const mergedAssignments = Object.create(null) as Record<string, string>;
+        const existingAssignments = assignmentState[selectedField];
+
+        if (existingAssignments && typeof existingAssignments === 'object' && !Array.isArray(existingAssignments)) {
+            Object.keys(existingAssignments).forEach(value => {
+                const color = existingAssignments[value];
+                if (typeof color === 'string') {
+                    mergedAssignments[value] = color;
+                }
+            });
+        }
+        incomingEntries.forEach(([value, color]) => {
+            mergedAssignments[String(value).trim()] = String(color).toLowerCase();
+        });
+
+        assignmentState[selectedField] = mergedAssignments;
+        this.createNodeColorMap();
+        return mergedAssignments;
     }
 
     public getNodeFillStyle(node: any): { color: string; alpha: number } {
@@ -2304,6 +2352,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.session.files = oldSession.files;
         this.session.state = oldSession.state;
         this.session.style = oldSession.style;
+        this.ensureNodeColorAssignmentState(this.session.style);
 
         this.session.meta.startTime = Date.now();
 
@@ -2425,6 +2474,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
+        this.ensureNodeColorAssignmentState(style);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
             this.defaultWidgets(),
@@ -3791,6 +3841,7 @@ align(params): Promise<any> {
         const nodeColorsTable = this.session.style.nodeColorsTable;       // e.g. { varName: [ ... ] }
         const nodeColorsTableKeys = this.session.style.nodeColorsTableKeys;
         const nodeColorsTableHistory = this.session.style.nodeColorsTableHistory;
+        const nodeColorAssignments = this.ensureNodeColorAssignmentState()[nodeColorVariable] || {};
     
         // 2) Call your new colorMappingService
         const result = this.colorMappingService.createNodeColorMap(
@@ -3801,6 +3852,7 @@ align(params): Promise<any> {
         nodeColorsTable,
         nodeColorsTableKeys,
         nodeColorsTableHistory,
+        nodeColorAssignments,
         this.debugMode
         );
     
