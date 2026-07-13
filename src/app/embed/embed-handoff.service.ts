@@ -4,6 +4,11 @@ import * as XLSX from 'xlsx';
 import { LocalStorageService } from '@shared/utils/local-storage.service';
 import {
     CleanupEmbedHandoffResult,
+    EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES,
+    EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS,
+    EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS,
+    EMBED_HANDOFF_ALLOWED_NODE_SHAPES,
+    EMBED_HANDOFF_ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS,
     ConsumeEmbedHandoffResult,
     EMBED_HANDOFF_ALLOWED_KINDS,
     EMBED_HANDOFF_MAX_FILE_BYTES,
@@ -16,6 +21,7 @@ import {
     EmbedFileKind,
     EmbedFileOptionsV1,
     EmbedFileV1,
+    EmbedLaunchOptionsV1,
     EmbedPayloadMetadataV1,
     ImportedEmbedFile,
     StoredEmbedHandoffV1,
@@ -32,6 +38,14 @@ const LINK_SOURCE_HEADERS = ['source', 'src', 'from'];
 const LINK_TARGET_HEADERS = ['target', 'tgt', 'to'];
 const NODE_ID_HEADERS = ['id', 'sampleid', 'sample_id', 'nodeid', 'node_id'];
 const NODE_SEQUENCE_HEADERS = ['seq', 'sequence'];
+const ALLOWED_DEFAULT_VIEWS = new Set<string>(EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS);
+const ALLOWED_DISTANCE_METRICS = new Set<string>(EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS);
+const ALLOWED_AMBIGUITY_STRATEGIES = new Set<string>(EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES);
+const ALLOWED_NODE_SHAPES = new Set<string>(EMBED_HANDOFF_ALLOWED_NODE_SHAPES);
+const ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS = new Set<string>(EMBED_HANDOFF_ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS);
+const BASE_NODE_FIELDS = ['index', '_id', 'selected', 'cluster', 'visible', 'degree', 'origin'];
+const BASE_LINK_FIELDS = ['index', 'source', 'target', 'distance', 'visible', 'cluster', 'origin', 'nn', 'directed'];
+const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 type TabularPreview = {
     headers: string[];
@@ -118,6 +132,7 @@ export class EmbedHandoffService {
 
             const handoff = this.validateStoredHandoff(stored, handoffId);
             const files = await this.normalizeImportedFiles(handoff.files);
+            this.validateLaunchFieldSettings(handoff.launch, files);
 
             await this.localStorageService.removeItemAsync(storageKey);
 
@@ -274,6 +289,7 @@ export class EmbedHandoffService {
             expiresAt,
             nonce: typeof sanitized.nonce === 'string' ? sanitized.nonce : undefined,
             metadata: this.normalizeMetadata(sanitized.metadata),
+            launch: this.normalizeLaunchOptions(sanitized.launch),
             files: files as EmbedFileV1[],
         };
     }
@@ -294,6 +310,175 @@ export class EmbedHandoffService {
         }
 
         return Object.keys(normalized).length ? normalized : undefined;
+    }
+
+    private normalizeLaunchOptions(launch: unknown): EmbedLaunchOptionsV1 | undefined {
+        if (!launch) {
+            return undefined;
+        }
+
+        if (!this.isPlainObject(launch)) {
+            throw new Error('The partner handoff launch options are malformed.');
+        }
+
+        const normalized: EmbedLaunchOptionsV1 = {};
+
+        if (typeof launch.datasetName !== 'undefined') {
+            if (typeof launch.datasetName !== 'string') {
+                throw new Error('Launch option "datasetName" must be a string.');
+            }
+            if (launch.datasetName.trim()) {
+                normalized.datasetName = launch.datasetName.trim();
+            }
+        }
+
+        if (typeof launch.defaultView !== 'undefined') {
+            const defaultView = this.requireAllowedLaunchString(launch.defaultView, ALLOWED_DEFAULT_VIEWS, 'defaultView');
+            normalized.defaultView = defaultView as EmbedLaunchOptionsV1['defaultView'];
+        }
+
+        if (typeof launch.distanceMetric !== 'undefined') {
+            const distanceMetric = this.requireAllowedLaunchString(
+                String(launch.distanceMetric).toLowerCase(),
+                ALLOWED_DISTANCE_METRICS,
+                'distanceMetric'
+            );
+            normalized.distanceMetric = distanceMetric as EmbedLaunchOptionsV1['distanceMetric'];
+        }
+
+        if (typeof launch.linkThreshold !== 'undefined') {
+            normalized.linkThreshold = this.requireNonNegativeFiniteNumber(launch.linkThreshold, 'linkThreshold');
+        }
+
+        if (typeof launch.ambiguityStrategy !== 'undefined') {
+            const ambiguityStrategy = this.requireAllowedLaunchString(
+                String(launch.ambiguityStrategy).toUpperCase(),
+                ALLOWED_AMBIGUITY_STRATEGIES,
+                'ambiguityStrategy'
+            );
+            normalized.ambiguityStrategy = ambiguityStrategy as EmbedLaunchOptionsV1['ambiguityStrategy'];
+        }
+
+        if (typeof launch.ambiguityThreshold !== 'undefined') {
+            normalized.ambiguityThreshold = this.requireNonNegativeFiniteNumber(launch.ambiguityThreshold, 'ambiguityThreshold');
+        }
+
+        if (typeof launch.globalSettings !== 'undefined') {
+            normalized.globalSettings = this.normalizeLaunchGlobalSettings(launch.globalSettings);
+        }
+
+        return Object.keys(normalized).length ? normalized : undefined;
+    }
+
+    private normalizeLaunchGlobalSettings(globalSettings: unknown): NonNullable<EmbedLaunchOptionsV1['globalSettings']> {
+        if (!this.isPlainObject(globalSettings)) {
+            throw new Error('Launch option "globalSettings" must be an object.');
+        }
+
+        const normalized: NonNullable<EmbedLaunchOptionsV1['globalSettings']> = {};
+
+        ['nodeColorBy', 'linkColorBy', 'nodeShapeBy'].forEach(fieldName => {
+            const value = globalSettings[fieldName];
+            if (typeof value === 'undefined') {
+                return;
+            }
+            if (typeof value !== 'string') {
+                throw new Error(`Launch global setting "${fieldName}" must be a string.`);
+            }
+            if (value.trim()) {
+                normalized[fieldName] = value.trim();
+            }
+        });
+
+        ['nodeColor', 'linkColor', 'selectedColor', 'backgroundColor'].forEach(fieldName => {
+            const value = globalSettings[fieldName];
+            if (typeof value === 'undefined') {
+                return;
+            }
+            if (typeof value !== 'string' || !HEX_COLOR_PATTERN.test(value.trim())) {
+                throw new Error(`Launch global setting "${fieldName}" must be a 6-digit hex color.`);
+            }
+            normalized[fieldName] = value.trim();
+        });
+
+        if (typeof globalSettings.nodeShape !== 'undefined') {
+            const nodeShape = this.requireAllowedLaunchString(
+                globalSettings.nodeShape,
+                ALLOWED_NODE_SHAPES,
+                'globalSettings.nodeShape'
+            );
+            normalized.nodeShape = nodeShape as NonNullable<EmbedLaunchOptionsV1['globalSettings']>['nodeShape'];
+        }
+
+        if (typeof globalSettings.clusterMinimumSize !== 'undefined') {
+            normalized.clusterMinimumSize = this.requireNonNegativeFiniteNumber(globalSettings.clusterMinimumSize, 'clusterMinimumSize');
+        }
+
+        if (typeof globalSettings.tn93DistanceDisplayFormat !== 'undefined') {
+            const displayFormat = this.requireAllowedLaunchString(
+                String(globalSettings.tn93DistanceDisplayFormat).toLowerCase(),
+                ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS,
+                'globalSettings.tn93DistanceDisplayFormat'
+            );
+            normalized.tn93DistanceDisplayFormat = displayFormat as NonNullable<EmbedLaunchOptionsV1['globalSettings']>['tn93DistanceDisplayFormat'];
+        }
+
+        return normalized;
+    }
+
+    private requireAllowedLaunchString(value: unknown, allowedValues: Set<string>, fieldName: string): string {
+        if (typeof value !== 'string' || !allowedValues.has(value.trim())) {
+            throw new Error(`Launch option "${fieldName}" used an unsupported value.`);
+        }
+
+        return value.trim();
+    }
+
+    private requireNonNegativeFiniteNumber(value: unknown, fieldName: string): number {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue) || numericValue < 0) {
+            throw new Error(`Launch option "${fieldName}" must be a non-negative finite number.`);
+        }
+
+        return numericValue;
+    }
+
+    private validateLaunchFieldSettings(launch: EmbedLaunchOptionsV1 | undefined, files: ImportedEmbedFile[]): void {
+        const globalSettings = launch?.globalSettings;
+
+        if (!globalSettings) {
+            return;
+        }
+
+        const nodeFields = this.collectAvailableFields(files, 'node', BASE_NODE_FIELDS);
+        const linkFields = this.collectAvailableFields(files, 'link', BASE_LINK_FIELDS);
+
+        this.requireAvailableLaunchField(globalSettings.nodeColorBy, nodeFields, 'nodeColorBy');
+        this.requireAvailableLaunchField(globalSettings.nodeShapeBy, nodeFields, 'nodeShapeBy');
+        this.requireAvailableLaunchField(globalSettings.linkColorBy, linkFields, 'linkColorBy');
+    }
+
+    private collectAvailableFields(files: ImportedEmbedFile[], format: EmbedFileKind, defaults: string[]): Set<string> {
+        const fields = new Set<string>(defaults);
+
+        files
+            .filter(file => file.format === format)
+            .forEach(file => {
+                (file.fields || []).forEach(field => fields.add(field));
+            });
+
+        return fields;
+    }
+
+    private requireAvailableLaunchField(field: string | undefined, availableFields: Set<string>, fieldName: string): void {
+        if (!field || field === 'None') {
+            return;
+        }
+
+        if (!availableFields.has(field)) {
+            throw new Error(`Launch global setting "${fieldName}" requested missing field "${field}".`);
+        }
     }
 
     private async normalizeImportedFiles(files: EmbedFileV1[]): Promise<ImportedEmbedFile[]> {
@@ -480,6 +665,7 @@ export class EmbedHandoffService {
             : this.resolveFieldSelection(headers, options?.field3, this.defaultFieldSelection(kind, headers, 2));
 
         return {
+            fields: headers,
             field1,
             field2,
             field3,
@@ -852,9 +1038,10 @@ export class EmbedHandoffService {
 
         const output: Record<string, unknown> = {};
         Object.entries(value).forEach(([key, nestedValue]) => {
-            if (!FORBIDDEN_OBJECT_KEYS.has(key)) {
-                output[key] = this.sanitizeObject(nestedValue, `${path}.${key}`);
+            if (FORBIDDEN_OBJECT_KEYS.has(key)) {
+                throw new Error(`Forbidden object key encountered at "${path}.${key}".`);
             }
+            output[key] = this.sanitizeObject(nestedValue, `${path}.${key}`);
         });
         return output;
     }

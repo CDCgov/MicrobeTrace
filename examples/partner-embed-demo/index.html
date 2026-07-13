@@ -392,6 +392,24 @@
         metadata: {
           datasetName: 'Partner Embed POC',
           sourceApp: 'Local partner demo'
+        },
+        launch: {
+          datasetName: 'Partner Embed POC',
+          defaultView: 'Table',
+          distanceMetric: 'tn93',
+          linkThreshold: 0.015,
+          ambiguityStrategy: 'AVERAGE',
+          globalSettings: {
+            nodeColorBy: 'group',
+            linkColorBy: 'distance',
+            nodeColor: '#1f77b4',
+            linkColor: '#a6cee3',
+            nodeShape: 'ellipse',
+            selectedColor: '#ff8300',
+            clusterMinimumSize: 2,
+            backgroundColor: '#ffffff',
+            tn93DistanceDisplayFormat: 'decimal'
+          }
         }
       }, overrides || {});
     }

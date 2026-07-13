@@ -200,6 +200,7 @@
             createdAt: event.data.createdAt,
             expiresAt: event.data.expiresAt,
             receiverUrl: receiverUrl.toString(),
+            launch: event.data.launch,
             files: Array.isArray(event.data.files) ? event.data.files : []
           });
           return;

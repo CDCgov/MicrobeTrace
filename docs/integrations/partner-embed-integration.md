@@ -70,6 +70,24 @@ Wire it up:
       datasetName: 'My dataset',
       sourceApp: 'My Web App'
     },
+    launch: {
+      datasetName: 'My dataset',
+      defaultView: 'Table',
+      distanceMetric: 'tn93',
+      linkThreshold: 0.015,
+      ambiguityStrategy: 'AVERAGE',
+      globalSettings: {
+        nodeColorBy: 'group',
+        linkColorBy: 'distance',
+        nodeColor: '#1f77b4',
+        linkColor: '#a6cee3',
+        nodeShape: 'ellipse',
+        selectedColor: '#ff8300',
+        clusterMinimumSize: 3,
+        backgroundColor: '#ffffff',
+        tn93DistanceDisplayFormat: 'decimal'
+      }
+    },
     onSuccess(result) {
       console.log('Stored handoff', result.handoffId);
     },
@@ -96,6 +114,7 @@ Use this checklist before handing the integration to your users:
 - Omit `target` when loading the SDK from the target MicrobeTrace deployment. If you must pass `target`, hardcode it and keep it on the same origin as the SDK unless `allowedTargetOrigins` has been explicitly reviewed.
 - Pass conventional file names and headers when possible so auto-detection works cleanly.
 - Add explicit `kind` or `options.field1/field2/field3` when your data shape is unusual.
+- Use `launch` only for the curated launch defaults documented below. Do not send MicrobeTrace session JSON or raw `session.style.widgets`.
 - Test one successful launch on a real browser before release.
 - Test denial cases: unauthorized user, expired session, disabled export role, disallowed origin, oversized payload, and popup blocked.
 
@@ -122,7 +141,57 @@ Optional fields:
   - Exact target origins allowed when a reviewed self-hosted SDK copy must send to a different MicrobeTrace deployment.
   - Example: `['https://microbetrace.cdc.gov']`
 - `metadata.datasetName`
+  - Legacy dataset display name. If `launch.datasetName` is also supplied, MicrobeTrace uses `launch.datasetName` for this handoff launch.
 - `metadata.sourceApp`
+- `launch`
+  - Curated launch defaults for the handed-off dataset.
+  - Supported shape:
+
+```js
+{
+  datasetName: 'My dataset',
+  defaultView: '2D Network', // or Table, Map, Heatmap, Phylogenetic Tree, etc.
+  distanceMetric: 'snps', // or tn93
+  linkThreshold: 16,
+  ambiguityStrategy: 'AVERAGE', // AVERAGE, RESOLVE, SKIP, GAPMM, HIVTRACE-G
+  ambiguityThreshold: 0.015,
+  globalSettings: {
+    nodeColorBy: 'cluster',
+    linkColorBy: 'distance',
+    nodeShapeBy: 'None',
+    nodeColor: '#1f77b4',
+    linkColor: '#a6cee3',
+    nodeShape: 'ellipse',
+    selectedColor: '#ff8300',
+    clusterMinimumSize: 3,
+    backgroundColor: '#ffffff',
+    tn93DistanceDisplayFormat: 'decimal'
+  }
+}
+```
+
+Supported launch settings:
+
+| Setting | Type / allowed values | Effect |
+| --- | --- | --- |
+| `launch.datasetName` | string | Names this handed-off dataset. Preferred over `metadata.datasetName` when both are supplied. |
+| `launch.defaultView` | `2D Network`, `Epi Curve`, `Sankey`, `Table`, `Crosstab`, `Map`, `Bubble`, `Gantt Chart`, `Phylogenetic Tree`, `Alignment View`, `Heatmap`, `Waterfall` | Chooses the first view MicrobeTrace opens after import. |
+| `launch.distanceMetric` | `snps` or `tn93` | Sets the distance metric used for initial network construction. |
+| `launch.linkThreshold` | non-negative number | Sets the initial filtering threshold. If both `distanceMetric` and `linkThreshold` are supplied, this custom threshold is preserved instead of being replaced by the metric default. |
+| `launch.ambiguityStrategy` | `AVERAGE`, `RESOLVE`, `SKIP`, `GAPMM`, `HIVTRACE-G` | Sets the TN93 ambiguity handling strategy. |
+| `launch.ambiguityThreshold` | non-negative number | Sets the ambiguity threshold used by applicable TN93 ambiguity strategies. |
+| `launch.globalSettings.nodeColorBy` | `None`, generated node field such as `cluster`, or imported node field | Colors nodes by a field. |
+| `launch.globalSettings.linkColorBy` | `None`, generated link field such as `origin` or `distance`, or imported link field | Colors links by a field. |
+| `launch.globalSettings.nodeShapeBy` | `None`, generated node field such as `cluster`, or imported node field | Assigns node shapes by a field. |
+| `launch.globalSettings.nodeColor` | 6-digit hex color, for example `#1f77b4` | Sets the fallback node color when `nodeColorBy` is `None`. |
+| `launch.globalSettings.linkColor` | 6-digit hex color, for example `#a6cee3` | Sets the fallback link color when `linkColorBy` is `None`. |
+| `launch.globalSettings.nodeShape` | `ellipse`, `triangle`, `rectangle`, `barrel`, `rhomboid`, `diamond`, `pentagon`, `hexagon`, `heptagon`, `octagon`, `star`, `tag`, `vee` | Sets the fallback node shape when `nodeShapeBy` is `None`. |
+| `launch.globalSettings.selectedColor` | 6-digit hex color, for example `#ff8300` | Sets the selected/highlight color. |
+| `launch.globalSettings.clusterMinimumSize` | non-negative number | Sets the minimum visible cluster size. |
+| `launch.globalSettings.backgroundColor` | 6-digit hex color, for example `#ffffff` | Sets the initial visualization background. |
+| `launch.globalSettings.tn93DistanceDisplayFormat` | `decimal` or `percentage` | Controls TN93 distance display formatting. |
+
+If `distanceMetric` is supplied without `linkThreshold`, MicrobeTrace applies the metric's normal default threshold (`snps`: `16`, `tn93`: `0.015`). Field-based settings are validated after MicrobeTrace normalizes the imported files. If a requested node or link field is missing, the handoff fails instead of silently launching with a different setting. These launch defaults affect only this handoff. They are not persisted as the user's future MicrobeTrace defaults.
 - `onSuccess(result)`
 - `onError(error)`
 
@@ -135,6 +204,11 @@ Success result shape:
   createdAt: 1782921600000,
   expiresAt: 1782922500000,
   receiverUrl: 'https://microbetrace.cdc.gov/MicrobeTrace/assets/embed/receiver.html?...',
+  launch: {
+    datasetName: 'My dataset',
+    defaultView: 'Table',
+    distanceMetric: 'tn93'
+  },
   files: [
     { name: 'nodes.csv', kind: 'node', bytes: 42 }
   ]

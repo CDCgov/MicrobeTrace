@@ -130,6 +130,91 @@ test('receiver returns a non-sensitive handoff receipt', async () => {
   assert.equal(Object.prototype.hasOwnProperty.call(storedMessage.message.files[0], 'contents'), false);
 });
 
+test('receiver stores normalized launch options and includes them in the receipt', async () => {
+  const context = createReceiverContext();
+
+  await waitForReceiverReady(context);
+  await sendReceiverTransfer(context, `
+      launch: {
+        datasetName: ' Partner Launch ',
+        defaultView: 'Table',
+        distanceMetric: 'TN93',
+        linkThreshold: '0.02',
+        ambiguityStrategy: 'resolve',
+        ambiguityThreshold: '0.1',
+        globalSettings: {
+          nodeColorBy: 'id',
+          linkColorBy: 'distance',
+          nodeShapeBy: 'seq',
+          nodeColor: '#123456',
+          linkColor: '#654321',
+          nodeShape: 'diamond',
+          selectedColor: '#ff00aa',
+          clusterMinimumSize: '3',
+          backgroundColor: '#abcdef',
+          tn93DistanceDisplayFormat: 'PERCENTAGE'
+        }
+      },
+  `);
+  await settle();
+
+  const storedRecord = context.__store.get('handoff:handoff-test-id');
+  const storedMessage = context.__openerMessages.find((message) => message.message.status === 'stored');
+  const expectedLaunch = {
+    datasetName: 'Partner Launch',
+    defaultView: 'Table',
+    distanceMetric: 'tn93',
+    linkThreshold: 0.02,
+    ambiguityStrategy: 'RESOLVE',
+    ambiguityThreshold: 0.1,
+    globalSettings: {
+      nodeColorBy: 'id',
+      linkColorBy: 'distance',
+      nodeShapeBy: 'seq',
+      nodeColor: '#123456',
+      linkColor: '#654321',
+      nodeShape: 'diamond',
+      selectedColor: '#ff00aa',
+      clusterMinimumSize: 3,
+      backgroundColor: '#abcdef',
+      tn93DistanceDisplayFormat: 'percentage',
+    },
+  };
+
+  assert.deepEqual(JSON.parse(JSON.stringify(storedRecord.launch)), expectedLaunch);
+  assert.deepEqual(JSON.parse(JSON.stringify(storedMessage.message.launch)), expectedLaunch);
+});
+
+test('receiver rejects invalid launch options before storage', async () => {
+  const context = createReceiverContext();
+
+  await waitForReceiverReady(context);
+  await sendReceiverTransfer(context, `
+      launch: {
+        defaultView: 'Shell'
+      },
+  `);
+  await settle();
+
+  const errorMessage = context.__openerMessages.find((message) => message.message.type === 'MT_HANDOFF_ERROR');
+  assert.equal(context.__store.has('handoff:handoff-test-id'), false);
+  assert.match(errorMessage.message.message, /defaultView/);
+});
+
+test('receiver continues to reject full session payloads', async () => {
+  const context = createReceiverContext();
+
+  await waitForReceiverReady(context);
+  await sendReceiverTransfer(context, `
+      session: { files: [] },
+  `);
+  await settle();
+
+  const errorMessage = context.__openerMessages.find((message) => message.message.type === 'MT_HANDOFF_ERROR');
+  assert.equal(context.__store.has('handoff:handoff-test-id'), false);
+  assert.match(errorMessage.message.message, /Full session imports/);
+});
+
 test('partner allowlist validator rejects shared origins', () => {
   const errors = validatePartnerAllowlist({
     version: 1,
@@ -270,7 +355,7 @@ function createReceiverContext() {
   return context;
 }
 
-async function sendReceiverTransfer(context) {
+async function sendReceiverTransfer(context, extraPayloadFields = '') {
   vm.runInContext(`__listeners.message({
     source: opener,
     origin: 'http://localhost:4200',
@@ -279,6 +364,7 @@ async function sendReceiverTransfer(context) {
       version: 1,
       partnerId: 'local-dev',
       nonce: 'nonce-test',
+      ${extraPayloadFields}
       files: [
         {
           name: 'nodes.csv',
