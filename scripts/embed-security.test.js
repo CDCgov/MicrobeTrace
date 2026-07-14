@@ -90,6 +90,38 @@ test('SDK rejects target when script origin is unavailable unless explicitly all
   );
 });
 
+test('SDK forwards documented launch options to the receiver', () => {
+  const context = createSdkContext();
+
+  context.MicrobeTraceEmbed.open({
+    partnerId: 'local-dev',
+    files: [{ name: 'nodes.csv', contents: 'id\nA\n' }],
+    launch: {
+      defaultView: 'Table',
+      distanceMetric: 'tn93',
+      linkThreshold: 0.02,
+    },
+  });
+
+  context.__listeners.message({
+    source: context.__popup,
+    origin: 'https://microbetrace.cdc.gov',
+    data: {
+      type: 'MT_HANDOFF_READY',
+      partnerId: 'local-dev',
+      nonce: 'nonce-test',
+    },
+  });
+
+  assert.equal(context.__popupMessages.length, 1);
+  assert.deepEqual(context.__popupMessages[0].message.launch, {
+    defaultView: 'Table',
+    distanceMetric: 'tn93',
+    linkThreshold: 0.02,
+  });
+  assert.equal(context.__popupMessages[0].origin, 'https://microbetrace.cdc.gov');
+});
+
 test('receiver cleanup removes expired handoff records before storing a new handoff', async () => {
   const context = createReceiverContext();
   const now = Date.now();
@@ -235,6 +267,7 @@ test('partner allowlist validator rejects shared origins', () => {
 
 function createSdkContext(overrides = {}) {
   const listeners = {};
+  const popupMessages = [];
   const context = {
     URL,
     Promise,
@@ -268,9 +301,12 @@ function createSdkContext(overrides = {}) {
       delete listeners[type];
     },
     __popup: {
-      postMessage() {},
+      postMessage(message, origin) {
+        popupMessages.push({ message, origin });
+      },
     },
     __listeners: listeners,
+    __popupMessages: popupMessages,
   };
   context.window = context;
   vm.createContext(context);

@@ -40,11 +40,12 @@ export default class AuspiceHandler {
         tree.branch_attrs.mutations.hasOwnProperty('nuc'))  {
       node.mutations = tree.branch_attrs.mutations.nuc;
     }
-    for (const attribute of Object.keys(tree.node_attrs)) {
+    const nodeAttrs = tree.node_attrs || {};
+    for (const attribute of Object.keys(nodeAttrs)) {
       if (attribute !== 'div') {
-        node[attribute] = tree.node_attrs[attribute].value;
+        node[attribute] = nodeAttrs[attribute]?.value;
       } else {
-        node[attribute] = tree.node_attrs[attribute];
+        node[attribute] = nodeAttrs[attribute];
       }
     }
     return node;
@@ -119,7 +120,8 @@ export default class AuspiceHandler {
   public getDivFromNode = (node) => {
     /* see comment at top of this file */
     if (node.node_attrs && node.node_attrs.div !== undefined) {
-      return node.node_attrs.div;
+      const div = node.node_attrs.div;
+      return typeof div === 'object' && div !== null && 'value' in div ? div.value : div;
     }
     return undefined;
   }
@@ -154,14 +156,30 @@ export default class AuspiceHandler {
 
   public addLatLong = (nodes, metadata) => {
     const newNodes = [];
+    const geoResolutions = Array.isArray(metadata?.geo_resolutions)
+      ? metadata.geo_resolutions
+      : [];
+
     for (const node of nodes) {
-      if (metadata.hasOwnProperty('geo_resolutions')) {
-        for (let i=0; i<metadata.geo_resolutions.length; i++) {
-          const deme = node[metadata.geo_resolutions[i].key];
-          if (deme) {
-            node.latitude = metadata.geo_resolutions[i].demes[deme].latitude;
-            node.longtude = metadata.geo_resolutions[i].demes[deme].longitude;
-          }
+      for (let i=0; i<geoResolutions.length; i++) {
+        const resolution = geoResolutions[i];
+        const key = resolution?.key;
+        const demes = resolution?.demes;
+        const deme = key ? node[key] : undefined;
+        const coordinates = deme !== undefined && deme !== null && demes
+          ? demes[deme]
+          : undefined;
+
+        if (!coordinates) {
+          continue;
+        }
+
+        const latitude = Number(coordinates.latitude);
+        const longitude = Number(coordinates.longitude);
+
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          node.latitude = latitude;
+          node.longitude = longitude;
         }
       }
       newNodes.push(node);

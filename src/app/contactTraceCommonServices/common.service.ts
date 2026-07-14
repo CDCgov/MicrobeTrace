@@ -151,7 +151,14 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     // Using lodash's debounce, for example
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
-        this.updateNetworkVisuals();
+        const threshold = Number(this.session.style.widgets["link-threshold"]);
+        this.ensurePatristicEdgesForThreshold(threshold)
+            .catch(error => {
+                console.error('Patristic threshold re-query failed:', error);
+            })
+            .finally(() => {
+                this.updateNetworkVisuals();
+            });
     }, 300);
 
     GlobalSettingsModel: any = {
@@ -321,6 +328,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             clusterTableColumns: [],
             tree: {},
             newickString: '',
+            newickSource: '',
             reference: REFERENCE
         };
 
@@ -883,6 +891,31 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         analysis.storedDistanceCache[metric] = rebuilt;
         return rebuilt;
+    }
+
+    private getNewickBackedSourceFile(): any {
+        return this.session.files?.find(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        );
+    }
+
+    private hasNewickBackedDistanceSource(newickString: any): boolean {
+        if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+            return false;
+        }
+
+        if (this.getNewickBackedSourceFile()) {
+            return true;
+        }
+
+        const newickSource = String(this.session.data?.newickSource || '').toLowerCase();
+        if (newickSource === 'newick' || newickSource === 'auspice') {
+            return true;
+        }
+
+        const tree = this.session.data?.tree;
+        return tree && typeof tree === 'object' && Object.keys(tree).length > 0;
     }
 
     public setPatristicThresholdAnalysisEdges(
@@ -2339,6 +2372,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
         }
+        if (typeof oldSession.data?.newickSource === 'string') {
+            this.session.data.newickSource = oldSession.data.newickSource;
+        }
         if (oldSession.data?.tree) {
             this.session.data.tree = oldSession.data.tree;
         }
@@ -2754,6 +2790,7 @@ parseFASTA(text): Promise<any> {
         this.session.meta.startTime = Date.now();
         this.session.data.tree = auspiceData['tree'];
         this.session.data.newickString = auspiceData['newick'];
+        this.session.data.newickSource = 'auspice';
         let nodeCount = 0;
         auspiceData['nodes'].forEach(node => {
             if (!/NODE0*/.exec(node.id)) {
@@ -3194,17 +3231,10 @@ align(params): Promise<any> {
 
       computeMST(): Promise<void> {
         const newickString = this.session.data?.newickString;
-        const hasNewickBackedSource = this.session.files?.some(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        );
-        if (hasNewickBackedSource && typeof newickString === 'string' && newickString.trim().length > 0) {
+        if (this.hasNewickBackedDistanceSource(newickString)) {
             const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
             const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
-            const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
-                file?.format === 'newick' || file?.format === 'auspice' ||
-                file?.datatype === 'newick' || file?.datatype === 'auspice'
-            )?.name || 'Newick Tree';
+            const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
             const origin = [distanceOrigin];
 
             return this.workerComputeService.computePatristicNearestNeighborEdges(
@@ -3271,21 +3301,14 @@ align(params): Promise<any> {
 
     ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
         const newickString = this.session.data?.newickString;
-        const hasNewickBackedSource = this.session.files?.some(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        );
 
-        if (!hasNewickBackedSource || typeof newickString !== 'string' || newickString.trim().length === 0) {
+        if (!this.hasNewickBackedDistanceSource(newickString)) {
             return Promise.resolve(null);
         }
 
         const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
         const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
-        const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        )?.name || 'Newick Tree';
+        const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
         const origin = [distanceOrigin];
 
         return this.workerComputeService.ensurePatristicEdgesForThreshold(
