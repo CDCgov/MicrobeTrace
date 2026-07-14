@@ -1806,24 +1806,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     selectedField,
                     this.commonService.session.data.nodes || []
                 );
-                const applyAssignments = () => this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
-                const parsedLabel = String(parsed.datasetLabel ?? '').trim();
-                const labelMismatch = parsedLabel && parsedLabel.toLocaleLowerCase() !== selectedField.toLocaleLowerCase();
-
-                if (labelMismatch) {
-                    this.confirmationService.confirm({
-                        header: 'Confirm Color Assignment Field',
-                        message: `This file is labeled "${parsedLabel}", but "${selectedField}" is selected. Apply its colors to "${selectedField}"?`,
-                        icon: 'pi pi-exclamation-triangle',
-                        accept: applyAssignments,
-                        reject: () => this.setNodeColorAssignmentStatus(
-                            'info',
-                            `Canceled color assignments from "${file.name}".`
-                        )
-                    });
-                } else {
-                    applyAssignments();
-                }
+                this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
             } catch (error) {
                 const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
                     ? error.message

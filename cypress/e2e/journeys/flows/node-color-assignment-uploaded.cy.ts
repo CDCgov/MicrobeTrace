@@ -93,22 +93,13 @@ describe('Journey Flow - Node color assignment file import', () => {
     });
   });
 
-  it('requires confirmation for a label mismatch and accepts a selected-field table', () => {
+  it('applies an iTOL label mismatch without confirmation and accepts a selected-field table', () => {
     launchProfileToTwoD(profile);
     openGlobalStylingTab();
     selectNodeColorField('Lineage');
 
     uploadColorAssignments('Cypress_Color_Assignments_Mismatch.txt');
-    cy.get('.p-confirmdialog').should('be.visible').and('contain.text', 'MLST').and('contain.text', 'Lineage');
-    cy.get('.p-confirmdialog-reject-button').click({ force: true });
-    cy.get('[data-testid="node-color-assignment-status"]').should('contain.text', 'Canceled');
-    cy.window().should((rawWindow: unknown) => {
-      const assignments = (rawWindow as WinWithMT).commonService?.session?.style?.nodeColorAssignments?.Lineage;
-      expect(assignments).to.not.exist;
-    });
-
-    uploadColorAssignments('Cypress_Color_Assignments_Mismatch.txt');
-    cy.get('.p-confirmdialog-accept-button').click({ force: true });
+    cy.get('.p-confirmdialog').should('not.exist');
     cy.window().should((rawWindow: unknown) => {
       const assignments = (rawWindow as WinWithMT).commonService?.session?.style?.nodeColorAssignments?.Lineage;
       expect(assignments?.['B.1.617.2']).to.equal('#cc9999');
@@ -128,7 +119,6 @@ describe('Journey Flow - Node color assignment file import', () => {
     selectNodeColorField('Id');
 
     uploadColorAssignments('Cypress_Color_Assignments_ID_iTOL.txt');
-    cy.get('.p-confirmdialog-accept-button').click({ force: true });
     cy.get('[data-testid="node-color-assignment-status"]')
       .should('contain.text', '1 matched current value')
       .and('contain.text', '0 retained for future data');
