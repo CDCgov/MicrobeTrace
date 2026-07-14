@@ -187,6 +187,7 @@
             partnerId: normalizedOptions.partnerId,
             nonce: nonce,
             metadata: normalizedOptions.metadata,
+            launch: normalizedOptions.launch,
             files: normalizedOptions.files
           }, receiverOrigin);
           return;
