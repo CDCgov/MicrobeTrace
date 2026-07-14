@@ -1137,6 +1137,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           const files = this.commonService.session.files.slice();
           this.commonService.clearData();
           this.commonService.session.files = files;
+          this.commonService.setAuspiceMapData(auspiceData['mapData']);
 
           console.log(auspiceData["tree"]["children"][0]);
           // This is a bizarre line, but I need to check if the div values are more or less than one. The first one is always zero, so we need to go to the second one

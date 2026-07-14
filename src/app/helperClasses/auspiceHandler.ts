@@ -8,6 +8,10 @@ export default class AuspiceHandler {
   private invalidStrings = ['unknown', '?', 'nan', 'na', 'n/a', '', 'unassigned'];
   private nodeList = [];
   private linkList = [];
+  private emptyFeatureCollection = () => ({
+    type: 'FeatureCollection',
+    features: []
+  });
 
   constructor(public commonService: CommonService) {
     this.commonService = commonService;
@@ -154,33 +158,86 @@ export default class AuspiceHandler {
     this.linkList = linkList;
   }
 
+  private getGeoResolutions = (metadata) => {
+    return Array.isArray(metadata?.geo_resolutions) ? metadata.geo_resolutions : [];
+  }
+
+  private getDemeCoordinates = (resolution, deme) => {
+    if (!resolution?.demes || !deme) {
+      return null;
+    }
+
+    const coordinates = resolution.demes[deme];
+    if (!coordinates) {
+      return null;
+    }
+
+    const latitude = Number(coordinates.latitude);
+    const longitude = Number(coordinates.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    return { latitude, longitude };
+  }
+
+  private addResolutionFeatures = (features, resolution) => {
+    if (!resolution?.demes) {
+      return;
+    }
+
+    Object.keys(resolution.demes).forEach(deme => {
+      const coordinates = this.getDemeCoordinates(resolution, deme);
+      if (!coordinates) {
+        return;
+      }
+
+      features.push({
+        type: 'Feature',
+        id: deme,
+        properties: {
+          name: deme,
+          usps: deme,
+          _lat: coordinates.latitude,
+          _lon: coordinates.longitude,
+          auspiceKey: resolution.key
+        },
+        geometry: null
+      });
+    });
+  }
+
+  private buildMapData = (metadata) => {
+    const mapData = {
+      countries: this.emptyFeatureCollection(),
+      states: this.emptyFeatureCollection()
+    };
+    const geoResolutions = this.getGeoResolutions(metadata);
+
+    this.addResolutionFeatures(
+      mapData.countries.features,
+      geoResolutions.find(resolution => resolution.key === 'country')
+    );
+    this.addResolutionFeatures(
+      mapData.states.features,
+      geoResolutions.find(resolution => resolution.key === 'division')
+    );
+
+    return mapData;
+  }
+
   public addLatLong = (nodes, metadata) => {
     const newNodes = [];
-    const geoResolutions = Array.isArray(metadata?.geo_resolutions)
-      ? metadata.geo_resolutions
-      : [];
+    const geoResolutions = this.getGeoResolutions(metadata);
+    const preferredKey = 'location';
 
     for (const node of nodes) {
-      for (let i=0; i<geoResolutions.length; i++) {
-        const resolution = geoResolutions[i];
-        const key = resolution?.key;
-        const demes = resolution?.demes;
-        const deme = key ? node[key] : undefined;
-        const coordinates = deme !== undefined && deme !== null && demes
-          ? demes[deme]
-          : undefined;
-
-        if (!coordinates) {
-          continue;
-        }
-
-        const latitude = Number(coordinates.latitude);
-        const longitude = Number(coordinates.longitude);
-
-        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          node.latitude = latitude;
-          node.longitude = longitude;
-        }
+      const resolution = geoResolutions.find(x => x.key === preferredKey);
+      const coordinates = this.getDemeCoordinates(resolution, node[preferredKey]);
+      if (coordinates) {
+        node.latitude = coordinates.latitude;
+        node.longitude = coordinates.longitude;
       }
       newNodes.push(node);
     }
@@ -200,6 +257,7 @@ export default class AuspiceHandler {
       tree: updatedTree,
       newick: bareNewickString,
       newickWithLabels: newickString,
+      mapData: this.buildMapData(jsonObj.meta),
     };
   }
 

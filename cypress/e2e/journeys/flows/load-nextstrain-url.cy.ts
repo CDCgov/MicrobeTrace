@@ -73,7 +73,42 @@ describe('Journey Flow - Load Nextstrain URL', () => {
   it('loads Nextstrain URL data when geo resolutions omit referenced demes', () => {
     cy.fixture(fixtureName).then((dataset) => {
       const datasetWithMissingDeme = Cypress._.cloneDeep(dataset);
+      const americaTreeNode = datasetWithMissingDeme.tree.children.find(node => node.name === 'YF_A');
+      const africaTreeNode = datasetWithMissingDeme.tree.children.find(node => node.name === 'YF_C');
+
+      americaTreeNode.node_attrs.country = { value: 'Guam' };
+      americaTreeNode.node_attrs.division = { value: 'Guam' };
+      americaTreeNode.node_attrs.location = { value: 'Hagåtña' };
+      africaTreeNode.node_attrs.location = { value: 'Missing city' };
+
       datasetWithMissingDeme.meta.geo_resolutions = [
+        {
+          key: 'location',
+          demes: {
+            Hagåtña: {
+              latitude: 13.4757,
+              longitude: 144.7489,
+            },
+          },
+        },
+        {
+          key: 'country',
+          demes: {
+            Guam: {
+              latitude: 13.4443,
+              longitude: 144.7937,
+            },
+          },
+        },
+        {
+          key: 'division',
+          demes: {
+            Guam: {
+              latitude: 13.4443,
+              longitude: 144.7937,
+            },
+          },
+        },
         {
           key: 'region',
           demes: {
@@ -104,12 +139,56 @@ describe('Journey Flow - Load Nextstrain URL', () => {
       const africaNode = nodes.find((node: any) => node._id === 'YF_C');
 
       expect(nodes.length, 'nodes loaded despite missing geospatial deme').to.equal(4);
-      expect(americaNode.latitude, 'known deme latitude').to.equal(12.34);
-      expect(americaNode.longitude, 'known deme longitude').to.equal(-56.78);
+      expect(americaNode.latitude, 'location-level latitude').to.equal(13.4757);
+      expect(americaNode.longitude, 'location-level longitude').to.equal(144.7489);
       expect(africaNode.latitude, 'missing deme latitude').to.be.oneOf([null, undefined]);
       expect(africaNode.longitude, 'missing deme longitude').to.be.oneOf([null, undefined]);
       expect(win.commonService.session.data.nodeFields, 'latitude field').to.include('latitude');
       expect(win.commonService.session.data.nodeFields, 'longitude field').to.include('longitude');
+      expect(
+        win.commonService.session.data.auspiceMapData.countries.features,
+        'Nextstrain country map metadata',
+      ).to.deep.include({
+        type: 'Feature',
+        id: 'Guam',
+        properties: {
+          name: 'Guam',
+          usps: 'Guam',
+          _lat: 13.4443,
+          _lon: 144.7937,
+          auspiceKey: 'country',
+        },
+        geometry: null,
+      });
+      expect(
+        win.commonService.session.data.auspiceMapData.states.features,
+        'Nextstrain division map metadata',
+      ).to.deep.include({
+        type: 'Feature',
+        id: 'Guam',
+        properties: {
+          name: 'Guam',
+          usps: 'Guam',
+          _lat: 13.4443,
+          _lon: 144.7937,
+          auspiceKey: 'division',
+        },
+        geometry: null,
+      });
+    });
+
+    cy.window().then(async (win: any) => {
+      const countries = await win.commonService.getMapData('countries.json');
+      const states = await win.commonService.getMapData('states.json');
+
+      expect(
+        countries.features.some((feature: any) => feature.properties?.name === 'Guam'),
+        'Nextstrain country merged into map lookups',
+      ).to.equal(true);
+      expect(
+        states.features.some((feature: any) => feature.properties?.name === 'Guam'),
+        'Nextstrain division merged into map lookups',
+      ).to.equal(true);
     });
   });
 });
