@@ -87,14 +87,29 @@ GCWGS-6 #CC9999 8`, 'MLST');
     expect(result.matchedSampleIdCount).toBe(1);
   });
 
-  it('parses value/color and selected-field/color tables', () => {
+  it('uses the first table column as the matching value and the named color column as its color', () => {
     const genericResult = service.parse('id,value,color\nA,8,#123\nB,84,#abcdef', 'MLST');
-    const fieldResult = service.parse('MLST\tcolor\textra\n8\t#CC9999\tignored', 'MLST');
+    const fieldResult = service.parse('MLST\textra\tcolor\n8\tignored\t#CC9999', 'MLST');
 
     expect(genericResult.format).toBe('delimited-table');
-    expect(genericResult.assignments['8']).toBe('#112233');
-    expect(genericResult.assignments['84']).toBe('#abcdef');
+    expect(genericResult.assignments['A']).toBe('#112233');
+    expect(genericResult.assignments['B']).toBe('#abcdef');
+    expect(genericResult.assignments['8']).toBeUndefined();
     expect(fieldResult.assignments['8']).toBe('#cc9999');
+  });
+
+  it('parses the supplied ID-first table layout for the selected internal _id field', () => {
+    const result = service.parse(
+      'id\tMLST\tcolor\tnotes\n' +
+      'SAMPLE-001\t8\t#cc9999\toptional columns are ignored\n' +
+      'SAMPLE-002\t84\t#f8da6a\toptional columns are ignored\n' +
+      'SAMPLE-003\t967\t#09f\toptional columns are ignored',
+      '_id'
+    );
+
+    expect(result.assignments['SAMPLE-001']).toBe('#cc9999');
+    expect(result.assignments['SAMPLE-002']).toBe('#f8da6a');
+    expect(result.assignments['SAMPLE-003']).toBe('#0099ff');
   });
 
   it('rejects conflicting duplicate assignments atomically', () => {
@@ -109,5 +124,7 @@ GCWGS-6 #CC9999 8`, 'MLST');
       .toThrowError(NodeColorAssignmentParseError, /valid #RGB or #RRGGBB/);
     expect(() => service.parse('one column only\n8', 'MLST'))
       .toThrowError(NodeColorAssignmentParseError, /comma- or tab-delimited/);
+    expect(() => service.parse('color,value\n#ffffff,8', 'MLST'))
+      .toThrowError(NodeColorAssignmentParseError, /first column must contain matching values/);
   });
 });

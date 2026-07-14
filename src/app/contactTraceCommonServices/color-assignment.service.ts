@@ -74,7 +74,7 @@ export class ColorAssignmentService {
       return this.parseItolColorStrip(lines, selectedField, nodes);
     }
 
-    return this.parseDelimitedTable(normalizedContents, selectedField);
+    return this.parseDelimitedTable(normalizedContents);
   }
 
   private parseItolColorStrip(
@@ -219,7 +219,7 @@ export class ColorAssignmentService {
     return normalizedField === '_id' || normalizedField === 'id';
   }
 
-  private parseDelimitedTable(contents: string, selectedField: string): ParsedNodeColorAssignments {
+  private parseDelimitedTable(contents: string): ParsedNodeColorAssignments {
     const result = Papa.parse<string[]>(contents, {
       delimiter: '',
       skipEmptyLines: 'greedy'
@@ -242,15 +242,15 @@ export class ColorAssignmentService {
     const headers = (rows[0] || []).map(header => String(header ?? '').trim());
     const normalizedHeaders = headers.map(header => header.toLocaleLowerCase());
     const colorIndex = normalizedHeaders.indexOf('color');
-    const valueIndex = normalizedHeaders.indexOf('value');
-    const selectedFieldIndex = normalizedHeaders.indexOf(String(selectedField ?? '').trim().toLocaleLowerCase());
-    const resolvedValueIndex = valueIndex >= 0 ? valueIndex : selectedFieldIndex;
+    const valueIndex = 0;
 
     if (colorIndex < 0) {
       issues.push({ line: 1, message: 'A "color" column is required.' });
     }
-    if (resolvedValueIndex < 0) {
-      issues.push({ line: 1, message: `A "value" or "${selectedField}" column is required.` });
+    if (!headers[valueIndex]) {
+      issues.push({ line: 1, message: 'The first column must identify values to match against the selected field.' });
+    } else if (colorIndex === valueIndex) {
+      issues.push({ line: 1, message: 'The first column must contain matching values, not colors.' });
     }
     if (rows.length < 2) {
       issues.push({ line: 1, message: 'The table contains no assignment rows.' });
@@ -266,7 +266,7 @@ export class ColorAssignmentService {
     rows.slice(1).forEach((row, rowIndex) => {
       const line = rowIndex + 2;
       rowCount++;
-      const value = String(row[resolvedValueIndex] ?? '').trim();
+      const value = String(row[valueIndex] ?? '').trim();
       const rawColor = String(row[colorIndex] ?? '').trim();
 
       if (!value || !rawColor) {

@@ -514,34 +514,29 @@
                     </div>
                   </div>
 
-                  <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors to values in the selected node variable.">
-                    <div class="col-5"><label for="node-color-assignment-file">Color Assignments</label></div>
-                    <div class="col-7">
-                      <input
-                        type="file"
-                        id="node-color-assignment-file"
-                        data-testid="node-color-assignment-file"
-                        class="d-none"
-                        [disabled]="SelectedColorNodesByVariable === 'None'"
-                        (change)="onApplyNodeColorAssignments($event)">
-                      <label
-                        for="node-color-assignment-file"
-                        class="btn btn-light btn-sm w-100 mb-0 node-color-assignment-button"
-                        [class.node-color-assignment-button--disabled]="SelectedColorNodesByVariable === 'None'"
-                        [attr.aria-disabled]="SelectedColorNodesByVariable === 'None'">
-                        Apply Color Assignments
-                      </label>
+                  @if (SelectedColorNodesByVariable && SelectedColorNodesByVariable !== 'None') {
+                    <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors to values in the selected node variable.">
+                      <div class="col-5">Apply Color Assignment File</div>
+                      <div class="col-7">
+                        <input
+                          type="file"
+                          id="node-color-assignment-file"
+                          data-testid="node-color-assignment-file"
+                          class="d-none"
+                          (change)="onApplyNodeColorAssignments($event)">
+                        <label class="custom-file-label" for="node-color-assignment-file">Choose File</label>
+                      </div>
                     </div>
-                  </div>
-                  @if (nodeColorAssignmentStatus) {
-                    <div
-                      id="node-color-assignment-status"
-                      data-testid="node-color-assignment-status"
-                      class="node-color-assignment-status"
-                      [ngClass]="'node-color-assignment-status--' + nodeColorAssignmentStatus.kind"
-                      [attr.role]="nodeColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
-                      {{ nodeColorAssignmentStatus.message }}
-                    </div>
+                    @if (nodeColorAssignmentStatus) {
+                      <div
+                        id="node-color-assignment-status"
+                        data-testid="node-color-assignment-status"
+                        class="node-color-assignment-status"
+                        [ngClass]="'node-color-assignment-status--' + nodeColorAssignmentStatus.kind"
+                        [attr.role]="nodeColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
+                        {{ nodeColorAssignmentStatus.message }}
+                      </div>
+                    }
                   }
 
                   @if (SelectedColorNodesByVariable === 'None') {

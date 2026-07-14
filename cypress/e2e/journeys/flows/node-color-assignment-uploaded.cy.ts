@@ -56,7 +56,12 @@ describe('Journey Flow - Node color assignment file import', () => {
 
     launchProfileToTwoD(profile);
     openGlobalStylingTab();
+    cy.get('[data-testid="node-color-assignment-file"]').should('not.exist');
     selectNodeColorField('Lineage');
+    cy.get('[data-testid="node-color-assignment-file"]').should('exist');
+    cy.get('#node-color-assignment-row')
+      .should('contain.text', 'Apply Color Assignment File')
+      .and('contain.text', 'Choose File');
     uploadColorAssignments('Cypress_Color_Assignments_iTOL.txt');
 
     cy.get('[data-testid="node-color-assignment-status"]', { timeout: 15000 })
