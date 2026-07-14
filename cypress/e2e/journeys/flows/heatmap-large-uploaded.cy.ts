@@ -50,6 +50,12 @@ describe('Journey Flow - Heatmap large uploaded smoke', () => {
       expect(trace.y.length, 'large-data heatmap y labels').to.equal(1600);
       expect(trace.z.length, 'large-data heatmap row count').to.equal(1600);
       expect(trace.z[0].length, 'large-data heatmap column count').to.equal(1600);
+      expect(trace.colorbar, 'large-data heatmap colorbar').to.exist;
+      expect(trace.colorbar.tickvals, 'large-data heatmap colorbar tick values').to.be.an('array').and.not.be.empty;
+      expect(
+        trace.colorbar.tickvals.every((value: unknown) => Number.isFinite(Number(value))),
+        'large-data heatmap colorbar tick values are finite',
+      ).to.equal(true);
     });
 
     openHeatmapSettingsDialog();
