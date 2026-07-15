@@ -1134,8 +1134,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.commonService.applyAuspice(file.contents).then(async auspiceData => {
           if (!isCurrentLoad()) return 0;
 
+          const files = this.commonService.session.files.slice();
           this.commonService.clearData();
-          this.commonService.session = this.commonService.sessionSkeleton();
+          this.commonService.session.files = files;
+          this.commonService.setAuspiceMapData(auspiceData['mapData']);
 
           console.log(auspiceData["tree"]["children"][0]);
           // This is a bizarre line, but I need to check if the div values are more or less than one. The first one is always zero, so we need to go to the second one
@@ -1167,6 +1169,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.commonService.session.meta.startTime = Date.now();
           this.commonService.session.data.tree = auspiceData['tree'];
           this.commonService.session.data.newickString = auspiceData['newick'];
+          this.commonService.session.data.newickSource = 'auspice';
           let nodeCount = 0;
           const nodeRegex = /^NODE_[0-9]{7}$/i;
           auspiceData['nodes'].forEach(node => {
@@ -1205,13 +1208,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             return nodeCount;
           }
 
-          this.commonService.runHamsters();
           this.showMessage(` - Parsed ${nodeCount} New Nodes and ${linkCount} new Links from Auspice file.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
           return nodeCount;
         });
-        this.commonService._debouncedUpdateNetworkVisuals();
-        this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
         }
@@ -1759,6 +1759,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       } else { // if(file.format === 'newick'){
 
         this.commonService.session.data.newickString = file.contents;
+        this.commonService.session.data.newickSource = 'newick';
         const patristicStart = Date.now();
         this.workerComputeService.initPatristicTree(file.contents).then(async treeReady => {
           if (!isCurrentLoad()) return;
@@ -2149,7 +2150,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             const output = JSON.parse(out.target['result'] as string);
             console.log(output);
             if (output.meta && output.tree) {
-              const auspiceFile = { contents: output, name: fileName, extension: extension};
+              const auspiceFile = { contents: output, name: fileName, extension: extension, format: 'auspice', datatype: 'auspice'};
               this.commonService.session.files.push(auspiceFile);
               this.addToTable(auspiceFile);
             } else {
@@ -2362,6 +2363,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('addTableTile: ', headers);
       const parentContext = context;
       const detectedFormat = parentContext.inferTabularFileFormat(file, headers, tableFormatHints);
+      file.format = detectedFormat;
       const isNode = detectedFormat === 'node';
       const showsColumnMapping = detectedFormat === 'node' || detectedFormat === 'link';
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
