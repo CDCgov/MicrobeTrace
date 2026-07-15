@@ -29,6 +29,7 @@
         <mat-menu #viewMenu="matMenu" overlapTrigger="false">
           <button data-testid="app-view-menu-2d-network" mat-menu-item (click)="Viewclick('2D Network')">2D Network</button>
           <button data-testid="app-view-menu-table" mat-menu-item (click)="Viewclick('Table')">Table</button>
+          <button data-testid="app-view-menu-network-statistics" mat-menu-item (click)="Viewclick('Network Statistics')">Network Statistics</button>
           <button data-testid="app-view-menu-map" mat-menu-item (click)="Viewclick('Map')">Map</button>
           <button mat-menu-item (click)="Viewclick('Epi Curve')">Epi Curve</button>
           <button mat-menu-item (click)="Viewclick('Phylogenetic Tree')">Phylogenetic Tree</button>
@@ -308,6 +309,7 @@
     <mat-menu #viewMenuBottom="matMenu" overlapTrigger="false">
       <button mat-menu-item (click)="updateLaunchView('2D Network')">2D Network</button>
       <button mat-menu-item (click)="updateLaunchView('Table')">Table</button>
+      <button mat-menu-item (click)="updateLaunchView('Network Statistics')">Network Statistics</button>
       <button mat-menu-item (click)="updateLaunchView('Map')">Bubbles</button>
       <button mat-menu-item (click)="updateLaunchView('Phylogenetic Tree')">Phylogenetic Tree</button>
     </mat-menu> -->
