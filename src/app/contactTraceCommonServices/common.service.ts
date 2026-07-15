@@ -151,7 +151,14 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     // Using lodash's debounce, for example
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
-        this.updateNetworkVisuals();
+        const threshold = Number(this.session.style.widgets["link-threshold"]);
+        this.ensurePatristicEdgesForThreshold(threshold)
+            .catch(error => {
+                console.error('Patristic threshold re-query failed:', error);
+            })
+            .finally(() => {
+                this.updateNetworkVisuals();
+            });
     }, 300);
 
     GlobalSettingsModel: any = {
@@ -321,6 +328,17 @@ export class CommonService extends AppComponentBase implements OnInit {
             clusterTableColumns: [],
             tree: {},
             newickString: '',
+            newickSource: '',
+            auspiceMapData: {
+                countries: {
+                    type: 'FeatureCollection',
+                    features: []
+                },
+                states: {
+                    type: 'FeatureCollection',
+                    features: []
+                }
+            },
             reference: REFERENCE
         };
 
@@ -883,6 +901,31 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         analysis.storedDistanceCache[metric] = rebuilt;
         return rebuilt;
+    }
+
+    private getNewickBackedSourceFile(): any {
+        return this.session.files?.find(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        );
+    }
+
+    private hasNewickBackedDistanceSource(newickString: any): boolean {
+        if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+            return false;
+        }
+
+        if (this.getNewickBackedSourceFile()) {
+            return true;
+        }
+
+        const newickSource = String(this.session.data?.newickSource || '').toLowerCase();
+        if (newickSource === 'newick' || newickSource === 'auspice') {
+            return true;
+        }
+
+        const tree = this.session.data?.tree;
+        return tree && typeof tree === 'object' && Object.keys(tree).length > 0;
     }
 
     public setPatristicThresholdAnalysisEdges(
@@ -2339,8 +2382,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
         }
+        if (typeof oldSession.data?.newickSource === 'string') {
+            this.session.data.newickSource = oldSession.data.newickSource;
+        }
         if (oldSession.data?.tree) {
             this.session.data.tree = oldSession.data.tree;
+        }
+        if (oldSession.data?.auspiceMapData) {
+            this.setAuspiceMapData(oldSession.data.auspiceMapData);
         }
 
         // TODO: See about this process data functionality.  DO we need this?
@@ -2754,6 +2803,7 @@ parseFASTA(text): Promise<any> {
         this.session.meta.startTime = Date.now();
         this.session.data.tree = auspiceData['tree'];
         this.session.data.newickString = auspiceData['newick'];
+        this.session.data.newickSource = 'auspice';
         let nodeCount = 0;
         auspiceData['nodes'].forEach(node => {
             if (!/NODE0*/.exec(node.id)) {
@@ -3194,17 +3244,10 @@ align(params): Promise<any> {
 
       computeMST(): Promise<void> {
         const newickString = this.session.data?.newickString;
-        const hasNewickBackedSource = this.session.files?.some(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        );
-        if (hasNewickBackedSource && typeof newickString === 'string' && newickString.trim().length > 0) {
+        if (this.hasNewickBackedDistanceSource(newickString)) {
             const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
             const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
-            const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
-                file?.format === 'newick' || file?.format === 'auspice' ||
-                file?.datatype === 'newick' || file?.datatype === 'auspice'
-            )?.name || 'Newick Tree';
+            const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
             const origin = [distanceOrigin];
 
             return this.workerComputeService.computePatristicNearestNeighborEdges(
@@ -3271,21 +3314,14 @@ align(params): Promise<any> {
 
     ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
         const newickString = this.session.data?.newickString;
-        const hasNewickBackedSource = this.session.files?.some(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        );
 
-        if (!hasNewickBackedSource || typeof newickString !== 'string' || newickString.trim().length === 0) {
+        if (!this.hasNewickBackedDistanceSource(newickString)) {
             return Promise.resolve(null);
         }
 
         const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
         const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
-        const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        )?.name || 'Newick Tree';
+        const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
         const origin = [distanceOrigin];
 
         return this.workerComputeService.ensurePatristicEdgesForThreshold(
@@ -4052,6 +4088,84 @@ align(params): Promise<any> {
         // });
     }
 
+    setAuspiceMapData(mapData: any) {
+        const emptyMapData = this.dataSkeleton().auspiceMapData;
+        const normalizedMapData = {
+            countries: this.normalizeAuspiceMapLayer(mapData?.countries, emptyMapData.countries),
+            states: this.normalizeAuspiceMapLayer(mapData?.states, emptyMapData.states)
+        };
+
+        this.session.data.auspiceMapData = normalizedMapData;
+        delete this.temp.mapData.countries;
+        delete this.temp.mapData.states;
+    }
+
+    private normalizeAuspiceMapLayer(layer: any, fallback: any) {
+        return {
+            ...fallback,
+            ...layer,
+            features: Array.isArray(layer?.features) ? layer.features : []
+        };
+    }
+
+    private normalizeMapFeatureValue(value: any): string {
+        return String(value ?? '').trim().toLowerCase();
+    }
+
+    private getCountryMapAliases(value: any): string[] {
+        const normalizedValue = this.normalizeMapFeatureValue(value);
+        if (['us', 'usa', 'united states', 'united states of america'].includes(normalizedValue)) {
+            return ['us', 'usa', 'united states', 'united states of america'];
+        }
+
+        return [];
+    }
+
+    private getMapFeatureKeys(name: string, feature: any): string[] {
+        const properties = feature?.properties || {};
+        const keys = [feature?.id, properties.name];
+
+        if (name === 'states') {
+            keys.push(properties.usps);
+        } else if (name === 'countries') {
+            keys.push(...this.getCountryMapAliases(feature?.id));
+            keys.push(...this.getCountryMapAliases(properties.name));
+        }
+
+        return keys
+            .map(value => this.normalizeMapFeatureValue(value))
+            .filter(value => value !== '');
+    }
+
+    private mergeAuspiceMapData(name: string, mapData: any) {
+        const dynamicFeatures = this.session?.data?.auspiceMapData?.[name]?.features;
+        if (!Array.isArray(dynamicFeatures) || dynamicFeatures.length === 0 || !Array.isArray(mapData?.features)) {
+            return mapData;
+        }
+
+        const merged = {
+            ...mapData,
+            features: [...mapData.features]
+        };
+        const existingKeys = new Set<string>();
+
+        merged.features.forEach(feature => {
+            this.getMapFeatureKeys(name, feature).forEach(key => existingKeys.add(key));
+        });
+
+        dynamicFeatures.forEach(feature => {
+            const featureKeys = this.getMapFeatureKeys(name, feature);
+            if (featureKeys.length === 0 || featureKeys.some(key => existingKeys.has(key))) {
+                return;
+            }
+
+            merged.features.push(feature);
+            featureKeys.forEach(key => existingKeys.add(key));
+        });
+
+        return merged;
+    }
+
     async getMapData(type): Promise<any> {
 
         //return new Promise(resolve => {
@@ -4060,6 +4174,7 @@ align(params): Promise<any> {
             const name = parts[0],
                 format = parts[1];
             if (this.temp.mapData[name]) {
+                this.temp.mapData[name] = this.mergeAuspiceMapData(name, this.temp.mapData[name]);
                 return this.temp.mapData[name];
             }
 
@@ -4085,7 +4200,7 @@ align(params): Promise<any> {
                     if (format == "json") {
                         path = 'assets/common/data/countries.json';
                         const response = await firstValueFrom(this.http.get(path));
-                        this.temp.mapData[name] = response;
+                        this.temp.mapData[name] = this.mergeAuspiceMapData(name, response);
                         return this.temp.mapData[name];
                         // return this.http.get(path).toPromise()
                         //     .then(response => {
@@ -4109,7 +4224,7 @@ align(params): Promise<any> {
 
                         path = 'assets/common/data/states.json';
                         const response = await firstValueFrom(this.http.get(path));
-                        this.temp.mapData[name] = response;
+                        this.temp.mapData[name] = this.mergeAuspiceMapData(name, response);
                         return this.temp.mapData[name];
                         // return this.http.get(path).toPromise()
                         //     .then(response => {

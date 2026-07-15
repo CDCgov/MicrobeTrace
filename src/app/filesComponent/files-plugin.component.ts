@@ -17,7 +17,7 @@ import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { relativeTimeThreshold } from 'moment';
 import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
-import { ImportedEmbedFile } from '@app/embed/embed-handoff.types';
+import { EmbedLaunchOptionsV1, ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 // import { ComponentContainer } from 'golden-layout';
@@ -682,6 +682,108 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
   }
 
+  private applyEmbedLaunchOptions(launch: EmbedLaunchOptionsV1 | undefined, metadataDatasetName?: string): void {
+    const widgets = this.commonService.session.style.widgets;
+    const datasetName = launch?.datasetName ?? metadataDatasetName;
+
+    if (datasetName) {
+      const meta = this.commonService.session.meta as any;
+      meta.partnerEmbed = {
+        ...(meta.partnerEmbed || {}),
+        datasetName,
+      };
+    }
+
+    if (!launch) {
+      return;
+    }
+
+    if (launch.distanceMetric || typeof launch.linkThreshold === 'number') {
+      const selectedMetric = launch.distanceMetric ?? String(widgets['default-distance-metric'] ?? 'snps').toLowerCase();
+      const metric = selectedMetric === 'tn93' ? 'tn93' : 'snps';
+      const currentThreshold = Number(widgets['link-threshold']);
+      const defaultThreshold = Number.isFinite(currentThreshold) ? currentThreshold : (metric === 'tn93' ? 0.015 : 16);
+      const threshold = launch.linkThreshold ?? (launch.distanceMetric ? (metric === 'tn93' ? 0.015 : 16) : defaultThreshold);
+
+      this.setDefaultDistanceControls(metric, threshold, metric === 'tn93' ? 0.001 : 1);
+    }
+
+    if (launch?.defaultView) {
+      this.setDefaultView(launch.defaultView, false);
+    }
+
+    if (launch?.ambiguityStrategy) {
+      widgets['ambiguity-resolution-strategy'] = launch.ambiguityStrategy;
+      this.SelectedAmbiguityResolutionStrategyVariable = launch.ambiguityStrategy;
+      $('#ambiguity-resolution-strategy').val(launch.ambiguityStrategy);
+    }
+
+    if (typeof launch?.ambiguityThreshold === 'number') {
+      widgets['ambiguity-threshold'] = launch.ambiguityThreshold;
+      this.SelectedAmbiguityThresholdVariable = launch.ambiguityThreshold;
+      $('#ambiguity-threshold').val(launch.ambiguityThreshold);
+    }
+
+    const globalSettings = launch?.globalSettings;
+    if (globalSettings) {
+      if (globalSettings.nodeColorBy) {
+        widgets['node-color-variable'] = globalSettings.nodeColorBy;
+      }
+      if (globalSettings.linkColorBy) {
+        widgets['link-color-variable'] = globalSettings.linkColorBy;
+      }
+      if (globalSettings.nodeShapeBy) {
+        widgets['node-symbol-variable'] = globalSettings.nodeShapeBy;
+      }
+      if (globalSettings.nodeColor) {
+        widgets['node-color'] = globalSettings.nodeColor;
+      }
+      if (globalSettings.linkColor) {
+        widgets['link-color'] = globalSettings.linkColor;
+      }
+      if (globalSettings.nodeShape) {
+        widgets['node-symbol'] = globalSettings.nodeShape;
+      }
+      if (globalSettings.selectedColor) {
+        widgets['selected-color'] = globalSettings.selectedColor;
+        widgets['selected-node-stroke-color'] = globalSettings.selectedColor;
+        widgets['selected-color-contrast'] = this.commonService.contrastColor(globalSettings.selectedColor);
+      }
+      if (typeof globalSettings.clusterMinimumSize === 'number') {
+        widgets['cluster-minimum-size'] = globalSettings.clusterMinimumSize;
+      }
+      if (globalSettings.backgroundColor) {
+        widgets['background-color'] = globalSettings.backgroundColor;
+        widgets['background-color-contrast'] = this.commonService.contrastColor(globalSettings.backgroundColor);
+      }
+      if (globalSettings.tn93DistanceDisplayFormat) {
+        widgets['tn93-distance-display-format'] = globalSettings.tn93DistanceDisplayFormat;
+      }
+    }
+
+    this.syncFileSettingsControlsFromWidgets();
+    this.syncGlobalSettingsModelFromWidgets();
+
+    const microbeTrace = this.commonService.visuals?.microbeTrace as any;
+    if (microbeTrace) {
+      microbeTrace.SelectedColorNodesByVariable = widgets['node-color-variable'] ?? 'None';
+      microbeTrace.SelectedColorLinksByVariable = widgets['link-color-variable'] ?? 'origin';
+      microbeTrace.SelectedNodeSymbolVariable = widgets['node-symbol-variable'] ?? 'None';
+      microbeTrace.SelectedClusterMinimumSizeVariable = widgets['cluster-minimum-size'] ?? 1;
+      microbeTrace.SelectedNodeColorVariable = widgets['node-color'] ?? '#1f77b4';
+      microbeTrace.SelectedLinkColorVariable = widgets['link-color'] ?? '#a6cee3';
+      microbeTrace.SelectedColorVariable = widgets['selected-color'] ?? '#ff8300';
+      microbeTrace.SelectedBackgroundColorVariable = widgets['background-color'] ?? '#ffffff';
+      microbeTrace.SelectedTN93DistanceDisplayFormatVariable = widgets['tn93-distance-display-format'] ?? 'decimal';
+      microbeTrace.SelectedDistanceMetricVariable = widgets['default-distance-metric'] ?? 'snps';
+      microbeTrace.metric = microbeTrace.SelectedDistanceMetricVariable;
+      microbeTrace.SelectedLinkThresholdVariable = widgets['link-threshold'] ?? 16;
+      microbeTrace.threshold = String(microbeTrace.SelectedLinkThresholdVariable);
+      microbeTrace.syncThresholdDisplayFromStoredValue?.();
+      microbeTrace.cdref?.markForCheck?.();
+    }
+  }
+
   private applyPatristicDistanceDefaults(maxDistance: number): number {
     const configuredThreshold = parseFloat(
       `${this.commonService.session.style.widgets['link-threshold'] ?? this.SelectedDefaultDistanceThresholdVariable}`
@@ -740,6 +842,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.files.push(file);
       this.addToTable(file);
     });
+
+    try {
+      this.applyEmbedLaunchOptions(result.handoff.launch, result.handoff.metadata?.datasetName);
+    } catch (error) {
+      this.isLoadingFiles = false;
+      this.handoffError = error instanceof Error ? error.message : 'Unable to apply the partner handoff launch options.';
+      this.cdr.markForCheck();
+      return;
+    }
 
     this.isLoadingFiles = false;
     this.commonService.session.network.initialLoad = true;
@@ -1064,8 +1175,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         this.commonService.applyAuspice(file.contents).then(async auspiceData => {
           if (!isCurrentLoad()) return 0;
 
+          const files = this.commonService.session.files.slice();
           this.commonService.clearData();
-          this.commonService.session = this.commonService.sessionSkeleton();
+          this.commonService.session.files = files;
+          this.commonService.setAuspiceMapData(auspiceData['mapData']);
 
           console.log(auspiceData["tree"]["children"][0]);
           // This is a bizarre line, but I need to check if the div values are more or less than one. The first one is always zero, so we need to go to the second one
@@ -1097,6 +1210,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.commonService.session.meta.startTime = Date.now();
           this.commonService.session.data.tree = auspiceData['tree'];
           this.commonService.session.data.newickString = auspiceData['newick'];
+          this.commonService.session.data.newickSource = 'auspice';
           let nodeCount = 0;
           const nodeRegex = /^NODE_[0-9]{7}$/i;
           auspiceData['nodes'].forEach(node => {
@@ -1135,13 +1249,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             return nodeCount;
           }
 
-          this.commonService.runHamsters();
           this.showMessage(` - Parsed ${nodeCount} New Nodes and ${linkCount} new Links from Auspice file.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
           return nodeCount;
         });
-        this.commonService._debouncedUpdateNetworkVisuals();
-        this.commonService.updateStatistics();
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
         }
@@ -1737,6 +1848,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       } else { // if(file.format === 'newick'){
 
         this.commonService.session.data.newickString = file.contents;
+        this.commonService.session.data.newickSource = 'newick';
         const patristicStart = Date.now();
         this.workerComputeService.initPatristicTree(file.contents).then(async treeReady => {
           if (!isCurrentLoad()) return;
@@ -2140,7 +2252,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               this.commonService.session.files.push(cxFile);
               this.addToTable(cxFile);
             } else if (output.meta && output.tree) {
-              const auspiceFile = { contents: output, name: fileName, extension: extension};
+              const auspiceFile = { contents: output, name: fileName, extension: extension, format: 'auspice', datatype: 'auspice'};
               this.commonService.session.files.push(auspiceFile);
               this.addToTable(auspiceFile);
             } else {
@@ -2390,6 +2502,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log('addTableTile: ', headers);
       const parentContext = context;
       const detectedFormat = parentContext.inferTabularFileFormat(file, headers, tableFormatHints);
+      file.format = detectedFormat;
       const isNode = detectedFormat === 'node';
       const showsColumnMapping = detectedFormat === 'node' || detectedFormat === 'link';
       const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);

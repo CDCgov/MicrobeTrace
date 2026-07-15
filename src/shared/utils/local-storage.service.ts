@@ -70,4 +70,12 @@ export class LocalStorageService {
         return localForage.keys();
     }
 
+    keysAsync(): Promise<string[]> {
+        if (!localForage) {
+            return Promise.resolve([]);
+        }
+
+        return localForage.keys();
+    }
+
 }
