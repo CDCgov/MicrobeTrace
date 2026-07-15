@@ -183,6 +183,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedRevealTypesVariable: 'Everything'
     };
 
+    // Resolve display aliases to the calculation metrics supported by the data pipeline.
+    normalizeDistanceMetric(metric: unknown): 'snps' | 'tn93' {
+        return String(metric || 'snps').toLowerCase() === 'tn93' ? 'tn93' : 'snps';
+    }
+
     // Helper functions for TN93 distance display values
     private normalizeDisplayedDistanceField(linkField: string = 'distance'): string {
         return String(linkField || 'distance').toLowerCase();

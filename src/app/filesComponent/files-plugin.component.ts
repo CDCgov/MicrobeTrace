@@ -527,11 +527,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //debugger;
 
       const target = e.target as HTMLInputElement | HTMLSelectElement | null;
-      const lsv = target?.value ?? e.data ?? 'tn93';
-      this.commonService.localStorageService.setItem('default-distance-metric', lsv);
-      $('#default-distance-metric').val(lsv);
-      console.log(lsv);
-      if (lsv.toLowerCase() === 'snps') {
+      const selectedMetric = String(target?.value ?? e.data ?? 'tn93').toLowerCase();
+      const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
+      this.SelectedDefaultDistanceMetricVariable = selectedMetric;
+      this.commonService.localStorageService.setItem('default-distance-metric', selectedMetric);
+      $('#default-distance-metric').val(selectedMetric);
+      console.log(selectedMetric);
+      if (calculationMetric === 'snps') {
         $('#ambiguities-row').slideUp();
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
@@ -552,8 +554,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         console.log('default-distance-metric change file-plugin.component.ts tn93');
         this.store.setLinkThreshold(0.015);
       }
-      this.commonService.session.style.widgets['default-distance-metric'] = lsv;
-      this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
+      this.commonService.session.style.widgets['default-distance-metric'] = calculationMetric;
+      this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = calculationMetric;
+      this.refreshTemplateState();
     });
 
     let cachedLSV = "";
@@ -1028,11 +1031,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedDefaultDistanceThresholdVariable ??
       this.commonService.session.style.widgets["link-threshold"]
     ));
-    const metricOnLaunch = String(
+    const selectedMetricOnLaunch = String(
       $('#default-distance-metric').val() ??
       this.SelectedDefaultDistanceMetricVariable ??
       this.commonService.session.style.widgets["default-distance-metric"]
     ).toLowerCase();
+    const metricOnLaunch = this.commonService.normalizeDistanceMetric(selectedMetricOnLaunch);
     const ambiguityOnLaunch = String(
       $('#ambiguity-resolution-strategy').val() ??
       this.SelectedAmbiguityResolutionStrategyVariable ??
@@ -2767,14 +2771,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     
     // 1. Update the component's state property for the dropdown
-    this.SelectedDefaultDistanceMetricVariable = metric;
+    const selectedMetric = String(metric || 'snps').toLowerCase();
+    const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
+    this.SelectedDefaultDistanceMetricVariable = selectedMetric;
 
     // 2. Update the session state and notify the store (maintains original functionality)
-    this.commonService.session.style.widgets['default-distance-metric'] = metric.toLowerCase();
-    this.store.setMetricChanged(metric);
-    this.store.updatecurrentThresholdStepSize(metric.toLowerCase());
+    this.commonService.session.style.widgets['default-distance-metric'] = calculationMetric;
+    this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = calculationMetric;
+    this.store.setMetricChanged(calculationMetric);
+    this.store.updatecurrentThresholdStepSize(calculationMetric);
 
-    if (metric.toLowerCase() === 'snps') {
+    if (calculationMetric === 'snps') {
       // 3. Update the step attribute and UI visibility
       $('#default-distance-threshold').attr('step', 1);
       $("#ambiguities-row").slideUp();
@@ -2789,6 +2796,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedDefaultDistanceThresholdVariable = 0.015;
       this.onLinkThresholdChange('0.015');
     }
+  }
+
+  isMLSTSelected(): boolean {
+    return String(this.SelectedDefaultDistanceMetricVariable || '').toLowerCase() === 'mlst';
   }
 
   onAmbiguityStrategyChanged() {

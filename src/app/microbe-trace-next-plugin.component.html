@@ -329,9 +329,17 @@
                     <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDistanceMetricVariable" (ngModelChange)="onDistanceMetricChanged()">
                       <option value="tn93">TN93</option>
                       <option value="snps">SNPs</option>
+                      <option value="mlst">MLST</option>
                     </select>
                   </div>
                 </div>
+                @if (isMLSTSelected()) {
+                  <div class="form-group row mt-n2" data-testid="settings-mlst-equivalence-note" role="note">
+                    <div class="offset-4 col-8">
+                      <small class="text-muted"><i class="pi pi-info-circle" aria-hidden="true"></i> In MicrobeTrace, MLST is equivalent to SNP distance and uses the same calculation as SNPs.</small>
+                    </div>
+                  </div>
+                }
                 @if (isTN93Selected()) {
                   <div class="form-group row" title="Choose how TN93 distance values are shown throughout the app. Decimal uses raw values like 0.015. Percentage uses values like 1.5%.">
                     <div class="col-4">

@@ -5478,6 +5478,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return String(this.SelectedDistanceMetricVariable || this.commonService.session.style.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93';
     }
 
+    isMLSTSelected() {
+        return String(this.SelectedDistanceMetricVariable || '').toLowerCase() === 'mlst';
+    }
+
     /**
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
@@ -5485,11 +5489,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
   onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     const selectedMetric = String(this.SelectedDistanceMetricVariable).toLowerCase();
+    const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
     this.SelectedDistanceMetricVariable = selectedMetric;
-    this.metric = selectedMetric;
-    this.store.updatecurrentThresholdStepSize(selectedMetric);
+    this.metric = calculationMetric;
+    this.store.updatecurrentThresholdStepSize(calculationMetric);
     let didRecomputeSequenceLinks = false;
-    if (selectedMetric === 'snps') {
+    if (calculationMetric === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
         .val(16)
