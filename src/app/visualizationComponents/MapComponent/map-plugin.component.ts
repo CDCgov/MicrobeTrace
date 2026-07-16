@@ -25,6 +25,16 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { getMapNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import {
+    FloorplanBoundary,
+    FloorplanBoundaryPoint,
+    cleanFloorplanPolygonVertices,
+    floorplanAppendedSegmentHasIntersection,
+    floorplanClosingSegmentHasIntersection,
+    normalizeFloorplanBoundaryLabel,
+    randomPointInFloorplanPolygon,
+    validateFloorplanPolygon
+} from './floorplan-boundaries';
 
 declare var google: any;
 
@@ -46,6 +56,7 @@ class LongLatClass implements LongLatInterface {
 type AdministrativeMapLayer = 'countries' | 'states' | 'counties';
 type FloorplanBackgroundKind = 'geojson' | 'image' | 'none';
 type ManualPositionMode = 'floorplan' | 'map';
+type FloorplanBoundaryEditorMode = 'idle' | 'polygon' | 'freehand' | 'labeling' | 'editing' | 'renaming';
 
 const CARTO_VOYAGER_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>';
@@ -222,6 +233,21 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     manualPositionClearableCount: number = 0;
     manualPositionSelectedCanClear: boolean = false;
     manualPositionMessage: string = "";
+    FloorplanBoundaryVisibilityTypes: any = [
+        { label: 'Show', value: 'Show' },
+        { label: 'Hide', value: 'Hide' }
+    ];
+    SelectedFloorplanBoundaryVisibility: string = "Show";
+    SelectedFloorplanBoundaryField: string = "None";
+    floorplanBoundaries: FloorplanBoundary[] = [];
+    floorplanBoundaryEditorMode: FloorplanBoundaryEditorMode = 'idle';
+    floorplanBoundaryDraftLabel: string = "";
+    floorplanBoundaryMessage: string = "";
+    floorplanBoundaryError: string = "";
+    floorplanBoundaryWarning: string = "";
+    floorplanBoundaryMatchedNodeCount: number = 0;
+    floorplanBoundaryUnmatchedNodeCount: number = 0;
+    floorplanBoundarySelectedVertexIndex: number = -1;
 
     NodeCollapsingTypes: any = [
         { label: 'On', value: 'On' },
@@ -275,8 +301,22 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private readonly manualFloorplanYField: string = 'map_floorplan_y';
     private readonly manualMapLatitudeField: string = 'map_manual_latitude';
     private readonly manualMapLongitudeField: string = 'map_manual_longitude';
+    private readonly floorplanBoundaryIdField: string = 'map_floorplan_boundary_id';
+    private readonly floorplanBoundaryXField: string = 'map_floorplan_boundary_x';
+    private readonly floorplanBoundaryYField: string = 'map_floorplan_boundary_y';
+    private readonly floorplanBoundaryPaneName: string = 'map-floorplan-boundaries';
+    private readonly floorplanBoundaryFreehandMinimumPixelDistance: number = 4;
     private readonly noManualPositionNodeValue: string = 'None';
     private readonly manualMapClickHandler = (event: L.LeafletMouseEvent) => this.onManualPositionMapClick(event);
+    private readonly floorplanBoundaryMapClickHandler = (event: L.LeafletMouseEvent) => this.onFloorplanBoundaryMapClick(event);
+    private readonly floorplanBoundaryMapDoubleClickHandler = (event: L.LeafletMouseEvent) => this.onFloorplanBoundaryMapDoubleClick(event);
+    private readonly floorplanBoundaryFreehandPointerDownHandler = (event: PointerEvent) => this.onFloorplanBoundaryFreehandPointerDown(event);
+    private readonly floorplanBoundaryFreehandPointerMoveHandler = (event: PointerEvent) => this.onFloorplanBoundaryFreehandPointerMove(event);
+    private readonly floorplanBoundaryFreehandPointerUpHandler = (event: PointerEvent) => this.onFloorplanBoundaryFreehandPointerUp(event);
+    private readonly floorplanBoundaryFreehandPointerCancelHandler = () => {
+        this.cancelFloorplanBoundaryDrawing();
+        this.cdref.detectChanges();
+    };
 
     nodesWithoutLoc: {index: number, ID: string}[] = [];
     showPopupMessage: boolean = false;
@@ -293,6 +333,18 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private mapNodeMarkersById: Record<string, MarkerWithData> = Object.create(null);
     private autoExpandRequestId = 0;
     private autoExpandedClusterOriginalOpacities = new globalThis.Map<any, number>();
+    private floorplanBoundaryDraftVertices: FloorplanBoundaryPoint[] = [];
+    private floorplanBoundaryEditingId: string | null = null;
+    private floorplanBoundaryPreviewLayer: L.Polyline<any> | null = null;
+    private floorplanBoundaryClosingGuideLayer: L.Polyline<any> | null = null;
+    private floorplanBoundaryRejectedEdgeLayer: L.Polyline<any> | null = null;
+    private floorplanBoundaryDrawingVertexHandles: FeatureGroup = featureGroup();
+    private floorplanBoundaryVertexHandles: FeatureGroup = featureGroup();
+    private floorplanBoundaryLayersById: Record<string, L.Polygon> = Object.create(null);
+    private floorplanBoundaryFreehandPointerId: number | null = null;
+    private floorplanBoundaryFreehandLastPoint: L.Point | null = null;
+    private floorplanBoundaryMapDraggingWasEnabled: boolean = false;
+    private floorplanBoundaryDoubleClickZoomWasEnabled: boolean = false;
 
     public NodeMapSettingsExportDialogSettings: DialogSettings;
 
@@ -500,6 +552,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.ensureAdminLabelPane();
         this.lmap.off('click', this.manualMapClickHandler);
         this.lmap.on('click', this.manualMapClickHandler);
+        this.ensureFloorplanBoundaryPane();
         this.tryLoadInitialSettings();
     }
 
@@ -1056,8 +1109,61 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.manualFloorplanXField,
             this.manualFloorplanYField,
             this.manualMapLatitudeField,
-            this.manualMapLongitudeField
+            this.manualMapLongitudeField,
+            this.floorplanBoundaryIdField,
+            this.floorplanBoundaryXField,
+            this.floorplanBoundaryYField
         ].includes(field);
+    }
+
+    private getFloorplanBoundaries(): FloorplanBoundary[] {
+        return Array.isArray(this.commonService.session.data.floorplanBoundaries)
+            ? this.commonService.session.data.floorplanBoundaries
+            : [];
+    }
+
+    private getFloorplanBoundaryById(id: any): FloorplanBoundary | undefined {
+        return this.getFloorplanBoundaries().find(boundary => String(boundary.id) === String(id));
+    }
+
+    private getFloorplanBoundaryForNode(node: any): FloorplanBoundary | undefined {
+        const field = this.commonService.session.data.floorplanBoundaryField;
+        if (!node || !field || field === 'None') {
+            return undefined;
+        }
+        const normalizedValue = normalizeFloorplanBoundaryLabel(node[field]);
+        if (!normalizedValue) {
+            return undefined;
+        }
+        return this.getFloorplanBoundaries().find(boundary => normalizeFloorplanBoundaryLabel(boundary.label) === normalizedValue);
+    }
+
+    private hasStoredFloorplanBoundaryPosition(node: any): boolean {
+        return !!node
+            && this.isFiniteMapCoordinate(node[this.floorplanBoundaryXField])
+            && this.isFiniteMapCoordinate(node[this.floorplanBoundaryYField])
+            && !!node[this.floorplanBoundaryIdField];
+    }
+
+    private hasActiveFloorplanBoundaryPosition(node: any): boolean {
+        if (!this.isFloorplanImageLayerVisible() || !this.hasStoredFloorplanBoundaryPosition(node)) {
+            return false;
+        }
+        const matchingBoundary = this.getFloorplanBoundaryForNode(node);
+        return !!matchingBoundary && String(matchingBoundary.id) === String(node[this.floorplanBoundaryIdField]);
+    }
+
+    private applyFloorplanBoundaryPositions(): void {
+        if (!this.isFloorplanImageLayerVisible()) {
+            return;
+        }
+        this.nodes.forEach(node => {
+            if (!this.hasActiveFloorplanBoundaryPosition(node)) {
+                return;
+            }
+            node._lon = Number(node[this.floorplanBoundaryXField]);
+            node._lat = Number(node[this.floorplanBoundaryYField]);
+        });
     }
 
     private getManualPositionMode(): ManualPositionMode {
@@ -1118,6 +1224,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private applyManualPositions(): void {
+        this.applyFloorplanBoundaryPositions();
         if (this.getManualPositionMode() === 'floorplan') {
             this.applyManualFloorplanPositions();
             return;
@@ -1127,7 +1234,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private shouldDisableJitterForNode(node: any): boolean {
-        return this.hasManualPosition(node);
+        return this.hasManualPosition(node) || this.hasActiveFloorplanBoundaryPosition(node);
     }
 
     private useExactRenderedNodePosition(node: any): void {
@@ -1168,13 +1275,108 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.ensureManualMapFields();
     }
 
+    private ensureFloorplanBoundaryPositionFields(): void {
+        if (!Array.isArray(this.commonService.session.data.nodeFields)) {
+            this.commonService.session.data.nodeFields = [];
+        }
+        [this.floorplanBoundaryIdField, this.floorplanBoundaryXField, this.floorplanBoundaryYField].forEach(field => {
+            if (!this.commonService.session.data.nodeFields.includes(field)) {
+                this.commonService.session.data.nodeFields.push(field);
+            }
+        });
+    }
+
+    private clearFloorplanBoundaryPosition(node: any): void {
+        this.updateMatchingNodeRecords(node, candidate => {
+            candidate[this.floorplanBoundaryIdField] = null;
+            candidate[this.floorplanBoundaryXField] = null;
+            candidate[this.floorplanBoundaryYField] = null;
+        });
+    }
+
+    private setFloorplanBoundaryPosition(node: any, boundary: FloorplanBoundary): void {
+        const point = randomPointInFloorplanPolygon(boundary.vertices, () => this.commonService.r01());
+        this.ensureFloorplanBoundaryPositionFields();
+        this.updateMatchingNodeRecords(node, candidate => {
+            candidate[this.floorplanBoundaryIdField] = boundary.id;
+            candidate[this.floorplanBoundaryXField] = point.x;
+            candidate[this.floorplanBoundaryYField] = point.y;
+        });
+    }
+
+    private reconcileFloorplanBoundaryPlacements(
+        rerollBoundaryIds: Set<string> = new Set<string>(),
+        rerollAll: boolean = false,
+        refresh: boolean = true
+    ): void {
+        const nodes = Array.isArray(this.commonService.session.data.nodes)
+            ? this.commonService.session.data.nodes.slice()
+            : [];
+        const field = this.commonService.session.data.floorplanBoundaryField;
+        const boundariesAvailable = !!this.commonService.session.data.floorplanImage
+            && !!field
+            && field !== 'None'
+            && this.getFloorplanBoundaries().length > 0;
+
+        nodes.forEach(node => {
+            const boundary = boundariesAvailable ? this.getFloorplanBoundaryForNode(node) : undefined;
+            if (!boundary) {
+                if (this.hasStoredFloorplanBoundaryPosition(node)) {
+                    this.clearFloorplanBoundaryPosition(node);
+                }
+                return;
+            }
+
+            const storedBoundaryId = String(node[this.floorplanBoundaryIdField] ?? '');
+            const needsPosition = !this.hasStoredFloorplanBoundaryPosition(node)
+                || storedBoundaryId !== String(boundary.id)
+                || rerollAll
+                || rerollBoundaryIds.has(String(boundary.id));
+            if (needsPosition) {
+                this.setFloorplanBoundaryPosition(node, boundary);
+            }
+        });
+
+        this.refreshFloorplanBoundaryCounts();
+        if (refresh) {
+            this.refreshRenderedCoordinates(false);
+        }
+    }
+
+    private clearAllFloorplanBoundaryPositions(): void {
+        const nodes = Array.isArray(this.commonService.session.data.nodes)
+            ? this.commonService.session.data.nodes.slice()
+            : [];
+        nodes.forEach(node => {
+            if (this.hasStoredFloorplanBoundaryPosition(node)) {
+                this.clearFloorplanBoundaryPosition(node);
+            }
+        });
+        this.refreshFloorplanBoundaryCounts();
+    }
+
+    private refreshFloorplanBoundaryCounts(): void {
+        const nodes = Array.isArray(this.commonService.session.data.nodes)
+            ? this.commonService.session.data.nodes
+            : [];
+        const field = this.commonService.session.data.floorplanBoundaryField;
+        if (!field || field === 'None') {
+            this.floorplanBoundaryMatchedNodeCount = 0;
+            this.floorplanBoundaryUnmatchedNodeCount = 0;
+            return;
+        }
+
+        this.floorplanBoundaryMatchedNodeCount = nodes.filter(node => !!this.getFloorplanBoundaryForNode(node)).length;
+        this.floorplanBoundaryUnmatchedNodeCount = nodes.length - this.floorplanBoundaryMatchedNodeCount;
+    }
+
     private getManualPositionNodes(): any[] {
         return this.commonService.getVisibleNodes()
             .filter(node => node && node.visible !== false && node._id !== undefined);
     }
 
     canUseManualPositioning(): boolean {
-        return this.getManualPositionNodes().length > 0;
+        return this.floorplanBoundaryEditorMode === 'idle' && this.getManualPositionNodes().length > 0;
     }
 
     private getManualPositionNodeLabel(node: any): string {
@@ -1359,6 +1561,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     onManualPositioningChange(e): void {
+        if (e === 'On' && this.floorplanBoundaryEditorMode !== 'idle') {
+            this.SelectedManualPositionTypeVariable = 'Off';
+            this.manualPositionMessage = 'Finish or cancel boundary editing before positioning nodes manually.';
+            return;
+        }
         this.SelectedManualPositionTypeVariable = e;
 
         if (e === "On") {
@@ -1672,12 +1879,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.hideUserGeoJSONForSiblingBackground();
             this.hideOtherBackgroundLayersForUserFloorplan();
             this.addFloorplanImageLayerToMap();
+            this.rebuildFloorplanBoundaryLayers();
+            this.addFloorplanBoundaryLayersToMap();
             this.syncFloorplanBackgroundControls();
             this.resetStack();
             this.refreshManualPositionControls();
         } else {
+            this.cancelFloorplanBoundaryDrawing(false, false);
             this.commonService.session.style.widgets['map-floorplan-image-show'] = false;
             this.SelectedFloorplanImageTypeVariable = "Hide";
+            this.removeFloorplanBoundaryLayersFromMap();
             this.removeFloorplanImageLayer();
             this.syncFloorplanBackgroundControls();
             this.refreshManualPositionControls();
@@ -1689,6 +1900,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     clearFloorplanBackground() {
+        this.cancelFloorplanBoundaryDrawing(false, false);
         this.clearUserGeoJSONBackgroundData();
         this.clearFloorplanImageBackgroundData();
         this.clearFloorplanBackgroundError();
@@ -1710,6 +1922,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private setFloorplanImage(dataUrl: string, fileName: string, bounds: [[number, number], [number, number]], width: number, height: number) {
+        this.clearFloorplanBoundaryData(false);
         this.clearUserGeoJSONBackgroundData();
         this.clearFloorplanBackgroundError();
         this.commonService.session.data.floorplanImage = dataUrl;
@@ -1858,6 +2071,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private removeFloorplanImageLayer() {
+        this.removeFloorplanBoundaryLayersFromMap();
         if (this.layers.floorplanImage) {
             this.layers.floorplanImage.remove();
         }
@@ -1900,6 +2114,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private clearUserGeoJSONBackgroundData() {
         this.commonService.session.data.geoJSON = null;
         this.commonService.session.data.geoJSONLayerName = "";
+        this.cancelFloorplanBoundaryDrawing(false, false);
         this.commonService.session.style.widgets['map-user-geojson-show'] = false;
         this.SelectedUserGeoJSONTypeVariable = "Hide";
         this.userGeoJSONFileName = "";
@@ -1909,6 +2124,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private clearFloorplanImageBackgroundData() {
+        this.clearFloorplanBoundaryData(false);
         this.commonService.session.data.floorplanImage = null;
         this.commonService.session.data.floorplanImageLayerName = "";
         this.commonService.session.data.floorplanImageBounds = null;
@@ -1955,6 +2171,798 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (this.commonService.session.data.floorplanImageHeight === undefined) {
             this.commonService.session.data.floorplanImageHeight = null;
         }
+    }
+
+    private ensureFloorplanBoundaryDefaults(): void {
+        const session = this.commonService.session;
+        if (session.style.widgets['map-floorplan-boundaries-show'] === undefined
+            || session.style.widgets['map-floorplan-boundaries-show'] === null) {
+            session.style.widgets['map-floorplan-boundaries-show'] = true;
+        }
+        if (typeof session.data.floorplanBoundaryField !== 'string') {
+            session.data.floorplanBoundaryField = 'None';
+        }
+        if (!Array.isArray(session.data.floorplanBoundaries)) {
+            session.data.floorplanBoundaries = [];
+        }
+
+        const seenLabels = new Set<string>();
+        const seenIds = new Set<string>();
+        const imageBounds = session.data.floorplanImage
+            ? this.getFloorplanImageCoordinateBounds()
+            : null;
+        session.data.floorplanBoundaries = session.data.floorplanBoundaries
+            .map((boundary: any, index: number) => ({
+                id: String(boundary?.id || `floorplan-boundary-restored-${index}`),
+                label: String(boundary?.label || '').trim(),
+                vertices: cleanFloorplanPolygonVertices(Array.isArray(boundary?.vertices) ? boundary.vertices : [])
+            }))
+            .filter((boundary: FloorplanBoundary) => {
+                const normalizedLabel = normalizeFloorplanBoundaryLabel(boundary.label);
+                if (!imageBounds
+                    || !normalizedLabel
+                    || seenLabels.has(normalizedLabel)
+                    || seenIds.has(boundary.id)
+                    || boundary.vertices.length < 3) {
+                    return false;
+                }
+                try {
+                    boundary.vertices = validateFloorplanPolygon(boundary.vertices, imageBounds);
+                } catch {
+                    return false;
+                }
+                seenLabels.add(normalizedLabel);
+                seenIds.add(boundary.id);
+                return true;
+            });
+
+        const nodeFields = Array.isArray(session.data.nodeFields) ? session.data.nodeFields : [];
+        if (session.data.floorplanBoundaryField !== 'None'
+            && !nodeFields.includes(session.data.floorplanBoundaryField)) {
+            session.data.floorplanBoundaryField = 'None';
+        }
+
+        this.SelectedFloorplanBoundaryField = session.data.floorplanBoundaryField;
+        this.SelectedFloorplanBoundaryVisibility = session.style.widgets['map-floorplan-boundaries-show'] ? 'Show' : 'Hide';
+        this.floorplanBoundaries = session.data.floorplanBoundaries;
+        this.refreshFloorplanBoundaryCounts();
+    }
+
+    private getFloorplanImageCoordinateBounds() {
+        const bounds = L.latLngBounds(this.getFloorplanImageBounds() as any);
+        return {
+            minX: bounds.getWest(),
+            minY: bounds.getSouth(),
+            maxX: bounds.getEast(),
+            maxY: bounds.getNorth()
+        };
+    }
+
+    private floorplanPointToLatLng(point: FloorplanBoundaryPoint): L.LatLng {
+        return L.latLng(this.floorplanImageYToDisplayLatitude(point.y), point.x);
+    }
+
+    private latLngToFloorplanPoint(latlng: L.LatLng): FloorplanBoundaryPoint {
+        return {
+            x: Number(latlng.lng),
+            y: this.displayLatitudeToFloorplanImageY(Number(latlng.lat))
+        };
+    }
+
+    private ensureFloorplanBoundaryPane(): void {
+        if (!this.lmap) {
+            return;
+        }
+        let pane = this.lmap.getPane(this.floorplanBoundaryPaneName);
+        if (!pane) {
+            pane = this.lmap.createPane(this.floorplanBoundaryPaneName);
+        }
+        pane.style.zIndex = '450';
+    }
+
+    private rebuildFloorplanBoundaryLayers(): void {
+        this.layers.floorplanBoundaries.clearLayers();
+        this.floorplanBoundaryLayersById = Object.create(null);
+        this.floorplanBoundaries = this.getFloorplanBoundaries();
+        if (!this.lmap || !this.commonService.session.data.floorplanImage) {
+            return;
+        }
+
+        this.ensureFloorplanBoundaryPane();
+        this.floorplanBoundaries.forEach(boundary => {
+            const layer = polygon(boundary.vertices.map(vertex => this.floorplanPointToLatLng(vertex)), {
+                pane: this.floorplanBoundaryPaneName,
+                color: '#1f6f8b',
+                weight: 2,
+                opacity: 0.95,
+                fillColor: '#7fc8a9',
+                fillOpacity: 0.2,
+                interactive: false
+            });
+            layer.bindTooltip(this.escapeMapLabelHtml(boundary.label), {
+                pane: this.floorplanBoundaryPaneName,
+                permanent: true,
+                direction: 'center',
+                className: 'map-floorplan-boundary-label'
+            });
+            this.floorplanBoundaryLayersById[String(boundary.id)] = layer;
+            this.layers.floorplanBoundaries.addLayer(layer);
+        });
+    }
+
+    private addFloorplanBoundaryLayersToMap(): void {
+        if (!this.lmap
+            || !this.isFloorplanImageLayerVisible()
+            || !this.commonService.session.style.widgets['map-floorplan-boundaries-show']) {
+            this.removeFloorplanBoundaryLayersFromMap();
+            return;
+        }
+        if (!this.lmap.hasLayer(this.layers.floorplanBoundaries)) {
+            this.layers.floorplanBoundaries.addTo(this.lmap);
+        }
+        this.layers.floorplanBoundaries.bringToFront();
+    }
+
+    private removeFloorplanBoundaryLayersFromMap(): void {
+        if (this.layers.floorplanBoundaries) {
+            this.layers.floorplanBoundaries.remove();
+        }
+    }
+
+    onFloorplanBoundaryVisibilityChange(selection: string): void {
+        this.SelectedFloorplanBoundaryVisibility = selection === 'Hide' ? 'Hide' : 'Show';
+        this.commonService.session.style.widgets['map-floorplan-boundaries-show'] = this.SelectedFloorplanBoundaryVisibility === 'Show';
+        if (this.SelectedFloorplanBoundaryVisibility === 'Show') {
+            this.rebuildFloorplanBoundaryLayers();
+            this.addFloorplanBoundaryLayersToMap();
+        } else {
+            this.removeFloorplanBoundaryLayersFromMap();
+        }
+    }
+
+    onFloorplanBoundaryFieldChange(field: string): void {
+        const nextField = field || 'None';
+        if (this.commonService.session.data.floorplanBoundaryField === nextField) {
+            return;
+        }
+        this.commonService.session.data.floorplanBoundaryField = nextField;
+        this.SelectedFloorplanBoundaryField = nextField;
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), true, true);
+        this.floorplanBoundaryMessage = nextField === 'None'
+            ? 'Boundary placement is off until a node field is selected.'
+            : `Boundary labels now match values in ${nextField}.`;
+    }
+
+    repositionAllFloorplanBoundaryNodes(): void {
+        if (this.SelectedFloorplanBoundaryField === 'None' || this.getFloorplanBoundaries().length === 0) {
+            return;
+        }
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), true, true);
+        this.floorplanBoundaryMessage = `Repositioned ${this.floorplanBoundaryMatchedNodeCount} matching node${this.floorplanBoundaryMatchedNodeCount === 1 ? '' : 's'}.`;
+    }
+
+    private clearFloorplanBoundaryData(refresh: boolean = true): void {
+        this.cancelFloorplanBoundaryDrawing(false, false);
+        this.commonService.session.data.floorplanBoundaryField = 'None';
+        this.commonService.session.data.floorplanBoundaries = [];
+        this.SelectedFloorplanBoundaryField = 'None';
+        this.floorplanBoundaries = [];
+        this.clearAllFloorplanBoundaryPositions();
+        this.layers.floorplanBoundaries.clearLayers();
+        this.removeFloorplanBoundaryLayersFromMap();
+        this.floorplanBoundaryLayersById = Object.create(null);
+        this.floorplanBoundaryMessage = '';
+        this.floorplanBoundaryError = '';
+        if (refresh && this.lmap) {
+            this.refreshRenderedCoordinates(false);
+        }
+    }
+
+    canDrawFloorplanBoundary(): boolean {
+        return this.floorplanBoundaryEditorMode === 'idle'
+            && !!this.commonService.session.data.floorplanImage
+            && this.isFloorplanImageLayerVisible();
+    }
+
+    isFloorplanBoundaryDrawing(): boolean {
+        return this.floorplanBoundaryEditorMode === 'polygon' || this.floorplanBoundaryEditorMode === 'freehand';
+    }
+
+    canFinishFloorplanBoundary(): boolean {
+        return this.floorplanBoundaryEditorMode === 'polygon'
+            && this.floorplanBoundaryDraftVertices.length >= 3
+            && !floorplanClosingSegmentHasIntersection(this.floorplanBoundaryDraftVertices);
+    }
+
+    getFloorplanBoundaryPointSummary(): string {
+        const count = this.floorplanBoundaryDraftVertices.length;
+        if (count === 0) {
+            return 'No corners placed yet.';
+        }
+        if (count === 1) {
+            return 'Corner 1 is the green starting point.';
+        }
+        return `${count} corners placed. Corner ${count} is highlighted as the newest point.`;
+    }
+
+    canUndoFloorplanBoundaryPoint(): boolean {
+        return this.floorplanBoundaryEditorMode === 'polygon' && this.floorplanBoundaryDraftVertices.length > 0;
+    }
+
+    canSaveFloorplanBoundary(): boolean {
+        return ['labeling', 'editing', 'renaming'].includes(this.floorplanBoundaryEditorMode)
+            && this.floorplanBoundaryDraftLabel.trim().length > 0
+            && this.floorplanBoundaryDraftVertices.length >= 3;
+    }
+
+    canRemoveFloorplanBoundaryVertex(): boolean {
+        return this.floorplanBoundaryEditorMode === 'editing'
+            && this.floorplanBoundarySelectedVertexIndex >= 0
+            && this.floorplanBoundaryDraftVertices.length > 3;
+    }
+
+    private beginFloorplanBoundaryInteraction(mode: FloorplanBoundaryEditorMode): boolean {
+        this.cancelFloorplanBoundaryDrawing(false, false);
+        if (!this.lmap || !this.commonService.session.data.floorplanImage || !this.isFloorplanImageLayerVisible()) {
+            this.floorplanBoundaryError = 'Show an uploaded image before drawing or editing boundaries.';
+            return false;
+        }
+
+        this.onManualPositioningChange('Off');
+        this.floorplanBoundaryEditorMode = mode;
+        this.floorplanBoundaryError = '';
+        this.floorplanBoundaryWarning = '';
+        this.floorplanBoundaryDraftLabel = '';
+        this.floorplanBoundaryDraftVertices = [];
+        this.floorplanBoundaryEditingId = null;
+        this.floorplanBoundarySelectedVertexIndex = -1;
+        this.floorplanBoundaryMapDraggingWasEnabled = this.lmap.dragging.enabled();
+        this.floorplanBoundaryDoubleClickZoomWasEnabled = this.lmap.doubleClickZoom.enabled();
+        this.lmap.dragging.disable();
+        this.lmap.doubleClickZoom.disable();
+        this.NodeMapSettingsExportDialogSettings.setVisibility(false);
+        return true;
+    }
+
+    startFloorplanBoundaryPolygon(): void {
+        if (!this.beginFloorplanBoundaryInteraction('polygon')) {
+            return;
+        }
+        this.lmap.on('click', this.floorplanBoundaryMapClickHandler);
+        this.lmap.on('dblclick', this.floorplanBoundaryMapDoubleClickHandler);
+        this.floorplanBoundaryMessage = 'Click to add numbered corners. The dashed line previews the closing edge; click near point 1 or use Finish when complete.';
+    }
+
+    startFloorplanBoundaryFreehand(): void {
+        if (!this.beginFloorplanBoundaryInteraction('freehand')) {
+            return;
+        }
+        const container = this.lmap.getContainer();
+        container.classList.add('map-boundary-freehand-active');
+        container.addEventListener('pointerdown', this.floorplanBoundaryFreehandPointerDownHandler);
+        container.addEventListener('pointermove', this.floorplanBoundaryFreehandPointerMoveHandler);
+        container.addEventListener('pointerup', this.floorplanBoundaryFreehandPointerUpHandler);
+        container.addEventListener('pointercancel', this.floorplanBoundaryFreehandPointerCancelHandler);
+        this.floorplanBoundaryMessage = 'Press and drag on the image to sketch a boundary.';
+    }
+
+    private isFloorplanPointInsideImage(point: FloorplanBoundaryPoint): boolean {
+        const bounds = this.getFloorplanImageCoordinateBounds();
+        return point.x >= bounds.minX
+            && point.x <= bounds.maxX
+            && point.y >= bounds.minY
+            && point.y <= bounds.maxY;
+    }
+
+    private onFloorplanBoundaryMapClick(event: L.LeafletMouseEvent): void {
+        if (this.floorplanBoundaryEditorMode !== 'polygon') {
+            return;
+        }
+        if (this.floorplanBoundaryDraftVertices.length >= 3 && this.isNearFirstFloorplanBoundaryVertex(event.latlng)) {
+            this.finishFloorplanBoundaryDrawing();
+            return;
+        }
+        const point = this.latLngToFloorplanPoint(event.latlng);
+        if (!this.isFloorplanPointInsideImage(point)) {
+            this.floorplanBoundaryError = 'Keep every boundary point inside the uploaded image.';
+            this.cdref.detectChanges();
+            return;
+        }
+        this.clearFloorplanBoundaryRejectedEdge();
+        if (floorplanAppendedSegmentHasIntersection(this.floorplanBoundaryDraftVertices, point)) {
+            this.floorplanBoundaryError = 'That corner would make the new red edge cross the boundary. Choose another location or use Undo.';
+            this.showFloorplanBoundaryRejectedEdge(point);
+            this.cdref.detectChanges();
+            return;
+        }
+        this.floorplanBoundaryError = '';
+        this.floorplanBoundaryDraftVertices.push(point);
+        this.updateFloorplanBoundaryPreview(false);
+        this.cdref.detectChanges();
+    }
+
+    private isNearFirstFloorplanBoundaryVertex(latlng: L.LatLng): boolean {
+        const first = this.floorplanBoundaryDraftVertices[0];
+        if (!first || !this.lmap) {
+            return false;
+        }
+        const firstPoint = this.lmap.latLngToContainerPoint(this.floorplanPointToLatLng(first));
+        const clickPoint = this.lmap.latLngToContainerPoint(latlng);
+        return firstPoint.distanceTo(clickPoint) <= 12;
+    }
+
+    private onFloorplanBoundaryMapDoubleClick(event: L.LeafletMouseEvent): void {
+        if (event.originalEvent) {
+            event.originalEvent.preventDefault();
+        }
+        this.finishFloorplanBoundaryDrawing();
+    }
+
+    undoFloorplanBoundaryPoint(): void {
+        if (!this.canUndoFloorplanBoundaryPoint()) {
+            return;
+        }
+        this.clearFloorplanBoundaryRejectedEdge();
+        this.floorplanBoundaryError = '';
+        this.floorplanBoundaryDraftVertices.pop();
+        this.updateFloorplanBoundaryPreview(false);
+    }
+
+    finishFloorplanBoundaryDrawing(): void {
+        if (!this.isFloorplanBoundaryDrawing()) {
+            return;
+        }
+        if (this.floorplanBoundaryEditorMode === 'polygon'
+            && floorplanClosingSegmentHasIntersection(this.floorplanBoundaryDraftVertices)) {
+            this.floorplanBoundaryError = 'The red dashed closing edge crosses the boundary. Add another corner or use Undo before finishing.';
+            this.cdref.detectChanges();
+            return;
+        }
+        try {
+            this.clearFloorplanBoundaryRejectedEdge();
+            this.floorplanBoundaryDraftVertices = validateFloorplanPolygon(
+                this.floorplanBoundaryDraftVertices,
+                this.getFloorplanImageCoordinateBounds()
+            );
+            this.floorplanBoundaryEditorMode = 'labeling';
+            this.floorplanBoundaryError = '';
+            this.floorplanBoundaryWarning = '';
+            this.floorplanBoundaryMessage = 'Enter a unique label, then save the boundary.';
+            this.detachFloorplanBoundaryDrawingListeners();
+            this.updateFloorplanBoundaryPreview(true);
+            this.cdref.detectChanges();
+        } catch (error) {
+            this.floorplanBoundaryError = error instanceof Error ? error.message : 'Unable to finish this boundary.';
+            this.cdref.detectChanges();
+        }
+    }
+
+    private eventToFloorplanPoint(event: PointerEvent): { point: FloorplanBoundaryPoint; containerPoint: L.Point } {
+        const containerPoint = this.lmap.mouseEventToContainerPoint(event as MouseEvent);
+        return {
+            point: this.latLngToFloorplanPoint(this.lmap.containerPointToLatLng(containerPoint)),
+            containerPoint
+        };
+    }
+
+    private onFloorplanBoundaryFreehandPointerDown(event: PointerEvent): void {
+        if (this.floorplanBoundaryEditorMode !== 'freehand'
+            || this.floorplanBoundaryFreehandPointerId !== null
+            || (event.pointerType === 'mouse' && event.button !== 0)) {
+            return;
+        }
+        const start = this.eventToFloorplanPoint(event);
+        if (!this.isFloorplanPointInsideImage(start.point)) {
+            this.floorplanBoundaryError = 'Start the freehand boundary inside the uploaded image.';
+            this.cdref.detectChanges();
+            return;
+        }
+        event.preventDefault();
+        try {
+            this.lmap.getContainer().setPointerCapture?.(event.pointerId);
+        } catch {
+            // Some synthetic pointer events do not establish an active pointer capture.
+        }
+        this.floorplanBoundaryFreehandPointerId = event.pointerId;
+        this.floorplanBoundaryFreehandLastPoint = start.containerPoint;
+        this.floorplanBoundaryDraftVertices = [start.point];
+        this.floorplanBoundaryError = '';
+        this.updateFloorplanBoundaryPreview(false);
+    }
+
+    private onFloorplanBoundaryFreehandPointerMove(event: PointerEvent): void {
+        if (this.floorplanBoundaryEditorMode !== 'freehand'
+            || this.floorplanBoundaryFreehandPointerId !== event.pointerId) {
+            return;
+        }
+        event.preventDefault();
+        const next = this.eventToFloorplanPoint(event);
+        if (!this.isFloorplanPointInsideImage(next.point)
+            || (this.floorplanBoundaryFreehandLastPoint
+                && this.floorplanBoundaryFreehandLastPoint.distanceTo(next.containerPoint) < this.floorplanBoundaryFreehandMinimumPixelDistance)) {
+            return;
+        }
+        this.floorplanBoundaryFreehandLastPoint = next.containerPoint;
+        this.floorplanBoundaryDraftVertices.push(next.point);
+        this.updateFloorplanBoundaryPreview(false);
+    }
+
+    private onFloorplanBoundaryFreehandPointerUp(event: PointerEvent): void {
+        if (this.floorplanBoundaryEditorMode !== 'freehand'
+            || this.floorplanBoundaryFreehandPointerId !== event.pointerId) {
+            return;
+        }
+        event.preventDefault();
+        try {
+            this.lmap.getContainer().releasePointerCapture?.(event.pointerId);
+        } catch {
+            // The pointer may already have been released by the browser.
+        }
+        this.floorplanBoundaryFreehandPointerId = null;
+        this.floorplanBoundaryFreehandLastPoint = null;
+
+        const simplifiedPoints = L.LineUtil.simplify(
+            this.floorplanBoundaryDraftVertices.map(vertex => this.lmap.latLngToContainerPoint(this.floorplanPointToLatLng(vertex))),
+            2
+        );
+        this.floorplanBoundaryDraftVertices = simplifiedPoints.map(point =>
+            this.latLngToFloorplanPoint(this.lmap.containerPointToLatLng(point))
+        );
+        this.finishFloorplanBoundaryDrawing();
+    }
+
+    private updateFloorplanBoundaryPreview(closed: boolean): void {
+        if (!this.lmap) {
+            return;
+        }
+        if (this.floorplanBoundaryPreviewLayer) {
+            this.floorplanBoundaryPreviewLayer.remove();
+            this.floorplanBoundaryPreviewLayer = null;
+        }
+        if (this.floorplanBoundaryClosingGuideLayer) {
+            this.floorplanBoundaryClosingGuideLayer.remove();
+            this.floorplanBoundaryClosingGuideLayer = null;
+        }
+        this.floorplanBoundaryWarning = '';
+        if (this.floorplanBoundaryDraftVertices.length === 0) {
+            this.renderFloorplanBoundaryDrawingVertexHandles();
+            return;
+        }
+
+        const latlngs = this.floorplanBoundaryDraftVertices.map(vertex => this.floorplanPointToLatLng(vertex));
+        const style: PathOptions = {
+            pane: this.floorplanBoundaryPaneName,
+            color: '#f05a28',
+            weight: 3,
+            opacity: 1,
+            fillColor: '#ffd166',
+            fillOpacity: closed ? 0.25 : 0,
+            interactive: false
+        } as any;
+        this.floorplanBoundaryPreviewLayer = closed && latlngs.length >= 3
+            ? polygon(latlngs, style)
+            : polyline(latlngs, style);
+        this.floorplanBoundaryPreviewLayer.addTo(this.lmap);
+
+        if (!closed && this.floorplanBoundaryEditorMode === 'polygon') {
+            this.renderFloorplanBoundaryDrawingVertexHandles();
+            if (latlngs.length >= 3) {
+                const closingEdgeCrosses = floorplanClosingSegmentHasIntersection(this.floorplanBoundaryDraftVertices);
+                this.floorplanBoundaryClosingGuideLayer = polyline([latlngs[latlngs.length - 1], latlngs[0]], {
+                    pane: this.floorplanBoundaryPaneName,
+                    color: closingEdgeCrosses ? '#c62828' : '#167d63',
+                    weight: closingEdgeCrosses ? 4 : 3,
+                    opacity: 1,
+                    dashArray: '8 6',
+                    interactive: false
+                } as any);
+                this.floorplanBoundaryClosingGuideLayer.addTo(this.lmap);
+                if (closingEdgeCrosses) {
+                    this.floorplanBoundaryWarning = 'The red dashed closing edge crosses the outline. Add another corner or use Undo before finishing.';
+                }
+            }
+        } else {
+            this.renderFloorplanBoundaryDrawingVertexHandles();
+        }
+    }
+
+    private getFloorplanBoundaryDrawingVertexIcon(index: number): L.DivIcon {
+        const lastIndex = this.floorplanBoundaryDraftVertices.length - 1;
+        const classes = ['map-boundary-drawing-vertex'];
+        if (index === 0) {
+            classes.push('map-boundary-drawing-vertex-first');
+        }
+        if (index === lastIndex) {
+            classes.push('map-boundary-drawing-vertex-latest');
+        }
+        return L.divIcon({
+            className: classes.join(' '),
+            html: `<span>${index + 1}</span>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+        });
+    }
+
+    private renderFloorplanBoundaryDrawingVertexHandles(): void {
+        this.floorplanBoundaryDrawingVertexHandles.clearLayers();
+        if (!this.lmap || this.floorplanBoundaryEditorMode !== 'polygon') {
+            this.floorplanBoundaryDrawingVertexHandles.remove();
+            return;
+        }
+        if (!this.lmap.hasLayer(this.floorplanBoundaryDrawingVertexHandles)) {
+            this.floorplanBoundaryDrawingVertexHandles.addTo(this.lmap);
+        }
+        this.floorplanBoundaryDraftVertices.forEach((vertex, index) => {
+            this.floorplanBoundaryDrawingVertexHandles.addLayer(marker(this.floorplanPointToLatLng(vertex), {
+                interactive: false,
+                keyboard: false,
+                title: index === 0 ? 'Boundary starting corner 1' : `Boundary corner ${index + 1}`,
+                icon: this.getFloorplanBoundaryDrawingVertexIcon(index)
+            }));
+        });
+    }
+
+    private clearFloorplanBoundaryRejectedEdge(): void {
+        if (this.floorplanBoundaryRejectedEdgeLayer) {
+            this.floorplanBoundaryRejectedEdgeLayer.remove();
+            this.floorplanBoundaryRejectedEdgeLayer = null;
+        }
+    }
+
+    private showFloorplanBoundaryRejectedEdge(candidate: FloorplanBoundaryPoint): void {
+        const previous = this.floorplanBoundaryDraftVertices[this.floorplanBoundaryDraftVertices.length - 1];
+        if (!previous || !this.lmap) {
+            return;
+        }
+        this.floorplanBoundaryRejectedEdgeLayer = polyline([
+            this.floorplanPointToLatLng(previous),
+            this.floorplanPointToLatLng(candidate)
+        ], {
+            pane: this.floorplanBoundaryPaneName,
+            color: '#c62828',
+            weight: 5,
+            opacity: 1,
+            dashArray: '6 5',
+            interactive: false
+        } as any);
+        this.floorplanBoundaryRejectedEdgeLayer.addTo(this.lmap);
+    }
+
+    beginEditFloorplanBoundary(boundary: FloorplanBoundary): void {
+        if (!boundary || !this.beginFloorplanBoundaryInteraction('editing')) {
+            return;
+        }
+        if (!this.lmap.hasLayer(this.layers.floorplanBoundaries)) {
+            this.layers.floorplanBoundaries.addTo(this.lmap);
+        }
+        this.layers.floorplanBoundaries.bringToFront();
+        this.floorplanBoundaryEditingId = String(boundary.id);
+        this.floorplanBoundaryDraftLabel = boundary.label;
+        this.floorplanBoundaryDraftVertices = boundary.vertices.map(vertex => ({ ...vertex }));
+        this.floorplanBoundaryMessage = 'Drag vertex handles or click a midpoint to reshape the boundary, then save.';
+        this.renderFloorplanBoundaryEditHandles();
+    }
+
+    beginRenameFloorplanBoundary(boundary: FloorplanBoundary): void {
+        if (!boundary) {
+            return;
+        }
+        this.cancelFloorplanBoundaryDrawing(false, false);
+        this.floorplanBoundaryEditorMode = 'renaming';
+        this.floorplanBoundaryEditingId = String(boundary.id);
+        this.floorplanBoundaryDraftLabel = boundary.label;
+        this.floorplanBoundaryDraftVertices = boundary.vertices.map(vertex => ({ ...vertex }));
+        this.floorplanBoundaryError = '';
+        this.floorplanBoundaryMessage = 'Update the label and save.';
+    }
+
+    private getFloorplanBoundaryHandleIcon(className: string): L.DivIcon {
+        return L.divIcon({
+            className,
+            html: '',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+    }
+
+    private renderFloorplanBoundaryEditHandles(): void {
+        this.floorplanBoundaryVertexHandles.clearLayers();
+        if (!this.lmap || this.floorplanBoundaryEditorMode !== 'editing') {
+            return;
+        }
+        if (!this.lmap.hasLayer(this.floorplanBoundaryVertexHandles)) {
+            this.floorplanBoundaryVertexHandles.addTo(this.lmap);
+        }
+
+        this.floorplanBoundaryDraftVertices.forEach((vertex, index) => {
+            const handle = marker(this.floorplanPointToLatLng(vertex), {
+                draggable: true,
+                keyboard: true,
+                title: `Boundary vertex ${index + 1}`,
+                icon: this.getFloorplanBoundaryHandleIcon(
+                    index === this.floorplanBoundarySelectedVertexIndex
+                        ? 'map-boundary-vertex-handle map-boundary-vertex-selected'
+                        : 'map-boundary-vertex-handle'
+                )
+            });
+            handle.on('click', () => {
+                this.floorplanBoundarySelectedVertexIndex = index;
+                this.renderFloorplanBoundaryEditHandles();
+                this.cdref.detectChanges();
+            });
+            handle.on('drag', () => {
+                this.floorplanBoundaryDraftVertices[index] = this.latLngToFloorplanPoint(handle.getLatLng());
+                this.updateEditingFloorplanBoundaryLayer();
+            });
+            handle.on('dragend', () => {
+                this.floorplanBoundarySelectedVertexIndex = index;
+                this.renderFloorplanBoundaryEditHandles();
+                this.cdref.detectChanges();
+            });
+            this.floorplanBoundaryVertexHandles.addLayer(handle);
+
+            const next = this.floorplanBoundaryDraftVertices[(index + 1) % this.floorplanBoundaryDraftVertices.length];
+            const midpoint: FloorplanBoundaryPoint = {
+                x: (vertex.x + next.x) / 2,
+                y: (vertex.y + next.y) / 2
+            };
+            const midpointHandle = marker(this.floorplanPointToLatLng(midpoint), {
+                keyboard: true,
+                title: `Add a vertex after point ${index + 1}`,
+                icon: this.getFloorplanBoundaryHandleIcon('map-boundary-midpoint-handle')
+            });
+            midpointHandle.on('click', () => {
+                this.floorplanBoundaryDraftVertices.splice(index + 1, 0, midpoint);
+                this.floorplanBoundarySelectedVertexIndex = index + 1;
+                this.updateEditingFloorplanBoundaryLayer();
+                this.renderFloorplanBoundaryEditHandles();
+                this.cdref.detectChanges();
+            });
+            this.floorplanBoundaryVertexHandles.addLayer(midpointHandle);
+        });
+
+        this.updateEditingFloorplanBoundaryLayer();
+    }
+
+    private updateEditingFloorplanBoundaryLayer(): void {
+        if (!this.floorplanBoundaryEditingId) {
+            return;
+        }
+        const layer = this.floorplanBoundaryLayersById[this.floorplanBoundaryEditingId];
+        if (layer) {
+            layer.setLatLngs(this.floorplanBoundaryDraftVertices.map(vertex => this.floorplanPointToLatLng(vertex)));
+            layer.setStyle({ color: '#f05a28', weight: 3, fillOpacity: 0.3 });
+        }
+    }
+
+    removeSelectedFloorplanBoundaryVertex(): void {
+        if (!this.canRemoveFloorplanBoundaryVertex()) {
+            return;
+        }
+        this.floorplanBoundaryDraftVertices.splice(this.floorplanBoundarySelectedVertexIndex, 1);
+        this.floorplanBoundarySelectedVertexIndex = -1;
+        this.updateEditingFloorplanBoundaryLayer();
+        this.renderFloorplanBoundaryEditHandles();
+    }
+
+    saveFloorplanBoundary(): void {
+        if (!this.canSaveFloorplanBoundary()) {
+            return;
+        }
+        const sanitizedLabel = String(this.commonService.filterXSS(this.floorplanBoundaryDraftLabel)).trim();
+        const normalizedLabel = normalizeFloorplanBoundaryLabel(sanitizedLabel);
+        const duplicate = this.getFloorplanBoundaries().find(boundary =>
+            String(boundary.id) !== String(this.floorplanBoundaryEditingId)
+            && normalizeFloorplanBoundaryLabel(boundary.label) === normalizedLabel
+        );
+        if (!normalizedLabel) {
+            this.floorplanBoundaryError = 'Enter a boundary label.';
+            return;
+        }
+        if (duplicate) {
+            this.floorplanBoundaryError = 'Boundary labels must be unique, ignoring case and surrounding spaces.';
+            return;
+        }
+
+        let vertices: FloorplanBoundaryPoint[];
+        try {
+            vertices = validateFloorplanPolygon(this.floorplanBoundaryDraftVertices, this.getFloorplanImageCoordinateBounds());
+        } catch (error) {
+            this.floorplanBoundaryError = error instanceof Error ? error.message : 'Unable to save this boundary.';
+            return;
+        }
+
+        const boundaries = this.getFloorplanBoundaries().slice();
+        const existingIndex = boundaries.findIndex(boundary => String(boundary.id) === String(this.floorplanBoundaryEditingId));
+        const id = existingIndex >= 0
+            ? boundaries[existingIndex].id
+            : `floorplan-boundary-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+        const savedBoundary: FloorplanBoundary = { id, label: sanitizedLabel, vertices };
+        if (existingIndex >= 0) {
+            boundaries[existingIndex] = savedBoundary;
+        } else {
+            boundaries.push(savedBoundary);
+        }
+
+        this.commonService.session.data.floorplanBoundaries = boundaries;
+        this.floorplanBoundaries = boundaries;
+        this.cancelFloorplanBoundaryDrawing(false, false);
+        this.rebuildFloorplanBoundaryLayers();
+        this.addFloorplanBoundaryLayersToMap();
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>([String(id)]), false, true);
+        this.floorplanBoundaryMessage = `Saved boundary “${sanitizedLabel}” and placed matching nodes.`;
+        this.floorplanBoundaryError = '';
+        this.NodeMapSettingsExportDialogSettings.setVisibility(true);
+    }
+
+    deleteFloorplanBoundary(boundary: FloorplanBoundary): void {
+        if (!boundary || !window.confirm(`Delete the boundary “${boundary.label}”?`)) {
+            return;
+        }
+        this.cancelFloorplanBoundaryDrawing(false, false);
+        this.commonService.session.data.floorplanBoundaries = this.getFloorplanBoundaries()
+            .filter(candidate => String(candidate.id) !== String(boundary.id));
+        this.floorplanBoundaries = this.commonService.session.data.floorplanBoundaries;
+        this.rebuildFloorplanBoundaryLayers();
+        this.addFloorplanBoundaryLayersToMap();
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), false, true);
+        this.floorplanBoundaryMessage = `Deleted boundary “${boundary.label}”.`;
+    }
+
+    cancelFloorplanBoundaryDrawing(showMessage: boolean = true, returnToSettings: boolean = true): void {
+        const wasActive = this.floorplanBoundaryEditorMode !== 'idle';
+        this.detachFloorplanBoundaryDrawingListeners();
+        if (this.floorplanBoundaryPreviewLayer) {
+            this.floorplanBoundaryPreviewLayer.remove();
+            this.floorplanBoundaryPreviewLayer = null;
+        }
+        if (this.floorplanBoundaryClosingGuideLayer) {
+            this.floorplanBoundaryClosingGuideLayer.remove();
+            this.floorplanBoundaryClosingGuideLayer = null;
+        }
+        this.clearFloorplanBoundaryRejectedEdge();
+        this.floorplanBoundaryDrawingVertexHandles.remove();
+        this.floorplanBoundaryDrawingVertexHandles.clearLayers();
+        this.floorplanBoundaryVertexHandles.remove();
+        this.floorplanBoundaryVertexHandles.clearLayers();
+        this.floorplanBoundaryEditorMode = 'idle';
+        this.floorplanBoundaryDraftLabel = '';
+        this.floorplanBoundaryDraftVertices = [];
+        this.floorplanBoundaryEditingId = null;
+        this.floorplanBoundarySelectedVertexIndex = -1;
+        this.floorplanBoundaryFreehandPointerId = null;
+        this.floorplanBoundaryFreehandLastPoint = null;
+        this.floorplanBoundaryWarning = '';
+        if (wasActive && showMessage) {
+            this.floorplanBoundaryMessage = 'Boundary changes canceled.';
+        }
+        if (this.lmap) {
+            if (this.floorplanBoundaryMapDraggingWasEnabled) {
+                this.lmap.dragging.enable();
+            }
+            if (this.floorplanBoundaryDoubleClickZoomWasEnabled) {
+                this.lmap.doubleClickZoom.enable();
+            }
+            this.rebuildFloorplanBoundaryLayers();
+            this.addFloorplanBoundaryLayersToMap();
+        }
+        if (wasActive && returnToSettings) {
+            this.NodeMapSettingsExportDialogSettings.setVisibility(true);
+        }
+    }
+
+    private detachFloorplanBoundaryDrawingListeners(): void {
+        if (!this.lmap) {
+            return;
+        }
+        this.lmap.off('click', this.floorplanBoundaryMapClickHandler);
+        this.lmap.off('dblclick', this.floorplanBoundaryMapDoubleClickHandler);
+        const container = this.lmap.getContainer();
+        container.classList.remove('map-boundary-freehand-active');
+        container.removeEventListener('pointerdown', this.floorplanBoundaryFreehandPointerDownHandler);
+        container.removeEventListener('pointermove', this.floorplanBoundaryFreehandPointerMoveHandler);
+        container.removeEventListener('pointerup', this.floorplanBoundaryFreehandPointerUpHandler);
+        container.removeEventListener('pointercancel', this.floorplanBoundaryFreehandPointerCancelHandler);
     }
 
     private createFloorplanImageBounds(width: number, height: number): [[number, number], [number, number]] {
@@ -2074,6 +3082,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         if (!this.initialSettingsLoaded && !this.applyingSettings) {
             return;
         }
+
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), false, false);
 
         this.commonService.session.style.widgets['map-field-lat'] = this.SelectedLatitude;
         this.commonService.session.style.widgets['map-field-lon'] = this.SelectedLongitude;
@@ -3126,7 +4136,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         //User Layers:
         Object.keys(this.layers)
-            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'userGeoJSON', 'floorplanImage', 'links', 'nodes'], l))
+            .filter(l => !this.commonService.includes(['countries', 'states', 'counties', 'countriesLabels', 'statesLabels', 'countiesLabels', 'satellite', 'basemap', 'userGeoJSON', 'floorplanImage', 'floorplanBoundaries', 'links', 'nodes'], l))
             .forEach(l => this.layers[l].bringToFront());
 
 
@@ -3301,10 +4311,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     onLoadNewData() {
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), false, false);
         this.onDataChange(undefined);
     }
 
     onFilterDataChange() {
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), false, false);
         this.onDataChange(undefined);
     }
 
@@ -3313,6 +4325,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.ensureAdminLabelWidgetDefaults();
         this.ensureUserGeoJSONWidgetDefaults();
         this.ensureFloorplanImageWidgetDefaults();
+        this.ensureFloorplanBoundaryDefaults();
         this.SelectedManualPositionTypeVariable = "Off";
         this.manualPositionMessage = "";
 
@@ -3335,6 +4348,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const savedFloorplanImageSelection = this.SelectedFloorplanImageTypeVariable;
         this.restoreUserGeoJSONLayer();
         this.restoreFloorplanImageLayer();
+        this.rebuildFloorplanBoundaryLayers();
         if (savedFloorplanImageSelection === 'Show' && this.commonService.session.data.floorplanImage) {
             this.onFloorplanImageChange('Show');
         }
@@ -3348,8 +4362,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.SelectedFloorplanImageTypeVariable = 'Hide';
             this.removeUserGeoJSONLayer();
             this.removeFloorplanImageLayer();
+            this.removeFloorplanBoundaryLayersFromMap();
             this.syncFloorplanBackgroundControls();
         }
+
+        this.SelectedFloorplanBoundaryVisibility = this.commonService.session.style.widgets['map-floorplan-boundaries-show'] ? 'Show' : 'Hide';
+        this.SelectedFloorplanBoundaryField = this.commonService.session.data.floorplanBoundaryField || 'None';
+        this.reconcileFloorplanBoundaryPlacements(new Set<string>(), false, false);
 
         //Components|Network|Nodes
         this.SelectedNodesTypeVariable = this.commonService.session.style.widgets['map-node-show'] ? 'Show' : 'Hide';
@@ -3431,6 +4450,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     ngOnDestroy(): void {
         this.autoExpandRequestId++;
+        this.cancelFloorplanBoundaryDrawing(false, false);
         if (this.lmap) {
             this.lmap.off('click', this.manualMapClickHandler);
         }
@@ -3451,6 +4471,7 @@ class MapLayers {
     counties: L.GeoJSON<any> = geoJSON();
     userGeoJSON: L.GeoJSON<any> = geoJSON();
     floorplanImage: ImageOverlay | null = null;
+    floorplanBoundaries: FeatureGroup = featureGroup();
     countriesLabels: FeatureGroup = featureGroup();
     statesLabels: FeatureGroup = featureGroup();
     countiesLabels: FeatureGroup = featureGroup();

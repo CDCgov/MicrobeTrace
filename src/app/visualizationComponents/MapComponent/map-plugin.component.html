@@ -34,6 +34,63 @@
       (leafletMarkerClusterReady)="onMarkerClusterReady($event)">
     </div>
   }
+  @if (floorplanBoundaryEditorMode !== 'idle' && floorplanBoundaryEditorMode !== 'renaming') {
+    <div class="map-boundary-editor-toolbar" role="region" aria-label="Boundary editor">
+      <div class="map-boundary-editor-title">
+        @if (floorplanBoundaryEditorMode === 'polygon') {
+          Draw polygon
+        } @else if (floorplanBoundaryEditorMode === 'freehand') {
+          Draw freehand area
+        } @else if (floorplanBoundaryEditorMode === 'editing') {
+          Edit boundary
+        } @else {
+          Label boundary
+        }
+      </div>
+      @if (floorplanBoundaryMessage) {
+        <div class="map-boundary-editor-message">{{ floorplanBoundaryMessage }}</div>
+      }
+      @if (floorplanBoundaryEditorMode === 'polygon') {
+        <div class="map-boundary-editor-point-summary" aria-live="polite">
+          {{ getFloorplanBoundaryPointSummary() }}
+        </div>
+      }
+      @if (floorplanBoundaryWarning) {
+        <div class="alert alert-warning py-2 mb-2" role="status">{{ floorplanBoundaryWarning }}</div>
+      }
+      @if (floorplanBoundaryError) {
+        <div class="alert alert-danger py-2 mb-2" role="alert">{{ floorplanBoundaryError }}</div>
+      }
+      @if (isFloorplanBoundaryDrawing()) {
+        <div class="map-boundary-editor-actions">
+          @if (floorplanBoundaryEditorMode === 'polygon') {
+            <button type="button" id="map-boundary-undo" class="btn btn-sm btn-secondary"
+              [disabled]="!canUndoFloorplanBoundaryPoint()" (click)="undoFloorplanBoundaryPoint()">Undo</button>
+            <button type="button" id="map-boundary-finish" class="btn btn-sm map-btn"
+              [disabled]="!canFinishFloorplanBoundary()" (click)="finishFloorplanBoundaryDrawing()">Finish</button>
+          }
+          <button type="button" id="map-boundary-cancel-drawing" class="btn btn-sm btn-secondary"
+            (click)="cancelFloorplanBoundaryDrawing()">Cancel</button>
+        </div>
+      } @else {
+        <label for="map-floorplan-boundary-label" class="map-boundary-editor-label">Label</label>
+        <input type="text" id="map-floorplan-boundary-label" class="form-control form-control-sm mb-2"
+          maxlength="120" [(ngModel)]="floorplanBoundaryDraftLabel"
+          placeholder="Value from the selected node field">
+        <div class="map-boundary-editor-actions">
+          @if (floorplanBoundaryEditorMode === 'editing') {
+            <button type="button" id="map-boundary-remove-vertex" class="btn btn-sm btn-secondary"
+              [disabled]="!canRemoveFloorplanBoundaryVertex()"
+              (click)="removeSelectedFloorplanBoundaryVertex()">Remove vertex</button>
+          }
+          <button type="button" id="map-boundary-cancel" class="btn btn-sm btn-secondary"
+            (click)="cancelFloorplanBoundaryDrawing()">Cancel</button>
+          <button type="button" id="map-boundary-save" class="btn btn-sm map-btn"
+            [disabled]="!canSaveFloorplanBoundary()" (click)="saveFloorplanBoundary()">Save</button>
+        </div>
+      }
+    </div>
+  }
 </div>
 
 <div class="row">
@@ -324,6 +381,111 @@
           (click)="clearFloorplanBackground()">Clear</button>
       </div>
     </div>
+    @if (commonService.session.data.floorplanImage) {
+      <div class="form-group row">
+        <div class="col-12 map-manual-position-heading">Boundary Labels</div>
+      </div>
+      <div class="form-group row" title="Choose the node field whose values should match boundary labels.">
+      <div class="col-4"><label for="map-floorplan-boundary-field">Node Field</label></div>
+      <div class="col-8">
+        <p-select id="map-floorplan-boundary-field" [options]="FieldList" appendTo="body"
+          class="width-percent-100" [disabled]="!commonService.session.data.floorplanImage || floorplanBoundaryEditorMode !== 'idle'"
+          [(ngModel)]="SelectedFloorplanBoundaryField"
+          (ngModelChange)="onFloorplanBoundaryFieldChange($event)">
+        </p-select>
+      </div>
+    </div>
+    <div class="form-group row" title="Show or hide saved boundary outlines and labels.">
+      <div class="col-4">Boundaries</div>
+      <div class="col-8">
+        <p-selectButton [options]="FloorplanBoundaryVisibilityTypes" [allowEmpty]="false"
+          id="map-floorplan-boundary-show-hide" fluid
+          [disabled]="!commonService.session.data.floorplanImage || floorplanBoundaryEditorMode !== 'idle'"
+          [(ngModel)]="SelectedFloorplanBoundaryVisibility"
+          (ngModelChange)="onFloorplanBoundaryVisibilityChange($event)"></p-selectButton>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4">Draw</div>
+      <div class="col-4">
+        <button type="button" id="map-boundary-draw-polygon" class="btn btn-sm map-btn w-100"
+          [disabled]="!canDrawFloorplanBoundary()" (click)="startFloorplanBoundaryPolygon()">Polygon</button>
+      </div>
+      <div class="col-4">
+        <button type="button" id="map-boundary-draw-freehand" class="btn btn-sm map-btn w-100"
+          [disabled]="!canDrawFloorplanBoundary()" (click)="startFloorplanBoundaryFreehand()">Freehand</button>
+      </div>
+    </div>
+    @if (floorplanBoundaryEditorMode === 'renaming') {
+      <div class="form-group row">
+        <div class="col-4"><label for="map-floorplan-boundary-label">Label</label></div>
+        <div class="col-8">
+          <input type="text" id="map-floorplan-boundary-label" class="form-control form-control-sm"
+            maxlength="120" [(ngModel)]="floorplanBoundaryDraftLabel"
+            placeholder="Value from the selected node field">
+        </div>
+      </div>
+      <div class="form-group row">
+        <div class="col-4"></div>
+        <div class="col-4">
+          <button type="button" id="map-boundary-cancel" class="btn btn-sm btn-secondary w-100"
+            (click)="cancelFloorplanBoundaryDrawing()">Cancel</button>
+        </div>
+        <div class="col-4">
+          <button type="button" id="map-boundary-save" class="btn btn-sm map-btn w-100"
+            [disabled]="!canSaveFloorplanBoundary()" (click)="saveFloorplanBoundary()">Save</button>
+        </div>
+      </div>
+    }
+    @if (floorplanBoundaries.length > 0) {
+      <div class="map-boundary-list mb-3">
+        @for (boundary of floorplanBoundaries; track boundary.id) {
+          <div class="map-boundary-list-item">
+            <div class="map-boundary-list-label" [title]="boundary.label">{{ boundary.label }}</div>
+            <div class="map-boundary-list-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                [disabled]="floorplanBoundaryEditorMode !== 'idle'"
+                (click)="beginRenameFloorplanBoundary(boundary)">Rename</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                [disabled]="floorplanBoundaryEditorMode !== 'idle' || !commonService.session.style.widgets['map-floorplan-image-show']"
+                (click)="beginEditFloorplanBoundary(boundary)">Edit</button>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                [disabled]="floorplanBoundaryEditorMode !== 'idle'"
+                (click)="deleteFloorplanBoundary(boundary)">Delete</button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+    <div class="form-group row">
+      <div class="col-4">Status</div>
+      <div class="col-8 map-manual-position-summary">
+        {{ floorplanBoundaryMatchedNodeCount }} matched / {{ floorplanBoundaryUnmatchedNodeCount }} unmatched
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-8">
+        <button type="button" id="map-boundary-reposition-all" class="btn btn-sm btn-secondary w-100"
+          [disabled]="floorplanBoundaryEditorMode !== 'idle' || SelectedFloorplanBoundaryField === 'None' || floorplanBoundaries.length === 0"
+          (click)="repositionAllFloorplanBoundaryNodes()">Reposition All</button>
+      </div>
+    </div>
+    @if (floorplanBoundaryError) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanBoundaryError }}</div>
+        </div>
+      </div>
+    }
+      @if (floorplanBoundaryMessage) {
+        <div class="form-group row">
+          <div class="col-12">
+            <div class="alert alert-info py-2 mb-0" role="status">{{ floorplanBoundaryMessage }}</div>
+          </div>
+        </div>
+      }
+    }
     <div class="form-group row">
       <div class="col-12 map-manual-position-heading">Manual Positions</div>
     </div>
