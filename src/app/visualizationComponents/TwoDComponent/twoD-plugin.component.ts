@@ -1956,14 +1956,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * 
      */
     updatePolygonColors(tableSelector: string = this.getActivePolygonColorTableSelector()) {
+        const microbeTrace = this.commonService.visuals.microbeTrace;
+        const legacyPolygonHeader = this.commonService.session.style.overwrite?.['polygonColorHeaderVariable'] === this.widgets['polygons-foci']
+            ? this.commonService.session.style.overwrite?.['polygonColorHeaderTitle']
+            : undefined;
+        const valueColumnName = microbeTrace?.getKeyTableColumnDisplayName(
+            'polygon-color',
+            'value',
+            legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci'])
+        ) ?? (legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci']));
+        const countColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'count', 'Count') ?? 'Count';
+        const frequencyColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'frequency', 'Frequency') ?? 'Frequency';
 
         let polygonColorTable = $(tableSelector)
             .empty()
             .append(            
                 "<tr>" +
-                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Group " + this.commonService.titleize(this.widgets['polygons-foci']) + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
-                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
+                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='count'>${countColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
                 "<th>Color</th>" +
                 "</tr>");
             //.append(polygonHeader)
@@ -2051,7 +2062,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         //   .domain(values);
 
         polygonColorTable
-            .find("td")
+            .find("td[data-value]")
             .on("dblclick", function () {
                 $(this).attr("contenteditable", "true").focus();
             })
@@ -2062,10 +2073,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
         polygonColorTable
-            .find(".p-1")
-            .on("focusout", function () {
-                that.commonService.session.style['overwrite']['polygonColorHeaderVariable'] = that.widgets["polygons-foci"];
-                that.commonService.session.style['overwrite']['polygonColorHeaderTitle'] = $($(this).contents()[0]).text();
+            .find("[data-table-key][data-column-key]")
+            .on("focusout", function (event) {
+                const cell = event.currentTarget as HTMLElement;
+                microbeTrace?.setKeyTableColumnDisplayName(
+                    String(cell.getAttribute('data-table-key')),
+                    String(cell.getAttribute('data-column-key')),
+                    cell.textContent ?? ''
+                );
             });
 
 
@@ -2254,8 +2269,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
         this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
 
         if (!shouldRefresh) {
             return;
@@ -3482,13 +3497,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let color = this.widgets['link-color'];
         let finalColor;
         let alphaValue;
+        const linkColorValue = (() => {
+            const value = link[variable];
+            if (String(variable).toLowerCase() === 'origin' && Array.isArray(value)) {
+                return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
+            }
+            return this.commonService.normalizeStyleCategoryValue(value);
+        })();
 
         //if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
             //finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
             //alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
         //} else {
-        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-        alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
+        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(linkColorValue);
+        alphaValue = this.commonService.temp.style.linkAlphaMap(linkColorValue)
         //}
 
         if (this.overideTransparency) {

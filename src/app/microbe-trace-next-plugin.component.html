@@ -8,6 +8,7 @@
       <div class="navbar-logo">
         <span class="microbe-font">Microbe</span>
         <span class="trace-font">Trace</span>
+        <span class="version-font">v{{version}}</span>
         <span><img alt="microbetrace" class="mt-icon-toolbar" [src]="appRootUrl() + 'assets/images/Logo.png'"></span>
       </div>
       <div class="menu-items">
@@ -186,24 +187,29 @@
         <div class="col-12" style="width:100%;max-height:50vh;" title="Node shape selection.">
           <table #nodeShapeTable id="node-shape-table" style="width:100%;height:100%;">
             <tr>
-              <th class="table-header-row" contenteditable>
-                <div class="header-content sortable">Node {{ commonService.titleize(SelectedNodeSymbolVariable) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
+              <th class="table-header-row">
+                <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="value" [textContent]="getKeyTableColumnDisplayName('node-shape', 'value', 'Node ' + commonService.titleize(SelectedNodeSymbolVariable))" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'value')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
               </th>
               @if (widgets['node-symbol-table-counts']) {
-                <th class="table-header-row tableCount" contenteditable>
-                  <div class="header-content sortable">Count<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
+                <th class="table-header-row tableCount">
+                  <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="count" [textContent]="getKeyTableColumnDisplayName('node-shape', 'count', 'Count')" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'count')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
                 </th>
               }
               @if (widgets['node-symbol-table-frequencies']) {
-                <th class="table-header-row tableFrequency" contenteditable>
-                  <div class="header-content sortable">Frequency<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
+                <th class="table-header-row tableFrequency">
+                  <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="frequency" [textContent]="getKeyTableColumnDisplayName('node-shape', 'frequency', 'Frequency')" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'frequency')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
                 </th>
               }
               <th>Shape</th>
             </tr>
             @for (group of shapeAggregates; track group.rawValue) {
               <tr>
-                <td contenteditable>{{commonService.titleize(group.key)}}</td>
+                <td
+                  contenteditable
+                  [attr.data-value]="group.rawValue"
+                  [textContent]="getNodeValueDisplayName(group.rawValue)"
+                  (blur)="onNodeShapeNameBlur($event, group.rawValue)">
+                </td>
                 @if (widgets['node-symbol-table-counts']) {
                   <td class="tableCount">{{group.count}}</td>
                 }

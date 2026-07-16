@@ -2,11 +2,17 @@ import { CommonModule } from '@angular/common';
 import { TestBed, waitForAsync } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { AppComponent } from './app.component';
+import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { dismissRuntimeError, reportRuntimeError } from './runtime-security/runtime-error.store';
 
 describe('AppComponent', () => {
+  let embedHandoffServiceStub: { cleanupExpiredHandoffs: jasmine.Spy };
+
   beforeEach(waitForAsync(() => {
     dismissRuntimeError();
+    embedHandoffServiceStub = {
+      cleanupExpiredHandoffs: jasmine.createSpy('cleanupExpiredHandoffs').and.resolveTo({ scanned: 0, removed: 0, errors: 0 }),
+    };
 
     TestBed.configureTestingModule({
       imports: [
@@ -15,6 +21,9 @@ describe('AppComponent', () => {
       ],
       declarations: [
         AppComponent
+      ],
+      providers: [
+        { provide: EmbedHandoffService, useValue: embedHandoffServiceStub },
       ],
     }).compileComponents();
   }));
@@ -29,6 +38,12 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
+  it('cleans up expired partner handoffs on startup', () => {
+    TestBed.createComponent(AppComponent);
+
+    expect(embedHandoffServiceStub.cleanupExpiredHandoffs).toHaveBeenCalled();
+  });
+
   it('does not show the runtime banner by default', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
@@ -37,40 +52,34 @@ describe('AppComponent', () => {
     expect(compiled.querySelector('.runtime-error-banner')).toBeNull();
   });
 
-  it('renders recoverable runtime issues as warnings with details', () => {
+  it('does not render recoverable runtime warnings as banners', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    reportRuntimeError({ source: 'angular.error', error: new Error('Column metadata could not be read') });
+    reportRuntimeError({ source: 'angular.error', error: new RangeError('Maximum call stack size exceeded') });
     fixture.detectChanges();
 
     const compiled: HTMLElement = fixture.debugElement.nativeElement;
-    const banner = compiled.querySelector('.runtime-error-banner');
-
-    expect(banner).not.toBeNull();
-    expect(banner.getAttribute('data-severity')).toBe('warning');
-    expect(banner.getAttribute('role')).toBe('status');
-    expect(banner.textContent).toContain('Runtime issue detected');
-    expect(banner.textContent).toContain('Summary: Error: Column metadata could not be read');
-    expect(banner.textContent).toContain('Source: App component or action');
+    expect(compiled.querySelector('.runtime-error-banner')).toBeNull();
+    expect(compiled.textContent).not.toContain('Maximum call stack size exceeded');
   });
 
-  it('renders bootstrap failures as warnings', () => {
+  it('renders application-breaking runtime issues as critical banners', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    reportRuntimeError({ source: 'bootstrap', error: new Error('Bootstrap failed') });
+    reportRuntimeError({ source: 'bootstrap', error: new Error('Bootstrap failed'), severity: 'critical' });
     fixture.detectChanges();
 
     const compiled: HTMLElement = fixture.debugElement.nativeElement;
     const banner = compiled.querySelector('.runtime-error-banner');
 
     expect(banner).not.toBeNull();
-    expect(banner.getAttribute('data-severity')).toBe('warning');
-    expect(banner.getAttribute('role')).toBe('status');
-    expect(banner.textContent).toContain('Runtime issue detected');
+    expect(banner.getAttribute('data-severity')).toBe('critical');
+    expect(banner.getAttribute('role')).toBe('alert');
+    expect(banner.textContent).toContain('Application startup error');
     expect(banner.textContent).toContain('Source: Application startup');
   });
 
   it('dismisses the runtime banner', () => {
     const fixture = TestBed.createComponent(AppComponent);
-    reportRuntimeError({ source: 'window.error', error: 'Resize observer loop completed' });
+    reportRuntimeError({ source: 'window.error', error: 'Startup failed after route activation', severity: 'critical' });
     fixture.detectChanges();
 
     const compiled: HTMLElement = fixture.debugElement.nativeElement;

@@ -93,7 +93,10 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
   const fileNames = opts.map((file) => file.name);
   const mimeTypes = fileNames.map(getMimeTypeFromFilename);
   cy.get('body').then(($body) => {
-    const targetSelector = $body.find('#data-files1').length ? '#data-files1' : '#fileDropRef';
+    const overlayFileInputAvailable = $body.find('#overlay:visible #fileDropRef').length > 0;
+    const targetSelector = overlayFileInputAvailable
+      ? '#fileDropRef'
+      : ($body.find('#data-files1').length ? '#data-files1' : '#fileDropRef');
     cy.attach_files(targetSelector, fileNames, mimeTypes);
   });
 
