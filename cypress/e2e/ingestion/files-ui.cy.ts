@@ -77,6 +77,32 @@ describe('File Handling and Processing', () => {
     cy.get(`[id="file-${nodeFile}-field-2"]`).should('have.value', 'seq');
   });
 
+  it('keeps quotes in uploaded file names from creating HTML attributes', () => {
+    const quotedFileName = `nodes' data-single='true" data-double="true.csv`;
+
+    cy.get('#fileDropRef').selectFile({
+      contents: Cypress.Buffer.from('_id,seq\nsample-1,ACTG'),
+      fileName: quotedFileName,
+      mimeType: 'text/csv',
+    }, { force: true });
+
+    cy.contains('#file-table .file-table-row', quotedFileName, { timeout: 20000 })
+      .should('be.visible')
+      .then(($row) => {
+        const mappingColumns = $row.find('[data-file]');
+        const firstLabel = mappingColumns.eq(0).find('label').get(0) as HTMLLabelElement;
+        const firstSelect = mappingColumns.eq(0).find('select').get(0) as HTMLSelectElement;
+
+        expect(mappingColumns).to.have.length(3);
+        mappingColumns.each((_index, column) => {
+          expect(column.getAttribute('data-file')).to.equal(quotedFileName);
+        });
+        expect(firstLabel.htmlFor).to.equal(`file-${quotedFileName}-field-1`);
+        expect(firstSelect.id).to.equal(`file-${quotedFileName}-field-1`);
+        expect($row.find('[data-single], [data-double]')).to.have.length(0);
+      });
+  });
+
   it('uploads via the welcome overlay input and launches without hitting the error boundary', () => {
     cy.attach_files('#fileDropRef', [nodeFile, linkFile]);
 

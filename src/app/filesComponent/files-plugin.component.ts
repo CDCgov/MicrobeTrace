@@ -2547,6 +2547,28 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         return labelElement.append(input).append(label);
       };
+      const createColumnMapping = (index: number, label: string, visible: boolean) => {
+        const fieldId = `file-${file.name}-field-${index}`;
+        const column = $('<div class="col-4"></div>')
+          .attr('data-file', file.name)
+          .toggle(visible);
+        const fieldLabel = $('<label></label>')
+          .attr('for', fieldId)
+          .text(label);
+        const select = $('<select class="form-control form-control-sm"></select>')
+          .attr('id', fieldId)
+          .append($('<option></option>').val('None').text('None'));
+
+        headers.forEach(header => {
+          select.append(
+            $('<option></option>')
+              .val(header)
+              .text(parentContext.commonService.titleize(header))
+          );
+        });
+
+        return column.append(fieldLabel, select);
+      };
 
       $('<div class="file-name col"></div>')
         .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
@@ -2570,7 +2592,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
           }
         }))
-        .append('<span class="p-1">' + file.name + '</span>')
+        .append($('<span class="p-1"></span>').text(file.name))
         .append(
           $('<div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons"></div>')
             .append(createFileTypeToggle('link', 'Link', detectedFormat === 'link'))
@@ -2584,20 +2606,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       fnamerow.appendTo(root);
       const optionsrow = $('<div class="row w-100"></div>');
-      const options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
-      optionsrow.append(`
-                  <div class='col-4 '${showsFirstColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-1">${isNode || detectedFormat === 'geojson' ? 'ID' : 'Source'}</label>
-                    <select id="file-${file.name}-field-1" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-2">${isNode ? 'Sequence' : 'Target'}</label>
-                    <select id="file-${file.name}-field-2" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-3">Distance</label>
-                    <select id="file-${file.name}-field-3" class="form-control form-control-sm">${options}</select>
-                  </div>`);
+      optionsrow
+        .append(createColumnMapping(1, isNode || detectedFormat === 'geojson' ? 'ID' : 'Source', showsFirstColumnMapping))
+        .append(createColumnMapping(2, isNode ? 'Sequence' : 'Target', showsColumnMapping))
+        .append(createColumnMapping(3, 'Distance', showsColumnMapping));
 
       optionsrow.appendTo(root);
 
