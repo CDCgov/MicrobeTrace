@@ -2838,7 +2838,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 .on("focusout", (event) => {
                     const $cell = $(event.currentTarget);
                     const rawValue = $cell.data("value");
-                    $cell.attr("contenteditable", "false");
 
                     if (rawValue === undefined || rawValue === null) {
                         return;

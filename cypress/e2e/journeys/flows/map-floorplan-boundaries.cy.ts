@@ -39,7 +39,6 @@ const aliasVisibleMapSettings = (): void => {
 const openCustomMapTab = (): void => {
   cy.get('@mapSettings').contains('.nav-link', 'Custom Map').click({ force: true });
   cy.get('@mapSettings').find('#map-floorplan-background-file').should('exist');
-  cy.get('@mapSettings').should('not.contain.text', 'Boundary Labels');
 };
 
 const uploadImageFloorplan = (): void => {
@@ -66,6 +65,7 @@ const setupImageBoundaryMap = (): void => {
   goToMapView();
   openMapSettingsDialog();
   openCustomMapTab();
+  cy.get('@mapSettings').find('#map-floorplan-boundary-field').should('not.exist');
   uploadImageFloorplan();
   selectBoundaryField('Profession');
 };
@@ -271,6 +271,7 @@ describe('Journey Flow - Image floorplan labeled boundaries', () => {
 
     openMapSettingsDialog();
     openCustomMapTab();
+    cy.get('@mapSettings').find('#map-floorplan-boundary-field').should('exist');
     cy.get('@mapSettings').find('button').contains(/^Clear$/).click({ force: true });
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithMap;
@@ -319,7 +320,11 @@ describe('Journey Flow - Image floorplan labeled boundaries', () => {
     });
 
     boundaryRow('Education').contains('button', 'Rename').click({ force: true });
-    cy.get('@mapSettings').find('#map-floorplan-boundary-label').clear().type('School', { delay: 0 });
+    cy.get('@mapSettings')
+      .find('#map-floorplan-boundary-label')
+      .should('have.value', 'Education')
+      .type('{selectall}{backspace}School', { delay: 0 })
+      .should('have.value', 'School');
     cy.get('@mapSettings').find('#map-boundary-save').click({ force: true });
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithMap;
