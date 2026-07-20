@@ -50,11 +50,21 @@ describe('Journey Flow - Load Nextstrain URL', () => {
     });
 
     openGlobalFilteringTab();
+    cy.window().then((win: any) => {
+      expect(
+        Number(win.commonService.thresholdHistogramMaxValue),
+        'initial threshold histogram maximum',
+      ).to.be.closeTo(0.005, 1e-8);
+
+      cy.spy(win.commonService, 'updateThresholdHistogram').as('thresholdHistogramRenders');
+      cy.spy(win.commonService, 'ensurePatristicEdgesForThreshold').as('patristicThresholdQueries');
+      cy.spy(win.commonService.workerComputeService, 'buildPatristicEdges').as('patristicEdgeBuilds');
+    });
+
     setGlobalLinkThreshold(0.025);
-    cy.closeGlobalSettings();
     waitForProcessingDialogToClear(60000);
 
-    cy.window().then((win: any) => {
+    cy.window().should((win: any) => {
       const links = win.commonService.session.data.links;
       const visibleLinks = links.filter(l => l.visible);
 
@@ -64,7 +74,44 @@ describe('Journey Flow - Load Nextstrain URL', () => {
         win.commonService.session.meta.performance.patristic.edgeGeneration.threshold,
         'patristic re-query threshold',
       ).to.equal(0.025);
+      expect(
+        Number(win.commonService.thresholdHistogramMaxValue),
+        'expanded threshold histogram maximum',
+      ).to.be.closeTo(0.023, 1e-8);
     });
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicThresholdQueries').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.015);
+    cy.window().should((win: any) => {
+      const visibleLinks = win.commonService.session.data.links.filter(link => link.visible);
+      expect(visibleLinks.length, 'visible links after lowering threshold').to.equal(3);
+    });
+    cy.get('@patristicThresholdQueries').should('have.callCount', 2);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.025);
+    cy.window().should((win: any) => {
+      const visibleLinks = win.commonService.session.data.links.filter(link => link.visible);
+      expect(visibleLinks.length, 'visible links after restoring threshold').to.equal(6);
+    });
+    cy.get('@patristicThresholdQueries').should('have.callCount', 3);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.03);
+    cy.get('@patristicThresholdQueries').should('have.callCount', 4);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.04);
+    cy.get('@patristicThresholdQueries').should('have.callCount', 5);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    cy.closeGlobalSettings();
 
     openPhylogeneticTreeView();
     cy.get('#phylocanvas', { timeout: 30000 }).should('be.visible');

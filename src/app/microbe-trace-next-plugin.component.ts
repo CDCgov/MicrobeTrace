@@ -3601,6 +3601,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             };
 
             this.commonService.ensurePatristicEdgesForThreshold(parsedThreshold)
+                .then(() => this.commonService.updateThresholdHistogramIfChanged(
+                    this.linkThresholdSparkline?.nativeElement
+                ))
                 .catch(error => {
                     console.error('Patristic threshold re-query failed:', error);
                 })

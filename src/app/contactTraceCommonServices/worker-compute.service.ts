@@ -624,6 +624,7 @@ export class WorkerComputeService {
   private patristicLeafNames: string[] = [];
   private patristicNewickString = '';
   private patristicGeneratedMaxThreshold = -Infinity;
+  private patristicMaxDistance = Infinity;
   private patristicOrigin: string[] = ['Newick Tree'];
   private patristicDistanceOrigin = 'Newick Tree';
   private patristicTreeInitCount = 0;
@@ -857,6 +858,7 @@ export class WorkerComputeService {
             this.patristicLeafNames = msg.leafNames;
             this.patristicNewickString = newickString;
             this.patristicGeneratedMaxThreshold = -Infinity;
+            this.patristicMaxDistance = Number.isFinite(msg.maxDistance) ? msg.maxDistance : Infinity;
             this.patristicGuardrailFallbackThresholds.clear();
             this.patristicTreeInitCount++;
             worker.removeEventListener('message', handler);
@@ -1295,7 +1297,11 @@ export class WorkerComputeService {
       };
     }
 
-    if (threshold <= this.patristicGeneratedMaxThreshold) {
+    const generatedAllKnownDistances =
+      Number.isFinite(this.patristicMaxDistance) &&
+      this.patristicGeneratedMaxThreshold >= this.patristicMaxDistance;
+
+    if (generatedAllKnownDistances || threshold <= this.patristicGeneratedMaxThreshold) {
       this.clearPatristicGuardrailWarnings(session, threshold);
       return {
         newLinks: 0,
@@ -1384,6 +1390,7 @@ export class WorkerComputeService {
     this.patristicLeafNames = [];
     this.patristicNewickString = '';
     this.patristicGeneratedMaxThreshold = -Infinity;
+    this.patristicMaxDistance = Infinity;
     this.patristicGuardrailFallbackThresholds.clear();
     this.patristicTreeInitCount = 0;
   }

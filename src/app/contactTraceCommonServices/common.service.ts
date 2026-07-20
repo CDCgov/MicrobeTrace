@@ -60,6 +60,9 @@ export class CommonService extends AppComponentBase implements OnInit {
     r01: any = Math.random;
 
     thresholdHistogram: any;
+    thresholdHistogramMaxValue: number | null = null;
+    private thresholdHistogramRenderedElement: any = null;
+    private thresholdHistogramRenderedCache: StoredDistanceEdgeCache | null = null;
 
     computer: WorkerModule;
 
@@ -153,6 +156,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
         const threshold = Number(this.session.style.widgets["link-threshold"]);
         this.ensurePatristicEdgesForThreshold(threshold)
+            .then(() => this.updateThresholdHistogramIfChanged())
             .catch(error => {
                 console.error('Patristic threshold re-query failed:', error);
             })
@@ -901,6 +905,44 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         analysis.storedDistanceCache[metric] = rebuilt;
         return rebuilt;
+    }
+
+    private thresholdHistogramCachesMatch(
+        first: StoredDistanceEdgeCache | null,
+        second: StoredDistanceEdgeCache | null
+    ): boolean {
+        if (first === second) {
+            return true;
+        }
+
+        if (!first || !second || first.metric !== second.metric) {
+            return false;
+        }
+
+        if (first.nodeIds.length !== second.nodeIds.length || first.sortedEdges.length !== second.sortedEdges.length) {
+            return false;
+        }
+
+        for (let index = 0; index < first.nodeIds.length; index++) {
+            if (first.nodeIds[index] !== second.nodeIds[index]) {
+                return false;
+            }
+        }
+
+        for (let index = 0; index < first.sortedEdges.length; index++) {
+            const firstEdge = first.sortedEdges[index];
+            const secondEdge = second.sortedEdges[index];
+
+            if (
+                firstEdge.sourceIndex !== secondEdge.sourceIndex ||
+                firstEdge.targetIndex !== secondEdge.targetIndex ||
+                firstEdge.value !== secondEdge.value
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private getNewickBackedSourceFile(): any {
@@ -4639,7 +4681,26 @@ align(params): Promise<any> {
      * Clicking on the histogram will update the link threshold
      * @param [histogram] - optional parameter
      */
-    async updateThresholdHistogram(histogram?: any) {
+    async updateThresholdHistogramIfChanged(histogram?: any): Promise<boolean> {
+        const histogramElement = histogram || this.thresholdHistogram;
+        if (!histogramElement) {
+            return false;
+        }
+
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const distanceCache = this.getStoredDistanceEdgeCache(metric);
+        if (
+            histogramElement === this.thresholdHistogramRenderedElement &&
+            this.thresholdHistogramCachesMatch(distanceCache, this.thresholdHistogramRenderedCache)
+        ) {
+            return false;
+        }
+
+        await this.updateThresholdHistogram(histogramElement);
+        return true;
+    }
+
+    async updateThresholdHistogram(histogram?: any): Promise<boolean> {
 
         let width = 260,
         height = 48,
@@ -4650,6 +4711,16 @@ align(params): Promise<any> {
         if(histogram){
             this.thresholdHistogram = histogram;
         }
+
+        if (!this.thresholdHistogram) {
+            this.thresholdHistogramMaxValue = null;
+            return false;
+        }
+
+        const lsv = this.session.style.widgets["link-sort-variable"];
+        const distanceCache = this.getStoredDistanceEdgeCache(lsv);
+        const data = [...distanceCache.sortedValues];
+        const sweepSummary = this.getThresholdSweepSummary(lsv);
         
         svg = d3
         .select(this.thresholdHistogram)
@@ -4657,17 +4728,16 @@ align(params): Promise<any> {
         .attr("width", width)
         .attr("height", height);
 
-        const lsv = this.session.style.widgets["link-sort-variable"];
-        const distanceCache = this.getStoredDistanceEdgeCache(lsv);
-        const data = [...distanceCache.sortedValues];
-        const sweepSummary = this.getThresholdSweepSummary(lsv);
+        this.thresholdHistogramRenderedElement = this.thresholdHistogram;
+        this.thresholdHistogramRenderedCache = distanceCache;
+        this.thresholdHistogramMaxValue = data.length > 0 ? data[data.length - 1] : null;
 
         if (data.length === 0) {
             const readout = getReadout();
             if (readout.length > 0) {
                 readout.text("No threshold readout available");
             }
-            return;
+            return true;
         }
 
         let min = data[0];
@@ -5007,6 +5077,7 @@ align(params): Promise<any> {
 
         data.length = 0;
 
+        return true;
     };
 
 }
