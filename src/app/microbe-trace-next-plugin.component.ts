@@ -4385,7 +4385,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               this.homepageTabs[0].componentRef.instance.removeAllFiles();
               this.commonService.clearData();
               this.resetKeyTablesForNewDataset();
-              const auspiceFile = { contents: out, name: this.getAuspiceName(auspiceUrl), extension: 'json'};
+              const auspiceFile = { contents: out, name: this.getAuspiceName(auspiceUrl), extension: 'json', format: 'auspice', datatype: 'auspice'};
               this.commonService.session.files.push(auspiceFile);
               this.homepageTabs[0].componentRef.instance.addToTable(auspiceFile);
             //   console.log(this.homepageTabs[0].componentRef);
@@ -4602,7 +4602,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 instance.loadSettings();
                 if (this.metric === 'snps'){
                     this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-                    this.commonService.session.style.widgets['link-threshold'] = parseInt(this.threshold);
+                    this.commonService.session.style.widgets['link-threshold'] = Number(this.threshold);
                     this.onLinkThresholdChanged();
                 }
             }
