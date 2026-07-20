@@ -589,9 +589,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
                 nodeColorsTable: {},
-                nodeColorsTableHistory: {
-                    'null' : '#EAE553'
-                },
+                nodeColorsTableHistory: {},
                 nodeColorsTableKeys: {},
                 linkColorsTable: {},
                 linkColorsTableHistory: {},
@@ -2359,11 +2357,23 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
         }
 
-        // previous versions of MT had bug where nodeColorsTableHistory stored jQuery events instead of color string in session file, this section resolves that bug
+        // Previous versions of MT could store jQuery events instead of color strings.
+        // Node color history is now nested by variable, so sanitize its leaf values.
+        if (!this.session.style.nodeColorsTableHistory
+            || typeof this.session.style.nodeColorsTableHistory !== 'object'
+            || Array.isArray(this.session.style.nodeColorsTableHistory)) {
+            this.session.style.nodeColorsTableHistory = {};
+        }
         Object.keys(this.session.style.nodeColorsTableHistory).forEach(key => {
-            // if the value is an object, convert it to string "#000000"
-            if (typeof this.session.style.nodeColorsTableHistory[key] == 'object') {
-                this.session.style.nodeColorsTableHistory[key] = "#000000";
+            const historyEntry = this.session.style.nodeColorsTableHistory[key];
+            if (historyEntry && typeof historyEntry === 'object' && !Array.isArray(historyEntry)) {
+                Object.keys(historyEntry).forEach(value => {
+                    if (typeof historyEntry[value] !== 'string') {
+                        historyEntry[value] = '#000000';
+                    }
+                });
+            } else if (historyEntry !== null && typeof historyEntry === 'object') {
+                this.session.style.nodeColorsTableHistory[key] = '#000000';
             }
         })
 
