@@ -1053,6 +1053,54 @@ export class CommonService extends AppComponentBase implements OnInit {
         return summary;
     }
 
+    private getCompletePatristicDistanceMatrix(metric: string): { dm: Array<Array<number | null>>; labels: string[] } | null {
+        const analysis = this.getAnalysisCache();
+        const cache = analysis.patristicDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
+
+        if (!cache || !this.storedDistanceCacheMatchesCurrentNodes(cache)) {
+            return null;
+        }
+
+        const nodeCount = cache.nodeIds.length;
+        const expectedPairCount = nodeCount * (nodeCount - 1) / 2;
+
+        // Large Newick/Auspice trees deliberately skip the all-pairs analysis cache.
+        // In that case Heatmap must retain the existing sparse, thresholded fallback.
+        if (cache.sortedEdges.length !== expectedPairCount) {
+            return null;
+        }
+
+        const dm: Array<Array<number | null>> = Array.from({ length: nodeCount }, (_, index) => {
+            const row = new Array<number | null>(nodeCount).fill(null);
+            row[index] = 0;
+            return row;
+        });
+        let populatedPairCount = 0;
+
+        for (const edge of cache.sortedEdges) {
+            const { sourceIndex, targetIndex, value } = edge;
+            if (
+                sourceIndex < 0 || sourceIndex >= nodeCount ||
+                targetIndex < 0 || targetIndex >= nodeCount ||
+                sourceIndex === targetIndex ||
+                !Number.isFinite(value) ||
+                dm[sourceIndex][targetIndex] !== null
+            ) {
+                return null;
+            }
+
+            dm[sourceIndex][targetIndex] = value;
+            dm[targetIndex][sourceIndex] = value;
+            populatedPairCount++;
+        }
+
+        if (populatedPairCount !== expectedPairCount) {
+            return null;
+        }
+
+        return { dm, labels: [...cache.nodeIds] };
+    }
+
     private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
         const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
 
@@ -3207,7 +3255,13 @@ align(params): Promise<any> {
         return new Promise(resolve => {
             let labels = [];
             let dm : any = '';
-            if (this.session.data['newick']){
+            const metric = this.session.style.widgets['link-sort-variable'];
+            const completePatristicMatrix = this.getCompletePatristicDistanceMatrix(metric);
+
+            if (completePatristicMatrix) {
+                labels = completePatristicMatrix.labels;
+                dm = completePatristicMatrix.dm;
+            } else if (this.session.data['newick']){
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
@@ -3218,10 +3272,8 @@ align(params): Promise<any> {
                 //console.log("Before sorting: " + labels);
                 //labels = labels.sort();
                 //console.log("After sorting: " + labels);
-                let metric = this.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
                 dm = new Array(n);
-                const m = new Array(n);
                 for (let i = 0; i < n; i++) {
                     dm[i] = new Array(n);
                     dm[i][i] = 0;
