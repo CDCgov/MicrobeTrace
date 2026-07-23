@@ -1,4 +1,4 @@
-import { ApplicationRef, Component, ComponentRef, ElementRef, EmbeddedViewRef, EventEmitter, OnDestroy, Output, ViewChild, ViewContainerRef } from '@angular/core';
+import { ApplicationRef, Component, ComponentRef, ElementRef, EmbeddedViewRef, EventEmitter, OnDestroy, Output, ViewChild, ViewContainerRef, ChangeDetectionStrategy } from '@angular/core';
 import {
   ComponentContainer, GoldenLayout,
   ItemConfig,
@@ -37,6 +37,7 @@ import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent
     }
     `,
     ],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class GoldenLayoutHostComponent implements OnDestroy {

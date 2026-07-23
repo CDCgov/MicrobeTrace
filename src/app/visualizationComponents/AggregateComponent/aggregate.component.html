@@ -15,21 +15,21 @@
           [attr.data-table-index]="i"
           [value]="table.data"
           [columns]="table.tableColumns"
-          styleClass="p-datatable-sm p-datatable-gridlines"
+          class="p-datatable-sm p-datatable-gridlines"
           [tableStyle]="tableStyle">
-          <ng-template pTemplate="caption">
+          <ng-template #caption>
             <div style="display: flex; justify-content: center; font-weight: bold; font-size: large;">{{ formatTableTitle(SelectedDataFields[i])}} </div>
           </ng-template>
-          <ng-template pTemplate="header" let-columns>
+          <ng-template #header let-columns>
             <tr>
               @for (col of table.tableColumns; track col) {
                 <th pSortableColumn="{{col.field}}">
-                  {{ col.header}} <p-sortIcon field="{{col.field}}"></p-sortIcon>
+                  {{ col.header}} <p-sorticon field="{{col.field}}"></p-sorticon>
                 </th>
               }
             </tr>
           </ng-template>
-          <ng-template pTemplate="body" let-rowData let-column="table.tableColumns">
+          <ng-template #body let-rowData let-column="table.tableColumns">
             <tr>
               @for (col of table.tableColumns; track col) {
                 <td>
@@ -45,30 +45,30 @@
 
   @if (viewActive) {
     <p-dialog id="aggregate-settings-pane" data-testid="aggregate-settings-dialog" [(visible)]="settingsOpen" header="Aggregate Settings" [contentStyle]="{'max-height': '70vh', 'width': '600px'}" appendTo="body">
-      <p-orderList #orderList [value]="SelectedDataFields" [dragdrop]="true" (onReorder)="reordered($event)">
-        <ng-template let-i="index" let-field pTemplate="item">
+      <p-orderlist #orderList [value]="SelectedDataFields" [dragdrop]="true" (onReorder)="reordered($event)">
+        <ng-template #item let-i="index" let-field>
           <div style="display: flex; width: 100%;">
             <span class="col-3">Table {{i+1}}</span>
             <span class="col-7">
               <p-select [attr.id]="'aggregate-field-select-' + i" [options]="fieldOptions"  class="width-percent-100" [ngModel]="SelectedDataFields[i]" (onChange)="updateDataField(i, $event)" appendTo="body" [group]="true">
-                <ng-template let-group pTemplate="group">
+                <ng-template #group let-group>
                   <span style="font-size: large; font-weight: bold;">{{ group.label }}</span>
                 </ng-template>
-                <ng-template let-item pTemplate="item">
+                <ng-template #item let-item>
                   <span>{{ item.short_label }}</span>
                 </ng-template>
               </p-select>
             </span>
             @if (SelectedDataFields.length > 1) {
               <span class="col-2">
-                <p-button [attr.id]="'aggregate-delete-table-' + i" icon="pi pi-times" class="deleteButton" (onClick)="deleteTable(i)"/>
+                <button pButton type="button" [attr.id]="'aggregate-delete-table-' + i" class="deleteButton" aria-label="Delete table" (click)="deleteTable(i)"><i class="pi pi-times"></i></button>
               </span>
             }
           </div>
         </ng-template>
-      </p-orderList>
+      </p-orderlist>
       <div class="form-group row" style="justify-content: center;">
-        <p-button data-testid="aggregate-add-table-button" id="aggregate-add-table" icon="pi pi-plus" label="Add Table" (onClick)="addTable()"/>
+        <button pButton type="button" data-testid="aggregate-add-table-button" id="aggregate-add-table" (click)="addTable()"><i class="pi pi-plus"></i><span>Add Table</span></button>
       </div>
     </p-dialog>
   }

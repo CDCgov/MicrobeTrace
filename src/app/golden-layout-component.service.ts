@@ -1,4 +1,4 @@
-import { ComponentFactoryResolver, Injectable, Injector, StaticProvider, Type } from '@angular/core';
+import { createComponent, EnvironmentInjector, Injectable, Injector, StaticProvider, Type } from '@angular/core';
 import { ComponentContainer, JsonValue } from "golden-layout";
 import { BaseComponentDirective } from './base-component.directive';
 
@@ -8,7 +8,7 @@ import { BaseComponentDirective } from './base-component.directive';
 export class GoldenLayoutComponentService {
   private _componentTypeMap = new Map<string, Type<BaseComponentDirective>>()
 
-  constructor(private componentFactoryResolver: ComponentFactoryResolver) { }
+  constructor(private environmentInjector: EnvironmentInjector) { }
 
   /**
    * Adds a new element with a specified key and value to the Map (_componentTypeMap). If an element with the same key already exists, the element will be updated.
@@ -39,10 +39,13 @@ export class GoldenLayoutComponentService {
     } else {
       const provider: StaticProvider = { provide: BaseComponentDirective.GoldenLayoutContainerInjectionToken, useValue: container };
       const injector = Injector.create({
-        providers: [provider]
+        providers: [provider],
+        parent: this.environmentInjector,
       });
-      const componentFactoryRef = this.componentFactoryResolver.resolveComponentFactory<BaseComponentDirective>(componentType);
-      return componentFactoryRef.create(injector);
+      return createComponent(componentType, {
+        environmentInjector: this.environmentInjector,
+        elementInjector: injector,
+      });
     }
   }
 }

@@ -1,4 +1,4 @@
-﻿<div class="table-wrapper">
+<div class="table-wrapper">
   <div id="tool-btn-container" class="m-portlet" style="width: calc(100% - 20px); gap: 15px;">
     <span style="flex-grow: 0; min-width: 84px">
       <span class="tool-btn" style="overflow: visible; position: relative; display: inline;">
@@ -14,7 +14,7 @@
     </span>
     <span style="flex-grow: 1; width: calc(100% - 295px)">
       @if (SelectedTableData) {
-        <p-multiSelect [options]="SelectedTableData.availableColumns" [(ngModel)]="SelectedTableData.tableColumns" [showToggleAll]=false [style]="{'max-width': '100%'}"></p-multiSelect>
+        <p-multiselect [options]="SelectedTableData.availableColumns" [(ngModel)]="SelectedTableData.tableColumns" [showToggleAll]=false [style]="{'max-width': '100%'}"></p-multiselect>
       }
     </span>
   </div>
@@ -41,7 +41,7 @@
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
           [tableStyle]="tableStyle"
-          [styleClass]="selectedSize"
+          [class]="selectedSize"
           ScrollWidth="100%"
           [resizableColumns]="true"
           columnResizeMode="expand"
@@ -50,18 +50,18 @@
           <!-- [responsive]="true"  -->
           <!-- [autoLayout]="true"
           styleClass="ui-table-responsive"  -->
-          <ng-template pTemplate="colgroup" let-columns>
+          <ng-template #colgroup let-columns>
             <colgroup>
             @for (col of SelectedTableData.tableColumns; track col) {
               <col>
               }
             </colgroup>
           </ng-template>
-          <ng-template pTemplate="header">
+          <ng-template #header>
             <tr [pSelectableRow]="datarow">
               @for (col of SelectedTableData.tableColumns; track col) {
                 <th style="width: 150px; border: none" pSortableColumn="{{col.field}}" pReorderableColumn>
-                  {{col.header}}<p-sortIcon field="{{col.field}}"></p-sortIcon>
+                  {{col.header}}<p-sorticon field="{{col.field}}"></p-sorticon>
                 </th>
               }
             </tr>
@@ -82,7 +82,7 @@
                 }
               </tr>
             </ng-template>
-            <ng-template pTemplate="body" let-datarow>
+            <ng-template #body let-datarow>
               <tr class="ui-selectable-row" [pSelectableRow]="datarow">
                 @for (col of SelectedTableData.tableColumns; track col) {
                   <td style="width: 150px" >
@@ -114,7 +114,7 @@
           title="What size would you like the Table's font to be?">
           <div class="col-4 mt-2"><label for="table-font-size">Size</label></div>
           <div class="col-8">
-            <p-selectButton [options]="sizes" [(ngModel)]="selectedSize" [multiple]="false" [allowEmpty]="false" optionLabel="name" optionValue="class"></p-selectButton>
+            <p-selectbutton [options]="sizes" [(ngModel)]="selectedSize" [multiple]="false" [allowEmpty]="false" optionLabel="name" optionValue="class"></p-selectbutton>
           </div>
         </div>
       </p-dialog>
@@ -139,7 +139,7 @@
                 <div class="form-group row" style="margin-top: 10px;" title="Do you want to export all the columns in the data or just the currently selected columns?">
                   <div class="col-6"><label>Columns to Export</label></div>
                   <div class="col-6">
-                    <p-selectButton [style]="{'float': 'right'}" [options]="exportColumnOptions" [allowEmpty]="false" [(ngModel)]="exportAllColumns"></p-selectButton>
+                    <p-selectbutton [style]="{'float': 'right'}" [options]="exportColumnOptions" [allowEmpty]="false" [(ngModel)]="exportAllColumns"></p-selectbutton>
                   </div>
                 </div>
               </div>

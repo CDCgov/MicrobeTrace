@@ -111,7 +111,7 @@
         (onShow)="showLinkColorTable()"
         (onHide)="hideLinkColorTable()"
         >
-        <ng-template pTemplate="header">
+        <ng-template #header>
           <div style="display: flex; justify-content: space-between; width: 100%;">
             <span>Link Color Table</span>
             <span style="overflow: visible; position: relative;">
@@ -142,7 +142,7 @@
         (onShow)="showNodeColorTable()"
         (onHide)="hideNodeColorTable()"
         >
-        <ng-template pTemplate="header">
+        <ng-template #header>
           <div style="display: flex; justify-content: space-between; width: 100%;">
             <span>Node Color Table</span>
             <span style="overflow: visible; position: relative;">
@@ -173,7 +173,7 @@
         (onShow)="showNodeShapeTable()"
         (onHide)="hideNodeShapeTable()"
         >
-        <ng-template pTemplate="header">
+        <ng-template #header>
           <div style="display: flex; justify-content: space-between; width: 100%;">
             <span>Node Shape Table</span>
             <span style="overflow: visible; position: relative;">
@@ -225,19 +225,18 @@
                   <td class="tableFrequency">{{group.frequency}}</td>
                 }
                 <td>
-                  <p-treeSelect
+                  <p-treeselect
                     [options]="symbolMappingTree"
                     [panelStyle]="{ width: '23rem' }"
                     panelStyleClass="shapeTreeSelectPanel"
                     selectionMode="single"
                     appendTo="body"
-                    class="width-percent-100"
+                    class="width-percent-100 shapeDropdown"
                     [ngModel]="getNodeShapeTableValue(group.rawValue)"
                     (ngModelChange)="onNodeShapeTableTreeChange($event, group.rawValue)"
-                    styleClass="shapeDropdown"
                     (onShow)="onShapeTreeShow(commonService.temp.style.nodeSymbolMap(group.rawValue))"
                   >
-                    <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+                    <ng-template #value let-node let-placeholder="placeholder">
                       @if (node?.data) {
                         <div class="shape-tree-value">
                           <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
@@ -247,13 +246,13 @@
                         <span>{{ placeholder }}</span>
                       }
                     </ng-template>
-                    <ng-template pTemplate="shape" let-node>
+                    <ng-template #item let-node>
                       <div class="shape-tree-node">
                         <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
                         {{ node.data.name }}
                       </div>
                     </ng-template>
-                  </p-treeSelect>
+                  </p-treeselect>
                 </td>
               </tr>
             }
@@ -347,14 +346,14 @@
                       <label for="tn93-distance-display-format">Distance Format</label>
                     </div>
                     <div class="col-8">
-                      <p-selectButton
+                      <p-selectbutton
                         [options]="TN93DistanceDisplayFormatOptions"
                         [allowEmpty]="false"
                         fluid
                         id="tn93-distance-display-format"
                         [(ngModel)]="SelectedTN93DistanceDisplayFormatVariable"
                         (ngModelChange)="onTN93DistanceDisplayFormatChanged($event)">
-                      </p-selectButton>
+                      </p-selectbutton>
                     </div>
                   </div>
                 }
@@ -363,7 +362,7 @@
                     <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>
                   </div>
                   <div class="col-8">
-                    <p-selectButton [options]="PruneWityTypes" [allowEmpty]="false" fluid id="prune-select" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectButton>
+                    <p-selectbutton [options]="PruneWityTypes" [allowEmpty]="false" fluid id="prune-select" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-selectbutton>
                   </div>
                 </div>
                 <div id="filtering-epsilon-row" class="form-group row" style="display: none;" title="Select a value for epislon to add links back to minimum spanning network. See 'A Novel Network Representation of SARS-CoV-2 Sequencing Data' for algorithm details.">
@@ -567,14 +566,14 @@
                 <div class="form-group row" hidden title="Click to reveal all hidden elements of the network.">
                   <div class="col-4"><label for="RevealAllTab">Reveal</label></div>
                   <div class="col-8">
-                    <p-selectButton [options]="RevealTypes" [(ngModel)]="SelectedRevealTypesVariable" (onChange)="updateGlobalSettingsModel()"></p-selectButton>
+                    <p-selectbutton [options]="RevealTypes" [(ngModel)]="SelectedRevealTypesVariable" (onChange)="updateGlobalSettingsModel()"></p-selectbutton>
                   </div>
                 </div>
                 <hr>
                   <div class="form-group row" title="Display a table of overview statistics for the network">
                     <div class="col-4">Statistics</div>
                     <div class="col-8">
-                      <p-selectButton [options]="StatisticsTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedStatisticsTypesVariable" (onChange)="onShowStatisticsChanged()"></p-selectButton>
+                      <p-selectbutton [options]="StatisticsTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedStatisticsTypesVariable" (onChange)="onShowStatisticsChanged()"></p-selectbutton>
                     </div>
                   </div>
                 </div>
@@ -600,7 +599,7 @@
                     <div id="node-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
                       <div class="col-5"><label>Node Color Table</label></div>
                       <div class="col-7">
-                        <p-selectButton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectButton>
+                        <p-selectbutton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectbutton>
                       </div>
                     </div>
                   }
@@ -614,18 +613,17 @@
                     <div id="node-shape-value-row" class="form-group row" title="What shape should the nodes be?">
                       <div class="col-5"><label>Nodes</label></div>
                       <div class="col-7">
-                        <p-treeSelect
+                        <p-treeselect
                           [options]="symbolMappingTree"
                           [panelStyle]="{ width: '23rem' }"
                           panelStyleClass="shapeTreeSelectPanel"
                           selectionMode="single"
                           appendTo="body"
-                          class="width-percent-100"
+                          class="width-percent-100 shapeDropdown"
                           [ngModel]="getSelectedNodeShapeTreeSelection()"
                           (ngModelChange)="onNodeShapeTreeChange($event)"
-                          styleClass="shapeDropdown"
                           (onShow)="onShapeTreeShow(getSelectedNodeShapeValue())">
-                          <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+                          <ng-template #value let-node let-placeholder="placeholder">
                             @if (node?.data) {
                               <div class="shape-tree-value">
                                 <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
@@ -635,13 +633,13 @@
                               <span>{{ placeholder }}</span>
                             }
                           </ng-template>
-                          <ng-template pTemplate="shape" let-node>
+                          <ng-template #item let-node>
                             <div class="shape-tree-node">
                               <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
                               {{ node.data.name }}
                             </div>
                           </ng-template>
-                        </p-treeSelect>
+                        </p-treeselect>
                       </div>
                     </div>
                   }
@@ -649,7 +647,7 @@
                     <div id="node-shape-table-row" class="form-group row" title="Should MicrobeTrace display the node shape table?">
                       <div class="col-5"><label>Node Shape Table</label></div>
                       <div class="col-7">
-                        <p-selectButton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeShapeTableTypesVariable" (onChange)="onNodeShapeTableVisibilityChanged()"></p-selectButton>
+                        <p-selectbutton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeShapeTableTypesVariable" (onChange)="onNodeShapeTableVisibilityChanged()"></p-selectbutton>
                       </div>
                     </div>
                   }
@@ -663,7 +661,7 @@
                     <div id="link-color-table-row"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
                       <div class="col-5"><label>Link Color Table</label></div>
                       <div class="col-7">
-                        <p-selectButton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
+                        <p-selectbutton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectbutton>
                       </div>
                     </div>
                   }
@@ -978,7 +976,7 @@
       </div>
     </div>
   </p-dialog>
-  <p-confirmDialog></p-confirmDialog> <!--This is for nearest neighbor confirmations, openNNConfirmation()-->
+  <p-confirmdialog></p-confirmdialog> <!--This is for nearest neighbor confirmations, openNNConfirmation()-->
 
   <div id="main-panel" class="pane-container pane-horizontal">
     <noscript class="container-fluid">
@@ -1012,7 +1010,7 @@
       <p>Please Click "Accept" to accept this agreement, or "Reject" to close this application.</p>
     </div>
 
-    <ng-template pTemplate="footer">
+    <ng-template #footer>
       <div class="p-dialog-footer" style="padding-top: 35px;">
         <button class="btn btn-danger" (click)="on_eula_reject()">Reject</button>
         <button class="btn btn-primary" (click)="on_eula_accept()">Accept</button>

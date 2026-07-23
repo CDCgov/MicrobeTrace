@@ -202,18 +202,17 @@
       </div>
       <div class="key-table-card__fallback" [hidden]="nodeShapeTableCollapsed || hasNodeShapeTable">
         <label class="key-table-card__fallback-label">Default Shape</label>
-        <p-treeSelect
+        <p-treeselect
           [options]="symbolMappingTree"
           [panelStyle]="{ width: '23rem' }"
           panelStyleClass="shapeTreeSelectPanel"
           selectionMode="single"
           appendTo="body"
-          class="width-percent-100"
+          class="width-percent-100 shapeDropdown"
           [ngModel]="getSelectedNodeShapeTreeSelection()"
           (ngModelChange)="onNodeShapeTreeChange($event)"
-          styleClass="shapeDropdown"
           (onShow)="onShapeTreeShow(getSelectedNodeShapeValue())">
-          <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+          <ng-template #value let-node let-placeholder="placeholder">
             @if (node?.data) {
               <div class="shape-tree-value">
                 <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
@@ -223,13 +222,13 @@
               <span>{{ placeholder }}</span>
             }
           </ng-template>
-          <ng-template pTemplate="shape" let-node>
+          <ng-template #item let-node>
             <div class="shape-tree-node">
               <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
               {{ node.data.name }}
             </div>
           </ng-template>
-        </p-treeSelect>
+        </p-treeselect>
         <p class="key-table-card__empty">
           Choose a value for Shape By to populate this table with per-group overrides.
         </p>
@@ -268,18 +267,17 @@
                   <td class="tableFrequency">{{group.frequency}}</td>
                 }
                 <td>
-                  <p-treeSelect
+                  <p-treeselect
                     [options]="symbolMappingTree"
                     [panelStyle]="{ width: '23rem' }"
                     panelStyleClass="shapeTreeSelectPanel"
                     selectionMode="single"
                     appendTo="body"
-                    class="width-percent-100"
+                    class="width-percent-100 shapeDropdown"
                     [ngModel]="getNodeShapeTableValue(group.rawValue)"
                     (ngModelChange)="onNodeShapeTableTreeChange($event, group.rawValue)"
-                    styleClass="shapeDropdown"
                     (onShow)="onShapeTreeShow(getNodeShapeValue(group.rawValue))">
-                    <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+                    <ng-template #value let-node let-placeholder="placeholder">
                       @if (node?.data) {
                         <div class="shape-tree-value">
                           <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
@@ -289,13 +287,13 @@
                         <span>{{ placeholder }}</span>
                       }
                     </ng-template>
-                    <ng-template pTemplate="shape" let-node>
+                    <ng-template #item let-node>
                       <div class="shape-tree-node">
                         <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
                         {{ node.data.name }}
                       </div>
                     </ng-template>
-                  </p-treeSelect>
+                  </p-treeselect>
                 </td>
               </tr>
             }

@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy } from '@angular/core';
+import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
@@ -10,7 +10,7 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 import { saveAs } from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -19,6 +19,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     selector: 'app-timeline-component',
     templateUrl: './timeline-component.component.html',
     styleUrls: ['./timeline-component.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {

@@ -1,7 +1,7 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -39,6 +39,7 @@ interface BubblePieSvgExportReplacement {
     selector: 'bubble-component',
     templateUrl: './bubble.component.html',
     styleUrls: ['./bubble.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {

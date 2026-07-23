@@ -1,4 +1,4 @@
-﻿<div class="m-content">
+<div class="m-content">
 
   <div id="file-panel" appDnd (fileDropped)="processFiles($event)" class="container-fluid files-drop-zone" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
@@ -128,7 +128,7 @@
                   <div class="form-group row">
                     <div class="col-2" title="Should MicrobeTrace align your sequences?">Align</div>
                     <div class="col-10">
-                      <p-selectButton [options]="AlignTypes" [allowEmpty]="false" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectButton>
+                      <p-selectbutton [options]="AlignTypes" [allowEmpty]="false" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectbutton>
                     </div>
                   </div>
 
@@ -140,7 +140,7 @@
                           <div class="form-group row alignConfigRow">
                             <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
                             <div class="col-10">
-                              <p-selectButton [options]="ReferenceTypes" [allowEmpty]="false" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
+                              <p-selectbutton [options]="ReferenceTypes" [allowEmpty]="false" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectbutton>
                             </div>
                           </div>
                           @if (IsReferenceOptionsSelected == true) {

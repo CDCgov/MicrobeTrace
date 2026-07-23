@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -13,7 +13,7 @@ import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 //import pdfMake from 'pdfmake/build/pdfmake.js';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { sanitizeExportRows } from '@app/contactTraceCommonServices/export-sanitization';
 import { Subject, takeUntil } from 'rxjs';
@@ -22,6 +22,7 @@ import { Subject, takeUntil } from 'rxjs';
     selector: 'AggregateComponent',
     templateUrl: './aggregate.component.html',
     styleUrls: ['./aggregate.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {

@@ -1,7 +1,7 @@
-import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, Inject, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, Inject, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { Table } from 'primeng/table';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
@@ -14,6 +14,7 @@ import { buildVisibleClusterSummary, type VisibleClusterSummary } from '@app/con
     selector: 'app-waterfall-component',
     templateUrl: './waterfall.component.html',
     styleUrls: ['./waterfall.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class WaterfallComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
@@ -264,16 +265,14 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
 
   private clearNodeTableSelection() {
     if (!this.nodeTable) return;
-    this.nodeTable.selection = null;
-    this.nodeTable.selectionChange.emit(null);
+    this.nodeTable.selection.set(null);
     this.setNodeExpandedRow(null);
     this.nodeTable.onRowCollapse.emit(null);
   }
 
   private clearLinkTableSelection() {
     if (!this.linkTable) return;
-    this.linkTable.selection = null;
-    this.linkTable.selectionChange.emit(null);
+    this.linkTable.selection.set(null);
     this.setLinkExpandedRow(null);
     this.linkTable.onRowCollapse.emit(null);
   }
@@ -480,8 +479,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
 
   clearClusterTableSelection() {
     if (!this.clusterTable) return;
-    this.clusterTable.selection = null;
-    this.clusterTable.selectionChange.emit(null);
+    this.clusterTable.selection.set(null);
     this.setClusterExpandedRow(null);
     this.clusterTable.onRowCollapse.emit(null);
   }

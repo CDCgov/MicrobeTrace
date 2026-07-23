@@ -79,7 +79,7 @@ describe('Aggregate View', () => {
 
     openAggregateSettingsDialog();
     cy.get('@aggregateSettings')
-      .find('.deleteButton button')
+      .find('button[aria-label="Delete table"]')
       .eq(1)
       .click({ force: true });
     cy.closeSettingsPane('Aggregate Settings');

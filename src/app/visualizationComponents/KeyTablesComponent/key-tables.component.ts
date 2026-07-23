@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
@@ -9,6 +9,7 @@ import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controll
     selector: 'keyTablesComponent',
     templateUrl: './key-tables.component.html',
     styleUrls: ['./key-tables.component.less'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class KeyTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {

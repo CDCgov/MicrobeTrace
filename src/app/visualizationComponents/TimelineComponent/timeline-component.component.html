@@ -97,8 +97,8 @@
         <div class="form-group row" title="Show data noncumulatively or cumulatively.">
             <div class="col-4">Epi Curve</div>
             <div class="col-8">
-              <p-selectButton [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
-                [options]="[{'label': 'Noncumulative', 'value': false}, {'label': 'Cumulative', 'value': true}]"></p-selectButton>
+              <p-selectbutton [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
+                [options]="[{'label': 'Noncumulative', 'value': false}, {'label': 'Cumulative', 'value': true}]"></p-selectbutton>
             </div>
           </div>
           <div class="form-group row" title="Select where to display the legend.">
@@ -106,7 +106,7 @@
               <label>Legend Position</label>
             </div>
             <div class="col-8">
-              <p-selectButton [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-selectButton>
+              <p-selectbutton [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-selectbutton>
             </div>
           </div>
           @if (widgets['epiCurve-legendPosition'] != 'Hide') {

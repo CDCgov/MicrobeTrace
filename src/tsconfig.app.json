@@ -3,11 +3,9 @@
   "compilerOptions": {
     "outDir": "../out-tsc/app",
     "skipLibCheck": true,
-    "ignoreDeprecations": "5.0",
     "strict": false,
     "noImplicitAny": false,
     "noImplicitThis": false,
-    "alwaysStrict": false,
     "strictNullChecks": false,
     "strictFunctionTypes": false,
     "strictBindCallApply": false,
@@ -17,5 +15,8 @@
   "exclude": [
     "test.ts",
     "**/*.spec.ts"
-  ]
+  ],
+  "angularCompilerOptions": {
+    "strictTemplates": false
+  }
 }

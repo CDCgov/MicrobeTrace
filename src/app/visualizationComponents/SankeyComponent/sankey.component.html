@@ -71,8 +71,8 @@
                     </div>
                   </div>
                   @if (SankeyFieldNames.length > 0) {
-                    <p-table id="sankey-field-table" [value]="SankeyFieldNames" styleClass="p-datatable-striped" (onRowReorder)="reorderRows($event)">
-                      <ng-template pTemplate="header">
+                    <p-table id="sankey-field-table" [value]="SankeyFieldNames" class="p-datatable-striped" (onRowReorder)="reorderRows($event)">
+                      <ng-template #header>
                         <tr>
                           <th style="width: 3rem;"></th>
                           <th class='p-1 table-header-row'>Name</th>
@@ -80,12 +80,12 @@
                           <th>Remove</th>
                         </tr>
                       </ng-template>
-                      <ng-template pTemplate="body" let-rowData let-index="rowIndex">
+                      <ng-template #body let-rowData let-index="rowIndex">
                         <tr [pReorderableRow]="index" [attr.data-field]="rowData" [attr.data-index]="index">
                           <td><span class="pi pi-bars" pReorderableRowHandle></span></td>
                           <td>{{ rowData }}</td>
                           <td><input class="sankey-layer-color-input" [attr.data-field]="rowData" [attr.data-index]="index" type="color" style="border:none" [(ngModel)]="layerColors[index]" (ngModelChange)="updateColors(index)"></td>
-                          <td><p-button class="sankey-remove-field-button" [attr.data-field]="rowData" [attr.data-index]="index" icon="pi pi-times" (onClick)="removeField(rowData)"/></td>
+                          <td><button pButton type="button" class="sankey-remove-field-button" [attr.data-field]="rowData" [attr.data-index]="index" aria-label="Remove field" (click)="removeField(rowData)"><i class="pi pi-times"></i></button></td>
                         </tr>
                       </ng-template>
                     </p-table>

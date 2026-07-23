@@ -37,13 +37,13 @@
                     <div class="form-group row invert-x-axis-row" title="Should X Axis be Inverted?" style="overflow:visible">
                       <div class="col-6"><label for="x-invert">Invert X Axis</label></div>
                       <div class="col-6">
-                        <p-selectButton id="x-invert" [allowEmpty]="false" [options]="invertOptions" fluid [(ngModel)]="invertX" (ngModelChange)="updateInvertX($event)"></p-selectButton>
+                        <p-selectbutton id="x-invert" [allowEmpty]="false" [options]="invertOptions" fluid [(ngModel)]="invertX" (ngModelChange)="updateInvertX($event)"></p-selectbutton>
                       </div>
                     </div>
                     <div class="form-group row invert-y-axis-row" title="Should Y Axis be Inverted?" style="overflow:visible">
                       <div class="col-6"><label for="y-invert">Invert Y Axis</label></div>
                       <div class="col-6">
-                        <p-selectButton id="y-invert" [allowEmpty]="false" [options]="invertOptions" fluid [(ngModel)]="invertY" (ngModelChange)="updateInvertY($event)"></p-selectButton>
+                        <p-selectbutton id="y-invert" [allowEmpty]="false" [options]="invertOptions" fluid [(ngModel)]="invertY" (ngModelChange)="updateInvertY($event)"></p-selectbutton>
                       </div>
                     </div>
                   </div>
@@ -80,7 +80,7 @@
                   <div class="form-group row label-visible-row" title="Should Labels be Displayed?" style="overflow:visible">
                     <div class="col-6"><label for="show-labels">Show Labels</label></div>
                     <div class="col-6">
-                      <p-selectButton id="show-labels" [options]="invertOptions" fluid [(ngModel)]="heatmapShowLabels" (ngModelChange)="updateShowLabels($event)"></p-selectButton>
+                      <p-selectbutton id="show-labels" [options]="invertOptions" fluid [(ngModel)]="heatmapShowLabels" (ngModelChange)="updateShowLabels($event)"></p-selectbutton>
                     </div>
                   </div>
                 </div>

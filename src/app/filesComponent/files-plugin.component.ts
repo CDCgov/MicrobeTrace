@@ -641,6 +641,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         this.commonService.applySession(defaultSession).then(() => {
           this.populateTable();
+          this.dismissWelcomeOverlay();
         });
         this.commonService.session.network.launched = true;
         this.commonService.session.network.initialLoad = true;

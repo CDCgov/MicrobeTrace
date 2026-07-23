@@ -32,14 +32,14 @@
 
     <span class="network-statistics-column-picker">
       @if (SelectedTableData) {
-        <p-multiSelect
+        <p-multiselect
           data-testid="network-statistics-column-picker"
           [options]="SelectedTableData.availableColumns"
           [(ngModel)]="SelectedTableData.tableColumns"
           [showToggleAll]="false"
           (onChange)="onColumnsChange()"
           [style]="{'max-width': '100%'}">
-        </p-multiSelect>
+        </p-multiselect>
       }
     </span>
 
@@ -76,20 +76,20 @@
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
           [tableStyle]="tableStyle"
-          [styleClass]="selectedSize"
+          [class]="selectedSize"
           ScrollWidth="100%"
           [resizableColumns]="true"
           columnResizeMode="expand"
           [columns]="SelectedTableData.tableColumns"
           [reorderableColumns]="true">
-          <ng-template pTemplate="colgroup" let-columns>
+          <ng-template #colgroup let-columns>
             <colgroup>
               @for (col of SelectedTableData.tableColumns; track col) {
                 <col>
               }
             </colgroup>
           </ng-template>
-          <ng-template pTemplate="header">
+          <ng-template #header>
             <tr>
               @for (col of SelectedTableData.tableColumns; track col) {
                 <th
@@ -97,7 +97,7 @@
                   [style.min-width.px]="columnMinWidth"
                   pSortableColumn="{{col.field}}"
                   pReorderableColumn>
-                  {{ col.header }}<p-sortIcon field="{{col.field}}"></p-sortIcon>
+                  {{ col.header }}<p-sorticon field="{{col.field}}"></p-sorticon>
                 </th>
               }
             </tr>
@@ -122,7 +122,7 @@
               }
             </tr>
           </ng-template>
-          <ng-template pTemplate="body" let-datarow>
+          <ng-template #body let-datarow>
             <tr class="ui-selectable-row">
               @for (col of SelectedTableData.tableColumns; track col) {
                 <td class="network-statistics-cell" [style.min-width.px]="columnMinWidth">
@@ -131,7 +131,7 @@
               }
             </tr>
           </ng-template>
-          <ng-template pTemplate="emptymessage">
+          <ng-template #emptymessage>
             <tr>
               <td [attr.colspan]="SelectedTableData.tableColumns.length || 1">No network statistics rows.</td>
             </tr>
@@ -162,7 +162,7 @@
       <div class="form-group row" title="What size would you like the Network Statistics table font to be?">
         <div class="col-4 mt-2"><label for="network-statistics-font-size">Size</label></div>
         <div class="col-8">
-          <p-selectButton
+          <p-selectbutton
             inputId="network-statistics-font-size"
             [options]="sizes"
             [(ngModel)]="selectedSize"
@@ -170,7 +170,7 @@
             [allowEmpty]="false"
             optionLabel="name"
             optionValue="class">
-          </p-selectButton>
+          </p-selectbutton>
         </div>
       </div>
     </p-dialog>

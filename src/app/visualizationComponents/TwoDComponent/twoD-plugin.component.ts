@@ -12,7 +12,7 @@ import * as _ from 'lodash';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 import { GraphData } from './data';
 import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';

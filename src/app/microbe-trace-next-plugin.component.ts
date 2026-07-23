@@ -20,7 +20,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import * as XLSX from 'xlsx';
-import { buildDate, commitHash } from "src/environments/version";
+import { buildDate, commitHash } from "../environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
@@ -742,6 +742,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(goldenLayoutComponent.container);
         
         this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
+        this._goldenLayoutHostComponent.focusComponent(component);
         
         console.log('--- addComponent Tab added');
 

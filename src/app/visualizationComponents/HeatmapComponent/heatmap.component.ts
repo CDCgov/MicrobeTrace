@@ -1,6 +1,9 @@
-import { Injector, Component, Output, EventEmitter, 
+import {
+  Injector, Component, Output, EventEmitter,
   ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy, ViewContainerRef,
-  ViewChild} from '@angular/core';
+  ViewChild,
+  ChangeDetectionStrategy
+} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import * as _ from 'lodash';
@@ -8,7 +11,7 @@ import { saveAs } from 'file-saver';
 import * as domToImage from 'html-to-image';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
@@ -26,6 +29,7 @@ import * as d3 from 'd3';
     selector: 'HeatmapComponent',
     templateUrl: './heatmap.component.html',
     styleUrls: ['./heatmap.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class HeatmapComponent extends BaseComponentDirective implements OnInit, OnDestroy {

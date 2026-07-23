@@ -1,7 +1,7 @@
 {
   "compileOnSave": true,
   "compilerOptions": {
-    "baseUrl": "./",
+    "rootDir": ".",
     "outDir": "./dist/out-tsc",
     "sourceMap": false,
     "declaration": false,
@@ -33,7 +33,7 @@
         "./src/app/*"
       ],
       "@abp/*": [
-        "node_modules/abp-ng2-module/dist/src/*"
+        "./node_modules/abp-ng2-module/dist/src/*"
       ],
       "@metronic/*": [
         "./src/assets/metronic/*"
@@ -41,8 +41,5 @@
     },
     "esModuleInterop": true,
     "useDefineForClassFields": false
-  },
-  "exclude": [
-      "./src/app/visualizationComponents/GanttComponent/*"
-  ]
+  }
 }

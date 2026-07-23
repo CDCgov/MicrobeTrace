@@ -8,6 +8,7 @@ import {
   OnInit,
   Output,
   ViewChild,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -20,7 +21,7 @@ import {
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
@@ -52,6 +53,7 @@ interface FilterType {
   selector: 'networkStatisticsComponent',
   templateUrl: './network-statistics-plugin.component.html',
   styleUrls: ['./network-statistics-plugin.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   standalone: false,
 })
 export class NetworkStatisticsComponent
@@ -603,8 +605,8 @@ export class NetworkStatisticsComponent
 
   private applySelectedRowsToTable(): void {
     if (this.dataTable) {
-      this.dataTable.rows = this.selectedRows;
-      this.dataTable.first = 0;
+      this.dataTable.rows.set(this.selectedRows);
+      this.dataTable.first.set(0);
     }
 
     this.cdref.detectChanges();

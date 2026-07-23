@@ -80,8 +80,8 @@
               </p-accordion>
               <div style="height: 20px;"></div>
               @if (ganttEntries.length > 0) {
-                <p-table [value]="ganttEntries" styleClass="p-datatable-striped">
-                  <ng-template pTemplate="header">
+                <p-table [value]="ganttEntries" class="p-datatable-striped">
+                  <ng-template #header>
                     <tr>
                       <th class='p-1 table-header-row'>Name</th>
                       <th class='p-1 table-header-row'>Start</th>
@@ -89,7 +89,7 @@
                       <th class='p-1 table-header-row'>Color</th>
                     </tr>
                   </ng-template>
-                  <ng-template pTemplate="body" let-rowData>
+                  <ng-template #body let-rowData>
                     <tr>
                       <td>{{ rowData.entryName }}</td>
                       <td>{{ rowData.startDate }}</td>
@@ -112,7 +112,7 @@
               <div class="form-group row" title="Show or Hide grid?">
                 <div class="col-4">Grid</div>
                 <div class="col-8">
-                  <p-selectButton [options]="ShowHideOptions" [(ngModel)]="showGrid" (ngModelChange)="changeShowGrid()"></p-selectButton>
+                  <p-selectbutton [options]="ShowHideOptions" [(ngModel)]="showGrid" (ngModelChange)="changeShowGrid()"></p-selectbutton>
                 </div>
               </div>
               <div class="form-group row" title="Adjust Height">

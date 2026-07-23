@@ -1,6 +1,7 @@
 ﻿import {
   Injector, Component, Output, EventEmitter, OnInit,
-  ElementRef, ChangeDetectorRef, Inject, OnDestroy
+  ElementRef, ChangeDetectorRef, Inject, OnDestroy,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -14,7 +15,7 @@ import TidyTree from './tidytree';
 import * as d3 from 'd3';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 //import { runInThisContext } from 'vm';
 //import { MatHint } from '@angular/material/form-field';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
@@ -32,6 +33,7 @@ import { getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as is
     selector: 'PhylogeneticComponent',
     templateUrl: './phylogenetic-plugin.component.html',
     styleUrls: ['./phylogenetic-plugin.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {

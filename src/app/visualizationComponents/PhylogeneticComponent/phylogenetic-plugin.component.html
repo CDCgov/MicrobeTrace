@@ -1,4 +1,4 @@
-﻿<div class="m-content">
+<div class="m-content">
   <div id="tool-btn-container-phylo" class="m-portlet tool-btn-container">
     <span style="overflow: visible; position: relative; width: 110px;">
       <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
@@ -95,7 +95,7 @@
         <div class="form-group row leaf-label-visibility-row" title="Show leaf labels?">
           <div class="col-5">Show Leaf Labels</div>
           <div class="col-7">
-            <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
+            <p-selectbutton id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectbutton>
           </div>
         </div>
         @if (SelectedLeafLabelShowVariable) {
@@ -115,7 +115,7 @@
         <div class="form-group row leaf-tooltip-visibility-row" title="Show leaf tooltips?">
           <div class="col-5">Show Leaf Tooltips</div>
           <div class="col-7">
-            <p-selectButton id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectButton>
+            <p-selectbutton id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectbutton>
           </div>
         </div>
         @if (SelectedLeafTooltipShowVariable) {
@@ -135,14 +135,14 @@
       <div class="form-group row " title="Show leaf nodes?">
         <div class="col-5">Show Leaf Nodes</div>
         <div class="col-7">
-          <p-selectButton [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
+          <p-selectbutton [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectbutton>
         </div>
       </div>
       @if (SelectedLeafNodeShowVariable) {
         <div class="form-group row" title="Use the global node shape settings for tree leaf nodes?">
           <div class="col-5"><label>Use Global Shapes</label></div>
           <div class="col-7">
-            <p-selectButton [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeUseGlobalShapesVariable" (ngModelChange)="onLeafNodeUseGlobalShapesChange($event)"></p-selectButton>
+            <p-selectbutton [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeUseGlobalShapesVariable" (ngModelChange)="onLeafNodeUseGlobalShapesChange($event)"></p-selectbutton>
           </div>
         </div>
       }
@@ -194,7 +194,7 @@
         <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
           <div class="col-5"><label for="branch-distance-visibility">Distance Labels</label></div>
           <div class="col-7">
-            <p-selectButton id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectButton>
+            <p-selectbutton id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectbutton>
           </div>
         </div>
         @if (SelectedBranchDistanceShowVariable) {
@@ -216,7 +216,7 @@
       <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">
         <div class="col-5"><label for="branch-node-visibility">Branch Nodes</label></div>
         <div class="col-7">
-          <p-selectButton id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectButton>
+          <p-selectbutton id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectbutton>
         </div>
       </div>
       @if (SelectedBranchNodeShowVariable) {
@@ -229,7 +229,7 @@
       <div class="form-group row" title="Show branch Nodes labels?">
         <div class="col-5"><label for="branch-node-visibility2">Branch Nodes Labels</label></div>
         <div class="col-7">
-          <p-selectButton id="branch-node-visibility2" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchLabelShowVariable" (ngModelChange)="onBranchLabelShowChange($event)"></p-selectButton>
+          <p-selectbutton id="branch-node-visibility2" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchLabelShowVariable" (ngModelChange)="onBranchLabelShowChange($event)"></p-selectbutton>
         </div>
       </div>
       }

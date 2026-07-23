@@ -1,4 +1,4 @@
-import { Component, OnInit, Injector, Inject, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, Injector, Inject, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
@@ -10,7 +10,7 @@ import { generateCanvas } from './generateAlignmentViewCanvas';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
 import { svgAsPngUri } from 'save-svg-as-png';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
+import { GoogleTagManagerService } from '../../analytics/google-tag-manager.service';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -19,6 +19,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     selector: 'AlignmentViewComponent',
     templateUrl: './alignment-view-plugin-component.html',
     styleUrls: ['./alignment-view-plugin-component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class AlignmentViewComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
