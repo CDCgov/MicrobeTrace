@@ -60,7 +60,7 @@ const selector : any = {
 // Test suite for core rendering and functionality
 describe('2D Network - Core Rendering and Stats', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
   });
 
@@ -175,7 +175,7 @@ describe('2D Network - Core Rendering and Stats', () => {
 describe('2D Network - Settings Pane Interactions', () => {
 
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
     cy.get(selector.settingsBtn).click();
@@ -699,7 +699,7 @@ describe('2D Network - Context Menu Interactions', () => {
   };
 
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
   });
@@ -778,7 +778,7 @@ describe('2D Network - Context Menu Interactions', () => {
       const getCy = () => cy.window({ log: false }).its('cytoscapeInstance');
   
       beforeEach(() => {
-          visitAppAndAcceptEula({ skipDemoSession: false });
+          visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
           ensureTwoDNetworkView();
           cy.window({ timeout: 15000 }).should('have.property', 'cytoscapeInstance');
       });

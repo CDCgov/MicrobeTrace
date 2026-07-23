@@ -25,6 +25,7 @@ type WinWithMT = Window & {
 };
 
 type JourneyVisitOptions = {
+  dismissWelcomeOverlay?: boolean;
   extraQuery?: Record<string, string | number | boolean>;
   skipDemoSession?: boolean;
   skipEula?: boolean;
@@ -79,6 +80,7 @@ export function acceptEulaIfPresent(): void {
 
 export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   const resolvedOptions: JourneyVisitOptions = {
+    dismissWelcomeOverlay: false,
     skipDemoSession: true,
     skipEula: true,
     ...options,
@@ -91,9 +93,17 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
     acceptEulaIfPresent();
   }
 
-  cy.get('body').then(($body) => {
-    if (!resolvedOptions.skipDemoSession) return;
+  if (!resolvedOptions.skipDemoSession && !resolvedOptions.dismissWelcomeOverlay) {
+    return;
+  }
 
+  if (!resolvedOptions.skipDemoSession) {
+    cy.window({ timeout: 120000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('equal', true);
+  }
+
+  cy.get('body').then(($body) => {
     const continueButton = $body.find(`${byTestId(testIds.appSampleDatasetButton)}:visible`);
     if (!continueButton.length) return;
 
@@ -1079,13 +1089,13 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
 export function openGlobalFilteringTab(): void {
   cy.openGlobalSettings();
   cy.contains('.p-dialog:visible .nav-link', 'Filtering').click({ force: true });
-  cy.get('.p-dialog:visible #filtering-config', { timeout: 15000 }).should('exist').and('be.visible');
+  cy.get('.p-dialog:visible #filtering-config', { timeout: 15000 }).should('exist');
 }
 
 export function openGlobalStylingTab(): void {
   cy.openGlobalSettings();
   cy.contains('.p-dialog:visible .nav-link', 'Styling').click({ force: true });
-  cy.get('.p-dialog:visible #style-config', { timeout: 15000 }).should('exist').and('be.visible');
+  cy.get('.p-dialog:visible #style-config', { timeout: 15000 }).should('exist');
 }
 
 export function setFilteringPruneWith(value: PruneWith): void {

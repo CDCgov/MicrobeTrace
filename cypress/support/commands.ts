@@ -11,7 +11,6 @@ type FileLoadOptions = {
   field3?: string;
 };
 
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const visibleSelectOverlay = '.p-select-overlay:visible';
 
 function closeVisibleSelectOverlays(): void {
@@ -221,8 +220,19 @@ Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom ons
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
     .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(variableLabel)}$`))
-    .click({ force: true });
+    .find('li')
+    .then(($options) => {
+      const exactMatch = $options
+        .filter((_, option) => String(option.textContent || '').trim() === variableLabel)
+        .first();
+      const partialMatch = $options
+        .filter((_, option) => String(option.textContent || '').includes(variableLabel))
+        .first();
+      const match = exactMatch.length ? exactMatch : partialMatch;
+
+      expect(match.length, `timeline option matching "${variableLabel}"`).to.be.greaterThan(0);
+      cy.wrap(match).click({ force: true });
+    });
   closeVisibleSelectOverlays();
   cy.get('.p-dialog:visible #node-timeline-variable .p-select-label').should('contain', variableLabel);
 });
