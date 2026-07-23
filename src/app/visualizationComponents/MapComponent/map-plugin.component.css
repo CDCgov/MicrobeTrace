@@ -11,6 +11,16 @@
     /* position: sticky !important; */
 }
 
+.export-scope-label {
+  background: #f5f7fa;
+  border: 1px solid #d9e1ea;
+  color: #39424e;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+}
+
 :host {
   position: absolute;
   overflow: hidden;
