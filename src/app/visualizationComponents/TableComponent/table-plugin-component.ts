@@ -25,6 +25,7 @@
   import { GoogleTagManagerService } from 'angular-google-tag-manager';
   import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanitization';
   
   /**
    * @title Complex Example
@@ -258,7 +259,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
       return rowData.map((row) => {
         const output = {};
         columns.forEach((column) => {
-          output[column.header] = this.formatFieldValueForDisplay(tableType, column.field, row[column.field]);
+          output[column.header] = sanitizeExportCell(this.formatFieldValueForDisplay(tableType, column.field, row[column.field]));
         });
         return output;
       });

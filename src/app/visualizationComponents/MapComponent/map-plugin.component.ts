@@ -1329,8 +1329,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var name = type.split('.')[0];
         this.commonService.getMapData(type).then(data => {
             if (this.commonService.includes(['countries', 'states', 'counties'], name)) {
+                const layerData = {
+                    ...data,
+                    features: (Array.isArray(data?.features) ? data.features : []).filter(feature => feature?.geometry)
+                };
 
-                this.layers[name] = geoJSON(data,
+                this.layers[name] = geoJSON(layerData,
                     {
                         style: {
                             color: '#dadde0',
@@ -1442,8 +1446,104 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             .replace(/'/g, '&#39;');
     }
 
+    private normalizeMapLookupValue(value: any): string {
+        return String(value ?? '').trim().toLowerCase();
+    }
+
+    private isMapFieldSelected(field: string): boolean {
+        const value = this.commonService.session.style.widgets[field];
+        return value !== undefined && value !== null && value !== 'None';
+    }
+
+    private hasSelectedLookupMapField(): boolean {
+        return [
+            'map-field-country',
+            'map-field-state',
+            'map-field-county',
+            'map-field-zipcode',
+            'map-field-tract'
+        ].some(field => this.isMapFieldSelected(field));
+    }
+
+    private hasSelectedLatLongMapFields(): boolean {
+        return this.isMapFieldSelected('map-field-lat') && this.isMapFieldSelected('map-field-lon');
+    }
+
+    private parseMapCoordinateValue(value: any, negativeHemisphere: string): number | null {
+        if (value === undefined || value === null || String(value).trim() === '') {
+            return null;
+        }
+
+        const coordinate = typeof value === 'string'
+            ? (value.includes(negativeHemisphere) ? -1 : 1) * parseFloat(value)
+            : Number(value);
+
+        return Number.isFinite(coordinate) ? coordinate : null;
+    }
+
+    private applyLatLongFieldCoordinates(node: any, latField: string, lonField: string): boolean {
+        const latitude = this.parseMapCoordinateValue(node[latField], 'S');
+        const longitude = this.parseMapCoordinateValue(node[lonField], 'W');
+
+        if (latitude === null || longitude === null) {
+            return false;
+        }
+
+        node._lat = latitude;
+        node._lon = longitude;
+        return true;
+    }
+
+    private expandCountryLookupValues(value: any): string[] {
+        const values = [value];
+        const normalizedValue = this.normalizeMapLookupValue(value);
+
+        if (['us', 'usa', 'united states'].includes(normalizedValue)) {
+            values.push('United States of America', 'USA', 'United States', 'US');
+        }
+
+        return values;
+    }
+
+    private findMapFeature(features: any[], values: any[], propertyNames: string[]): any {
+        const normalizedValues = values
+            .map(value => this.normalizeMapLookupValue(value))
+            .filter(value => value !== '');
+
+        if (normalizedValues.length === 0) {
+            return null;
+        }
+
+        return features.find(feature => {
+            const properties = feature?.properties || {};
+            return propertyNames.some(propertyName => {
+                const featureValue = propertyName === 'id' ? feature?.id : properties[propertyName];
+                return normalizedValues.includes(this.normalizeMapLookupValue(featureValue));
+            });
+        });
+    }
+
+    private applyMapFeatureCoordinates(node: any, feature: any): boolean {
+        const properties = feature?.properties || {};
+        const latitude = Number(properties._lat);
+        const longitude = Number(properties._lon);
+
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return false;
+        }
+
+        node._lat = latitude;
+        node._lon = longitude;
+        return true;
+    }
+
     matchCoordinates(callback, norefresh) {
         if (!norefresh) this.nodes = this.commonService.getVisibleNodes();
+        this.nodes.forEach(n => {
+            n._lat = undefined;
+            n._lon = undefined;
+        });
+
         if (this.commonService.session.style.widgets['map-field-country'] !== 'None') {
             if (!this.commonService.temp.mapData.countries) {
                 this.getMapData('countries.json', () => this.matchCoordinates(callback, true));
@@ -1451,11 +1551,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             var val = this.commonService.session.style.widgets['map-field-country'];
             this.nodes.forEach(n => {
-                var country = this.commonService.temp.mapData.countries.features.find(c => c.id == n[val] || c.properties.name == n[val]);
-                if (country) {
-                    n._lat = country.properties._lat,
-                        n._lon = country.properties._lon
-                }
+                const country = this.findMapFeature(
+                    this.commonService.temp.mapData.countries.features,
+                    this.expandCountryLookupValues(n[val]),
+                    ['id', 'name']
+                );
+
+                this.applyMapFeatureCoordinates(n, country);
             });
         }
         if (this.commonService.session.style.widgets['map-field-state'] !== 'None') {
@@ -1465,11 +1567,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             var sval = this.commonService.session.style.widgets['map-field-state'];
             this.nodes.forEach(n => {
-                var state = this.commonService.temp.mapData.states.features.find(s => s.properties.usps == n[sval] || s.properties.name == n[sval]);
-                if (state) {
-                    n._lat = state.properties._lat;
-                    n._lon = state.properties._lon;
-                }
+                const state = this.findMapFeature(
+                    this.commonService.temp.mapData.states.features,
+                    [n[sval]],
+                    ['id', 'name', 'usps']
+                );
+
+                this.applyMapFeatureCoordinates(n, state);
             });
         }
         if (this.commonService.session.style.widgets['map-field-county'] !== 'None') {
@@ -1535,24 +1639,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         // debugger;
 
-        if (this.commonService.session.style.widgets['map-field-lat'] !== 'None' && this.commonService.session.style.widgets['map-field-lon'] !== 'None') {
+        if (this.hasSelectedLatLongMapFields() && !this.hasSelectedLookupMapField()) {
             var lat = this.commonService.session.style.widgets['map-field-lat'],
                 lon = this.commonService.session.style.widgets['map-field-lon'];
 
-
             this.nodes.forEach(n => {
-
-
-                if (typeof n[lat] == 'string') {
-                    n._lat = (n[lat].includes('S') ? -1 : 1) * parseFloat(n[lat]);
-                } else {
-                    n._lat = n[lat];
-                }
-                if (typeof n[lon] == 'string') {
-                    n._lon = (n[lon].includes('W') ? -1 : 1) * parseFloat(n[lon]);
-                } else {
-                    n._lon = n[lon];
-                }
+                this.applyLatLongFieldCoordinates(n, lat, lon);
             });
         }
 
@@ -1696,6 +1788,13 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var lcv = this.commonService.session.style.widgets['link-color-variable'];
         var opacity = 1 - this.commonService.session.style.widgets['map-link-transparency'];
         var links = this.commonService.getVisibleLinks();
+        const getLinkColorValue = (link: any) => {
+            const value = link[lcv];
+            if (String(lcv).toLowerCase() === 'origin' && Array.isArray(value)) {
+                return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
+            }
+            return this.commonService.normalizeStyleCategoryValue(value);
+        };
     
         var features: Layer[] = [];
     
@@ -1740,7 +1839,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                     ], {
                         color: lcv === "None" ?
                             this.commonService.session.style.widgets['link-color'] :
-                            this.commonService.temp.style.linkColorMap(d[lcv]),
+                            this.commonService.temp.style.linkColorMap(getLinkColorValue(d)),
                         opacity: opacity
                     });
     

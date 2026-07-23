@@ -69,6 +69,8 @@ export const GANTT_PROFILES: DatasetProfile[] = [
       {
         name: 'Cypress_GanttEdgeCasesNodes.csv',
         datatype: 'node',
+        field1: 'ID',
+        field2: 'None',
       },
       {
         name: 'Cypress_GanttEdgeCasesLinks.csv',

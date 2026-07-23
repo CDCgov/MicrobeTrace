@@ -8,6 +8,10 @@ export default class AuspiceHandler {
   private invalidStrings = ['unknown', '?', 'nan', 'na', 'n/a', '', 'unassigned'];
   private nodeList = [];
   private linkList = [];
+  private emptyFeatureCollection = () => ({
+    type: 'FeatureCollection',
+    features: []
+  });
 
   constructor(public commonService: CommonService) {
     this.commonService = commonService;
@@ -40,11 +44,12 @@ export default class AuspiceHandler {
         tree.branch_attrs.mutations.hasOwnProperty('nuc'))  {
       node.mutations = tree.branch_attrs.mutations.nuc;
     }
-    for (const attribute of Object.keys(tree.node_attrs)) {
+    const nodeAttrs = tree.node_attrs || {};
+    for (const attribute of Object.keys(nodeAttrs)) {
       if (attribute !== 'div') {
-        node[attribute] = tree.node_attrs[attribute].value;
+        node[attribute] = nodeAttrs[attribute]?.value;
       } else {
-        node[attribute] = tree.node_attrs[attribute];
+        node[attribute] = nodeAttrs[attribute];
       }
     }
     return node;
@@ -119,7 +124,8 @@ export default class AuspiceHandler {
   public getDivFromNode = (node) => {
     /* see comment at top of this file */
     if (node.node_attrs && node.node_attrs.div !== undefined) {
-      return node.node_attrs.div;
+      const div = node.node_attrs.div;
+      return typeof div === 'object' && div !== null && 'value' in div ? div.value : div;
     }
     return undefined;
   }
@@ -152,17 +158,86 @@ export default class AuspiceHandler {
     this.linkList = linkList;
   }
 
+  private getGeoResolutions = (metadata) => {
+    return Array.isArray(metadata?.geo_resolutions) ? metadata.geo_resolutions : [];
+  }
+
+  private getDemeCoordinates = (resolution, deme) => {
+    if (!resolution?.demes || !deme) {
+      return null;
+    }
+
+    const coordinates = resolution.demes[deme];
+    if (!coordinates) {
+      return null;
+    }
+
+    const latitude = Number(coordinates.latitude);
+    const longitude = Number(coordinates.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    return { latitude, longitude };
+  }
+
+  private addResolutionFeatures = (features, resolution) => {
+    if (!resolution?.demes) {
+      return;
+    }
+
+    Object.keys(resolution.demes).forEach(deme => {
+      const coordinates = this.getDemeCoordinates(resolution, deme);
+      if (!coordinates) {
+        return;
+      }
+
+      features.push({
+        type: 'Feature',
+        id: deme,
+        properties: {
+          name: deme,
+          usps: deme,
+          _lat: coordinates.latitude,
+          _lon: coordinates.longitude,
+          auspiceKey: resolution.key
+        },
+        geometry: null
+      });
+    });
+  }
+
+  private buildMapData = (metadata) => {
+    const mapData = {
+      countries: this.emptyFeatureCollection(),
+      states: this.emptyFeatureCollection()
+    };
+    const geoResolutions = this.getGeoResolutions(metadata);
+
+    this.addResolutionFeatures(
+      mapData.countries.features,
+      geoResolutions.find(resolution => resolution.key === 'country')
+    );
+    this.addResolutionFeatures(
+      mapData.states.features,
+      geoResolutions.find(resolution => resolution.key === 'division')
+    );
+
+    return mapData;
+  }
+
   public addLatLong = (nodes, metadata) => {
     const newNodes = [];
+    const geoResolutions = this.getGeoResolutions(metadata);
+    const preferredKey = 'location';
+
     for (const node of nodes) {
-      if (metadata.hasOwnProperty('geo_resolutions')) {
-        for (let i=0; i<metadata.geo_resolutions.length; i++) {
-          const deme = node[metadata.geo_resolutions[i].key];
-          if (deme) {
-            node.latitude = metadata.geo_resolutions[i].demes[deme].latitude;
-            node.longtude = metadata.geo_resolutions[i].demes[deme].longitude;
-          }
-        }
+      const resolution = geoResolutions.find(x => x.key === preferredKey);
+      const coordinates = this.getDemeCoordinates(resolution, node[preferredKey]);
+      if (coordinates) {
+        node.latitude = coordinates.latitude;
+        node.longitude = coordinates.longitude;
       }
       newNodes.push(node);
     }
@@ -182,6 +257,7 @@ export default class AuspiceHandler {
       tree: updatedTree,
       newick: bareNewickString,
       newickWithLabels: newickString,
+      mapData: this.buildMapData(jsonObj.meta),
     };
   }
 
