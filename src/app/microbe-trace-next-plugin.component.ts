@@ -3354,8 +3354,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     let key = this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
                     this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, nextColor);
 
-                    // Update history with new color
-                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
+                    // Update this variable's history without changing matching values
+                    // that belong to other node fields.
+                    const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory;
+                    const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
+                    const variableHistory = storedVariableHistory
+                        && typeof storedVariableHistory === 'object'
+                        && !Array.isArray(storedVariableHistory)
+                        ? storedVariableHistory
+                        : {};
+                    nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
+                    variableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
 
                   
 
