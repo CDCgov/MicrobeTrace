@@ -18,11 +18,13 @@ import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
 import { CommonStoreService } from './contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
+import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
+import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     NODE_SHAPE_GROUPS,
@@ -219,6 +221,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
+    NetworkSubsetOperatorTypes: SelectItem[] = [
+        { label: 'Contains', value: 'contains' },
+        { label: 'Equals', value: 'equals' },
+        { label: 'Does Not Equal', value: 'notEquals' },
+        { label: 'Starts With', value: 'startsWith' },
+        { label: 'Ends With', value: 'endsWith' },
+        { label: 'In List', value: 'in' },
+        { label: '<', value: 'lt' },
+        { label: '<=', value: 'lte' },
+        { label: '>', value: 'gt' },
+        { label: '>=', value: 'gte' }
+    ];
+    SelectedNetworkSubsetNodeField: string = 'None';
+    SelectedNetworkSubsetNodeOperator: string = 'equals';
+    SelectedNetworkSubsetNodeValue: string = '';
+    SelectedNetworkSubsetLinkField: string = 'None';
+    SelectedNetworkSubsetLinkOperator: string = 'contains';
+    SelectedNetworkSubsetLinkValue: string = '';
+    NetworkSubsetNodeValueOptions: string[] = [];
+    NetworkSubsetLinkValueOptions: string[] = [];
+    private NetworkSubsetNodeAllValueOptions: string[] = [];
+    private NetworkSubsetLinkAllValueOptions: string[] = [];
+    private readonly NetworkSubsetValueSuggestionLimit = 50;
 
     PruneWityTypes: any = [
         { label: 'None', value: 'None' },
@@ -3663,6 +3688,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         $("#cluster-minimum-size").val(1);
         this.commonService.session.style.widgets["cluster-minimum-size"] = 1;
+        this.commonService.clearNetworkSubsetFilter(false);
+        this.loadNetworkSubsetFilterSettings();
         $("#filtering-wrapper").slideDown();
         this.commonService.setClusterVisibility(true);
        
@@ -3776,11 +3803,163 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
+        this.loadNetworkSubsetFilterSettings();
         //this.commonService.updateThresholdHistogram();
         this.refreshThresholdStabilityPanel(false);
 
         console.log('--- getGlobalSettingsData end - last of loadDefaultVisualization in MT');
 
+    }
+
+    private loadNetworkSubsetFilterSettings(): void {
+        const filter = this.commonService.ensureNetworkSubsetFilterState();
+        this.SelectedNetworkSubsetNodeField = filter.node?.field || 'None';
+        this.SelectedNetworkSubsetNodeOperator = filter.node?.operator || 'equals';
+        this.SelectedNetworkSubsetNodeValue = filter.node?.value ?? '';
+        this.SelectedNetworkSubsetLinkField = filter.link?.field || 'None';
+        this.SelectedNetworkSubsetLinkOperator = filter.link?.operator || 'contains';
+        this.SelectedNetworkSubsetLinkValue = filter.link?.value ?? '';
+        this.refreshNetworkSubsetValueOptions();
+    }
+
+    private hasNetworkSubsetRule(field: string, value: any): boolean {
+        return field !== 'None' && value !== undefined && value !== null && `${value}`.trim() !== '';
+    }
+
+    onNetworkSubsetNodeFieldChanged(field: string): void {
+        this.SelectedNetworkSubsetNodeField = field;
+        this.refreshNetworkSubsetNodeValueOptions();
+    }
+
+    onNetworkSubsetLinkFieldChanged(field: string): void {
+        this.SelectedNetworkSubsetLinkField = field;
+        this.refreshNetworkSubsetLinkValueOptions();
+    }
+
+    onNetworkSubsetNodeValueChanged(value: string): void {
+        this.SelectedNetworkSubsetNodeValue = value;
+        this.filterNetworkSubsetNodeValueOptions();
+    }
+
+    onNetworkSubsetLinkValueChanged(value: string): void {
+        this.SelectedNetworkSubsetLinkValue = value;
+        this.filterNetworkSubsetLinkValueOptions();
+    }
+
+    private refreshNetworkSubsetValueOptions(): void {
+        this.refreshNetworkSubsetNodeValueOptions();
+        this.refreshNetworkSubsetLinkValueOptions();
+    }
+
+    private refreshNetworkSubsetNodeValueOptions(): void {
+        this.NetworkSubsetNodeAllValueOptions = this.getNetworkSubsetValueOptions(
+            this.commonService.session.data.nodes || [],
+            this.SelectedNetworkSubsetNodeField
+        );
+        this.filterNetworkSubsetNodeValueOptions();
+    }
+
+    private refreshNetworkSubsetLinkValueOptions(): void {
+        this.NetworkSubsetLinkAllValueOptions = this.getNetworkSubsetValueOptions(
+            this.commonService.session.data.links || [],
+            this.SelectedNetworkSubsetLinkField
+        );
+        this.filterNetworkSubsetLinkValueOptions();
+    }
+
+    private filterNetworkSubsetNodeValueOptions(): void {
+        this.NetworkSubsetNodeValueOptions = this.filterNetworkSubsetValueOptions(
+            this.NetworkSubsetNodeAllValueOptions,
+            this.SelectedNetworkSubsetNodeValue
+        );
+    }
+
+    private filterNetworkSubsetLinkValueOptions(): void {
+        this.NetworkSubsetLinkValueOptions = this.filterNetworkSubsetValueOptions(
+            this.NetworkSubsetLinkAllValueOptions,
+            this.SelectedNetworkSubsetLinkValue
+        );
+    }
+
+    private getNetworkSubsetValueOptions(records: any[], field: string): string[] {
+        if (!field || field === 'None') {
+            return [];
+        }
+
+        const options = new Set<string>();
+        records.forEach(record => {
+            const rawValue = record?.[field];
+            const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+
+            values.forEach(value => {
+                const normalizedValue = this.normalizeNetworkSubsetOptionValue(value);
+                if (normalizedValue.length > 0) {
+                    options.add(normalizedValue);
+                }
+            });
+        });
+
+        return Array.from(options).sort((a, b) => a.localeCompare(b, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        }));
+    }
+
+    private filterNetworkSubsetValueOptions(options: string[], query: string): string[] {
+        const normalizedQuery = `${query ?? ''}`.trim().toLowerCase();
+        const filteredOptions = normalizedQuery.length
+            ? options.filter(option => option.toLowerCase().includes(normalizedQuery))
+            : options;
+
+        return filteredOptions.slice(0, this.NetworkSubsetValueSuggestionLimit);
+    }
+
+    private normalizeNetworkSubsetOptionValue(value: any): string {
+        if (value === undefined || value === null) {
+            return '';
+        }
+
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+
+        return `${value}`.trim();
+    }
+
+    applyNetworkSubsetFilter(): void {
+        this.commonService.setNetworkSubsetFilterState({
+            node: {
+                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetNodeField, this.SelectedNetworkSubsetNodeValue),
+                field: this.SelectedNetworkSubsetNodeField,
+                operator: this.SelectedNetworkSubsetNodeOperator,
+                value: this.SelectedNetworkSubsetNodeValue
+            },
+            link: {
+                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetLinkField, this.SelectedNetworkSubsetLinkValue),
+                field: this.SelectedNetworkSubsetLinkField,
+                operator: this.SelectedNetworkSubsetLinkOperator,
+                value: this.SelectedNetworkSubsetLinkValue
+            }
+        });
+    }
+
+    clearNetworkSubsetFilter(): void {
+        this.commonService.clearNetworkSubsetFilter(false);
+        this.loadNetworkSubsetFilterSettings();
+        this.commonService.setLinkVisibility(true, false);
+        this.commonService.updateNetworkVisuals(false, true);
+    }
+
+    isNetworkSubsetFilterActive(): boolean {
+        return this.commonService.isNetworkSubsetFilterActive();
+    }
+
+    getNetworkSubsetFilterLabel(): string {
+        return this.commonService.getNetworkSubsetFilterLabel();
     }
 
     /**
@@ -4247,14 +4426,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                         if(clusterNode) {
 
-                        const blob = new Blob([Papa.unparse(cluster[0])], {type: 'text/csv;charset=utf-8'});
+                        const blob = new Blob([Papa.unparse(sanitizeExportRows(cluster[0]))], {type: 'text/csv;charset=utf-8'});
                         clusterFolder.file( "nodeList_cluster_" + cluster[0][0].cluster + ".csv", blob);
 
                         // Now get link list of cluster
                         const clusterLink = clusterLinkList.filter(LinkList => LinkList[0].cluster == currentCluster.id);
 
                         if(clusterLink) {
-                            const blob = new Blob([Papa.unparse(clusterLink[0])], {type: 'text/csv;charset=utf-8'});
+                            const blob = new Blob([Papa.unparse(sanitizeExportRows(clusterLink[0]))], {type: 'text/csv;charset=utf-8'});
                             clusterFolder.file("edgeList_cluster_" + cluster[0][0].cluster + ".csv", blob);
                         }
                         }
@@ -4264,16 +4443,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     if(dyadNodeList.length > 0){
                         dyadFolder = zip.folder("dyads");
                         // Add all dyads in one shot
-                        const nodesBlob = new Blob([Papa.unparse(dyadNodeList)], {type: 'text/csv;charset=utf-8'});
+                        const nodesBlob = new Blob([Papa.unparse(sanitizeExportRows(dyadNodeList))], {type: 'text/csv;charset=utf-8'});
                         dyadFolder.file("nodeList_cluster.csv", nodesBlob);
-                        const edgesBlob = new Blob([Papa.unparse(dyadEdgeList)], {type: 'text/csv;charset=utf-8'});
+                        const edgesBlob = new Blob([Papa.unparse(sanitizeExportRows(dyadEdgeList))], {type: 'text/csv;charset=utf-8'});
                         dyadFolder.file("edgeList_cluster.csv", edgesBlob);
                       }
                 
                       if (singletonNodeList.length > 0) {
                         singletonFolder = zip.folder("singletons");
                         // Add all singletons in one shot
-                        const blob = new Blob([Papa.unparse(singletonNodeList)], {type: 'text/csv;charset=utf-8'});
+                        const blob = new Blob([Papa.unparse(sanitizeExportRows(singletonNodeList))], {type: 'text/csv;charset=utf-8'});
                         singletonFolder.file("nodeList_cluster.csv", blob);
                       }
                         
@@ -4375,7 +4554,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               this.homepageTabs[0].componentRef.instance.removeAllFiles();
               this.commonService.clearData();
               this.resetKeyTablesForNewDataset();
-              const auspiceFile = { contents: out, name: this.getAuspiceName(auspiceUrl), extension: 'json'};
+              const auspiceFile = { contents: out, name: this.getAuspiceName(auspiceUrl), extension: 'json', format: 'auspice', datatype: 'auspice'};
               this.commonService.session.files.push(auspiceFile);
               this.homepageTabs[0].componentRef.instance.addToTable(auspiceFile);
             //   console.log(this.homepageTabs[0].componentRef);
@@ -4576,7 +4755,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     void instance._rerender();
                 }
             } else if (
-                ['Table', 'Crosstab', 'Aggregate'].includes(viewName) &&
+                ['Table', NetworkStatisticsComponent.componentTypeName, 'Crosstab', 'Aggregate'].includes(viewName) &&
                 instance.onLoadNewData
             ) {
                 instance.onLoadNewData();
@@ -4592,7 +4771,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 instance.loadSettings();
                 if (this.metric === 'snps'){
                     this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
-                    this.commonService.session.style.widgets['link-threshold'] = parseInt(this.threshold);
+                    this.commonService.session.style.widgets['link-threshold'] = Number(this.threshold);
                     this.onLinkThresholdChanged();
                 }
             }
@@ -4755,6 +4934,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 break;
             }
             case "Table": {
+
+                this.showSettings = false;
+                this.showExport = true;
+                this.showCenter = false;
+                this.showPinAllNodes = false;
+                this.showRefresh = false;
+                this.showButtonGroup = true;
+                this.showSorting = true;
+
+                break;
+            }
+            case NetworkStatisticsComponent.componentTypeName: {
 
                 this.showSettings = false;
                 this.showExport = true;

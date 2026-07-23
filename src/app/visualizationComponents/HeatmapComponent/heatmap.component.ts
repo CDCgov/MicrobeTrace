@@ -15,6 +15,7 @@ import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { buildSafeCsvRow } from '@app/contactTraceCommonServices/export-sanitization';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
@@ -193,17 +194,33 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   }
 
   private buildHeatmapColorbar(matrix: any[]): any {
-    const numericValues = (matrix || [])
-      .flatMap((row) => Array.isArray(row) ? row : [])
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value));
+    let minValue = Infinity;
+    let maxValue = -Infinity;
 
-    if (numericValues.length === 0) {
+    for (const row of matrix || []) {
+      if (!Array.isArray(row)) {
+        continue;
+      }
+
+      for (const rawValue of row) {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) {
+          continue;
+        }
+
+        if (value < minValue) {
+          minValue = value;
+        }
+        if (value > maxValue) {
+          maxValue = value;
+        }
+      }
+    }
+
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
       return undefined;
     }
 
-    const minValue = Math.min(...numericValues);
-    const maxValue = Math.max(...numericValues);
     const epsilon = Math.abs(maxValue - minValue) * 1e-12 || 1e-12;
     const tickValues = minValue === maxValue
       ? [minValue]
@@ -504,12 +521,12 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
       let csvContent = "";
       if (this.heatmapShowLabels) {
-        csvContent += ["", ...xLabels].join(",") + "\n";
+        csvContent += buildSafeCsvRow(["", ...xLabels]) + "\n";
         for (let i = 0; i < exportedMatrix.length; i++) {
-          csvContent += [yLabels[i], ...exportedMatrix[i]].join(",") + "\n";
+          csvContent += buildSafeCsvRow([yLabels[i], ...exportedMatrix[i]]) + "\n";
         }
       } else {
-        csvContent += exportedMatrix.map((row) => row.join(",")).join("\n");
+        csvContent += exportedMatrix.map((row) => buildSafeCsvRow(row)).join("\n");
       }
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, fileName);

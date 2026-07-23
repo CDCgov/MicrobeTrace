@@ -23,6 +23,16 @@ const NEGATIVE_BRANCH_FILE = 'PatristicNegativeBranch.nwk';
 
 const tn93Profile = getProfile('load-twod-newick-tn93-angular-testing');
 
+const highThresholdGuardrailProfile: DatasetProfile = {
+  ...tn93Profile,
+  id: 'patristic-guardrail-initial-fallback',
+  title: 'TN93 Newick renders a bounded backbone when initial threshold exceeds guardrail',
+  preLaunch: {
+    ...tn93Profile.preLaunch,
+    threshold: 0.02,
+  },
+};
+
 const syntheticSnpProfile: DatasetProfile = {
   id: 'patristic-synthetic-snp-gt1',
   title: 'Synthetic SNP Newick switches metric after patristic import',
@@ -188,6 +198,44 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
         win.commonService.session.meta.performance.patristic.edgeGeneration.guardrail.hardLimitHit,
         'patristic guardrail telemetry',
       ).to.equal(true);
+    });
+  });
+
+  it('renders a nearest-neighbor backbone when the initial Newick threshold exceeds the browser guardrail', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(highThresholdGuardrailProfile.files);
+    applyPreLaunchFileSettings(highThresholdGuardrailProfile);
+    ensurePreLaunchProfileSynced(highThresholdGuardrailProfile);
+
+    cy.window().then((win: any) => {
+      win.commonService.session.meta.guardrails = {
+        newickVisibleLinkWarningThreshold: 20,
+        newickVisibleLinkHardLimit: 20,
+      };
+    });
+
+    launchAndWaitForProcessing(60000);
+    ensureTwoDNetworkView();
+
+    cy.get('#network-guardrail-warning', { timeout: 30000 })
+      .should('be.visible')
+      .and('contain.text', 'exceeded the 20 visible-link browser guardrail')
+      .and('contain.text', 'nearest-neighbor tree backbone');
+
+    cy.window().should((win: any) => {
+      const visibleEdges = win.cytoscapeInstance.edges(':visible');
+      const warning = win.commonService.session.warnings.find((entry: any) => (
+        entry?.type === 'newick-visible-link-guardrail'
+      ));
+      const fallback = win.commonService.session.meta.performance.patristic.edgeGeneration.fallback;
+
+      expect(visibleEdges.length, 'fallback visible Newick edge count').to.be.greaterThan(0);
+      expect(visibleEdges.length, 'fallback visible Newick edge count').to.be.at.most(20);
+      expect(warning?.hardLimitHit, 'hard limit hit').to.equal(true);
+      expect(warning?.fallbackApplied, 'fallback warning marker').to.equal(true);
+      expect(fallback?.type, 'fallback telemetry type').to.equal('nearest-neighbor-backbone');
+      expect(fallback?.totalLinks, 'fallback telemetry link count').to.be.greaterThan(0);
+      expect(warning?.fallbackLinkCount, 'fallback warning link count').to.equal(fallback.totalLinks);
     });
   });
 
