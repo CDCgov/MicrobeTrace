@@ -463,17 +463,33 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     matrix: any[],
     formatter: (value: number) => string,
   ): any {
-    const numericValues = (matrix || [])
-      .flatMap((row) => Array.isArray(row) ? row : [])
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value));
+    let minValue = Infinity;
+    let maxValue = -Infinity;
 
-    if (numericValues.length === 0) {
+    for (const row of matrix || []) {
+      if (!Array.isArray(row)) {
+        continue;
+      }
+
+      for (const rawValue of row) {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) {
+          continue;
+        }
+
+        if (value < minValue) {
+          minValue = value;
+        }
+        if (value > maxValue) {
+          maxValue = value;
+        }
+      }
+    }
+
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
       return undefined;
     }
 
-    const minValue = Math.min(...numericValues);
-    const maxValue = Math.max(...numericValues);
     const epsilon = Math.abs(maxValue - minValue) * 1e-12 || 1e-12;
     const tickValues = minValue === maxValue
       ? [minValue]

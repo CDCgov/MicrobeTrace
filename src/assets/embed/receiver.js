@@ -2,7 +2,40 @@
   'use strict';
 
   var ALLOWED_KINDS = new Set(['node', 'link', 'matrix', 'fasta', 'newick', 'auspice']);
+  var ALLOWED_DEFAULT_VIEWS = new Set([
+    '2D Network',
+    'Epi Curve',
+    'Sankey',
+    'Table',
+    'Crosstab',
+    'Map',
+    'Bubble',
+    'Gantt Chart',
+    'Phylogenetic Tree',
+    'Alignment View',
+    'Heatmap',
+    'Waterfall'
+  ]);
+  var ALLOWED_DISTANCE_METRICS = new Set(['snps', 'tn93']);
+  var ALLOWED_AMBIGUITY_STRATEGIES = new Set(['AVERAGE', 'RESOLVE', 'SKIP', 'GAPMM', 'HIVTRACE-G']);
+  var ALLOWED_NODE_SHAPES = new Set([
+    'ellipse',
+    'triangle',
+    'rectangle',
+    'barrel',
+    'rhomboid',
+    'diamond',
+    'pentagon',
+    'hexagon',
+    'heptagon',
+    'octagon',
+    'star',
+    'tag',
+    'vee'
+  ]);
+  var ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS = new Set(['decimal', 'percentage']);
   var FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+  var HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
   var READY_TYPE = 'MT_HANDOFF_READY';
   var TRANSFER_TYPE = 'MT_HANDOFF_TRANSFER';
   var ERROR_TYPE = 'MT_HANDOFF_ERROR';
@@ -105,9 +138,10 @@
     }
     var output = {};
     Object.keys(value).forEach(function (key) {
-      if (!FORBIDDEN_KEYS.has(key)) {
-        output[key] = sanitizeValue(value[key], path + '.' + key);
+      if (FORBIDDEN_KEYS.has(key)) {
+        throw new Error('Forbidden object key at "' + path + '.' + key + '".');
       }
+      output[key] = sanitizeValue(value[key], path + '.' + key);
     });
     return output;
   }
@@ -434,6 +468,118 @@
     });
   }
 
+  function requireAllowedLaunchString(value, allowedValues, fieldName) {
+    if (typeof value !== 'string' || !allowedValues.has(value.trim())) {
+      throw new Error('Launch option "' + fieldName + '" used an unsupported value.');
+    }
+
+    return value.trim();
+  }
+
+  function requireNonNegativeFiniteNumber(value, fieldName) {
+    var numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      throw new Error('Launch option "' + fieldName + '" must be a non-negative finite number.');
+    }
+    return numericValue;
+  }
+
+  function normalizeLaunchGlobalSettings(globalSettings) {
+    if (!isPlainObject(globalSettings)) {
+      throw new Error('Launch option "globalSettings" must be an object.');
+    }
+
+    var normalized = {};
+    ['nodeColorBy', 'linkColorBy', 'nodeShapeBy'].forEach(function (fieldName) {
+      var value = globalSettings[fieldName];
+      if (typeof value === 'undefined') {
+        return;
+      }
+      if (typeof value !== 'string') {
+        throw new Error('Launch global setting "' + fieldName + '" must be a string.');
+      }
+      if (value.trim()) {
+        normalized[fieldName] = value.trim();
+      }
+    });
+
+    ['nodeColor', 'linkColor', 'selectedColor', 'backgroundColor'].forEach(function (fieldName) {
+      var value = globalSettings[fieldName];
+      if (typeof value === 'undefined') {
+        return;
+      }
+      if (typeof value !== 'string' || !HEX_COLOR_PATTERN.test(value.trim())) {
+        throw new Error('Launch global setting "' + fieldName + '" must be a 6-digit hex color.');
+      }
+      normalized[fieldName] = value.trim();
+    });
+
+    if (typeof globalSettings.nodeShape !== 'undefined') {
+      normalized.nodeShape = requireAllowedLaunchString(globalSettings.nodeShape, ALLOWED_NODE_SHAPES, 'globalSettings.nodeShape');
+    }
+
+    if (typeof globalSettings.clusterMinimumSize !== 'undefined') {
+      normalized.clusterMinimumSize = requireNonNegativeFiniteNumber(globalSettings.clusterMinimumSize, 'clusterMinimumSize');
+    }
+
+    if (typeof globalSettings.tn93DistanceDisplayFormat !== 'undefined') {
+      normalized.tn93DistanceDisplayFormat = requireAllowedLaunchString(
+        String(globalSettings.tn93DistanceDisplayFormat).toLowerCase(),
+        ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS,
+        'globalSettings.tn93DistanceDisplayFormat'
+      );
+    }
+
+    return normalized;
+  }
+
+  function normalizeLaunchOptions(launch) {
+    if (!launch) {
+      return undefined;
+    }
+
+    if (!isPlainObject(launch)) {
+      throw new Error('The partner handoff launch options are malformed.');
+    }
+
+    var normalized = {};
+
+    if (typeof launch.datasetName !== 'undefined') {
+      if (typeof launch.datasetName !== 'string') {
+        throw new Error('Launch option "datasetName" must be a string.');
+      }
+      if (launch.datasetName.trim()) {
+        normalized.datasetName = launch.datasetName.trim();
+      }
+    }
+
+    if (typeof launch.defaultView !== 'undefined') {
+      normalized.defaultView = requireAllowedLaunchString(launch.defaultView, ALLOWED_DEFAULT_VIEWS, 'defaultView');
+    }
+
+    if (typeof launch.distanceMetric !== 'undefined') {
+      normalized.distanceMetric = requireAllowedLaunchString(String(launch.distanceMetric).toLowerCase(), ALLOWED_DISTANCE_METRICS, 'distanceMetric');
+    }
+
+    if (typeof launch.linkThreshold !== 'undefined') {
+      normalized.linkThreshold = requireNonNegativeFiniteNumber(launch.linkThreshold, 'linkThreshold');
+    }
+
+    if (typeof launch.ambiguityStrategy !== 'undefined') {
+      normalized.ambiguityStrategy = requireAllowedLaunchString(String(launch.ambiguityStrategy).toUpperCase(), ALLOWED_AMBIGUITY_STRATEGIES, 'ambiguityStrategy');
+    }
+
+    if (typeof launch.ambiguityThreshold !== 'undefined') {
+      normalized.ambiguityThreshold = requireNonNegativeFiniteNumber(launch.ambiguityThreshold, 'ambiguityThreshold');
+    }
+
+    if (typeof launch.globalSettings !== 'undefined') {
+      normalized.globalSettings = normalizeLaunchGlobalSettings(launch.globalSettings);
+    }
+
+    return Object.keys(normalized).length ? normalized : undefined;
+  }
+
   function validatePayload(payload, limits) {
     var sanitized = sanitizeValue(payload, 'payload');
 
@@ -464,6 +610,8 @@
     if (sanitized.files.length > limits.maxFiles) {
       throw new Error('The partner handoff exceeded the maximum file count.');
     }
+
+    sanitized.launch = normalizeLaunchOptions(sanitized.launch);
 
     var totalBytes = 0;
 
@@ -558,6 +706,7 @@
         partnerId: payload.partnerId,
         nonce: payload.nonce,
         metadata: payload.metadata,
+        launch: payload.launch,
         createdAt: createdAt,
         expiresAt: expiresAt,
         files: payload.files
@@ -573,6 +722,7 @@
         handoffId: handoffId,
         createdAt: createdAt,
         expiresAt: expiresAt,
+        launch: payload.launch,
         files: buildReceiptFiles(payload.files)
       }, event.origin);
       handled = true;
