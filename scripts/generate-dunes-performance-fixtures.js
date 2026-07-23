@@ -13,6 +13,13 @@ const defaultPreset = path.join(
   'presets',
   'hiv-like-dunes-500.yaml'
 );
+const dunesSource = {
+  repository: 'https://github.com/dacowan404/dunes',
+  branch: 'master',
+  release: '0.1.2',
+};
+const dunesDistributionChoices = ['simple', 'hiv'];
+const defaultDunesDistribution = 'simple';
 
 function parseArgs(argv) {
   const options = {
@@ -93,11 +100,23 @@ function ensureStringArray(value, label) {
   value.forEach((entry, index) => ensureString(entry, `${label}[${index}]`));
 }
 
+function ensureStringEnum(value, label, choices) {
+  ensureString(value, label);
+  const normalized = value.trim().toLowerCase();
+  if (!choices.includes(normalized)) {
+    throw new Error(`${label} must be one of: ${choices.join(', ')}.`);
+  }
+}
+
 function ensureThresholdArray(value, label) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${label} must be a non-empty number array.`);
   }
   value.forEach((entry, index) => ensureNumber(entry, `${label}[${index}]`, { min: 0 }));
+}
+
+function getDunesDistribution(preset) {
+  return (preset.dunes.distribution || defaultDunesDistribution).trim().toLowerCase();
 }
 
 function validatePreset(preset) {
@@ -128,6 +147,9 @@ function validatePreset(preset) {
   ensureNumber(preset.dunes.mutationRate, 'dunes.mutationRate', { min: 0 });
   ensureNumber(preset.dunes.years, 'dunes.years', { min: 0 });
   ensureNumber(preset.dunes.mutantsPerSequence, 'dunes.mutantsPerSequence', { integer: true, min: 1 });
+  if (preset.dunes.distribution !== undefined) {
+    ensureStringEnum(preset.dunes.distribution, 'dunes.distribution', dunesDistributionChoices);
+  }
 
   ensureObject(preset.microbetrace, 'microbetrace');
   ensureObject(preset.microbetrace.thresholds, 'microbetrace.thresholds');
@@ -394,6 +416,7 @@ function buildNodeMetadata(outputRecords, referenceInfo, preset) {
       generator: 'dunes',
       mutation_rate: preset.dunes.mutationRate,
       years: preset.dunes.years,
+      distribution: getDunesDistribution(preset),
     };
   });
 }
@@ -458,6 +481,7 @@ function summarizeOutputs(preset, outputs, referenceInfo, records, metadataRows,
       dunes: {
         jar: tools.dunesJar,
         version: versions.dunes,
+        source: dunesSource,
       },
     },
     commands: {
@@ -475,6 +499,7 @@ function summarizeOutputs(preset, outputs, referenceInfo, records, metadataRows,
       sequences: records.length,
       requestedSequences: referenceInfo.records.length * preset.dunes.mutantsPerSequence,
       sourceSequences: referenceInfo.records.length,
+      distribution: getDunesDistribution(preset),
       totalPairs: (records.length * (records.length - 1)) / 2,
       sequenceLength: {
         min: Math.min(...sequenceLengths),
@@ -528,6 +553,8 @@ function main() {
     String(preset.dunes.years),
     '-n',
     String(preset.dunes.mutantsPerSequence),
+    '-d',
+    getDunesDistribution(preset),
     '-o',
     outputs.fasta,
   ];
@@ -542,6 +569,7 @@ function main() {
       tools: {
         java: tools.java || { missing: true, name: 'java' },
         dunesJar: tools.dunesJar || { missing: true, env: 'DUNES_JAR' },
+        dunesSource,
       },
       commands: {
         dunes: plannedCommand,
@@ -564,6 +592,8 @@ function main() {
     String(preset.dunes.years),
     '-n',
     String(preset.dunes.mutantsPerSequence),
+    '-d',
+    getDunesDistribution(preset),
     '-o',
     outputs.fasta,
   ];
@@ -584,6 +614,7 @@ function main() {
     'generator',
     'mutation_rate',
     'years',
+    'distribution',
   ]);
 
   const versions = {

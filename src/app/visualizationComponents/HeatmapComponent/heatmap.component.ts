@@ -15,8 +15,10 @@ import { SelectItem } from 'primeng/api';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
+import { buildSafeCsvRow } from '@app/contactTraceCommonServices/export-sanitization';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { Subject, takeUntil } from 'rxjs';
+import * as d3 from 'd3';
 //import * as plotlyjs from 'plotly.js-dist-min';
 
 
@@ -108,7 +110,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       'yaxis.autorange': true
     }
     PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
-    this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+    this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
   }
   
   ngOnInit(): void {
@@ -192,28 +194,44 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   }
 
   private buildHeatmapColorbar(matrix: any[]): any {
-    if (!this.usesPercentageDistanceDisplay()) {
+    let minValue = Infinity;
+    let maxValue = -Infinity;
+
+    for (const row of matrix || []) {
+      if (!Array.isArray(row)) {
+        continue;
+      }
+
+      for (const rawValue of row) {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) {
+          continue;
+        }
+
+        if (value < minValue) {
+          minValue = value;
+        }
+        if (value > maxValue) {
+          maxValue = value;
+        }
+      }
+    }
+
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
       return undefined;
     }
 
-    const numericValues = (matrix || [])
-      .flatMap((row) => Array.isArray(row) ? row : [])
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value));
-
-    if (numericValues.length === 0) {
-      return undefined;
-    }
-
-    const minValue = Math.min(...numericValues);
-    const maxValue = Math.max(...numericValues);
-    const midpointValue = (minValue + maxValue) / 2;
-    const tickValues = [minValue, midpointValue, maxValue]
-      .filter((value, index, values) => values.findIndex((candidate) => Math.abs(candidate - value) < 1e-9) === index);
+    const epsilon = Math.abs(maxValue - minValue) * 1e-12 || 1e-12;
+    const tickValues = minValue === maxValue
+      ? [minValue]
+      : d3.ticks(minValue, maxValue, 8)
+        .filter((value) => value >= minValue - epsilon && value <= maxValue + epsilon);
+    const colorbarTickValues = tickValues.length > 0 ? tickValues : [minValue, maxValue];
 
     return {
-      tickvals: tickValues,
-      ticktext: tickValues.map((value) => this.formatHeatmapDistanceValue(value)),
+      tickmode: 'array',
+      tickvals: colorbarTickValues,
+      ticktext: colorbarTickValues.map((value) => this.formatHeatmapDistanceValue(value)),
     };
   }
 
@@ -245,10 +263,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         ]
       };
 
+      heatmapTrace.colorbar = this.buildHeatmapColorbar(dm);
+
       if (this.usesPercentageDistanceDisplay()) {
         heatmapTrace.customdata = this.buildFormattedHeatmapMatrix(dm);
         heatmapTrace.hovertemplate = 'X: %{x}<br>Y: %{y}<br>Distance: %{customdata}<extra></extra>';
-        heatmapTrace.colorbar = this.buildHeatmapColorbar(dm);
       }
 
       this.heatmapData = [heatmapTrace]
@@ -273,7 +292,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
       //  this.Plotly.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
 
-      const plot = PlotlyModule.plotlyjs.newPlot('heatmap', this.heatmapData, this.heatmapLayout, this.heatmapConfig);
+      const plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
       this.plot = plot;
 
       Promise.resolve(plot).then(() => {
@@ -502,12 +521,12 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
       let csvContent = "";
       if (this.heatmapShowLabels) {
-        csvContent += ["", ...xLabels].join(",") + "\n";
+        csvContent += buildSafeCsvRow(["", ...xLabels]) + "\n";
         for (let i = 0; i < exportedMatrix.length; i++) {
-          csvContent += [yLabels[i], ...exportedMatrix[i]].join(",") + "\n";
+          csvContent += buildSafeCsvRow([yLabels[i], ...exportedMatrix[i]]) + "\n";
         }
       } else {
-        csvContent += exportedMatrix.map((row) => row.join(",")).join("\n");
+        csvContent += exportedMatrix.map((row) => buildSafeCsvRow(row)).join("\n");
       }
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, fileName);

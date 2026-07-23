@@ -445,7 +445,7 @@ updateLocalColorMap() {
       nodeColorTableKeys.push(node[this.widgets['epiCurve-stackColorBy']])
     }
   })
-  this.localColorMap = d3.scaleOrdinal(this.commonService.session.style.nodeColors).domain(nodeColorTableKeys);
+  this.localColorMap = d3.scaleOrdinal(this.commonService.thirtyColorPalette).domain(nodeColorTableKeys);
 
   return nodeColorTableKeys;
 }

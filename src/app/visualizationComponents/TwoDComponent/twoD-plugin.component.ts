@@ -150,7 +150,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getFullNodeDataForCyNode(node: cytoscape.NodeSingular): any {
-        return this.nodeDataById.get(node.id()) || node.data();
+        const cachedNode = this.nodeDataById.get(node.id());
+        if (!cachedNode) return node.data();
+
+        return {
+            ...cachedNode,
+            ...node.data()
+        };
     }
 
     private getCyNodeDataValue(node: cytoscape.NodeSingular, field: string): any {
@@ -159,6 +165,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const fullNode = this.getFullNodeDataForCyNode(node);
         return fullNode ? fullNode[field] : undefined;
+    }
+
+    private normalizeGroupingValue(value: any): string | null {
+        const groupValue = Array.isArray(value) ? value[0] : value;
+
+        if (groupValue === undefined || groupValue === null) {
+            return null;
+        }
+
+        const normalizedGroup = `${groupValue}`.trim();
+        if (!normalizedGroup) {
+            return null;
+        }
+
+        if (normalizedGroup.toLowerCase() === 'null') {
+            return null;
+        }
+
+        return normalizedGroup;
+    }
+
+    private getCyNodeGroupingKey(node: cytoscape.NodeSingular, field: string): string | null {
+        return this.normalizeGroupingValue(this.getCyNodeDataValue(node, field));
     }
 
     private isCytoscapeNodeMetadataValue(value: any): boolean {
@@ -249,11 +278,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const groupMap = new Map<string, cytoscape.NodeSingular[]>();
         childNodes.forEach((node: cytoscape.NodeSingular) => {
-            const rawGroup = this.getCyNodeDataValue(node as cytoscape.NodeSingular, foci);
-            const normalizedGroup = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-            const group = normalizedGroup === undefined || normalizedGroup === null || normalizedGroup === 'None'
-                ? '__ungrouped__'
-                : `${normalizedGroup}`;
+            const group = this.getCyNodeGroupingKey(node as cytoscape.NodeSingular, foci) ?? '__ungrouped__';
 
             if (!groupMap.has(group)) groupMap.set(group, []);
             groupMap.get(group).push(node);
@@ -949,6 +974,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const shouldBeSelected = selectedIds.has(n._id || n.id);
                 if (n.selected !== shouldBeSelected) {
                     n.selected = shouldBeSelected;
+                    selectionChanged = true;
                 }
             });
 
@@ -1512,6 +1538,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 } else {
                   that.selectedNodeId = undefined;
                 }
+
+                that.commonService.updateStatistics();
               
                 if (that.debugMode) {
                   console.log('node-selected in 2d ids: ', mtSelectedNodeIds);
@@ -1928,14 +1956,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * 
      */
     updatePolygonColors(tableSelector: string = this.getActivePolygonColorTableSelector()) {
+        const microbeTrace = this.commonService.visuals.microbeTrace;
+        const legacyPolygonHeader = this.commonService.session.style.overwrite?.['polygonColorHeaderVariable'] === this.widgets['polygons-foci']
+            ? this.commonService.session.style.overwrite?.['polygonColorHeaderTitle']
+            : undefined;
+        const valueColumnName = microbeTrace?.getKeyTableColumnDisplayName(
+            'polygon-color',
+            'value',
+            legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci'])
+        ) ?? (legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci']));
+        const countColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'count', 'Count') ?? 'Count';
+        const frequencyColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'frequency', 'Frequency') ?? 'Frequency';
 
         let polygonColorTable = $(tableSelector)
             .empty()
             .append(            
                 "<tr>" +
-                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable>Group " + this.commonService.titleize(this.widgets['polygons-foci']) + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
-                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable>Count</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable>Frequency</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
+                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='count'>${countColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
+                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
                 "<th>Color</th>" +
                 "</tr>");
             //.append(polygonHeader)
@@ -2023,7 +2062,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         //   .domain(values);
 
         polygonColorTable
-            .find("td")
+            .find("td[data-value]")
             .on("dblclick", function () {
                 $(this).attr("contenteditable", "true").focus();
             })
@@ -2034,10 +2073,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
 
         polygonColorTable
-            .find(".p-1")
-            .on("focusout", function () {
-                that.commonService.session.style['overwrite']['polygonColorHeaderVariable'] = that.widgets["polygons-foci"];
-                that.commonService.session.style['overwrite']['polygonColorHeaderTitle'] = $($(this).contents()[0]).text();
+            .find("[data-table-key][data-column-key]")
+            .on("focusout", function (event) {
+                const cell = event.currentTarget as HTMLElement;
+                microbeTrace?.setKeyTableColumnDisplayName(
+                    String(cell.getAttribute('data-table-key')),
+                    String(cell.getAttribute('data-column-key')),
+                    cell.textContent ?? ''
+                );
             });
 
 
@@ -2226,8 +2269,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
         this.commonService.visuals.microbeTrace?.refreshDockedKeyTablesView();
+        this.commonService.visuals.microbeTrace?.closeDockedKeyTablesViewIfUnused();
 
         if (!shouldRefresh) {
             return;
@@ -2335,10 +2378,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 return;
             }
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-            if (group !== undefined && group !== null && group !== 'None') {
-                const groupKey = `${group}`;
+            const groupKey = this.getCyNodeGroupingKey(node, foci);
+            if (groupKey !== null) {
                 if (!groupMap.has(groupKey)) {
                     groupMap.set(groupKey, []);
                 }
@@ -2386,9 +2427,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 return;
             }
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-            if (group !== undefined && group !== null && group !== 'None') {
+            const group = this.getCyNodeGroupingKey(node, foci);
+            if (group !== null) {
                 const parentId = `group-${group}`;
                 node.move({ parent: parentId });
             }
@@ -2993,10 +3033,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 //     console.log('nodeee2: ', node.data(foci));
                 // }
                 
-	                const rawGroup = this.getCyNodeDataValue(node, foci); // Assuming foci corresponds to a data attribute
-                const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup; // Use first element if array
-                
-                if (group !== undefined && group !== null && group !== 'None') {
+                const group = this.getCyNodeGroupingKey(node, foci);
+                if (group !== null) {
                     if (!groupMap.has(group)) {
                         groupMap.set(group, []);
                     }
@@ -3038,7 +3076,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Handle nodes without a group (optional)
             cy.nodes().forEach(node => {
-	                if (!node.parent().length && this.getCyNodeDataValue(node, foci) !== 'None') {
+                if (!node.parent().length && this.getCyNodeGroupingKey(node, foci) !== null) {
                     node.move({ parent: null });
                 }
             });
@@ -3072,10 +3110,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         cy.nodes().forEach(node => {
             if (node.hasClass('parent')) return;
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-
-            if (group !== undefined && group !== null && group !== 'None') {
+            const group = this.getCyNodeGroupingKey(node, foci);
+            if (group !== null) {
                 if (!groupMap.has(group)) {
                     groupMap.set(group, []);
                 }
@@ -3187,10 +3223,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         cy.nodes().forEach(node => {
             if (node.hasClass('parent')) return;
 
-            const rawGroup = this.getCyNodeDataValue(node, foci);
-            const group = Array.isArray(rawGroup) ? rawGroup[0] : rawGroup;
-
-            if (group !== undefined && group !== null && group !== 'None') {
+            const group = this.getCyNodeGroupingKey(node, foci);
+            if (group !== null) {
                 if (!groupMap.has(group)) {
                     groupMap.set(group, []);
                 }
@@ -3463,13 +3497,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let color = this.widgets['link-color'];
         let finalColor;
         let alphaValue;
+        const linkColorValue = (() => {
+            const value = link[variable];
+            if (String(variable).toLowerCase() === 'origin' && Array.isArray(value)) {
+                return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
+            }
+            return this.commonService.normalizeStyleCategoryValue(value);
+        })();
 
         //if ((variable == 'Origin' || variable == 'origin') && link.origin.length > 1) {
             //finalColor = this.commonService.temp.style.linkColorMap("Duo-Link");
             //alphaValue = this.commonService.temp.style.linkAlphaMap("Duo-Link");
         //} else {
-        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(link[variable]);
-        alphaValue = this.commonService.temp.style.linkAlphaMap(link[variable])
+        finalColor = (variable == 'None') ? color : this.commonService.temp.style.linkColorMap(linkColorValue);
+        alphaValue = this.commonService.temp.style.linkAlphaMap(linkColorValue)
         //}
 
         if (this.overideTransparency) {

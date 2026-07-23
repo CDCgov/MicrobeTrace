@@ -8,6 +8,7 @@
       <div class="navbar-logo">
         <span class="microbe-font">Microbe</span>
         <span class="trace-font">Trace</span>
+        <span class="version-font">v{{version}}</span>
         <span><img alt="microbetrace" class="mt-icon-toolbar" [src]="appRootUrl() + 'assets/images/Logo.png'"></span>
       </div>
       <div class="menu-items">
@@ -28,6 +29,7 @@
         <mat-menu #viewMenu="matMenu" overlapTrigger="false">
           <button data-testid="app-view-menu-2d-network" mat-menu-item (click)="Viewclick('2D Network')">2D Network</button>
           <button data-testid="app-view-menu-table" mat-menu-item (click)="Viewclick('Table')">Table</button>
+          <button data-testid="app-view-menu-network-statistics" mat-menu-item (click)="Viewclick('Network Statistics')">Network Statistics</button>
           <button data-testid="app-view-menu-map" mat-menu-item (click)="Viewclick('Map')">Map</button>
           <button mat-menu-item (click)="Viewclick('Epi Curve')">Epi Curve</button>
           <button mat-menu-item (click)="Viewclick('Phylogenetic Tree')">Phylogenetic Tree</button>
@@ -81,6 +83,13 @@
       <div id="network-guardrail-warning" class="network-guardrail-warning" role="alert">
         <span>{{ getLatestSessionWarningMessage() }}</span>
         <button type="button" class="btn btn-sm btn-link" (click)="clearSessionWarnings()">Dismiss</button>
+      </div>
+    }
+
+    @if (isNetworkSubsetFilterActive()) {
+      <div id="network-subset-filter-notice" class="network-subset-filter-notice" data-testid="network-subset-filter-notice" role="status">
+        <span>Subset active: {{ getNetworkSubsetFilterLabel() }}</span>
+        <button type="button" class="btn btn-sm btn-link" data-testid="network-subset-filter-clear" (click)="clearNetworkSubsetFilter()">Clear</button>
       </div>
     }
 
@@ -187,24 +196,29 @@
         <div class="col-12" style="width:100%;max-height:50vh;" title="Node shape selection.">
           <table #nodeShapeTable id="node-shape-table" style="width:100%;height:100%;">
             <tr>
-              <th class="table-header-row" contenteditable>
-                <div class="header-content sortable">Node {{ commonService.titleize(SelectedNodeSymbolVariable) }}<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
+              <th class="table-header-row">
+                <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="value" [textContent]="getKeyTableColumnDisplayName('node-shape', 'value', 'Node ' + commonService.titleize(SelectedNodeSymbolVariable))" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'value')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('key')">⇅</a></div>
               </th>
               @if (widgets['node-symbol-table-counts']) {
-                <th class="table-header-row tableCount" contenteditable>
-                  <div class="header-content sortable">Count<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
+                <th class="table-header-row tableCount">
+                  <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="count" [textContent]="getKeyTableColumnDisplayName('node-shape', 'count', 'Count')" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'count')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('count')">⇅</a></div>
                 </th>
               }
               @if (widgets['node-symbol-table-frequencies']) {
-                <th class="table-header-row tableFrequency" contenteditable>
-                  <div class="header-content sortable">Frequency<a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
+                <th class="table-header-row tableFrequency">
+                  <div class="header-content sortable"><span contenteditable data-table-key="node-shape" data-column-key="frequency" [textContent]="getKeyTableColumnDisplayName('node-shape', 'frequency', 'Frequency')" (blur)="onKeyTableColumnNameBlur($event, 'node-shape', 'frequency')"></span><a class="sort-button" style="cursor: pointer;" (click)="onNodeShapeSort('frequency')">⇅</a></div>
                 </th>
               }
               <th>Shape</th>
             </tr>
             @for (group of shapeAggregates; track group.rawValue) {
               <tr>
-                <td contenteditable>{{commonService.titleize(group.key)}}</td>
+                <td
+                  contenteditable
+                  [attr.data-value]="group.rawValue"
+                  [textContent]="getNodeValueDisplayName(group.rawValue)"
+                  (blur)="onNodeShapeNameBlur($event, group.rawValue)">
+                </td>
                 @if (widgets['node-symbol-table-counts']) {
                   <td class="tableCount">{{group.count}}</td>
                 }
@@ -303,6 +317,7 @@
     <mat-menu #viewMenuBottom="matMenu" overlapTrigger="false">
       <button mat-menu-item (click)="updateLaunchView('2D Network')">2D Network</button>
       <button mat-menu-item (click)="updateLaunchView('Table')">Table</button>
+      <button mat-menu-item (click)="updateLaunchView('Network Statistics')">Network Statistics</button>
       <button mat-menu-item (click)="updateLaunchView('Map')">Bubbles</button>
       <button mat-menu-item (click)="updateLaunchView('Phylogenetic Tree')">Phylogenetic Tree</button>
     </mat-menu> -->
@@ -366,6 +381,72 @@
                   </div>
                   <div class="col-8">
                     <input type="number" id="cluster-minimum-size" data-testid="filter-minimum-cluster-size" class="form-control form-control-sm" min="1" value="1" step="1" [(ngModel)]="SelectedClusterMinimumSizeVariable" (ngModelChange)="onMinimumClusterSizeChanged()">
+                  </div>
+                </div>
+                <div id="network-subset-filtering" class="network-subset-filtering" data-testid="network-subset-filtering">
+                  <hr>
+                  @if (isNetworkSubsetFilterActive()) {
+                    <div id="network-subset-active" class="alert alert-info py-2" data-testid="network-subset-active">
+                      <strong>Subset active:</strong> {{ getNetworkSubsetFilterLabel() }}
+                    </div>
+                  }
+                  <div class="form-group row" title="Show only nodes that match this field and value.">
+                    <div class="col-4"><label for="network-subset-node-field">Subset Nodes</label></div>
+                    <div class="col-8">
+                      <select id="network-subset-node-field" data-testid="network-subset-node-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetNodeField" (ngModelChange)="onNetworkSubsetNodeFieldChanged($event)">
+                        @for (field of FieldList; track field.value) {
+                          <option [value]="field.value">{{ field.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <select id="network-subset-node-operator" data-testid="network-subset-node-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetNodeOperator">
+                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
+                          <option [value]="operator.value">{{ operator.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <input id="network-subset-node-value" data-testid="network-subset-node-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-node-value-options" [ngModel]="SelectedNetworkSubsetNodeValue" (ngModelChange)="onNetworkSubsetNodeValueChanged($event)">
+                      <datalist id="network-subset-node-value-options" data-testid="network-subset-node-value-options">
+                        @for (option of NetworkSubsetNodeValueOptions; track option) {
+                          <option [value]="option"></option>
+                        }
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Show only links that match this field and value.">
+                    <div class="col-4"><label for="network-subset-link-field">Subset Links</label></div>
+                    <div class="col-8">
+                      <select id="network-subset-link-field" data-testid="network-subset-link-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetLinkField" (ngModelChange)="onNetworkSubsetLinkFieldChanged($event)">
+                        @for (field of ToolTipFieldList; track field.value) {
+                          <option [value]="field.value">{{ field.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <select id="network-subset-link-operator" data-testid="network-subset-link-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetLinkOperator">
+                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
+                          <option [value]="operator.value">{{ operator.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <input id="network-subset-link-value" data-testid="network-subset-link-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-link-value-options" [ngModel]="SelectedNetworkSubsetLinkValue" (ngModelChange)="onNetworkSubsetLinkValueChanged($event)">
+                      <datalist id="network-subset-link-value-options" data-testid="network-subset-link-value-options">
+                        @for (option of NetworkSubsetLinkValueOptions; track option) {
+                          <option [value]="option"></option>
+                        }
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-8 offset-4">
+                      <div class="d-flex">
+                        <button type="button" id="network-subset-apply" data-testid="network-subset-apply" class="btn btn-primary btn-sm flex-fill mr-2" (click)="applyNetworkSubsetFilter()">Apply Subset</button>
+                        <button type="button" id="network-subset-clear" data-testid="network-subset-clear" class="btn btn-light btn-sm flex-fill" (click)="clearNetworkSubsetFilter()">Clear</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div id="filtering-wrapper">
