@@ -40,6 +40,7 @@
 !.vscode/extensions.json
 
 # misc
+/.playwright-cli/
 /.angular/cache
 /.sass-cache
 /connect.lock

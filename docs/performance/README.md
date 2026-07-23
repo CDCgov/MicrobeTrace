@@ -7,7 +7,7 @@ This folder contains performance-specific planning notes, baseline strategy, and
 - `performance-baseline-plan.md`: performance harness design, dataset tiers, measurement model, interaction probes, budget workflow, and run commands.
 - `performance-dataset-strategy-for-bioinformaticians.md`: bioinformatics-facing explanation of why we use both synthetic and real datasets.
 - `synthetic-performance-dataset-generation.md`: exact generation recipes and review notes for synthetic graph, FASTA, and Newick performance fixtures.
-- `dunes-performance-fixture-generation.md`: optional DUNES workflow for generating simpler FASTA-only simulated sequence fixtures.
+- `dunes-performance-fixture-generation.md`: optional forked DUNES workflow for generating simpler FASTA-only simulated sequence fixtures.
 - `realistic-performance-fixture-generation.md`: optional MuSSE + AliSim workflow for generating bio-realistic simulated FASTA/Newick/metadata fixtures.
 - `realistic-fixture-developer-setup.md`: developer setup/runbook for installing R, IQ-TREE/AliSim, R packages, generating fixtures, and running the opt-in Cypress spec.
 - `genetic-distance-refactor-performance-comparison.md`: before/after performance results for the genetic-distance and Newick/patristic refactor comparison.

@@ -354,7 +354,7 @@ When `perfRealSamples=1` is set, Cypress validates the manifest and referenced f
 
 Simple and bio-realistic simulated fixtures are also opt-in. They are generated from reviewed YAML recipes with host bioinformatics tools instead of the deterministic JavaScript fixture generator.
 
-DUNES is the simpler FASTA-only tier:
+DUNES is the simpler FASTA-only tier, using the `dacowan404/dunes` fork so presets can choose a mutation distribution:
 
 - `npm run fixtures:performance:dunes:dry-run`
 - `DUNES_JAR=/path/to/dunes.jar npm run fixtures:performance:dunes`

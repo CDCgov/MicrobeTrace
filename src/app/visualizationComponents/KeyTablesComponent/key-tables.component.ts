@@ -163,7 +163,9 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         microbeTrace.updateCountFreqTable('node-color');
         microbeTrace.updateCountFreqTable('link-color');
         microbeTrace.updateCountFreqTable('node-shape');
-        this.cdref.markForCheck();
+        this.cdref.detectChanges();
+        microbeTrace.syncNodeValueDisplayNameCells(this.rootHtmlElement);
+        microbeTrace.syncKeyTableColumnNameCells(this.rootHtmlElement);
     }
 
     onNodeColorByChange(value: string): void {
@@ -344,6 +346,26 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     formatNodeShapeGroup(key: string): string {
         return this.visuals.microbeTrace?.commonService?.titleize(key) ?? key;
+    }
+
+    getKeyTableColumnDisplayName(table: string, column: string, fallback: string): string {
+        return this.visuals.microbeTrace?.getKeyTableColumnDisplayName(table, column, fallback)
+            ?? fallback;
+    }
+
+    onKeyTableColumnNameBlur(event: FocusEvent, table: string, column: string): void {
+        this.visuals.microbeTrace?.onKeyTableColumnNameBlur(event, table, column);
+        this.cdref.markForCheck();
+    }
+
+    getNodeShapeGroupDisplayName(rawValue: any): string {
+        return this.visuals.microbeTrace?.getNodeValueDisplayName(rawValue)
+            ?? this.formatNodeShapeGroup(String(rawValue));
+    }
+
+    onNodeShapeNameBlur(event: FocusEvent, rawValue: any): void {
+        this.visuals.microbeTrace?.onNodeShapeNameBlur(event, rawValue);
+        this.cdref.markForCheck();
     }
 
     onNodeShapeTreeChange(selectedNode: any): void {

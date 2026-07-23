@@ -28,6 +28,8 @@ dunes:
   years: 0.25
   # DUNES option -n, mutants generated per source sequence.
   mutantsPerSequence: 50
+  # DUNES fork option -d, substitution distribution matrix.
+  distribution: hiv
 
 microbetrace:
   thresholds:

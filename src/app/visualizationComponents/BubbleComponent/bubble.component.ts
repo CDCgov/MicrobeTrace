@@ -17,6 +17,25 @@ import { buildPieChartPatternDef, buildPieChartSvgDataUri, PieChartSlice } from 
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
+type BubblePieExportSlice = {
+  label: string;
+  count: number;
+  color: string;
+  opacity: number;
+  fraction: number;
+};
+
+interface BubblePieSvgExportReplacement {
+  borderWidth: number;
+  nodeId: string;
+  totalCount: number;
+  exportHeight: number;
+  exportWidth: number;
+  exportX: number;
+  exportY: number;
+  slices: BubblePieExportSlice[];
+}
+
 @Component({
     selector: 'bubble-component',
     templateUrl: './bubble.component.html',
@@ -1342,6 +1361,307 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cdref.detectChanges();
   }
 
+  private formatSvgNumber(value: number): string {
+    if (!Number.isFinite(value)) {
+      return '0';
+    }
+
+    return Number(value.toFixed(4)).toString();
+  }
+
+  private getSvgLengthAttribute(element: Element, attributeName: string): number | null {
+    const attributeValue = element.getAttribute(attributeName);
+    if (!attributeValue) {
+      return null;
+    }
+
+    const numericValue = parseFloat(attributeValue);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  private getSvgImageHref(image: Element): string | null {
+    const xlinkNamespace = 'http://www.w3.org/1999/xlink';
+    return image.getAttribute('href')
+      || image.getAttributeNS(xlinkNamespace, 'href')
+      || image.getAttribute('xlink:href');
+  }
+
+  private getSvgTranslateTransform(element: Element): { x: number; y: number } | null {
+    const transformValue = element.getAttribute('transform');
+    if (!transformValue) {
+      return null;
+    }
+
+    const translateMatch = transformValue.match(/translate\(\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*,?\s*([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*\)/i);
+    if (!translateMatch) {
+      return null;
+    }
+
+    const x = parseFloat(translateMatch[1]);
+    const y = parseFloat(translateMatch[2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+
+    return { x, y };
+  }
+
+  private getBubbleSvgExportScale(svgElement: Element): number {
+    if (!this.cy) {
+      return 1;
+    }
+
+    const graphBounds = this.cy.elements().boundingBox();
+    const svgWidth = this.getSvgLengthAttribute(svgElement, 'width');
+    const graphWidth = Math.ceil(graphBounds.w);
+    if (!svgWidth || !Number.isFinite(svgWidth) || graphWidth <= 0) {
+      return 1;
+    }
+
+    return svgWidth / graphWidth;
+  }
+
+  private getCollapsedPieSvgExportReplacementList(exportScale: number): BubblePieSvgExportReplacement[] {
+    const replacements: BubblePieSvgExportReplacement[] = [];
+    if (!this.cy || !this.SelectedNodeCollapsingTypeVariable) {
+      return replacements;
+    }
+
+    const graphBounds = this.cy.elements().boundingBox();
+    if (!Number.isFinite(graphBounds.x1) || !Number.isFinite(graphBounds.y1)) {
+      return replacements;
+    }
+
+    this.visibleData.forEach((dataNode) => {
+      const totalCount = Number(dataNode.totalCount || 0);
+      const counts = Array.isArray(dataNode.counts)
+        ? dataNode.counts.filter((count) => Number(count?.count || 0) > 0)
+        : [];
+
+      if (totalCount <= 1 || counts.length <= 1) {
+        return;
+      }
+
+      const cyNode = this.cy.getElementById(String(dataNode.id));
+      if (cyNode.empty()) {
+        return;
+      }
+
+      const position = cyNode.position();
+      const nodeWidth = Number(cyNode.width()) || Number(cyNode.data('nodeSize')) || 0;
+      const nodeHeight = Number(cyNode.height()) || Number(cyNode.data('nodeSize')) || nodeWidth;
+      const borderWidth = Number(cyNode.numericStyle('border-width')) || 3;
+      if (
+        !Number.isFinite(position.x)
+        || !Number.isFinite(position.y)
+        || !Number.isFinite(nodeWidth)
+        || !Number.isFinite(nodeHeight)
+        || nodeWidth <= 0
+        || nodeHeight <= 0
+      ) {
+        return;
+      }
+
+      const sliceTotal = counts.reduce((sum, count) => sum + Number(count.count || 0), 0);
+      if (sliceTotal <= 0) {
+        return;
+      }
+
+      replacements.push({
+        borderWidth: borderWidth * exportScale,
+        nodeId: String(dataNode.id),
+        totalCount,
+        exportHeight: nodeHeight * exportScale,
+        exportWidth: nodeWidth * exportScale,
+        exportX: (position.x - graphBounds.x1 - nodeWidth / 2) * exportScale,
+        exportY: (position.y - graphBounds.y1 - nodeHeight / 2) * exportScale,
+        slices: counts.map((count) => {
+          const label = String(count.label);
+          const countValue = Number(count.count || 0);
+          const nodeStyle = this.getNodeFillStyleForColorValue(label);
+
+          return {
+            label,
+            count: countValue,
+            color: nodeStyle.color,
+            opacity: nodeStyle.alpha,
+            fraction: countValue / sliceTotal,
+          };
+        }),
+      });
+    });
+
+    return replacements;
+  }
+
+  private findMatchingCollapsedPieSvgExportReplacement(
+    image: Element,
+    replacements: BubblePieSvgExportReplacement[],
+    usedReplacements: Set<BubblePieSvgExportReplacement>
+  ): BubblePieSvgExportReplacement | null {
+    const imageWidth = this.getSvgLengthAttribute(image, 'width');
+    const imageHeight = this.getSvgLengthAttribute(image, 'height');
+    const imageTranslate = this.getSvgTranslateTransform(image) || { x: 0, y: 0 };
+    const imageX = this.getSvgLengthAttribute(image, 'x') || 0;
+    const imageY = this.getSvgLengthAttribute(image, 'y') || 0;
+    if (imageWidth === null || imageHeight === null) {
+      return null;
+    }
+
+    let bestMatch: BubblePieSvgExportReplacement | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const replacement of replacements) {
+      if (usedReplacements.has(replacement)) {
+        continue;
+      }
+
+      const score =
+        Math.abs(replacement.exportX - (imageTranslate.x + imageX))
+        + Math.abs(replacement.exportY - (imageTranslate.y + imageY))
+        + Math.abs(replacement.exportWidth - imageWidth)
+        + Math.abs(replacement.exportHeight - imageHeight);
+      if (score < bestScore) {
+        bestScore = score;
+        bestMatch = replacement;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  private getBubblePieSlicePath(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startFraction: number,
+    endFraction: number
+  ): string {
+    const startAngle = -Math.PI / 2 + startFraction * 2 * Math.PI;
+    const endAngle = -Math.PI / 2 + endFraction * 2 * Math.PI;
+    const startX = centerX + radius * Math.cos(startAngle);
+    const startY = centerY + radius * Math.sin(startAngle);
+    const endX = centerX + radius * Math.cos(endAngle);
+    const endY = centerY + radius * Math.sin(endAngle);
+    const largeArcFlag = endFraction - startFraction > 0.5 ? 1 : 0;
+
+    return [
+      'M', this.formatSvgNumber(centerX), this.formatSvgNumber(centerY),
+      'L', this.formatSvgNumber(startX), this.formatSvgNumber(startY),
+      'A', this.formatSvgNumber(radius), this.formatSvgNumber(radius), '0', `${largeArcFlag}`, '1', this.formatSvgNumber(endX), this.formatSvgNumber(endY),
+      'Z',
+    ].join(' ');
+  }
+
+  private createBubblePieVectorExportElement(
+    doc: XMLDocument,
+    sourceImage: SVGImageElement,
+    replacement: BubblePieSvgExportReplacement
+  ): SVGGElement {
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+    const vectorGroup = doc.createElementNS(svgNamespace, 'g');
+    vectorGroup.setAttribute('class', 'bubble-export-pie');
+    vectorGroup.setAttribute('data-mt-export', 'bubble-pie');
+    vectorGroup.setAttribute('data-mt-node-id', replacement.nodeId);
+    vectorGroup.setAttribute('data-mt-total-count', `${replacement.totalCount}`);
+    vectorGroup.setAttribute('aria-hidden', 'true');
+
+    const attributesToCopy = ['clip-path', 'opacity', 'style'];
+    attributesToCopy.forEach((attributeName) => {
+      const attributeValue = sourceImage.getAttribute(attributeName);
+      if (attributeValue) {
+        vectorGroup.setAttribute(attributeName, attributeValue);
+      }
+    });
+
+    const imageTransform = sourceImage.getAttribute('transform');
+    if (imageTransform) {
+      vectorGroup.setAttribute('transform', imageTransform);
+    }
+
+    const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
+    const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
+    const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
+    const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
+    const centerX = imageX + imageWidth / 2;
+    const centerY = imageY + imageHeight / 2;
+    const radius = Math.min(imageWidth, imageHeight) / 2;
+    let sliceStart = 0;
+
+    replacement.slices.forEach((slice, index) => {
+      const sliceEnd = index === replacement.slices.length - 1 ? 1 : sliceStart + slice.fraction;
+      const path = doc.createElementNS(svgNamespace, 'path');
+      path.setAttribute('class', 'bubble-export-pie-slice');
+      path.setAttribute('data-mt-export', 'bubble-pie-slice');
+      path.setAttribute('data-mt-node-id', replacement.nodeId);
+      path.setAttribute('data-mt-slice-label', slice.label);
+      path.setAttribute('data-mt-slice-count', `${slice.count}`);
+      path.setAttribute('data-mt-slice-fraction', this.formatSvgNumber(slice.fraction));
+      path.setAttribute('fill', slice.color);
+      path.setAttribute('fill-opacity', this.formatSvgNumber(slice.opacity));
+      path.setAttribute('stroke', 'none');
+      path.setAttribute('d', this.getBubblePieSlicePath(centerX, centerY, radius, sliceStart, sliceEnd));
+      vectorGroup.appendChild(path);
+      sliceStart = sliceEnd;
+    });
+
+    const outline = doc.createElementNS(svgNamespace, 'circle');
+    const outlineStrokeWidth = Math.min(replacement.borderWidth, radius);
+    outline.setAttribute('class', 'bubble-export-pie-outline');
+    outline.setAttribute('data-mt-export', 'bubble-pie-outline');
+    outline.setAttribute('data-mt-node-id', replacement.nodeId);
+    outline.setAttribute('cx', this.formatSvgNumber(centerX));
+    outline.setAttribute('cy', this.formatSvgNumber(centerY));
+    outline.setAttribute('r', this.formatSvgNumber(Math.max(0, radius - outlineStrokeWidth / 2)));
+    outline.setAttribute('fill', 'none');
+    outline.setAttribute('stroke', '#000000');
+    outline.setAttribute('stroke-width', this.formatSvgNumber(outlineStrokeWidth));
+    vectorGroup.appendChild(outline);
+
+    return vectorGroup;
+  }
+
+  private replaceExportedCollapsedPieImagesWithVectorPies(doc: XMLDocument): void {
+    const svgElement = doc.documentElement;
+    const exportScale = this.getBubbleSvgExportScale(svgElement);
+    const replacementList = this.getCollapsedPieSvgExportReplacementList(exportScale);
+    if (replacementList.length === 0) {
+      return;
+    }
+
+    const images = Array.from(doc.getElementsByTagName('image'))
+      .filter((image) => {
+        const href = this.getSvgImageHref(image);
+        return !!href && href.startsWith('data:image/png;base64,');
+      });
+    const usedReplacements = new Set<BubblePieSvgExportReplacement>();
+
+    images.forEach((image) => {
+      const replacement = this.findMatchingCollapsedPieSvgExportReplacement(image, replacementList, usedReplacements);
+      if (!replacement || !image.parentNode) {
+        return;
+      }
+
+      usedReplacements.add(replacement);
+      const vectorElement = this.createBubblePieVectorExportElement(doc, image as SVGImageElement, replacement);
+      image.parentNode.replaceChild(vectorElement, image);
+    });
+  }
+
+  private vectorizeCollapsedPieSvgExport(content: string): string {
+    if (!this.SelectedNodeCollapsingTypeVariable) {
+      return content;
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'image/svg+xml');
+    if (doc.getElementsByTagName('parsererror').length > 0) {
+      return content;
+    }
+
+    this.replaceExportedCollapsedPieImagesWithVectorPies(doc);
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }
+
   exportVisualization() {
     const exportOptions: ExportOptions = {
       filename: this.BubbleExportFileName,
@@ -1356,6 +1676,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.BubbleExportFileType == 'svg') {
       let options = { scale: 1, full: true, bg: '#ffffff'};
       let content = (this.cy as any).svg(options);
+      content = this.vectorizeCollapsedPieSvgExport(content);
 
       this.exportService.requestSVGExport([], content, true, false); 
     } else {

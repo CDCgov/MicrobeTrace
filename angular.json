@@ -43,7 +43,14 @@
             },
             "assets": [
               "src/favicon.ico",
-              "src/assets",
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets",
+                "ignore": [
+                  "metronic/app/core/**"
+                ]
+              },
               "src/assets/common/data",
               "src/assets/images/Logo.png",
               "src/outbreaknorm.microbetrace",
@@ -102,10 +109,7 @@
                 "input": "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css"
               }
             ],
-            "scripts": [
-              "src/assets/metronic/assets/vendors/base/vendors.bundle.js",
-              "src/assets/metronic/assets/demo/default/base/scripts.bundle.js"
-            ],
+            "scripts": [],
             "browser": "src/main.ts"
           },
           "configurations": {
@@ -194,7 +198,14 @@
             "scripts": [],
             "assets": [
               "src/favicon.ico",
-              "src/assets",
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets",
+                "ignore": [
+                  "metronic/app/core/**"
+                ]
+              },
               {
                 "glob": "localforage.min.js",
                 "input": "node_modules/localforage/dist",

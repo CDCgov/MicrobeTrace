@@ -94,6 +94,10 @@ type DashboardPaneRect = {
   height: number;
 };
 
+type DashboardOpenComponentCountOptions = {
+  includeDockedKeyTables?: boolean;
+};
+
 const dashboardPaneSelectors: Record<string, string> = {
   '2D Network': '#cy',
   Map: '.mapStyle',
@@ -617,10 +621,21 @@ export function assertActiveDashboardTab(expectedTitle: string): void {
   });
 }
 
-export function assertDashboardOpenComponentCount(expectedCount: number): void {
+export function assertDashboardOpenComponentCount(
+  expectedCount: number,
+  options: DashboardOpenComponentCountOptions = {},
+): void {
+  const includeDockedKeyTables = options.includeDockedKeyTables ?? true;
+
   cy.window().should((win: unknown) => {
     const app = getDashboardApp(win as DashboardWindow);
-    expect(getOpenDashboardEntries(app), 'open dashboard component count').to.have.length(expectedCount);
+    const openEntries = getOpenDashboardEntries(app);
+    const countedEntries = includeDockedKeyTables
+      ? openEntries
+      : openEntries.filter((entry) => entry.label !== 'Docked Key Tables');
+    const countedLabels = countedEntries.map((entry) => entry.label);
+
+    expect(countedLabels, 'open dashboard component count').to.have.length(expectedCount);
   });
 }
 

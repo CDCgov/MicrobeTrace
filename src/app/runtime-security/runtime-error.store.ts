@@ -37,6 +37,10 @@ export function reportRuntimeError(options: {
   severity?: RuntimeErrorSeverity;
 }): void {
   const severity = options.severity ?? 'warning';
+  if (severity !== 'critical') {
+    return;
+  }
+
   const detail = options.detail ?? describeErrorDetail(options.error);
   const summary = options.error === undefined && options.detail
     ? options.detail

@@ -2,18 +2,73 @@
   'use strict';
 
   var ALLOWED_KINDS = new Set(['node', 'link', 'matrix', 'fasta', 'newick', 'auspice']);
+  var ALLOWED_DEFAULT_VIEWS = new Set([
+    '2D Network',
+    'Epi Curve',
+    'Sankey',
+    'Table',
+    'Crosstab',
+    'Map',
+    'Bubble',
+    'Gantt Chart',
+    'Phylogenetic Tree',
+    'Alignment View',
+    'Heatmap',
+    'Waterfall'
+  ]);
+  var ALLOWED_DISTANCE_METRICS = new Set(['snps', 'tn93']);
+  var ALLOWED_AMBIGUITY_STRATEGIES = new Set(['AVERAGE', 'RESOLVE', 'SKIP', 'GAPMM', 'HIVTRACE-G']);
+  var ALLOWED_NODE_SHAPES = new Set([
+    'ellipse',
+    'triangle',
+    'rectangle',
+    'barrel',
+    'rhomboid',
+    'diamond',
+    'pentagon',
+    'hexagon',
+    'heptagon',
+    'octagon',
+    'star',
+    'tag',
+    'vee'
+  ]);
+  var ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS = new Set(['decimal', 'percentage']);
   var FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+  var HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
   var READY_TYPE = 'MT_HANDOFF_READY';
   var TRANSFER_TYPE = 'MT_HANDOFF_TRANSFER';
   var ERROR_TYPE = 'MT_HANDOFF_ERROR';
+  var HANDOFF_STORAGE_PREFIX = 'handoff:';
+  var DEFAULT_HANDOFF_TTL_MS = 900000;
+  var UNSUPPORTED_WEB_CRYPTO_MESSAGE = 'MicrobeTrace partner handoff requires a modern browser with Web Crypto support.';
   var statusNode = document.getElementById('status');
   var detailsNode = document.getElementById('details');
   var params = new URLSearchParams(window.location.search);
   var openerWindow = window.opener;
   var partnerId = params.get('partnerId');
   var nonce = params.get('nonce');
+  var openerOrigin = normalizeMessageOrigin(params.get('openerOrigin')) || normalizeMessageOrigin(document.referrer);
   var handled = false;
   var timeoutId = null;
+  var allowlistConfig = null;
+  var allowedTargetOrigins = [];
+
+  function normalizeMessageOrigin(value) {
+    if (typeof value !== 'string' || !value.trim()) {
+      return '';
+    }
+
+    try {
+      var parsed = new URL(value);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return '';
+      }
+      return parsed.origin;
+    } catch (error) {
+      return '';
+    }
+  }
 
   function setStatus(status, details) {
     if (statusNode) {
@@ -25,24 +80,34 @@
   }
 
   function postMessageToOpener(message, targetOrigin) {
-    if (openerWindow && !openerWindow.closed) {
+    if (targetOrigin && openerWindow && !openerWindow.closed) {
       openerWindow.postMessage(message, targetOrigin);
     }
   }
 
-  function fail(message, targetOrigin) {
+  function postMessageToAllowedOrigins(message, targetOrigins) {
+    if (!Array.isArray(targetOrigins)) {
+      return;
+    }
+    targetOrigins.forEach(function (targetOrigin) {
+      postMessageToOpener(message, targetOrigin);
+    });
+  }
+
+  function fail(message, targetOrigins) {
     if (handled) {
       return;
     }
     handled = true;
     window.clearTimeout(timeoutId);
     setStatus('Unable to load this partner handoff.', message);
-    postMessageToOpener({
+    var replyOrigins = Array.isArray(targetOrigins) ? targetOrigins : (openerOrigin ? [openerOrigin] : []);
+    postMessageToAllowedOrigins({
       type: ERROR_TYPE,
       partnerId: partnerId,
       nonce: nonce,
       message: message
-    }, targetOrigin || '*');
+    }, replyOrigins);
   }
 
   function isPlainObject(value) {
@@ -73,9 +138,10 @@
     }
     var output = {};
     Object.keys(value).forEach(function (key) {
-      if (!FORBIDDEN_KEYS.has(key)) {
-        output[key] = sanitizeValue(value[key], path + '.' + key);
+      if (FORBIDDEN_KEYS.has(key)) {
+        throw new Error('Forbidden object key at "' + path + '.' + key + '".');
       }
+      output[key] = sanitizeValue(value[key], path + '.' + key);
     });
     return output;
   }
@@ -86,6 +152,20 @@
     }
     var text = typeof value === 'string' ? value : JSON.stringify(value);
     return new TextEncoder().encode(text).length;
+  }
+
+  function buildSecureId(prefix) {
+    if (window.crypto && window.crypto.randomUUID) {
+      return prefix + window.crypto.randomUUID();
+    }
+    if (window.crypto && window.crypto.getRandomValues) {
+      var bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      return prefix + Array.prototype.map.call(bytes, function (byte) {
+        return byte.toString(16).padStart(2, '0');
+      }).join('');
+    }
+    throw new Error(UNSUPPORTED_WEB_CRYPTO_MESSAGE);
   }
 
   function containsBlockedMarkup(text) {
@@ -246,16 +326,12 @@
   }
 
   function buildHandoffId() {
-    if (window.crypto && window.crypto.randomUUID) {
-      return window.crypto.randomUUID();
-    }
-    return 'handoff-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    return buildSecureId('');
   }
 
   function buildRedirectUrl(handoffId) {
     var appRoot = new URL('../../', window.location.href);
-    appRoot.searchParams.set('handoff', handoffId);
-    appRoot.searchParams.set('skipDemoSession', '1');
+    appRoot.hash = 'handoff=' + encodeURIComponent(handoffId);
     return appRoot.toString();
   }
 
@@ -268,12 +344,42 @@
     });
   }
 
+  function normalizeOrigin(origin) {
+    if (typeof origin !== 'string' || !origin.trim() || origin.trim() === '*') {
+      return null;
+    }
+
+    try {
+      var parsed = new URL(origin);
+      return parsed.origin === origin.trim() ? parsed.origin : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getPartnerOrigins(config) {
+    var partners = isPlainObject(config.partners) ? config.partners : {};
+    var partnerConfig = partners[partnerId];
+
+    if (!partnerConfig || !Array.isArray(partnerConfig.origins)) {
+      throw new Error('The requested partner is not configured for handoff.');
+    }
+
+    var origins = partnerConfig.origins.map(normalizeOrigin).filter(Boolean);
+    if (!origins.length) {
+      throw new Error('The requested partner does not have any approved handoff origins.');
+    }
+
+    return origins;
+  }
+
   function validatePartner(config, origin) {
     var defaults = isPlainObject(config.defaults) ? config.defaults : {};
     var partners = isPlainObject(config.partners) ? config.partners : {};
     var partnerConfig = partners[partnerId];
+    var origins = getPartnerOrigins(config);
 
-    if (!partnerConfig || !Array.isArray(partnerConfig.origins) || !partnerConfig.origins.includes(origin)) {
+    if (!origins.includes(origin)) {
       throw new Error('The calling origin is not approved for this partner handoff.');
     }
 
@@ -283,6 +389,195 @@
       maxTotalBytes: Number(partnerConfig.maxTotalBytes || defaults.maxTotalBytes || 52428800),
       ttlMs: Number(defaults.ttlMs || 900000)
     };
+  }
+
+  function shouldRemoveStoredHandoff(stored, now) {
+    if (!stored) {
+      return true;
+    }
+
+    try {
+      var parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
+      var sanitized = sanitizeValue(parsed, 'handoff');
+
+      if (!isPlainObject(sanitized)) {
+        return true;
+      }
+
+      var version = Number(sanitized.version);
+      var createdAt = Number(sanitized.createdAt);
+      var expiresAt = Number(sanitized.expiresAt);
+
+      if (version !== 1) {
+        return true;
+      }
+      if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) {
+        return true;
+      }
+      if (expiresAt < now) {
+        return true;
+      }
+      if (expiresAt - createdAt > DEFAULT_HANDOFF_TTL_MS) {
+        return true;
+      }
+
+      return !Array.isArray(sanitized.files) || sanitized.files.length === 0;
+    } catch (error) {
+      return true;
+    }
+  }
+
+  async function cleanupExpiredStoredHandoffs(now) {
+    if (!window.localforage || typeof window.localforage.keys !== 'function') {
+      return;
+    }
+
+    var keys = await window.localforage.keys();
+    var handoffKeys = keys.filter(function (key) {
+      return typeof key === 'string' && key.indexOf(HANDOFF_STORAGE_PREFIX) === 0;
+    });
+
+    await Promise.all(handoffKeys.map(async function (key) {
+      try {
+        var stored = await window.localforage.getItem(key);
+        if (shouldRemoveStoredHandoff(stored, now)) {
+          await window.localforage.removeItem(key);
+        }
+      } catch (error) {
+        try {
+          await window.localforage.removeItem(key);
+        } catch (removeError) {
+          // Best-effort cleanup; validation still protects the active handoff.
+        }
+      }
+    }));
+  }
+
+  function buildReceiptFiles(files) {
+    return files.map(function (file) {
+      var receipt = {
+        name: file.name,
+        bytes: measureBytes(file.contents)
+      };
+
+      if (typeof file.kind === 'string') {
+        receipt.kind = file.kind;
+      }
+
+      return receipt;
+    });
+  }
+
+  function requireAllowedLaunchString(value, allowedValues, fieldName) {
+    if (typeof value !== 'string' || !allowedValues.has(value.trim())) {
+      throw new Error('Launch option "' + fieldName + '" used an unsupported value.');
+    }
+
+    return value.trim();
+  }
+
+  function requireNonNegativeFiniteNumber(value, fieldName) {
+    var numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      throw new Error('Launch option "' + fieldName + '" must be a non-negative finite number.');
+    }
+    return numericValue;
+  }
+
+  function normalizeLaunchGlobalSettings(globalSettings) {
+    if (!isPlainObject(globalSettings)) {
+      throw new Error('Launch option "globalSettings" must be an object.');
+    }
+
+    var normalized = {};
+    ['nodeColorBy', 'linkColorBy', 'nodeShapeBy'].forEach(function (fieldName) {
+      var value = globalSettings[fieldName];
+      if (typeof value === 'undefined') {
+        return;
+      }
+      if (typeof value !== 'string') {
+        throw new Error('Launch global setting "' + fieldName + '" must be a string.');
+      }
+      if (value.trim()) {
+        normalized[fieldName] = value.trim();
+      }
+    });
+
+    ['nodeColor', 'linkColor', 'selectedColor', 'backgroundColor'].forEach(function (fieldName) {
+      var value = globalSettings[fieldName];
+      if (typeof value === 'undefined') {
+        return;
+      }
+      if (typeof value !== 'string' || !HEX_COLOR_PATTERN.test(value.trim())) {
+        throw new Error('Launch global setting "' + fieldName + '" must be a 6-digit hex color.');
+      }
+      normalized[fieldName] = value.trim();
+    });
+
+    if (typeof globalSettings.nodeShape !== 'undefined') {
+      normalized.nodeShape = requireAllowedLaunchString(globalSettings.nodeShape, ALLOWED_NODE_SHAPES, 'globalSettings.nodeShape');
+    }
+
+    if (typeof globalSettings.clusterMinimumSize !== 'undefined') {
+      normalized.clusterMinimumSize = requireNonNegativeFiniteNumber(globalSettings.clusterMinimumSize, 'clusterMinimumSize');
+    }
+
+    if (typeof globalSettings.tn93DistanceDisplayFormat !== 'undefined') {
+      normalized.tn93DistanceDisplayFormat = requireAllowedLaunchString(
+        String(globalSettings.tn93DistanceDisplayFormat).toLowerCase(),
+        ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS,
+        'globalSettings.tn93DistanceDisplayFormat'
+      );
+    }
+
+    return normalized;
+  }
+
+  function normalizeLaunchOptions(launch) {
+    if (!launch) {
+      return undefined;
+    }
+
+    if (!isPlainObject(launch)) {
+      throw new Error('The partner handoff launch options are malformed.');
+    }
+
+    var normalized = {};
+
+    if (typeof launch.datasetName !== 'undefined') {
+      if (typeof launch.datasetName !== 'string') {
+        throw new Error('Launch option "datasetName" must be a string.');
+      }
+      if (launch.datasetName.trim()) {
+        normalized.datasetName = launch.datasetName.trim();
+      }
+    }
+
+    if (typeof launch.defaultView !== 'undefined') {
+      normalized.defaultView = requireAllowedLaunchString(launch.defaultView, ALLOWED_DEFAULT_VIEWS, 'defaultView');
+    }
+
+    if (typeof launch.distanceMetric !== 'undefined') {
+      normalized.distanceMetric = requireAllowedLaunchString(String(launch.distanceMetric).toLowerCase(), ALLOWED_DISTANCE_METRICS, 'distanceMetric');
+    }
+
+    if (typeof launch.linkThreshold !== 'undefined') {
+      normalized.linkThreshold = requireNonNegativeFiniteNumber(launch.linkThreshold, 'linkThreshold');
+    }
+
+    if (typeof launch.ambiguityStrategy !== 'undefined') {
+      normalized.ambiguityStrategy = requireAllowedLaunchString(String(launch.ambiguityStrategy).toUpperCase(), ALLOWED_AMBIGUITY_STRATEGIES, 'ambiguityStrategy');
+    }
+
+    if (typeof launch.ambiguityThreshold !== 'undefined') {
+      normalized.ambiguityThreshold = requireNonNegativeFiniteNumber(launch.ambiguityThreshold, 'ambiguityThreshold');
+    }
+
+    if (typeof launch.globalSettings !== 'undefined') {
+      normalized.globalSettings = normalizeLaunchGlobalSettings(launch.globalSettings);
+    }
+
+    return Object.keys(normalized).length ? normalized : undefined;
   }
 
   function validatePayload(payload, limits) {
@@ -315,6 +610,8 @@
     if (sanitized.files.length > limits.maxFiles) {
       throw new Error('The partner handoff exceeded the maximum file count.');
     }
+
+    sanitized.launch = normalizeLaunchOptions(sanitized.launch);
 
     var totalBytes = 0;
 
@@ -391,20 +688,27 @@
       return;
     }
 
+    if (openerOrigin && event.origin !== openerOrigin) {
+      fail('The partner handoff origin did not match the expected opener origin.', openerOrigin);
+      return;
+    }
+
     try {
-      var config = await loadAllowlist();
-      var limits = validatePartner(config, event.origin);
+      var limits = validatePartner(allowlistConfig, event.origin);
       var payload = validatePayload(event.data, limits);
       var createdAt = Date.now();
+      await cleanupExpiredStoredHandoffs(createdAt);
       var handoffId = buildHandoffId();
+      var expiresAt = createdAt + limits.ttlMs;
       var record = {
         version: 1,
         handoffId: handoffId,
         partnerId: payload.partnerId,
         nonce: payload.nonce,
         metadata: payload.metadata,
+        launch: payload.launch,
         createdAt: createdAt,
-        expiresAt: createdAt + limits.ttlMs,
+        expiresAt: expiresAt,
         files: payload.files
       };
 
@@ -415,42 +719,67 @@
         status: 'stored',
         partnerId: partnerId,
         nonce: nonce,
-        handoffId: handoffId
+        handoffId: handoffId,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        launch: payload.launch,
+        files: buildReceiptFiles(payload.files)
       }, event.origin);
       handled = true;
       window.clearTimeout(timeoutId);
       window.location.replace(buildRedirectUrl(handoffId));
     } catch (error) {
-      fail(error instanceof Error ? error.message : 'Unable to validate the partner handoff payload.', event.origin);
+      var replyOrigins = allowedTargetOrigins.includes(event.origin) ? [event.origin] : [];
+      fail(error instanceof Error ? error.message : 'Unable to validate the partner handoff payload.', replyOrigins);
     }
   }
 
-  if (window.top !== window.self) {
-    fail('This page cannot run inside an embedded frame.');
-    return;
+  async function initialize() {
+    if (window.top !== window.self) {
+      fail('This page cannot run inside an embedded frame.');
+      return;
+    }
+
+    if (!openerWindow) {
+      fail('This page must be opened by an approved partner application.');
+      return;
+    }
+
+    if (!partnerId || !nonce) {
+      fail('The receiver is missing required partner handoff parameters.');
+      return;
+    }
+
+    try {
+      allowlistConfig = await loadAllowlist();
+      allowedTargetOrigins = getPartnerOrigins(allowlistConfig);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : 'Unable to load the partner allowlist configuration.');
+      return;
+    }
+
+    if (openerOrigin) {
+      if (!allowedTargetOrigins.includes(openerOrigin)) {
+        fail('The calling origin is not approved for this partner handoff.', []);
+        return;
+      }
+      allowedTargetOrigins = [openerOrigin];
+    }
+
+    window.addEventListener('message', function (event) {
+      handleTransfer(event);
+    });
+
+    timeoutId = window.setTimeout(function () {
+      fail('Timed out waiting for the partner page to send the dataset.', allowedTargetOrigins);
+    }, 30000);
+
+    postMessageToAllowedOrigins({
+      type: READY_TYPE,
+      partnerId: partnerId,
+      nonce: nonce
+    }, allowedTargetOrigins);
   }
 
-  if (!openerWindow) {
-    fail('This page must be opened by an approved partner application.');
-    return;
-  }
-
-  if (!partnerId || !nonce) {
-    fail('The receiver is missing required partner handoff parameters.');
-    return;
-  }
-
-  window.addEventListener('message', function (event) {
-    handleTransfer(event);
-  });
-
-  timeoutId = window.setTimeout(function () {
-    fail('Timed out waiting for the partner page to send the dataset.');
-  }, 30000);
-
-  postMessageToOpener({
-    type: READY_TYPE,
-    partnerId: partnerId,
-    nonce: nonce
-  }, '*');
+  initialize();
 })();

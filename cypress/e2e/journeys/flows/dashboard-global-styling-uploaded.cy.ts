@@ -68,7 +68,7 @@ const getBubbleDataNodes = (bubble: any) =>
   bubble.cy.nodes().filter((node: any) => !node.hasClass('X_axis') && !node.hasClass('Y_axis'));
 
 const selectPrimeOption = (selector: string, label: string): void => {
-  cy.get(selector).click({ force: true });
+  cy.get(selector).click({ force: true }).wait(100);
   cy.get('body').then(($body) => {
     const overlay = $body.find('.p-select-overlay:visible').last();
 

@@ -92,6 +92,8 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   }
 
   cy.get('body').then(($body) => {
+    if (!resolvedOptions.skipDemoSession) return;
+
     const continueButton = $body.find(`${byTestId(testIds.appSampleDatasetButton)}:visible`);
     if (!continueButton.length) return;
 
@@ -375,11 +377,11 @@ function hexToRgbString(hex: string): string {
           .scrollIntoView()
           .should('exist')
           .within(() => {
-            cy.get('#polygon-color-table-toggle').contains('Show').click({ force: true });
+            cy.get('#polygon-color-table-toggle').contains('Dock').click({ force: true });
           });
   
         cy.window().its('commonService.session.style.widgets.polygon-color-table-visible')
-          .should('equal', 'Show');
+          .should('equal', 'Dock');
   
         // Optional: change some group colors if specified
         if (g.changeGroupColors?.groups?.length) {
@@ -993,8 +995,8 @@ export function ensureAlignmentView(): void {
   });
 }
 
-export function launchProfileToTwoD(profile: DatasetProfile): void {
-  visitAppAndAcceptEula();
+export function launchProfileToTwoD(profile: DatasetProfile, visitOptions: JourneyVisitOptions = {}): void {
+  visitAppAndAcceptEula(visitOptions);
   cy.loadFiles(profile.files);
   applyPreLaunchFileSettings(profile);
   ensurePreLaunchProfileSynced(profile);
@@ -1123,10 +1125,11 @@ export function setFilteringEpsilonExponent(exponent: number): void {
 }
 
 export function setGlobalDistanceMetric(metric: DistanceMetric): void {
-  cy.get('#global-settings-modal')
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .parents('.p-dialog')
     .find('#default-distance-metric')
-    .should('be.visible')
-    .select(metric);
+    .should('exist')
+    .select(metric, { force: true });
 
   cy.window()
     .its('commonService.session.style.widgets.default-distance-metric')
@@ -1136,7 +1139,9 @@ export function setGlobalDistanceMetric(metric: DistanceMetric): void {
 export function setTN93DistanceDisplayFormat(format: 'decimal' | 'percentage'): void {
   const buttonLabel = format === 'percentage' ? 'Percentage' : 'Decimal';
 
-  cy.get('#tn93-distance-display-format')
+  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
+    .parents('.p-dialog')
+    .find('#tn93-distance-display-format')
     .contains('span', buttonLabel)
     .click({ force: true });
 
@@ -1149,6 +1154,7 @@ export function setGlobalLinkThreshold(threshold: number | string): void {
   const nextThreshold = String(threshold);
 
   cy.get('#link-threshold')
+    .scrollIntoView()
     .should('be.visible')
     .then(($input) => {
       const input = $input.get(0) as HTMLInputElement;

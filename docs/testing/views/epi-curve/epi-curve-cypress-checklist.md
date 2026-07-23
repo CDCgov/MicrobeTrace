@@ -40,6 +40,7 @@ For maintained Epi journeys, prefer this pattern:
 - [x] Uploaded `X-axis Interval` coverage verifies tick changes plus the Year and Quarter control rules.
 - [x] Resetting uploaded single-date or multi-date selections to `None` clears stale Epi bars and axes.
 - [x] Uploaded styling coverage verifies Cluster-color recompute after threshold changes and the Node Color path through category edits and fixed-color fallback.
+- [x] Uploaded styling coverage verifies Lineage-colored Epi bars stay isolated from global State node color table edits before and after the table is floated.
 - [x] Uploaded multi-date Epi controls cover side-by-side, overlay, legend placement, cumulative toggling, and per-field colors.
 - [x] Uploaded File Settings can launch directly into Epi Curve.
 - [x] Uploaded Epi Curve export writes a non-empty PNG file to downloads.

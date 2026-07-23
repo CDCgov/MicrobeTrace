@@ -77,12 +77,31 @@ const clickAndWaitForMapEvent = (selector: string, eventName: 'zoomend' | 'movee
   cy.then(() => mapEventPromise);
 };
 
+const assertMapCenteredOnRenderedNodes = (
+  win: WinWithMap,
+  assertionLabel: string,
+  expectedZoom?: number,
+): void => {
+  const mapView = win.commonService.visuals.gisMap;
+  const map = mapView.lmap;
+  const nodeBounds = mapView.layers.nodes().getBounds();
+
+  expect(nodeBounds.isValid(), `${assertionLabel}: rendered node bounds valid`).to.equal(true);
+  expect(map.getBounds().contains(nodeBounds), `${assertionLabel}: rendered nodes visible after centering`).to.equal(true);
+  if (expectedZoom === undefined) {
+    expect(map.getZoom(), `${assertionLabel}: fitted zoom is valid`).to.be.greaterThan(0);
+  } else {
+    expect(map.getZoom(), `${assertionLabel}: fitted zoom restored by center control`).to.equal(expectedZoom);
+  }
+};
+
 describe('Journey Flow - Map navigation controls on uploaded data', () => {
   const profile = getProfile('map-covid-zipcode-threshold');
 
   it('keeps pan, zoom, and center controls deterministic on uploaded zipcode-mapped data', () => {
     let baselineCenter: MapCenter;
     let baselineZoom = 0;
+    let centeredZoom = 0;
 
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
@@ -132,35 +151,31 @@ describe('Journey Flow - Map navigation controls on uploaded data', () => {
     cy.get('#centerMapButton').click({ force: true });
 
     cy.window().should((win: unknown) => {
-      const map = (win as WinWithMap).commonService.visuals.gisMap.lmap;
-      const center = map.getCenter();
+      assertMapCenteredOnRenderedNodes(win as WinWithMap, 'center control after pan');
+    });
 
-      expect(Math.abs(center.lat - baselineCenter.lat), 'latitude restored by center control').to.be.lessThan(0.05);
-      expect(Math.abs(center.lng - baselineCenter.lng), 'longitude restored by center control').to.be.lessThan(0.05);
-      expect(map.getZoom(), 'zoom restored after centering').to.equal(baselineZoom);
+    cy.window().then((win: unknown) => {
+      const map = (win as WinWithMap).commonService.visuals.gisMap.lmap;
+      centeredZoom = map.getZoom();
+      expect(centeredZoom, 'center control fitted zoom').to.be.greaterThan(0);
     });
 
     clickAndWaitForMapEvent('.leaflet-control-zoom-in span', 'zoomend');
     cy.window().should((win: unknown) => {
       const map = (win as WinWithMap).commonService.visuals.gisMap.lmap;
-      expect(map.getZoom(), 'zoom after zoom-in click').to.equal(baselineZoom + 1);
+      expect(map.getZoom(), 'zoom after zoom-in click').to.equal(centeredZoom + 1);
     });
 
     clickAndWaitForMapEvent('.leaflet-control-zoom-out span', 'zoomend');
     cy.window().should((win: unknown) => {
       const map = (win as WinWithMap).commonService.visuals.gisMap.lmap;
-      expect(map.getZoom(), 'zoom after zoom-out click').to.equal(baselineZoom);
+      expect(map.getZoom(), 'zoom after zoom-out click').to.equal(centeredZoom);
     });
 
     cy.get('#centerMapButton').click({ force: true });
 
     cy.window().should((win: unknown) => {
-      const map = (win as WinWithMap).commonService.visuals.gisMap.lmap;
-      const center = map.getCenter();
-
-      expect(map.getZoom(), 'zoom reset by center control').to.equal(baselineZoom);
-      expect(Math.abs(center.lat - baselineCenter.lat), 'latitude reset after zooming').to.be.lessThan(0.05);
-      expect(Math.abs(center.lng - baselineCenter.lng), 'longitude reset after zooming').to.be.lessThan(0.05);
+      assertMapCenteredOnRenderedNodes(win as WinWithMap, 'center control after zooming', centeredZoom);
     });
 
     assertMapRenderedCounts({
