@@ -48,6 +48,38 @@ interface SequencePairwiseLinkGuardrailResult {
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
 
+export type NetworkSubsetFilterOperator =
+    'contains'
+    | 'equals'
+    | 'notEquals'
+    | 'startsWith'
+    | 'endsWith'
+    | 'in'
+    | 'lt'
+    | 'lte'
+    | 'gt'
+    | 'gte';
+
+export interface NetworkSubsetFilterRule {
+    enabled?: boolean;
+    field?: string;
+    operator?: NetworkSubsetFilterOperator | string;
+    value?: any;
+}
+
+export interface NetworkSubsetFilterState {
+    node?: NetworkSubsetFilterRule;
+    link?: NetworkSubsetFilterRule;
+}
+
+interface ResolvedNetworkSubsetFilter {
+    active: boolean;
+    nodeRuleActive: boolean;
+    linkRuleActive: boolean;
+    visibleNodeIds: Set<string>;
+    visibleLinkKeys: Set<string>;
+}
+
 @Directive()
 @Injectable({
     providedIn: 'root',
@@ -70,6 +102,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         '2D Network',
         'Map',
         'Table',
+        'Network Statistics',
         'Epi Curve',
         'Phylogenetic Tree',
         'Alignment View',
@@ -90,6 +123,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         'geomap': 'Map',
         'map': 'Map',
         'table': 'Table',
+        'network_statistics': 'Network Statistics',
+        'networkstatistics': 'Network Statistics',
+        'statistics': 'Network Statistics',
         'timeline': 'Epi Curve',
         'epi_curve': 'Epi Curve',
         'epicurve': 'Epi Curve',
@@ -151,7 +187,14 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     // Using lodash's debounce, for example
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
-        this.updateNetworkVisuals();
+        const threshold = Number(this.session.style.widgets["link-threshold"]);
+        this.ensurePatristicEdgesForThreshold(threshold)
+            .catch(error => {
+                console.error('Patristic threshold re-query failed:', error);
+            })
+            .finally(() => {
+                this.updateNetworkVisuals();
+            });
     }, 300);
 
     GlobalSettingsModel: any = {
@@ -323,6 +366,17 @@ export class CommonService extends AppComponentBase implements OnInit {
             clusterTableColumns: [],
             tree: {},
             newickString: '',
+            newickSource: '',
+            auspiceMapData: {
+                countries: {
+                    type: 'FeatureCollection',
+                    features: []
+                },
+                states: {
+                    type: 'FeatureCollection',
+                    features: []
+                }
+            },
             reference: REFERENCE
         };
 
@@ -582,7 +636,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             state: {
                 timeStart: 0,
                 timeEnd: new Date(),
-                timeTarget: null
+                timeTarget: null,
+                networkSubsetFilter: this.createDefaultNetworkSubsetFilterState()
             },
             style: {
                 linkAlphas: [1],
@@ -915,6 +970,31 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         analysis.storedDistanceCache[metric] = rebuilt;
         return rebuilt;
+    }
+
+    private getNewickBackedSourceFile(): any {
+        return this.session.files?.find(file =>
+            file?.format === 'newick' || file?.format === 'auspice' ||
+            file?.datatype === 'newick' || file?.datatype === 'auspice'
+        );
+    }
+
+    private hasNewickBackedDistanceSource(newickString: any): boolean {
+        if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+            return false;
+        }
+
+        if (this.getNewickBackedSourceFile()) {
+            return true;
+        }
+
+        const newickSource = String(this.session.data?.newickSource || '').toLowerCase();
+        if (newickSource === 'newick' || newickSource === 'auspice') {
+            return true;
+        }
+
+        const tree = this.session.data?.tree;
+        return tree && typeof tree === 'object' && Object.keys(tree).length > 0;
     }
 
     public setPatristicThresholdAnalysisEdges(
@@ -2000,6 +2080,302 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
+    private createDefaultNetworkSubsetFilterRule(): NetworkSubsetFilterRule {
+        return {
+            enabled: false,
+            field: 'None',
+            operator: 'equals',
+            value: ''
+        };
+    }
+
+    private createDefaultNetworkSubsetFilterState(): NetworkSubsetFilterState {
+        return {
+            node: this.createDefaultNetworkSubsetFilterRule(),
+            link: this.createDefaultNetworkSubsetFilterRule()
+        };
+    }
+
+    private normalizeNetworkSubsetFilterRule(rule?: NetworkSubsetFilterRule): NetworkSubsetFilterRule {
+        return {
+            ...this.createDefaultNetworkSubsetFilterRule(),
+            ...(rule || {})
+        };
+    }
+
+    ensureNetworkSubsetFilterState(): NetworkSubsetFilterState {
+        if (!this.session.state) {
+            (this.session as any).state = {
+                timeStart: 0,
+                timeEnd: new Date(),
+                timeTarget: null
+            };
+        }
+
+        const state = this.session.state as any;
+        const existing = state.networkSubsetFilter || {};
+        const normalized = {
+            node: this.normalizeNetworkSubsetFilterRule(existing.node),
+            link: this.normalizeNetworkSubsetFilterRule(existing.link)
+        };
+
+        state.networkSubsetFilter = normalized;
+        return normalized;
+    }
+
+    setNetworkSubsetFilterState(filter: NetworkSubsetFilterState, updateNetwork: boolean = true): void {
+        if (!this.session.state) {
+            (this.session as any).state = {
+                timeStart: 0,
+                timeEnd: new Date(),
+                timeTarget: null
+            };
+        }
+
+        (this.session.state as any).networkSubsetFilter = {
+            node: this.normalizeNetworkSubsetFilterRule(filter?.node),
+            link: this.normalizeNetworkSubsetFilterRule(filter?.link)
+        };
+
+        if (updateNetwork) {
+            this.updateNetworkAfterSubsetFilterChange();
+        }
+    }
+
+    clearNetworkSubsetFilter(updateNetwork: boolean = true): void {
+        this.setNetworkSubsetFilterState(this.createDefaultNetworkSubsetFilterState(), updateNetwork);
+    }
+
+    isNetworkSubsetFilterActive(): boolean {
+        const filter = this.ensureNetworkSubsetFilterState();
+        return this.isNetworkSubsetRuleActive(filter.node) || this.isNetworkSubsetRuleActive(filter.link);
+    }
+
+    getNetworkSubsetFilterLabel(): string {
+        const filter = this.ensureNetworkSubsetFilterState();
+        const parts = [];
+
+        if (this.isNetworkSubsetRuleActive(filter.node)) {
+            parts.push(`Nodes: ${filter.node.field} ${this.getNetworkSubsetOperatorLabel(filter.node.operator)} ${filter.node.value}`);
+        }
+
+        if (this.isNetworkSubsetRuleActive(filter.link)) {
+            parts.push(`Links: ${filter.link.field} ${this.getNetworkSubsetOperatorLabel(filter.link.operator)} ${filter.link.value}`);
+        }
+
+        return parts.join('; ');
+    }
+
+    private getNetworkSubsetOperatorLabel(operator: string): string {
+        switch (operator) {
+            case 'notEquals':
+                return 'does not equal';
+            case 'startsWith':
+                return 'starts with';
+            case 'endsWith':
+                return 'ends with';
+            case 'lt':
+                return '<';
+            case 'lte':
+                return '<=';
+            case 'gt':
+                return '>';
+            case 'gte':
+                return '>=';
+            case 'in':
+                return 'is in';
+            case 'equals':
+                return 'equals';
+            case 'contains':
+            default:
+                return 'contains';
+        }
+    }
+
+    private updateNetworkAfterSubsetFilterChange(): void {
+        if (!this.session.data.nodes.length) {
+            return;
+        }
+
+        this.setLinkVisibility(true, false);
+        this.updateNetworkVisuals(false, true);
+    }
+
+    private isNetworkSubsetRuleActive(rule?: NetworkSubsetFilterRule): boolean {
+        const field = `${rule?.field ?? ''}`.trim();
+        const value = rule?.value;
+        const hasValue = value !== undefined && value !== null && `${value}`.trim() !== '';
+
+        return Boolean(rule?.enabled) && field.length > 0 && field !== 'None' && hasValue;
+    }
+
+    private getNetworkSubsetNodeId(node: any): string {
+        return String(node?._id ?? node?.id ?? '');
+    }
+
+    private getNetworkSubsetLinkKey(link: any, index: number): string {
+        return String(link?.id ?? link?.index ?? index);
+    }
+
+    private normalizeNetworkSubsetValue(value: any): string {
+        if (value === undefined || value === null) {
+            return '';
+        }
+
+        return String(value).trim();
+    }
+
+    private getNetworkSubsetFieldValues(value: any): string[] {
+        if (Array.isArray(value)) {
+            return value.map(item => this.normalizeNetworkSubsetValue(item));
+        }
+
+        return [this.normalizeNetworkSubsetValue(value)];
+    }
+
+    private networkSubsetValueMatches(rawValue: any, operator: string = 'contains', expectedValue: any): boolean {
+        const expected = this.normalizeNetworkSubsetValue(expectedValue);
+        const expectedLower = expected.toLowerCase();
+        const rawValues = this.getNetworkSubsetFieldValues(rawValue);
+        const rawLowerValues = rawValues.map(value => value.toLowerCase());
+
+        switch (operator) {
+            case 'equals':
+                return rawLowerValues.some(value => value === expectedLower);
+            case 'notEquals':
+                return rawLowerValues.every(value => value !== expectedLower);
+            case 'startsWith':
+                return rawLowerValues.some(value => value.startsWith(expectedLower));
+            case 'endsWith':
+                return rawLowerValues.some(value => value.endsWith(expectedLower));
+            case 'in': {
+                const expectedValues = expectedLower
+                    .split(',')
+                    .map(value => value.trim())
+                    .filter(value => value.length > 0);
+                return rawLowerValues.some(value => expectedValues.includes(value));
+            }
+            case 'lt':
+            case 'lte':
+            case 'gt':
+            case 'gte': {
+                const expectedNumber = Number(expected);
+                if (!Number.isFinite(expectedNumber)) {
+                    return false;
+                }
+
+                return rawValues.some(value => {
+                    const rawNumber = Number(value);
+                    if (!Number.isFinite(rawNumber)) {
+                        return false;
+                    }
+
+                    if (operator === 'lt') return rawNumber < expectedNumber;
+                    if (operator === 'lte') return rawNumber <= expectedNumber;
+                    if (operator === 'gt') return rawNumber > expectedNumber;
+                    return rawNumber >= expectedNumber;
+                });
+            }
+            case 'contains':
+            default:
+                return rawLowerValues.some(value => value.includes(expectedLower));
+        }
+    }
+
+    private objectMatchesNetworkSubsetRule(record: any, rule?: NetworkSubsetFilterRule): boolean {
+        if (!this.isNetworkSubsetRuleActive(rule)) {
+            return true;
+        }
+
+        return this.networkSubsetValueMatches(record?.[rule.field], rule.operator, rule.value);
+    }
+
+    private resolveNetworkSubsetFilter(): ResolvedNetworkSubsetFilter {
+        const filter = this.ensureNetworkSubsetFilterState();
+        const nodeRuleActive = this.isNetworkSubsetRuleActive(filter.node);
+        const linkRuleActive = this.isNetworkSubsetRuleActive(filter.link);
+        const active = nodeRuleActive || linkRuleActive;
+        const nodes = this.session.data.nodes || [];
+        const links = this.session.data.links || [];
+        const visibleNodeIds = new Set<string>();
+        const visibleLinkKeys = new Set<string>();
+
+        if (!active) {
+            return {
+                active: false,
+                nodeRuleActive,
+                linkRuleActive,
+                visibleNodeIds,
+                visibleLinkKeys
+            };
+        }
+
+        if (nodeRuleActive) {
+            nodes.forEach(node => {
+                if (this.objectMatchesNetworkSubsetRule(node, filter.node)) {
+                    visibleNodeIds.add(this.getNetworkSubsetNodeId(node));
+                }
+            });
+        }
+
+        if (linkRuleActive && !nodeRuleActive) {
+            links.forEach((link, index) => {
+                if (!this.objectMatchesNetworkSubsetRule(link, filter.link)) {
+                    return;
+                }
+
+                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
+                visibleNodeIds.add(String(link.source ?? ''));
+                visibleNodeIds.add(String(link.target ?? ''));
+            });
+        } else {
+            const eligibleNodeIds = nodeRuleActive
+                ? visibleNodeIds
+                : new Set(nodes.map(node => this.getNetworkSubsetNodeId(node)));
+
+            links.forEach((link, index) => {
+                const sourceId = String(link.source ?? '');
+                const targetId = String(link.target ?? '');
+
+                if (!eligibleNodeIds.has(sourceId) || !eligibleNodeIds.has(targetId)) {
+                    return;
+                }
+
+                if (linkRuleActive && !this.objectMatchesNetworkSubsetRule(link, filter.link)) {
+                    return;
+                }
+
+                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
+            });
+        }
+
+        return {
+            active,
+            nodeRuleActive,
+            linkRuleActive,
+            visibleNodeIds,
+            visibleLinkKeys
+        };
+    }
+
+    private nodePassesNetworkSubset(node: any, resolvedFilter: ResolvedNetworkSubsetFilter): boolean {
+        return !resolvedFilter.active || resolvedFilter.visibleNodeIds.has(this.getNetworkSubsetNodeId(node));
+    }
+
+    private linkPassesNetworkSubset(link: any, index: number, resolvedFilter: ResolvedNetworkSubsetFilter): boolean {
+        return !resolvedFilter.active || resolvedFilter.visibleLinkKeys.has(this.getNetworkSubsetLinkKey(link, index));
+    }
+
+    private getNetworkSubsetBaseNodes(nodes: any[] = this.session.data.nodeFilteredValues || []): any[] {
+        const resolvedFilter = this.resolveNetworkSubsetFilter();
+
+        if (!resolvedFilter.active) {
+            return nodes;
+        }
+
+        return nodes.filter(node => this.nodePassesNetworkSubset(node, resolvedFilter));
+    }
+
     private isDistanceBackedOrigin(originName: string, distanceOrigins: string[]): boolean {
         return distanceOrigins.some(distanceOrigin => {
             return Boolean(originName) && Boolean(distanceOrigin) && originName.includes(distanceOrigin);
@@ -2335,6 +2711,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.temp.matrix = [];
         this.session.files = oldSession.files;
         this.session.state = oldSession.state;
+        this.ensureNetworkSubsetFilterState();
         this.session.style = oldSession.style;
 
         this.session.meta.startTime = Date.now();
@@ -2371,8 +2748,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
         }
+        if (typeof oldSession.data?.newickSource === 'string') {
+            this.session.data.newickSource = oldSession.data.newickSource;
+        }
         if (oldSession.data?.tree) {
             this.session.data.tree = oldSession.data.tree;
+        }
+        if (oldSession.data?.auspiceMapData) {
+            this.setAuspiceMapData(oldSession.data.auspiceMapData);
         }
 
         // TODO: See about this process data functionality.  DO we need this?
@@ -2786,6 +3169,7 @@ parseFASTA(text): Promise<any> {
         this.session.meta.startTime = Date.now();
         this.session.data.tree = auspiceData['tree'];
         this.session.data.newickString = auspiceData['newick'];
+        this.session.data.newickSource = 'auspice';
         let nodeCount = 0;
         auspiceData['nodes'].forEach(node => {
             if (!/NODE0*/.exec(node.id)) {
@@ -3226,17 +3610,10 @@ align(params): Promise<any> {
 
       computeMST(): Promise<void> {
         const newickString = this.session.data?.newickString;
-        const hasNewickBackedSource = this.session.files?.some(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        );
-        if (hasNewickBackedSource && typeof newickString === 'string' && newickString.trim().length > 0) {
+        if (this.hasNewickBackedDistanceSource(newickString)) {
             const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
             const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
-            const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
-                file?.format === 'newick' || file?.format === 'auspice' ||
-                file?.datatype === 'newick' || file?.datatype === 'auspice'
-            )?.name || 'Newick Tree';
+            const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
             const origin = [distanceOrigin];
 
             return this.workerComputeService.computePatristicNearestNeighborEdges(
@@ -3303,21 +3680,14 @@ align(params): Promise<any> {
 
     ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
         const newickString = this.session.data?.newickString;
-        const hasNewickBackedSource = this.session.files?.some(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        );
 
-        if (!hasNewickBackedSource || typeof newickString !== 'string' || newickString.trim().length === 0) {
+        if (!this.hasNewickBackedDistanceSource(newickString)) {
             return Promise.resolve(null);
         }
 
         const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
         const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
-        const distanceOrigin = distanceOrigins[0] || this.session.files?.find(file =>
-            file?.format === 'newick' || file?.format === 'auspice' ||
-            file?.datatype === 'newick' || file?.datatype === 'auspice'
-        )?.name || 'Newick Tree';
+        const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
         const origin = [distanceOrigin];
 
         return this.workerComputeService.ensurePatristicEdgesForThreshold(
@@ -3604,7 +3974,7 @@ align(params): Promise<any> {
     };
 
     private buildNonTimelineVisibleClusterSummary() {
-        const nodes = this.session.data.nodeFilteredValues || [];
+        const nodes = this.getNetworkSubsetBaseNodes(this.session.data.nodeFilteredValues || []);
         const metric = this.session.style.widgets["link-sort-variable"];
         const minClusterSize = Number(this.session.style.widgets["cluster-minimum-size"] ?? 1);
         const summary = buildVisibleClusterSummary(
@@ -3626,7 +3996,7 @@ align(params): Promise<any> {
      * while ignoring the timeline-specific node visibility gate.
      */
     getVisibleNodesIgnoringTimeline(copy: any = false) {
-        const nodes = this.session.data.nodeFilteredValues || [];
+        const nodes = this.getNetworkSubsetBaseNodes(this.session.data.nodeFilteredValues || []);
         const summary = this.buildNonTimelineVisibleClusterSummary();
         const out = [];
 
@@ -4086,6 +4456,84 @@ align(params): Promise<any> {
         // });
     }
 
+    setAuspiceMapData(mapData: any) {
+        const emptyMapData = this.dataSkeleton().auspiceMapData;
+        const normalizedMapData = {
+            countries: this.normalizeAuspiceMapLayer(mapData?.countries, emptyMapData.countries),
+            states: this.normalizeAuspiceMapLayer(mapData?.states, emptyMapData.states)
+        };
+
+        this.session.data.auspiceMapData = normalizedMapData;
+        delete this.temp.mapData.countries;
+        delete this.temp.mapData.states;
+    }
+
+    private normalizeAuspiceMapLayer(layer: any, fallback: any) {
+        return {
+            ...fallback,
+            ...layer,
+            features: Array.isArray(layer?.features) ? layer.features : []
+        };
+    }
+
+    private normalizeMapFeatureValue(value: any): string {
+        return String(value ?? '').trim().toLowerCase();
+    }
+
+    private getCountryMapAliases(value: any): string[] {
+        const normalizedValue = this.normalizeMapFeatureValue(value);
+        if (['us', 'usa', 'united states', 'united states of america'].includes(normalizedValue)) {
+            return ['us', 'usa', 'united states', 'united states of america'];
+        }
+
+        return [];
+    }
+
+    private getMapFeatureKeys(name: string, feature: any): string[] {
+        const properties = feature?.properties || {};
+        const keys = [feature?.id, properties.name];
+
+        if (name === 'states') {
+            keys.push(properties.usps);
+        } else if (name === 'countries') {
+            keys.push(...this.getCountryMapAliases(feature?.id));
+            keys.push(...this.getCountryMapAliases(properties.name));
+        }
+
+        return keys
+            .map(value => this.normalizeMapFeatureValue(value))
+            .filter(value => value !== '');
+    }
+
+    private mergeAuspiceMapData(name: string, mapData: any) {
+        const dynamicFeatures = this.session?.data?.auspiceMapData?.[name]?.features;
+        if (!Array.isArray(dynamicFeatures) || dynamicFeatures.length === 0 || !Array.isArray(mapData?.features)) {
+            return mapData;
+        }
+
+        const merged = {
+            ...mapData,
+            features: [...mapData.features]
+        };
+        const existingKeys = new Set<string>();
+
+        merged.features.forEach(feature => {
+            this.getMapFeatureKeys(name, feature).forEach(key => existingKeys.add(key));
+        });
+
+        dynamicFeatures.forEach(feature => {
+            const featureKeys = this.getMapFeatureKeys(name, feature);
+            if (featureKeys.length === 0 || featureKeys.some(key => existingKeys.has(key))) {
+                return;
+            }
+
+            merged.features.push(feature);
+            featureKeys.forEach(key => existingKeys.add(key));
+        });
+
+        return merged;
+    }
+
     async getMapData(type): Promise<any> {
 
         //return new Promise(resolve => {
@@ -4094,6 +4542,7 @@ align(params): Promise<any> {
             const name = parts[0],
                 format = parts[1];
             if (this.temp.mapData[name]) {
+                this.temp.mapData[name] = this.mergeAuspiceMapData(name, this.temp.mapData[name]);
                 return this.temp.mapData[name];
             }
 
@@ -4119,7 +4568,7 @@ align(params): Promise<any> {
                     if (format == "json") {
                         path = 'assets/common/data/countries.json';
                         const response = await firstValueFrom(this.http.get(path));
-                        this.temp.mapData[name] = response;
+                        this.temp.mapData[name] = this.mergeAuspiceMapData(name, response);
                         return this.temp.mapData[name];
                         // return this.http.get(path).toPromise()
                         //     .then(response => {
@@ -4143,7 +4592,7 @@ align(params): Promise<any> {
 
                         path = 'assets/common/data/states.json';
                         const response = await firstValueFrom(this.http.get(path));
-                        this.temp.mapData[name] = response;
+                        this.temp.mapData[name] = this.mergeAuspiceMapData(name, response);
                         return this.temp.mapData[name];
                         // return this.http.get(path).toPromise()
                         //     .then(response => {
@@ -4278,21 +4727,37 @@ align(params): Promise<any> {
         return new Promise<void>(resolve => {
             const start = Date.now();
             const metric = this.session.style.widgets["link-sort-variable"];
+            const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
+            const nodesForClusters = resolvedSubsetFilter.active
+                ? this.session.data.nodes.filter(node => this.nodePassesNetworkSubset(node, resolvedSubsetFilter))
+                : this.session.data.nodes;
+            const linksForClusters = resolvedSubsetFilter.active
+                ? this.session.data.links.filter((link, index) => this.linkPassesNetworkSubset(link, index, resolvedSubsetFilter))
+                : this.session.data.links;
             const summary = buildVisibleClusterSummary(
-                this.session.data.nodes,
-                this.session.data.links,
+                nodesForClusters,
+                linksForClusters,
                 metric
             );
 
             this.session.data.clusters = summary.clusters;
             this.temp.nodes = [];
 
-            this.session.data.nodes.forEach((node, index) => {
+            this.session.data.nodes.forEach(node => {
+                node.cluster = null;
+                node.degree = 0;
+            });
+
+            nodesForClusters.forEach((node, index) => {
                 node.cluster = summary.nodeClusterByIndex[index];
                 node.degree = summary.degrees[index];
             });
 
-            this.session.data.links.forEach((link, index) => {
+            this.session.data.links.forEach(link => {
+                link.cluster = null;
+            });
+
+            linksForClusters.forEach((link, index) => {
                 link.cluster = summary.linkClusterByIndex[index];
             });
 
@@ -4303,6 +4768,7 @@ align(params): Promise<any> {
                 nodes: this.session.data.nodes.length,
                 links: this.session.data.links.length,
                 clusters: this.session.data.clusters.length,
+                subsetActive: resolvedSubsetFilter.active,
                 metric
             });
             resolve();
@@ -4321,20 +4787,24 @@ align(params): Promise<any> {
             clusters = this.session.data.clusters;
         let n = nodes.length;
         let visibleNodes = 0;
+        const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
             node.visible = true;
+            if (!this.nodePassesNetworkSubset(node, resolvedSubsetFilter)) {
+                node.visible = false;
+            }
             const cluster = clusters[node.cluster];
 
-            if (cluster) {
+            if (node.visible && cluster) {
                 // TODO: uncomment if something breaks since this was defaulted to visible
                 // cluster.visible = true;
                 // console.log('setting cluster vis: ', cluster);
                 // console.log('setting node vis: ', node.visible);
                 node.visible = node.visible && cluster.visible;
             }
-            if (dateField != "None") {
+            if (node.visible && dateField != "None") {
                 const rawDateValue = node[dateField];
                 if (this.hasValidTimelineDateValue(rawDateValue)) {
                     node.visible =
@@ -4358,7 +4828,8 @@ align(params): Promise<any> {
             nodes: n,
             visibleNodes,
             silent,
-            dateField
+            dateField,
+            subsetActive: resolvedSubsetFilter.active
         });
 
         if(this.debugMode) {
@@ -4383,6 +4854,7 @@ align(params): Promise<any> {
         let n = links.length;
         let visibleLinks = 0;
         const globalOriginOrder = this.normalizeLinkOrigins(this.session.style.widgets['link-origin-array-order']);
+        const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
     
     
         if(this.debugMode) {
@@ -4468,9 +4940,13 @@ align(params): Promise<any> {
             }
     
             // Cluster Visibility Check
+            if (visible && !this.linkPassesNetworkSubset(link, i, resolvedSubsetFilter)) {
+                visible = false;
+            }
+
             const cluster = clusters[link.cluster];
-            if (cluster && checkCluster) {
-                visible = visible && cluster.visible;
+            if (checkCluster && clusters.length > 0) {
+                visible = visible && Boolean(cluster) && cluster.visible;
             }
     
             link.origin = this.orderLinkOriginsForDisplay(finalOrigins, globalOriginOrder);
@@ -4495,7 +4971,8 @@ align(params): Promise<any> {
             checkCluster,
             metric,
             threshold,
-            showNN
+            showNN,
+            subsetActive: resolvedSubsetFilter.active
         });
 
         if(this.debugMode) {
@@ -4563,7 +5040,7 @@ align(params): Promise<any> {
         let width = 260,
         height = 48,
         svg = null;
-        const readout = $("#threshold-sparkline-readout");
+        const getReadout = () => $("#threshold-sparkline-readout");
 
         // Update histogram so that it can be altered outside of the main wrapper 
         if(histogram){
@@ -4582,6 +5059,7 @@ align(params): Promise<any> {
         const sweepSummary = this.getThresholdSweepSummary(lsv);
 
         if (data.length === 0) {
+            const readout = getReadout();
             if (readout.length > 0) {
                 readout.text("No threshold readout available");
             }
@@ -4640,6 +5118,7 @@ align(params): Promise<any> {
         const formatThresholdValue = (value: number) => this.formatDisplayedDistanceValue(value, lsv);
         const formatClusterCount = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'cluster' : 'clusters'}`;
         const setDefaultReadout = () => {
+            const readout = getReadout();
             if (readout.length === 0) {
                 return;
             }
@@ -4666,21 +5145,99 @@ align(params): Promise<any> {
         let hoverDot = null;
 
         if (sweepSummary.thresholds.length > 0) {
-            const maxClusterCount = Math.max(...sweepSummary.clusterCounts, 1);
+            const maxClusterCount = sweepSummary.clusterCounts.reduce(
+                (maxCount, clusterCount) => clusterCount > maxCount ? clusterCount : maxCount,
+                1
+            );
+            const buildSweepLinePoints = () => {
+                const thresholdCount = sweepSummary.thresholds.length;
+                const maxRenderedPoints = width * 8;
+
+                if (thresholdCount <= maxRenderedPoints) {
+                    return sweepSummary.thresholds.map((threshold, index) => ({
+                        threshold,
+                        clusterCount: sweepSummary.clusterCounts[index]
+                    }));
+                }
+
+                const bucketCount = Math.max(1, width * 2);
+                const thresholdMin = sweepSummary.thresholds[0];
+                const thresholdMax = sweepSummary.thresholds[thresholdCount - 1];
+                const thresholdSpan = thresholdMax - thresholdMin || 1;
+                const selectedIndexes = new Set<number>([0, thresholdCount - 1]);
+                let currentBucket = -1;
+                let firstIndex = 0;
+                let lastIndex = 0;
+                let minIndex = 0;
+                let maxIndex = 0;
+
+                const flushBucket = () => {
+                    selectedIndexes.add(firstIndex);
+                    selectedIndexes.add(minIndex);
+                    selectedIndexes.add(maxIndex);
+                    selectedIndexes.add(lastIndex);
+                };
+
+                for (let index = 0; index < thresholdCount; index++) {
+                    const threshold = sweepSummary.thresholds[index];
+                    const bucket = Math.max(
+                        0,
+                        Math.min(
+                            bucketCount - 1,
+                            Math.floor(((threshold - thresholdMin) / thresholdSpan) * bucketCount)
+                        )
+                    );
+
+                    if (bucket !== currentBucket) {
+                        if (currentBucket !== -1) {
+                            flushBucket();
+                        }
+
+                        currentBucket = bucket;
+                        firstIndex = index;
+                        lastIndex = index;
+                        minIndex = index;
+                        maxIndex = index;
+                        continue;
+                    }
+
+                    lastIndex = index;
+
+                    if (sweepSummary.clusterCounts[index] < sweepSummary.clusterCounts[minIndex]) {
+                        minIndex = index;
+                    }
+
+                    if (sweepSummary.clusterCounts[index] > sweepSummary.clusterCounts[maxIndex]) {
+                        maxIndex = index;
+                    }
+                }
+
+                flushBucket();
+
+                return Array
+                    .from(selectedIndexes)
+                    .sort((a, b) => a - b)
+                    .map((index) => ({
+                        threshold: sweepSummary.thresholds[index],
+                        clusterCount: sweepSummary.clusterCounts[index]
+                    }));
+            };
+
+            const sweepLinePoints = buildSweepLinePoints();
             clusterY = d3
                 .scaleLinear()
                 .domain([0, maxClusterCount])
                 .range([height - 2, 2]);
 
             const clusterLine = d3
-                .line<number>()
+                .line<{ threshold: number; clusterCount: number }>()
                 .curve(d3.curveStepAfter)
-                .x((_, index) => x(sweepSummary.thresholds[index]))
-                .y((value) => clusterY(value));
+                .x((point) => x(point.threshold))
+                .y((point) => clusterY(point.clusterCount));
 
             svg
                 .append("path")
-                .datum(sweepSummary.clusterCounts)
+                .datum(sweepLinePoints)
                 .attr("class", "threshold-cluster-sweep")
                 .attr("fill", "none")
                 .attr("stroke", "#ff8300")
@@ -4721,6 +5278,34 @@ align(params): Promise<any> {
             return x.invert(xc);
         }
 
+        function getClosestSweepIndex(threshold: number): number {
+            const thresholds = sweepSummary.thresholds;
+            if (thresholds.length === 0) {
+                return -1;
+            }
+
+            let low = 0;
+            let high = thresholds.length - 1;
+
+            while (low < high) {
+                const mid = Math.floor((low + high) / 2);
+                if (thresholds[mid] < threshold) {
+                    low = mid + 1;
+                } else {
+                    high = mid;
+                }
+            }
+
+            if (low === 0) {
+                return 0;
+            }
+
+            const previous = low - 1;
+            return Math.abs(thresholds[previous] - threshold) <= Math.abs(thresholds[low] - threshold)
+                ? previous
+                : low;
+        }
+
         /**
          * Uses the position on the histogram to set the link thresehold value
          */
@@ -4740,20 +5325,16 @@ align(params): Promise<any> {
         }
 
         function updateHoverReadout() {
+            const readout = getReadout();
             if (readout.length === 0 || sweepSummary.thresholds.length === 0 || !clusterY) {
                 return;
             }
 
             const hoveredThreshold = getHoveredThresholdValue();
-            let closestIndex = 0;
-            let closestDistance = Math.abs(sweepSummary.thresholds[0] - hoveredThreshold);
+            const closestIndex = getClosestSweepIndex(hoveredThreshold);
 
-            for (let index = 1; index < sweepSummary.thresholds.length; index++) {
-                const distance = Math.abs(sweepSummary.thresholds[index] - hoveredThreshold);
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestIndex = index;
-                }
+            if (closestIndex < 0) {
+                return;
             }
 
             const thresholdValue = sweepSummary.thresholds[closestIndex];

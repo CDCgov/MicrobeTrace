@@ -50,6 +50,7 @@ import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticCom
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
+import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
 import { LeafletModule } from '@bluehalo/ngx-leaflet';
@@ -89,7 +90,11 @@ import { GlobalErrorHandler } from './runtime-security/global-error-handler';
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
-const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff');
+const hashParamsText = window.location.hash.replace(/^#/, '').includes('?')
+  ? window.location.hash.replace(/^#/, '').slice(window.location.hash.replace(/^#/, '').indexOf('?') + 1)
+  : window.location.hash.replace(/^#/, '');
+const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff')
+  || new URLSearchParams(hashParamsText).has('handoff');
 const googleTagManagerMode = analyticsDisabledForHandoff ? 'silent' : 'noisy';
 
 const routerOptions: ExtraOptions = {
@@ -114,6 +119,7 @@ export class TestedComponent {
         FilesComponent,
         TwoDComponent,
         TableComponent,
+        NetworkStatisticsComponent,
         GoldenLayoutHostComponent,
         MapComponent,
         TestedComponent,

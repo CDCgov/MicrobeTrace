@@ -11,6 +11,10 @@ import type {
   PatristicProgressResponse,
   PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
+import type {
+  NetworkStatisticsRequest,
+  NetworkStatisticsResult,
+} from './network-statistics';
 
 interface ComputePatristicOptions {
   origin?: string[];
@@ -33,6 +37,9 @@ interface PatristicGuardrailResult {
   hardLimitHit: boolean;
   threshold: number;
   message: string;
+  fallbackApplied?: boolean;
+  fallbackLinkCount?: number;
+  fallbackType?: 'nearest-neighbor-backbone';
 }
 
 interface PatristicMergeResult {
@@ -40,6 +47,14 @@ interface PatristicMergeResult {
   totalLinks: number;
   leafNames: string[];
   guardrail?: PatristicGuardrailResult;
+  fallback?: {
+    type: 'nearest-neighbor-backbone';
+    newLinks: number;
+    totalLinks: number;
+    selectedLinks: number;
+    epsilon: number;
+    timings?: PatristicNearestNeighborBatchResponse['timings'];
+  };
 }
 
 interface PatristicNearestNeighborMergeResult {
@@ -605,6 +620,33 @@ export class WorkerComputeService {
     });
   }
 
+  public computeNetworkStatistics(request: NetworkStatisticsRequest): Promise<NetworkStatisticsResult> {
+    return new Promise<NetworkStatisticsResult>((resolve, reject) => {
+      const statisticsWorker = this.computer.getNetworkStatisticsWorker() as unknown as Worker;
+      statisticsWorker.postMessage(request);
+
+      const sub = this.fromWorker(statisticsWorker).subscribe({
+        next: (response: MessageEvent<any>) => {
+          try {
+            const decoder = new TextDecoder('utf-8');
+            const result = JSON.parse(decoder.decode(new Uint8Array(response.data.networkStatistics)));
+            resolve(result);
+          } catch (error) {
+            reject(error);
+          } finally {
+            statisticsWorker.terminate();
+            sub.unsubscribe();
+          }
+        },
+        error: (error) => {
+          reject(error);
+          statisticsWorker.terminate();
+          sub.unsubscribe();
+        }
+      });
+    });
+  }
+
   // ─── Patristic Distance Engine ───────────────────────────────────────────
 
   /** Currently active patristic job ID for cancellation. */
@@ -616,6 +658,7 @@ export class WorkerComputeService {
   private patristicOrigin: string[] = ['Newick Tree'];
   private patristicDistanceOrigin = 'Newick Tree';
   private patristicTreeInitCount = 0;
+  private patristicGuardrailFallbackThresholds = new Set<string>();
 
   private recordPatristicPerformance(session: any, patch: any): void {
     if (!session?.meta) return;
@@ -721,6 +764,9 @@ export class WorkerComputeService {
       warningThreshold: guardrail.warningThreshold,
       hardLimit: guardrail.hardLimit,
       hardLimitHit: guardrail.hardLimitHit,
+      fallbackApplied: guardrail.fallbackApplied,
+      fallbackLinkCount: guardrail.fallbackLinkCount,
+      fallbackType: guardrail.fallbackType,
       updatedAt: Date.now(),
     };
 
@@ -729,6 +775,89 @@ export class WorkerComputeService {
     } else {
       session.warnings.push(warning);
     }
+  }
+
+  private getPatristicNearestNeighborEpsilon(session?: any): number {
+    const rawEpsilon = Number(session?.style?.widgets?.["filtering-epsilon"]);
+    return Number.isFinite(rawEpsilon) ? Math.pow(10, rawEpsilon) : 0;
+  }
+
+  private buildPatristicGuardrailFallbackKey(
+    threshold: number,
+    distanceOrigin: string,
+    hardLimit: number
+  ): string {
+    return `${distanceOrigin}|${threshold}|${hardLimit}`;
+  }
+
+  private linkHasDistanceOrigin(link: any, distanceOrigin: string): boolean {
+    if (!link?.hasDistance) {
+      return false;
+    }
+
+    if (link.distanceOrigin === distanceOrigin) {
+      return true;
+    }
+
+    return Array.isArray(link.distanceOrigins) && link.distanceOrigins.includes(distanceOrigin);
+  }
+
+  private hasExistingPatristicDistanceLinks(session: any, distanceOrigin: string): boolean {
+    return Array.isArray(session?.data?.links)
+      && session.data.links.some((link: any) => this.linkHasDistanceOrigin(link, distanceOrigin));
+  }
+
+  private async mergePatristicNearestNeighborBackbone(
+    addLink: (link: any, check: any) => number,
+    filterXSS: (s: string) => string,
+    session?: any,
+    options: ComputePatristicOptions = {}
+  ): Promise<NonNullable<PatristicMergeResult['fallback']>> {
+    const leafNames = this.patristicLeafNames.map(filterXSS);
+    const origin = options.origin?.length ? options.origin : this.patristicOrigin;
+    const distanceOrigin = options.distanceOrigin || this.patristicDistanceOrigin;
+    const check = options.check ?? true;
+    const epsilon = this.getPatristicNearestNeighborEpsilon(session);
+
+    return new Promise((resolve, reject) => {
+      let newLinks = 0;
+      let totalLinks = 0;
+      let selectedLinks = 0;
+      let finalTimings: PatristicNearestNeighborBatchResponse['timings'] | undefined;
+
+      this.buildPatristicNearestNeighborEdges(epsilon, options.batchSize).subscribe({
+        next: (batch) => {
+          const n = batch.sources.length;
+          for (let k = 0; k < n; k++) {
+            newLinks += addLink({
+              source: leafNames[batch.sources[k]],
+              target: leafNames[batch.targets[k]],
+              origin: [...origin],
+              distance: batch.distances[k],
+              distanceOrigin,
+              hasDistance: true,
+              nn: true,
+            }, check);
+            totalLinks++;
+            selectedLinks++;
+          }
+          if (batch.done) {
+            finalTimings = batch.timings;
+          }
+        },
+        error: (err) => reject(err),
+        complete: () => {
+          resolve({
+            type: 'nearest-neighbor-backbone',
+            newLinks,
+            totalLinks,
+            selectedLinks,
+            epsilon,
+            timings: finalTimings,
+          });
+        },
+      });
+    });
   }
 
   private getPatristicThresholdAnalysisPairLimit(session?: any): number {
@@ -759,6 +888,7 @@ export class WorkerComputeService {
             this.patristicLeafNames = msg.leafNames;
             this.patristicNewickString = newickString;
             this.patristicGeneratedMaxThreshold = -Infinity;
+            this.patristicGuardrailFallbackThresholds.clear();
             this.patristicTreeInitCount++;
             worker.removeEventListener('message', handler);
             resolve(msg);
@@ -928,17 +1058,18 @@ export class WorkerComputeService {
           }
         },
         error: (err) => reject(err),
-        complete: () => {
+        complete: async () => {
           const matchedEdgeCount = finalTimings?.emittedEdgeCount ?? pendingLinks.length;
           const hardLimitHit =
             (usingGuardrailLimit && Boolean(finalTimings?.maxEdgesHit)) ||
             matchedEdgeCount > guardrails.hardLimit;
-          const guardrail = this.buildPatristicGuardrailResult(
+          let guardrail = this.buildPatristicGuardrailResult(
             threshold,
             matchedEdgeCount,
             guardrails,
             hardLimitHit,
           );
+          let fallback: PatristicMergeResult['fallback'];
 
           if (!hardLimitHit) {
             for (const link of pendingLinks) {
@@ -949,6 +1080,33 @@ export class WorkerComputeService {
               this.patristicGeneratedMaxThreshold,
               threshold
             );
+          } else if (!this.hasExistingPatristicDistanceLinks(session, distanceOrigin)) {
+            try {
+              fallback = await this.mergePatristicNearestNeighborBackbone(
+                addLink,
+                filterXSS,
+                session,
+                options
+              );
+              newLinks = fallback.newLinks;
+              totalLinks = fallback.totalLinks;
+              this.patristicGuardrailFallbackThresholds.add(
+                this.buildPatristicGuardrailFallbackKey(threshold, distanceOrigin, guardrails.hardLimit)
+              );
+
+              if (guardrail) {
+                guardrail = {
+                  ...guardrail,
+                  fallbackApplied: true,
+                  fallbackLinkCount: fallback.totalLinks,
+                  fallbackType: fallback.type,
+                  message: `${guardrail.message} MicrobeTrace rendered a nearest-neighbor tree backbone instead so the 2D network is not blank.`,
+                };
+              }
+            } catch (fallbackError) {
+              reject(fallbackError);
+              return;
+            }
           }
 
           this.recordPatristicGuardrailWarning(session, guardrail);
@@ -958,7 +1116,7 @@ export class WorkerComputeService {
               'Patristic edge generation + merge time:',
               (Date.now() - edgeStart).toLocaleString(),
               'ms',
-              `(${hardLimitHit ? 0 : totalLinks} edges added below threshold ${threshold})`
+              `(${totalLinks} edges added below threshold ${threshold}${fallback ? ' via nearest-neighbor fallback' : ''})`
             );
           }
           this.recordPatristicPerformance(session, {
@@ -970,9 +1128,10 @@ export class WorkerComputeService {
               mergeMs: Date.now() - edgeStart,
               timings: finalTimings,
               guardrail,
+              fallback,
             },
           });
-          resolve({ newLinks, totalLinks, leafNames, guardrail });
+          resolve({ newLinks, totalLinks, leafNames, guardrail, fallback });
         },
       });
     });
@@ -1141,12 +1300,30 @@ export class WorkerComputeService {
     }
 
     this.setPatristicMetadata(options.origin, options.distanceOrigin);
+    const distanceOrigin = options.distanceOrigin || this.patristicDistanceOrigin;
+    const guardrails = this.getPatristicVisibleEdgeGuardrails(session);
+    const fallbackKey = this.buildPatristicGuardrailFallbackKey(
+      threshold,
+      distanceOrigin,
+      guardrails.hardLimit
+    );
 
     if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
       const treeReady = await this.initPatristicTree(newickString);
       this.recordPatristicPerformance(session, {
         treeReady: this.treeReadyTelemetry(treeReady),
       });
+    }
+
+    if (
+      this.patristicGuardrailFallbackThresholds.has(fallbackKey) &&
+      this.hasExistingPatristicDistanceLinks(session, distanceOrigin)
+    ) {
+      return {
+        newLinks: 0,
+        totalLinks: 0,
+        leafNames: this.patristicLeafNames.map(filterXSS),
+      };
     }
 
     if (threshold <= this.patristicGeneratedMaxThreshold) {
@@ -1238,6 +1415,7 @@ export class WorkerComputeService {
     this.patristicLeafNames = [];
     this.patristicNewickString = '';
     this.patristicGeneratedMaxThreshold = -Infinity;
+    this.patristicGuardrailFallbackThresholds.clear();
     this.patristicTreeInitCount = 0;
   }
 }

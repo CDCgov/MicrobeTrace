@@ -10,6 +10,11 @@ npm -v || { echo "npm not found"; exit 1; }
 
 echo "===> Building Angular app..."
 npm run build -- --configuration production --base-href=./ || { echo "Angular build failed"; exit 1; }
+
+echo "===> Installing WAR security header configuration..."
+mkdir -p dist/MicrobeTrace/WEB-INF || { echo "Failed to create WEB-INF"; exit 1; }
+cp scripts/tomcat/web.xml dist/MicrobeTrace/WEB-INF/web.xml || { echo "Failed to copy web.xml"; exit 1; }
+
 npm run verify:dist || { echo "Production artifact verification failed"; exit 1; }
 
 echo "===> Creating WAR file..."
