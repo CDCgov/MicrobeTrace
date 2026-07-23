@@ -400,6 +400,41 @@
                       Hover chart for cluster count
                     </div>
                   </div>
+                  @if (patristicDistanceCompletionStatus.eligible) {
+                    <div class="complete-distance-shell" data-testid="complete-distance-panel">
+                      <div class="complete-distance-shell__header">
+                        <span class="complete-distance-shell__title">Pairwise Distance Data</span>
+                        <i
+                          class="pi pi-info-circle threshold-help-icon"
+                          title="Calculate every tree-based pairwise distance for the histogram and heatmap without adding links to the 2D network or recalculating clusters."></i>
+                      </div>
+                      <div class="complete-distance-shell__status" data-testid="complete-distance-status">
+                        @if (patristicDistanceCompletionStatus.complete) {
+                          All {{ patristicDistanceCompletionStatus.expectedPairs.toLocaleString() }} pairwise distances are available.
+                        } @else {
+                          {{ patristicDistanceCompletionStatus.cachedPairs.toLocaleString() }} of {{ patristicDistanceCompletionStatus.expectedPairs.toLocaleString() }} pairwise distances are available.
+                        }
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-light btn-sm w-100 complete-distance-shell__action"
+                        data-testid="complete-distance-calculate"
+                        [disabled]="calculatingCompletePatristicDistances || patristicDistanceCompletionStatus.complete"
+                        (click)="calculateAllPatristicDistances()">
+                        @if (calculatingCompletePatristicDistances) {
+                          <i class="pi pi-spin pi-spinner"></i>
+                        } @else if (patristicDistanceCompletionStatus.complete) {
+                          <i class="pi pi-check"></i>
+                        }
+                        {{ getPatristicDistanceCalculationButtonLabel() }}
+                      </button>
+                      @if (patristicDistanceCalculationError) {
+                        <div class="complete-distance-shell__error" data-testid="complete-distance-error">
+                          {{ patristicDistanceCalculationError }} Try again.
+                        </div>
+                      }
+                    </div>
+                  }
                   <div class="threshold-stability-shell">
                     <button
                       type="button"
@@ -901,6 +936,43 @@
           <button type="button" class="btn btn-success" (click)="DisplayAbout()">Close</button>
         </div>
       </div>
+    </div>
+  </p-dialog>
+  <p-dialog
+    id="heatmap-distance-warning-dialog"
+    header="Incomplete Heatmap Distances"
+    [(visible)]="displayHeatmapDistanceWarningDialog"
+    [modal]="true"
+    [style]="{ width: '430px' }"
+    appendTo="body">
+    <div class="heatmap-distance-dialog" data-testid="heatmap-distance-warning-dialog">
+      <p>
+        Some Heatmap cells are blank because MicrobeTrace has only calculated the tree distances needed for the current network threshold.
+      </p>
+      <p>
+        Calculate every tree-based pairwise distance to fully populate the Heatmap and distance histogram. This will not add links to the 2D network or recalculate clusters.
+      </p>
+      <div class="heatmap-distance-dialog__status" data-testid="heatmap-distance-status">
+        {{ patristicDistanceCompletionStatus.cachedPairs.toLocaleString() }} of {{ patristicDistanceCompletionStatus.expectedPairs.toLocaleString() }} pairwise distances are available.
+      </div>
+      <button
+        type="button"
+        class="btn btn-primary btn-sm w-100 heatmap-distance-dialog__action"
+        data-testid="heatmap-distance-calculate"
+        [disabled]="calculatingCompletePatristicDistances || patristicDistanceCompletionStatus.complete"
+        (click)="calculateAllPatristicDistances()">
+        @if (calculatingCompletePatristicDistances) {
+          <i class="pi pi-spin pi-spinner"></i>
+        } @else if (patristicDistanceCompletionStatus.complete) {
+          <i class="pi pi-check"></i>
+        }
+        {{ getPatristicDistanceCalculationButtonLabel() }}
+      </button>
+      @if (patristicDistanceCalculationError) {
+        <div class="heatmap-distance-dialog__error" data-testid="heatmap-distance-error">
+          {{ patristicDistanceCalculationError }} Try again.
+        </div>
+      }
     </div>
   </p-dialog>
   <p-confirmDialog></p-confirmDialog> <!--This is for nearest neighbor confirmations, openNNConfirmation()-->

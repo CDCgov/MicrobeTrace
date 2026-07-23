@@ -1,5 +1,9 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
-import { CommonService } from './contactTraceCommonServices/common.service';
+import {
+    CommonService,
+    type PatristicDistanceCalculationProgress,
+    type PatristicDistanceCompletionStatus
+} from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
@@ -245,6 +249,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
     thresholdStabilityMessage: string = '';
+    patristicDistanceCompletionStatus: PatristicDistanceCompletionStatus = {
+        eligible: false,
+        complete: false,
+        nodeCount: 0,
+        expectedPairs: 0,
+        cachedPairs: 0
+    };
+    patristicDistanceCalculationProgress: PatristicDistanceCalculationProgress | null = null;
+    patristicDistanceCalculationError: string = '';
+    calculatingCompletePatristicDistances: boolean = false;
+    displayHeatmapDistanceWarningDialog: boolean = false;
 
     RevealTypes: any = [
         { label: 'Everything', value: 'Everything' }
@@ -4621,6 +4636,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.syncThresholdDisplayFromStoredValue();
         setTimeout(() => this.syncThresholdDisplayFromStoredValue(), 0);
         this.thresholdStabilityExpanded = false;
+        this.refreshPatristicDistanceCompletionStatus();
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
@@ -4630,6 +4646,108 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     toggleThresholdStabilityPanel(): void {
         this.thresholdStabilityExpanded = !this.thresholdStabilityExpanded;
+    }
+
+    refreshPatristicDistanceCompletionStatus(): void {
+        this.patristicDistanceCompletionStatus = this.commonService.getPatristicDistanceCompletionStatus();
+    }
+
+    openHeatmapDistanceWarningDialog(): void {
+        this.refreshPatristicDistanceCompletionStatus();
+        if (this.patristicDistanceCompletionStatus.eligible && !this.patristicDistanceCompletionStatus.complete) {
+            this.displayHeatmapDistanceWarningDialog = true;
+            this.cdref.markForCheck();
+        }
+    }
+
+    getPatristicDistanceCalculationButtonLabel(): string {
+        if (this.calculatingCompletePatristicDistances) {
+            if (this.patristicDistanceCalculationProgress?.phase === 'finalizing') {
+                return 'Finalizing Distance Data...';
+            }
+
+            const percent = this.patristicDistanceCalculationProgress?.percent ?? 0;
+            return `Calculating Distances (${percent}%)`;
+        }
+
+        return this.patristicDistanceCompletionStatus.complete
+            ? 'Distance Data Complete'
+            : 'Calculate All Pairwise Distances';
+    }
+
+    calculateAllPatristicDistances(): void {
+        this.refreshPatristicDistanceCompletionStatus();
+        const status = this.patristicDistanceCompletionStatus;
+        if (!status.eligible || status.complete || this.calculatingCompletePatristicDistances) {
+            return;
+        }
+
+        const warningThreshold = this.commonService.getCompletePatristicDistanceWarningThreshold();
+        if (status.expectedPairs >= warningThreshold) {
+            this.confirmationService.confirm({
+                header: 'Large Pairwise Distance Calculation',
+                message: `This dataset has ${status.expectedPairs.toLocaleString()} possible pairwise links across ${status.nodeCount.toLocaleString()} nodes. Calculating every distance may take significant time and browser memory, but it will not add these links to the 2D network. Continue?`,
+                closable: false,
+                closeOnEscape: false,
+                icon: 'pi pi-exclamation-triangle',
+                rejectButtonProps: {
+                    label: 'Cancel',
+                    severity: 'secondary',
+                    outlined: true,
+                },
+                acceptButtonProps: {
+                    label: 'Continue',
+                },
+                accept: () => void this.runCompletePatristicDistanceCalculation()
+            });
+            return;
+        }
+
+        void this.runCompletePatristicDistanceCalculation();
+    }
+
+    private async runCompletePatristicDistanceCalculation(): Promise<void> {
+        this.calculatingCompletePatristicDistances = true;
+        this.patristicDistanceCalculationError = '';
+        this.patristicDistanceCalculationProgress = {
+            phase: 'calculating',
+            completedPairs: 0,
+            totalPairs: this.patristicDistanceCompletionStatus.expectedPairs,
+            percent: 0
+        };
+        this.cdref.markForCheck();
+
+        try {
+            this.patristicDistanceCompletionStatus = await this.commonService.calculateCompletePatristicDistanceData(
+                progress => {
+                    this.patristicDistanceCalculationProgress = progress;
+                    this.cdref.markForCheck();
+                }
+            );
+
+            if (this.linkThresholdSparkline?.nativeElement) {
+                await this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+            }
+            this.refreshThresholdStabilityPanel(false);
+
+            const heatmapIsOpen = this.homepageTabs.some(tab => tab.label === 'Heatmap');
+            if (heatmapIsOpen && this.commonService.visuals.heatmap?.updateVisualization) {
+                this.commonService.visuals.heatmap.updateVisualization();
+            }
+
+            if (this.patristicDistanceCompletionStatus.complete) {
+                this.displayHeatmapDistanceWarningDialog = false;
+            }
+        } catch (error: any) {
+            this.patristicDistanceCalculationError = String(
+                error?.message || error || 'Unable to calculate all pairwise distances.'
+            );
+        } finally {
+            this.calculatingCompletePatristicDistances = false;
+            this.patristicDistanceCalculationProgress = null;
+            this.refreshPatristicDistanceCompletionStatus();
+            this.cdref.markForCheck();
+        }
     }
 
 

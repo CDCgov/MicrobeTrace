@@ -75,6 +75,18 @@
   box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);
 }
 
+.heatmap-distance-warning-button {
+  color: #a15c00;
+  border: 1px solid rgba(161, 92, 0, 0.28);
+  background: #fff8e6;
+}
+
+.heatmap-distance-warning-button:hover,
+.heatmap-distance-warning-button:focus-visible {
+  color: #7a4600;
+  background: #ffefc2;
+}
+
 .flaticon-settings:before {
   font-weight: 800 !important;
 }

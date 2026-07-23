@@ -47,6 +47,22 @@ interface SequencePairwiseLinkGuardrailResult {
 
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
+const DEFAULT_COMPLETE_PATRISTIC_DISTANCE_WARNING_THRESHOLD = 500000;
+
+export interface PatristicDistanceCompletionStatus {
+    eligible: boolean;
+    complete: boolean;
+    nodeCount: number;
+    expectedPairs: number;
+    cachedPairs: number;
+}
+
+export interface PatristicDistanceCalculationProgress {
+    phase: 'calculating' | 'finalizing';
+    completedPairs: number;
+    totalPairs: number;
+    percent: number;
+}
 
 @Directive()
 @Injectable({
@@ -1033,6 +1049,159 @@ export class CommonService extends AppComponentBase implements OnInit {
         analysis.thresholdSweepCache = {};
     }
 
+    getCompletePatristicDistanceWarningThreshold(): number {
+        const override = Number(
+            (this.session?.meta as any)?.guardrails?.completePatristicDistanceWarningThreshold
+        );
+
+        return Number.isFinite(override) && override > 0
+            ? Math.floor(override)
+            : DEFAULT_COMPLETE_PATRISTIC_DISTANCE_WARNING_THRESHOLD;
+    }
+
+    getPatristicDistanceCompletionStatus(metric = 'distance'): PatristicDistanceCompletionStatus {
+        const nodeCount = this.session.data?.nodes?.length || 0;
+        const expectedPairs = nodeCount * (nodeCount - 1) / 2;
+        const newickString = this.session.data?.newickString;
+        const eligible = nodeCount > 0 && this.hasNewickBackedDistanceSource(newickString);
+
+        if (!eligible) {
+            return {
+                eligible: false,
+                complete: false,
+                nodeCount,
+                expectedPairs,
+                cachedPairs: 0
+            };
+        }
+
+        const completeCache = this.getCompletePatristicDistanceCache(metric);
+        if (completeCache || expectedPairs === 0) {
+            return {
+                eligible: true,
+                complete: true,
+                nodeCount,
+                expectedPairs,
+                cachedPairs: expectedPairs
+            };
+        }
+
+        const distanceCache = this.getStoredDistanceEdgeCache(metric);
+        return {
+            eligible: true,
+            complete: false,
+            nodeCount,
+            expectedPairs,
+            cachedPairs: Math.min(expectedPairs, distanceCache.sortedEdges.length)
+        };
+    }
+
+    async calculateCompletePatristicDistanceData(
+        onProgress?: (progress: PatristicDistanceCalculationProgress) => void
+    ): Promise<PatristicDistanceCompletionStatus> {
+        const metric = 'distance';
+        const initialStatus = this.getPatristicDistanceCompletionStatus(metric);
+        if (!initialStatus.eligible) {
+            throw new Error('Complete distance calculation is only available for Newick and Nextstrain tree data.');
+        }
+        if (initialStatus.complete) {
+            return initialStatus;
+        }
+
+        const loadGeneration = this.getDataLoadGeneration();
+        const newickString = String(this.session.data.newickString || '');
+        const startedAt = Date.now();
+        const startedMemory = this.readPerformanceMemorySnapshot();
+        const analysisCache = this.getAnalysisCache();
+        const previousPatristicCache = analysisCache.patristicDistanceCache[metric];
+        const previousStoredDistanceCache = analysisCache.storedDistanceCache[metric];
+        let replacedDistanceCache = false;
+        const assertCurrentDataset = () => {
+            if (
+                !this.isCurrentDataLoad(loadGeneration) ||
+                String(this.session.data?.newickString || '') !== newickString
+            ) {
+                throw new Error('The dataset changed before the distance calculation completed.');
+            }
+        };
+
+        try {
+            await this.workerComputeService.ensurePatristicTreeInitialized(newickString, this.session);
+            assertCurrentDataset();
+
+            const analysisResult = await this.workerComputeService.collectPatristicDistanceAnalysisEdges(
+                this.session,
+                {
+                    bypassPairLimit: true,
+                    onProgress: progress => onProgress?.({
+                        phase: 'calculating',
+                        ...progress
+                    })
+                }
+            );
+            assertCurrentDataset();
+
+            if (analysisResult.skipped) {
+                throw new Error(analysisResult.skipReason || 'The complete distance calculation was skipped.');
+            }
+            if (analysisResult.totalPairs !== initialStatus.expectedPairs) {
+                throw new Error(
+                    `The tree contains ${analysisResult.totalPairs.toLocaleString()} pairs, but the current nodes contain ${initialStatus.expectedPairs.toLocaleString()} pairs.`
+                );
+            }
+
+            onProgress?.({
+                phase: 'finalizing',
+                completedPairs: analysisResult.totalPairs,
+                totalPairs: analysisResult.totalPairs,
+                percent: 100
+            });
+
+            const leafNames = this.workerComputeService
+                .getPatristicLeafNames()
+                .map(name => this.filterXSS(name));
+            this.setPatristicThresholdAnalysisEdges(metric, leafNames, analysisResult.edges);
+            replacedDistanceCache = true;
+
+            const completedStatus = this.getPatristicDistanceCompletionStatus(metric);
+            if (!completedStatus.complete) {
+                throw new Error('Not every tree leaf could be matched to a node in the current dataset.');
+            }
+
+            this.recordPerformanceDuration('patristic', 'completeDistanceAnalysis', Date.now() - startedAt, {
+                nodeCount: completedStatus.nodeCount,
+                totalPairs: completedStatus.expectedPairs,
+                completed: true,
+                startedMemory
+            });
+            return completedStatus;
+        } catch (error: any) {
+            if (replacedDistanceCache) {
+                if (previousPatristicCache) {
+                    analysisCache.patristicDistanceCache[metric] = previousPatristicCache;
+                } else {
+                    delete analysisCache.patristicDistanceCache[metric];
+                }
+
+                if (previousStoredDistanceCache) {
+                    analysisCache.storedDistanceCache[metric] = previousStoredDistanceCache;
+                } else {
+                    delete analysisCache.storedDistanceCache[metric];
+                }
+                analysisCache.thresholdSweepCache = {};
+            }
+
+            this.recordPerformanceDuration('patristic', 'completeDistanceAnalysis', Date.now() - startedAt, {
+                nodeCount: initialStatus.nodeCount,
+                totalPairs: initialStatus.expectedPairs,
+                completed: false,
+                error: String(error?.message || error),
+                startedMemory
+            });
+            throw error;
+        }
+    }
+
     public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
         const analysis = this.getAnalysisCache();
         const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
@@ -1053,7 +1222,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         return summary;
     }
 
-    private getCompletePatristicDistanceMatrix(metric: string): { dm: Array<Array<number | null>>; labels: string[] } | null {
+    private getCompletePatristicDistanceCache(metric: string): StoredDistanceEdgeCache | null {
         const analysis = this.getAnalysisCache();
         const cache = analysis.patristicDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
 
@@ -1070,6 +1239,17 @@ export class CommonService extends AppComponentBase implements OnInit {
             return null;
         }
 
+        return cache;
+    }
+
+    private getCompletePatristicDistanceMatrix(metric: string): { dm: Array<Array<number | null>>; labels: string[] } | null {
+        const cache = this.getCompletePatristicDistanceCache(metric);
+        if (!cache) {
+            return null;
+        }
+
+        const nodeCount = cache.nodeIds.length;
+        const expectedPairCount = nodeCount * (nodeCount - 1) / 2;
         const dm: Array<Array<number | null>> = Array.from({ length: nodeCount }, (_, index) => {
             const row = new Array<number | null>(nodeCount).fill(null);
             row[index] = 0;

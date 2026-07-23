@@ -66,11 +66,24 @@ interface PatristicAnalysisEdge {
   value: number;
 }
 
-interface PatristicDistanceAnalysisResult {
+export interface PatristicDistanceAnalysisProgress {
+  completedPairs: number;
+  totalPairs: number;
+  percent: number;
+}
+
+export interface PatristicDistanceAnalysisResult {
   edges: PatristicAnalysisEdge[];
   totalPairs: number;
   skipped: boolean;
   skipReason?: string;
+}
+
+interface CollectPatristicDistanceAnalysisOptions {
+  maxPairs?: number;
+  batchSize?: number;
+  bypassPairLimit?: boolean;
+  onProgress?: (progress: PatristicDistanceAnalysisProgress) => void;
 }
 
 const DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD = 75000;
@@ -881,6 +894,21 @@ export class WorkerComputeService {
     });
   }
 
+  public async ensurePatristicTreeInitialized(newickString: string, session?: any): Promise<string[]> {
+    if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+      throw new Error('No Newick tree is available for pairwise distance calculation.');
+    }
+
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      const treeReady = await this.initPatristicTree(newickString);
+      this.recordPatristicPerformance(session, {
+        treeReady: this.treeReadyTelemetry(treeReady),
+      });
+    }
+
+    return [...this.patristicLeafNames];
+  }
+
   /**
    * Request thresholded patristic edges from the worker.
    * The tree must have been initialized via initPatristicTree() first.
@@ -1321,15 +1349,18 @@ export class WorkerComputeService {
 
   public collectPatristicDistanceAnalysisEdges(
     session?: any,
-    options: { maxPairs?: number; batchSize?: number } = {}
+    options: CollectPatristicDistanceAnalysisOptions = {}
   ): Promise<PatristicDistanceAnalysisResult> {
     const leafCount = this.patristicLeafNames.length;
     const totalPairs = (leafCount * (leafCount - 1)) / 2;
-    const maxPairs = Number.isFinite(Number(options.maxPairs))
+    const maxPairs = options.bypassPairLimit
+      ? Number.POSITIVE_INFINITY
+      : Number.isFinite(Number(options.maxPairs))
       ? Number(options.maxPairs)
       : this.getPatristicThresholdAnalysisPairLimit(session);
 
     if (!leafCount || totalPairs <= 0) {
+      options.onProgress?.({ completedPairs: totalPairs, totalPairs, percent: 100 });
       return Promise.resolve({ edges: [], totalPairs, skipped: false });
     }
 
@@ -1344,6 +1375,7 @@ export class WorkerComputeService {
 
     return new Promise((resolve, reject) => {
       const edges: PatristicAnalysisEdge[] = [];
+      options.onProgress?.({ completedPairs: 0, totalPairs, percent: 0 });
 
       this.buildPatristicEdges(Number.POSITIVE_INFINITY, totalPairs + 1, options.batchSize).subscribe({
         next: (batch) => {
@@ -1355,6 +1387,11 @@ export class WorkerComputeService {
               value: batch.distances[k],
             });
           }
+          options.onProgress?.({
+            completedPairs: edges.length,
+            totalPairs,
+            percent: Math.min(100, Math.floor((edges.length / totalPairs) * 100)),
+          });
         },
         error: (err) => reject(err),
         complete: () => resolve({ edges, totalPairs, skipped: false }),
