@@ -83,9 +83,6 @@ describe('Journey Flow - Network subset filtering', () => {
     assertAfterLaunchCounts(profile);
 
     applyNodeSubset('Profession', 'equals', 'Healthcare', 'Texas');
-    cy.get('[data-testid="network-subset-filter-notice"]', { timeout: 15000 })
-      .should('contain', 'Subset active')
-      .and('contain', 'Healthcare');
     assertMetricCount('#numberOfNodes', 2);
     assertMetricCount('#numberOfVisibleLinks', 1);
     cy.window().should((win: any) => {
@@ -117,8 +114,7 @@ describe('Journey Flow - Network subset filtering', () => {
       ).to.deep.equal(['classroom', 'classroom']);
     });
 
-    cy.get('[data-testid="network-subset-filter-clear"]').click({ force: true });
-    cy.get('[data-testid="network-subset-filter-notice"]').should('not.exist');
+    clearSubset();
     assertAfterLaunchCounts(profile);
   });
 });

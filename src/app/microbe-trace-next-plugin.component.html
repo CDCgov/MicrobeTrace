@@ -86,13 +86,6 @@
       </div>
     }
 
-    @if (isNetworkSubsetFilterActive()) {
-      <div id="network-subset-filter-notice" class="network-subset-filter-notice" data-testid="network-subset-filter-notice" role="status">
-        <span>Subset active: {{ getNetworkSubsetFilterLabel() }}</span>
-        <button type="button" class="btn btn-sm btn-link" data-testid="network-subset-filter-clear" (click)="clearNetworkSubsetFilter()">Clear</button>
-      </div>
-    }
-
     <div #visualwrapper id="visualwrapper" class="kt-container  kt-grid__item kt-grid__item--fluid " style="margin: 6px 6px 0 6px;" [style.height.px]="getHeight()">
       <div class="kt-portlet kt-portlet--mobile" style="height:100%">
         <div class="kt-portlet__head kt-portlet__head--lg" style="height:100%">
