@@ -443,8 +443,21 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
      * @param type The type of data (node, link, cluster) to create table with
      */
     createTable(type: any = 'node') {
-      type = type.toLowerCase();
-      this.visuals.tableComp.TableType = type;
+      // More than one Table tab can exist over the lifetime of a dashboard.
+      // Keep the shared visualization pointer aligned with the component that
+      // is actually rebuilding so UI events cannot update a hidden instance.
+      this.commonService.visuals.tableComp = this;
+      const requestedType = String(type || 'node').toLowerCase();
+      type = ['node', 'link', 'cluster'].includes(requestedType)
+        ? requestedType
+        : 'node';
+
+      // Keep the dropdown and rendered table on the same dataset. Existing
+      // Table tabs are refreshed through onLoadNewData(), which can otherwise
+      // rebuild Node rows while leaving the dropdown visibly set to Links.
+      this.dataSetViewSelected =
+        type.charAt(0).toUpperCase() + type.slice(1);
+      this.TableType = type;
       const sourceData = type === 'node'
         ? this.visuals.tableComp.commonService.getVisibleNodes()
         : type === 'link'
@@ -748,7 +761,10 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
      * @param e event
      */
     openSelectDataSetScreen(e: any) {
-      this.visuals.tableComp.createTable(e.value);
+      const selectedValue = typeof e === 'string' ? e : e?.value;
+
+      this.dataSetViewSelected = selectedValue || this.dataSetViewSelected || 'Node';
+      this.createTable(this.dataSetViewSelected);
       // after changing table type sometimes there is a visual bug that the following code fixes
       if (this.shouldTreatPaginatorAsAllRows()) {
         this.allRowsPaginatorSelected = true;
@@ -769,7 +785,11 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
         return;
       }
 
-      this.createTable(this.visuals.microbeTrace.dataSetViewSelected);
+      this.createTable(
+        this.dataSetViewSelected
+          || this.visuals.microbeTrace.dataSetViewSelected
+          || 'Node'
+      );
       if (this.allRowsPaginatorSelected) {
         this.selectedRows = this.SelectedTableData.data.length;
         this.applySelectedRowsToTable();

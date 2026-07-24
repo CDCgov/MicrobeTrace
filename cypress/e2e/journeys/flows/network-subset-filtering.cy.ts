@@ -8,6 +8,7 @@ import {
   goToTableView,
   launchProfileToTwoD,
   openGlobalFilteringTab,
+  setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
 import {
   assertTableDatasetMatchesSession,
@@ -77,6 +78,91 @@ const clearSubset = (): void => {
   closeGlobalSettings();
 };
 
+const getEndpointId = (endpoint: any): string =>
+  String(
+    endpoint && typeof endpoint === 'object'
+      ? endpoint._id ?? endpoint.id ?? endpoint.data?.id
+      : endpoint
+  );
+
+const assertVisibleGraph = (nodeIds: string[], linkIds: string[]): void => {
+  const expectedNodeIds = [...nodeIds].sort();
+  const expectedLinkIds = [...linkIds].sort();
+
+  assertMetricCount('#numberOfNodes', expectedNodeIds.length);
+  assertMetricCount('#numberOfVisibleLinks', expectedLinkIds.length);
+
+  cy.window({ timeout: 15000 }).should((win: any) => {
+    expect(
+      win.commonService.getVisibleNodes().map((node: any) => String(node._id)).sort(),
+      'visible node ids'
+    ).to.deep.equal(expectedNodeIds);
+    expect(
+      win.commonService.getVisibleLinks().map((link: any) =>
+        `${getEndpointId(link.source)}-${getEndpointId(link.target)}`
+      ).sort(),
+      'visible link ids'
+    ).to.deep.equal(expectedLinkIds);
+  });
+};
+
+const setSubsetRuleField = (
+  target: 'node' | 'link',
+  field: string,
+  preservedValue?: string
+): void => {
+  openGlobalFilteringTab();
+  cy.get(`#network-subset-${target}-field`).select(field);
+  if (preservedValue !== undefined) {
+    cy.get(`#network-subset-${target}-value`).should('have.value', preservedValue);
+  }
+  cy.get('#network-subset-apply').click({ force: true });
+  cy.window().should((win: any) => {
+    const rule = win.commonService.session.state.networkSubsetFilter[target];
+    expect(rule.enabled, `${target} subset enabled`).to.equal(field !== 'None');
+    expect(rule.field, `${target} subset field`).to.equal(field);
+  });
+  closeGlobalSettings();
+};
+
+const setLinkThreshold = (threshold: number): void => {
+  openGlobalFilteringTab();
+  setGlobalLinkThreshold(threshold);
+  closeGlobalSettings();
+};
+
+const setMinimumClusterSize = (minimumSize: number): void => {
+  openGlobalFilteringTab();
+  cy.get('[data-testid="filter-minimum-cluster-size"]')
+    .scrollIntoView()
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = String(minimumSize);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  cy.window()
+    .its('commonService.session.style.widgets.cluster-minimum-size')
+    .should('equal', minimumSize);
+  closeGlobalSettings();
+};
+
+const revealEverything = (): void => {
+  openGlobalFilteringTab();
+  cy.get('[data-testid="filter-reveal-everything"]').click({ force: true });
+  cy.get('#network-subset-active').should('not.exist');
+  cy.window().should((win: any) => {
+    const subset = win.commonService.session.state.networkSubsetFilter;
+    expect(subset.node.enabled, 'node subset disabled').to.equal(false);
+    expect(subset.link.enabled, 'link subset disabled').to.equal(false);
+    expect(
+      win.commonService.session.style.widgets['cluster-minimum-size'],
+      'minimum cluster size reset'
+    ).to.equal(1);
+  });
+  closeGlobalSettings();
+};
+
 describe('Journey Flow - Network subset filtering', () => {
   it('filters visible network data by node and link metadata without changing source data', () => {
     launchProfileToTwoD(profile);
@@ -120,5 +206,67 @@ describe('Journey Flow - Network subset filtering', () => {
     cy.get('[data-testid="network-subset-filter-clear"]').click({ force: true });
     cy.get('[data-testid="network-subset-filter-notice"]').should('not.exist');
     assertAfterLaunchCounts(profile);
+  });
+
+  it('keeps combined node and link rules coherent across toggles, thresholds, views, and resets', () => {
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    applyNodeSubset('Node type', 'equals', 'Person', 'classroom');
+    applyLinkSubset('Contact type', 'equals', 'classroom', 'Person');
+    assertVisibleGraph(['A', 'B'], ['A-B']);
+
+    setSubsetRuleField('node', 'None');
+    assertVisibleGraph(['A', 'B', 'D'], ['A-B', 'B-D']);
+
+    setSubsetRuleField('node', 'Node type', 'Person');
+    assertVisibleGraph(['A', 'B'], ['A-B']);
+
+    setSubsetRuleField('link', 'None');
+    assertVisibleGraph(['A', 'B', 'C'], ['A-B', 'A-C']);
+
+    setSubsetRuleField('link', 'Contact type', 'classroom');
+    assertVisibleGraph(['A', 'B'], ['A-B']);
+
+    setLinkThreshold(4);
+    assertVisibleGraph(['A', 'B'], []);
+
+    setLinkThreshold(6);
+    assertVisibleGraph(['A', 'B'], ['A-B']);
+
+    goToTableView();
+    assertTableDatasetMatchesSession('Node');
+    selectTableDataset('Link');
+    assertTableDatasetMatchesSession('Link');
+
+    goTo2DNetworkView();
+    assertVisibleGraph(['A', 'B'], ['A-B']);
+
+    setLinkThreshold(16);
+    setMinimumClusterSize(3);
+    assertVisibleGraph([], []);
+
+    revealEverything();
+    cy.get('[data-testid="network-subset-filter-notice"]').should('not.exist');
+    assertVisibleGraph(['A', 'B', 'C', 'D'], ['A-B', 'A-C', 'B-D', 'C-D']);
+
+    applyNodeSubset('Node type', 'equals', 'Person', 'classroom');
+    applyLinkSubset('Contact type', 'equals', 'classroom', 'Person');
+    setLinkThreshold(6);
+    assertVisibleGraph(['A', 'B'], ['A-B']);
+
+    clearSubset();
+    cy.get('[data-testid="network-subset-filter-notice"]').should('not.exist');
+    assertVisibleGraph(['A', 'B', 'C', 'D'], ['A-B']);
+
+    goToTableView();
+    assertTableDatasetMatchesSession('Link');
+    selectTableDataset('Node');
+    assertTableDatasetMatchesSession('Node');
+    selectTableDataset('Link');
+    assertTableDatasetMatchesSession('Link');
+
+    goTo2DNetworkView();
+    assertVisibleGraph(['A', 'B', 'C', 'D'], ['A-B']);
   });
 });

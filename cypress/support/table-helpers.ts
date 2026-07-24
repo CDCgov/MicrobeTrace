@@ -15,7 +15,7 @@ type TableColumnOption = {
   disabled?: boolean;
 };
 
-const TABLE_ROOT = '.table-wrapper';
+const TABLE_ROOT = '.table-wrapper:visible';
 
 const tableOptionLabelByDataset: Record<TableDataset, string> = {
   Node: 'Nodes',
@@ -86,10 +86,13 @@ export function assertTableDatasetMatchesSession(dataset: TableDataset): void {
     const expectedRows = sessionRows.length;
     const renderedRows = Math.min(expectedRows, Number(tableComp.selectedRows) || 10);
 
+    expect(tableComp.dataSetViewSelected, `${dataset} table selector`).to.equal(dataset);
     expect(tableComp.SelectedTableData.tableType, `${dataset} table type`).to.equal(dataset.toLowerCase());
     expect(tableComp.SelectedTableData.data.length, `${dataset} table data length`).to.equal(expectedRows);
     expect(expectedRows, `${dataset} session rows`).to.be.greaterThan(0);
 
+    cy.get(`${TABLE_ROOT} #dataType .p-select-label`, { timeout: 15000 })
+      .should('contain.text', tableOptionLabelByDataset[dataset]);
     cy.get(`${TABLE_ROOT} .p-datatable-tbody > tr`, { timeout: 15000 })
       .should('have.length', renderedRows);
   });

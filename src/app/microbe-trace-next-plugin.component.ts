@@ -220,6 +220,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
+    NetworkSubsetNodeFieldList: SelectItem[] = [];
+    NetworkSubsetLinkFieldList: SelectItem[] = [];
     NetworkSubsetOperatorTypes: SelectItem[] = [
         { label: 'Contains', value: 'contains' },
         { label: 'Equals', value: 'equals' },
@@ -1703,12 +1705,23 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Updates GlobalSetingModel variable and cluster-minimum-size widget. Removes and adds clusters when needed
      */
-    onMinimumClusterSizeChanged(silent: boolean = false) {
+    onMinimumClusterSizeChanged(valueOrSilent: number | string | boolean = false) {
 
+        const silent = typeof valueOrSilent === 'boolean' ? valueOrSilent : false;
         console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
-        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
 
-        let val = parseInt(this.SelectedClusterMinimumSizeVariable);
+        const rawValue = typeof valueOrSilent === 'boolean'
+            ? this.SelectedClusterMinimumSizeVariable
+            : valueOrSilent;
+
+        let val = parseInt(`${rawValue}`, 10);
+        if (!Number.isFinite(val)) {
+            return;
+        }
+
+        val = Math.max(1, val);
+        this.SelectedClusterMinimumSizeVariable = val;
+        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = val;
         this.commonService.session.style.widgets["cluster-minimum-size"] = val;
 
         if(this.commonService.session.data.nodes.length === 0) {
@@ -3694,27 +3707,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     revealClicked() : void {
 
-        $("#cluster-minimum-size").val(1);
+        this.SelectedClusterMinimumSizeVariable = 1;
+        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = 1;
         this.commonService.session.style.widgets["cluster-minimum-size"] = 1;
+        this._lastClusterMinimum = 1;
         this.commonService.clearNetworkSubsetFilter(false);
         this.loadNetworkSubsetFilterSettings();
         $("#filtering-wrapper").slideDown();
-        this.commonService.setClusterVisibility(true);
-       
-        this.commonService.setNodeVisibility(true);
-         //To catch links that should be filtered out based on cluster size:
-         this.commonService.setLinkVisibility(true);
-        //Because the network isn't robust to the order in which these operations
-        //take place, we just do them all silently and then react as though we did
-        //them each after all of them are already done.
+        this.commonService.updateNetworkVisuals(false, true);
 
         this.GlobalSettingsLinkColorDialogSettings.isVisible = true;
         this.GlobalSettingsNodeColorDialogSettings.isVisible = true;
-
-        this.store.setNetworkUpdated(true);
-        // this.updatedVisualization();
-
-        this.commonService.updateStatistics();
         this.refreshThresholdStabilityPanel();
 
     };
@@ -3809,6 +3812,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         });
 
+        this.NetworkSubsetNodeFieldList = this.FieldList.filter(field =>
+            this.commonService.isNetworkSubsetFilterFieldAllowed('node', field.value)
+        );
+        this.NetworkSubsetLinkFieldList = this.ToolTipFieldList.filter(field =>
+            this.commonService.isNetworkSubsetFilterFieldAllowed('link', field.value)
+        );
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         this.loadNetworkSubsetFilterSettings();
@@ -3862,7 +3871,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private refreshNetworkSubsetNodeValueOptions(): void {
         this.NetworkSubsetNodeAllValueOptions = this.getNetworkSubsetValueOptions(
             this.commonService.session.data.nodes || [],
-            this.SelectedNetworkSubsetNodeField
+            this.SelectedNetworkSubsetNodeField,
+            'node'
         );
         this.filterNetworkSubsetNodeValueOptions();
     }
@@ -3870,7 +3880,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private refreshNetworkSubsetLinkValueOptions(): void {
         this.NetworkSubsetLinkAllValueOptions = this.getNetworkSubsetValueOptions(
             this.commonService.session.data.links || [],
-            this.SelectedNetworkSubsetLinkField
+            this.SelectedNetworkSubsetLinkField,
+            'link'
         );
         this.filterNetworkSubsetLinkValueOptions();
     }
@@ -3889,14 +3900,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         );
     }
 
-    private getNetworkSubsetValueOptions(records: any[], field: string): string[] {
+    private getNetworkSubsetValueOptions(
+        records: any[],
+        field: string,
+        target: 'node' | 'link'
+    ): string[] {
         if (!field || field === 'None') {
             return [];
         }
 
         const options = new Set<string>();
         records.forEach(record => {
-            const rawValue = record?.[field];
+            const rawValue = this.commonService.getNetworkSubsetFieldValue(record, target, field);
             const values = Array.isArray(rawValue) ? rawValue : [rawValue];
 
             values.forEach(value => {
@@ -3958,7 +3973,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     clearNetworkSubsetFilter(): void {
         this.commonService.clearNetworkSubsetFilter(false);
         this.loadNetworkSubsetFilterSettings();
-        this.commonService.setLinkVisibility(true, false);
         this.commonService.updateNetworkVisuals(false, true);
     }
 

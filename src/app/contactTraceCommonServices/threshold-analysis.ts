@@ -4,8 +4,8 @@ export interface ThresholdAnalysisNodeLike {
 }
 
 export interface ThresholdAnalysisLinkLike {
-  source: string;
-  target: string;
+  source: any;
+  target: any;
   visible?: boolean;
   [key: string]: any;
 }
@@ -123,6 +123,14 @@ function getNodeId(node: ThresholdAnalysisNodeLike): string {
   return typeof id === 'string' ? id : String(id);
 }
 
+function getEndpointId(endpoint: any): string {
+  if (endpoint && typeof endpoint === 'object') {
+    return getEndpointId(endpoint._id ?? endpoint.id ?? endpoint.data?.id);
+  }
+
+  return endpoint === undefined || endpoint === null ? '' : String(endpoint);
+}
+
 function getNumericMetricValue(link: ThresholdAnalysisLinkLike, metric: string): number | null {
   const raw = link?.[metric];
   if (typeof raw === 'number') {
@@ -158,8 +166,10 @@ export function buildStoredDistanceEdgeCache(
       return;
     }
 
-    const sourceIndex = nodeIndexById[link.source];
-    const targetIndex = nodeIndexById[link.target];
+    const sourceId = getEndpointId(link.source);
+    const targetId = getEndpointId(link.target);
+    const sourceIndex = nodeIndexById[sourceId];
+    const targetIndex = nodeIndexById[targetId];
 
     if (
       sourceIndex === undefined ||
@@ -171,8 +181,8 @@ export function buildStoredDistanceEdgeCache(
 
     sortedEdges.push({
       linkIndex,
-      sourceId: link.source,
-      targetId: link.target,
+      sourceId,
+      targetId,
       sourceIndex,
       targetIndex,
       value
@@ -311,8 +321,8 @@ export function buildVisibleClusterSummary(
       return;
     }
 
-    const sourceIndex = nodeIndexById[link.source];
-    const targetIndex = nodeIndexById[link.target];
+    const sourceIndex = nodeIndexById[getEndpointId(link.source)];
+    const targetIndex = nodeIndexById[getEndpointId(link.target)];
 
     if (
       sourceIndex === undefined ||
@@ -356,8 +366,8 @@ export function buildVisibleClusterSummary(
   const linkClusterByIndex = Array.from({ length: links.length }, () => null as number | null);
 
   links.forEach((link, linkIndex) => {
-    const sourceIndex = nodeIndexById[link.source];
-    const targetIndex = nodeIndexById[link.target];
+    const sourceIndex = nodeIndexById[getEndpointId(link.source)];
+    const targetIndex = nodeIndexById[getEndpointId(link.target)];
 
     if (sourceIndex === undefined || targetIndex === undefined) {
       return;
