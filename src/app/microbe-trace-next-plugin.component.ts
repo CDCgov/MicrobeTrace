@@ -182,7 +182,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.2';
+    version: string = '2.2.1';
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
@@ -208,6 +208,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
+
+    private dismissWelcomeOverlay(duration: JQuery.Duration = 'slow'): void {
+        const overlay = $('#overlay');
+        overlay.addClass('overlay-hidden').css('pointer-events', 'none');
+        overlay.find('.dnd-input').css('pointer-events', 'none');
+        overlay.stop(true, true).fadeOut(duration);
+        $('.ui-tabview-nav').stop(true, true).fadeTo(duration, 1);
+        $('.m-portlet').stop(true, true).fadeTo(duration, 1);
+    }
     // Blockchaindata: BlockchainProofHashDto = new BlockchainProofHashDto();
     date: Date;
     // Inputdownloadblock: DownloadFilteredBlockDto = new DownloadFilteredBlockDto();
@@ -1517,9 +1526,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
  
         // this.homepageTabs[1].isActive = false;
         this.homepageTabs[0].isActive = true;
-        $('#overlay').fadeOut();
-        $('.ui-tabview-nav').fadeTo("slow", 1);
-        $('.m-portlet').fadeTo("slow", 1);
+        this.dismissWelcomeOverlay();
         this.showExport = false;
         this.showCenter = false;
         this.showPinAllNodes = false;
@@ -1651,9 +1658,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
      public continueClicked() : void {
         // this._removeGlView('Files');
-        $('#overlay').fadeOut("slow");
-        $('.ui-tabview-nav').fadeTo("slow", 1);
-        $('.m-portlet').fadeTo("slow", 1);
+        this.dismissWelcomeOverlay();
     }
 
     /**
@@ -2607,8 +2612,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
     }
 
-    public onLinkColorChanged(silent: boolean = false) : void {
+    public onLinkColorChanged(valueOrSilent: string | boolean | Event = false, silent: boolean = false) : void {
+        if (typeof valueOrSilent === 'string') {
+            this.SelectedLinkColorVariable = valueOrSilent;
+        } else if (valueOrSilent instanceof Event) {
+            this.SelectedLinkColorVariable = (valueOrSilent.target as HTMLInputElement | null)?.value ?? this.SelectedLinkColorVariable;
+        } else {
+            silent = valueOrSilent;
+        }
+
         this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
+        this.commonService.GlobalSettingsModel.SelectedLinkColorVariable = this.SelectedLinkColorVariable;
 
         if(!silent) this.publishUpdateLinkColor();
 
@@ -2618,6 +2632,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     onColorLinksByChanged(silent: boolean = false) {
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
         this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
+
+        if (this.SelectedColorLinksByVariable === 'None') {
+          this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"] || this.SelectedLinkColorVariable;
+          this.commonService.GlobalSettingsModel.SelectedLinkColorVariable = this.SelectedLinkColorVariable;
+          this.cdref.detectChanges();
+        }
     
         this.onLinkColorTableChanged(silent);
         if (this.isKeyTableDocked('link-color')) {
@@ -4394,9 +4414,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               this.homepageTabs[0].isActive = true;
               console.log("Trying to launch");
               this.homepageTabs[0].componentRef.instance.launchClick();
-              $('#overlay').fadeOut();
-              $('.ui-tabview-nav').fadeTo("slow", 1);
-              $('.m-portlet').fadeTo("slow", 1);
+              this.dismissWelcomeOverlay();
             }
           });
           break;

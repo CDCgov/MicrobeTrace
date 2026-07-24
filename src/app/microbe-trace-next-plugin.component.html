@@ -597,7 +597,7 @@
                     <div id="link-color-value-row" class="form-group row" title="What color should the links be?">
                       <div class="col-5"><label for="link-color">Links</label></div>
                       <div class="col-7">
-                        <input type="color" id="link-color" class="form-control form-control-sm" [(ngModel)]="SelectedLinkColorVariable" (ngModelChange)="onLinkColorChanged()">
+                        <input type="color" id="link-color" class="form-control form-control-sm" [value]="SelectedLinkColorVariable" (input)="onLinkColorChanged($any($event.target).value)" (change)="onLinkColorChanged($any($event.target).value)">
                       </div>
                     </div>
                   }
