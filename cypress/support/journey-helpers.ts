@@ -1331,9 +1331,14 @@ function nodeMatchesMapLocationFilter(node: any, locationFilter: MapLocationFilt
     hasMapLocationValue(node?.[locationFilter.longitudeField]);
 }
 
-function cloneHeatmapMatrix(matrix: any): any[] {
+function cloneHeatmapMatrix(matrix: any, size?: number): any[] {
   if (!Array.isArray(matrix)) return [];
-  return matrix.map((row) => (Array.isArray(row) ? [...row] : row));
+  const matrixSize = size ?? matrix.length;
+  return Array.from({ length: matrixSize }, (_, rowIndex) => (
+    Array.from({ length: matrixSize }, (_, columnIndex) => (
+      matrix?.[rowIndex]?.[columnIndex] ?? null
+    ))
+  ));
 }
 
 export function snapshotVisibleStyles(): Cypress.Chainable<StyleSnapshot> {
@@ -2053,7 +2058,7 @@ export function assertHeatmapMatchesBackingMatrix(options: {
       const expectedX = options.invertX ? [...baseLabels].reverse() : [...baseLabels];
       const expectedY = options.invertY ? [...baseLabels].reverse() : [...baseLabels];
 
-      let expectedZ = cloneHeatmapMatrix(dm);
+      let expectedZ = cloneHeatmapMatrix(dm, baseLabels.length);
       if (options.invertX) {
         expectedZ = expectedZ.map((row) => (Array.isArray(row) ? [...row].reverse() : row));
       }

@@ -80,8 +80,12 @@ function openHeatmapAccordion(panelValue: 'heatmap-labels' | 'heatmap-color'): v
 
 function selectHeatmapOption(selectId: string, optionLabel: string): void {
   cy.get('@heatmapSettings').find(selectId).click({ force: true });
-  cy.contains('li[role="option"]', new RegExp(`^${escapeForRegex(optionLabel)}$`), { timeout: 15000 })
+  cy.get('body')
+    .find('.p-select-overlay:visible', { timeout: 15000 })
+    .last()
+    .contains('li[role="option"]', new RegExp(`^${escapeForRegex(optionLabel)}$`))
     .click({ force: true });
+  cy.get('body').find('.p-select-overlay:visible').should('not.exist');
 }
 
 function setSelectButtonValue(controlSelector: string, value: 'Yes' | 'No'): void {

@@ -108,6 +108,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   heatmapValueDisplayLabel = HEATMAP_DISTANCE_LABEL;
   heatmapValueLabel = HEATMAP_DISTANCE_LABEL;
 
+  get heatmapMetric(): string {
+    return String(this.widgets['default-distance-metric'] || '').toUpperCase();
+  }
+
   private lastHeatmapMatrix: HeatmapMatrixResult | null = null;
   private destroy$ = new Subject<void>();
 
