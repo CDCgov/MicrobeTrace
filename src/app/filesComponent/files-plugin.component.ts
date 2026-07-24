@@ -47,7 +47,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     'Epi Curve',
     'Sankey',
     'Table',
-    'Network Statistics',
     'Crosstab',
     'Map',
     'Bubble',
