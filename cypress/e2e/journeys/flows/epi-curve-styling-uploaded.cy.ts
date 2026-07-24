@@ -373,28 +373,20 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
 
       editedClusterKey = String(clusterKeys[0]);
       initialFirstRowColor = String(
-        commonService.session.style.nodeColorsTableHistory?.[editedClusterKey]
+        commonService.session.style.nodeColorsTableHistory?.cluster?.[editedClusterKey]
         || commonService.temp.style.nodeColorMap?.(editedClusterKey)
         || '',
       );
 
       expect(initialFirstRowColor, 'initial cluster color before edit').not.to.equal('');
+    });
 
-      const clusterIndex = clusterKeys.findIndex((candidate: string) => String(candidate) === editedClusterKey);
-      expect(clusterIndex, `cluster index for ${editedClusterKey}`).to.be.greaterThan(-1);
-
-      commonService.session.style.nodeColorsTableHistory[editedClusterKey] = updatedColor;
-
-      if (Array.isArray(commonService.session.style.nodeColorsTable?.cluster)) {
-        commonService.session.style.nodeColorsTable.cluster.splice(clusterIndex, 1, updatedColor);
-      }
-
-      commonService.createNodeColorMap();
-      commonService.visuals.epiCurve.updateNodeColors();
+    cy.then(() => {
+      changeColorTableEntry('#key-tables-node-table', editedClusterKey, updatedColor);
     });
 
     cy.window()
-      .its('commonService.session.style.nodeColorsTableHistory')
+      .its('commonService.session.style.nodeColorsTableHistory.cluster')
       .should((history) => {
         expect(String(history?.[editedClusterKey] || '').toLowerCase(), `updated stored color for ${editedClusterKey}`)
           .to.equal(updatedColor);
