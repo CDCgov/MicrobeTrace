@@ -8,7 +8,7 @@ describe('ColorMappingService node assignments', () => {
   });
 
   it('prefers field-specific assignments over stored colors and legacy history', () => {
-    const history = { '8': '#333333' };
+    const history = { MLST: { '8': '#333333' } };
     const result = service.createNodeColorMap(
       [{ visible: true, MLST: '8' }],
       'MLST',
@@ -23,7 +23,7 @@ describe('ColorMappingService node assignments', () => {
 
     expect(result.colorMap('8')).toBe('#444444');
     expect(result.updatedColorsTable.MLST).toEqual(['#444444']);
-    expect(history['8']).toBe('#333333');
+    expect(history.MLST['8']).toBe('#444444');
   });
 
   it('keeps unmapped values on their stored colors during a partial import', () => {
@@ -47,7 +47,7 @@ describe('ColorMappingService node assignments', () => {
   });
 
   it('does not leak imported assignments into another field with the same value', () => {
-    const history: Record<string, string> = {};
+    const history: Record<string, Record<string, string>> = {};
     service.createNodeColorMap(
       [{ visible: true, MLST: '8' }],
       'MLST',
@@ -59,7 +59,7 @@ describe('ColorMappingService node assignments', () => {
       { '8': '#cc9999' },
       false
     );
-    expect(history['8']).toBeUndefined();
+    expect(history.MLST['8']).toBe('#cc9999');
 
     const otherResult = service.createNodeColorMap(
       [{ visible: true, Other: '8' }],
@@ -74,6 +74,7 @@ describe('ColorMappingService node assignments', () => {
     );
 
     expect(otherResult.colorMap('8')).toBe('#123456');
-    expect(history['8']).toBe('#123456');
+    expect(history.Other['8']).toBe('#123456');
+    expect(history.MLST['8']).toBe('#cc9999');
   });
 });

@@ -25,7 +25,7 @@ export class ColorMappingService {
    * @param nodeAlphas The array of alpha (transparency) values
    * @param nodeColorsTable existing table of (variable -> list of assigned colors)
    * @param nodeColorsTableKeys existing table of (variable -> keys domain)
-   * @param nodeColorsTableHistory used to persist color assignments over time
+   * @param nodeColorsTableHistory used to persist color assignments by variable over time
    * @param debugMode to enable/disable console logging
    * @returns an object containing:
    *    {
@@ -82,21 +82,55 @@ export class ColorMappingService {
     // Make sure the color tables exist
     const updatedColorsTable = nodeColorsTable || {};
     const updatedColorsTableKeys = nodeColorsTableKeys || {};
-    const updatedColorsTableHistory = nodeColorsTableHistory || { 'null': '#EAE553' };
+    let updatedNodeColors = [...nodeColors];  // we may expand this array
+    let updatedNodeAlphas = [...nodeAlphas];  // same reason
+    const updatedColorsTableHistory = nodeColorsTableHistory || {};
     const explicitAssignments = nodeColorAssignments || {};
+
+    // If we already have a stored array of colors for this particular variable
+    // (like "nodeColorsTable[myVariable]"), let’s reuse them
+    if (!updatedColorsTable[nodeColorVariable]) {
+      updatedColorsTable[nodeColorVariable] = updatedNodeColors;
+    } else {
+      updatedNodeColors = [...updatedColorsTable[nodeColorVariable]];
+    }
+
     const storedKeysForVariable = Array.isArray(updatedColorsTableKeys[nodeColorVariable])
       ? updatedColorsTableKeys[nodeColorVariable]
       : [];
-    const storedColorsForVariable = Array.isArray(updatedColorsTable[nodeColorVariable])
-      ? updatedColorsTable[nodeColorVariable]
-      : [];
-    const storedColorsByValue = new Map<string, string>();
+    const storedColorsByValue: Record<string, string> = {};
 
     storedKeysForVariable.forEach((key, index) => {
-      const storedColor = storedColorsForVariable[index];
+      const storedColor = updatedNodeColors[index];
       if (typeof storedColor === 'string') {
-        storedColorsByValue.set(String(key), storedColor);
+        storedColorsByValue[String(key)] = storedColor;
       }
+    });
+
+    const storedVariableHistory = updatedColorsTableHistory[nodeColorVariable];
+    const variableHistory: Record<string, string> = storedVariableHistory
+      && typeof storedVariableHistory === 'object'
+      && !Array.isArray(storedVariableHistory)
+      ? storedVariableHistory
+      : {};
+
+    // Legacy sessions stored history as { value: color }. Start a scoped history
+    // from the per-variable color table instead of reusing those ambiguous keys.
+    updatedColorsTableHistory[nodeColorVariable] = variableHistory;
+
+    updatedNodeColors = updatedNodeColors.map((candidateColor, index) => {
+      if (typeof candidateColor === 'string') {
+        return candidateColor;
+      }
+
+      const fallbackKey = String(storedKeysForVariable[index] ?? '');
+      const fallbackHistoryColor = variableHistory[fallbackKey];
+      if (typeof fallbackHistoryColor === 'string') {
+        return fallbackHistoryColor;
+      }
+
+      const paletteColor = nodeColors[index % Math.max(nodeColors.length, 1)];
+      return typeof paletteColor === 'string' ? paletteColor : '#1f77b4';
     });
 
     // Compute aggregates by scanning all node values
@@ -111,31 +145,10 @@ export class ColorMappingService {
     });
 
     const distinctValues = Object.keys(aggregates);
-    const candidatePalette = nodeColors.filter((color): color is string => typeof color === 'string');
-    const fallbackPalette = candidatePalette.length ? candidatePalette : ['#1f77b4'];
-    const updatedNodeColors = distinctValues.map((val, index) => {
-      const explicitColor = explicitAssignments[val];
-      if (Object.prototype.hasOwnProperty.call(explicitAssignments, val) && typeof explicitColor === 'string') {
-        return explicitColor;
-      }
 
-      const storedColor = storedColorsByValue.get(val);
-      if (storedColor) {
-        return storedColor;
-      }
-
-      const historyColor = updatedColorsTableHistory[val];
-      if (typeof historyColor === 'string') {
-        return historyColor;
-      }
-
-      const nextColor = val === 'null'
-        ? '#EAE553'
-        : fallbackPalette[index % fallbackPalette.length];
-      updatedColorsTableHistory[val] = nextColor;
-      return nextColor;
-    });
-    let updatedNodeAlphas = [...nodeAlphas];
+    const fallbackPalette = updatedNodeColors.length > 0
+      ? [...updatedNodeColors]
+      : ['#1f77b4'];
 
     // Expand alpha array if needed
     if (distinctValues.length > updatedNodeAlphas.length) {
@@ -143,6 +156,57 @@ export class ColorMappingService {
         new Array(distinctValues.length - updatedNodeAlphas.length).fill(1)
       );
     }
+
+    // For each distinct value, prefer an explicit field assignment, then the
+    // field-scoped history and stored table color.
+    const reservedColors = new Set<string>();
+    distinctValues.forEach((value) => {
+      const explicitColor = explicitAssignments[value];
+      const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
+        && typeof explicitColor === 'string'
+        ? explicitColor
+        : variableHistory[value] ?? storedColorsByValue[value];
+      if (typeof existingColor === 'string') {
+        reservedColors.add(existingColor);
+      }
+    });
+
+    const usedColors = new Set<string>();
+    const mappedColors = distinctValues.map((value, index) => {
+      const explicitColor = explicitAssignments[value];
+      const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
+        && typeof explicitColor === 'string'
+        ? explicitColor
+        : variableHistory[value] ?? storedColorsByValue[value];
+      if (typeof existingColor === 'string') {
+        variableHistory[value] = existingColor;
+        usedColors.add(existingColor);
+        return existingColor;
+      }
+
+      if (value === 'null') {
+        variableHistory[value] = '#EAE553';
+        usedColors.add(variableHistory[value]);
+        return variableHistory[value];
+      }
+
+      const preferredColor = fallbackPalette[index % fallbackPalette.length];
+      const availableColor = fallbackPalette.find((color) =>
+        !reservedColors.has(color) && !usedColors.has(color)
+      );
+      const nextColor = !reservedColors.has(preferredColor) && !usedColors.has(preferredColor)
+        ? preferredColor
+        : availableColor ?? preferredColor;
+
+      variableHistory[value] = nextColor;
+      usedColors.add(nextColor);
+      return nextColor;
+    });
+
+    const colorTableLength = Math.max(updatedNodeColors.length, mappedColors.length);
+    updatedNodeColors = Array.from({ length: colorTableLength }, (_, index) =>
+      mappedColors[index] ?? fallbackPalette[index % fallbackPalette.length]
+    );
 
     // Keep the table domain limited to current values. Assignments for values
     // absent from this dataset remain in session.style.nodeColorAssignments.
