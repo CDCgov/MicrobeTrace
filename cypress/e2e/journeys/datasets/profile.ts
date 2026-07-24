@@ -20,7 +20,6 @@ import { GANTT_PROFILES } from './profiles/gantt';
 import { ALIGNMENT_PROFILES } from './profiles/alignment';
 import { HEATMAP_PROFILES } from './profiles/heatmap';
 import { PHYLO_PROFILES } from './profiles/phylo';
-import { NETWORK_STATISTICS_PROFILES } from './profiles/network-statistics';
 
 export const DATASET_PROFILES: DatasetProfile[] = [
   ...LOAD_PROFILES,
@@ -37,7 +36,6 @@ export const DATASET_PROFILES: DatasetProfile[] = [
   ...GANTT_PROFILES,
   ...ALIGNMENT_PROFILES,
   ...PHYLO_PROFILES,
-  ...NETWORK_STATISTICS_PROFILES,
 ];
 
 export const DATASET_PROFILE_MAP: Record<string, DatasetProfile> = DATASET_PROFILES
