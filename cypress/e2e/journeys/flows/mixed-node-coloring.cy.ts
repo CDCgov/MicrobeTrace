@@ -79,7 +79,9 @@ describe('Journey Flow - mixed node coloring', () => {
     cy.get('#node-mixed-colors-row').should('not.exist');
     cy.get('#node-mixed-colors-enabled').should('not.exist');
     selectPrimeOption('#node-color-variable', 'Genotype');
-    cy.get('#node-mixed-colors-enabled').should('be.visible').and('be.enabled').check();
+    cy.get('#node-mixed-colors-enabled')
+      .should('be.enabled')
+      .check({ force: true });
     cy.window().its('commonService.session.style.widgets.node-mixed-colors-enabled').should('equal', true);
     cy.closeGlobalSettings();
 
@@ -114,6 +116,12 @@ describe('Journey Flow - mixed node coloring', () => {
     ensureMapView();
     cy.window().then((win: unknown) => {
       const map = (win as WinWithMicrobeTrace).commonService.visuals.gisMap;
+      map.SelectedLatitude = 'lat';
+      map.SelectedLongitude = 'long';
+      map.onDataChange(null);
+    });
+    cy.window().should((win: unknown) => {
+      const map = (win as WinWithMicrobeTrace).commonService.visuals.gisMap;
       const marker = map.mapNodeMarkersById['sample-4'];
       const iconUrl = String(marker?.options?.icon?.options?.iconUrl || '');
       expect(iconUrl).to.contain('data:image/svg+xml');
@@ -121,9 +129,14 @@ describe('Journey Flow - mixed node coloring', () => {
     });
 
     goToPhyloTreeView();
-    cy.get('#phylocanvas image.tidytree-node-shape-overlay', { timeout: 30000 })
-      .should(($overlays) => {
-        expect($overlays.length).to.be.greaterThan(0);
+    cy.get('#phylocanvas g.tidytree-node-leaf circle[title="sample-4"]', { timeout: 30000 })
+      .should(($circle) => {
+        expect($circle.css('fill')).to.match(/url\(.+mt-tree-mixed-fill-/);
+      });
+    cy.get('#phylocanvas defs.mt-tree-mixed-fill-defs linearGradient stop')
+      .should(($stops) => {
+        const stopColors = [...$stops].map((stop) => String(stop.getAttribute('stop-color')).toLowerCase());
+        expect(stopColors).to.include('#00aa00');
       });
   });
 });

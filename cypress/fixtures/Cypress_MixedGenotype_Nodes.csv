@@ -1,4 +1,4 @@
-ID,Genotype,_jlat,_jlon,seq
+ID,Genotype,lat,long,seq
 sample-1,1a,38.1,-86.1,AAAAAAAAAA
 sample-2,2a,38.12,-86.12,AAAAAAAATA
 sample-3,3a,38.14,-86.14,AAAAAAATAA
