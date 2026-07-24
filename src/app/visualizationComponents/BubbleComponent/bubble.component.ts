@@ -13,8 +13,9 @@ import svg from 'cytoscape-svg';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { getMixedNodeShapeDataUri } from '@app/contactTraceCommonServices/node-shapes';
 
-type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
+type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any, mixedColorImage?: string }//selected: boolean }
 
 type BubblePieExportSlice = {
   label: string;
@@ -33,6 +34,14 @@ interface BubblePieSvgExportReplacement {
   exportX: number;
   exportY: number;
   slices: BubblePieExportSlice[];
+}
+
+interface BubbleMixedSvgExportReplacement {
+  exportHeight: number;
+  exportWidth: number;
+  exportX: number;
+  exportY: number;
+  segments: Array<{ color: string; alpha?: number; weight?: number }>;
 }
 
 @Component({
@@ -323,17 +332,21 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   mapDataToCytoscapElements(data: DataRecord[]): cytoscape.ElementsDefinition {
     const nodes = data.map((node) => {
       let size = this.SelectedNodeCollapsingTypeVariable ? this.nodeSize * Math.sqrt(node.totalCount): this.nodeSize;
+      const nodeData: any = {
+        id: node.id,
+        nodeSize: size,
+        nodeColor: node.color,
+        nodeOpacity: node.opacity,
+        label: node.id,
+        counts: node.counts,
+        totalCount: node.totalCount,
+      };
+      if (node.mixedColorImage) {
+        nodeData.mixedColorImage = node.mixedColorImage;
+      }
       // probably do something here for node size
       return {
-        data: {
-          id: node.id,
-          nodeSize: size,
-          nodeColor: node.color,
-          nodeOpacity: node.opacity,
-          label: node.id,
-          counts: node.counts,
-          totalCount: node.totalCount,
-        },
+        data: nodeData,
         position: {
           x: node.x*this.scaleFactor,
           y: node.y*this.scaleFactor
@@ -430,6 +443,18 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
             'background-color': 'data(nodeColor)',
             // @ts-ignore
             'background-opacity': 'data(nodeOpacity)'
+        }
+      },
+      {
+        selector: 'node[mixedColorImage]',
+        css: {
+          'background-color': 'transparent',
+          'background-opacity': 0,
+          'background-image': 'data(mixedColorImage)',
+          'background-fit': 'cover',
+          'background-clip': 'node',
+          'background-repeat': 'no-repeat',
+          'background-image-opacity': 1,
         }
       },
       {
@@ -920,6 +945,24 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return this.commonService.getNodeFillStyle(syntheticNode);
   }
 
+  private getMixedColorNodeImage(nodeData: any, fillColor: string, fillOpacity: number): string | undefined {
+    const segments = this.commonService.getNodeFillStyle(nodeData).segments;
+    if (!Array.isArray(segments) || segments.length < 2) {
+      return undefined;
+    }
+
+    return getMixedNodeShapeDataUri(
+      'ellipse',
+      fillColor,
+      '#000000',
+      1,
+      fillOpacity,
+      segments,
+      null,
+      { fillCanvas: true, includeStroke: false }
+    );
+  }
+
   /**
    * @returns a string representing the SVG def of the patterns needed to generate the pie chart
    */
@@ -973,6 +1016,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
       node.color = nodeStyle.color;
       node.opacity = nodeStyle.alpha;
+      node.mixedColorImage = this.getMixedColorNodeImage(currentFullNode, nodeStyle.color, nodeStyle.alpha);
     })
 
     if (this.cy && this.cy.nodes().length > 0) {
@@ -982,6 +1026,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         if (!currentNode) return;
         node.data('nodeColor', currentNode.color);
         node.data('nodeOpacity', currentNode.opacity);
+        if (currentNode.mixedColorImage) {
+          node.data('mixedColorImage', currentNode.mixedColorImage);
+        } else {
+          node.removeData('mixedColorImage');
+        }
       });
       this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -1234,6 +1283,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         const nodeStyle = this.commonService.getNodeFillStyle(currentFullNode);
         node.color = nodeStyle.color;
         node.opacity = nodeStyle.alpha;
+        node.mixedColorImage = this.getMixedColorNodeImage(currentFullNode, nodeStyle.color, nodeStyle.alpha);
       })
     } else {
       this.updateColors();
@@ -1409,6 +1459,231 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
 
     return svgWidth / graphWidth;
+  }
+
+  private getMixedNodeSvgExportReplacementList(): BubbleMixedSvgExportReplacement[] {
+    const replacements: BubbleMixedSvgExportReplacement[] = [];
+    if (!this.cy || this.SelectedNodeCollapsingTypeVariable) {
+      return replacements;
+    }
+
+    const graphBounds = this.cy.elements().boundingBox();
+    const fullNodes = this.commonService.session.data.nodeFilteredValues;
+    this.visibleData.forEach((dataNode) => {
+      if (!dataNode.mixedColorImage) {
+        return;
+      }
+
+      const fullNode = fullNodes.find(node => node.index === dataNode.index);
+      if (!fullNode) {
+        return;
+      }
+
+      const segments = this.commonService.getNodeFillStyle(fullNode).segments;
+      if (!Array.isArray(segments) || segments.length < 2) {
+        return;
+      }
+
+      const cyNode = this.cy.getElementById(String(dataNode.id));
+      if (cyNode.empty()) {
+        return;
+      }
+
+      const position = cyNode.position();
+      const nodeWidth = Number(cyNode.width()) || Number(cyNode.data('nodeSize')) || 0;
+      const nodeHeight = Number(cyNode.height()) || Number(cyNode.data('nodeSize')) || nodeWidth;
+      if (
+        !Number.isFinite(position.x)
+        || !Number.isFinite(position.y)
+        || !Number.isFinite(nodeWidth)
+        || !Number.isFinite(nodeHeight)
+        || nodeWidth <= 0
+        || nodeHeight <= 0
+      ) {
+        return;
+      }
+
+      replacements.push({
+        exportHeight: nodeHeight,
+        exportWidth: nodeWidth,
+        exportX: position.x - graphBounds.x1 - (nodeWidth / 2),
+        exportY: position.y - graphBounds.y1 - (nodeHeight / 2),
+        segments
+      });
+    });
+
+    return replacements;
+  }
+
+  private findMatchingMixedNodeSvgExportReplacement(
+    image: Element,
+    replacements: BubbleMixedSvgExportReplacement[],
+    usedReplacements: Set<BubbleMixedSvgExportReplacement>
+  ): BubbleMixedSvgExportReplacement | null {
+    const imageWidth = this.getSvgLengthAttribute(image, 'width');
+    const imageHeight = this.getSvgLengthAttribute(image, 'height');
+    const imageTranslate = this.getSvgTranslateTransform(image) || { x: 0, y: 0 };
+    const imageX = this.getSvgLengthAttribute(image, 'x') || 0;
+    const imageY = this.getSvgLengthAttribute(image, 'y') || 0;
+    if (imageWidth === null || imageHeight === null) {
+      return null;
+    }
+
+    let bestMatch: BubbleMixedSvgExportReplacement | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const replacement of replacements) {
+      if (usedReplacements.has(replacement)) {
+        continue;
+      }
+
+      const score =
+        Math.abs(replacement.exportX - (imageTranslate.x + imageX))
+        + Math.abs(replacement.exportY - (imageTranslate.y + imageY))
+        + Math.abs(replacement.exportWidth - imageWidth)
+        + Math.abs(replacement.exportHeight - imageHeight);
+      if (score < bestScore) {
+        bestScore = score;
+        bestMatch = replacement;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  private formatSvgPercent(value: number): string {
+    return `${this.formatSvgNumber(Math.min(1, Math.max(0, value)) * 100)}%`;
+  }
+
+  private getWeightedMixedExportSegments(
+    segments: Array<{ color: string; alpha?: number; weight?: number }>
+  ): Array<{ color: string; alpha: number; startFraction: number; endFraction: number }> {
+    const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
+    const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
+    if (validSegments.length < 2 || totalWeight <= 0) {
+      return [];
+    }
+
+    let startFraction = 0;
+    return validSegments.map((segment, index) => {
+      const endFraction = index === validSegments.length - 1
+        ? 1
+        : startFraction + (Number(segment.weight ?? 1) / totalWeight);
+      const weightedSegment = {
+        color: segment.color,
+        alpha: this.commonService.clampStyleAlpha(segment.alpha ?? 1, 1),
+        startFraction,
+        endFraction
+      };
+      startFraction = endFraction;
+
+      return weightedSegment;
+    });
+  }
+
+  private appendMixedFillGradient(
+    doc: XMLDocument,
+    parent: SVGElement,
+    gradientId: string,
+    segments: Array<{ color: string; alpha?: number; weight?: number }>
+  ): void {
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+    const defs = doc.createElementNS(svgNamespace, 'defs');
+    const gradient = doc.createElementNS(svgNamespace, 'linearGradient');
+    gradient.setAttribute('id', gradientId);
+    gradient.setAttribute('x1', '0%');
+    gradient.setAttribute('y1', '0%');
+    gradient.setAttribute('x2', '100%');
+    gradient.setAttribute('y2', '0%');
+    gradient.setAttribute('gradientUnits', 'objectBoundingBox');
+
+    this.getWeightedMixedExportSegments(segments).forEach(segment => {
+      [
+        this.formatSvgPercent(segment.startFraction),
+        this.formatSvgPercent(segment.endFraction)
+      ].forEach(offset => {
+        const stop = doc.createElementNS(svgNamespace, 'stop');
+        stop.setAttribute('offset', offset);
+        stop.setAttribute('stop-color', segment.color);
+        stop.setAttribute('stop-opacity', this.formatSvgNumber(segment.alpha));
+        gradient.appendChild(stop);
+      });
+    });
+
+    defs.appendChild(gradient);
+    parent.appendChild(defs);
+  }
+
+  private createMixedNodeVectorExportElement(
+    doc: XMLDocument,
+    sourceImage: SVGImageElement,
+    replacement: BubbleMixedSvgExportReplacement,
+    replacementIndex: number
+  ): SVGGElement {
+    const svgNamespace = 'http://www.w3.org/2000/svg';
+    const vectorGroup = doc.createElementNS(svgNamespace, 'g');
+    vectorGroup.setAttribute('class', 'bubble-export-mixed-node-fill');
+    vectorGroup.setAttribute('data-mt-export', 'bubble-mixed-node-fill');
+    vectorGroup.setAttribute('aria-hidden', 'true');
+
+    ['clip-path', 'opacity', 'style'].forEach((attributeName) => {
+      const attributeValue = sourceImage.getAttribute(attributeName);
+      if (attributeValue) {
+        vectorGroup.setAttribute(attributeName, attributeValue);
+      }
+    });
+
+    const imageTransform = sourceImage.getAttribute('transform');
+    if (imageTransform) {
+      vectorGroup.setAttribute('transform', imageTransform);
+    }
+
+    const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
+    const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
+    const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
+    const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
+    const gradientId = `mt-bubble-mixed-export-${replacementIndex}`;
+    this.appendMixedFillGradient(doc, vectorGroup, gradientId, replacement.segments);
+
+    const fillRect = doc.createElementNS(svgNamespace, 'rect');
+    fillRect.setAttribute('x', this.formatSvgNumber(imageX));
+    fillRect.setAttribute('y', this.formatSvgNumber(imageY));
+    fillRect.setAttribute('width', this.formatSvgNumber(imageWidth));
+    fillRect.setAttribute('height', this.formatSvgNumber(imageHeight));
+    fillRect.setAttribute('fill', `url(#${gradientId})`);
+    fillRect.setAttribute('stroke', 'none');
+    vectorGroup.appendChild(fillRect);
+
+    return vectorGroup;
+  }
+
+  private replaceExportedMixedNodeImagesWithVectorFills(doc: XMLDocument): void {
+    const replacementList = this.getMixedNodeSvgExportReplacementList();
+    if (replacementList.length === 0) {
+      return;
+    }
+
+    const images = Array.from(doc.getElementsByTagName('image'))
+      .filter((image) => {
+        const href = this.getSvgImageHref(image);
+        return !!href && (href.startsWith('data:image/png;base64,') || href.startsWith('data:image/svg+xml'));
+      });
+    const usedReplacements = new Set<BubbleMixedSvgExportReplacement>();
+
+    images.forEach((image) => {
+      const replacement = this.findMatchingMixedNodeSvgExportReplacement(image, replacementList, usedReplacements);
+      if (!replacement || !image.parentNode) {
+        return;
+      }
+
+      usedReplacements.add(replacement);
+      const vectorElement = this.createMixedNodeVectorExportElement(
+        doc,
+        image as SVGImageElement,
+        replacement,
+        usedReplacements.size
+      );
+      image.parentNode.replaceChild(vectorElement, image);
+    });
   }
 
   private getCollapsedPieSvgExportReplacementList(exportScale: number): BubblePieSvgExportReplacement[] {
@@ -1652,6 +1927,21 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return new XMLSerializer().serializeToString(doc.documentElement);
   }
 
+  private vectorizeMixedNodeSvgExport(content: string): string {
+    if (this.SelectedNodeCollapsingTypeVariable) {
+      return content;
+    }
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, 'image/svg+xml');
+    if (doc.getElementsByTagName('parsererror').length > 0) {
+      return content;
+    }
+
+    this.replaceExportedMixedNodeImagesWithVectorFills(doc);
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }
+
   exportVisualization() {
     const exportOptions: ExportOptions = {
       filename: this.BubbleExportFileName,
@@ -1666,6 +1956,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.BubbleExportFileType == 'svg') {
       let options = { scale: 1, full: true, bg: '#ffffff'};
       let content = (this.cy as any).svg(options);
+      content = this.vectorizeMixedNodeSvgExport(content);
       content = this.vectorizeCollapsedPieSvgExport(content);
 
       this.exportService.requestSVGExport([], content, true, false); 

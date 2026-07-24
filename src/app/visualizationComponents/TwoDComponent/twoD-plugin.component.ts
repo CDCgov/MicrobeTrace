@@ -14,7 +14,7 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
-import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -36,6 +36,19 @@ interface CustomNodeSvgExportReplacement {
     strokeWidth: number;
     width: number;
     height: number;
+}
+
+interface MixedNodeSvgExportReplacement {
+    exportHeight: number;
+    exportWidth: number;
+    exportX: number;
+    exportY: number;
+    segments: Array<{ color: string; alpha?: number; weight?: number }>;
+    vectorData: {
+        fillPath: string;
+        width: number;
+        height: number;
+    } | null;
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
@@ -236,6 +249,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             nodeSize: node.nodeSize,
             nodeColor: node.nodeColor,
             bgOpacity: node.bgOpacity,
+            mixedColorImage: node.mixedColorImage,
             borderWidth: node.borderWidth,
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
@@ -243,6 +257,47 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             shapeKey,
             ...getCustomNodeShapeData(shapeKey, node.nodeColor)
         };
+    }
+
+    private getMixedColorNodeImage(node: any, shapeKey: string, fillColor: string, fillOpacity: number): string | undefined {
+        const segments = this.commonService.getNodeFillStyle(node).segments;
+        if (!segments || segments.length < 2) {
+            return undefined;
+        }
+
+        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+        const isCustomShape = isCustomNodeIconShape(normalizedShapeKey);
+
+        return getMixedNodeShapeDataUri(
+            normalizedShapeKey,
+            fillColor,
+            '#000000',
+            1,
+            fillOpacity,
+            segments,
+            null,
+            {
+                fillCanvas: !isCustomShape,
+                includeStroke: false,
+                customShapePadding: 0,
+                customShapeViewBoxPadding: 0
+            }
+        );
+    }
+
+    private setMixedColorNodeImageData(
+        node: cytoscape.NodeSingular,
+        fullNode: any,
+        shapeKey: string,
+        fillColor: string,
+        fillOpacity: number
+    ): void {
+        const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, fillColor, fillOpacity);
+        if (mixedColorImage) {
+            node.data('mixedColorImage', mixedColorImage);
+        } else {
+            node.removeData('mixedColorImage');
+        }
     }
 
     private yieldToBrowser(): Promise<void> {
@@ -704,6 +759,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node);
 	            node.borderWidth = this.getNodeBorderWidth(node);
 	            const shapeKey = this.getNodeShape(node);
+	            node.mixedColorImage = this.getMixedColorNodeImage(node, shapeKey, node.nodeColor, node.bgOpacity);
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
@@ -718,6 +774,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node); // <-- Added for dynamic node color
 	            node.borderWidth = this.getNodeBorderWidth(node);
 	            const shapeKey = this.getNodeShape(node);
+	            node.mixedColorImage = this.getMixedColorNodeImage(node, shapeKey, node.nodeColor, node.bgOpacity);
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
@@ -824,6 +881,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'border-width': 0
                 }
             },
+            {
+                selector: 'node[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'inside',
+                    'background-fit': 'contain',
+                    'background-clip': 'node',
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
+                    'border-width': 'data(borderWidth)'
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage][customIconKey]',
+                css: {
+                    'border-width': 0
+                }
+            },
                 {
                     selector: '.hidden',
                     css: {
@@ -927,6 +1007,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-color': '#ffffff',
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)',
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'inside',
+                    'background-fit': 'contain',
+                    'background-clip': 'node',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
                 }
@@ -1635,6 +1730,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (!isCustomNodeIconShape(shapeKey)) {
                 return;
             }
+            if (node.data('mixedColorImage')) {
+                return;
+            }
 
             const vectorData = getCustomNodeShapeVectorData(shapeKey);
             if (!vectorData) {
@@ -1662,6 +1760,53 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 strokeWidth: 4,
                 width: vectorData.width,
                 height: vectorData.height
+            });
+        });
+
+        return replacements;
+    }
+
+    private getMixedNodeSvgExportReplacementList(): MixedNodeSvgExportReplacement[] {
+        const replacements: MixedNodeSvgExportReplacement[] = [];
+        if (!this.cy) {
+            return replacements;
+        }
+
+        const graphBounds = this.cy.elements().boundingBox();
+        this.cy.nodes().forEach(node => {
+            if (!node.data('mixedColorImage')) {
+                return;
+            }
+
+            const fillStyle = this.commonService.getNodeFillStyle(node.data());
+            const segments = Array.isArray(fillStyle.segments) ? fillStyle.segments : [];
+            if (segments.length < 2) {
+                return;
+            }
+
+            const position = node.position();
+            const padding = Number(node.numericStyle('padding')) || 0;
+            const paddingX2 = padding * 2;
+            const nodeTotalWidth = node.width() + paddingX2;
+            const nodeTotalHeight = node.height() + paddingX2;
+            const shapeKey = node.data('shapeKey');
+            const customVectorData = isCustomNodeIconShape(shapeKey)
+                ? getCustomNodeShapeVectorData(shapeKey)
+                : null;
+
+            replacements.push({
+                exportHeight: nodeTotalHeight,
+                exportWidth: nodeTotalWidth,
+                exportX: position.x - graphBounds.x1 - (nodeTotalWidth / 2),
+                exportY: position.y - graphBounds.y1 - (nodeTotalHeight / 2),
+                segments,
+                vectorData: customVectorData
+                    ? {
+                        fillPath: customVectorData.fillPath,
+                        width: customVectorData.width,
+                        height: customVectorData.height
+                    }
+                    : null
             });
         });
 
@@ -1754,6 +1899,112 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return bestMatch;
     }
 
+    private findMatchingMixedNodeSvgExportReplacement(
+        image: Element,
+        replacements: MixedNodeSvgExportReplacement[],
+        usedReplacements: Set<MixedNodeSvgExportReplacement>
+    ): MixedNodeSvgExportReplacement | null {
+        const imageWidth = this.getSvgLengthAttribute(image, 'width');
+        const imageHeight = this.getSvgLengthAttribute(image, 'height');
+        const imageTranslate = this.getSvgTranslateTransform(image) || { x: 0, y: 0 };
+        const imageX = this.getSvgLengthAttribute(image, 'x') || 0;
+        const imageY = this.getSvgLengthAttribute(image, 'y') || 0;
+        if (imageWidth === null || imageHeight === null) {
+            return null;
+        }
+
+        let bestMatch: MixedNodeSvgExportReplacement | null = null;
+        let bestScore = Number.POSITIVE_INFINITY;
+        for (const replacement of replacements) {
+            if (usedReplacements.has(replacement)) {
+                continue;
+            }
+
+            const score =
+                Math.abs(replacement.exportX - (imageTranslate.x + imageX))
+                + Math.abs(replacement.exportY - (imageTranslate.y + imageY))
+                + Math.abs(replacement.exportWidth - imageWidth)
+                + Math.abs(replacement.exportHeight - imageHeight);
+            if (score < bestScore) {
+                bestScore = score;
+                bestMatch = replacement;
+            }
+        }
+
+        return bestMatch;
+    }
+
+    private formatSvgExportNumber(value: number): string {
+        if (!Number.isFinite(value)) {
+            return '0';
+        }
+
+        return Number(value.toFixed(6)).toString();
+    }
+
+    private formatSvgExportPercent(value: number): string {
+        return `${this.formatSvgExportNumber(Math.min(1, Math.max(0, value)) * 100)}%`;
+    }
+
+    private getWeightedMixedExportSegments(
+        segments: Array<{ color: string; alpha?: number; weight?: number }>
+    ): Array<{ color: string; alpha: number; startFraction: number; endFraction: number }> {
+        const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
+        const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
+        if (validSegments.length < 2 || totalWeight <= 0) {
+            return [];
+        }
+
+        let startFraction = 0;
+        return validSegments.map((segment, index) => {
+            const endFraction = index === validSegments.length - 1
+                ? 1
+                : startFraction + (Number(segment.weight ?? 1) / totalWeight);
+            const weightedSegment = {
+                color: segment.color,
+                alpha: this.commonService.clampStyleAlpha(segment.alpha ?? 1, 1),
+                startFraction,
+                endFraction
+            };
+            startFraction = endFraction;
+
+            return weightedSegment;
+        });
+    }
+
+    private appendMixedFillGradient(
+        doc: XMLDocument,
+        parent: SVGElement,
+        gradientId: string,
+        segments: Array<{ color: string; alpha?: number; weight?: number }>
+    ): void {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const defs = doc.createElementNS(svgNamespace, 'defs');
+        const gradient = doc.createElementNS(svgNamespace, 'linearGradient');
+        gradient.setAttribute('id', gradientId);
+        gradient.setAttribute('x1', '0%');
+        gradient.setAttribute('y1', '0%');
+        gradient.setAttribute('x2', '100%');
+        gradient.setAttribute('y2', '0%');
+        gradient.setAttribute('gradientUnits', 'objectBoundingBox');
+
+        this.getWeightedMixedExportSegments(segments).forEach(segment => {
+            [
+                this.formatSvgExportPercent(segment.startFraction),
+                this.formatSvgExportPercent(segment.endFraction)
+            ].forEach(offset => {
+                const stop = doc.createElementNS(svgNamespace, 'stop');
+                stop.setAttribute('offset', offset);
+                stop.setAttribute('stop-color', segment.color);
+                stop.setAttribute('stop-opacity', this.formatSvgExportNumber(segment.alpha));
+                gradient.appendChild(stop);
+            });
+        });
+
+        defs.appendChild(gradient);
+        parent.appendChild(defs);
+    }
+
     private createCustomNodeVectorExportElement(
         doc: XMLDocument,
         sourceImage: SVGImageElement,
@@ -1813,6 +2064,107 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return vectorGroup;
     }
 
+    private createMixedNodeVectorExportElement(
+        doc: XMLDocument,
+        sourceImage: SVGImageElement,
+        replacement: MixedNodeSvgExportReplacement,
+        replacementIndex: number
+    ): SVGGElement {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const vectorGroup = doc.createElementNS(svgNamespace, 'g');
+        vectorGroup.setAttribute('class', 'mixed-node-export-fill');
+        vectorGroup.setAttribute('data-mt-export', 'mixed-node-fill');
+        vectorGroup.setAttribute('aria-hidden', 'true');
+
+        const attributesToCopy = ['opacity', 'style', 'clip-path'];
+        for (const attributeName of attributesToCopy) {
+            const attributeValue = sourceImage.getAttribute(attributeName);
+            if (attributeValue) {
+                vectorGroup.setAttribute(attributeName, attributeValue);
+            }
+        }
+
+        const imageWidth = this.getSvgLengthAttribute(sourceImage, 'width') ?? replacement.exportWidth;
+        const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
+        const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
+        const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
+        const imageTransform = sourceImage.getAttribute('transform') || '';
+        const transforms: string[] = [];
+        if (imageX !== 0 || imageY !== 0) {
+            transforms.push(`translate(${imageX}, ${imageY})`);
+        }
+        if (imageTransform) {
+            transforms.push(imageTransform);
+        }
+        if (transforms.length) {
+            vectorGroup.setAttribute('transform', transforms.join(' '));
+        }
+
+        const gradientId = `mt-mixed-node-export-${replacementIndex}`;
+        this.appendMixedFillGradient(doc, vectorGroup, gradientId, replacement.segments);
+
+        if (replacement.vectorData) {
+            const scaleGroup = doc.createElementNS(svgNamespace, 'g');
+            scaleGroup.setAttribute('transform', `scale(${imageWidth / replacement.vectorData.width}, ${imageHeight / replacement.vectorData.height})`);
+
+            const shapeGroup = doc.createElementNS(svgNamespace, 'g');
+            shapeGroup.setAttribute('transform', `translate(0, ${replacement.vectorData.height}) scale(1,-1)`);
+
+            const fillPath = doc.createElementNS(svgNamespace, 'path');
+            fillPath.setAttribute('d', replacement.vectorData.fillPath);
+            fillPath.setAttribute('fill', `url(#${gradientId})`);
+            fillPath.setAttribute('stroke', 'none');
+            shapeGroup.appendChild(fillPath);
+
+            scaleGroup.appendChild(shapeGroup);
+            vectorGroup.appendChild(scaleGroup);
+            return vectorGroup;
+        }
+
+        const fillRect = doc.createElementNS(svgNamespace, 'rect');
+        fillRect.setAttribute('x', '0');
+        fillRect.setAttribute('y', '0');
+        fillRect.setAttribute('width', `${imageWidth}`);
+        fillRect.setAttribute('height', `${imageHeight}`);
+        fillRect.setAttribute('fill', `url(#${gradientId})`);
+        fillRect.setAttribute('stroke', 'none');
+        vectorGroup.appendChild(fillRect);
+
+        return vectorGroup;
+    }
+
+    private replaceExportedMixedNodeImagesWithVectorFills(doc: XMLDocument): void {
+        const replacementList = this.getMixedNodeSvgExportReplacementList();
+        if (replacementList.length === 0) {
+            return;
+        }
+
+        const images = Array.from(doc.getElementsByTagName('image'))
+            .filter(image => {
+                const href = this.getSvgImageHref(image);
+                return !!href
+                    && (href.startsWith('data:image/png;base64,') || href.startsWith('data:image/svg+xml'))
+                    && this.hasClipPathAncestor(image);
+            });
+        const usedReplacements = new Set<MixedNodeSvgExportReplacement>();
+
+        images.forEach(image => {
+            const replacement = this.findMatchingMixedNodeSvgExportReplacement(image, replacementList, usedReplacements);
+            if (!replacement || !image.parentNode) {
+                return;
+            }
+
+            usedReplacements.add(replacement);
+            const vectorElement = this.createMixedNodeVectorExportElement(
+                doc,
+                image as SVGImageElement,
+                replacement,
+                usedReplacements.size
+            );
+            image.parentNode.replaceChild(vectorElement, image);
+        });
+    }
+
     private replaceExportedCustomNodeImagesWithVectorShapes(doc: XMLDocument): void {
         const replacementList = this.getCustomNodeSvgExportReplacementList();
         if (replacementList.length === 0) {
@@ -1866,6 +2218,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Add 10px of padding around network
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
+            this.replaceExportedMixedNodeImagesWithVectorFills(doc);
             this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
             const svg1 = doc.documentElement;          
             svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
@@ -4906,11 +5259,12 @@ private updateArrowStyles(): void {
 	        this.cy.nodes().forEach(node => {
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const [newColor, opacity] = this.getNodeColor(fullNode);
-	            node.data('nodeColor', newColor);
+            node.data('nodeColor', newColor);
             node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
 
-            const shapeKey = node.data('shapeKey');
+            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
+            this.setMixedColorNodeImageData(node, fullNode, shapeKey, newColor, opacity);
             if (isCustomNodeIconShape(shapeKey)) {
                 const customShapeData = getCustomNodeShapeData(shapeKey, newColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
@@ -5568,7 +5922,8 @@ scaleLinkWidth() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
             if (this.isGroupNode(node)) return;
-	            const newBorderWidth = this.getNodeBorderWidth(this.getFullNodeDataForCyNode(node));
+	            const fullNode = this.getFullNodeDataForCyNode(node);
+	            const newBorderWidth = this.getNodeBorderWidth(fullNode);
 	            node.data('borderWidth', newBorderWidth);
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
@@ -5638,11 +5993,12 @@ scaleLinkWidth() {
             }
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const shapeKey = this.getNodeShape(fullNode);
-	            node.data('shapeKey', shapeKey);
+            node.data('shapeKey', shapeKey);
             node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
+            const [nodeColor, nodeOpacity] = this.getNodeColor(fullNode);
+            this.setMixedColorNodeImageData(node, fullNode, shapeKey, nodeColor, nodeOpacity);
 
 	            if (isCustomNodeIconShape(shapeKey)) {
-	                const nodeColor = node.data('nodeColor') || this.getNodeColor(fullNode)[0];
                 const customShapeData = getCustomNodeShapeData(shapeKey, nodeColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
                 node.data('customIconKey', customShapeData.customIconKey);

@@ -1,0 +1,10 @@
+ID,Genotype,lat,long,seq
+sample-1,1a,38.1,-86.1,AAAAAAAAAA
+sample-2,2a,38.12,-86.12,AAAAAAAATA
+sample-3,3a,38.14,-86.14,AAAAAAATAA
+sample-4,2a/3a,38.16,-86.16,AAAAAATAAA
+sample-5,6/7a,38,86,AAAAAAAAAC
+sample-6,,37,85,CAAAAAAAAA
+sample-7,null,37,85.2,CAAAAAAAAA
+sample-8,N/A,36,86.14,AAAAAACCCC
+sample-9,n/a,36.1,86.15,AAAAAACTCC

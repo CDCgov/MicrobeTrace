@@ -39,8 +39,23 @@ interface CustomNodeShapeDefinition extends NodeShapeOption {
 export interface CustomNodeShapeVectorData {
     width: number;
     height: number;
+    viewBox: string;
     path: string;
     fillPath: string;
+}
+
+export interface MixedNodeShapeSegment {
+    color: string;
+    alpha?: number;
+    weight?: number;
+}
+
+export interface MixedNodeShapeDataUriOptions {
+    basicShapeViewBoxPadding?: number;
+    customShapePadding?: number;
+    customShapeViewBoxPadding?: number;
+    fillCanvas?: boolean;
+    includeStroke?: boolean;
 }
 
 export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
@@ -903,6 +918,163 @@ function buildBasicNodeShapeDataUri(
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+interface WeightedMixedNodeShapeSegment {
+    segment: MixedNodeShapeSegment;
+    startFraction: number;
+    endFraction: number;
+}
+
+function formatSvgFraction(value: number): string {
+    return Number(value.toFixed(6)).toString();
+}
+
+function formatSvgPercent(value: number): string {
+    return `${formatSvgFraction(Math.min(1, Math.max(0, value)) * 100)}%`;
+}
+
+function getWeightedMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): WeightedMixedNodeShapeSegment[] {
+    const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
+    const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
+    if (validSegments.length < 2 || totalWeight <= 0) {
+        return [];
+    }
+
+    let startFraction = 0;
+    return validSegments.map((segment, index) => {
+        const segmentWeight = Number(segment.weight ?? 1);
+        const endFraction = index === validSegments.length - 1
+            ? 1
+            : startFraction + (segmentWeight / totalWeight);
+        const weightedSegment = { segment, startFraction, endFraction };
+        startFraction = endFraction;
+
+        return weightedSegment;
+    });
+}
+
+function buildMixedFillGradientDefinition(
+    gradientId: string,
+    segments: MixedNodeShapeSegment[],
+    fallbackOpacity: number
+): string {
+    const weightedSegments = getWeightedMixedNodeShapeSegments(segments);
+    if (!weightedSegments.length) {
+        return '';
+    }
+
+    const stops = weightedSegments.flatMap(({ segment, startFraction, endFraction }) => {
+        const color = sanitizeSvgColor(segment.color);
+        const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
+
+        return [
+            `<stop offset="${formatSvgPercent(startFraction)}" stop-color="${color}" stop-opacity="${opacity}"/>`,
+            `<stop offset="${formatSvgPercent(endFraction)}" stop-color="${color}" stop-opacity="${opacity}"/>`
+        ];
+    }).join('');
+
+    return `<defs><linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="objectBoundingBox">${stops}</linearGradient></defs>`;
+}
+
+function buildMixedBasicNodeShapeContent(
+    normalizedShapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number,
+    segments: MixedNodeShapeSegment[],
+    selectedStrokeColor?: string | null,
+    options: MixedNodeShapeDataUriOptions = {}
+): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const gradient = buildMixedFillGradientDefinition('mixed-node-fill', segments, safeFillOpacity);
+    const fillPaint = gradient ? 'url(#mixed-node-fill)' : safeFill;
+    const fillOpacityValue = gradient ? 1 : safeFillOpacity;
+    const includeStroke = options.includeStroke !== false;
+    const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
+    const strokeAttributes = includeStroke
+        ? `stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"`
+        : 'stroke="none"';
+
+    if (options.fillCanvas) {
+        return `${gradient}<rect x="0" y="0" width="300" height="300" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" stroke="none"/>`;
+    }
+
+    if (normalizedShapeKey === 'ellipse') {
+        return `${gradient}<circle cx="150" cy="150" r="110" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
+    }
+
+    const path = normalizedShapeKey === 'barrel'
+        ? 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z'
+        : buildBasicNodeShapePath(normalizedShapeKey);
+    if (!path) {
+        return `${gradient}<circle cx="150" cy="150" r="110" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
+    }
+
+    return `${gradient}<path d="${path}" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
+}
+
+function buildMixedCustomNodeShapeContent(
+    definition: CustomNodeShapeDefinition,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number,
+    segments: MixedNodeShapeSegment[],
+    selectedStrokeColor?: string | null,
+    options: MixedNodeShapeDataUriOptions = {}
+): string {
+    const safeFill = sanitizeSvgColor(fillColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const gradient = buildMixedFillGradientDefinition('mixed-node-fill', segments, safeFillOpacity);
+    const fillPaint = gradient ? 'url(#mixed-node-fill)' : safeFill;
+    const fillOpacityValue = gradient ? 1 : safeFillOpacity;
+    const includeStroke = options.includeStroke !== false;
+    const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
+    const customShapePadding = Math.min(100, Math.max(0, Number(options.customShapePadding ?? 40)));
+    const customShapeSize = Math.max(1, 300 - (customShapePadding * 2));
+    const viewBoxPadding = Math.max(0, Number(options.customShapeViewBoxPadding ?? strokeWidth));
+    const outlinePath = includeStroke
+        ? `<path d="${definition.path}" fill="none" stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`
+        : '';
+
+    return [
+        `<svg x="${customShapePadding}" y="${customShapePadding}" width="${customShapeSize}" height="${customShapeSize}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" preserveAspectRatio="xMidYMid meet">`,
+        gradient,
+        `<g transform="translate(0,${definition.height}) scale(1,-1)">`,
+        `<path d="${definition.fillPath ?? definition.path}" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" stroke="none"/>`,
+        outlinePath,
+        '</g>',
+        '</svg>'
+    ].join('');
+}
+
+export function getMixedNodeShapeDataUri(
+    shapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number = 1,
+    segments: MixedNodeShapeSegment[] = [],
+    selectedStrokeColor?: string | null,
+    options: MixedNodeShapeDataUriOptions = {}
+): string {
+    const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const safeStrokeWidth = Math.max(1, Number(strokeWidth) || 1);
+    const isCustomShape = isCustomNodeShape(normalizedShapeKey);
+    const basicShapeViewBoxPadding = !isCustomShape && !options.fillCanvas
+        ? Math.max(0, Number(options.basicShapeViewBoxPadding ?? 0))
+        : 0;
+    const shapeContent = isCustomShape
+        ? buildMixedCustomNodeShapeContent(CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey], fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options)
+        : buildMixedBasicNodeShapeContent(normalizedShapeKey, fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options);
+    const viewBox = buildPaddedViewBox('0 0 300 300', basicShapeViewBoxPadding);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${viewBox}" aria-hidden="true">${shapeContent}</svg>`;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number = 1): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     if (isCustomNodeShape(normalizedShapeKey)) {
@@ -974,6 +1146,7 @@ export function getCustomNodeShapeVectorData(shapeKey: string): CustomNodeShapeV
     return {
         width: definition.width,
         height: definition.height,
+        viewBox: definition.viewBox,
         path: definition.path,
         fillPath: definition.fillPath ?? definition.path
     };

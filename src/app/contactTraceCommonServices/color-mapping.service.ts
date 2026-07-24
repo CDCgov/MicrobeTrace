@@ -1,6 +1,100 @@
 import { Injectable } from '@angular/core';
 import * as d3 from 'd3';
 
+export interface NodeColorSegment {
+  value: string;
+  color: string;
+  alpha: number;
+  weight: number;
+}
+
+export interface NodeFillStyle {
+  color: string;
+  alpha: number;
+  segments?: NodeColorSegment[];
+}
+
+function isNullLikeNodeColorValue(value: any): boolean {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (typeof value === 'number' && Number.isNaN(value)) {
+    return true;
+  }
+
+  const textValue = String(value).trim();
+  const normalizedValue = textValue.toLowerCase();
+  return !textValue
+    || normalizedValue === 'null'
+    || normalizedValue === 'undefined'
+    || normalizedValue === 'nan'
+    || normalizedValue === 'n/a';
+}
+
+function splitMixedNodeColorText(value: string): string[] {
+  return value
+    .replace(/\bn\/a\b/ig, '')
+    .split(/\s+(?:and)\s+|[/,;+|]/i)
+    .map(token => token.trim())
+    .filter(token => !isNullLikeNodeColorValue(token));
+}
+
+export function parseMixedNodeColorValue(value: any): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+
+  values.forEach(item => {
+    if (isNullLikeNodeColorValue(item)) {
+      return;
+    }
+
+    splitMixedNodeColorText(String(item)).forEach(token => {
+      if (seen.has(token)) {
+        return;
+      }
+
+      seen.add(token);
+      tokens.push(token);
+    });
+  });
+
+  return tokens;
+}
+
+export function getMixedNodeColorSegments(
+  value: any,
+  colorMap: ((value: any) => string) | null | undefined,
+  alphaMap: ((value: any) => number) | null | undefined,
+  fallbackColor: string,
+  fallbackAlpha: number = 1
+): NodeColorSegment[] {
+  return parseMixedNodeColorValue(value).map(token => {
+    let color = fallbackColor;
+    let alpha = fallbackAlpha;
+
+    try {
+      color = colorMap?.(token) || fallbackColor;
+    } catch {
+      color = fallbackColor;
+    }
+
+    try {
+      alpha = alphaMap?.(token) ?? fallbackAlpha;
+    } catch {
+      alpha = fallbackAlpha;
+    }
+
+    return {
+      value: token,
+      color,
+      alpha,
+      weight: 1
+    };
+  });
+}
+
 /**
  * A dedicated service for node, link, polygon color mapping.
  * It is "pure" in that it does NOT own or mutate your session object.
@@ -13,6 +107,56 @@ import * as d3 from 'd3';
 export class ColorMappingService {
 
   constructor() {}
+
+  public normalizeStyleCategoryValue(value: any): string {
+    if (isNullLikeNodeColorValue(value)) {
+      return 'null';
+    }
+
+    if (typeof value === 'string') {
+      const trimmedValue = value.trim();
+      return trimmedValue;
+    }
+
+    return String(value);
+  }
+
+  private parseScalarMixedColorValue(value: any): string[] {
+    if (isNullLikeNodeColorValue(value)) {
+      return [];
+    }
+
+    const textValue = String(value).trim();
+    return splitMixedNodeColorText(textValue);
+  }
+
+  public parseMixedColorValue(value: any): string[] {
+    const rawValues = Array.isArray(value)
+      ? value.flatMap(item => this.parseScalarMixedColorValue(item))
+      : this.parseScalarMixedColorValue(value);
+    const seenValues = new Set<string>();
+
+    return rawValues.filter(valuePart => {
+      const key = valuePart.toLowerCase();
+      if (seenValues.has(key)) {
+        return false;
+      }
+
+      seenValues.add(key);
+      return true;
+    });
+  }
+
+  public getNodeColorCategoriesForValue(value: any, mixedColorsEnabled: boolean): string[] {
+    if (mixedColorsEnabled) {
+      const mixedValues = this.parseMixedColorValue(value);
+      if (mixedValues.length > 0) {
+        return mixedValues;
+      }
+    }
+
+    return [this.normalizeStyleCategoryValue(value)];
+  }
 
   /**
    * Creates a node color-mapping scale based on a specified "nodeColorVariable"
@@ -47,7 +191,8 @@ export class ColorMappingService {
     nodeColorsTable: any,
     nodeColorsTableKeys: any,
     nodeColorsTableHistory: any,
-    debugMode: boolean
+    debugMode: boolean,
+    splitMixedValues: boolean = false
   ): {
     aggregates: Record<string, number>;
     colorMap: d3.ScaleOrdinal<string, string>;
@@ -134,12 +279,17 @@ export class ColorMappingService {
     // Compute aggregates by scanning all node values
     const aggregates: Record<string, number> = {};
     nodes.forEach(d => {
-      const val = d[nodeColorVariable];
       if (!d.visible) {
         // If node is not visible, you can decide to skip or do aggregates[val] = 0;
         return;
       }
-      aggregates[val] = (aggregates[val] || 0) + 1;
+
+      const categories = this.getNodeColorCategoriesForValue(d[nodeColorVariable], splitMixedValues);
+      const categoryWeight = splitMixedValues && categories.length > 1 ? 1 / categories.length : 1;
+
+      categories.forEach(category => {
+        aggregates[category] = (aggregates[category] || 0) + categoryWeight;
+      });
     });
 
     const distinctValues = Object.keys(aggregates);
