@@ -1889,6 +1889,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, );
     }
 
+    public openNodeCollapseShapeConfirmation(accept: () => void, reject?: () => void): void {
+        this.confirmationService.confirm({
+            message: `All collapsed nodes will be displayed as circles. Custom node shapes are not preserved while nodes are collapsed.
+             Are you sure that you want to proceed?`,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectButtonProps: {
+                label: 'Cancel',
+                severity: 'secondary',
+                outlined: true,
+            },
+            acceptButtonProps: {
+                label: 'Confirm',
+            },
+            accept,
+            reject,
+        });
+    }
+
     onPruneWithTypesChanged(newValue: string) {
         if (this.userConfirmedNN == false && this.SelectedPruneWithTypesVariable == "Nearest Neighbor") {
             if (this.commonService.session.data.links.filter(l => l.origin.length > 1 && Array.isArray(l.origin)).length>0) {
@@ -5524,6 +5544,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
     }
 
+    this.commonService.visuals.twoD?.refreshDistanceMetricSettings?.();
     this.refreshThresholdStabilityPanel();
   }
 

@@ -14,7 +14,7 @@
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
-      [style.background]="commonService.session.network.allPinned ? 'lightblue': 'transparent'"
+      [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
       ><i class="flaticon-pin primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
@@ -164,12 +164,35 @@
                           <input type="number" class="form-control form-control-sm" id="node-border-width" min="0" step="0.1" value="2" [(ngModel)]="nodeBorderWidth" (ngModelChange)="onNodeBorderWidthChange($event)">
                         </div>
                       </div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
+              <p-accordion-panel value="node-collapse" style="color:#495057">
+                <p-accordion-header>Collapse Related Nodes</p-accordion-header>
+                <p-accordion-content>
+                  <div class="form-group row" title="Collapse visible nodes connected by distance links at or below the selected distance.">
+                    <div class="col-4"><label for="network-node-collapse-enabled">Collapse</label></div>
+                    <div class="col-8">
+                      <p-selectButton id="network-node-collapse-enabled" [options]="hideShowOptions" [allowEmpty]="false" fluid [ngModel]="SelectedNodeCollapseTypeVariable" (ngModelChange)="onNodeCollapseEnabledChange($event, true)"></p-selectButton>
                     </div>
-                  </p-accordion-content>
-                </p-accordion-panel>
-                <p-accordion-panel value="node-colors" style="color:#495057">
-                  <p-accordion-header>Colors</p-accordion-header>
-                  <p-accordion-content><button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+                  </div>
+                  <div class="form-group row" title="Maximum genetic distance for nodes to collapse into aggregate pie nodes.">
+                    <div class="col-4"><label for="network-node-collapse-threshold">Distance ({{ SelectedNodeCollapseMetricLabel }})</label></div>
+                    <div class="col-8">
+                      <input type="range" class="custom-range" id="network-node-collapse-threshold" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="!SelectedNodeCollapseTypeVariable" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (change)="onNodeCollapseThresholdDisplayedChange($event)">
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Exact genetic distance used for collapse.">
+                    <div class="col-4"><label for="network-node-collapse-threshold-input">{{ SelectedNodeCollapseMetricLabel }}</label></div>
+                    <div class="col-8">
+                      <input type="number" class="form-control form-control-sm" id="network-node-collapse-threshold-input" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="!SelectedNodeCollapseTypeVariable" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (change)="onNodeCollapseThresholdDisplayedChange($event)">
+                    </div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
+              <p-accordion-panel value="node-colors" style="color:#495057">
+                <p-accordion-header>Colors</p-accordion-header>
+                <p-accordion-content><button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
                 </p-accordion-content>
               </p-accordion-panel>
             </p-accordion>
