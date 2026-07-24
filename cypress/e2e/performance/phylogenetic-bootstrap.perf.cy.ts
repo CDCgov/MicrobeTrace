@@ -326,7 +326,7 @@ function measureBootstrapReplicates(
 
     const startedAt = perfWindow.performance.now();
 
-    return phylo.calculateBootstrapSupport().then(() => {
+    return phylo.calculateBootstrapSupport({ skipConfirmation: true }).then(() => {
       const durationMs = perfWindow.performance.now() - startedAt;
       const metadata = perfWindow.commonService.session.data.phylogeneticBootstrap;
 

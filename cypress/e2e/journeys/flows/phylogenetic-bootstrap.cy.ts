@@ -49,8 +49,10 @@ const setBootstrapReplicates = (replicates: string): void => {
   cy.get('@phyloSettings').find('#bootstrap-replicates')
     .should('be.visible')
     .clear({ force: true })
-    .type(replicates, { force: true })
-    .blur();
+    .type(replicates, { force: true });
+  cy.get('@phyloSettings').find('#bootstrap-replicates')
+    .should('have.value', replicates)
+    .trigger('change', { force: true });
 };
 
 const assertBootstrapConfirmationVisible = (): void => {
@@ -74,7 +76,7 @@ const calculateSmallBootstrap = (): void => {
 };
 
 const assertBootstrapLabelsVisible = (pattern: RegExp = /^\d+\.\d%$/): void => {
-  cy.get(SELECTORS.internalNodeLabels, { timeout: 15000 }).then(($labels) => {
+  cy.get(SELECTORS.internalNodeLabels, { timeout: 15000 }).should(($labels) => {
     const texts = Array.from($labels).map(label => String(label.textContent || '').trim()).filter(Boolean);
     expect(texts.some(text => pattern.test(text)), 'bootstrap support labels').to.equal(true);
   });

@@ -190,6 +190,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   originalTreeData: any = null;
   hasTreeBeenModifiedFromOriginal = false;
   private treeLeafShapeUriCache = new Map<string, string>();
+  private treeRenderRecoveryFrame: number | null = null;
+  private treeRenderRecoveryAttempts = 0;
+  private readonly maxTreeRenderRecoveryAttempts = 180;
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
@@ -262,7 +265,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
     this.hasNewickFile = this.commonService.session.files.some(file => file.format == 'newick');
     this.applyStoredBootstrapSupport(true);
-    this.markTreeRendered();
+    if (this.ensureTreeRenderedInCanvas()) {
+      this.markTreeRendered();
+    }
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 
@@ -275,20 +280,75 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   //   let leafNodes = this.tree.data.getLeaves();
   // }
 
-  private ensureTreeRenderedInCanvas(): void {
-    if (!this.tree?.data) return;
+  private cancelTreeRenderRecovery(resetAttempts: boolean = true): void {
+    if (this.treeRenderRecoveryFrame !== null) {
+      window.cancelAnimationFrame(this.treeRenderRecoveryFrame);
+      this.treeRenderRecoveryFrame = null;
+    }
+    if (resetAttempts) {
+      this.treeRenderRecoveryAttempts = 0;
+    }
+  }
+
+  private scheduleTreeRenderRecovery(): void {
+    if (
+      this.treeRenderRecoveryFrame !== null ||
+      this.treeRenderRecoveryAttempts >= this.maxTreeRenderRecoveryAttempts
+    ) {
+      return;
+    }
+
+    this.treeRenderRecoveryFrame = window.requestAnimationFrame(() => {
+      this.treeRenderRecoveryFrame = null;
+      this.treeRenderRecoveryAttempts++;
+      this.goldenLayoutComponentResize();
+
+      if (!this.ensureTreeRenderedInCanvas()) {
+        return;
+      }
+
+      if (this.hasBootstrapSupportMetadata()) {
+        this.applyStoredBootstrapSupport(false);
+      }
+      this.styleTree();
+      this.markTreeRendered();
+    });
+  }
+
+  private ensureTreeRenderedInCanvas(): boolean {
+    if (!this.tree?.data) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
 
     const canvas = d3.select('#phylocanvas');
-    if (canvas.empty()) return;
+    if (canvas.empty()) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
 
     const sessionNewick = this.commonService.session.data?.newickString;
     const hasSessionNewick = typeof sessionNewick === 'string' && sessionNewick.trim().length > 0;
     const expectedLeafCount = collectLeafIds(this.tree.data).length;
+    const expectedNodeCount = this.tree.hierarchy?.descendants?.().length ?? expectedLeafCount;
     const renderedNodeCount = canvas.selectAll('svg g.tidytree-node').size();
     const hasRenderableTreeData = expectedLeafCount > 1;
 
-    if (hasRenderableTreeData && renderedNodeCount >= expectedLeafCount) return;
-    if (!hasRenderableTreeData && !hasSessionNewick) return;
+    if (hasRenderableTreeData && renderedNodeCount >= expectedNodeCount) {
+      this.cancelTreeRenderRecovery();
+      return true;
+    }
+    if (!hasRenderableTreeData && !hasSessionNewick) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
+
+    const canvasElement = canvas.node() as HTMLElement;
+    const canvasBounds = canvasElement.getBoundingClientRect();
+    if (canvasBounds.width <= 0 || canvasBounds.height <= 0) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
 
     const sourceTree = hasRenderableTreeData ? this.tree.data : sessionNewick;
 
@@ -301,6 +361,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.visuals.phylogenetic.tree = tree;
     this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
     this.hasTreeBeenModifiedFromOriginal = false;
+
+    const rebuiltNodeCount = canvas.selectAll('svg g.tidytree-node').size();
+    const treeRendered = rebuiltNodeCount >= expectedNodeCount;
+    if (treeRendered) {
+      this.cancelTreeRenderRecovery();
+    } else {
+      this.scheduleTreeRenderRecovery();
+    }
+    return treeRendered;
   }
 
   styleTree = () => {
@@ -682,13 +751,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     })
     this.container.on('show', () => {
       this.viewActive = true;
-      window.requestAnimationFrame(() => {
-        this.ensureTreeRenderedInCanvas();
-        if (this.hasBootstrapSupportMetadata()) {
-          this.applyStoredBootstrapSupport(false);
-        }
-        this.styleTree();
-      });
+      this.scheduleTreeRenderRecovery();
       this.cdref.detectChanges();
     })
 
@@ -705,6 +768,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   ngOnDestroy(): void {
+    this.cancelTreeRenderRecovery();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -1191,11 +1255,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
   }
 
-  calculateBootstrapSupport() {
+  calculateBootstrapSupport(options: { skipConfirmation?: boolean } = {}): Promise<void> {
     const input = this.getBootstrapInput();
     if (!input.available) {
       this.BootstrapStatusMessage = input.reason || 'Bootstrap is unavailable for the current tree.';
-      return;
+      return Promise.resolve();
     }
 
     const bootstrapInput = {
@@ -1204,23 +1268,31 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       baseSplitKeys: input.baseSplitKeys || [],
     };
 
-    this.confirmationService.confirm({
-      message: `Bootstrap support generates replicate trees by resampling columns from the alignment. It will not work with tree or distance matrix inputs.
-       Are you sure that you want to proceed?`,
-      closable: false,
-      closeOnEscape: false,
-      icon: 'pi pi-exclamation-triangle',
-      rejectButtonProps: {
-        label: 'Cancel',
-        severity: 'secondary',
-        outlined: true,
-      },
-      acceptButtonProps: {
-        label: 'Confirm',
-      },
-      accept: () => {
-        void this.runBootstrapSupportCalculation(bootstrapInput);
-      },
+    const runCalculation = () => this.runBootstrapSupportCalculation(bootstrapInput);
+    if (options.skipConfirmation) {
+      return runCalculation();
+    }
+
+    return new Promise<void>((resolve) => {
+      this.confirmationService.confirm({
+        message: `Bootstrap support generates replicate trees by resampling columns from the alignment. It will not work with tree or distance matrix inputs.
+         Are you sure that you want to proceed?`,
+        closable: false,
+        closeOnEscape: false,
+        icon: 'pi pi-exclamation-triangle',
+        rejectButtonProps: {
+          label: 'Cancel',
+          severity: 'secondary',
+          outlined: true,
+        },
+        acceptButtonProps: {
+          label: 'Confirm',
+        },
+        reject: () => resolve(),
+        accept: () => {
+          void runCalculation().finally(resolve);
+        },
+      });
     });
   }
 
