@@ -47,7 +47,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     'Epi Curve',
     'Sankey',
     'Table',
-    'Network Statistics',
     'Crosstab',
     'Map',
     'Bubble',
@@ -860,7 +859,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   private dismissWelcomeOverlay() {
-    $('#overlay').stop(true, true).fadeOut('fast');
+    const overlay = $('#overlay');
+    overlay.addClass('overlay-hidden').css('pointer-events', 'none');
+    overlay.find('.dnd-input').css('pointer-events', 'none');
+    overlay.stop(true, true).fadeOut('fast');
     $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
     $('.m-portlet').stop(true, true).fadeTo('fast', 1);
   }

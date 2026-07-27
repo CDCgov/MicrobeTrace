@@ -1662,6 +1662,44 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return new XMLSerializer().serializeToString(doc.documentElement);
   }
 
+  private saveGeneratedFile(content: Blob | string, filename: string): void {
+    const browserWindow = window as Window & {
+      __mtTestSaveAs?: (content: Blob | string, filename: string) => void;
+    };
+
+    if (typeof browserWindow.__mtTestSaveAs === 'function') {
+      browserWindow.__mtTestSaveAs(content, filename);
+      return;
+    }
+
+    saveAs(content as any, filename);
+  }
+
+  private dataUrlToBlob(dataUrl: string): Blob {
+    const [metadata, payload = ''] = dataUrl.split(',');
+    const mimeType = metadata.match(/^data:([^;]+);base64$/)?.[1] || 'application/octet-stream';
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index++) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  private exportRasterVisualization(): void {
+    const scale = Number(this.SelectedBubbleExportScaleVariable) || 1;
+    const dataUrl = this.cy.png({
+      full: true,
+      scale,
+      bg: '#ffffff',
+      output: 'base64uri',
+    });
+
+    this.saveGeneratedFile(this.dataUrlToBlob(dataUrl), `${this.BubbleExportFileName}.png`);
+  }
+
   exportVisualization() {
     const exportOptions: ExportOptions = {
       filename: this.BubbleExportFileName,
@@ -1680,7 +1718,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
       this.exportService.requestSVGExport([], content, true, false); 
     } else {
-      this.exportService.requestExport([this.cyContainer.nativeElement], true, false);
+      this.exportRasterVisualization();
     }
     this.exportOpen = false;
   }

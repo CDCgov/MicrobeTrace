@@ -92,8 +92,6 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   }
 
   cy.get('body').then(($body) => {
-    if (!resolvedOptions.skipDemoSession) return;
-
     const continueButton = $body.find(`${byTestId(testIds.appSampleDatasetButton)}:visible`);
     if (!continueButton.length) return;
 

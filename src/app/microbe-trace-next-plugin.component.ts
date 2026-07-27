@@ -24,7 +24,6 @@ import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
-import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     NODE_SHAPE_GROUPS,
@@ -183,7 +182,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.2';
+    version: string = '2.2.1';
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
@@ -209,6 +208,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
+
+    private dismissWelcomeOverlay(duration: JQuery.Duration = 'slow'): void {
+        const overlay = $('#overlay');
+        overlay.addClass('overlay-hidden').css('pointer-events', 'none');
+        overlay.find('.dnd-input').css('pointer-events', 'none');
+        overlay.stop(true, true).fadeOut(duration);
+        $('.ui-tabview-nav').stop(true, true).fadeTo(duration, 1);
+        $('.m-portlet').stop(true, true).fadeTo(duration, 1);
+    }
     // Blockchaindata: BlockchainProofHashDto = new BlockchainProofHashDto();
     date: Date;
     // Inputdownloadblock: DownloadFilteredBlockDto = new DownloadFilteredBlockDto();
@@ -221,29 +229,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
-    NetworkSubsetOperatorTypes: SelectItem[] = [
-        { label: 'Contains', value: 'contains' },
-        { label: 'Equals', value: 'equals' },
-        { label: 'Does Not Equal', value: 'notEquals' },
-        { label: 'Starts With', value: 'startsWith' },
-        { label: 'Ends With', value: 'endsWith' },
-        { label: 'In List', value: 'in' },
-        { label: '<', value: 'lt' },
-        { label: '<=', value: 'lte' },
-        { label: '>', value: 'gt' },
-        { label: '>=', value: 'gte' }
-    ];
-    SelectedNetworkSubsetNodeField: string = 'None';
-    SelectedNetworkSubsetNodeOperator: string = 'equals';
-    SelectedNetworkSubsetNodeValue: string = '';
-    SelectedNetworkSubsetLinkField: string = 'None';
-    SelectedNetworkSubsetLinkOperator: string = 'contains';
-    SelectedNetworkSubsetLinkValue: string = '';
-    NetworkSubsetNodeValueOptions: string[] = [];
-    NetworkSubsetLinkValueOptions: string[] = [];
-    private NetworkSubsetNodeAllValueOptions: string[] = [];
-    private NetworkSubsetLinkAllValueOptions: string[] = [];
-    private readonly NetworkSubsetValueSuggestionLimit = 50;
 
     PruneWityTypes: any = [
         { label: 'None', value: 'None' },
@@ -1541,9 +1526,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
  
         // this.homepageTabs[1].isActive = false;
         this.homepageTabs[0].isActive = true;
-        $('#overlay').fadeOut();
-        $('.ui-tabview-nav').fadeTo("slow", 1);
-        $('.m-portlet').fadeTo("slow", 1);
+        this.dismissWelcomeOverlay();
         this.showExport = false;
         this.showCenter = false;
         this.showPinAllNodes = false;
@@ -1675,9 +1658,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
      public continueClicked() : void {
         // this._removeGlView('Files');
-        $('#overlay').fadeOut("slow");
-        $('.ui-tabview-nav').fadeTo("slow", 1);
-        $('.m-portlet').fadeTo("slow", 1);
+        this.dismissWelcomeOverlay();
     }
 
     /**
@@ -2651,8 +2632,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
     }
 
-    public onLinkColorChanged(silent: boolean = false) : void {
+    public onLinkColorChanged(valueOrSilent: string | boolean | Event = false, silent: boolean = false) : void {
+        if (typeof valueOrSilent === 'string') {
+            this.SelectedLinkColorVariable = valueOrSilent;
+        } else if (valueOrSilent instanceof Event) {
+            this.SelectedLinkColorVariable = (valueOrSilent.target as HTMLInputElement | null)?.value ?? this.SelectedLinkColorVariable;
+        } else {
+            silent = valueOrSilent;
+        }
+
         this.commonService.session.style.widgets["link-color"] = this.SelectedLinkColorVariable;
+        this.commonService.GlobalSettingsModel.SelectedLinkColorVariable = this.SelectedLinkColorVariable;
 
         if(!silent) this.publishUpdateLinkColor();
 
@@ -2662,6 +2652,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     onColorLinksByChanged(silent: boolean = false) {
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
         this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
+
+        if (this.SelectedColorLinksByVariable === 'None') {
+          this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"] || this.SelectedLinkColorVariable;
+          this.commonService.GlobalSettingsModel.SelectedLinkColorVariable = this.SelectedLinkColorVariable;
+          this.cdref.detectChanges();
+        }
     
         this.onLinkColorTableChanged(silent);
         if (this.isKeyTableDocked('link-color')) {
@@ -3375,8 +3371,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     let key = this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
                     this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, nextColor);
 
-                    // Update history with new color
-                    this.commonService.session.style.nodeColorsTableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
+                    // Update this variable's history without changing matching values
+                    // that belong to other node fields.
+                    const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory;
+                    const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
+                    const variableHistory = storedVariableHistory
+                        && typeof storedVariableHistory === 'object'
+                        && !Array.isArray(storedVariableHistory)
+                        ? storedVariableHistory
+                        : {};
+                    nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
+                    variableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
 
                   
 
@@ -3708,8 +3713,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         $("#cluster-minimum-size").val(1);
         this.commonService.session.style.widgets["cluster-minimum-size"] = 1;
-        this.commonService.clearNetworkSubsetFilter(false);
-        this.loadNetworkSubsetFilterSettings();
         $("#filtering-wrapper").slideDown();
         this.commonService.setClusterVisibility(true);
        
@@ -3823,163 +3826,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
-        this.loadNetworkSubsetFilterSettings();
         //this.commonService.updateThresholdHistogram();
         this.refreshThresholdStabilityPanel(false);
 
         console.log('--- getGlobalSettingsData end - last of loadDefaultVisualization in MT');
 
-    }
-
-    private loadNetworkSubsetFilterSettings(): void {
-        const filter = this.commonService.ensureNetworkSubsetFilterState();
-        this.SelectedNetworkSubsetNodeField = filter.node?.field || 'None';
-        this.SelectedNetworkSubsetNodeOperator = filter.node?.operator || 'equals';
-        this.SelectedNetworkSubsetNodeValue = filter.node?.value ?? '';
-        this.SelectedNetworkSubsetLinkField = filter.link?.field || 'None';
-        this.SelectedNetworkSubsetLinkOperator = filter.link?.operator || 'contains';
-        this.SelectedNetworkSubsetLinkValue = filter.link?.value ?? '';
-        this.refreshNetworkSubsetValueOptions();
-    }
-
-    private hasNetworkSubsetRule(field: string, value: any): boolean {
-        return field !== 'None' && value !== undefined && value !== null && `${value}`.trim() !== '';
-    }
-
-    onNetworkSubsetNodeFieldChanged(field: string): void {
-        this.SelectedNetworkSubsetNodeField = field;
-        this.refreshNetworkSubsetNodeValueOptions();
-    }
-
-    onNetworkSubsetLinkFieldChanged(field: string): void {
-        this.SelectedNetworkSubsetLinkField = field;
-        this.refreshNetworkSubsetLinkValueOptions();
-    }
-
-    onNetworkSubsetNodeValueChanged(value: string): void {
-        this.SelectedNetworkSubsetNodeValue = value;
-        this.filterNetworkSubsetNodeValueOptions();
-    }
-
-    onNetworkSubsetLinkValueChanged(value: string): void {
-        this.SelectedNetworkSubsetLinkValue = value;
-        this.filterNetworkSubsetLinkValueOptions();
-    }
-
-    private refreshNetworkSubsetValueOptions(): void {
-        this.refreshNetworkSubsetNodeValueOptions();
-        this.refreshNetworkSubsetLinkValueOptions();
-    }
-
-    private refreshNetworkSubsetNodeValueOptions(): void {
-        this.NetworkSubsetNodeAllValueOptions = this.getNetworkSubsetValueOptions(
-            this.commonService.session.data.nodes || [],
-            this.SelectedNetworkSubsetNodeField
-        );
-        this.filterNetworkSubsetNodeValueOptions();
-    }
-
-    private refreshNetworkSubsetLinkValueOptions(): void {
-        this.NetworkSubsetLinkAllValueOptions = this.getNetworkSubsetValueOptions(
-            this.commonService.session.data.links || [],
-            this.SelectedNetworkSubsetLinkField
-        );
-        this.filterNetworkSubsetLinkValueOptions();
-    }
-
-    private filterNetworkSubsetNodeValueOptions(): void {
-        this.NetworkSubsetNodeValueOptions = this.filterNetworkSubsetValueOptions(
-            this.NetworkSubsetNodeAllValueOptions,
-            this.SelectedNetworkSubsetNodeValue
-        );
-    }
-
-    private filterNetworkSubsetLinkValueOptions(): void {
-        this.NetworkSubsetLinkValueOptions = this.filterNetworkSubsetValueOptions(
-            this.NetworkSubsetLinkAllValueOptions,
-            this.SelectedNetworkSubsetLinkValue
-        );
-    }
-
-    private getNetworkSubsetValueOptions(records: any[], field: string): string[] {
-        if (!field || field === 'None') {
-            return [];
-        }
-
-        const options = new Set<string>();
-        records.forEach(record => {
-            const rawValue = record?.[field];
-            const values = Array.isArray(rawValue) ? rawValue : [rawValue];
-
-            values.forEach(value => {
-                const normalizedValue = this.normalizeNetworkSubsetOptionValue(value);
-                if (normalizedValue.length > 0) {
-                    options.add(normalizedValue);
-                }
-            });
-        });
-
-        return Array.from(options).sort((a, b) => a.localeCompare(b, undefined, {
-            numeric: true,
-            sensitivity: 'base'
-        }));
-    }
-
-    private filterNetworkSubsetValueOptions(options: string[], query: string): string[] {
-        const normalizedQuery = `${query ?? ''}`.trim().toLowerCase();
-        const filteredOptions = normalizedQuery.length
-            ? options.filter(option => option.toLowerCase().includes(normalizedQuery))
-            : options;
-
-        return filteredOptions.slice(0, this.NetworkSubsetValueSuggestionLimit);
-    }
-
-    private normalizeNetworkSubsetOptionValue(value: any): string {
-        if (value === undefined || value === null) {
-            return '';
-        }
-
-        if (value instanceof Date) {
-            return value.toISOString();
-        }
-
-        if (typeof value === 'object') {
-            return JSON.stringify(value);
-        }
-
-        return `${value}`.trim();
-    }
-
-    applyNetworkSubsetFilter(): void {
-        this.commonService.setNetworkSubsetFilterState({
-            node: {
-                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetNodeField, this.SelectedNetworkSubsetNodeValue),
-                field: this.SelectedNetworkSubsetNodeField,
-                operator: this.SelectedNetworkSubsetNodeOperator,
-                value: this.SelectedNetworkSubsetNodeValue
-            },
-            link: {
-                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetLinkField, this.SelectedNetworkSubsetLinkValue),
-                field: this.SelectedNetworkSubsetLinkField,
-                operator: this.SelectedNetworkSubsetLinkOperator,
-                value: this.SelectedNetworkSubsetLinkValue
-            }
-        });
-    }
-
-    clearNetworkSubsetFilter(): void {
-        this.commonService.clearNetworkSubsetFilter(false);
-        this.loadNetworkSubsetFilterSettings();
-        this.commonService.setLinkVisibility(true, false);
-        this.commonService.updateNetworkVisuals(false, true);
-    }
-
-    isNetworkSubsetFilterActive(): boolean {
-        return this.commonService.isNetworkSubsetFilterActive();
-    }
-
-    getNetworkSubsetFilterLabel(): string {
-        return this.commonService.getNetworkSubsetFilterLabel();
     }
 
     /**
@@ -4583,9 +4434,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
               this.homepageTabs[0].isActive = true;
               console.log("Trying to launch");
               this.homepageTabs[0].componentRef.instance.launchClick();
-              $('#overlay').fadeOut();
-              $('.ui-tabview-nav').fadeTo("slow", 1);
-              $('.m-portlet').fadeTo("slow", 1);
+              this.dismissWelcomeOverlay();
             }
           });
           break;
@@ -4775,7 +4624,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     void instance._rerender();
                 }
             } else if (
-                ['Table', NetworkStatisticsComponent.componentTypeName, 'Crosstab', 'Aggregate'].includes(viewName) &&
+                ['Table', 'Crosstab', 'Aggregate'].includes(viewName) &&
                 instance.onLoadNewData
             ) {
                 instance.onLoadNewData();
@@ -4954,18 +4803,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 break;
             }
             case "Table": {
-
-                this.showSettings = false;
-                this.showExport = true;
-                this.showCenter = false;
-                this.showPinAllNodes = false;
-                this.showRefresh = false;
-                this.showButtonGroup = true;
-                this.showSorting = true;
-
-                break;
-            }
-            case NetworkStatisticsComponent.componentTypeName: {
 
                 this.showSettings = false;
                 this.showExport = true;
