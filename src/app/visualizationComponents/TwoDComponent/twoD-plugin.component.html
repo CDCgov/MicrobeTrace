@@ -177,15 +177,9 @@
                     </div>
                   </div>
                   <div class="form-group row" title="Maximum genetic distance for nodes to collapse into aggregate pie nodes.">
-                    <div class="col-4"><label for="network-node-collapse-threshold">Distance ({{ SelectedNodeCollapseMetricLabel }})</label></div>
+                    <div class="col-4"><label for="network-node-collapse-threshold-input">Distance ({{ SelectedNodeCollapseMetricLabel }})</label></div>
                     <div class="col-8">
-                      <input type="range" class="custom-range" id="network-node-collapse-threshold" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="!SelectedNodeCollapseTypeVariable" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (change)="onNodeCollapseThresholdDisplayedChange($event)">
-                    </div>
-                  </div>
-                  <div class="form-group row" title="Exact genetic distance used for collapse.">
-                    <div class="col-4"><label for="network-node-collapse-threshold-input">{{ SelectedNodeCollapseMetricLabel }}</label></div>
-                    <div class="col-8">
-                      <input type="number" class="form-control form-control-sm" id="network-node-collapse-threshold-input" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="!SelectedNodeCollapseTypeVariable" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (change)="onNodeCollapseThresholdDisplayedChange($event)">
+                      <input type="number" class="form-control form-control-sm" id="network-node-collapse-threshold-input" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="!SelectedNodeCollapseTypeVariable" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (ngModelChange)="onNodeCollapseThresholdDisplayedChange($event, false)" (blur)="onNodeCollapseThresholdInputBlur()">
                     </div>
                   </div>
                 </p-accordion-content>
