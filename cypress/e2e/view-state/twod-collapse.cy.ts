@@ -383,6 +383,99 @@ describe('2D Network - Collapse Related Nodes', () => {
     });
   });
 
+  it('keeps unchanged collapsed aggregates fixed across timeline ticks', () => {
+    cy.window().then(async (win: any) => {
+      const commonService = win.commonService;
+      const twoD = commonService.visuals.twoD;
+      const widgets = commonService.session.style.widgets;
+      const threshold = configureDeterministicCollapsePie(win);
+      const [firstNode, secondNode, thirdNode, fourthNode] = commonService.session.data.nodes;
+      const firstId = String(firstNode._id ?? firstNode.id);
+      const secondId = String(secondNode._id ?? secondNode.id);
+      const thirdId = String(thirdNode._id ?? thirdNode.id);
+      const fourthId = String(fourthNode._id ?? fourthNode.id);
+      const timelineField = '__twodCollapseTimelineDate';
+      const checkpointDates = new Map([
+        [firstId, '2021-01-02'],
+        [secondId, '2021-01-01'],
+        [thirdId, '2021-01-01'],
+        [fourthId, '2021-01-03'],
+      ]);
+      const timelineLinkTemplate = commonService.session.data.links
+        .find((link: any) => String(link.id || '') === 'cypress-collapse-distance-bc');
+
+      expect(firstNode, 'timeline first node').to.exist;
+      expect(secondNode, 'timeline second node').to.exist;
+      expect(thirdNode, 'timeline third node').to.exist;
+      expect(fourthNode, 'timeline fourth node').to.exist;
+      expect(timelineLinkTemplate, 'timeline collapse link template').to.exist;
+
+      commonService.session.data.links.push({
+        ...timelineLinkTemplate,
+        id: 'cypress-collapse-distance-bd',
+        index: commonService.session.data.links.length,
+        source: secondId,
+        target: fourthId,
+        distance: threshold,
+      });
+      commonService.session.data.links.forEach((link: any) => {
+        const linkId = String(link.id || '');
+        if (link.hasDistance !== true) return;
+
+        link.distance = linkId === 'cypress-collapse-distance-bc'
+          || linkId === 'cypress-collapse-distance-bd'
+          ? threshold
+          : 0.2;
+      });
+
+      [commonService.session.data.nodes, commonService.session.data.nodeFilteredValues]
+        .forEach((nodes: any[]) => {
+          nodes.forEach((node: any) => {
+            const nodeId = String(node._id ?? node.id ?? '');
+            node[timelineField] = checkpointDates.get(nodeId) || '2021-01-04';
+          });
+        });
+
+      widgets['network-node-collapse-enabled'] = true;
+      widgets['network-node-collapse-threshold'] = threshold;
+      await twoD._rerender(false);
+      widgets['timeline-date-field'] = timelineField;
+
+      const renderCheckpoint = async (date: string, expectedMemberIds: string[]) => {
+        commonService.session.state.timeEnd = new Date(`${date}T23:59:59Z`);
+        commonService.setNodeVisibility(true);
+        commonService.setLinkVisibility(true);
+        await twoD._rerender(true);
+
+        const expectedMembers = [...expectedMemberIds].sort();
+        const aggregate = twoD.cy.nodes(':visible')
+          .filter((node: any) => node.data('isCollapsedAggregate') === true)
+          .toArray()
+          .find((node: any) => {
+            const memberIds = (node.data('collapsedMemberIds') || []).map(String).sort();
+            return JSON.stringify(memberIds) === JSON.stringify(expectedMembers);
+          });
+
+        expect(aggregate, `timeline aggregate at ${date}`).to.exist;
+        return {
+          id: aggregate.id(),
+          position: aggregate.position(),
+        };
+      };
+
+      const initialAggregate = await renderCheckpoint('2021-01-01', [secondId, thirdId]);
+      const unchangedAggregate = await renderCheckpoint('2021-01-02', [secondId, thirdId]);
+      const expandedAggregate = await renderCheckpoint('2021-01-03', [secondId, thirdId, fourthId]);
+
+      expect(unchangedAggregate.id, 'unchanged timeline aggregate id').to.equal(initialAggregate.id);
+      expect(unchangedAggregate.position.x, 'unchanged timeline aggregate x')
+        .to.be.closeTo(initialAggregate.position.x, 0.001);
+      expect(unchangedAggregate.position.y, 'unchanged timeline aggregate y')
+        .to.be.closeTo(initialAggregate.position.y, 0.001);
+      expect(expandedAggregate.id, 'expanded timeline aggregate id').not.to.equal(unchangedAggregate.id);
+    });
+  });
+
   it('keeps collapsed aggregates within active grouping boundaries', () => {
     const groupingField = 'cluster';
     let sameGroupMemberIds: string[] = [];

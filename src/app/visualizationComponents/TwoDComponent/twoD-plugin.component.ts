@@ -668,6 +668,44 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return typeof id === 'string' ? id : String(id);
     }
 
+    private getCollapsedAggregateId(memberNodes: any[]): string {
+        const memberSignature = JSON.stringify(
+            memberNodes
+                .map(node => this.getNodeId(node))
+                .sort()
+        );
+        let primaryHash = 2166136261;
+        let secondaryHash = 2246822507;
+
+        for (let index = 0; index < memberSignature.length; index++) {
+            const code = memberSignature.charCodeAt(index);
+            primaryHash = Math.imul(primaryHash ^ code, 16777619);
+            secondaryHash = Math.imul(secondaryHash ^ code, 1597334677);
+        }
+
+        return `${this.collapsedNodeIdPrefix}${memberNodes.length}-${(primaryHash >>> 0).toString(36)}-${(secondaryHash >>> 0).toString(36)}`;
+    }
+
+    private getNodeRenderPosition(node: any): { x: number; y: number } {
+        const cachedPosition = this.nodePositions.get(this.getNodeId(node));
+        const resolveCoordinate = (value: any, cachedValue: any): number => {
+            const numericValue = Number(value);
+            if (value !== null && value !== undefined && value !== '' && Number.isFinite(numericValue)) {
+                return numericValue;
+            }
+
+            const numericCachedValue = Number(cachedValue);
+            return Number.isFinite(numericCachedValue)
+                ? numericCachedValue
+                : Math.random() * 500;
+        };
+
+        return {
+            x: resolveCoordinate(node?.x, cachedPosition?.x),
+            y: resolveCoordinate(node?.y, cachedPosition?.y)
+        };
+    }
+
     private getSessionNetworkNodes(): any[] {
         const networkNodes = this.commonService.session?.network?.nodes;
         if (Array.isArray(networkNodes) && networkNodes.length > 0) {
@@ -1187,7 +1225,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         componentIndex: number,
         metric: string
     ): any {
-        const aggregateId = `${this.collapsedNodeIdPrefix}${componentIndex}`;
+        const aggregateId = this.getCollapsedAggregateId(memberNodes);
         const firstMember = memberNodes[0] || {};
         const finiteX = memberNodes.map(node => Number(node.x)).filter(value => Number.isFinite(value));
         const finiteY = memberNodes.map(node => Number(node.y)).filter(value => Number.isFinite(value));
@@ -1477,10 +1515,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
-	                position: { 
-	                    x:node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
-	                    y:node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
-	                }
+	                position: this.getNodeRenderPosition(node)
 	            }
         } else {
 	            node.label = this.getNodeLabel(node);
@@ -1491,10 +1526,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
-	                position: {
-	                    x: node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
-	                    y: node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
-	                  }
+	                position: this.getNodeRenderPosition(node)
                   
             };
         }
@@ -4839,6 +4871,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.store.setNetworkRendered(false);
         }
 
+        if (timelineTick && this.cy) {
+            this.cacheCollapsedAggregatePositions();
+        }
+
         const collectDataStart = this.getPerformanceNow();
         let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
         this.normalizeNetworkDataForCytoscape(networkData, false);
@@ -4909,6 +4945,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cy.elements().remove();
             const newElements = this.mapDataToCytoscapeElements(this.data, true);
             this.cy.add(newElements);
+            this.cacheCollapsedAggregatePositions();
             this.recordTwoDRenderTiming('twoDTimelineUpdate', timelineUpdateStart, {
                 nodes: newElements.nodes.length,
                 edges: newElements.edges.length
