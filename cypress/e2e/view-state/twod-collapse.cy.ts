@@ -14,7 +14,7 @@ const selectors = {
 const collapseGroupField = '__twodCollapseGroup';
 const collapseShapeWarningText = 'All collapsed nodes will be displayed as circles';
 
-function expectCollapseDistanceControl(label: string, step: string): void {
+function expectCollapseDistanceControl(label: string, step: string, max: string): void {
   cy.get('@dialogContainer')
     .find('label[for="network-node-collapse-threshold-input"]')
     .should('have.text', label);
@@ -32,8 +32,7 @@ function expectCollapseDistanceControl(label: string, step: string): void {
     .should('have.attr', 'step', step);
   cy.get('@dialogContainer')
     .find(selectors.collapseThresholdInput)
-    .invoke('attr', 'max')
-    .then(max => expect(Number(max), `${label} maximum`).to.be.greaterThan(0));
+    .should('have.attr', 'max', max);
 }
 
 function linkEndpointId(endpoint: any): string {
@@ -527,7 +526,7 @@ describe('2D Network - Collapse Related Nodes', () => {
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
-    expectCollapseDistanceControl('Distance (TN93 (%))', '0.1');
+    expectCollapseDistanceControl('Distance (TN93 (%))', '0.1', '1.5');
     cy.get('@dialogContainer').find(selectors.collapseThresholdSlider).should('not.exist');
     cy.closeSettingsPane('2D Network Settings');
 
@@ -544,7 +543,7 @@ describe('2D Network - Collapse Related Nodes', () => {
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
-    expectCollapseDistanceControl('Distance (TN93)', '0.001');
+    expectCollapseDistanceControl('Distance (TN93)', '0.001', '0.015');
     cy.closeSettingsPane('2D Network Settings');
 
     cy.openGlobalSettings();
@@ -564,6 +563,41 @@ describe('2D Network - Collapse Related Nodes', () => {
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
     cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
-    expectCollapseDistanceControl('Distance (SNPs)', '1');
+    expectCollapseDistanceControl('Distance (SNPs)', '1', '16');
+  });
+
+  it('caps the collapse distance at the current filtering threshold', () => {
+    cy.openGlobalSettings();
+    cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
+    setTN93DistanceDisplayFormat('decimal');
+    cy.closeGlobalSettings();
+
+    cy.get(selectors.settingsBtn).click();
+    cy.contains('.p-dialog-title', '2D Network Settings')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('dialogContainer');
+
+    cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
+    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    cy.get('@dialogContainer')
+      .find(selectors.collapseThresholdInput)
+      .should('have.attr', 'max', '0.015');
+
+    cy.window().then((win: any) => {
+      win.commonService.session.style.widgets['network-node-collapse-threshold'] = 0.2;
+      win.commonService.visuals.microbeTrace.onLinkThresholdChanged(0.002, true);
+    });
+
+    cy.get('@dialogContainer')
+      .find(selectors.collapseThresholdInput)
+      .should('have.attr', 'max', '0.002');
+    cy.get('@dialogContainer')
+      .find(selectors.collapseThresholdInput)
+      .should('have.value', '0.002');
+
+    cy.window()
+      .its('commonService.session.style.widgets.network-node-collapse-threshold')
+      .should('equal', 0.002);
   });
 });
