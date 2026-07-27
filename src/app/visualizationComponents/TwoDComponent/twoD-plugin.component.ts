@@ -809,8 +809,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private syncNodeCollapseThresholdDomControls(): void {
-        const controls = $('#network-node-collapse-threshold, #network-node-collapse-threshold-input');
-        controls
+        const control = $('#network-node-collapse-threshold-input');
+        control
             .attr('min', this.NodeCollapseThresholdMinDisplayed)
             .attr('max', this.NodeCollapseThresholdMaxDisplayed)
             .attr('step', this.NodeCollapseThresholdStepDisplayed)
@@ -925,12 +925,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.setNodeCollapseEnabled(enabled);
     }
 
-    public onNodeCollapseThresholdDisplayedChange(value: any): void {
+    public onNodeCollapseThresholdDisplayedChange(value: any, syncControl = true): void {
         this.ensureNodeCollapseWidgetDefaults();
         const metric = this.getNodeCollapseMetric();
         const rawDisplayedValue = value && typeof value === 'object' && 'target' in value
             ? (value.target as HTMLInputElement)?.value
             : value;
+
+        if (rawDisplayedValue === null || rawDisplayedValue === undefined || rawDisplayedValue === '') {
+            return;
+        }
+
         const displayedValue = Number(rawDisplayedValue);
 
         if (!Number.isFinite(displayedValue)) {
@@ -949,11 +954,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets['network-node-collapse-threshold'] = rawThreshold;
         this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(rawThreshold, metric);
-        this.syncNodeCollapseThresholdDomControls();
+        if (syncControl) {
+            this.syncNodeCollapseThresholdDomControls();
+        }
 
         if (this.isNodeCollapseEnabled()) {
             this.refreshNodeCollapseRender();
         }
+    }
+
+    public onNodeCollapseThresholdInputBlur(): void {
+        const metric = this.getNodeCollapseMetric();
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(
+            this.getNodeCollapseThresholdRaw(),
+            metric
+        );
+        this.syncNodeCollapseThresholdDomControls();
     }
 
     private getCollapsedNodeBaseSize(): number {
