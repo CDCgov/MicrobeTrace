@@ -106,10 +106,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return Math.max(48, Number(this.widgets?.['node-radius'] || 20) * 3);
     }
 
+    private getNodeCollisionRadius(node: any): number {
+        const aggregateRenderedSize = Number(node?.aggregateRenderedSize);
+        const configuredNodeSize = Number(node?.nodeSize ?? this.widgets?.['node-radius']);
+        const fallbackNodeSize = Number.isFinite(configuredNodeSize) && configuredNodeSize > 0
+            ? configuredNodeSize
+            : 20;
+        const renderedDiameter = node?.isCollapsedAggregate === true
+            && Number.isFinite(aggregateRenderedSize)
+            && aggregateRenderedSize > 0
+                ? aggregateRenderedSize
+                : this.mapNodeSize(fallbackNodeSize);
+
+        return (renderedDiameter / 2) + 6;
+    }
+
     private assignNoLinkGridPositions(nodes: any[], force: boolean = false): void {
         if (!nodes || nodes.length === 0) return;
 
-        const spacing = this.getNodeLayoutSpacing();
+        const largestCollisionDiameter = nodes.reduce(
+            (largest, node) => Math.max(largest, this.getNodeCollisionRadius(node) * 2),
+            0
+        );
+        const spacing = Math.max(this.getNodeLayoutSpacing(), largestCollisionDiameter);
         const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
 
         nodes.forEach((node, index) => {
@@ -2022,7 +2041,40 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         if (!links || links.length === 0) {
             this.assignNoLinkGridPositions(nodes, initial || nodes.some(node => !this.hasFinitePosition(node)));
-            return { nodes, links, tickBatches: 0, ticksPerYield: 0 };
+
+            if (!nodes.some(node => node?.isCollapsedAggregate === true)) {
+                return { nodes, links, tickBatches: 0, ticksPerYield: 0 };
+            }
+
+            const layoutOrigins = new Map<any, { x: number; y: number }>(
+                nodes.map(node => [node, { x: Number(node.x), y: Number(node.y) }])
+            );
+            const collisionSimulation = d3.forceSimulation(nodes)
+                .force(
+                    'x',
+                    d3.forceX((node: any) => layoutOrigins.get(node)?.x ?? 0).strength(0.05)
+                )
+                .force(
+                    'y',
+                    d3.forceY((node: any) => layoutOrigins.get(node)?.y ?? 0).strength(0.05)
+                )
+                .force(
+                    'collide',
+                    d3.forceCollide()
+                        .radius((node: any) => this.getNodeCollisionRadius(node))
+                        .strength(1)
+                        .iterations(3)
+                )
+                .stop();
+            const collisionTicks = Math.min(ticks, 60);
+            const ticksPerYield = this.getD3TicksPerYield(nodes, links);
+            const tickBatches = await this.runStoppedD3Ticks(
+                collisionSimulation,
+                collisionTicks,
+                ticksPerYield
+            );
+
+            return { nodes, links, tickBatches, ticksPerYield };
         }
         let simulation;
         if (initial) {
@@ -2036,7 +2088,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .force('charge', d3.forceManyBody().strength(-30))
                 .force('link', d3.forceLink(links).id((d: any) => d.id).distance(this.SelectedLinkLengthVariable))
                 .force('center', d3.forceCenter(0, 0))
-                .force('collide', d3.forceCollide().radius(d => this.mapNodeSize(d.nodeSize ? d.nodeSize : this.widgets['node-radius'])))
+                .force(
+                    'collide',
+                    d3.forceCollide()
+                        .radius((node: any) => this.getNodeCollisionRadius(node))
+                        .strength(1)
+                        .iterations(2)
+                )
                 .force('x', d3.forceX().strength(.005))
                 .force('y', d3.forceY().strength(.005))
                 .stop(); 
@@ -6005,6 +6063,12 @@ scaleLinkWidth() {
         nodes: cy.nodes().length,
         edges: cy.edges().length
     });
+
+        cy.nodes(':visible')
+            .filter((node: any) => node.data('isCollapsedAggregate') === true)
+            .forEach((node: any) => {
+                this.nodePositions.set(node.id(), node.position());
+            });
 
         if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
             return;
