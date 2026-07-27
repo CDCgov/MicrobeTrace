@@ -79,6 +79,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private readonly collapsedNodeIdPrefix = 'twod-collapse-';
     private nodeCollapseShapeWarningConfirmed = false;
     private nodeCollapseShapeWarningPending = false;
+    private nodeCollapseRefreshPending = false;
+    private nodeCollapseRefreshScheduled = false;
 
     private getPerformanceNow(): number {
         return typeof performance !== 'undefined' && performance.now
@@ -214,6 +216,55 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return this.normalizeGroupingValue(this.getCyNodeDataValue(node, field));
     }
 
+    private getActiveNodeGroupingField(): string | null {
+        if (this.widgets?.['polygons-show'] !== true) {
+            return null;
+        }
+
+        const groupingField = String(this.widgets?.['polygons-foci'] || '').trim();
+        return groupingField && groupingField !== 'None' ? groupingField : null;
+    }
+
+    private isRenderedLayoutNode(node: cytoscape.NodeSingular): boolean {
+        return !node.hasClass('parent')
+            && node.children().length === 0
+            && !node.hasClass('hidden');
+    }
+
+    private getRenderedLayoutLinks(): Array<{ source: string; target: string }> {
+        if (!this.cy) return [];
+
+        const renderedNodeIds = new Set(
+            this.cy.nodes()
+                .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+                .map(node => node.id())
+        );
+
+        return this.cy.edges()
+            .filter((edge: any) => (
+                !edge.hasClass('hidden')
+                && renderedNodeIds.has(edge.source().id())
+                && renderedNodeIds.has(edge.target().id())
+            ))
+            .map((edge: any) => ({
+                source: edge.source().id(),
+                target: edge.target().id()
+            }));
+    }
+
+    private cacheCollapsedAggregatePositions(): void {
+        if (!this.cy) return;
+
+        this.cy.nodes()
+            .filter((node: any) => (
+                this.isRenderedLayoutNode(node as cytoscape.NodeSingular)
+                && node.data('isCollapsedAggregate') === true
+            ))
+            .forEach((node: any) => {
+                this.nodePositions.set(node.id(), node.position());
+            });
+    }
+
     private isCytoscapeNodeMetadataValue(value: any): boolean {
         if (value === undefined) return false;
         if (value === null) return true;
@@ -300,11 +351,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!this.cy) return;
 
         const layoutStart = this.getPerformanceNow();
-        const childNodes = this.cy.nodes().filter((node: any) => (
-            !node.hasClass('parent') &&
-            node.children().length === 0 &&
-            !node.hasClass('hidden')
-        )).toArray();
+        const childNodes = this.cy.nodes()
+            .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+            .toArray();
 
         if (childNodes.length === 0) return;
 
@@ -317,7 +366,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         const groups = Array.from(groupMap.entries()).map(([key, values]) => ({ key, values }));
-        const spacing = this.getNodeLayoutSpacing();
+        const spacing = Math.max(
+            this.getNodeLayoutSpacing(),
+            childNodes.reduce(
+                (largest, node) => Math.max(largest, this.getNodeCollisionRadius(node.data()) * 2),
+                0
+            )
+        );
         const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
         const groupLayouts = groups.map(group => {
             const columns = Math.max(1, Math.ceil(Math.sqrt(group.values.length)));
@@ -840,17 +895,52 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private refreshNodeCollapseRender(): void {
+        this.nodeCollapseRefreshPending = true;
+
         if (!this.viewActive) {
+            this.nodeCollapseRefreshPending = false;
             this.rerenderOnActive = true;
             return;
         }
 
-        void this._rerender(false)
-            .finally(() => {
-                if (!this.isDestroyed) {
-                    this.setNetworkRendering(false);
-                }
-            });
+        this.scheduleNodeCollapseRefresh();
+    }
+
+    private scheduleNodeCollapseRefresh(delayMs: number = 0): void {
+        if (this.nodeCollapseRefreshScheduled || this.isDestroyed) {
+            return;
+        }
+
+        this.nodeCollapseRefreshScheduled = true;
+        setTimeout(() => {
+            this.nodeCollapseRefreshScheduled = false;
+
+            if (this.isDestroyed || !this.nodeCollapseRefreshPending) {
+                return;
+            }
+
+            if (!this.viewActive) {
+                this.nodeCollapseRefreshPending = false;
+                this.rerenderOnActive = true;
+                return;
+            }
+
+            if (this.isNetworkRendering()) {
+                this.scheduleNodeCollapseRefresh(25);
+                return;
+            }
+
+            this.nodeCollapseRefreshPending = false;
+            void this._rerender(false)
+                .finally(() => {
+                    if (!this.isDestroyed) {
+                        this.setNetworkRendering(false);
+                        if (this.nodeCollapseRefreshPending) {
+                            this.scheduleNodeCollapseRefresh();
+                        }
+                    }
+                });
+        }, delayMs);
     }
 
     private isNonCircleNodeShape(shapeKey: any): boolean {
@@ -1178,7 +1268,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         const nodeIds = new Set(nodeById.keys());
-        const distanceLinks = this.getNodeCollapseDistanceLinks(nodeIds, metric);
+        const groupingField = this.getActiveNodeGroupingField();
+        const distanceLinks = this.getNodeCollapseDistanceLinks(nodeIds, metric)
+            .filter(link => {
+                if (!groupingField) {
+                    return true;
+                }
+
+                const sourceNode = nodeById.get(this.getLinkEndpointId(link.source));
+                const targetNode = nodeById.get(this.getLinkEndpointId(link.target));
+                const sourceGroup = this.normalizeGroupingValue(sourceNode?.[groupingField]);
+                const targetGroup = this.normalizeGroupingValue(targetNode?.[groupingField]);
+
+                return sourceGroup === targetGroup;
+            });
         const summary = buildThresholdConnectedComponents(nodes, distanceLinks, metric, threshold);
         const collapsedComponentIds = new Set<number>();
 
@@ -1211,6 +1314,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .map(nodeId => nodeById.get(nodeId))
                 .filter(Boolean);
             const aggregateNode = this.createCollapsedAggregateNode(memberNodes, componentIndex, metric);
+            if (groupingField) {
+                aggregateNode[groupingField] = memberNodes[0]?.[groupingField];
+            }
             renderedNodes.push(aggregateNode);
             renderedNodeIds.add(aggregateNode.id);
             component.nodeIds.forEach(nodeId => renderedNodeIdByOriginalId.set(nodeId, aggregateNode.id));
@@ -1838,6 +1944,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // updates node position values (x, y) stored in commonService 
         this.syncVisibleNodePositionsFromCy(visNodes);
+        this.cacheCollapsedAggregatePositions();
 
         this.fit();
 
@@ -1851,13 +1958,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     async applyGatherForce(ticks: number = 10): Promise<{ nodes: any[]; links: any[] }> {
                 //let nodes = this.commonService.getVisibleNodes()
-        let links = this.commonService.getVisibleLinks().map(link =>{ return {'source': link.source, 'target': link.target} });
+        const links = this.getRenderedLayoutLinks();
         
         let tickCount = 0;
         
         let childNodes: {id: string, parentX: any, parentY: any,  x: number, y: number, vx?:number, vy?:number, size: number}[] = [];
 
         this.cy.nodes().forEach(node => {
+            if (!this.isRenderedLayoutNode(node)) {
+                return;
+            }
+
             if (node.children().length > 0) {
                 return;
             } else if (node.parent().length > 0) {
@@ -1915,7 +2026,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Applies force to gather nodes within a group and separate them from other groups
      */
     async applySeparationForce(): Promise<{ nodes: any[]; links: any[], parentNodes: any[] }> {
-        let links = this.commonService.getVisibleLinks().map(link =>{ return {'source': link.source, 'target': link.target} });
+        const links = this.getRenderedLayoutLinks();
         let ticks = 20;
         let tickCount = 0;
 
@@ -1923,7 +2034,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let childNodes: {id: string, parent: any, x: number, y: number, vx?:number, vy?:number, size: number}[] = [];
 
         this.cy.nodes().forEach(node => {
+            if (node.hasClass('hidden')) {
+                return;
+            }
+
             if (node.children().length > 0) {
+                const renderedChildren = node.children()
+                    .filter((child: any) => this.isRenderedLayoutNode(child as cytoscape.NodeSingular));
+                if (renderedChildren.length === 0) {
+                    return;
+                }
+
                 //console.log(node);
                 parentNodes.push({
                     id: node.id(),
@@ -1943,7 +2064,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else {
                 parentNodes.push({
                     id: node.id(),
-                    max_dim: 35,
+                    max_dim: Math.max(node.width(), node.height()),
                     x: node.position('x'),
                     y: node.position('y'),
                     group: false,
@@ -3115,11 +3236,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * That widget controls whether polygons are shown or not
      * 
      */
-    polygonsToggle(flag: boolean) {
+    polygonsToggle(flag: boolean, refreshCollapse: boolean = true) {
 
         this.widgets['polygons-show'] = flag;
 
-        this.updateNodeGrouping(flag);
+        if (refreshCollapse && this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+        } else {
+            this.updateNodeGrouping(flag);
+        }
 
         if (flag) {
             this.applyPolygonLabelStyle();
@@ -3165,7 +3290,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
         let foci = this.commonService.session.style.widgets['polygons-foci'];
         cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) {
+            if (node.hasClass('parent') || node.hasClass('hidden')) {
                 return;
             }
 
@@ -3778,9 +3903,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * This is called when the variable used to grouped by/created polygons is changed
      * 
      */
-    async centerPolygons(e, updateLayout: boolean = true) {
+    async centerPolygons(e, updateLayout: boolean = true, refreshCollapse: boolean = true) {
 
         this.widgets['polygons-foci'] = e;
+        if (refreshCollapse && this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
+
         if (this.shouldChunkLargeNoLinkLayout()) {
             this.updateGroupAssignmentsNoLinkFast(e);
             if (this.widgets['polygons-color-show'] == true) {
@@ -3812,7 +3942,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async updateLayout(): Promise<void> {
         if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
             await this._partialUpdate();
-        } else if (this.commonService.getVisibleLinks().length === 0) {
+        } else if (this.getRenderedLayoutLinks().length === 0) {
             await this.applyNoLinkGroupedLayout(this.commonService.session.style.widgets['polygons-foci']);
         } else {
             await this.gatherGroups();
@@ -3851,6 +3981,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
     
             cy.nodes().forEach(node => {
+                if (node.hasClass('parent') || node.hasClass('hidden')) {
+                    return;
+                }
+
                 // if(node.data('id') === '30578_KF773488_D99cl05') {
                 //     console.log('nodeee1: ', node.data());
                 //     console.log('nodeee2: ', node.data(foci));
@@ -3899,7 +4033,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Handle nodes without a group (optional)
             cy.nodes().forEach(node => {
-                if (!node.parent().length && this.getCyNodeGroupingKey(node, foci) !== null) {
+                if (
+                    !node.hasClass('parent')
+                    && !node.hasClass('hidden')
+                    && !node.parent().length
+                    && this.getCyNodeGroupingKey(node, foci) !== null
+                ) {
                     node.move({ parent: null });
                 }
             });
@@ -3931,7 +4070,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
 
         cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) return;
+            if (node.hasClass('parent') || node.hasClass('hidden')) return;
 
             const group = this.getCyNodeGroupingKey(node, foci);
             if (group !== null) {
@@ -3949,7 +4088,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const groups = Array.from(groupMap.entries()).map(([key, values]) => ({ key, values }));
-        const spacing = this.getNodeLayoutSpacing();
+        const renderedNodes = groups.flatMap(group => group.values);
+        const spacing = Math.max(
+            this.getNodeLayoutSpacing(),
+            renderedNodes.reduce(
+                (largest, node) => Math.max(largest, this.getNodeCollisionRadius(node.data()) * 2),
+                0
+            )
+        );
         const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
         const groupLayouts = groups.map(group => {
             const columns = Math.max(1, Math.ceil(Math.sqrt(group.values.length)));
@@ -5113,8 +5259,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     console.log('twod 2323 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
                 }
 
-                this.polygonsToggle(true)
-                this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
+                this.polygonsToggle(true, false)
+                this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], true, false);
                 if (this.debugMode) {
                     console.log('twod 11 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
                 }
@@ -5171,8 +5317,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
         if (this.commonService.session.style.widgets['polygons-show']) {
 
-            this.polygonsToggle(true)
-            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], updateLayout);
+            this.polygonsToggle(true, false)
+            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], updateLayout, false);
             this.cy.nodes().forEach(node => {
                 if (node.classes().includes('parent')) {
                     let numVisibleChildren = node.children().filter(child => child.visible()).length;
@@ -5996,6 +6142,12 @@ scaleLinkWidth() {
 
         // Update node visibility and restore positions
         cy.nodes().forEach(node => {
+            if (!newNodeIds.has(node.id()) && node.data('isCollapsedAggregate') === true) {
+                this.nodePositions.delete(node.id());
+                cy.remove(node);
+                return;
+            }
+
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
                 // Hide node but keep its cached position
                 node.addClass('hidden');
@@ -6064,11 +6216,7 @@ scaleLinkWidth() {
         edges: cy.edges().length
     });
 
-        cy.nodes(':visible')
-            .filter((node: any) => node.data('isCollapsedAggregate') === true)
-            .forEach((node: any) => {
-                this.nodePositions.set(node.id(), node.position());
-            });
+        this.cacheCollapsedAggregatePositions();
 
         if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
             return;
@@ -6209,7 +6357,7 @@ scaleLinkWidth() {
         this.SelectedPolygonLabelOrientationVariable = widgetPolygonOrientation == 'top' ? 'Top' : widgetPolygonOrientation == 'bottom' ? 'Bottom': widgetPolygonOrientation == 'middle'? 'Middle': widgetPolygonOrientation;
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
-        this.polygonsToggle(this.widgets['polygons-show']);
+        this.polygonsToggle(this.widgets['polygons-show'], false);
         if (this.commonService.session.style.widgets['polygons-show']) {
             this.polygonColorsToggle(this.commonService.session.style.widgets['polygons-color-show'], false);
             this.onPolygonColorTableChange(this.commonService.session.style.widgets['polygon-color-table-visible']);

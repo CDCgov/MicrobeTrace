@@ -383,6 +383,130 @@ describe('2D Network - Collapse Related Nodes', () => {
     });
   });
 
+  it('keeps collapsed aggregates within active grouping boundaries', () => {
+    const groupingField = 'cluster';
+    let sameGroupMemberIds: string[] = [];
+    let differentGroupMemberId = '';
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const twoD = commonService.visuals.twoD;
+      const threshold = configureDeterministicCollapsePie(win);
+      const syntheticLinks = commonService.session.data.links
+        .filter((link: any) => String(link.id || '').startsWith('cypress-collapse-distance-'));
+      const [firstNode, secondNode, thirdNode] = commonService.session.data.nodes;
+      const firstId = String(firstNode._id ?? firstNode.id);
+      const secondId = String(secondNode._id ?? secondNode.id);
+      const thirdId = String(thirdNode._id ?? thirdNode.id);
+
+      sameGroupMemberIds = [firstId, thirdId].sort();
+      differentGroupMemberId = secondId;
+
+      syntheticLinks.forEach((link: any) => {
+        link.distance = threshold;
+      });
+      commonService.session.data.links.forEach((link: any) => {
+        if (!String(link.id || '').startsWith('cypress-collapse-distance-') && link.hasDistance === true) {
+          link.distance = 0.2;
+        }
+      });
+
+      commonService.session.data.nodes.forEach((node: any) => {
+        const id = String(node._id ?? node.id ?? '');
+        node[groupingField] = sameGroupMemberIds.includes(id)
+          ? 'Group A'
+          : id === differentGroupMemberId
+            ? 'Group B'
+            : 'Outside Group';
+      });
+      commonService.session.data.nodeFilteredValues.forEach((node: any) => {
+        const id = String(node._id ?? node.id ?? '');
+        node[groupingField] = sameGroupMemberIds.includes(id)
+          ? 'Group A'
+          : id === differentGroupMemberId
+            ? 'Group B'
+            : 'Outside Group';
+      });
+
+      twoD.onNodeCollapseThresholdDisplayedChange(
+        commonService.toDisplayedDistanceValue(threshold, 'distance')
+      );
+      twoD.onNodeCollapseEnabledChange(true);
+    });
+
+    cy.window().then((win: any) => {
+      cy.wrap(null, { timeout: 20000 }).should(() => {
+        const aggregateNodes = win.commonService.visuals.twoD.cy.nodes(':visible')
+          .filter((node: any) => node.data('isCollapsedAggregate') === true);
+        const crossGroupAggregate = aggregateNodes
+          .filter((node: any) => {
+            const memberIds = (node.data('collapsedMemberIds') || []).map(String);
+            return sameGroupMemberIds.every((id) => memberIds.includes(id))
+              && memberIds.includes(differentGroupMemberId);
+          });
+
+        expect(crossGroupAggregate.length, 'aggregate spanning groups before grouping').to.equal(1);
+      });
+    });
+
+    cy.window().then((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      twoD.polygonsToggle(true);
+      twoD.centerPolygons(groupingField);
+    });
+
+    cy.window().then((win: any) => {
+      cy.wrap(null, { timeout: 20000 }).should(() => {
+        const commonService = win.commonService;
+        const cyInstance = commonService.visuals.twoD.cy;
+        const nodeById = new Map<string, any>(
+          commonService.session.data.nodes.map((node: any): [string, any] => [
+            String(node._id ?? node.id),
+            node,
+          ])
+        );
+        const aggregateNodes = cyInstance.nodes(':visible')
+          .filter((node: any) => node.data('isCollapsedAggregate') === true);
+        const targetAggregate = aggregateNodes
+          .filter((node: any) => {
+            const memberIds = (node.data('collapsedMemberIds') || []).map(String).sort();
+            return JSON.stringify(memberIds) === JSON.stringify(sameGroupMemberIds);
+          });
+
+        expect(commonService.session.network.rendering, 'network rendering after grouping').to.equal(false);
+        expect(targetAggregate.length, 'same-group aggregate').to.equal(1);
+        expect(targetAggregate[0].parent().id(), 'aggregate parent group').to.equal('group-Group A');
+
+        aggregateNodes.forEach((node: any) => {
+          const memberGroups = new Set(
+            (node.data('collapsedMemberIds') || [])
+              .map((id: any) => nodeById.get(String(id))?.[groupingField])
+          );
+          expect(memberGroups.size, `${node.id()} grouping values`).to.equal(1);
+        });
+
+        const hiddenGroupedNodes = cyInstance.nodes('.hidden')
+          .filter((node: any) => node.parent().length > 0);
+        expect(hiddenGroupedNodes.length, 'hidden originals inside group parents').to.equal(0);
+
+        const staleAggregates = cyInstance.nodes()
+          .filter((node: any) => (
+            node.data('isCollapsedAggregate') === true
+            && node.hasClass('hidden')
+          ));
+        expect(staleAggregates.length, 'stale hidden aggregates').to.equal(0);
+      });
+    });
+
+    cy.window().then((win: any) => win.commonService.visuals.twoD.updateLayout());
+
+    cy.window().then((win: any) => {
+      const hiddenGroupedNodes = win.commonService.visuals.twoD.cy.nodes('.hidden')
+        .filter((node: any) => node.parent().length > 0);
+      expect(hiddenGroupedNodes.length, 'hidden originals after grouped recalculation').to.equal(0);
+    });
+  });
+
   it('warns that collapsed nodes render as circles when non-circle node shapes are active', () => {
     cy.get(selectors.settingsBtn).click();
 
