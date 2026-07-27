@@ -505,6 +505,22 @@ describe('2D Network - Collapse Related Nodes', () => {
         .filter((node: any) => node.parent().length > 0);
       expect(hiddenGroupedNodes.length, 'hidden originals after grouped recalculation').to.equal(0);
     });
+
+    cy.window().then((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      twoD.polygonsToggle(false);
+
+      expect(twoD.widgets['polygons-show'], 'groups setting after Hide').to.equal(false);
+      expect(twoD.cy.nodes('.parent').length, 'group parents removed immediately').to.equal(0);
+    });
+
+    cy.window().then((win: any) => {
+      cy.wrap(null, { timeout: 20000 }).should(() => {
+        const twoD = win.commonService.visuals.twoD;
+        expect(win.commonService.session.network.rendering, 'network rendering after Hide').to.equal(false);
+        expect(twoD.cy.nodes('.parent').length, 'group parents after collapse refresh').to.equal(0);
+      });
+    });
   });
 
   it('warns that collapsed nodes render as circles when non-circle node shapes are active', () => {
