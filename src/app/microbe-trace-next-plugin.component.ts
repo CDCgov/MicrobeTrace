@@ -3490,6 +3490,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.syncThresholdDisplayFromStoredValue();
+        this.store.setLinkThreshold(parsedThreshold);
 
         if(this.commonService.session.data.nodes.length === 0) {
             return;

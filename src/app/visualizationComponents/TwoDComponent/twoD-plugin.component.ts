@@ -797,14 +797,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const storedThreshold = this.getNodeCollapseThresholdRaw();
         const rawStep = this.getNodeCollapseRawStep(metric);
         const rawMin = values.length ? Math.min(0, values[0]) : 0;
-        const rawMaxFromData = values.length ? values[values.length - 1] : rawStep;
-        const rawMax = Math.max(rawMaxFromData, storedThreshold, rawStep);
+        const linkThreshold = Number(this.widgets?.['link-threshold']);
+        const rawMax = Number.isFinite(linkThreshold)
+            ? Math.max(rawMin, linkThreshold)
+            : Math.max(rawMin, rawStep);
+        const clampedStoredThreshold = Math.min(Math.max(storedThreshold, rawMin), rawMax);
+
+        if (clampedStoredThreshold !== storedThreshold) {
+            this.widgets['network-node-collapse-threshold'] = clampedStoredThreshold;
+        }
 
         this.SelectedNodeCollapseMetricLabel = this.getNodeCollapseMetricLabel(metric);
         this.NodeCollapseThresholdMinDisplayed = this.commonService.toDisplayedDistanceValue(rawMin, metric);
         this.NodeCollapseThresholdMaxDisplayed = this.commonService.toDisplayedDistanceValue(rawMax, metric);
         this.NodeCollapseThresholdStepDisplayed = this.commonService.toDisplayedDistanceValue(rawStep, metric);
-        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(storedThreshold, metric);
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(clampedStoredThreshold, metric);
         this.syncNodeCollapseThresholdDomControls();
     }
 
@@ -1271,6 +1278,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     this.thresholdSubscription = this.store.linkThreshold$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newThreshold => {
+            this.syncNodeCollapseControlsFromWidgets();
+            this.cdref.markForCheck();
+
             if (!this.commonService.session.network.isFullyLoaded) return;
 
             if(this.commonService.activeTab === '2D Network') {
