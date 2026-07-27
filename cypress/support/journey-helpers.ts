@@ -518,7 +518,7 @@ export function expandAccordionTabByHeader(containerAlias: string, headerText: s
     const expected = profile.expectations.grouping?.expectedGroups;
     if (!expected) return;
   
-    cy.window().then((win: unknown) => {
+    cy.window().should((win: unknown) => {
       const w = win as WinWithMT;
       const cyInstance = w.cytoscapeInstance as Core;
   
@@ -528,7 +528,15 @@ export function expandAccordionTabByHeader(containerAlias: string, headerText: s
   
       // Parent count should match number of expected groups (regardless of id format)
       const parentCount = cyInstance.nodes('.parent').length;
-      expect(parentCount, 'parent group count').to.equal(expectedGroupKeys.length);
+      const groupingDiagnostics = cyInstance.nodes()
+        .filter((node) => !node.hasClass('parent'))
+        .map((node) => (
+          `${node.id()}:cluster=${String(node.data('cluster'))}`
+          + `:parent=${node.parent().id() || 'none'}`
+          + `:hidden=${node.hasClass('hidden')}`
+        ))
+        .join(', ');
+      expect(parentCount, `parent group count; ${groupingDiagnostics}`).to.equal(expectedGroupKeys.length);
   
       expectedGroupKeys.forEach((groupKey) => {
         const parent = resolveParentGroupNode(cyInstance, groupKey);
