@@ -343,6 +343,46 @@ describe('2D Network - Collapse Related Nodes', () => {
     });
   });
 
+  it('separates overlapping collapsed aggregates when recalculating a no-link layout', () => {
+    cy.window().then(async (win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      const aggregateRenderedSize = 72;
+      const nodes = [
+        {
+          id: 'cypress-overlap-a',
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          nodeSize: 80,
+          aggregateRenderedSize,
+          isCollapsedAggregate: true,
+        },
+        {
+          id: 'cypress-overlap-b',
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          nodeSize: 80,
+          aggregateRenderedSize,
+          isCollapsedAggregate: true,
+        },
+      ];
+
+      win.commonService.session.network.allPinned = false;
+      const result = await twoD.precomputePositionsWithD3(nodes, [], 30, false);
+      const [first, second] = result.nodes;
+      const separation = Math.hypot(first.x - second.x, first.y - second.y);
+
+      expect(Number.isFinite(first.x), 'first aggregate x').to.equal(true);
+      expect(Number.isFinite(first.y), 'first aggregate y').to.equal(true);
+      expect(Number.isFinite(second.x), 'second aggregate x').to.equal(true);
+      expect(Number.isFinite(second.y), 'second aggregate y').to.equal(true);
+      expect(separation, 'aggregate center separation').to.be.at.least(aggregateRenderedSize);
+    });
+  });
+
   it('warns that collapsed nodes render as circles when non-circle node shapes are active', () => {
     cy.get(selectors.settingsBtn).click();
 
