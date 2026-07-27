@@ -259,22 +259,29 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     openGlobalStylingTab();
     selectPrimeOption('#link-tooltip-variable', 'Origin');
 
+    const originCellSelector = `#key-tables-link-table td[data-value="${originalOriginName}"]`;
+
     cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
-    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+    cy.get(originCellSelector, { timeout: 15000 })
       .should('have.text', originalOriginName)
-      .dblclick()
-      .should('have.attr', 'contenteditable', 'true')
-      .focus()
-      .should('be.focused')
-      .type('{selectall}{backspace}', { delay: 0 })
-      .type(renamedOriginName, { delay: 0 })
-      .blur()
+      .then(($cell) => {
+        const cell = $cell.get(0);
+        const eventWindow = cell.ownerDocument.defaultView ?? window;
+
+        cell.dispatchEvent(new eventWindow.MouseEvent('dblclick', { bubbles: true }));
+        expect(cell.getAttribute('contenteditable'), 'link label edit mode').to.equal('true');
+        expect(cell.ownerDocument.activeElement, 'focused link label cell').to.equal(cell);
+
+        cell.textContent = renamedOriginName;
+        cell.dispatchEvent(new eventWindow.FocusEvent('blur'));
+        cell.dispatchEvent(new eventWindow.Event('focusout', { bubbles: true }));
+      });
 
     cy.window().should((win: unknown) => {
       const linkValueNames = (win as WinWithCy).commonService?.session?.style?.linkValueNames;
       expect(linkValueNames?.[originalOriginName], 'stored edited link origin label').to.equal(renamedOriginName);
     });
-    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`)
+    cy.get(originCellSelector)
       .should('have.text', renamedOriginName);
 
     cy.closeGlobalSettings();
@@ -288,7 +295,7 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     cy.window().its('commonService.activeTab').should('equal', '2D Network');
 
     cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
-    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+    cy.get(originCellSelector, { timeout: 15000 })
       .should('have.text', renamedOriginName);
     cy.get('#key-tables-link-table').should('not.contain.text', originalOriginName);
   });
