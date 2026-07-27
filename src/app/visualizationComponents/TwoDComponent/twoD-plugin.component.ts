@@ -792,6 +792,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private ensureNodeCollapseWidgetDefaults(): void {
+        const sessionWidgets = this.commonService.session?.style?.widgets;
+        if (sessionWidgets) {
+            this.widgets = sessionWidgets;
+        }
         if (!this.widgets) return;
         if (this.widgets['network-node-collapse-enabled'] === undefined || this.widgets['network-node-collapse-enabled'] === null) {
             this.widgets['network-node-collapse-enabled'] = false;
@@ -933,10 +937,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             .attr('min', this.NodeCollapseThresholdMinDisplayed)
             .attr('max', this.NodeCollapseThresholdMaxDisplayed)
             .attr('step', this.NodeCollapseThresholdStepDisplayed)
+            .prop('disabled', this.commonService.session.style.widgets['network-node-collapse-enabled'] !== true)
             .val(this.SelectedNodeCollapseThresholdDisplayedVariable);
     }
 
     private syncNodeCollapseControlsFromWidgets(): void {
+        this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
         this.SelectedNodeCollapseTypeVariable = this.widgets['network-node-collapse-enabled'] === true;
         this.updateNodeCollapseThresholdDisplayBounds();
@@ -1115,6 +1121,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.isNodeCollapseEnabled()) {
             this.refreshNodeCollapseRender();
         }
+    }
+
+    public onNodeCollapseThresholdKeydown(event: KeyboardEvent, direction: -1 | 1): void {
+        const input = event.target as HTMLInputElement | null;
+        const inputValue = Number(input?.value);
+        const currentValue = Number.isFinite(inputValue)
+            ? inputValue
+            : this.SelectedNodeCollapseThresholdDisplayedVariable;
+        const step = Number(this.NodeCollapseThresholdStepDisplayed);
+
+        if (!Number.isFinite(currentValue) || !Number.isFinite(step) || step <= 0) {
+            return;
+        }
+
+        event.preventDefault();
+        const nextValue = Number((currentValue + (direction * step)).toPrecision(12));
+        this.onNodeCollapseThresholdDisplayedChange(nextValue, true);
     }
 
     public onNodeCollapseThresholdInputBlur(): void {
@@ -2745,6 +2768,125 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    private addCollapsedPieSvgExportImages(doc: XMLDocument): void {
+        if (!this.cy) {
+            return;
+        }
+
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const xlinkNamespace = 'http://www.w3.org/1999/xlink';
+        const svgRoot = doc.documentElement;
+        let definitions = doc.getElementsByTagName('defs')[0];
+        if (!definitions) {
+            definitions = doc.createElementNS(svgNamespace, 'defs') as SVGDefsElement;
+            svgRoot.insertBefore(definitions, svgRoot.firstChild);
+        }
+
+        const rootGroup = Array.from(svgRoot.children)
+            .find(element => element.tagName.toLowerCase() === 'g');
+        const graphGroup = rootGroup
+            ? Array.from(rootGroup.children).find(element => (
+                element.tagName.toLowerCase() === 'g'
+                && element.hasAttribute('transform')
+            ))
+            : null;
+
+        if (!graphGroup) {
+            return;
+        }
+
+        const trailingTransformReset = Array.from(graphGroup.children)
+            .find(element => element.tagName.toLowerCase() === 'g' && element.childElementCount === 0) || null;
+
+        this.cy.nodes(':visible')
+            .filter((node: any) => (
+                node.data('isCollapsedAggregate') === true
+                && String(node.data('pieBackgroundImage') || '').startsWith('data:image/')
+            ))
+            .forEach((node: any, index: number) => {
+                const href = String(node.data('pieBackgroundImage'));
+                const width = Number(node.width());
+                const height = Number(node.height());
+                const position = node.position();
+                if (
+                    !Number.isFinite(width)
+                    || !Number.isFinite(height)
+                    || width <= 0
+                    || height <= 0
+                    || !Number.isFinite(position?.x)
+                    || !Number.isFinite(position?.y)
+                ) {
+                    return;
+                }
+
+                const x = position.x - (width / 2);
+                const y = position.y - (height / 2);
+                const matchTolerance = Math.max(4, (width + height) * 0.1);
+                const existingImage = Array.from(doc.getElementsByTagName('image'))
+                    .find(image => {
+                        const imageHref = this.getSvgImageHref(image);
+                        if (
+                            !imageHref
+                            || !imageHref.startsWith('data:image/')
+                            || image.getAttribute('data-microbetrace-collapsed-pie-image') === 'true'
+                            || !this.hasClipPathAncestor(image)
+                        ) {
+                            return false;
+                        }
+
+                        if (imageHref === href) {
+                            return true;
+                        }
+
+                        const imageTranslate = this.getSvgTranslateTransform(image);
+                        const imageX = imageTranslate?.x ?? this.getSvgLengthAttribute(image, 'x');
+                        const imageY = imageTranslate?.y ?? this.getSvgLengthAttribute(image, 'y');
+                        const imageWidth = this.getSvgLengthAttribute(image, 'width');
+                        const imageHeight = this.getSvgLengthAttribute(image, 'height');
+                        if (imageX === null || imageY === null || imageWidth === null || imageHeight === null) {
+                            return false;
+                        }
+
+                        const score = Math.abs(imageX - x)
+                            + Math.abs(imageY - y)
+                            + Math.abs(imageWidth - width)
+                            + Math.abs(imageHeight - height);
+                        return score <= matchTolerance;
+                    });
+                if (existingImage) {
+                    existingImage.setAttribute('data-microbetrace-collapsed-pie-image', 'true');
+                    return;
+                }
+
+                const clipId = `microbetrace-collapsed-pie-clip-${index}`;
+                const clipPath = doc.createElementNS(svgNamespace, 'clipPath');
+                clipPath.setAttribute('id', clipId);
+                clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
+
+                const clipCircle = doc.createElementNS(svgNamespace, 'circle');
+                clipCircle.setAttribute('cx', `${position.x}`);
+                clipCircle.setAttribute('cy', `${position.y}`);
+                clipCircle.setAttribute('r', `${Math.min(width, height) / 2}`);
+                clipPath.appendChild(clipCircle);
+                definitions.appendChild(clipPath);
+
+                const clippedGroup = doc.createElementNS(svgNamespace, 'g');
+                clippedGroup.setAttribute('clip-path', `url(#${clipId})`);
+
+                const image = doc.createElementNS(svgNamespace, 'image');
+                image.setAttribute('x', `${x}`);
+                image.setAttribute('y', `${y}`);
+                image.setAttribute('width', `${width}`);
+                image.setAttribute('height', `${height}`);
+                image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                image.setAttribute('data-microbetrace-collapsed-pie-image', 'true');
+                image.setAttribute('href', href);
+                image.setAttributeNS(xlinkNamespace, 'xlink:href', href);
+                clippedGroup.appendChild(image);
+                graphGroup.insertBefore(clippedGroup, trailingTransformReset);
+            });
+    }
+
     private addCollapsedPieSvgExportOutlines(doc: XMLDocument): void {
         const svgNamespace = 'http://www.w3.org/2000/svg';
         const borderWidth = Math.max(0, Number(this.widgets?.['node-border-width']) || 0);
@@ -2757,6 +2899,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const href = this.getSvgImageHref(image);
                 return !!href
                     && href.startsWith('data:image/')
+                    && image.getAttribute('data-microbetrace-collapsed-pie-image') === 'true'
                     && this.hasClipPathAncestor(image);
             });
 
@@ -2819,6 +2962,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Add 10px of padding around network
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
+            this.addCollapsedPieSvgExportImages(doc);
             this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
             this.addCollapsedPieSvgExportOutlines(doc);
             const svg1 = doc.documentElement;          
@@ -3309,10 +3453,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param cy Cytoscape instance
      */
     private addParentNodesAndGroupChildren(cy: cytoscape.Core): void {
+        // Rebuild compound parents from the currently rendered children. Reusing
+        // the previous parents leaves groups missing when filters reveal nodes
+        // that were hidden during the prior grouping pass.
+        this.removeParentNodesAndUngroupChildren(cy);
+
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
         let foci = this.commonService.session.style.widgets['polygons-foci'];
+        const includeHiddenNodes = !this.isNodeCollapseEnabled();
         cy.nodes().forEach(node => {
-            if (node.hasClass('parent') || node.hasClass('hidden')) {
+            if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) {
                 return;
             }
 
@@ -3358,18 +3508,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     classes: 'parent' // Assigning the 'parent' class
                 });
             }
+
+            const parent = cy.getElementById(parentId);
+            const hasVisibleChild = nodesInGroup.some(node => !node.hasClass('hidden'));
+            parent.toggleClass('hidden', !hasVisibleChild);
         });
 
-        cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) {
-                return;
-            }
-
-            const group = this.getCyNodeGroupingKey(node, foci);
-            if (group !== null) {
-                const parentId = `group-${group}`;
-                node.move({ parent: parentId });
-            }
+        groupMap.forEach((nodesInGroup, group) => {
+            const parentId = `group-${group}`;
+            nodesInGroup.forEach(node => node.move({ parent: parentId }));
         });
 
           // **Step 6:** Create and Assign the `groups` Object for polygonGroups
@@ -4000,9 +4147,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Determine new groups based on foci
             const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
+            const includeHiddenNodes = !this.isNodeCollapseEnabled();
     
             cy.nodes().forEach(node => {
-                if (node.hasClass('parent') || node.hasClass('hidden')) {
+                if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) {
                     return;
                 }
 
@@ -4050,13 +4198,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 nodesInGroup.forEach(childNode => {
                     childNode.move({ parent: parentId });
                 });
+                parentNode.toggleClass(
+                    'hidden',
+                    !nodesInGroup.some(childNode => !childNode.hasClass('hidden'))
+                );
             });
     
             // Handle nodes without a group (optional)
             cy.nodes().forEach(node => {
                 if (
                     !node.hasClass('parent')
-                    && !node.hasClass('hidden')
                     && !node.parent().length
                     && this.getCyNodeGroupingKey(node, foci) !== null
                 ) {
@@ -4089,9 +4240,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const layoutStart = this.getPerformanceNow();
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
+        const includeHiddenNodes = !this.isNodeCollapseEnabled();
 
         cy.nodes().forEach(node => {
-            if (node.hasClass('parent') || node.hasClass('hidden')) return;
+            if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) return;
 
             const group = this.getCyNodeGroupingKey(node, foci);
             if (group !== null) {
@@ -4108,8 +4260,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        const groups = Array.from(groupMap.entries()).map(([key, values]) => ({ key, values }));
-        const renderedNodes = groups.flatMap(group => group.values);
+        const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            key,
+            values,
+            visibleValues: values.filter(node => !node.hasClass('hidden'))
+        }));
+        const renderedNodes = groups.flatMap(group => group.visibleValues);
         const spacing = Math.max(
             this.getNodeLayoutSpacing(),
             renderedNodes.reduce(
@@ -4119,10 +4275,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         );
         const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
         const groupLayouts = groups.map(group => {
-            const columns = Math.max(1, Math.ceil(Math.sqrt(group.values.length)));
+            const columns = Math.max(1, Math.ceil(Math.sqrt(group.visibleValues.length)));
             return {
                 columns,
-                rows: Math.max(1, Math.ceil(group.values.length / columns))
+                rows: Math.max(1, Math.ceil(group.visibleValues.length / columns))
             };
         });
         const cellWidth = (Math.max(...groupLayouts.map(layout => layout.columns), 1) + 3) * spacing;
@@ -4157,10 +4313,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         shape: 'rectangle',
                         bgOpacity: alphaVal,
                     },
-                    classes: 'parent'
+                    classes: group.visibleValues.length > 0 ? 'parent' : 'parent hidden'
                 });
 
-                group.values.forEach((node, nodeIndex) => {
+                group.visibleValues.forEach((node, nodeIndex) => {
                     node.position({
                         x: originX + offsetX + (nodeIndex % layout.columns) * spacing,
                         y: originY + offsetY + Math.floor(nodeIndex / layout.columns) * spacing

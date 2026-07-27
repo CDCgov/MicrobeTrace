@@ -35,6 +35,20 @@ function expectCollapseDistanceControl(label: string, step: string, max: string)
     .should('have.attr', 'max', max);
 }
 
+function openCollapsePanel(): void {
+  cy.get('@dialogContainer')
+    .contains('p-accordion-panel', 'Collapse Related Nodes')
+    .then(($panel) => {
+      const $headerButton = $panel.find('p-accordion-header button').first();
+      const $header = $panel.find('p-accordion-header').first();
+      const expanded = $headerButton.attr('aria-expanded') === 'true';
+
+      if (!expanded) {
+        cy.wrap($headerButton.length ? $headerButton : $header).click();
+      }
+    });
+}
+
 function linkEndpointId(endpoint: any): string {
   if (endpoint === undefined || endpoint === null) return '';
   if (typeof endpoint === 'object') return String(endpoint._id ?? endpoint.id ?? endpoint.data?.id ?? '');
@@ -234,7 +248,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
     cy.get('@dialogContainer').find(selectors.collapseToggle).should('exist');
     cy.get('@dialogContainer').find(selectors.collapseThresholdSlider).should('not.exist');
     cy.get('@dialogContainer').find(selectors.collapseThresholdInput).should('exist');
@@ -296,7 +310,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
 
     cy.window().then((win: any) => {
       const commonService = win.commonService;
@@ -327,7 +341,13 @@ describe('2D Network - Collapse Related Nodes', () => {
       .should('have.attr', 'step', '0.1');
     cy.get('@dialogContainer')
       .find(selectors.collapseThresholdInput)
-      .type('{uparrow}')
+      .focus()
+      .trigger('keydown', {
+        key: 'ArrowUp',
+        code: 'ArrowUp',
+        keyCode: 38,
+        which: 38,
+      })
       .should('have.value', '0.1');
 
     cy.window()
@@ -444,6 +464,15 @@ describe('2D Network - Collapse Related Nodes', () => {
       const renderCheckpoint = async (date: string, expectedMemberIds: string[]) => {
         commonService.session.state.timeEnd = new Date(`${date}T23:59:59Z`);
         commonService.setNodeVisibility(true);
+        const visibleByNodeId = new Map(
+          commonService.session.data.nodes.map((node: any) => [
+            String(node._id ?? node.id ?? ''),
+            node.visible === true,
+          ]),
+        );
+        commonService.session.data.nodeFilteredValues.forEach((node: any) => {
+          node.visible = visibleByNodeId.get(String(node._id ?? node.id ?? '')) === true;
+        });
         commonService.setLinkVisibility(true);
         await twoD._rerender(true);
 
@@ -456,7 +485,10 @@ describe('2D Network - Collapse Related Nodes', () => {
             return JSON.stringify(memberIds) === JSON.stringify(expectedMembers);
           });
 
-        expect(aggregate, `timeline aggregate at ${date}`).to.exist;
+        expect(Boolean(aggregate), `timeline aggregate at ${date}`).to.equal(true);
+        if (!aggregate) {
+          throw new Error(`Timeline aggregate was not rendered at ${date}`);
+        }
         return {
           id: aggregate.id(),
           position: aggregate.position(),
@@ -625,7 +657,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
 
     cy.window().then((win: any) => {
       const commonService = win.commonService;
@@ -798,7 +830,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
     expectCollapseDistanceControl('Distance (TN93 (%))', '0.1', '1.5');
     cy.get('@dialogContainer').find(selectors.collapseThresholdSlider).should('not.exist');
     cy.closeSettingsPane('2D Network Settings');
@@ -815,7 +847,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
     expectCollapseDistanceControl('Distance (TN93)', '0.001', '0.015');
     cy.closeSettingsPane('2D Network Settings');
 
@@ -835,7 +867,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
     expectCollapseDistanceControl('Distance (SNPs)', '1', '16');
   });
 
@@ -852,7 +884,7 @@ describe('2D Network - Collapse Related Nodes', () => {
       .as('dialogContainer');
 
     cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
-    cy.get('@dialogContainer').contains('p-accordion-panel', 'Collapse Related Nodes').click();
+    openCollapsePanel();
     cy.get('@dialogContainer')
       .find(selectors.collapseThresholdInput)
       .should('have.attr', 'max', '0.015');
