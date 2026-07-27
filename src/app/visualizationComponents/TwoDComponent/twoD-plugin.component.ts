@@ -3224,11 +3224,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets['polygons-show'] = flag;
 
+        if (!flag) {
+            this.updateNodeGrouping(false);
+        }
+
         if (refreshCollapse && this.isNodeCollapseEnabled()) {
             this.refreshNodeCollapseRender();
-        } else {
+        } else if (flag) {
             this.updateNodeGrouping(flag);
         }
+        this.cdref.markForCheck();
 
         if (flag) {
             this.applyPolygonLabelStyle();
