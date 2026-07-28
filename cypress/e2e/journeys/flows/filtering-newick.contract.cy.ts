@@ -95,8 +95,7 @@ const contractMode =
         .and('have.value', '')
         .type(expectedMinimumClusterSize);
       cy.get(minimumClusterSizeSelector)
-        .should('have.value', expectedMinimumClusterSize)
-        .blur();
+        .should('have.value', expectedMinimumClusterSize);
       cy.window()
         .its('commonService.session.style.widgets.cluster-minimum-size')
         .should('equal', minimumClusterSize!.to);
