@@ -158,14 +158,14 @@ export class ColorMappingService {
     }
 
     // For each distinct value, prefer an explicit field assignment, then the
-    // field-scoped history and stored table color.
+    // stored table color and field-scoped history.
     const reservedColors = new Set<string>();
     distinctValues.forEach((value) => {
       const explicitColor = explicitAssignments[value];
       const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
         && typeof explicitColor === 'string'
         ? explicitColor
-        : variableHistory[value] ?? storedColorsByValue[value];
+        : storedColorsByValue[value] ?? variableHistory[value];
       if (typeof existingColor === 'string') {
         reservedColors.add(existingColor);
       }
@@ -177,7 +177,7 @@ export class ColorMappingService {
       const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
         && typeof explicitColor === 'string'
         ? explicitColor
-        : variableHistory[value] ?? storedColorsByValue[value];
+        : storedColorsByValue[value] ?? variableHistory[value];
       if (typeof existingColor === 'string') {
         variableHistory[value] = existingColor;
         usedColors.add(existingColor);
