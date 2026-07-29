@@ -344,6 +344,14 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
     -webkit-backdrop-filter: blur(8px);
     z-index: 1300; /* Keep the welcome overlay above docked key tables and the URL warning banner. */
 
+    &.overlay-hidden {
+        pointer-events: none;
+
+        .dnd-input {
+            pointer-events: none;
+        }
+    }
+
     .dnd-input {
         opacity: 0;
         position: absolute;

@@ -5,7 +5,6 @@ import { FilesComponent } from "./filesComponent/files-plugin.component";
 import { TwoDComponent } from "./visualizationComponents/TwoDComponent/twoD-plugin.component";
 import { MapComponent } from "./visualizationComponents/MapComponent/map-plugin.component";
 import { TableComponent } from "./visualizationComponents/TableComponent/table-plugin-component";
-import { NetworkStatisticsComponent } from "./visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component";
 import { PhylogeneticComponent } from "./visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component";
 import { TimelineComponent } from "./visualizationComponents/TimelineComponent/timeline-component.component";
 import { AlignmentViewComponent } from "./visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component";
@@ -27,7 +26,6 @@ export class MicrobeTraceNextVisuals {
     public twoD: TwoDComponent;
     public gisMap: MapComponent;
     public tableComp: TableComponent;
-    public networkStatistics?: NetworkStatisticsComponent;
     public epiCurve: TimelineComponent;
     public phylogenetic: PhylogeneticComponent;
     public alignment: AlignmentViewComponent;

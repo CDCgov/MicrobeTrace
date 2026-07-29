@@ -61,10 +61,6 @@ export class WorkerModule implements OnInit {
     return new InlineWorker('parseFasta');
   }
 
-  public getNetworkStatisticsWorker(): InlineWorker {
-    return new InlineWorker('networkStatistics');
-  }
-
   /**
    * Get or create the dedicated patristic distance engine worker.
    *

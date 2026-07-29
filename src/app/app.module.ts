@@ -50,7 +50,6 @@ import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticCom
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
-import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
 import { LeafletModule } from '@bluehalo/ngx-leaflet';
@@ -119,7 +118,6 @@ export class TestedComponent {
         FilesComponent,
         TwoDComponent,
         TableComponent,
-        NetworkStatisticsComponent,
         GoldenLayoutHostComponent,
         MapComponent,
         TestedComponent,
