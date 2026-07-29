@@ -1,0 +1,168 @@
+:host {
+  position: absolute;
+  overflow: hidden;
+  z-index: 1 !important;
+}
+
+.network-statistics-wrapper {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 70px 20px 10px 20px;
+}
+
+#network-statistics-tool-btn-container {
+  display: flex !important;
+  align-items: center;
+  gap: 15px;
+  height: 50px;
+  left: 15px;
+  opacity: 1;
+  position: absolute;
+  top: 15px;
+  width: calc(100% - 20px);
+  z-index: 2;
+}
+
+.network-statistics-toolbar-icons {
+  flex-grow: 0;
+  min-width: 84px;
+}
+
+.network-statistics-toolbar-label {
+  flex-grow: 0;
+  line-height: 44px;
+  width: 75px;
+}
+
+.network-statistics-section-select {
+  flex-grow: 0;
+  overflow: visible;
+  position: relative;
+  width: 150px;
+}
+
+.network-statistics-column-picker {
+  flex-grow: 1;
+  width: calc(100% - 295px);
+}
+
+.network-statistics-approximation {
+  flex-grow: 0;
+  color: #7a4d00;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tool-btn {
+  display: inline;
+  height: 30px;
+  overflow: visible;
+  position: relative;
+}
+
+.btn-icon {
+  margin-right: 10px;
+  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);
+  background: white;
+}
+
+.btn-icon:hover {
+  transform: scale(1.1);
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.flaticon-settings:before,
+.flaticon-download:before {
+  font-weight: 800 !important;
+}
+
+.network-statistics-state {
+  padding: 8px 10px;
+  color: #4d5966;
+}
+
+.network-statistics-error {
+  color: #b42318;
+}
+
+.primeng-datatable-container {
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.wrapper {}
+
+.item {
+  display: inline-block;
+}
+
+.filterType {
+  background: transparent;
+  border: 0 solid transparent;
+  border-color: transparent;
+  border-style: inset;
+  border-width: 0;
+  outline-color: transparent;
+  outline-style: dashed;
+}
+
+:host ::ng-deep {
+  .network-statistics-wrapper p-table,
+  .network-statistics-wrapper .p-datatable,
+  .network-statistics-wrapper .p-datatable-wrapper {
+    display: block;
+    width: 100%;
+  }
+
+  .network-statistics-wrapper .p-datatable-table,
+  .network-statistics-wrapper .p-datatable-scrollable-table {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .p-datatable {
+    font-size: 14px;
+  }
+
+  .p-datatable-thead > tr > th {
+    border: none;
+    text-align: left;
+  }
+
+  .network-statistics-column-header,
+  .network-statistics-filter-header {
+    border: none;
+  }
+
+  .p-datatable-tbody > tr > td {
+    cursor: auto;
+  }
+
+  .p-column-filter {
+    display: block;
+  }
+
+  .p-datatable-scrollable-table > .p-datatable-thead {
+    z-index: 1 !important;
+  }
+}
+
+@media screen and (max-width: 64em) {
+  #network-statistics-tool-btn-container {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .network-statistics-column-picker,
+  .network-statistics-section-select {
+    width: 100%;
+  }
+
+  .network-statistics-approximation {
+    width: 100%;
+  }
+}
