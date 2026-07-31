@@ -403,7 +403,7 @@ describe('2D Network - Collapse Related Nodes', () => {
     });
   });
 
-  it('keeps unchanged collapsed aggregates fixed across timeline ticks', () => {
+  it('keeps collapsed aggregates fixed as timeline membership changes', () => {
     cy.window().then(async (win: any) => {
       const commonService = win.commonService;
       const twoD = commonService.visuals.twoD;
@@ -505,6 +505,167 @@ describe('2D Network - Collapse Related Nodes', () => {
       expect(unchangedAggregate.position.y, 'unchanged timeline aggregate y')
         .to.be.closeTo(initialAggregate.position.y, 0.001);
       expect(expandedAggregate.id, 'expanded timeline aggregate id').not.to.equal(unchangedAggregate.id);
+      expect(expandedAggregate.position.x, 'expanded timeline aggregate x')
+        .to.be.closeTo(unchangedAggregate.position.x, 0.001);
+      expect(expandedAggregate.position.y, 'expanded timeline aggregate y')
+        .to.be.closeTo(unchangedAggregate.position.y, 0.001);
+    });
+  });
+
+  it('reserves final-state spacing for collapsed aggregates that grow during the timeline', () => {
+    cy.window().then(async (win: any) => {
+      const commonService = win.commonService;
+      const twoD = commonService.visuals.twoD;
+      const widgets = commonService.session.style.widgets;
+      const threshold = 0.001;
+      const aboveThresholdDistance = 0.2;
+      const timelineField = '__twodCollapseFinalSpacingDate';
+      const groupingField = '__twodCollapseFinalSpacingGroup';
+      const fixtureNodes = commonService.session.data.nodes.slice(0, 20);
+      const firstGroupNodes = fixtureNodes.slice(0, 10);
+      const secondGroupNodes = fixtureNodes.slice(10, 20);
+      const firstGroupIds = firstGroupNodes.map((node: any) => String(node._id ?? node.id));
+      const secondGroupIds = secondGroupNodes.map((node: any) => String(node._id ?? node.id));
+      const initialFirstGroupIds = firstGroupIds.slice(0, 2);
+      const initialSecondGroupIds = secondGroupIds.slice(0, 2);
+      const targetNodeIds = new Set([...firstGroupIds, ...secondGroupIds]);
+      const targetLinks = [
+        ...firstGroupIds.slice(1).map((targetId, index) => ({
+          id: `cypress-final-spacing-a-${index}`,
+          source: firstGroupIds[0],
+          target: targetId,
+        })),
+        ...secondGroupIds.slice(1).map((targetId, index) => ({
+          id: `cypress-final-spacing-b-${index}`,
+          source: secondGroupIds[0],
+          target: targetId,
+        })),
+      ];
+
+      expect(firstGroupNodes.length, 'first final-spacing group size').to.equal(10);
+      expect(secondGroupNodes.length, 'second final-spacing group size').to.equal(10);
+
+      commonService.session.data.links = commonService.session.data.links
+        .filter((link: any) => !String(link.id || '').startsWith('cypress-final-spacing-'));
+      commonService.session.data.links.forEach((link: any) => {
+        if (link.hasDistance === true) {
+          link.distance = aboveThresholdDistance;
+        }
+      });
+      targetLinks.forEach((link, index) => {
+        commonService.session.data.links.push({
+          ...link,
+          index: commonService.session.data.links.length + index,
+          distance: threshold,
+          visible: true,
+          origin: ['Cypress Final Spacing', 'Genetic Distance'],
+          hasDistance: true,
+          distanceOrigin: 'Genetic Distance',
+          directed: false,
+        });
+      });
+
+      [commonService.session.data.nodes, commonService.session.data.nodeFilteredValues]
+        .forEach((nodes: any[]) => {
+          nodes.forEach((node: any) => {
+            const nodeId = String(node._id ?? node.id ?? '');
+            node[timelineField] = targetNodeIds.has(nodeId)
+              ? initialFirstGroupIds.includes(nodeId) || initialSecondGroupIds.includes(nodeId)
+                ? '2021-01-01'
+                : '2021-01-03'
+              : '2021-01-04';
+
+            if (firstGroupIds.includes(nodeId)) {
+              node.x = 0;
+              node.y = 0;
+              node[groupingField] = 'Final Spacing A';
+            } else if (secondGroupIds.includes(nodeId)) {
+              node.x = 10;
+              node.y = 0;
+              node[groupingField] = 'Final Spacing B';
+            } else {
+              node[groupingField] = 'Outside Final Spacing';
+            }
+          });
+        });
+      if (!commonService.session.data.nodeFields.includes(groupingField)) {
+        commonService.session.data.nodeFields.push(groupingField);
+      }
+
+      const syncTimelineVisibility = (date: string) => {
+        commonService.session.state.timeEnd = new Date(`${date}T23:59:59Z`);
+        commonService.setNodeVisibility(true);
+        const visibleByNodeId = new Map(
+          commonService.session.data.nodes.map((node: any) => [
+            String(node._id ?? node.id ?? ''),
+            node.visible === true,
+          ]),
+        );
+        commonService.session.data.nodeFilteredValues.forEach((node: any) => {
+          node.visible = visibleByNodeId.get(String(node._id ?? node.id ?? '')) === true;
+        });
+        commonService.setLinkVisibility(true);
+      };
+      const getAggregate = (expectedMemberIds: string[]) => {
+        const expectedMembers = [...expectedMemberIds].sort();
+        const aggregate = twoD.cy.nodes(':visible')
+          .filter((node: any) => node.data('isCollapsedAggregate') === true)
+          .toArray()
+          .find((node: any) => {
+            const memberIds = (node.data('collapsedMemberIds') || []).map(String).sort();
+            return JSON.stringify(memberIds) === JSON.stringify(expectedMembers);
+          });
+
+        expect(Boolean(aggregate), `aggregate for ${expectedMembers.join(', ')}`).to.equal(true);
+        if (!aggregate) {
+          throw new Error(`Expected collapsed aggregate for ${expectedMembers.join(', ')}`);
+        }
+        return {
+          id: aggregate.id(),
+          position: aggregate.position(),
+          renderedSize: Number(aggregate.data('aggregateRenderedSize')),
+        };
+      };
+      const waitForRenderedPositions = () => new Promise<void>(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+
+      widgets['network-node-collapse-enabled'] = true;
+      widgets['network-node-collapse-threshold'] = threshold;
+      widgets['timeline-date-field'] = timelineField;
+      widgets['polygons-show'] = true;
+      widgets['polygons-foci'] = groupingField;
+      commonService.session.network.allPinned = false;
+      syncTimelineVisibility('2021-01-01');
+      await twoD._rerender(false);
+      await waitForRenderedPositions();
+
+      const initialFirstAggregate = getAggregate(initialFirstGroupIds);
+      const initialSecondAggregate = getAggregate(initialSecondGroupIds);
+
+      syncTimelineVisibility('2021-01-03');
+      await twoD._rerender(true);
+      await waitForRenderedPositions();
+
+      const finalFirstAggregate = getAggregate(firstGroupIds);
+      const finalSecondAggregate = getAggregate(secondGroupIds);
+      const finalCenterSeparation = Math.hypot(
+        finalFirstAggregate.position.x - finalSecondAggregate.position.x,
+        finalFirstAggregate.position.y - finalSecondAggregate.position.y,
+      );
+      const minimumNonOverlappingSeparation =
+        (finalFirstAggregate.renderedSize + finalSecondAggregate.renderedSize) / 2;
+
+      expect(finalFirstAggregate.position.x, 'first aggregate fixed x')
+        .to.be.closeTo(initialFirstAggregate.position.x, 0.001);
+      expect(finalFirstAggregate.position.y, 'first aggregate fixed y')
+        .to.be.closeTo(initialFirstAggregate.position.y, 0.001);
+      expect(finalSecondAggregate.position.x, 'second aggregate fixed x')
+        .to.be.closeTo(initialSecondAggregate.position.x, 0.001);
+      expect(finalSecondAggregate.position.y, 'second aggregate fixed y')
+        .to.be.closeTo(initialSecondAggregate.position.y, 0.001);
+      expect(finalCenterSeparation, 'final aggregate center separation')
+        .to.be.at.least(minimumNonOverlappingSeparation);
     });
   });
 
