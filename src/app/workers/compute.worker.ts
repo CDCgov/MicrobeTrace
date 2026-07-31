@@ -2,9 +2,9 @@
 
 import * as bioseq from 'bioseq';
 import * as patristic from 'patristic';
-import * as tn93 from 'tn93';
 
 import type { ComputeWorkerRequest } from './compute-worker.types';
+import { tn93DistanceOnInts } from './tn93-distance';
 
 function postBufferResponse(
   field: string,
@@ -189,7 +189,11 @@ function handleLinks(payload: any, jobId: number): void {
       for (let i = 0; i < n; i++) {
         const source = subset[i]._seqInt;
         for (let j = 0; j < i; j++) {
-          output[t++] = tn93.onInts(source, subset[j]._seqInt, strategy);
+          output[t++] = tn93DistanceOnInts(
+            source,
+            subset[j]._seqInt,
+            strategy,
+          );
         }
       }
     } else {
@@ -200,7 +204,11 @@ function handleLinks(payload: any, jobId: number): void {
         for (let j = 0; j < i; j++) {
           const target = subset[j];
           const mode = sourceInThreshold && target._ambiguity < threshold ? 'RESOLVE' : 'AVERAGE';
-          output[t++] = tn93.onInts(sourceSeq, target._seqInt, mode);
+          output[t++] = tn93DistanceOnInts(
+            sourceSeq,
+            target._seqInt,
+            mode,
+          );
         }
       }
     }

@@ -35,6 +35,7 @@
     "e2e:journeys:all:local:chrome": "npm run e2e:journeys:flows:local:chrome && npm run e2e:journeys:view-state:local:chrome && npm run e2e:journeys:contracts:local:chrome",
     "e2e:perf:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1 --spec \"cypress/e2e/performance/**/*.perf.cy.ts\"",
     "e2e:perf": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:local",
+    "e2e:perf:tn93:factors:worker": "node scripts/run-tn93-factorial-performance.js",
     "e2e:perf:large:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1,perfLarge=1 --spec \"cypress/e2e/performance/*large*.perf.cy.ts\"",
     "e2e:perf:large": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:large:local",
     "e2e:perf:stress:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1,perfStress=1 --spec \"cypress/e2e/performance/*stress*.perf.cy.ts\"",

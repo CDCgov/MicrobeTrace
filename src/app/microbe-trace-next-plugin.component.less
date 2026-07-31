@@ -105,6 +105,56 @@
   }
 }
 
+.tn93-distance-progress {
+  align-items: center;
+  background: #e8f3ff;
+  border: 1px solid #9bc7ee;
+  color: #173b5c;
+  display: flex;
+  font-size: 13px;
+  gap: 16px;
+  justify-content: space-between;
+  line-height: 1.35;
+  margin: 6px;
+  padding: 8px 12px;
+  position: relative;
+  z-index: 4;
+
+  &__copy {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  &__bar {
+    background: #c9def1;
+    border-radius: 4px;
+    flex: 0 0 180px;
+    height: 8px;
+    overflow: hidden;
+
+    span {
+      background: #236fa1;
+      display: block;
+      height: 100%;
+      transition: width 160ms ease-out;
+    }
+  }
+}
+
+@media (max-width: 900px) {
+  .tn93-distance-progress {
+    align-items: stretch;
+    flex-direction: column;
+
+    &__bar {
+      flex-basis: 8px;
+      width: 100%;
+    }
+  }
+}
+
 #search-form {
   display: none;
   float: right;

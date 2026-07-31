@@ -85,6 +85,33 @@
       </div>
     }
 
+    @if (shouldShowTn93DistanceProgress()) {
+      <div id="tn93-distance-progress" class="tn93-distance-progress" role="status" aria-live="polite">
+        <div class="tn93-distance-progress__copy">
+          @if (hasTn93PostCompletionRefreshError()) {
+            <strong>TN93 distances are complete, but a view refresh failed.</strong>
+          } @else {
+            <strong>TN93 network is provisional.</strong>
+            <span>Links, clusters, and statistics may change until all pairwise distances finish.</span>
+            @if (commonService.session.style.widgets['link-show-nn']) {
+              <span>Nearest-neighbor filtering will apply when the exact matrix is complete.</span>
+            }
+          }
+          <span>{{ getTn93DistanceProgressLabel() }}</span>
+        </div>
+        <div
+          class="tn93-distance-progress__bar"
+          role="progressbar"
+          aria-label="TN93 pairwise distance completion"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="getTn93DistanceProgressPercent()"
+        >
+          <span [style.width.%]="getTn93DistanceProgressPercent()"></span>
+        </div>
+      </div>
+    }
+
     <div #visualwrapper id="visualwrapper" class="kt-container  kt-grid__item kt-grid__item--fluid " style="margin: 6px 6px 0 6px;" [style.height.px]="getHeight()">
       <div class="kt-portlet kt-portlet--mobile" style="height:100%">
         <div class="kt-portlet__head kt-portlet__head--lg" style="height:100%">

@@ -140,11 +140,24 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     this.tickInterval = 1;
     this.updateSettingsRows();    
 
-    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+    const refreshClusterDependentTimeline = () => {
       if (this.selectedGraphType == "Single Date Field" && (this.widgets['epiCurve-stackColorBy'] == 'cluster' || (this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.widgets['node-color-variable'] == 'cluster'))) {
         this.refresh();
       }
-    })
+    };
+    this.store.clusterUpdate$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(refreshClusterDependentTimeline);
+    this.store.networkDataRevision$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((revision) => {
+        if (
+          revision
+          && revision.loadGeneration === this.commonService.getDataLoadGeneration()
+        ) {
+          refreshClusterDependentTimeline();
+        }
+      });
  }
   
   ngOnDestroy(): void {

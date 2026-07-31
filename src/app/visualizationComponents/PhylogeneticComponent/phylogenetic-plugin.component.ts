@@ -161,6 +161,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
+  private openTreeInFlight: Promise<void> | null = null;
+  private openTreeInFlightIdentity = '';
+  private lastAppliedNetworkRevision = 0;
 
   constructor(injector: Injector,
     private eventManager: EventManager,
@@ -187,7 +190,41 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     });
   }
 
-  openTree = async () => {
+  openTree = (): Promise<void> => {
+    const identity = this.getTreeComputationIdentity();
+    if (
+      this.openTreeInFlight
+      && this.openTreeInFlightIdentity === identity
+    ) {
+      return this.openTreeInFlight;
+    }
+
+    let tracked: Promise<void>;
+    tracked = this.renderTree(identity).finally(() => {
+      if (this.openTreeInFlight === tracked) {
+        this.openTreeInFlight = null;
+        this.openTreeInFlightIdentity = '';
+      }
+    });
+    this.openTreeInFlight = tracked;
+    this.openTreeInFlightIdentity = identity;
+    return tracked;
+  };
+
+  private getTreeComputationIdentity(): string {
+    const status = this.store.tn93DistanceStatusValue;
+    return [
+      this.commonService.getDataLoadGeneration(),
+      status?.runId ?? 'none',
+      status?.inputSignature ?? 'none'
+    ].join('|');
+  }
+
+  private async renderTree(identity: string): Promise<void> {
+    const isCurrent = () => identity === this.getTreeComputationIdentity();
+    if (!isCurrent()) {
+      return;
+    }
     /*
     if (this.visuals.phylogenetic.commonService.session.data.newickString) {
       this.tree = new TidyTree(this.visuals.phylogenetic.commonService.session.data.tree,
@@ -212,7 +249,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.hideTooltip();
       this.styleTree();
     } else {
-      const newickString = await this.commonService.computeTree();
+      const newickString = await this.commonService.computeTree({
+        isCurrent
+      });
+      if (!isCurrent()) {
+        return;
+      }
       this.commonService.session.data.newickString = newickString;
       console.log(newickString);
       //newickString.then((x) => {
@@ -232,6 +274,29 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 
     // }
+  }
+
+  private applyCompletedNetworkRevision(
+    revision = this.store.networkDataRevisionValue
+  ): void {
+    if (
+      !revision
+      || revision.reason !== 'complete'
+      || !this.viewActive
+      || revision.revision <= this.lastAppliedNetworkRevision
+      || revision.loadGeneration !== this.commonService.getDataLoadGeneration()
+    ) {
+      return;
+    }
+
+    void this.openTree().then(() => {
+      this.lastAppliedNetworkRevision = Math.max(
+        this.lastAppliedNetworkRevision,
+        revision.revision
+      );
+    }).catch(error => {
+      console.error('Unable to refresh the completed TN93 tree:', error);
+    });
   }
 
   // mergeNodeData(): void {
@@ -581,7 +646,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
 
     this.goldenLayoutComponentResize()
-    this.openTree();
+    void this.openTree().catch(error => {
+      console.error('Unable to render the inferred phylogenetic tree:', error);
+    });
 
     this.container.on('resize', () => {
       this.goldenLayoutComponentResize();
@@ -594,6 +661,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.container.on('show', () => {
       this.viewActive = true;
       this.cdref.detectChanges();
+      this.applyCompletedNetworkRevision();
     })
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
@@ -606,6 +674,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.applyStyleFileSettings();
     });
+
+    this.store.networkDataRevision$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((revision) => this.applyCompletedNetworkRevision(revision));
   }
 
   ngOnDestroy(): void {
@@ -1237,7 +1309,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   this.openCenter()
 }
 
-  updateVisualization() { console.warn('updatevisualization')}
+  updateVisualization() {
+    void this.openTree().catch(error => {
+      console.error('Unable to update the phylogenetic tree:', error);
+    });
+  }
   onRecallSession() { console.warn('recallsession')}
   onLoadNewData() { console.warn('loadnewdata')}
   onFilterDataChange() { console.warn('filterdatachange')} 

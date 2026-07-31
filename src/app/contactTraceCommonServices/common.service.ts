@@ -1,5 +1,5 @@
 import { Injectable, OnInit, Output, EventEmitter, Injector, Directive } from '@angular/core';
-import { Observable, firstValueFrom } from 'rxjs';
+import { Observable, filter, firstValueFrom, take } from 'rxjs';
 import * as d3 from 'd3';
 import * as patristic from 'patristic';
 import * as Papa from 'papaparse';
@@ -17,7 +17,10 @@ import { CommonStoreService } from './common-store.services';
 import { LayoutConfig } from 'golden-layout';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
 import { ColorMappingService } from './color-mapping.service';
-import { WorkerComputeService } from './worker-compute.service';
+import {
+    WorkerComputeService,
+    type ExhaustiveFallbackResult
+} from './worker-compute.service';
 import {
     buildStoredDistanceEdgeCache,
     buildThresholdSweepSummary,
@@ -28,6 +31,14 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+import { packTn93Sequences } from '../workers/tn93-worker-payload';
+import type {
+    SequenceLinkComputationResult,
+    Tn93AmbiguityStrategy,
+    Tn93DistanceBatch,
+    Tn93DistanceCompletionResult,
+    Tn93DistanceStatus
+} from '../workers/tn93-engine.types';
 
 interface SequencePairwiseLinkGuardrails {
     warningThreshold: number;
@@ -43,6 +54,45 @@ interface SequencePairwiseLinkGuardrailResult {
     hardLimitHit: boolean;
     metric: string;
     message: string;
+}
+
+interface Tn93LongTaskTelemetry {
+    observer: PerformanceObserver | null;
+    count: number;
+    totalDurationMs: number;
+    maxDurationMs: number;
+}
+
+interface ActiveTn93DistanceLifecycle {
+    subset: any[];
+    loadGeneration: number;
+    inputSignature: string;
+    result: SequenceLinkComputationResult | null;
+    attempt: number;
+    retryCount: number;
+    backgroundStarted: boolean;
+    initialLinkCount: number;
+    foregroundMergeMs: number;
+    backgroundMergeMs: number;
+    promotionMergeMs: number;
+    batches: number;
+    payloadBytes: number;
+    correctedBelowThresholdLinks: number;
+    startedAt: number;
+    foregroundReadyAt: number | null;
+    exactCompletion: Promise<Tn93DistanceCompletionResult>;
+    resolveExactCompletion: (completion: Tn93DistanceCompletionResult) => void;
+    rejectExactCompletion: (reason?: any) => void;
+    exactCompletionSettled: boolean;
+    longTasks: Tn93LongTaskTelemetry;
+}
+
+interface SequenceDistancePreparationBarrier {
+    generation: number;
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (reason?: any) => void;
+    settled: boolean;
 }
 
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
@@ -137,6 +187,14 @@ export class CommonService extends AppComponentBase implements OnInit {
         'vy',
         'foci'
     ]);
+
+    private linkBatchDepth = 0;
+    private thresholdAnalysisInvalidationPending = false;
+    private activeTn93DistanceLifecycle: ActiveTn93DistanceLifecycle | null = null;
+    private tn93RenderReadySubscription: { unsubscribe: () => void } | null = null;
+    private tn93RenderReadyTimeout: ReturnType<typeof setTimeout> | null = null;
+    private sequenceLinkRecomputationGeneration = 0;
+    private sequenceDistancePreparationBarrier: SequenceDistancePreparationBarrier | null = null;
 
     thirtyColorPalette: string[] = [
         "#3998f5", "#f22020", "#b732cc", "#f47a22", "#0ec434", "#96341c", 
@@ -718,7 +776,198 @@ export class CommonService extends AppComponentBase implements OnInit {
         };
     }
 
+    private createTn93InputSignature(subset: any[]): string {
+        let hashA = 2166136261;
+        let hashB = 0x9e3779b9;
+        let totalSequenceBytes = 0;
+        const update = (value: number) => {
+            hashA ^= value & 0xff;
+            hashA = Math.imul(hashA, 16777619);
+            hashB ^= value + 0x9e3779b9 + (hashB << 6) + (hashB >>> 2);
+        };
+
+        subset.forEach((node: any, index: number) => {
+            const id = String(node?._id ?? node?.id ?? index);
+            for (let offset = 0; offset < id.length; offset++) {
+                update(id.charCodeAt(offset));
+            }
+            update(0xff);
+            update(node?.validForConsensus === false ? 0 : 1);
+
+            const sequence: ArrayLike<number> = node?._seqInt || [];
+            totalSequenceBytes += sequence.length;
+            for (let offset = 0; offset < sequence.length; offset++) {
+                update(Number(sequence[offset]));
+            }
+            update(0xfe);
+        });
+
+        const widgets = this.session.style.widgets;
+        const settings = [
+            String(widgets['ambiguity-resolution-strategy'] || 'AVERAGE').toUpperCase(),
+            String(widgets['ambiguity-threshold']),
+            String(widgets['default-distance-metric'] || '').toLowerCase()
+        ].join('|');
+        for (let offset = 0; offset < settings.length; offset++) {
+            update(settings.charCodeAt(offset));
+        }
+
+        return [
+            subset.length,
+            totalSequenceBytes,
+            (hashA >>> 0).toString(16).padStart(8, '0'),
+            (hashB >>> 0).toString(16).padStart(8, '0')
+        ].join(':');
+    }
+
+    private startTn93LongTaskTelemetry(): Tn93LongTaskTelemetry {
+        const telemetry: Tn93LongTaskTelemetry = {
+            observer: null,
+            count: 0,
+            totalDurationMs: 0,
+            maxDurationMs: 0
+        };
+        const Observer = typeof PerformanceObserver !== 'undefined'
+            ? PerformanceObserver
+            : null;
+
+        if (!Observer || !Observer.supportedEntryTypes?.includes('longtask')) {
+            return telemetry;
+        }
+
+        try {
+            telemetry.observer = new Observer((list) => {
+                list.getEntries().forEach(entry => {
+                    telemetry.count++;
+                    telemetry.totalDurationMs += entry.duration;
+                    telemetry.maxDurationMs = Math.max(telemetry.maxDurationMs, entry.duration);
+                });
+            });
+            telemetry.observer.observe({ entryTypes: ['longtask'] });
+        } catch {
+            telemetry.observer = null;
+        }
+
+        return telemetry;
+    }
+
+    private stopTn93LongTaskTelemetry(lifecycle: ActiveTn93DistanceLifecycle): void {
+        lifecycle.longTasks.observer?.disconnect();
+        lifecycle.longTasks.observer = null;
+    }
+
+    private rejectTn93ExactCompletion(
+        lifecycle: ActiveTn93DistanceLifecycle,
+        reason: any
+    ): void {
+        if (lifecycle.exactCompletionSettled) return;
+        lifecycle.exactCompletionSettled = true;
+        lifecycle.rejectExactCompletion(reason);
+    }
+
+    private resolveTn93ExactCompletion(
+        lifecycle: ActiveTn93DistanceLifecycle,
+        completion: Tn93DistanceCompletionResult
+    ): void {
+        if (lifecycle.exactCompletionSettled) return;
+        lifecycle.exactCompletionSettled = true;
+        lifecycle.resolveExactCompletion(completion);
+    }
+
+    private beginSequenceDistancePreparation(
+        generation: number
+    ): SequenceDistancePreparationBarrier {
+        this.cancelSequenceDistancePreparation('superseded sequence-distance preparation');
+        let resolvePromise: () => void;
+        let rejectPromise: (reason?: any) => void;
+        const barrier: SequenceDistancePreparationBarrier = {
+            generation,
+            promise: new Promise<void>((resolve, reject) => {
+                resolvePromise = resolve;
+                rejectPromise = reject;
+            }),
+            resolve: () => {
+                if (barrier.settled) return;
+                barrier.settled = true;
+                resolvePromise();
+            },
+            reject: (reason?: any) => {
+                if (barrier.settled) return;
+                barrier.settled = true;
+                rejectPromise(reason);
+            },
+            settled: false
+        };
+        void barrier.promise.catch(() => undefined);
+        this.sequenceDistancePreparationBarrier = barrier;
+        return barrier;
+    }
+
+    private settleSequenceDistancePreparation(
+        barrier: SequenceDistancePreparationBarrier,
+        error?: any
+    ): void {
+        if (error) {
+            barrier.reject(error);
+        } else {
+            barrier.resolve();
+        }
+        if (this.sequenceDistancePreparationBarrier === barrier) {
+            this.sequenceDistancePreparationBarrier = null;
+        }
+    }
+
+    private cancelSequenceDistancePreparation(reason: string): void {
+        const barrier = this.sequenceDistancePreparationBarrier;
+        if (!barrier) return;
+        barrier.reject(new Error(`Sequence-distance preparation cancelled: ${reason}`));
+        this.sequenceDistancePreparationBarrier = null;
+    }
+
+    cancelTn93DistanceJob(
+        reason = 'cancelled',
+        resetStatus = false,
+        preserveSequencePreparation = false
+    ): void {
+        if (!preserveSequencePreparation) {
+            this.cancelSequenceDistancePreparation(reason);
+        }
+        this.tn93RenderReadySubscription?.unsubscribe();
+        this.tn93RenderReadySubscription = null;
+        if (this.tn93RenderReadyTimeout !== null) {
+            clearTimeout(this.tn93RenderReadyTimeout);
+            this.tn93RenderReadyTimeout = null;
+        }
+        this.workerComputeService.cancelTn93DistanceJob(reason);
+        const coordinatorTelemetry = this.workerComputeService.getTn93CoordinatorTelemetry();
+
+        const lifecycle = this.activeTn93DistanceLifecycle;
+        if (lifecycle) {
+            this.recordPerformanceDuration('tn93', 'cancellation', 0, {
+                reason,
+                runId: lifecycle.result?.runId,
+                loadGeneration: lifecycle.loadGeneration,
+                inputSignature: lifecycle.inputSignature,
+                computedPairs: this.store.tn93DistanceStatusValue?.computedPairs || 0,
+                ...coordinatorTelemetry
+            });
+            this.stopTn93LongTaskTelemetry(lifecycle);
+            this.rejectTn93ExactCompletion(
+                lifecycle,
+                new Error(`TN93 distance computation cancelled: ${reason}`)
+            );
+            this.activeTn93DistanceLifecycle = null;
+        }
+        this.flushLinkBatchInvalidation();
+
+        if (resetStatus) {
+            this.store.resetTn93DistanceStatus();
+        }
+    }
+
     beginDataLoad(): number {
+        this.cancelTn93DistanceJob('new-data-load', true);
+        this.sequenceLinkRecomputationGeneration++;
         this.dataLoadGeneration += 1;
         return this.dataLoadGeneration;
     }
@@ -850,11 +1099,39 @@ export class CommonService extends AppComponentBase implements OnInit {
         return this.temp.analysis;
     }
 
-    private invalidateThresholdAnalysisCache() {
+    private performThresholdAnalysisCacheInvalidation() {
         const analysis = this.getAnalysisCache();
         analysis.version++;
         analysis.storedDistanceCache = {};
         analysis.thresholdSweepCache = {};
+    }
+
+    private invalidateThresholdAnalysisCache() {
+        if (this.linkBatchDepth > 0) {
+            this.thresholdAnalysisInvalidationPending = true;
+            return;
+        }
+
+        this.performThresholdAnalysisCacheInvalidation();
+    }
+
+    private beginLinkBatch(): void {
+        this.linkBatchDepth++;
+    }
+
+    private endLinkBatch(flushInvalidation = true): void {
+        this.linkBatchDepth = Math.max(0, this.linkBatchDepth - 1);
+        if (flushInvalidation && this.linkBatchDepth === 0 && this.thresholdAnalysisInvalidationPending) {
+            this.thresholdAnalysisInvalidationPending = false;
+            this.performThresholdAnalysisCacheInvalidation();
+        }
+    }
+
+    private flushLinkBatchInvalidation(): void {
+        if (this.linkBatchDepth === 0 && this.thresholdAnalysisInvalidationPending) {
+            this.thresholdAnalysisInvalidationPending = false;
+            this.performThresholdAnalysisCacheInvalidation();
+        }
     }
 
     private storedDistanceCacheMatchesCurrentNodes(cache: StoredDistanceEdgeCache): boolean {
@@ -924,6 +1201,27 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         const tree = this.session.data?.tree;
         return tree && typeof tree === 'object' && Object.keys(tree).length > 0;
+    }
+
+    /**
+     * Unlike an inferred tree cached from a previous sequence matrix, these
+     * sources are authoritative inputs and must never be replaced when TN93
+     * progresses or is recomputed.
+     */
+    private hasImportedNewickSource(): boolean {
+        if (this.getNewickBackedSourceFile()) {
+            return true;
+        }
+
+        if (
+            typeof this.session.data?.['newick'] === 'string'
+            && this.session.data['newick'].trim().length > 0
+        ) {
+            return true;
+        }
+
+        const newickSource = String(this.session.data?.newickSource || '').toLowerCase();
+        return newickSource === 'newick' || newickSource === 'auspice';
     }
 
     public setPatristicThresholdAnalysisEdges(
@@ -1914,6 +2212,47 @@ export class CommonService extends AppComponentBase implements OnInit {
     };
 
     /**
+     * Merge a sparse batch of sequence-derived distances while invalidating
+     * threshold-analysis caches only once for the whole batch.
+     */
+    addSequenceDistanceBatch(
+        subset: any[],
+        sourceIndexes: ArrayLike<number>,
+        targetIndexes: ArrayLike<number>,
+        distances: ArrayLike<number>,
+        check: any = this.session.files.length > 1,
+        flushInvalidation = true
+    ): number {
+        const count = Math.min(sourceIndexes.length, targetIndexes.length, distances.length);
+        let addedLinks = 0;
+
+        this.beginLinkBatch();
+        try {
+            for (let index = 0; index < count; index++) {
+                const source = subset[sourceIndexes[index]];
+                const target = subset[targetIndexes[index]];
+                if (!source || !target) {
+                    continue;
+                }
+
+                addedLinks += this.addLink({
+                    source: source._id,
+                    target: target._id,
+                    distance: distances[index],
+                    origin: ['Genetic Distance'],
+                    distanceOrigin: 'Genetic Distance',
+                    hasDistance: true,
+                    directed: false
+                }, check);
+            }
+        } finally {
+            this.endLinkBatch(flushInvalidation);
+        }
+
+        return addedLinks;
+    }
+
+    /**
      * Removes duplicate elements from an array.
      * @param {Array} a - The array to be processed.
      * @returns {Array} - The array containing only the unique elements of the input array `a`.
@@ -2044,6 +2383,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                 return true;
             }
 
+            // Any MST flag was derived from the previous sequence-distance
+            // matrix and must not prune a provisional replacement graph.
+            delete link.nn;
             const remainingOrigins = Array.isArray(link.origin)
                 ? link.origin.filter((origin: string) => origin !== 'Genetic Distance')
                 : [];
@@ -2075,6 +2417,12 @@ export class CommonService extends AppComponentBase implements OnInit {
     }
 
     async recomputeSequenceDerivedLinksForCurrentMetric(): Promise<boolean> {
+        const recomputationGeneration = ++this.sequenceLinkRecomputationGeneration;
+        const loadGeneration = this.getDataLoadGeneration();
+        const isCurrentRecomputation = () =>
+            recomputationGeneration === this.sequenceLinkRecomputationGeneration
+            && this.isCurrentDataLoad(loadGeneration);
+        this.cancelTn93DistanceJob('sequence-metric-or-ambiguity-change', true);
         if (!this.session.meta.anySequences) {
             return false;
         }
@@ -2083,18 +2431,124 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (subset.length === 0) {
             return false;
         }
+        const totalPairs = subset.length * (subset.length - 1) / 2;
+        const preparation = this.beginSequenceDistancePreparation(
+            recomputationGeneration
+        );
+        const abandonStalePreparation = () => {
+            this.settleSequenceDistancePreparation(
+                preparation,
+                new Error('Discarded stale sequence-distance preparation.')
+            );
+            return false;
+        };
 
-        subset.forEach((node: any) => {
-            if (!node._seqInt && node.seq) {
-                node._seqInt = tn93.toInts(node.seq);
+        try {
+            subset.forEach((node: any) => {
+                if (!node._seqInt && node.seq) {
+                    node._seqInt = tn93.toInts(node.seq);
+                }
+            });
+
+            const metric = String(
+                this.session.style.widgets['default-distance-metric'] || ''
+            ).toLowerCase();
+            if (metric === 'tn93') {
+                this.store.setTn93DistanceStatus({
+                    phase: 'planning',
+                    runId: 0,
+                    loadGeneration,
+                    inputSignature: '',
+                    threshold: Number(this.session.style.widgets['link-threshold']),
+                    computedPairs: 0,
+                    candidatePairs: 0,
+                    totalPairs,
+                    provisional: true
+                });
             }
-        });
+            if (!this.hasImportedNewickSource()) {
+                // Do not let an inferred tree from the previous exact matrix
+                // bypass the completion gate or survive a distance-setting change.
+                delete this.temp.treeObj;
+                this.session.data.newickString = '';
+            }
+            if (metric === 'tn93') {
+                this.session.data['consensus'] = await this.computeConsensus(subset);
+                if (!isCurrentRecomputation()) return abandonStalePreparation();
+                if (this.session.style.widgets['ambiguity-resolution-strategy']) {
+                    await this.computeAmbiguityCounts();
+                    if (!isCurrentRecomputation()) return abandonStalePreparation();
+                }
+                await this.computeConsensusDistances();
+                if (!isCurrentRecomputation()) return abandonStalePreparation();
+                subset.sort((source: any, target: any) =>
+                    Number(source?._diff || 0) - Number(target?._diff || 0)
+                );
+            }
 
-        this.removeGeneticDistanceLinks();
-        await this.computeLinks(subset);
-        this.rebuildLinkMatrix();
+            this.removeGeneticDistanceLinks();
+            const result = await this.computeLinks(subset);
+            if (!isCurrentRecomputation()) return abandonStalePreparation();
+            this.rebuildLinkMatrix();
 
-        return true;
+            if (result.provisional) {
+                this.setLinkVisibility(true, false);
+                // The revision published below is the single fan-out signal for
+                // this milestone; keep the preparatory cluster/stat refresh silent.
+                try {
+                    await this.updateNetworkVisuals(true, true);
+                } catch (error) {
+                    const lifecycle = this.activeTn93DistanceLifecycle;
+                    if (isCurrentRecomputation() && lifecycle) {
+                        this.startActiveTn93Background(lifecycle);
+                    }
+                    throw error;
+                }
+                if (!isCurrentRecomputation()) return abandonStalePreparation();
+                const lifecycle = this.activeTn93DistanceLifecycle;
+                if (lifecycle) {
+                    this.publishTn93ForegroundReady(lifecycle, 'metric-recompute');
+                    this.startActiveTn93Background(lifecycle);
+                }
+            } else {
+                this.setLinkVisibility(true, false);
+
+                if (this.session.style.widgets['link-show-nn']) {
+                    await this.computeMST({
+                        skipTn93Wait: true,
+                        isCurrent: isCurrentRecomputation
+                    });
+                    if (!isCurrentRecomputation()) return abandonStalePreparation();
+                    this.session.style.widgets['mst-computed'] = true;
+                    this.setLinkVisibility(true, false);
+                }
+
+                const defaultView = String(this.session.style.widgets['default-view'] || '');
+                const inferredTreeRequested = defaultView === 'Phylogenetic Tree'
+                    || this.activeTab === 'Phylogenetic Tree'
+                    || Boolean(this.visuals?.phylogenetic);
+                if (inferredTreeRequested && !this.hasImportedNewickSource()) {
+                    const inferredNewick = await this.computeTree({
+                        skipTn93Wait: true,
+                        isCurrent: isCurrentRecomputation
+                    });
+                    if (!isCurrentRecomputation()) return abandonStalePreparation();
+                    this.session.data.newickString = inferredNewick;
+                }
+
+                await this.updateNetworkVisuals(false, true);
+                if (!isCurrentRecomputation()) return abandonStalePreparation();
+            }
+
+            this.settleSequenceDistancePreparation(preparation);
+            return true;
+        } catch (error) {
+            this.settleSequenceDistancePreparation(preparation, error);
+            if (!isCurrentRecomputation()) {
+                return false;
+            }
+            throw error;
+        }
     }
 
     public getSelectedNode(nodes: any[]): any {
@@ -2484,11 +2938,25 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
+        const previousWidgets = this.session?.style?.widgets || {};
+        const nextWidgets = Object.assign({}, this.defaultWidgets(), style?.widgets || {});
+        const distanceDefinitionChanged =
+            String(previousWidgets['default-distance-metric'] || '').toLowerCase()
+                !== String(nextWidgets['default-distance-metric'] || '').toLowerCase()
+            || String(previousWidgets['ambiguity-resolution-strategy'] || '').toUpperCase()
+                !== String(nextWidgets['ambiguity-resolution-strategy'] || '').toUpperCase()
+            || Number(previousWidgets['ambiguity-threshold'])
+                !== Number(nextWidgets['ambiguity-threshold']);
+        const linkThresholdChanged =
+            Number(previousWidgets['link-threshold'])
+                !== Number(nextWidgets['link-threshold']);
+
+        if (distanceDefinitionChanged) {
+            this.cancelTn93DistanceJob('style-distance-setting-change', true);
+        }
+
         this.session.style = style;
-        this.session.style.widgets = Object.assign({},
-            this.defaultWidgets(),
-            style.widgets
-        );
+        this.session.style.widgets = nextWidgets;
 
         // if(this.debugMode) {
             console.log('creating link/node/polygon colorMap style: ', style);
@@ -2517,6 +2985,23 @@ export class CommonService extends AppComponentBase implements OnInit {
         console.log('--- applyStyle called');
 
         this.onStyleFileApplied();
+
+        if (this.session.network.isFullyLoaded && this.session.meta.anySequences) {
+            if (distanceDefinitionChanged) {
+                void this.recomputeSequenceDerivedLinksForCurrentMetric()
+                    .catch(error => console.error(
+                        'Unable to recompute sequence distances after applying style settings:',
+                        error
+                    ));
+            } else if (linkThresholdChanged && this.isTn93DistanceProvisional()) {
+                void this.ensureTn93CandidatesForThreshold(
+                    Number(nextWidgets['link-threshold'])
+                ).catch(error => console.error(
+                    'Unable to prioritize TN93 distances after applying a higher threshold:',
+                    error
+                ));
+            }
+        }
 
         if(this.debugMode) {
             console.log('---- Apply Style File Done');
@@ -2841,45 +3326,68 @@ parseFASTA(text): Promise<any> {
 
     // Align function using a fresh align worker
 align(params): Promise<any> {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       if (params.aligner === "none") {
         return resolve(params.nodes);
       }
       const n = params.nodes.length;
       const referenceLength = params.reference.length;
+      const nodeFields = this.session.data.nodeFields;
       
       // Get a fresh align worker.
       const alignWorker = this.computer.getAlignWorker();
-      alignWorker.postMessage(params);
-      
-      const sub = alignWorker.onmessage().subscribe((response) => {
-        let subset = JSON.parse(this.decode(new Uint8Array(response.data.nodes)));
-        console.log("Alignment transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-        const start = Date.now();
-        let minPadding = Infinity;
-        let d = null;
-        for (let i = 0; i < n; i++) {
-          d = subset[i];
-          if (!d._seq) d._seq = "";
-          if (minPadding > d._padding) minPadding = d._padding;
-        }
-        for (let j = 0; j < n; j++) {
-          d = subset[j];
-          d._seq = "-".repeat(d._padding - minPadding) + d._seq;
-          if (d._seq.length > referenceLength) {
-            d._seq = d._seq.substring(0, referenceLength);
-          } else {
-            d._seq = d._seq.padEnd(referenceLength, "-");
-          }
-        }
-        this.session.data.nodeFields.push('_score', '_padding', '_cigar');
-        console.log("Alignment Padding time: ", (Date.now() - start).toLocaleString(), "ms");
-        resolve(subset);
-        
-        // Terminate the worker and unsubscribe.
+      let settled = false;
+      let messageSubscription: any;
+      let errorSubscription: any;
+      const cleanup = () => {
+        messageSubscription?.unsubscribe();
+        errorSubscription?.unsubscribe();
         alignWorker.terminate();
-        sub.unsubscribe();
+      };
+      const fail = (error: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+
+      messageSubscription = alignWorker.onmessage().subscribe((response) => {
+        if (settled) return;
+        try {
+          let subset = JSON.parse(this.decode(new Uint8Array(response.data.nodes)));
+          console.log("Alignment transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+          const start = Date.now();
+          let minPadding = Infinity;
+          let d = null;
+          for (let i = 0; i < n; i++) {
+            d = subset[i];
+            if (!d._seq) d._seq = "";
+            if (minPadding > d._padding) minPadding = d._padding;
+          }
+          for (let j = 0; j < n; j++) {
+            d = subset[j];
+            d._seq = "-".repeat(d._padding - minPadding) + d._seq;
+            if (d._seq.length > referenceLength) {
+              d._seq = d._seq.substring(0, referenceLength);
+            } else {
+              d._seq = d._seq.padEnd(referenceLength, "-");
+            }
+          }
+          nodeFields.push('_score', '_padding', '_cigar');
+          console.log("Alignment Padding time: ", (Date.now() - start).toLocaleString(), "ms");
+          settled = true;
+          cleanup();
+          resolve(subset);
+        } catch (error) {
+          fail(error);
+        }
       });
+      errorSubscription = alignWorker.onerror().subscribe(fail);
+      try {
+        alignWorker.postMessage(params);
+      } catch (error) {
+        fail(error);
+      }
     });
   }
   
@@ -2889,69 +3397,119 @@ align(params): Promise<any> {
     if (!nodes) {
       nodes = this.session.data.nodes.filter(d => d.seq);
     }
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const requestStart = Date.now();
       const consensusWorker = this.computer.getConsensusWorker();
-      consensusWorker.postMessage({ data: nodes });
-      
-      const sub = consensusWorker.onmessage().subscribe((response) => {
-        const responseReceivedAt = Date.now();
-        if (this.debugMode) {
-          console.log("Consensus Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
-        }
-        const consensus = this.decode(new Uint8Array(response.data.consensus));
-        this.recordPerformanceDuration('sequence', 'computeConsensus', responseReceivedAt - requestStart, {
-          sequences: nodes.length,
-          sequenceLength: consensus.length,
-          ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
-        });
-        resolve(consensus);
+      let settled = false;
+      let messageSubscription: any;
+      let errorSubscription: any;
+      const cleanup = () => {
+        messageSubscription?.unsubscribe();
+        errorSubscription?.unsubscribe();
         consensusWorker.terminate();
-        sub.unsubscribe();
+      };
+      const fail = (error: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+
+      messageSubscription = consensusWorker.onmessage().subscribe((response) => {
+        if (settled) return;
+        try {
+          const responseReceivedAt = Date.now();
+          if (this.debugMode) {
+            console.log("Consensus Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
+          }
+          const consensus = this.decode(new Uint8Array(response.data.consensus));
+          this.recordPerformanceDuration('sequence', 'computeConsensus', responseReceivedAt - requestStart, {
+            sequences: nodes.length,
+            sequenceLength: consensus.length,
+            ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
+          });
+          settled = true;
+          cleanup();
+          resolve(consensus);
+        } catch (error) {
+          fail(error);
+        }
       });
+      errorSubscription = consensusWorker.onerror().subscribe(fail);
+      try {
+        consensusWorker.postMessage({ data: nodes });
+      } catch (error) {
+        fail(error);
+      }
     });
   }
   
   
   // Compute ambiguity counts using a fresh ambiguity counts worker
   computeAmbiguityCounts(): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const requestStart = Date.now();
       let nodes = this.session.data.nodes;
+      const nodeFields = this.session.data.nodeFields;
       let subset = nodes.filter(d => d.seq);
       const subsetLength = subset.length;
       
       const ambiguityWorker = this.computer.getAmbiguityCountsWorker();
-      ambiguityWorker.postMessage(subset);
-      
-      const sub = ambiguityWorker.onmessage().subscribe((response) => {
-        const responseReceivedAt = Date.now();
-        console.log("Ambiguity Count Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
-        const start = Date.now();
-        const dists = new Float32Array(response.data.counts);
-        for (let j = 0; j < subsetLength; j++) {
-          nodes[subset[j].index]._ambiguity = dists[j];
-        }
-        this.session.data.nodeFields.push('_ambiguity');
-        console.log("Ambiguity Count Merge time: ", (Date.now() - start).toLocaleString(), "ms");
-        this.recordPerformanceDuration('sequence', 'computeAmbiguityCounts', Date.now() - requestStart, {
-          sequences: subsetLength,
-          mergeDurationMs: Date.now() - start,
-          ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
-        });
-        resolve();
+      let settled = false;
+      let messageSubscription: any;
+      let errorSubscription: any;
+      const cleanup = () => {
+        messageSubscription?.unsubscribe();
+        errorSubscription?.unsubscribe();
         ambiguityWorker.terminate();
-        sub.unsubscribe();
+      };
+      const fail = (error: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+
+      messageSubscription = ambiguityWorker.onmessage().subscribe((response) => {
+        if (settled) return;
+        try {
+          const responseReceivedAt = Date.now();
+          console.log("Ambiguity Count Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
+          const start = Date.now();
+          const dists = new Float32Array(response.data.counts);
+          for (let j = 0; j < subsetLength; j++) {
+            nodes[subset[j].index]._ambiguity = dists[j];
+          }
+          nodeFields.push('_ambiguity');
+          console.log("Ambiguity Count Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+          this.recordPerformanceDuration('sequence', 'computeAmbiguityCounts', Date.now() - requestStart, {
+            sequences: subsetLength,
+            mergeDurationMs: Date.now() - start,
+            ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
+          });
+          settled = true;
+          cleanup();
+          resolve();
+        } catch (error) {
+          fail(error);
+        }
       });
+      errorSubscription = ambiguityWorker.onerror().subscribe(fail);
+      try {
+        ambiguityWorker.postMessage(subset);
+      } catch (error) {
+        fail(error);
+      }
     });
   }
   
   
   // Compute consensus distances using a fresh consensus worker
   computeConsensusDistances(): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const requestStart = Date.now();
       let nodes = this.session.data.nodes;
+      const nodeFields = this.session.data.nodeFields;
       let nodesLength = nodes.length;
       let subset = [];
       for (let i = 0; i < nodesLength; i++) {
@@ -2964,33 +3522,58 @@ align(params): Promise<any> {
       }
       let subsetLength = subset.length;
       const consensusWorker = this.computer.getConsensusWorker();
-      consensusWorker.postMessage({
-        data: {
-          consensus: this.session.data['consensus'],
-          subset: subset,
-          start: requestStart
-        }
-      });
-      const sub = consensusWorker.onmessage().subscribe((response) => {
-        const responseReceivedAt = Date.now();
-        const dists = new Uint16Array(response.data.dists);
-        console.log("Consensus Difference Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
-        const mergeStart = Date.now();
-        for (let j = 0; j < subsetLength; j++) {
-          nodes[subset[j].index]._diff = dists[j];
-        }
-        this.session.data.nodeFields.push('_diff');
-        console.log("Consensus Difference Merge time: ", (Date.now() - mergeStart).toLocaleString(), "ms");
-        this.recordPerformanceDuration('sequence', 'computeConsensusDistances', Date.now() - requestStart, {
-          nodes: nodesLength,
-          sequences: subsetLength,
-          mergeDurationMs: Date.now() - mergeStart,
-          ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
-        });
-        resolve();
+      let settled = false;
+      let messageSubscription: any;
+      let errorSubscription: any;
+      const cleanup = () => {
+        messageSubscription?.unsubscribe();
+        errorSubscription?.unsubscribe();
         consensusWorker.terminate();
-        sub.unsubscribe();
+      };
+      const fail = (error: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+
+      messageSubscription = consensusWorker.onmessage().subscribe((response) => {
+        if (settled) return;
+        try {
+          const responseReceivedAt = Date.now();
+          const dists = new Uint16Array(response.data.dists);
+          console.log("Consensus Difference Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
+          const mergeStart = Date.now();
+          for (let j = 0; j < subsetLength; j++) {
+            nodes[subset[j].index]._diff = dists[j];
+          }
+          nodeFields.push('_diff');
+          console.log("Consensus Difference Merge time: ", (Date.now() - mergeStart).toLocaleString(), "ms");
+          this.recordPerformanceDuration('sequence', 'computeConsensusDistances', Date.now() - requestStart, {
+            nodes: nodesLength,
+            sequences: subsetLength,
+            mergeDurationMs: Date.now() - mergeStart,
+            ...this.buildWorkerTimingExtra(response.data, requestStart, responseReceivedAt)
+          });
+          settled = true;
+          cleanup();
+          resolve();
+        } catch (error) {
+          fail(error);
+        }
       });
+      errorSubscription = consensusWorker.onerror().subscribe(fail);
+      try {
+        consensusWorker.postMessage({
+          data: {
+            consensus: this.session.data['consensus'],
+            subset: subset,
+            start: requestStart
+          }
+        });
+      } catch (error) {
+        fail(error);
+      }
     });
   }
   
@@ -3071,96 +3654,956 @@ align(params): Promise<any> {
     }
   }
 
-  // Compute links using a fresh links worker
-  computeLinks(subset): Promise<any> {
-    return new Promise(resolve => {
-      const computeLinksStart = Date.now();
-      let k = 0;
-      const metric = this.session.style.widgets['default-distance-metric'];
-      const n = subset.length;
-      const pairCount = (n * (n - 1)) / 2;
-      const guardrails = this.getSequencePairwiseLinkGuardrails();
-      const guardrail = this.buildSequencePairwiseLinkGuardrail(n, pairCount, metric, guardrails);
+  private emptyTn93PlanTimings() {
+    return {
+      ambiguityMs: 0,
+      consensusMs: 0,
+      radialDistanceMs: 0,
+      sortAndWindowMs: 0,
+      totalPlanningMs: 0
+    };
+  }
 
-      this.recordSequencePairwiseLinkGuardrailWarning(guardrail);
+  private emptyTn93ComputeTimings() {
+    return {
+      foregroundMs: 0,
+      backgroundMs: 0,
+      promotionMs: 0,
+      totalWorkerMs: 0,
+      batches: 0,
+      payloadBytes: 0,
+      longTasks: 0
+    };
+  }
 
-      if (guardrail?.hardLimitHit) {
-        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
-          metric,
-          sequences: n,
-          pairCount,
-          generatedLinks: 0,
-          skippedByGuardrail: true,
-          workerComputeDurationMs: null,
-          roundTripDurationMs: null,
-          responseTransitDurationMs: null,
-          mergeDurationMs: 0,
-          guardrail
-        });
-        resolve(0);
-        return;
+  private buildCompletedSequenceLinkResult(
+    loadGeneration: number,
+    inputSignature: string,
+    totalPairs: number,
+    computedPairs: number,
+    initialLinkCount: number,
+    timings: Record<string, number> = {}
+  ): SequenceLinkComputationResult {
+    const completion: Tn93DistanceCompletionResult = {
+      runId: 0,
+      loadGeneration,
+      inputSignature,
+      computedPairs,
+      totalPairs,
+      correctedBelowThresholdLinks: 0,
+      timings: {
+        ...this.emptyTn93ComputeTimings(),
+        foregroundMs: Number(timings.foregroundMs || timings.totalWorkerMs || 0),
+        totalWorkerMs: Number(timings.totalWorkerMs || timings.foregroundMs || 0),
+        batches: Number(timings.batches || 0),
+        payloadBytes: Number(timings.payloadBytes || 0),
+        longTasks: Number(timings.longTasks || 0)
       }
+    };
+    const result: SequenceLinkComputationResult = {
+      runId: 0,
+      loadGeneration,
+      inputSignature,
+      initialComputedPairs: computedPairs,
+      candidatePairs: computedPairs,
+      deferredPairs: 0,
+      totalPairs,
+      provisional: false,
+      timings: this.emptyTn93PlanTimings(),
+      startBackground: () => undefined,
+      backgroundCompletion: Promise.resolve(completion)
+    };
+    (result as any).initialLinkCount = initialLinkCount;
+    return result;
+  }
 
+  private mergeDenseSequenceDistances(
+    subset: any[],
+    distances: Uint16Array | Float32Array
+  ): { addedLinks: number; mergeDurationMs: number; batches: number; payloadBytes: number } {
+    const mergeStartedAt = Date.now();
+    const batchSize = 8192;
+    const sources = new Uint32Array(batchSize);
+    const targets = new Uint32Array(batchSize);
+    let distanceOffset = 0;
+    let batchLength = 0;
+    let addedLinks = 0;
+    let batches = 0;
+
+    const flush = () => {
+      if (batchLength === 0) return;
+      addedLinks += this.addSequenceDistanceBatch(
+        subset,
+        sources.subarray(0, batchLength),
+        targets.subarray(0, batchLength),
+        distances.subarray(distanceOffset - batchLength, distanceOffset),
+        this.session.files.length > 1,
+        false
+      );
+      batchLength = 0;
+      batches++;
+    };
+
+    for (let sourceIndex = 0; sourceIndex < subset.length; sourceIndex++) {
+      for (let targetIndex = 0; targetIndex < sourceIndex; targetIndex++) {
+        sources[batchLength] = sourceIndex;
+        targets[batchLength] = targetIndex;
+        batchLength++;
+        distanceOffset++;
+        if (batchLength === batchSize) {
+          flush();
+        }
+      }
+    }
+    flush();
+    this.flushLinkBatchInvalidation();
+
+    return {
+      addedLinks,
+      mergeDurationMs: Date.now() - mergeStartedAt,
+      batches,
+      payloadBytes: distances.byteLength
+    };
+  }
+
+  private computeExhaustiveSequenceLinks(
+    subset: any[],
+    metric: string,
+    expectedLoadGeneration: number,
+    expectedInputSignature = '',
+    expectedRecomputationGeneration = this.sequenceLinkRecomputationGeneration
+  ): Promise<ExhaustiveFallbackResult & {
+    addedLinks: number;
+    mergeDurationMs: number;
+    workerTiming: Record<string, number | null>;
+  }> {
+    return new Promise((resolve, reject) => {
       const linksWorker = this.computer.getLinksWorker();
       const workerRequestStart = Date.now();
+      let settled = false;
+      let messageSubscription: any;
+      let errorSubscription: any;
+
+      const cleanup = () => {
+        messageSubscription?.unsubscribe();
+        errorSubscription?.unsubscribe();
+        linksWorker.terminate();
+      };
+      const fail = (error: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+
+      messageSubscription = linksWorker.onmessage().subscribe((response) => {
+        if (settled) return;
+        const lifecycle = this.activeTn93DistanceLifecycle;
+        const stale = !this.isCurrentDataLoad(expectedLoadGeneration)
+          || expectedRecomputationGeneration !== this.sequenceLinkRecomputationGeneration
+          || (
+            expectedInputSignature
+            && lifecycle?.inputSignature !== expectedInputSignature
+          );
+        if (stale) {
+          fail(new Error('Discarded stale exhaustive sequence-distance result.'));
+          return;
+        }
+
+        const responseReceivedAt = Date.now();
+        const distances = metric === 'snps'
+          ? new Uint16Array(response.data.links)
+          : new Float32Array(response.data.links);
+        const merged = this.mergeDenseSequenceDistances(subset, distances);
+        const workerTiming = this.buildWorkerTimingExtra(
+          response.data,
+          workerRequestStart,
+          responseReceivedAt
+        );
+        settled = true;
+        cleanup();
+        resolve({
+          computedPairs: distances.length,
+          totalPairs: distances.length,
+          addedLinks: merged.addedLinks,
+          mergeDurationMs: merged.mergeDurationMs,
+          workerTiming,
+          timings: {
+            foregroundMs: Number(workerTiming.workerComputeDurationMs || 0),
+            totalWorkerMs: Number(workerTiming.workerComputeDurationMs || 0),
+            batches: merged.batches,
+            payloadBytes: merged.payloadBytes,
+            longTasks: 0
+          }
+        });
+      });
+      errorSubscription = linksWorker.onerror().subscribe(fail);
+
       linksWorker.postMessage({
         nodes: subset,
         metric,
         strategy: this.session.style.widgets["ambiguity-resolution-strategy"],
         threshold: this.session.style.widgets["ambiguity-threshold"]
       });
-      
-      const sub = linksWorker.onmessage().subscribe((response) => {
-        const responseReceivedAt = Date.now();
-        const workerTiming = this.buildWorkerTimingExtra(response.data, workerRequestStart, responseReceivedAt);
-        let dists = metric.toLowerCase() === 'snps'
-          ? new Uint16Array(response.data.links)
-          : new Float32Array(response.data.links);
-        
-        if (this.debugMode) {
-          console.log("Links Transit time: ", (responseReceivedAt - response.data.start).toLocaleString(), "ms");
-        }
-        const start = Date.now();
-        let check = this.session.files.length > 1;
-        let l = 0;
-        console.log('link same compute---', n);
-        for (let i = 0; i < n; i++) {
-          const sourceID = subset[i]._id;
-          for (let j = 0; j < i; j++) {
-            let targetID = subset[j]._id;
-            k += this.addLink({
-              source: sourceID,
-              target: targetID,
-              distance: dists[l++],
-              origin: ['Genetic Distance'],
-              distanceOrigin: 'Genetic Distance',
-              hasDistance: true,
-              directed: false
-            }, check);
-          }
-        }
-        if (this.debugMode) {
-          console.log("Links Merge time: ", (Date.now() - start).toLocaleString(), "ms");
-        }
-        const mergeDurationMs = Date.now() - start;
-        this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
-          metric,
-          sequences: n,
-          pairCount,
-          generatedLinks: k,
-          skippedByGuardrail: false,
-          workerDurationMs: workerTiming.responseTransitDurationMs,
-          mergeDurationMs,
-          ...workerTiming,
-          ...(guardrail ? { guardrail } : {})
-        });
-        resolve(k);
-        linksWorker.terminate();
-        sub.unsubscribe();
-      });
     });
   }
-  
+
+  private createTn93DistanceLifecycle(
+    subset: any[],
+    loadGeneration: number,
+    inputSignature: string
+  ): ActiveTn93DistanceLifecycle {
+    let resolveExactCompletion: (completion: Tn93DistanceCompletionResult) => void;
+    let rejectExactCompletion: (reason?: any) => void;
+    const exactCompletion = new Promise<Tn93DistanceCompletionResult>((resolve, reject) => {
+      resolveExactCompletion = resolve;
+      rejectExactCompletion = reject;
+    });
+    // Cancellation/error can happen without an exact-only consumer waiting.
+    void exactCompletion.catch(() => undefined);
+
+    return {
+      subset,
+      loadGeneration,
+      inputSignature,
+      result: null,
+      attempt: 0,
+      retryCount: 0,
+      backgroundStarted: false,
+      initialLinkCount: 0,
+      foregroundMergeMs: 0,
+      backgroundMergeMs: 0,
+      promotionMergeMs: 0,
+      batches: 0,
+      payloadBytes: 0,
+      correctedBelowThresholdLinks: 0,
+      startedAt: Date.now(),
+      foregroundReadyAt: null,
+      exactCompletion,
+      resolveExactCompletion,
+      rejectExactCompletion,
+      exactCompletionSettled: false,
+      longTasks: this.startTn93LongTaskTelemetry()
+    };
+  }
+
+  private isCurrentTn93Lifecycle(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    attempt?: number
+  ): boolean {
+    return this.activeTn93DistanceLifecycle === lifecycle
+      && this.isCurrentDataLoad(lifecycle.loadGeneration)
+      && (attempt === undefined || lifecycle.attempt === attempt);
+  }
+
+  private handleTn93DistanceStatus(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    attempt: number,
+    status: Tn93DistanceStatus
+  ): void {
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+      return;
+    }
+
+    const progressiveCompletionPendingRefresh = status.phase === 'complete'
+      && (Boolean(lifecycle.result?.provisional) || lifecycle.retryCount > 0);
+    const normalizedStatus = progressiveCompletionPendingRefresh
+      ? {
+        ...status,
+        phase: lifecycle.backgroundStarted ? 'background' as const : 'provisional' as const,
+        provisional: true
+      }
+      : lifecycle.retryCount > 0
+      && status.phase !== 'complete'
+      && status.phase !== 'cancelled'
+      ? { ...status, provisional: true }
+      : status;
+    this.store.setTn93DistanceStatus(normalizedStatus);
+
+    if (
+      status.phase === 'provisional'
+      || status.phase === 'complete'
+      || status.phase === 'cancelled'
+      || status.phase === 'error'
+    ) {
+      this.flushLinkBatchInvalidation();
+    }
+  }
+
+  private mergeTn93DistanceBatch(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    attempt: number,
+    batch: Tn93DistanceBatch
+  ): void {
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+      throw new Error('Discarded a stale TN93 distance batch.');
+    }
+
+    const mergeStartedAt = Date.now();
+    const addedLinks = this.addSequenceDistanceBatch(
+      lifecycle.subset,
+      batch.sources,
+      batch.targets,
+      batch.distances,
+      this.session.files.length > 1,
+      false
+    );
+    const mergeDurationMs = Date.now() - mergeStartedAt;
+    lifecycle.batches++;
+    lifecycle.payloadBytes += batch.sources.byteLength
+      + batch.targets.byteLength
+      + batch.distances.byteLength;
+
+    if (batch.stage === 'foreground') {
+      lifecycle.initialLinkCount += addedLinks;
+      lifecycle.foregroundMergeMs += mergeDurationMs;
+    } else if (batch.stage === 'promoting') {
+      lifecycle.promotionMergeMs += mergeDurationMs;
+    } else {
+      lifecycle.backgroundMergeMs += mergeDurationMs;
+    }
+
+    if (batch.stage !== 'foreground') {
+      const threshold = Number(this.session.style.widgets['link-threshold']);
+      for (let index = 0; index < batch.distances.length; index++) {
+        if (Number(batch.distances[index]) <= threshold) {
+          lifecycle.correctedBelowThresholdLinks++;
+        }
+      }
+    }
+  }
+
+  private async startTn93DistanceAttempt(
+    lifecycle: ActiveTn93DistanceLifecycle
+  ): Promise<SequenceLinkComputationResult> {
+    const attempt = ++lifecycle.attempt;
+    lifecycle.backgroundStarted = false;
+    // A retry must not expose the failed attempt's startBackground closure to
+    // exact-only consumers while the replacement worker is still planning.
+    lifecycle.result = null;
+    const packedSequences = packTn93Sequences(lifecycle.subset);
+    const strategy = String(
+      this.session.style.widgets['ambiguity-resolution-strategy'] || 'AVERAGE'
+    ).toUpperCase() as Tn93AmbiguityStrategy;
+
+    const fallbackToExhaustive = async (cause: Error) => {
+      const fallbackStartedAt = Date.now();
+      const fallback = await this.computeExhaustiveSequenceLinks(
+        lifecycle.subset,
+        'tn93',
+        lifecycle.loadGeneration,
+        lifecycle.inputSignature,
+        this.sequenceLinkRecomputationGeneration
+      );
+      lifecycle.initialLinkCount += fallback.addedLinks;
+      lifecycle.foregroundMergeMs += fallback.mergeDurationMs;
+      this.recordPerformanceDuration(
+        'tn93',
+        'foregroundExhaustiveFallback',
+        Date.now() - fallbackStartedAt,
+        {
+          cause: cause.message,
+          pairs: fallback.computedPairs,
+          generatedLinks: fallback.addedLinks,
+          mergeDurationMs: fallback.mergeDurationMs,
+          ...fallback.workerTiming
+        }
+      );
+      return fallback;
+    };
+
+    let result: SequenceLinkComputationResult;
+    try {
+      result = await this.workerComputeService.startTn93DistanceJob({
+        packedSequences,
+        strategy,
+        ambiguityThreshold: Number(this.session.style.widgets['ambiguity-threshold']),
+        threshold: Number(this.session.style.widgets['link-threshold']),
+        loadGeneration: lifecycle.loadGeneration,
+        inputSignature: lifecycle.inputSignature,
+        minimumProgressivePairCount: 5000,
+        maximumCandidateRatio: 0.8,
+        onBatch: (batch) => this.mergeTn93DistanceBatch(lifecycle, attempt, batch),
+        onStatus: (status) => this.handleTn93DistanceStatus(lifecycle, attempt, status),
+        fallbackToExhaustive
+      });
+    } catch (cause) {
+      if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+        throw cause;
+      }
+
+      // Worker construction itself can fail before the coordinator has an
+      // active job to own. Preserve the same pre-render exhaustive fallback
+      // guarantee for that case.
+      const error = cause instanceof Error
+        ? cause
+        : new Error(String(cause));
+      const fallback = await fallbackToExhaustive(error);
+      result = this.buildCompletedSequenceLinkResult(
+        lifecycle.loadGeneration,
+        lifecycle.inputSignature,
+        fallback.totalPairs,
+        fallback.computedPairs,
+        fallback.addedLinks,
+        fallback.timings as Record<string, number>
+      );
+      this.store.setTn93DistanceStatus({
+        phase: 'complete',
+        runId: result.runId,
+        loadGeneration: lifecycle.loadGeneration,
+        inputSignature: lifecycle.inputSignature,
+        threshold: Number(this.session.style.widgets['link-threshold']),
+        computedPairs: fallback.computedPairs,
+        candidatePairs: fallback.totalPairs,
+        totalPairs: fallback.totalPairs,
+        provisional: false
+      });
+    }
+
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+      throw new Error('Discarded stale TN93 initial results.');
+    }
+
+    lifecycle.result = result;
+    (result as any).initialLinkCount = lifecycle.initialLinkCount;
+
+    if (!result.provisional) {
+      const completion = await result.backgroundCompletion;
+      if (lifecycle.retryCount > 0) {
+        try {
+          await this.handleTn93BackgroundCompletion(lifecycle, attempt, completion);
+        } catch (error) {
+          await this.handleTn93PostCompletionRefreshFailure(
+            lifecycle,
+            attempt,
+            completion,
+            error
+          );
+        }
+      } else {
+        this.resolveTn93ExactCompletion(lifecycle, completion);
+        this.stopTn93LongTaskTelemetry(lifecycle);
+      }
+    } else {
+      result.backgroundCompletion.then(
+        (completion) => {
+          void this.handleTn93BackgroundCompletion(
+            lifecycle,
+            attempt,
+            completion
+          ).catch((error) => this.handleTn93PostCompletionRefreshFailure(
+            lifecycle,
+            attempt,
+            completion,
+            error
+          ));
+        },
+        (error) => {
+          void this.handleTn93BackgroundFailure(
+            lifecycle,
+            attempt,
+            error
+          );
+        }
+      );
+    }
+
+    return result;
+  }
+
+  private startActiveTn93Background(lifecycle: ActiveTn93DistanceLifecycle): void {
+    if (
+      !this.isCurrentTn93Lifecycle(lifecycle)
+      || lifecycle.backgroundStarted
+      || !lifecycle.result?.provisional
+    ) {
+      return;
+    }
+
+    lifecycle.backgroundStarted = true;
+    lifecycle.result.startBackground();
+  }
+
+  private async handleTn93BackgroundCompletion(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    attempt: number,
+    completion: Tn93DistanceCompletionResult
+  ): Promise<void> {
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+      return;
+    }
+
+    this.flushLinkBatchInvalidation();
+    this.setLinkVisibility(true, false);
+
+    if (this.session.style.widgets['link-show-nn']) {
+      await this.computeMST({
+        skipTn93Wait: true,
+        isCurrent: () => this.isCurrentTn93Lifecycle(lifecycle, attempt)
+      });
+      if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) return;
+      this.session.style.widgets['mst-computed'] = true;
+      // MST annotates `nn` after the first visibility pass. Re-apply before
+      // clustering so NN-only networks do not transiently form singletons.
+      this.setLinkVisibility(true, false);
+    }
+
+    const defaultView = String(this.session.style.widgets['default-view'] || '');
+    const inferredTreeRequested = defaultView === 'Phylogenetic Tree'
+      || this.activeTab === 'Phylogenetic Tree'
+      || Boolean(this.visuals?.phylogenetic);
+    if (
+      inferredTreeRequested
+      && !this.hasImportedNewickSource()
+    ) {
+      delete this.temp.treeObj;
+      const inferredNewick = await this.computeTree({
+        skipTn93Wait: true,
+        isCurrent: () => this.isCurrentTn93Lifecycle(lifecycle, attempt)
+      });
+      if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) return;
+      this.session.data.newickString = inferredNewick;
+    }
+
+    // Publish one monotonic completion signal after the final state is ready.
+    // A non-silent update here would make every open pane render twice.
+    await this.updateNetworkVisuals(true, true);
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) return;
+
+    const status = this.store.tn93DistanceStatusValue;
+    if (status) {
+      this.store.setTn93DistanceStatus({
+        ...status,
+        phase: 'complete',
+        computedPairs: completion.computedPairs,
+        totalPairs: completion.totalPairs,
+        provisional: false,
+        error: undefined
+      });
+    }
+    this.store.publishNetworkDataRevision(
+      'complete',
+      completion.runId,
+      completion.loadGeneration,
+      completion.inputSignature
+    );
+    this.resolveTn93ExactCompletion(lifecycle, completion);
+    this.stopTn93LongTaskTelemetry(lifecycle);
+    const coordinatorTelemetry = this.workerComputeService.getTn93CoordinatorTelemetry();
+    this.recordPerformanceDuration('tn93', 'backgroundFullCompletion', Date.now() - lifecycle.startedAt, {
+      runId: completion.runId,
+      sequences: lifecycle.subset.length,
+      candidatePairs: lifecycle.result?.candidatePairs,
+      totalPairs: completion.totalPairs,
+      backgroundMergeMs: lifecycle.backgroundMergeMs,
+      promotionMergeMs: lifecycle.promotionMergeMs,
+      batches: lifecycle.batches,
+      payloadBytes: lifecycle.payloadBytes,
+      correctedBelowThresholdLinks: Math.max(
+        completion.correctedBelowThresholdLinks,
+        lifecycle.correctedBelowThresholdLinks
+      ),
+      workerTimings: completion.timings,
+      longTasks: {
+        count: lifecycle.longTasks.count,
+        totalDurationMs: lifecycle.longTasks.totalDurationMs,
+        maxDurationMs: lifecycle.longTasks.maxDurationMs
+      },
+      ...coordinatorTelemetry
+    });
+    this.activeTn93DistanceLifecycle = null;
+  }
+
+  private async handleTn93PostCompletionRefreshFailure(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    attempt: number,
+    completion: Tn93DistanceCompletionResult,
+    error: any
+  ): Promise<void> {
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+      return;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('TN93 distances completed, but the final view refresh failed:', error);
+    this.flushLinkBatchInvalidation();
+    const status = this.store.tn93DistanceStatusValue;
+    if (status) {
+      this.store.setTn93DistanceStatus({
+        ...status,
+        phase: 'complete',
+        computedPairs: completion.computedPairs,
+        totalPairs: completion.totalPairs,
+        provisional: false,
+        error: `Final view refresh failed: ${message}`
+      });
+    }
+    this.store.publishNetworkDataRevision(
+      'complete',
+      completion.runId,
+      completion.loadGeneration,
+      completion.inputSignature
+    );
+    this.resolveTn93ExactCompletion(lifecycle, completion);
+    this.stopTn93LongTaskTelemetry(lifecycle);
+    this.recordPerformanceDuration('tn93', 'postCompletionRefreshError', 0, {
+      runId: completion.runId,
+      loadGeneration: completion.loadGeneration,
+      inputSignature: completion.inputSignature,
+      message
+    });
+    this.activeTn93DistanceLifecycle = null;
+  }
+
+  private async handleTn93BackgroundFailure(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    attempt: number,
+    error: any
+  ): Promise<void> {
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) {
+      return;
+    }
+
+    this.flushLinkBatchInvalidation();
+    this.setLinkVisibility(true, false);
+    try {
+      await this.updateNetworkVisuals(true, true);
+    } catch (refreshError) {
+      console.error(
+        'Unable to refresh the provisional network after TN93 worker failure:',
+        refreshError
+      );
+    }
+    if (!this.isCurrentTn93Lifecycle(lifecycle, attempt)) return;
+    this.store.publishNetworkDataRevision(
+      'error',
+      lifecycle.result?.runId ?? null,
+      lifecycle.loadGeneration,
+      lifecycle.inputSignature
+    );
+
+    if (lifecycle.retryCount < 1) {
+      lifecycle.retryCount++;
+      try {
+        const retryResult = await this.startTn93DistanceAttempt(lifecycle);
+        if (retryResult.provisional) {
+          this.startActiveTn93Background(lifecycle);
+        }
+        return;
+      } catch (retryError) {
+        error = retryError;
+      }
+    }
+
+    this.stopTn93LongTaskTelemetry(lifecycle);
+    this.rejectTn93ExactCompletion(lifecycle, error);
+    const status = this.store.tn93DistanceStatusValue;
+    if (status) {
+      this.store.setTn93DistanceStatus({
+        ...status,
+        phase: 'error',
+        provisional: true,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+    if (this.activeTn93DistanceLifecycle === lifecycle) {
+      this.activeTn93DistanceLifecycle = null;
+    }
+  }
+
+  /**
+   * Compute sequence-derived links. TN93 may return a provisional foreground
+   * matrix; SNP and adaptive TN93 fallbacks remain exhaustive before render.
+   */
+  async computeLinks(subset: any[]): Promise<SequenceLinkComputationResult> {
+    this.cancelTn93DistanceJob('sequence-link-recompute', true, true);
+    const computeLinksStart = Date.now();
+    const metric = String(
+      this.session.style.widgets['default-distance-metric'] || ''
+    ).toLowerCase();
+    const n = subset.length;
+    const pairCount = (n * (n - 1)) / 2;
+    const loadGeneration = this.getDataLoadGeneration();
+    const inputSignature = metric === 'tn93'
+      ? this.createTn93InputSignature(subset)
+      : '';
+    const recomputationGeneration = this.sequenceLinkRecomputationGeneration;
+    const guardrails = this.getSequencePairwiseLinkGuardrails();
+    const guardrail = this.buildSequencePairwiseLinkGuardrail(
+      n,
+      pairCount,
+      metric,
+      guardrails
+    );
+    this.recordSequencePairwiseLinkGuardrailWarning(guardrail);
+
+    if (guardrail?.hardLimitHit) {
+      this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+        metric,
+        sequences: n,
+        pairCount,
+        generatedLinks: 0,
+        skippedByGuardrail: true,
+        guardrail
+      });
+      return this.buildCompletedSequenceLinkResult(
+        loadGeneration,
+        inputSignature,
+        pairCount,
+        0,
+        0
+      );
+    }
+
+    if (metric !== 'tn93') {
+      const exhaustive = await this.computeExhaustiveSequenceLinks(
+        subset,
+        metric,
+        loadGeneration,
+        '',
+        recomputationGeneration
+      );
+      this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+        metric,
+        sequences: n,
+        pairCount,
+        generatedLinks: exhaustive.addedLinks,
+        skippedByGuardrail: false,
+        mergeDurationMs: exhaustive.mergeDurationMs,
+        ...exhaustive.workerTiming,
+        ...(guardrail ? { guardrail } : {})
+      });
+      return this.buildCompletedSequenceLinkResult(
+        loadGeneration,
+        '',
+        pairCount,
+        exhaustive.computedPairs,
+        exhaustive.addedLinks,
+        exhaustive.timings
+      );
+    }
+
+    const lifecycle = this.createTn93DistanceLifecycle(
+      subset,
+      loadGeneration,
+      inputSignature
+    );
+    this.activeTn93DistanceLifecycle = lifecycle;
+    let result: SequenceLinkComputationResult;
+    try {
+      result = await this.startTn93DistanceAttempt(lifecycle);
+    } catch (error) {
+      if (this.activeTn93DistanceLifecycle === lifecycle) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.stopTn93LongTaskTelemetry(lifecycle);
+        this.rejectTn93ExactCompletion(lifecycle, error);
+        this.store.setTn93DistanceStatus({
+          phase: 'error',
+          runId: lifecycle.result?.runId ?? 0,
+          loadGeneration,
+          inputSignature,
+          threshold: Number(this.session.style.widgets['link-threshold']),
+          computedPairs: this.store.tn93DistanceStatusValue?.computedPairs ?? 0,
+          candidatePairs: this.store.tn93DistanceStatusValue?.candidatePairs ?? 0,
+          totalPairs: pairCount,
+          provisional: true,
+          error: message
+        });
+        this.activeTn93DistanceLifecycle = null;
+      }
+      throw error;
+    }
+    this.flushLinkBatchInvalidation();
+
+    this.recordPerformanceDuration('load', 'computeLinks', Date.now() - computeLinksStart, {
+      metric,
+      sequences: n,
+      pairCount,
+      candidatePairs: result.candidatePairs,
+      candidateRatio: pairCount > 0 ? result.candidatePairs / pairCount : 0,
+      initialComputedPairs: result.initialComputedPairs,
+      deferredPairs: result.deferredPairs,
+      generatedLinks: lifecycle.initialLinkCount,
+      provisional: result.provisional,
+      fallbackReason: result.fallbackReason,
+      foregroundMergeMs: lifecycle.foregroundMergeMs,
+      planningTimings: result.timings,
+      skippedByGuardrail: false,
+      ...(guardrail ? { guardrail } : {})
+    });
+
+    if (!result.provisional && this.activeTn93DistanceLifecycle === lifecycle) {
+      this.activeTn93DistanceLifecycle = null;
+    }
+    return result;
+  }
+
+  private publishTn93ForegroundReady(
+    lifecycle: ActiveTn93DistanceLifecycle,
+    reason: string
+  ): void {
+    if (!this.isCurrentTn93Lifecycle(lifecycle) || lifecycle.foregroundReadyAt !== null) {
+      return;
+    }
+
+    lifecycle.foregroundReadyAt = Date.now();
+    this.store.publishNetworkDataRevision(
+      'foreground',
+      lifecycle.result?.runId ?? null,
+      lifecycle.loadGeneration,
+      lifecycle.inputSignature
+    );
+    this.recordPerformanceDuration(
+      'tn93',
+      'initialNetworkReady',
+      lifecycle.foregroundReadyAt - lifecycle.startedAt,
+      {
+        reason,
+        runId: lifecycle.result?.runId,
+        sequences: lifecycle.subset.length,
+        initialComputedPairs: lifecycle.result?.initialComputedPairs,
+        candidatePairs: lifecycle.result?.candidatePairs,
+        totalPairs: lifecycle.result?.totalPairs,
+        foregroundMergeMs: lifecycle.foregroundMergeMs,
+        batches: lifecycle.batches,
+        payloadBytes: lifecycle.payloadBytes
+      }
+    );
+  }
+
+  /**
+   * Release the complement only after a network-oriented default view reports
+   * ready. Exact-only defaults start it immediately because their own render
+   * waits for the complete matrix.
+   */
+  startTn93BackgroundAfterInitialRender(result: SequenceLinkComputationResult): void {
+    const lifecycle = this.activeTn93DistanceLifecycle;
+    if (
+      !lifecycle
+      || !result.provisional
+      || lifecycle.result?.runId !== result.runId
+    ) {
+      return;
+    }
+
+    const start = (reason: string) => {
+      this.tn93RenderReadySubscription?.unsubscribe();
+      this.tn93RenderReadySubscription = null;
+      if (this.tn93RenderReadyTimeout !== null) {
+        clearTimeout(this.tn93RenderReadyTimeout);
+        this.tn93RenderReadyTimeout = null;
+      }
+      this.publishTn93ForegroundReady(lifecycle, reason);
+      this.startActiveTn93Background(lifecycle);
+    };
+    const exactOnlyDefaultViews = new Set([
+      'Heatmap',
+      'Phylogenetic Tree'
+    ]);
+    const defaultView = String(this.session.style.widgets['default-view'] || '');
+
+    if (this.store.networkRenderedValue) {
+      start('view-reported-ready');
+    } else if (exactOnlyDefaultViews.has(defaultView)) {
+      start('exact-view-waiting');
+    } else {
+      this.tn93RenderReadySubscription = this.store.networkRendered$
+        .pipe(filter(Boolean), take(1))
+        .subscribe(() => start('view-reported-ready'));
+      // A failed view must not strand the exact matrix forever. Ten seconds
+      // still gives the first interactive render priority on healthy paths.
+      this.tn93RenderReadyTimeout = setTimeout(
+        () => start('view-ready-timeout'),
+        10000
+      );
+    }
+  }
+
+  async ensureTn93CandidatesForThreshold(threshold: number): Promise<any> {
+    const lifecycle = this.activeTn93DistanceLifecycle;
+    if (
+      !lifecycle
+      || String(this.session.style.widgets['default-distance-metric']).toLowerCase() !== 'tn93'
+    ) {
+      return null;
+    }
+
+    const promotionStartedAt = Date.now();
+    const result = await this.workerComputeService.ensureTn93CandidatesForThreshold(
+      threshold,
+      {
+        loadGeneration: lifecycle.loadGeneration,
+        inputSignature: lifecycle.inputSignature
+      }
+    );
+    if (!result || !this.isCurrentTn93Lifecycle(lifecycle)) {
+      return result;
+    }
+
+    this.flushLinkBatchInvalidation();
+    if (result.promotedPairs > 0) {
+      this.setLinkVisibility(true, false);
+      await this.updateNetworkVisuals(true, true);
+      if (!this.isCurrentTn93Lifecycle(lifecycle)) {
+        return result;
+      }
+      this.store.publishNetworkDataRevision(
+        'threshold-promotion',
+        result.runId,
+        result.loadGeneration,
+        result.inputSignature
+      );
+    }
+    this.recordPerformanceDuration(
+      'tn93',
+      'thresholdPromotion',
+      Date.now() - promotionStartedAt,
+      {
+        threshold,
+        promotedPairs: result.promotedPairs,
+        computedPairs: result.computedPairs,
+        candidatePairs: result.candidatePairs,
+        totalPairs: result.totalPairs,
+        promotionMergeMs: lifecycle.promotionMergeMs
+      }
+    );
+    return result;
+  }
+
+  isTn93DistanceProvisional(): boolean {
+    return Boolean(this.store.tn93DistanceStatusValue?.provisional);
+  }
+
+  async waitForTn93DistanceCompletion(
+    loadingMessage = 'Waiting for all TN93 pairwise distances to finish...'
+  ): Promise<Tn93DistanceCompletionResult | null> {
+    const lifecycle = this.activeTn93DistanceLifecycle;
+    if (lifecycle) {
+      this.store.setLoadingMessageUpdated(loadingMessage);
+      this.startActiveTn93Background(lifecycle);
+      const completion = await lifecycle.exactCompletion;
+      if (
+        completion.loadGeneration !== lifecycle.loadGeneration
+        || completion.inputSignature !== lifecycle.inputSignature
+      ) {
+        throw new Error('Discarded stale TN93 completion while waiting for exact distances.');
+      }
+      return completion;
+    }
+
+    const preparation = this.sequenceDistancePreparationBarrier;
+    if (preparation) {
+      this.store.setLoadingMessageUpdated(loadingMessage);
+      await preparation.promise;
+      return this.waitForTn93DistanceCompletion(loadingMessage);
+    }
+
+    const status = this.store.tn93DistanceStatusValue;
+    if (status?.provisional) {
+      throw new Error('The provisional TN93 matrix has no active completion job.');
+    }
+    return null;
+  }
 
 
     hasSeq = x => {
@@ -3170,9 +4613,14 @@ align(params): Promise<any> {
         return false;
     }
 
-    getDM(): Promise<any> {
+    getDM(options: { skipTn93Wait?: boolean } = {}): Promise<any> {
         const start = Date.now();
-        return new Promise(resolve => {
+        const exactDistancesReady = options.skipTn93Wait || this.session.data['newick']
+          ? Promise.resolve()
+          : this.waitForTn93DistanceCompletion(
+            'Completing TN93 distances before building the full distance matrix...'
+          );
+        return exactDistancesReady.then(() => new Promise(resolve => {
             let labels = [];
             let dm : any = '';
             if (this.session.data['newick']){
@@ -3213,48 +4661,111 @@ align(params): Promise<any> {
                 console.log("DM Compute time: ", (Date.now() - start).toLocaleString(), "ms");
             }
             resolve({dm, labels});
-        });
+        }));
     };
 
-    computeTree(): Promise<any> {
+    async computeTree(
+      options: { skipTn93Wait?: boolean; isCurrent?: () => boolean } = {}
+    ): Promise<any> {
         if (this.debugMode) {
           console.log('computing tree');
         }
         console.log('------------------------------------------------------');
-        return new Promise(resolve => {
+        const getCachedTree = () => {
           if (this.temp.treeObj) {
-            return resolve(this.temp.treeObj.toNewick());
-          } else if (this.session.data['newick']) {
-            return resolve(this.session.data['newick']);
-          } else {
-            this.getDM().then(({dm, labels}) => {
-              // Get a fresh tree worker from the factory.
-              const treeWorker = this.computer.getTreeWorker();
-              treeWorker.postMessage({
-                labels: labels.length > 0 ? labels : this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
-                matrix: dm,
-                round: this.session.style.widgets["tree-round"]
-              });
-              const sub = treeWorker.onmessage().subscribe((response) => {
-                // Decode the result from the worker.
-                const treeObj = this.decode(new Uint8Array(response.data.tree));
-                const treeString = patristic.parseJSON(treeObj).toNewick();
-                if (this.debugMode) {
-                  console.log('Tree Transit time: ', (Date.now() - response.data.start).toLocaleString(), 'ms');
-                }
-                // Clean up: terminate the worker and unsubscribe.
-                treeWorker.terminate();
-                sub.unsubscribe();
-                return resolve(treeString);
-              });
-            });
+            return this.temp.treeObj.toNewick();
           }
+          return this.session.data['newick']
+            || this.session.data.newickString
+            || null;
+        };
+        const cachedTree = getCachedTree();
+        if (cachedTree) {
+          return cachedTree;
+        }
+
+        if (!options.skipTn93Wait) {
+          await this.waitForTn93DistanceCompletion(
+            'Completing TN93 distances before inferring a phylogenetic tree...'
+          );
+        }
+        if (options.isCurrent && !options.isCurrent()) {
+          throw new Error('Discarded stale inferred-tree computation.');
+        }
+        // Another exact-matrix consumer may have populated the inferred tree
+        // while this caller was waiting for progressive TN93 completion.
+        const treeAfterWait = getCachedTree();
+        if (treeAfterWait) {
+          return treeAfterWait;
+        }
+
+        const { dm, labels } = await this.getDM({ skipTn93Wait: true });
+        if (options.isCurrent && !options.isCurrent()) {
+          throw new Error('Discarded stale inferred-tree computation.');
+        }
+        const treeAfterMatrix = getCachedTree();
+        if (treeAfterMatrix) {
+          return treeAfterMatrix;
+        }
+        return new Promise((resolve, reject) => {
+          const treeWorker = this.computer.getTreeWorker();
+          let messageSubscription: any;
+          let errorSubscription: any;
+          const cleanup = () => {
+            messageSubscription?.unsubscribe();
+            errorSubscription?.unsubscribe();
+            treeWorker.terminate();
+          };
+
+          messageSubscription = treeWorker.onmessage().subscribe((response) => {
+            try {
+              if (options.isCurrent && !options.isCurrent()) {
+                throw new Error('Discarded stale inferred-tree result.');
+              }
+              const treeObj = this.decode(new Uint8Array(response.data.tree));
+              const treeString = patristic.parseJSON(treeObj).toNewick();
+              if (this.debugMode) {
+                console.log(
+                  'Tree Transit time: ',
+                  (Date.now() - response.data.start).toLocaleString(),
+                  'ms'
+                );
+              }
+              cleanup();
+              resolve(treeString);
+            } catch (error) {
+              cleanup();
+              reject(error);
+            }
+          });
+          errorSubscription = treeWorker.onerror().subscribe((error) => {
+            cleanup();
+            reject(error instanceof Error ? error : new Error(String(error)));
+          });
+          treeWorker.postMessage({
+            labels: labels.length > 0
+              ? labels
+              : this.session.data.nodes.filter(this.hasSeq).map(a => a._id),
+            matrix: dm,
+            round: this.session.style.widgets["tree-round"]
+          });
         });
       }
 
-      computeMST(): Promise<void> {
+      computeMST(
+        options: { skipTn93Wait?: boolean; isCurrent?: () => boolean } = {}
+      ): Promise<void> {
         const newickString = this.session.data?.newickString;
         if (this.hasNewickBackedDistanceSource(newickString)) {
+            if (options.isCurrent && !options.isCurrent()) {
+                return Promise.resolve();
+            }
+            const links = this.session.data.links;
+            const matrix = this.temp.matrix;
+            const isCurrent = () =>
+                (!options.isCurrent || options.isCurrent())
+                && this.session.data.links === links
+                && this.temp.matrix === matrix;
             const firstDistanceLink = this.session.data.links.find(link => link?.hasDistance && link?.distanceOrigin);
             const distanceOrigins = firstDistanceLink ? this.getLinkDistanceOrigins(firstDistanceLink) : [];
             const distanceOrigin = distanceOrigins[0] || this.getNewickBackedSourceFile()?.name || 'Newick Tree';
@@ -3270,56 +4781,102 @@ align(params): Promise<any> {
                     origin,
                     distanceOrigin,
                     check: true,
+                    isCurrent,
                 }
             ).then(() => undefined);
         }
 
-        return new Promise((resolve, reject) => {
-            const links = this.session.data.links;
-            const found = links.find(l =>
-                (l.source === "MZ712879" && l.target === "MZ745515") ||
-                (l.source === "MZ745515" && l.target === "MZ712879")
-            );
-            console.log(" common service Found link in links array?", found);
-            const mstWorker = this.computer.getMSTWorker();
-            mstWorker.postMessage({
-                links: this.session.data.links,
-                matrix: this.temp.matrix,
-                epsilon: this.session.style.widgets["filtering-epsilon"],
-                metric: this.session.style.widgets['link-sort-variable']
-            });
-            const sub = mstWorker.onmessage().subscribe((response) => {
-                if (response.data === "Error") {
-                    return reject("MST washed out");
-                }
-                const output = new Uint8Array(response.data.links);
-                if (this.debugMode) {
-                    console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
-                }
-                const start = Date.now();
-                let links = this.session.data.links;
-                const numLinks = links.length;
-                console.log('-----setting NN');
-                for (let i = 0; i < numLinks; i++) {
-                    links[i].nn = output[i] ? true : false;
-                    if(output[i] ? true : false){
-                        console.log('-- NN true: ', _.cloneDeep(links[i]));
-                    }
-                }
-                if (this.debugMode) {
-                    console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
-                }
+        const exactDistancesReady = options.skipTn93Wait
+          ? Promise.resolve()
+          : this.waitForTn93DistanceCompletion(
+            'Completing TN93 distances before computing the minimum spanning network...'
+          );
+        return exactDistancesReady.then(() => new Promise<void>((resolve, reject) => {
+            if (options.isCurrent && !options.isCurrent()) {
                 resolve();
+                return;
+            }
+
+            const links = this.session.data.links;
+            const matrix = this.temp.matrix;
+            const mstWorker = this.computer.getMSTWorker();
+            let settled = false;
+            let messageSubscription: any;
+            let errorSubscription: any;
+            const cleanup = () => {
+                messageSubscription?.unsubscribe();
+                errorSubscription?.unsubscribe();
                 mstWorker.terminate();
-                sub.unsubscribe();
+            };
+            const fail = (error: any) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(error instanceof Error ? error : new Error(String(error)));
+            };
+
+            messageSubscription = mstWorker.onmessage().subscribe((response) => {
+                if (settled) return;
+                if (response.data === "Error") {
+                    fail(new Error("MST washed out"));
+                    return;
+                }
+                if (
+                    (options.isCurrent && !options.isCurrent())
+                    || this.session.data.links !== links
+                    || this.temp.matrix !== matrix
+                ) {
+                    settled = true;
+                    cleanup();
+                    resolve();
+                    return;
+                }
+
+                try {
+                    const output = new Uint8Array(response.data.links);
+                    if (this.debugMode) {
+                        console.log("MST Transit time: ", (Date.now() - response.data.start).toLocaleString(), "ms");
+                    }
+                    const start = Date.now();
+                    const numLinks = links.length;
+                    console.log('-----setting NN');
+                    for (let i = 0; i < numLinks; i++) {
+                        links[i].nn = Boolean(output[i]);
+                        if (links[i].nn) {
+                            console.log('-- NN true: ', _.cloneDeep(links[i]));
+                        }
+                    }
+                    if (this.debugMode) {
+                        console.log("MST Merge time: ", (Date.now() - start).toLocaleString(), "ms");
+                    }
+                    settled = true;
+                    cleanup();
+                    resolve();
+                } catch (error) {
+                    fail(error);
+                }
             });
-        });
+            errorSubscription = mstWorker.onerror().subscribe(fail);
+
+            try {
+                mstWorker.postMessage({
+                    links,
+                    matrix,
+                    epsilon: this.session.style.widgets["filtering-epsilon"],
+                    metric: this.session.style.widgets['link-sort-variable']
+                });
+            } catch (error) {
+                fail(error);
+            }
+        }));
       }
       
 
 
       computeNN(): Promise<void> {
-        return this.workerComputeService.computeNN(this.session, this.temp);
+        return this.waitForTn93DistanceCompletion(
+          'Completing TN93 distances before computing nearest neighbors...'
+        ).then(() => this.workerComputeService.computeNN(this.session, this.temp));
     }
 
     ensurePatristicEdgesForThreshold(threshold: number): Promise<any> {
@@ -3348,7 +4905,7 @@ align(params): Promise<any> {
         );
     }
 
-    async runHamsters() {
+    async runHamsters(options: { skipTree?: boolean } = {}) {
 
         const runHamstersStart = Date.now();
         console.log('running hamsters');
@@ -3357,7 +4914,7 @@ align(params): Promise<any> {
         let hasDistances = this.session.data.links.some(l => l.hasDistance === true && l.distance > 0)
         let hasNewickString = typeof this.session.data.newickString === 'string' && this.session.data.newickString.trim().length > 0;
         let computedTree = false;
-        if (hasDistances && this.session.data.links.length <= 2500 && !hasNewickString) {
+        if (!options.skipTree && hasDistances && this.session.data.links.length <= 2500 && !hasNewickString) {
             console.log('run ham computeTree');
             const newickString = await this.computeTree();
             this.session.data.newickString = newickString;
@@ -3365,13 +4922,14 @@ align(params): Promise<any> {
             console.log('compute tree end');
         }
         //if (!this.session.style.widgets['infer-directionality-false']) this.computeDirectionality();
-        this.finishUp();
+        await this.finishUp();
         this.recordPerformanceTiming('load', 'runHamsters', runHamstersStart, {
             nodes: this.session.data.nodes.length,
             links: this.session.data.links.length,
             hasDistances,
             hasNewickString,
-            computedTree
+            computedTree,
+            skippedTreeForProvisionalTn93: Boolean(options.skipTree)
         });
     };
 
@@ -3455,7 +5013,7 @@ align(params): Promise<any> {
 
         console.log('----- finishUp -- updateNetworkVisuals');
        
-        this.updateNetworkVisuals(true);
+        await this.updateNetworkVisuals(true);
 
         // TODO is this needed?
         // setTimeout(() => {
@@ -3524,7 +5082,7 @@ align(params): Promise<any> {
     };
 
 
-    updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
+    async updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false): Promise<void> {
         const updateStart = Date.now();
         let prevNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
         let prevVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
@@ -3537,61 +5095,60 @@ align(params): Promise<any> {
             .map(link => getVisibleLinkKey(link))
         );
 
-        this.tagClusters().then(() => {
-          this.setClusterVisibility(true);
-          this.setNodeVisibility(true);
-          this.setLinkVisibility(true);
-          // Link origin filtering can change the active color-domain during data updates.
-          this.createLinkColorMap();
-          this.visuals?.microbeTrace?.publishUpdateLinkColor?.();
-          this.updateStatistics();
-          if (!silent) this.store.setNetworkUpdated(true);
-          let updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
-          let updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
-          const updatedVisibleLinkKeys = new Set(
-            this.session.data.links
-              .filter(link => link.visible)
-              .map(link => getVisibleLinkKey(link))
-          );
-          const visibleLinksChanged =
-            prevVisibleLinkKeys.size !== updatedVisibleLinkKeys.size ||
-            Array.from(prevVisibleLinkKeys).some((key) => !updatedVisibleLinkKeys.has(key));
+        await this.tagClusters();
+        this.setClusterVisibility(true);
+        this.setNodeVisibility(true);
+        this.setLinkVisibility(true);
+        // Link origin filtering can change the active color-domain during data updates.
+        this.createLinkColorMap();
+        this.visuals?.microbeTrace?.publishUpdateLinkColor?.();
+        this.updateStatistics();
+        if (!silent) this.store.setNetworkUpdated(true);
+        const updatedNumberOfVisibleClusters = this.session.data.clusters.filter(cluster => cluster.visible).length;
+        const updatedVisNodeCount = this.session.data.clusters.filter(cluster => cluster.visible).reduce((acc, cluster) => acc + cluster.nodes, 0)
+        const updatedVisibleLinkKeys = new Set(
+          this.session.data.links
+            .filter(link => link.visible)
+            .map(link => getVisibleLinkKey(link))
+        );
+        const visibleLinksChanged =
+          prevVisibleLinkKeys.size !== updatedVisibleLinkKeys.size ||
+          Array.from(prevVisibleLinkKeys).some((key) => !updatedVisibleLinkKeys.has(key));
 
-          if (!silent && (
-            prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters ||
-            prevVisNodeCount != updatedVisNodeCount ||
-            visibleLinksChanged ||
-            forceClusterUpdate
-          )) {
-            console.log('Triggering cluster count update')
-            this.store.triggerClusterUpdate();
-          }
+        if (!silent && (
+          prevNumberOfVisibleClusters != updatedNumberOfVisibleClusters ||
+          prevVisNodeCount != updatedVisNodeCount ||
+          visibleLinksChanged ||
+          forceClusterUpdate
+        )) {
+          console.log('Triggering cluster count update')
+          this.store.triggerClusterUpdate();
+        }
 
-          console.log('---- Update network visuals end');
+        console.log('---- Update network visuals end');
 
-          console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
-            const firstLoad = !this.session.network.isFullyLoaded;
-            this.recordPerformanceTiming('network', 'updateNetworkVisuals', updateStart, {
-                silent,
-                forceClusterUpdate,
-                firstLoad,
-                nodes: this.session.data.nodes.length,
-                links: this.session.data.links.length,
-                clusters: this.session.data.clusters.length,
-                visibleNodes: updatedVisNodeCount,
-                visibleClusters: updatedNumberOfVisibleClusters,
-                visibleLinks: updatedVisibleLinkKeys.size
-            });
-            // If network wasn't loaded already, launch default view
-            if (firstLoad) {
-                this.session.meta.loadTime = Date.now() - this.session.meta.startTime;
-                console.log("Total load time Update Network:", this.session.meta.loadTime.toLocaleString(), "ms");
-                this.launchView(this.session.style.widgets['default-view']);
-                console.log('---- Update network visuals end Total ');
-            }
-        //   $(document).trigger("node-visibility");
-        //   $(document).trigger("network-visuals-updated");
+        console.log('---- Update network visuals end isFullyLoaded: ', this.session.network.isFullyLoaded);
+        const firstLoad = !this.session.network.isFullyLoaded;
+        this.recordPerformanceTiming('network', 'updateNetworkVisuals', updateStart, {
+            silent,
+            forceClusterUpdate,
+            firstLoad,
+            nodes: this.session.data.nodes.length,
+            links: this.session.data.links.length,
+            clusters: this.session.data.clusters.length,
+            visibleNodes: updatedVisNodeCount,
+            visibleClusters: updatedNumberOfVisibleClusters,
+            visibleLinks: updatedVisibleLinkKeys.size
         });
+        // If network wasn't loaded already, launch default view
+        if (firstLoad) {
+            this.session.meta.loadTime = Date.now() - this.session.meta.startTime;
+            console.log("Total load time Update Network:", this.session.meta.loadTime.toLocaleString(), "ms");
+            this.launchView(this.session.style.widgets['default-view']);
+            console.log('---- Update network visuals end Total ');
+        }
+        // $(document).trigger("node-visibility");
+        // $(document).trigger("network-visuals-updated");
       }
 
 
@@ -4006,6 +5563,8 @@ align(params): Promise<any> {
      */
     reset() {
         //debugger;
+        this.sequenceLinkRecomputationGeneration++;
+        this.cancelTn93DistanceJob('session-reset', true);
 
         // $("#network-statistics-hide").parent().trigger("click");
         // $("#SettingsTab").attr("data-target", "#sequence-controls-modal");
@@ -4041,6 +5600,8 @@ align(params): Promise<any> {
      */
     resetData() {
 
+        this.sequenceLinkRecomputationGeneration++;
+        this.cancelTn93DistanceJob('sequence-data-reset', true);
 
         const newTempSkeleton = this.tempSkeleton();
 
@@ -4545,7 +6106,12 @@ align(params): Promise<any> {
             }
     
             // NN Pruning Logic
-            if (visible && showNN && !overrideNN) {
+            if (
+                visible
+                && showNN
+                && !overrideNN
+                && typeof link.nn === 'boolean'
+            ) {
                  const wasVisible = visible;
                  visible = visible && link.nn;
                  if (!visible && wasVisible) { // Check if NN made it invisible

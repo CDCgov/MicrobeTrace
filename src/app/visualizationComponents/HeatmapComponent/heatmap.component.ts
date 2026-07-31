@@ -71,6 +71,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   heatmapLabels: string[];
   heatmapMetric: string;
   private destroy$ = new Subject<void>();
+  private heatmapDrawInFlight: Promise<void> | null = null;
+  private heatmapDrawIdentity = '';
+  private heatmapRedrawPending = false;
     
   constructor(injector: Injector,
         private eventManager: EventManager,
@@ -162,7 +165,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       .pipe(takeUntil(this.destroy$))
       .subscribe((networkUpdated) => {
         if (this.viewActive && networkUpdated) {
-          this.redrawHeatmap();
+          this.redrawHeatmap(true);
           this.store.setNetworkUpdated(false);
         }
       });
@@ -235,8 +238,20 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     };
   }
 
-  drawHeatmap(config: object): void {
-    this.commonService.getDM().then(({dm, labels}) => {
+  private getHeatmapDataIdentity(): string {
+    const status = this.store.tn93DistanceStatusValue;
+    return [
+      this.commonService.getDataLoadGeneration(),
+      status?.runId ?? 'none',
+      status?.inputSignature ?? 'none'
+    ].join('|');
+  }
+
+  drawHeatmap(config: object, identity = this.getHeatmapDataIdentity()): Promise<void> {
+    return this.commonService.getDM().then(({dm, labels}) => {
+      if (identity !== this.getHeatmapDataIdentity()) {
+        return;
+      }
       this.nodeIds = labels;
       const xLabels = labels.map(d => d);
       const yLabels = xLabels.slice();
@@ -295,7 +310,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       const plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
       this.plot = plot;
 
-      Promise.resolve(plot).then(() => {
+      return Promise.resolve(plot).then(() => {
+        if (identity !== this.getHeatmapDataIdentity()) {
+          return;
+        }
         this.setBackground();
         this.store.setNetworkRendered(true);
       });
@@ -350,9 +368,17 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   //   return idSet;
   // }
   
-  redrawHeatmap(): void {
+  redrawHeatmap(coalesceExactWakeup: boolean = false): void {
     //if (!this.heatmapContainerRef.nativeElement.length) return;
     if (!$('#heatmap').length) return;
+    const identity = this.getHeatmapDataIdentity();
+    if (this.heatmapDrawInFlight) {
+      if (coalesceExactWakeup && identity === this.heatmapDrawIdentity) {
+        return;
+      }
+      this.heatmapRedrawPending = true;
+      return;
+    }
     if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
     // const labels = this.nodeIds;
     // const xLabels = labels.map(d => 'N' + d);
@@ -370,7 +396,24 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       config["ticks"] = '';
     }
 
-    this.drawHeatmap(config);
+    this.heatmapDrawIdentity = identity;
+    let tracked: Promise<void>;
+    tracked = this.drawHeatmap(config, identity)
+      .catch(error => {
+        console.error('Unable to redraw the heatmap:', error);
+      })
+      .finally(() => {
+        if (this.heatmapDrawInFlight !== tracked) {
+          return;
+        }
+        this.heatmapDrawInFlight = null;
+        this.heatmapDrawIdentity = '';
+        if (this.heatmapRedrawPending) {
+          this.heatmapRedrawPending = false;
+          this.redrawHeatmap();
+        }
+      });
+    this.heatmapDrawInFlight = tracked;
   }
 
   setBackground(): void {

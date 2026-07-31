@@ -30,6 +30,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   @ViewChild('sankeySVG') sankeySVG: ElementRef;
   private destroy$ = new Subject<void>();
+  private lastAppliedNetworkRevision = 0;
   
   viewActive: boolean = true;
 
@@ -90,6 +91,23 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     });
   }
 
+  private applyNetworkRevisionIfNeeded(
+    revision = this.store.networkDataRevisionValue
+  ): void {
+    if (
+      !revision
+      || !this.viewActive
+      || revision.revision <= this.lastAppliedNetworkRevision
+      || revision.loadGeneration !== this.commonService.getDataLoadGeneration()
+    ) {
+      return;
+    }
+
+    this.updateGraph();
+    this.cdref.detectChanges();
+    this.lastAppliedNetworkRevision = revision.revision;
+  }
+
   constructor(injector: Injector,
     private eventManager: EventManager,
     public commonService: CommonService,
@@ -133,6 +151,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     this.container.on('show', () => { 
       this.viewActive = true; 
       this.cdref.detectChanges();
+      this.applyNetworkRevisionIfNeeded();
     })
 
     // remove this after initial
@@ -146,6 +165,10 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
         this.cdref.detectChanges();
       }
     })
+
+    this.store.networkDataRevision$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((revision) => this.applyNetworkRevisionIfNeeded(revision));
   }
 
   ngOnDestroy(): void {

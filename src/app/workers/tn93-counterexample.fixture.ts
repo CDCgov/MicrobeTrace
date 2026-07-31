@@ -1,0 +1,22 @@
+/**
+ * TN93 is not a metric, so its consensus radii do not provide a reverse
+ * triangle bound. In this deterministic fixture, sequences 1 and 2 are within
+ * the link threshold even though their consensus-radius difference is larger
+ * than the threshold. The pair must therefore appear only after the deferred
+ * complement is completed.
+ */
+export const TN93_CONSENSUS_WINDOW_COUNTEREXAMPLE = {
+  threshold: 0.12,
+  qualifyingSourceIndex: 2,
+  qualifyingTargetIndex: 1,
+  sequences: [
+    'AGGTATTGTCTCTTACTGGTACAATCAATTTATCTAGTTGGAAGACGTTCTAACAACGTA',
+    'AGGTATTGTCTGCTAATAGTAGAATCAATTTAACTAGTAAGAGGTTGCTCTAATACTGTA',
+    'AGGTATTGTCTCTTACTAGTAGAATCAATTTAACTAGTAAGAGGTCGTTCTAACACTGTA',
+    'AAGGATTGTATCTTACTAGTGCAATGAATTTAATTAGTAAGAGGTCCTTCTAACACTGTA',
+    'AGGTATTGACGCTTACTTGTACAGTCAAGTTAACCAGTAAGAGGTCGGTCTGACACTGTA',
+    'AGGTATTGTCTCTTACTAGTACAATCAATTTTACTAGTAAGAGGTCGTTCTAACACTGTA',
+    'AGGTCTTGTCTCTTTTTAGTACAAACAATTGAGCTAGTAAGTGGTAGTTCGCACACTGAA',
+    'AGGTATTGGCACCTACTAATTAAATCCATTTAACTTCTAAGGTGACGTTTTAACACTGTT'
+  ]
+} as const;
