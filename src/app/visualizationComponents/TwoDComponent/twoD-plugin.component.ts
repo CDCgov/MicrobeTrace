@@ -50,6 +50,12 @@ interface CustomNodeSvgExportReplacement {
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
 
+interface CollapsedAggregatePositionAnchor {
+    id: string;
+    memberIds: Set<string>;
+    position: { x: number; y: number };
+}
+
 @Component({
     selector: 'TwoDComponent',
     templateUrl: './twoD-plugin.component.html',
@@ -85,6 +91,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     };
     selectedNodeId = undefined;
     private readonly collapsedNodeIdPrefix = 'twod-collapse-';
+    private collapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
+    private timelineFinalCollapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
+    private timelineFinalCollapsedLayoutReady = false;
     private nodeCollapseShapeWarningConfirmed = false;
     private nodeCollapseShapeWarningPending = false;
     private nodeCollapseRefreshPending = false;
@@ -263,14 +272,97 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private cacheCollapsedAggregatePositions(): void {
         if (!this.cy) return;
 
+        const positionAnchors: CollapsedAggregatePositionAnchor[] = [];
         this.cy.nodes()
             .filter((node: any) => (
                 this.isRenderedLayoutNode(node as cytoscape.NodeSingular)
                 && node.data('isCollapsedAggregate') === true
             ))
             .forEach((node: any) => {
-                this.nodePositions.set(node.id(), node.position());
+                const currentPosition = node.position();
+                const position = {
+                    x: Number(currentPosition?.x),
+                    y: Number(currentPosition?.y)
+                };
+                if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+                    return;
+                }
+
+                this.nodePositions.set(node.id(), position);
+                const memberIds = new Set<string>(
+                    (node.data('collapsedMemberIds') || []).map((memberId: any) => String(memberId))
+                );
+                if (memberIds.size > 0) {
+                    positionAnchors.push({
+                        id: node.id(),
+                        memberIds,
+                        position
+                    });
+                }
             });
+
+        this.collapsedAggregatePositionAnchors = positionAnchors;
+    }
+
+    private getCollapsedAggregatePosition(
+        memberIds: any[],
+        anchors: CollapsedAggregatePositionAnchor[]
+    ): { x: number; y: number } | undefined {
+        if (!memberIds?.length || anchors.length === 0) {
+            return undefined;
+        }
+
+        const normalizedMemberIds = new Set(memberIds.map(memberId => String(memberId)));
+        let bestAnchor: CollapsedAggregatePositionAnchor | undefined;
+        let bestOverlap = 0;
+
+        anchors.forEach(anchor => {
+            let overlap = 0;
+            anchor.memberIds.forEach(memberId => {
+                if (normalizedMemberIds.has(memberId)) overlap++;
+            });
+
+            if (
+                overlap > bestOverlap
+                || (overlap === bestOverlap && overlap > 0 && anchor.id < (bestAnchor?.id || ''))
+            ) {
+                bestAnchor = anchor;
+                bestOverlap = overlap;
+            }
+        });
+
+        return bestAnchor && bestOverlap > 0
+            ? { ...bestAnchor.position }
+            : undefined;
+    }
+
+    private buildCollapsedAggregatePositionAnchors(nodes: any[]): CollapsedAggregatePositionAnchor[] {
+        return (nodes || []).reduce((anchors, node) => {
+            if (node?.isCollapsedAggregate !== true) {
+                return anchors;
+            }
+
+            const x = Number(node.x);
+            const y = Number(node.y);
+            const memberIds = new Set<string>(
+                (node.collapsedMemberIds || []).map((memberId: any) => String(memberId))
+            );
+            if (!Number.isFinite(x) || !Number.isFinite(y) || memberIds.size === 0) {
+                return anchors;
+            }
+
+            anchors.push({
+                id: this.getNodeId(node),
+                memberIds,
+                position: { x, y }
+            });
+            return anchors;
+        }, [] as CollapsedAggregatePositionAnchor[]);
+    }
+
+    private clearTimelineFinalCollapsedAggregatePositions(): void {
+        this.timelineFinalCollapsedAggregatePositionAnchors = [];
+        this.timelineFinalCollapsedLayoutReady = false;
     }
 
     private isCytoscapeNodeMetadataValue(value: any): boolean {
@@ -694,6 +786,149 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         return `${this.collapsedNodeIdPrefix}${memberNodes.length}-${(primaryHash >>> 0).toString(36)}-${(secondaryHash >>> 0).toString(36)}`;
+    }
+
+    private getTimelineCollapsedAggregatePosition(memberNodes: any[]): { x: number; y: number } | undefined {
+        if (!this.isTimelineFilteringActive()) {
+            return undefined;
+        }
+
+        const memberIds = memberNodes.map(node => this.getNodeId(node));
+        return this.getCollapsedAggregatePosition(
+            memberIds,
+            this.timelineFinalCollapsedAggregatePositionAnchors
+        ) || this.getCollapsedAggregatePosition(memberIds, this.collapsedAggregatePositionAnchors);
+    }
+
+    private getFinalTimelineNetworkDataForLayout(): { nodes: any[]; links: any[] } {
+        const nodes = this.commonService.getVisibleNodesIgnoringTimeline(true) || [];
+        const nodeIds = new Set(nodes.map(node => this.getNodeId(node)));
+        const links = (this.commonService.getVisibleLinksIgnoringTimeline(true) || [])
+            .filter(link => (
+                nodeIds.has(this.getLinkEndpointId(link.source))
+                && nodeIds.has(this.getLinkEndpointId(link.target))
+            ));
+
+        return { nodes, links };
+    }
+
+    private async refreshTimelineFinalCollapsedAggregatePositions(
+        reuseCurrentLayoutIfFinal: boolean
+    ): Promise<void> {
+        this.clearTimelineFinalCollapsedAggregatePositions();
+        if (!this.isTimelineFilteringActive() || !this.isNodeCollapseEnabled()) {
+            return;
+        }
+
+        const layoutStart = this.getPerformanceNow();
+        let finalNetworkData = this.getFinalTimelineNetworkDataForLayout();
+        finalNetworkData.nodes.forEach(node => {
+            node.nodeSize = Number(this.getNodeSize(node));
+        });
+        this.normalizeNetworkDataForCytoscape(finalNetworkData, false);
+        finalNetworkData = this.applyNodeCollapseToNetworkData(finalNetworkData);
+        this.normalizeNetworkDataForCytoscape(finalNetworkData, false);
+
+        const finalAggregateIds = new Set(
+            finalNetworkData.nodes
+                .filter(node => node?.isCollapsedAggregate === true)
+                .map(node => this.getNodeId(node))
+        );
+        const currentAnchorById = new Map(
+            this.collapsedAggregatePositionAnchors.map(anchor => [anchor.id, anchor])
+        );
+        const currentLayoutIsFinal = reuseCurrentLayoutIfFinal
+            && finalAggregateIds.size === this.collapsedAggregatePositionAnchors.length
+            && Array.from(finalAggregateIds).every(aggregateId => currentAnchorById.has(aggregateId));
+
+        if (currentLayoutIsFinal) {
+            this.timelineFinalCollapsedAggregatePositionAnchors = Array.from(finalAggregateIds)
+                .map(aggregateId => currentAnchorById.get(aggregateId))
+                .filter((anchor): anchor is CollapsedAggregatePositionAnchor => !!anchor)
+                .map(anchor => ({
+                    id: anchor.id,
+                    memberIds: new Set(anchor.memberIds),
+                    position: { ...anchor.position }
+                }));
+            this.timelineFinalCollapsedLayoutReady = true;
+            this.recordTwoDRenderTiming('twoDTimelineFinalCollapseLayout', layoutStart, {
+                aggregates: this.timelineFinalCollapsedAggregatePositionAnchors.length,
+                mode: 'reuse-current-final-layout'
+            });
+            return;
+        }
+
+        const finalLayout = await this.precomputePositionsWithD3(
+            finalNetworkData.nodes,
+            finalNetworkData.links,
+            60,
+            false
+        );
+        this.timelineFinalCollapsedAggregatePositionAnchors =
+            this.buildCollapsedAggregatePositionAnchors(finalLayout.nodes);
+        this.timelineFinalCollapsedAggregatePositionAnchors.forEach(anchor => {
+            this.nodePositions.set(anchor.id, { ...anchor.position });
+        });
+        this.timelineFinalCollapsedLayoutReady = true;
+        this.recordTwoDRenderTiming('twoDTimelineFinalCollapseLayout', layoutStart, {
+            aggregates: this.timelineFinalCollapsedAggregatePositionAnchors.length,
+            nodes: finalLayout.nodes.length,
+            links: finalLayout.links.length,
+            mode: 'precomputed-final-layout',
+            ticks: 60,
+            tickBatches: finalLayout.tickBatches,
+            ticksPerYield: finalLayout.ticksPerYield
+        });
+    }
+
+    private applyTimelineFinalCollapsedAggregatePositions(nodes: any[]): void {
+        if (!this.isTimelineFilteringActive() || !this.timelineFinalCollapsedLayoutReady) {
+            return;
+        }
+
+        (nodes || []).forEach(node => {
+            if (node?.isCollapsedAggregate !== true) {
+                return;
+            }
+
+            const position = this.getCollapsedAggregatePosition(
+                node.collapsedMemberIds || [],
+                this.timelineFinalCollapsedAggregatePositionAnchors
+            );
+            if (!position) {
+                return;
+            }
+
+            node.x = position.x;
+            node.y = position.y;
+            node.vx = 0;
+            node.vy = 0;
+        });
+    }
+
+    private restoreTimelineFinalCollapsedAggregateCyPositions(): void {
+        if (
+            !this.cy
+            || !this.isTimelineFilteringActive()
+            || !this.timelineFinalCollapsedLayoutReady
+        ) {
+            return;
+        }
+
+        this.cy.batch(() => {
+            this.cy.nodes()
+                .filter((node: any) => node.data('isCollapsedAggregate') === true)
+                .forEach((node: any) => {
+                    const position = this.getCollapsedAggregatePosition(
+                        node.data('collapsedMemberIds') || [],
+                        this.timelineFinalCollapsedAggregatePositionAnchors
+                    );
+                    if (position) {
+                        node.position(position);
+                    }
+                });
+        });
+        this.cacheCollapsedAggregatePositions();
     }
 
     private getNodeRenderPosition(node: any): { x: number; y: number } {
@@ -1262,7 +1497,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const firstMember = memberNodes[0] || {};
         const finiteX = memberNodes.map(node => Number(node.x)).filter(value => Number.isFinite(value));
         const finiteY = memberNodes.map(node => Number(node.y)).filter(value => Number.isFinite(value));
-        const cachedPosition = this.nodePositions.get(aggregateId);
+        const cachedPosition = this.getTimelineCollapsedAggregatePosition(memberNodes)
+            || this.nodePositions.get(aggregateId);
         const cachedX = Number(cachedPosition?.x);
         const cachedY = Number(cachedPosition?.y);
         const x = Number.isFinite(cachedX)
@@ -5015,6 +5251,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cacheCollapsedAggregatePositions();
         }
 
+        const useTimelineFinalCollapseLayout = this.isTimelineFilteringActive()
+            && this.isNodeCollapseEnabled();
+        if (!useTimelineFinalCollapseLayout) {
+            this.clearTimelineFinalCollapsedAggregatePositions();
+        } else if (!timelineTick || !this.timelineFinalCollapsedLayoutReady) {
+            await this.refreshTimelineFinalCollapsedAggregatePositions(timelineTick);
+            if (this.isDestroyed) {
+                this.setNetworkRendering(false);
+                return;
+            }
+        }
+
         const collectDataStart = this.getPerformanceNow();
         let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
         this.normalizeNetworkDataForCytoscape(networkData, false);
@@ -5054,6 +5302,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Update networkData with the precomputed positions
         networkData.nodes = laidOutNodes;
         networkData.links = laidOutLinks;
+        this.applyTimelineFinalCollapsedAggregatePositions(networkData.nodes);
        }
 
         this.normalizeNetworkDataForCytoscape(networkData);
@@ -5067,7 +5316,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 this.setNetworkRendering(false);
                 return;
             }
-            this.ensurePolygon();
+            await this.ensurePolygon();
+            this.restoreTimelineFinalCollapsedAggregateCyPositions();
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
                 mode: 'partial',
                 timelineTick,
@@ -5085,7 +5335,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cy.elements().remove();
             const newElements = this.mapDataToCytoscapeElements(this.data, true);
             this.cy.add(newElements);
-            this.cacheCollapsedAggregatePositions();
             this.recordTwoDRenderTiming('twoDTimelineUpdate', timelineUpdateStart, {
                 nodes: newElements.nodes.length,
                 edges: newElements.edges.length
@@ -5103,6 +5352,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.commonService.session.style.widgets['polygons-show']) {
                 this.updateGroupAssignments(this.widgets['polygons-foci'], false);
             }
+            this.restoreTimelineFinalCollapsedAggregateCyPositions();
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
                 mode: 'timeline',
                 timelineTick,
@@ -5495,12 +5745,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log('--- TwoD DATA network rerender complete');
     }
 
-    ensurePolygon(updateLayout: boolean = true) {          
+    async ensurePolygon(updateLayout: boolean = true): Promise<void> {
             
         if (this.commonService.session.style.widgets['polygons-show']) {
 
             this.polygonsToggle(true, false)
-            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], updateLayout, false);
+            await this.centerPolygons(
+                this.commonService.session.style.widgets['polygons-foci'],
+                updateLayout,
+                false
+            );
             this.cy.nodes().forEach(node => {
                 if (node.classes().includes('parent')) {
                     let numVisibleChildren = node.children().filter(child => child.visible()).length;
@@ -6298,6 +6552,7 @@ scaleLinkWidth() {
 
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
+    this.applyTimelineFinalCollapsedAggregatePositions(networkData.nodes);
     this.normalizeNetworkDataForCytoscape(networkData);
     this.recordTwoDRenderTiming('twoDPartialPrecomputePositions', precomputeStart, {
         nodes: laidOutNodes.length,
