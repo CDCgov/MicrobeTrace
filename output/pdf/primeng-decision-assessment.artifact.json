@@ -1,0 +1,556 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "MicrobeTrace PrimeNG 22 Decision Assessment",
+    "description": "Licensing, open-source impact, alternatives, and GPT-5.6 Sol migration effort",
+    "generatedAt": "2026-07-31T15:06:51Z",
+    "sources": [
+      {
+        "id": "repo-scan",
+        "label": "MicrobeTrace repository static scan, July 31, 2026"
+      },
+      {
+        "id": "assessment-synthesis",
+        "label": "MicrobeTrace options synthesis"
+      },
+      {
+        "id": "licensing-synthesis",
+        "label": "PrimeUI license and CDC partner-impact synthesis"
+      },
+      {
+        "id": "agent-estimate",
+        "label": "GPT-5.6 Sol option estimate"
+      },
+      {
+        "id": "agent-phase-estimate",
+        "label": "GPT-5.6 Sol migration phase estimate"
+      }
+    ],
+    "charts": [
+      {
+        "id": "effort-comparison",
+        "title": "Estimated implementation effort by option",
+        "subtitle": "Upper bound of agent-active hours; procurement and the Angular 22 framework upgrade are excluded",
+        "showDescription": true,
+        "intent": "comparison",
+        "question": "How does the technical implementation effort compare across the four currently actionable Angular 22 options?",
+        "rationale": "A compact bar chart makes the relative upper-bound effort legible while the adjacent option summary preserves the full estimate ranges and qualitative tradeoffs.",
+        "comparisonContext": {
+          "baseline": "Technical implementation only; procurement excluded",
+          "grain": "Migration option",
+          "unit": "agent-active hours"
+        },
+        "type": "bar",
+        "dataset": "effort_comparison",
+        "sourceId": "agent-estimate",
+        "encodings": {
+          "x": {
+            "field": "option",
+            "type": "nominal",
+            "label": "Option"
+          },
+          "y": {
+            "field": "upper_hours",
+            "type": "quantitative",
+            "format": "number",
+            "label": "Upper estimate",
+            "unit": " hours"
+          },
+          "tooltip": [
+            {
+              "field": "lower_hours",
+              "type": "quantitative",
+              "format": "number",
+              "label": "Lower estimate",
+              "unit": " hours"
+            },
+            {
+              "field": "upper_hours",
+              "type": "quantitative",
+              "format": "number",
+              "label": "Upper estimate",
+              "unit": " hours"
+            },
+            {
+              "field": "calendar_range",
+              "type": "text",
+              "label": "Likely elapsed time"
+            }
+          ]
+        },
+        "xAxisTitle": "Option",
+        "yAxisTitle": "Upper estimate (agent-active hours)",
+        "valueFormat": "number",
+        "unit": " hours",
+        "layout": "full",
+        "labels": {
+          "values": "none"
+        },
+        "maxRows": 4,
+        "palette": {
+          "kind": "categorical"
+        },
+        "settings": {
+          "categoryLabelPolicy": "wrap",
+          "orientation": "vertical",
+          "showValues": false,
+          "sort": "ascending"
+        },
+        "surface": {
+          "surface": "export",
+          "interactiveLegend": false,
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# MicrobeTrace PrimeNG 22 Decision Assessment"
+      },
+      {
+        "id": "executive-summary",
+        "type": "markdown",
+        "body": "## Executive Summary\n\n- **PrimeNG 22 solves Angular 22 compatibility but introduces a proprietary dependency.** PrimeTek's published terms exclude CDC from the Community License, and PrimeTek directly confirmed that it offers no open-source grant.\n- **Buying PrimeUI is workable for deployed users but changes the development model.** Finished applications may serve unlimited users without runtime fees, while developers who build, modify, or maintain PrimeUI-based code need licensed coverage.\n- **The full application becomes mixed-source.** CDC code can remain Apache 2.0, but the complete application is no longer freely buildable and modifiable under Apache terms alone.\n- **AI materially changes the replacement economics.** NG-ZORRO remains the best single-suite alternative, with a likely GPT-5.6 Sol migration of 16-32 agent-active hours over 1-3 calendar days plus 2-6 hours of human review."
+      },
+      {
+        "id": "recommendation",
+        "type": "markdown",
+        "body": "## Use a two-track decision\n\n**Start the PrimeUI quote and clarification process, but do not let procurement decide the architecture by default.** In parallel, give GPT-5.6 Sol the complete NG-ZORRO migration objective with a 2-4 hour checkpoint against the hardest table, one settings dialog, TreeSelect, reorder behavior, and targeted browser/Cypress tests.\n\nIf the checkpoint passes, continue the open-source replacement. If an Angular 22 deadline is tighter, PrimeNG 22 can be used as a documented mixed-source bridge with a reassessment or exit date. The preferred long-term outcome is the open-source replacement."
+      },
+      {
+        "id": "options-intro",
+        "type": "markdown",
+        "body": "## The decision is continuity versus long-term openness\n\nPrimeNG commercial has the lowest immediate engineering effort. NG-ZORRO has the best balance of open licensing and direct component coverage. Material/CDK with Tabulator or AG Grid Community is the governance-focused fallback. Spartan is credible but is a broader table and styling architecture change."
+      },
+      {
+        "id": "effort-chart-intro",
+        "type": "markdown",
+        "body": "The effort chart compares the conservative upper bound for the four currently actionable Angular 22 options. PrimeNG's small technical bar does not include procurement elapsed time or the open-source and contributor costs; the option summary immediately afterward carries those tradeoffs and the full estimate ranges."
+      },
+      {
+        "id": "effort-chart",
+        "type": "chart",
+        "chartId": "effort-comparison"
+      },
+      {
+        "id": "options-at-a-glance",
+        "type": "markdown",
+        "sourceId": "assessment-synthesis",
+        "body": "### Options at a glance\n\n- **PrimeNG 22 commercial:** Pros - lowest code churn, current UX/tests, and commercial support. Cons - proprietary dependency, procurement/renewal, and contribution friction. **2-6 technical hours plus procurement; mixed-source.**\n- **NG-ZORRO 22:** Pros - MIT, Angular 22, and the closest single-suite feature coverage. Cons - different DOM/theme and test/style migration. **16-32 hours over 1-3 days; strong open-source fit.**\n- **Material/CDK plus Tabulator or AG Grid Community:** Pros - MIT, Angular-team foundation, and existing Material/Tabulator use. Cons - more libraries and custom control integration. **24-48 hours over 2-5 days; strong open-source fit.**\n- **Spartan plus TanStack Table:** Pros - MIT, modern Angular, accessible primitives, and style ownership. Cons - Tailwind/table architecture change and missing direct controls. **32-64 hours over 3-7 days; strong open-source fit.**\n- **Angular 21 plus PrimeNG 21:** Pros - no license or immediate refactor. Cons - delayed Angular 22 and accumulating maintenance debt. **Temporary hold only.**\n- **OpenNG/Optimus:** Pros - MIT fork and potentially low churn. Cons - Angular 22 remains roadmap work and governance is young. **Watchlist, not ready.**"
+      },
+      {
+        "id": "commercial-facts",
+        "type": "markdown",
+        "body": "## Commercial licensing is viable, but not equivalent to open source\n\nCurrent PrimeUI terms list $599 per active developer through December 31, 2026, $799 beginning in 2027, and $399 per developer per year to extend update access. Covered versions may be used perpetually. Seats may be reassigned but may not cover concurrent developers. CI/CD systems do not require machine seats, and finished applications may be distributed to unlimited users without runtime fees.\n\nPrimeTek states that PrimeNG 22 is compiled commercial software, government organizations are not eligible for the Community License, and no separate open-source program exists. Its email to the MicrobeTrace team confirms that no open-source grant is available. Pure code-review comments are not expressly classified in the published summary; external contributors who submit code changes are much more clearly within the licensed-developer definition."
+      },
+      {
+        "id": "impact-intro",
+        "type": "markdown",
+        "body": "## User partnerships are mostly insulated; contributor partnerships are not\n\nThe licensing trigger is development with PrimeUI, not ordinary use of the finished application. This supports the team's view that user-side partnerships and bioinformatics integrations are unlikely to be disrupted, assuming partners are not modifying or rebuilding the PrimeUI-based interface. The material impact falls on CDC developers, contractors, STLT developers, forks, and community contribution workflows."
+      },
+      {
+        "id": "impact-details",
+        "type": "markdown",
+        "sourceId": "licensing-synthesis",
+        "body": "- **Low impact:** public-health users, user-side STLT partners, and bioinformatics integrations that consume the deployed app, files, or APIs.\n- **Direct impact:** CDC developers and contractors modifying PrimeUI-based code; each concurrent developer needs licensed coverage.\n- **Material impact:** STLT or community developers who clone, build, fork, or contribute to the complete UI.\n- **Low technical impact but clarification needed:** public CI/CD requires no machine seat, but public key/package/build handling should be confirmed.\n- **Material classification impact:** CDC code remains Apache 2.0 while the complete dependency stack becomes mixed-source."
+      },
+      {
+        "id": "inventory-intro",
+        "type": "markdown",
+        "body": "## The migration is broad but mechanically tractable\n\nThe repository contains repeated component markup, imports, styles, and test selectors that a coding agent can change in compile-driven batches. The eight tables and overlay/focus behavior are the real uncertainty because they require behavioral judgment and repeated browser/test verification. Angular Material and Tabulator are already installed, which reduces the setup cost of a hybrid fallback.",
+        "sourceId": "repo-scan"
+      },
+      {
+        "id": "inventory-details",
+        "type": "markdown",
+        "sourceId": "repo-scan",
+        "body": "- **Component markup:** 202 active top-level PrimeNG tags across 16 templates.\n- **Imports and themes:** 16 TypeScript files import PrimeNG or its theme package.\n- **Application styles:** 13 files depend on PrimeNG implementation classes.\n- **Cypress/support:** about 573 PrimeNG DOM/class references across 96 maintained files.\n- **Highest risk:** eight tables with filtering, selection, paging, virtual scroll, expansion, export, reorder, and direct API use."
+      },
+      {
+        "id": "alternatives",
+        "type": "markdown",
+        "body": "## NG-ZORRO is the first replacement to try\n\n**NG-ZORRO 22** is MIT licensed, supports Angular 22, and has the closest direct coverage for MicrobeTrace's table, TreeSelect, modal, select, collapse, and transfer needs. Its main costs are DOM/test changes and adopting or restyling Ant Design.\n\n**Material/CDK plus Tabulator** is the strongest consolidation fallback because both are already present. AG Grid Community is worth testing only if Tabulator cannot reproduce the critical table behaviors without paid features.\n\n**Spartan** is a sound modern design-system option and is actively compatible with Angular 22. It is not the shortest path here: its data table is a TanStack recipe, and several higher-risk PrimeNG controls need custom composition.\n\n**OpenNG/Optimus** may eventually be the lowest-churn open fork, but Angular 22 support remains roadmap work and the project is still maturing."
+      },
+      {
+        "id": "effort-intro",
+        "type": "markdown",
+        "body": "## Sol can likely produce a tested candidate in 1-3 days\n\nThe estimate assumes one GPT-5.6 Sol coding agent with repository write access, dependency installation, the local app, Playwright, and Cypress. It is an engineering estimate rather than an OpenAI speed guarantee and carries approximately plus or minus 50% uncertainty until the hard checkpoint is complete. The likely range is 16-32 agent-active hours, with 2-6 hours of human review for approvals, visual judgment, legal/program decisions, and final diff acceptance."
+      },
+      {
+        "id": "effort-details",
+        "type": "markdown",
+        "sourceId": "agent-phase-estimate",
+        "body": "- **Foundation and adapters (1-3 hours):** dependencies, application-owned types, theme shell, and stable test hooks.\n- **Repeated controls and overlays (3-6 hours):** selects, dialogs, accordions, and simple controls in compile-driven batches.\n- **TreeSelect, reorder, and tables (5-10 hours):** direct component APIs and highest-risk view behavior.\n- **Cypress decoupling and repair (3-6 hours):** replace PrimeNG DOM coupling with application-owned selectors.\n- **Browser, accessibility, and regression verification (4-12 hours):** Playwright evidence, maintained Cypress suites, visual checks, and fixes.\n\nPhase maxima should not be added mechanically because compile, browser, and test repair overlap."
+      },
+      {
+        "id": "next-steps",
+        "type": "markdown",
+        "body": "## Recommended next steps\n\n1. Request a PrimeUI quote and determine the number of concurrent CDC and contractor developer seats.\n2. Ask PrimeTek in writing about public repositories, forks, external pull requests, public CI builds, offline distribution, and license-key handling.\n3. Run the 2-4 hour NG-ZORRO checkpoint on the existing replacement branch.\n4. Continue the migration if the hard behaviors pass; otherwise preserve the evidence and use PrimeNG 22 as a time-boxed mixed-source bridge if the release date requires it.\n5. If PrimeNG 22 is chosen, update the repository's licensing language, dependency notices, build instructions, SBOM, and contributor guidance, and set a reassessment date."
+      },
+      {
+        "id": "questions",
+        "type": "markdown",
+        "body": "## Questions the program still needs to close\n\n- What is the required Angular 22 release date, and does it allow a 1-3 day replacement attempt?\n- Will the program accept a mixed-source description and a public repository that is not independently buildable under Apache terms alone?\n- How many concurrent developer seats are required, including contractors?\n- What written contribution and build terms will PrimeTek provide?\n- What exit trigger prevents a bridge license from becoming an indefinite procurement dependency?"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "body": "## Caveats and assumptions\n\nThis is an engineering and program analysis, not legal advice. CDC legal/open-source and acquisition reviewers should confirm final classification, redistribution, procurement, and license interpretation. Partner impact is inferred from PrimeTek's published distinction between finished-application users and developers; a partner that modifies or rebuilds the UI would fall on the developer side of that distinction. Effort estimates exclude the Angular 22 framework upgrade and procurement elapsed time."
+      },
+      {
+        "id": "references",
+        "type": "markdown",
+        "body": "## Reference links\n\n- [PrimeUI licensing announcement](https://primeui.dev/nextchapter)\n- [PrimeUI Commercial License](https://primeui.dev/licenses/commercial)\n- [PrimeUI Community License](https://primeui.dev/licenses/community)\n- [PrimeUI pricing](https://primeui.dev/pricing)\n- [NG-ZORRO Angular 22 and MIT support](https://ng.ant.design/docs/introduce/en)\n- [Spartan Angular support](https://spartan.ng/documentation/version-support) and [data-table implementation](https://spartan.ng/components/data-table)\n- [OpenNG/Optimus roadmap](https://optimus.openng.org/roadmap)\n- PrimeTek email and CDC program discussion supplied to the MicrobeTrace team, July 2026"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-31T15:06:51Z",
+    "status": "ready",
+    "datasets": {
+      "options": [
+        {
+          "priority": 1,
+          "option": "PrimeNG 22 commercial",
+          "pros": "Lowest code churn; preserves current UX and tests; commercial support; fastest technical path",
+          "cons": "Proprietary dependency; seat, procurement, renewal, and contribution friction; future terms risk",
+          "effort": "2-6 hours plus procurement",
+          "fit": "Mixed-source",
+          "decision": "2-6 hours plus procurement; mixed-source"
+        },
+        {
+          "priority": 2,
+          "option": "NG-ZORRO 22",
+          "pros": "MIT; Angular 22 aligned; closest single-suite table, TreeSelect, modal, select, collapse, and transfer coverage",
+          "cons": "Different DOM and Ant Design theme; test and style migration; community governance",
+          "effort": "16-32 hours / 1-3 days",
+          "fit": "Strong",
+          "decision": "16-32 hours / 1-3 days; strong"
+        },
+        {
+          "priority": 3,
+          "option": "Material/CDK plus Tabulator or AG Grid Community",
+          "pros": "MIT stack; Angular-team foundation; Material and Tabulator already present; strong grid choices",
+          "cons": "Multiple libraries; custom TreeSelect, order-list, upload, and integration behavior",
+          "effort": "24-48 hours / 2-5 days",
+          "fit": "Strong",
+          "decision": "24-48 hours / 2-5 days; strong"
+        },
+        {
+          "priority": 4,
+          "option": "Spartan plus TanStack Table",
+          "pros": "MIT; modern Angular; accessible headless primitives; maximum style ownership",
+          "cons": "Tailwind and table architecture change; no direct TreeSelect or transfer equivalent",
+          "effort": "32-64 hours / 3-7 days",
+          "fit": "Strong",
+          "decision": "32-64 hours / 3-7 days; strong"
+        },
+        {
+          "priority": 5,
+          "option": "Angular 21 plus PrimeNG 21 hold",
+          "pros": "No license or immediate UI refactor; remains MIT-compatible",
+          "cons": "Delays Angular 22 and accumulates framework, security, and maintenance debt",
+          "effort": "0-2 hours now",
+          "fit": "Strong but temporary",
+          "decision": "0-2 hours now; strong but temporary"
+        },
+        {
+          "priority": 6,
+          "option": "OpenNG/Optimus fork watchlist",
+          "pros": "MIT fork of the last open PrimeNG; potentially lowest churn; migration tooling",
+          "cons": "Angular 22 support is still roadmap work; young governance; inherited issue backlog",
+          "effort": "8-20 hours once v22 is stable",
+          "fit": "Strong, not ready",
+          "decision": "8-20 hours once v22 is stable; strong, not ready"
+        }
+      ],
+      "effort_comparison": [
+        {
+          "option": "PrimeNG",
+          "lower_hours": 2,
+          "upper_hours": 6,
+          "calendar_range": "Less than 1 technical day, plus procurement"
+        },
+        {
+          "option": "NG-ZORRO",
+          "lower_hours": 16,
+          "upper_hours": 32,
+          "calendar_range": "1-3 days"
+        },
+        {
+          "option": "Material + grid",
+          "lower_hours": 24,
+          "upper_hours": 48,
+          "calendar_range": "2-5 days"
+        },
+        {
+          "option": "Spartan",
+          "lower_hours": 32,
+          "upper_hours": 64,
+          "calendar_range": "3-7 days"
+        }
+      ],
+      "impacts": [
+        {
+          "priority": 1,
+          "group": "Public-health users",
+          "impact": "Low",
+          "reason": "No end-user seats or runtime fees for finished applications"
+        },
+        {
+          "priority": 2,
+          "group": "Bioinformatics integrations",
+          "impact": "Low if user-side",
+          "reason": "Consuming the deployed app, files, or APIs is not development with PrimeUI"
+        },
+        {
+          "priority": 3,
+          "group": "CDC developers and contractors",
+          "impact": "Direct",
+          "reason": "Each concurrent person modifying PrimeUI-based code needs licensed coverage"
+        },
+        {
+          "priority": 4,
+          "group": "STLT partners who only use MicrobeTrace",
+          "impact": "Low",
+          "reason": "Ordinary use of the finished application is not the licensing trigger"
+        },
+        {
+          "priority": 5,
+          "group": "STLT or community developers",
+          "impact": "Material",
+          "reason": "Cloning, building, forking, or contributing to the complete UI requires separate PrimeUI rights"
+        },
+        {
+          "priority": 6,
+          "group": "Public CI/CD",
+          "impact": "Low technically; clarify handling",
+          "reason": "Build machines need no seat, but public key, package, and build workflows merit written confirmation"
+        },
+        {
+          "priority": 7,
+          "group": "Open-source classification",
+          "impact": "Material",
+          "reason": "CDC code remains Apache 2.0 while the complete dependency stack becomes mixed-source"
+        }
+      ],
+      "inventory": [
+        {
+          "priority": 1,
+          "area": "PrimeNG component markup",
+          "evidence": "202 active top-level tags across 16 templates",
+          "concern": "High volume, mostly repeated mechanical changes"
+        },
+        {
+          "priority": 2,
+          "area": "TypeScript and theme imports",
+          "evidence": "16 files",
+          "concern": "Compile-driven module, type, and API migration"
+        },
+        {
+          "priority": 3,
+          "area": "Application styles",
+          "evidence": "13 files depend on PrimeNG implementation classes",
+          "concern": "Theme density, overlays, and visual regression"
+        },
+        {
+          "priority": 4,
+          "area": "Maintained Cypress/support code",
+          "evidence": "About 573 PrimeNG DOM/class references across 96 files",
+          "concern": "Move repeated selectors behind application-owned hooks and helpers"
+        },
+        {
+          "priority": 5,
+          "area": "Tables",
+          "evidence": "Eight declarations with filtering, selection, paging, virtual scroll, expansion, export, and reorder",
+          "concern": "Highest behavioral and verification risk"
+        }
+      ],
+      "effort": [
+        {
+          "priority": 1,
+          "phase": "Foundation and adapters",
+          "estimate": "1-3 hours",
+          "result": "Dependencies, application-owned types, theme shell, and stable test hooks"
+        },
+        {
+          "priority": 2,
+          "phase": "Repeated controls and overlays",
+          "estimate": "3-6 hours",
+          "result": "Selects, dialogs, accordions, and simple controls migrated in compile-driven batches"
+        },
+        {
+          "priority": 3,
+          "phase": "TreeSelect, reorder, and tables",
+          "estimate": "5-10 hours",
+          "result": "Direct component APIs and the highest-risk view behavior replaced"
+        },
+        {
+          "priority": 4,
+          "phase": "Cypress decoupling and repair",
+          "estimate": "3-6 hours",
+          "result": "PrimeNG DOM coupling replaced by stable application-owned selectors"
+        },
+        {
+          "priority": 5,
+          "phase": "Browser, accessibility, and regression verification",
+          "estimate": "4-12 hours",
+          "result": "Playwright evidence, maintained Cypress suites, visual checks, and regression fixes"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "primeui-announcement",
+      "label": "PrimeUI licensing announcement",
+      "href": "https://primeui.dev/nextchapter"
+    },
+    {
+      "id": "primeui-commercial",
+      "label": "PrimeUI Commercial License",
+      "href": "https://primeui.dev/licenses/commercial"
+    },
+    {
+      "id": "primeui-community",
+      "label": "PrimeUI Community License",
+      "href": "https://primeui.dev/licenses/community"
+    },
+    {
+      "id": "primeui-pricing",
+      "label": "PrimeUI pricing",
+      "href": "https://primeui.dev/pricing"
+    },
+    {
+      "id": "primetek-email",
+      "label": "PrimeTek email to the MicrobeTrace team confirming no Open Source Grant program, July 2026"
+    },
+    {
+      "id": "cdc-thread",
+      "label": "CDC MicrobeTrace licensing and program discussion provided for this assessment, July 2026"
+    },
+    {
+      "id": "ng-zorro",
+      "label": "NG-ZORRO Angular 22 and MIT support",
+      "href": "https://ng.ant.design/docs/introduce/en"
+    },
+    {
+      "id": "spartan-support",
+      "label": "Spartan Angular version support",
+      "href": "https://spartan.ng/documentation/version-support"
+    },
+    {
+      "id": "spartan-table",
+      "label": "Spartan data-table implementation",
+      "href": "https://spartan.ng/components/data-table"
+    },
+    {
+      "id": "optimus-roadmap",
+      "label": "OpenNG/Optimus roadmap",
+      "href": "https://optimus.openng.org/roadmap"
+    },
+    {
+      "id": "repo-scan",
+      "label": "MicrobeTrace repository static scan, July 31, 2026",
+      "href": "https://github.com/CDCgov/MicrobeTRACE",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "description": "Materializes reviewed repository scan results used in the report table.",
+        "executed_at": "2026-07-31T15:06:51Z",
+        "sql": "SELECT 1 AS priority, 'PrimeNG component markup' AS area, '202 active top-level tags across 16 templates' AS evidence, 'High volume, mostly repeated mechanical changes' AS concern\nUNION ALL SELECT 2, 'TypeScript and theme imports', '16 files', 'Compile-driven module, type, and API migration'\nUNION ALL SELECT 3, 'Application styles', '13 files depend on PrimeNG implementation classes', 'Theme density, overlays, and visual regression'\nUNION ALL SELECT 4, 'Maintained Cypress/support code', 'About 573 PrimeNG DOM/class references across 96 files', 'Move repeated selectors behind application-owned hooks and helpers'\nUNION ALL SELECT 5, 'Tables', 'Eight declarations with filtering, selection, paging, virtual scroll, expansion, export, and reorder', 'Highest behavioral and verification risk'\nORDER BY priority;",
+        "filters": [
+          "Application source and maintained Cypress/support files",
+          "Static scan performed on July 31, 2026"
+        ],
+        "metric_definitions": [
+          "Counts summarize active application coupling and maintained test/support references; generated and dependency files are excluded."
+        ]
+      }
+    },
+    {
+      "id": "openai-model-guidance",
+      "label": "OpenAI GPT-5.6 model guidance",
+      "href": "https://developers.openai.com/api/docs/guides/latest-model"
+    },
+    {
+      "id": "assessment-synthesis",
+      "label": "MicrobeTrace options synthesis from the listed primary sources, repository scan, and supplied correspondence",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "description": "Materializes the reviewed decision matrix from the linked licensing and library documentation, repository scan, and CDC/PrimeTek correspondence.",
+        "executed_at": "2026-07-31T15:06:51Z",
+        "sql": "SELECT 1 AS priority, 'PrimeNG 22 commercial' AS option, 'Lowest code churn; preserves current UX and tests; commercial support; fastest technical path' AS pros, 'Proprietary dependency; seat, procurement, renewal, and contribution friction; future terms risk' AS cons, '2-6 hours plus procurement' AS effort, 'Mixed-source' AS fit\nUNION ALL SELECT 2, 'NG-ZORRO 22', 'MIT; Angular 22 aligned; closest single-suite coverage', 'Different DOM and Ant Design theme; test and style migration; community governance', '16-32 hours / 1-3 days', 'Strong'\nUNION ALL SELECT 3, 'Material/CDK plus Tabulator or AG Grid Community', 'MIT stack; Angular-team foundation; Material and Tabulator already present', 'Multiple libraries and more custom control integration', '24-48 hours / 2-5 days', 'Strong'\nUNION ALL SELECT 4, 'Spartan plus TanStack Table', 'MIT; modern Angular; accessible headless primitives', 'Tailwind and table architecture change; missing direct controls', '32-64 hours / 3-7 days', 'Strong'\nUNION ALL SELECT 5, 'Angular 21 plus PrimeNG 21 hold', 'No license or immediate UI refactor', 'Delays Angular 22 and accumulates maintenance debt', '0-2 hours now', 'Strong but temporary'\nUNION ALL SELECT 6, 'OpenNG/Optimus fork watchlist', 'MIT fork with potentially low churn', 'Angular 22 support remains roadmap work', '8-20 hours once v22 is stable', 'Strong, not ready'\nORDER BY priority;",
+        "filters": [
+          "Angular 22 compatibility",
+          "Open-source accessibility",
+          "Current MicrobeTrace component fit",
+          "GPT-5.6 Sol-assisted migration"
+        ],
+        "metric_definitions": [
+          "Agent effort means active tool, edit, compile, browser, and test time for one GPT-5.6 Sol coding agent; it is not traditional person-days."
+        ]
+      }
+    },
+    {
+      "id": "licensing-synthesis",
+      "label": "Impact synthesis from the current PrimeUI terms and supplied CDC program discussion",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "description": "Materializes the reviewed partner and workflow impact assessment.",
+        "executed_at": "2026-07-31T15:06:51Z",
+        "sql": "SELECT 1 AS priority, 'Public-health users' AS group_name, 'Low' AS impact, 'No end-user seats or runtime fees for finished applications' AS reason\nUNION ALL SELECT 2, 'Bioinformatics integrations', 'Low if user-side', 'Consuming the deployed app, files, or APIs is not development with PrimeUI'\nUNION ALL SELECT 3, 'CDC developers and contractors', 'Direct', 'Each concurrent person modifying PrimeUI-based code needs licensed coverage'\nUNION ALL SELECT 4, 'STLT partners who only use MicrobeTrace', 'Low', 'Ordinary use of the finished application is not the licensing trigger'\nUNION ALL SELECT 5, 'STLT or community developers', 'Material', 'Cloning, building, forking, or contributing to the complete UI requires separate PrimeUI rights'\nUNION ALL SELECT 6, 'Public CI/CD', 'Low technically; clarify handling', 'Build machines need no seat, but public key, package, and build workflows merit written confirmation'\nUNION ALL SELECT 7, 'Open-source classification', 'Material', 'CDC code remains Apache 2.0 while the complete dependency stack becomes mixed-source'\nORDER BY priority;",
+        "filters": [
+          "Finished-application use is distinguished from development with PrimeUI",
+          "External development arrangements may require separate review"
+        ]
+      }
+    },
+    {
+      "id": "agent-estimate",
+      "label": "Repository task decomposition and GPT-5.6 Sol option estimate; excludes the Angular 22 framework upgrade and procurement",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "description": "Materializes the four actionable Angular 22 option estimates shown in the effort chart.",
+        "executed_at": "2026-07-31T15:06:51Z",
+        "sql": "SELECT 'PrimeNG' AS option, 2 AS lower_hours, 6 AS upper_hours, 'Less than 1 technical day, plus procurement' AS calendar_range\nUNION ALL SELECT 'NG-ZORRO', 16, 32, '1-3 days'\nUNION ALL SELECT 'Material + grid', 24, 48, '2-5 days'\nUNION ALL SELECT 'Spartan', 32, 64, '3-7 days'\nORDER BY upper_hours;",
+        "filters": [
+          "Excludes Angular 22 framework upgrade",
+          "Excludes procurement elapsed time",
+          "Assumes repository write, dependency installation, Playwright, and Cypress access"
+        ],
+        "metric_definitions": [
+          "Upper hours is the conservative end of the current agent-active implementation range for each option."
+        ]
+      }
+    },
+    {
+      "id": "agent-phase-estimate",
+      "label": "Repository task decomposition and GPT-5.6 Sol migration phase estimate",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "description": "Materializes the reviewed NG-ZORRO migration phase estimates used in the report table.",
+        "executed_at": "2026-07-31T15:06:51Z",
+        "sql": "SELECT 1 AS priority, 'Foundation and adapters' AS phase, '1-3 hours' AS estimate, 'Dependencies, application-owned types, theme shell, and stable test hooks' AS result\nUNION ALL SELECT 2, 'Repeated controls and overlays', '3-6 hours', 'Selects, dialogs, accordions, and simple controls migrated in compile-driven batches'\nUNION ALL SELECT 3, 'TreeSelect, reorder, and tables', '5-10 hours', 'Direct component APIs and the highest-risk view behavior replaced'\nUNION ALL SELECT 4, 'Cypress decoupling and repair', '3-6 hours', 'PrimeNG DOM coupling replaced by stable application-owned selectors'\nUNION ALL SELECT 5, 'Browser, accessibility, and regression verification', '4-12 hours', 'Playwright evidence, maintained Cypress suites, visual checks, and regression fixes'\nORDER BY priority;",
+        "filters": [
+          "Excludes Angular 22 framework upgrade",
+          "Excludes procurement elapsed time",
+          "Phase maxima should not be added mechanically because compile and test repair overlap"
+        ],
+        "metric_definitions": [
+          "Likely total is 16-32 agent-active hours over 1-3 calendar days, with approximately plus or minus 50% uncertainty before the hard checkpoint."
+        ]
+      }
+    }
+  ]
+}

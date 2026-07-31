@@ -17,3 +17,5 @@ This folder contains project documentation, test planning notes, QA trackers, pr
 - `../testing-plan.md`: active testing strategy and Cypress coverage priorities.
 - `testing/README.md`: testing documentation map.
 - `performance/README.md`: performance documentation map.
+- `contributor/primeng-replacement-assessment.md`: PrimeNG replacement recommendation and effort assessment.
+- `contributor/ng-zorro-ui-concepts.md`: illustrative NG-ZORRO replacement concepts for major UI patterns.
