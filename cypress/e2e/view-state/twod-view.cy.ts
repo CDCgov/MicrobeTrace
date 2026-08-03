@@ -124,6 +124,31 @@ describe('2D Network - Core Rendering and Stats', () => {
     expectMissingDateNodesVisible();
   });
 
+  it('should keep a newly visible node on its persisted category color', () => {
+    const nodeId = 'MZ727698';
+    const timelineField = 'Date of symptom onset Date';
+
+    cy.enableTimelineMode(timelineField);
+    cy.closeGlobalSettings();
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const node = commonService.session.data.nodes.find((candidate: any) => candidate._id === nodeId);
+      const colorVariable = commonService.session.style.widgets['node-color-variable'];
+      const expectedColor = commonService.session.style.nodeColorsTableHistory[colorVariable][node[colorVariable]];
+
+      expect(node.visible, `${nodeId} starts outside the active timeline`).to.equal(false);
+      expect(expectedColor, `${node[colorVariable]} persisted color`).to.equal('#f07cab');
+      expect(commonService.getNodeFillStyle(node).color, 'hidden node resolved color').to.equal(expectedColor);
+
+      commonService.visuals.microbeTrace.update(new Date(node[timelineField]));
+
+      const renderedNode = win.cytoscapeInstance.getElementById(nodeId);
+      expect(renderedNode.empty(), `${nodeId} rendered on its first timeline tick`).to.equal(false);
+      expect(renderedNode.data('nodeColor'), `${nodeId} first-tick color`).to.equal(expectedColor);
+    });
+  });
+
   it('should move only the current marker when the timeline bar is clicked', () => {
     cy.enableTimelineMode('Date of symptom onset Date');
     cy.closeGlobalSettings();

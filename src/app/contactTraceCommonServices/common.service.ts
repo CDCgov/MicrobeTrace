@@ -734,13 +734,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
+        const historicalColor = this.session.style.nodeColorsTableHistory?.[variable]?.[String(value)];
         let color = fallbackColor;
         let alpha = 1;
 
-        try {
-            color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
-        } catch {
-            color = fallbackColor;
+        if (typeof historicalColor === 'string' && historicalColor) {
+            // Timeline color tables only contain currently visible categories. Keep
+            // hidden/newly visible nodes on their persisted category color instead
+            // of letting d3 assign a temporary color for a missing scale-domain key.
+            color = historicalColor;
+        } else {
+            try {
+                color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+            } catch {
+                color = fallbackColor;
+            }
         }
 
         try {
