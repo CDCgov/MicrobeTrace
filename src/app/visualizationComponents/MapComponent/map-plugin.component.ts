@@ -348,7 +348,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             that.nodes = visNodes;
             that.matchCoordinates(undefined, true);
             that.nodes.forEach(node => {
-                if (node._jlat == undefined || node._jlon == undefined) {
+                if (!that.hasValidMapCoordinates(node)) {
                     that.rerollNodeAndJitter(node);
                 }
             })
