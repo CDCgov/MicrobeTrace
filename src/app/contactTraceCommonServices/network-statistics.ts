@@ -1,3 +1,8 @@
+import {
+  computeComponentStructureMetrics,
+  type ComponentStructureMetrics,
+} from './component-metrics';
+
 export interface NetworkStatisticsNodeLike {
   _id?: string;
   id?: string;
@@ -34,6 +39,7 @@ export interface NetworkStatisticsSummary {
   clusterCount: number;
   singletonCount: number;
   largestComponentSize: number;
+  componentMetrics: ComponentStructureMetrics;
   density: number;
   averageDegree: number;
   maxDegree: number;
@@ -511,8 +517,12 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
     return a.nodeId.localeCompare(b.nodeId);
   });
 
-  const clusterCount = componentsResult.components.filter((component) => component.nodeCount > 1).length;
-  const singletonCount = componentsResult.components.filter((component) => component.nodeCount === 1).length;
+  const componentMetrics = computeComponentStructureMetrics(
+    componentsResult.components.map((component) => component.nodeCount),
+    nodeCount,
+  );
+  const clusterCount = componentMetrics.clusterCount;
+  const singletonCount = componentMetrics.singletonCount;
   const largestComponentSize = componentsResult.components.reduce(
     (largest, component) => Math.max(largest, component.nodeCount),
     0
@@ -527,6 +537,7 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
       clusterCount,
       singletonCount,
       largestComponentSize,
+      componentMetrics,
       density: safeRatio(linkCount, nodeCount * (nodeCount - 1) / 2),
       averageDegree: safeRatio(degreeSum, nodeCount),
       maxDegree,
@@ -599,6 +610,17 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
         ['Clusters', summary.clusterCount],
         ['Singletons', summary.singletonCount],
         ['Largest Cluster', largestClusterSize],
+        ['Largest Cluster Fraction (L1)', summary.componentMetrics.largestClusterFraction],
+        ['Second-largest Cluster', summary.componentMetrics.secondLargestClusterSize],
+        ['Second-largest Cluster Fraction (L2)', summary.componentMetrics.secondLargestClusterFraction],
+        ['Clustered Fraction', summary.componentMetrics.clusteredFraction],
+        ['Singleton Fraction', summary.componentMetrics.singletonFraction],
+        ['Component-size Gini', summary.componentMetrics.giniCoefficient],
+        ['Mean Cluster Size', summary.componentMetrics.meanClusterSize],
+        ['Median Cluster Size', summary.componentMetrics.medianClusterSize],
+        ['Largest / Mean Cluster Size', summary.componentMetrics.largestToMeanClusterRatio],
+        ['Largest / Median Cluster Size', summary.componentMetrics.largestToMedianClusterRatio],
+        ['L2 / L1', summary.componentMetrics.l2ToL1Ratio],
         ['Density', summary.density],
         ['Average Degree', summary.averageDegree],
         ['Max Degree', summary.maxDegree],

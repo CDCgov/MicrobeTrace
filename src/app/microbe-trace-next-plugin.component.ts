@@ -27,6 +27,12 @@ import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizat
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
+    computeComponentStructureMetrics,
+    scoreComponentStructureMetrics,
+    type ComponentStructureMetrics,
+    type ComponentStructureScoreBreakdown
+} from './contactTraceCommonServices/component-metrics';
+import {
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
     NodeShapeGroupKey,
@@ -34,13 +40,11 @@ import {
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
 
-type ThresholdSweepSnapshot = {
+type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
-    componentCount: number;
-    clusterCount: number;
-    singletonCount: number;
-    largestClusterSize: number;
     sourceThreshold: number | null;
+    componentStructureScore: number;
+    componentStructureScoreBreakdown: ComponentStructureScoreBreakdown;
 };
 
 type ThresholdStabilityRegion = {
@@ -269,6 +273,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     thresholdSweepSampleCount: number = 0;
     thresholdStabilityExpanded: boolean = false;
     thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
+    thresholdScoreRecommendation: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
     thresholdStabilityMessage: string = '';
 
@@ -5635,13 +5640,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const nodeCount = this.commonService.session.data.nodes.length;
 
         if (summary.thresholds.length === 0 || threshold < summary.thresholds[0]) {
+            const componentMetrics = computeComponentStructureMetrics(
+                Array.from({ length: nodeCount }, () => 1),
+                nodeCount
+            );
+            const scoreResult = scoreComponentStructureMetrics(
+                componentMetrics,
+                summary.maximumClusterCount,
+                summary.scoreWeights
+            );
             return {
+                ...componentMetrics,
                 threshold,
-                componentCount: nodeCount,
-                clusterCount: 0,
-                singletonCount: nodeCount,
-                largestClusterSize: nodeCount > 0 ? 1 : 0,
-                sourceThreshold: null
+                sourceThreshold: null,
+                componentStructureScore: scoreResult.score,
+                componentStructureScoreBreakdown: scoreResult.breakdown
             };
         }
 
@@ -5660,12 +5673,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         return {
+            ...summary.componentMetrics[matchIndex],
             threshold,
-            componentCount: summary.componentCounts[matchIndex],
-            clusterCount: summary.clusterCounts[matchIndex],
-            singletonCount: summary.singletonCounts[matchIndex],
-            largestClusterSize: summary.largestClusterSizes[matchIndex],
-            sourceThreshold: summary.thresholds[matchIndex]
+            sourceThreshold: summary.thresholds[matchIndex],
+            componentStructureScore: summary.componentStructureScores[matchIndex],
+            componentStructureScoreBreakdown: summary.componentStructureScoreBreakdowns[matchIndex]
         };
     }
 
@@ -5738,25 +5750,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .slice(0, 3);
     }
 
-    private getVisibleThresholdSnapshot(threshold: number): ThresholdSweepSnapshot {
-        const visibleNodes = this.commonService.getVisibleNodes();
-        const visibleClusters = this.commonService.getVisibleClusters();
-        const clusterCount = visibleClusters.filter(cluster => cluster.nodes > 1).length;
-        const singletonCount = visibleNodes.filter(node => Number(node.degree ?? 0) === 0).length;
-        const largestClusterSize = visibleClusters.reduce((largest, cluster) => {
-            return cluster.nodes > largest ? cluster.nodes : largest;
-        }, 0);
-
-        return {
-            threshold,
-            componentCount: visibleClusters.length,
-            clusterCount,
-            singletonCount,
-            largestClusterSize,
-            sourceThreshold: null
-        };
-    }
-
     refreshThresholdStabilityPanel(markForCheck = true): void {
         const nodes = this.commonService.session.data.nodes;
 
@@ -5764,6 +5757,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.thresholdSweepMetricLabel = '';
             this.thresholdSweepSampleCount = 0;
             this.thresholdStabilityCurrent = null;
+            this.thresholdScoreRecommendation = null;
             this.thresholdStabilityRegions = [];
             this.thresholdStabilityMessage = '';
             if (markForCheck) {
@@ -5778,7 +5772,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.thresholdSweepMetricLabel = metric;
         this.thresholdSweepSampleCount = summary.thresholds.length;
-        this.thresholdStabilityCurrent = this.getVisibleThresholdSnapshot(threshold);
+        this.thresholdStabilityCurrent = this.getThresholdSweepSnapshotAtThreshold(summary, threshold);
+        this.thresholdScoreRecommendation = summary.recommendedIndex >= 0
+            ? this.getThresholdSweepSnapshotAtThreshold(
+                summary,
+                summary.thresholds[summary.recommendedIndex]
+            )
+            : null;
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
 
         if (summary.thresholds.length === 0) {
@@ -5799,6 +5799,30 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedLinkThresholdVariable = region.suggestedThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.executeThresholdChange(region.suggestedThreshold);
+    }
+
+    applyThresholdScoreRecommendation(): void {
+        if (!this.thresholdScoreRecommendation) {
+            return;
+        }
+
+        const threshold = this.thresholdScoreRecommendation.threshold;
+        this.threshold = String(threshold);
+        this.SelectedLinkThresholdVariable = threshold;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = threshold;
+        this.executeThresholdChange(threshold);
+    }
+
+    formatThresholdMetricPercent(value: number): string {
+        return `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)}%`;
+    }
+
+    formatThresholdMetricDecimal(value: number): string {
+        return Number.isFinite(value) ? value.toFixed(3) : 'N/A';
+    }
+
+    formatComponentStructureScore(value: number): string {
+        return Number.isFinite(value) ? value.toFixed(1) : 'N/A';
     }
 
     formatThresholdStabilityClusterLabel(clusterCount: number): string {

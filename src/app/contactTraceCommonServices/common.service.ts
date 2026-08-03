@@ -22,7 +22,7 @@ import {
     buildStoredDistanceEdgeCache,
     buildThresholdSweepSummary,
     buildVisibleClusterSummary,
-    type ThresholdAnalysisBaseEdge,
+    isThresholdControlledGeneticLink,
     type ThresholdAnalysisPairEdge,
     type StoredDistanceEdgeCache,
     type ThresholdSweepSummary
@@ -950,7 +950,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data.nodes,
             this.session.data.links,
             metric,
-            analysis.version
+            analysis.version,
+            (link) => this.isThresholdAnalysisGeneticLink(link, metric)
         );
 
         analysis.storedDistanceCache[metric] = rebuilt;
@@ -1048,7 +1049,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
         const analysis = this.getAnalysisCache();
         const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
-        const cacheKey = `${metric}|nn:${showNN ? 1 : 0}`;
+        const cacheKey = `${metric}|policy:genetic|nn:${showNN ? 1 : 0}`;
         const cached = analysis.thresholdSweepCache[cacheKey] as ThresholdSweepSummary | undefined;
 
         if (cached && cached.version === analysis.version) {
@@ -1058,58 +1059,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         const distanceCache = this.getStoredDistanceEdgeCache(metric);
         const summary = buildThresholdSweepSummary(
             distanceCache,
-            this.getThresholdAnalysisBaseEdges(metric, distanceCache),
+            [],
             this.getThresholdAnalysisExcludedLinkIndexes(metric)
         );
         analysis.thresholdSweepCache[cacheKey] = summary;
         return summary;
     }
 
-    private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
-        const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
-
-        this.session.data.links.forEach((link) => {
-            const sourceIndex = cache.nodeIndexById[link.source];
-            const targetIndex = cache.nodeIndexById[link.target];
-
-            if (
-                sourceIndex === undefined ||
-                targetIndex === undefined ||
-                sourceIndex === targetIndex
-            ) {
-                return;
-            }
-
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
-            const distanceOrigins = this.getLinkDistanceOrigins(link);
-            const origins = Array.isArray(link?.origin) ? link.origin : [];
-            const hasNonDistanceOrigin = origins.some((originName: string) => {
-                const hasAuspice = /[Aa]uspice/.test(originName);
-                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
-            });
-            const isThresholdControlled = hasNumericMetric && link.hasDistance;
-            const isAlwaysVisible = hasNonDistanceOrigin || !isThresholdControlled;
-
-            if (!isAlwaysVisible) {
-                return;
-            }
-
-            const edgeKey = sourceIndex < targetIndex
-                ? `${sourceIndex}:${targetIndex}`
-                : `${targetIndex}:${sourceIndex}`;
-
-            if (!edgesByKey.has(edgeKey)) {
-                edgesByKey.set(edgeKey, { sourceIndex, targetIndex });
-            }
-        });
-
-        return Array.from(edgesByKey.values());
+    private isThresholdAnalysisGeneticLink(link: any, metric: string): boolean {
+        return isThresholdControlledGeneticLink(link, metric);
     }
 
     private getThresholdAnalysisExcludedLinkIndexes(metric: string): Set<number> {
@@ -1120,22 +1078,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const excludedIndexes = new Set<number>();
 
         this.session.data.links.forEach((link, linkIndex) => {
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
-            const isThresholdControlled = hasNumericMetric && link.hasDistance;
-            const distanceOrigins = this.getLinkDistanceOrigins(link);
-            const origins = Array.isArray(link?.origin) ? link.origin : [];
-            const hasNonDistanceOrigin = origins.some((originName: string) => {
-                const hasAuspice = /[Aa]uspice/.test(originName);
-                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
-            });
-
-            if (isThresholdControlled && !link.nn && !hasNonDistanceOrigin) {
+            if (this.isThresholdAnalysisGeneticLink(link, metric) && !link.nn) {
                 excludedIndexes.add(linkIndex);
             }
         });

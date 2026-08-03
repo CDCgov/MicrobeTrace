@@ -539,6 +539,86 @@ label.disabled {
   gap: 4px;
 }
 
+.threshold-score-recommendation {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(27, 94, 32, 0.24);
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, rgba(232, 245, 233, 0.96), rgba(255, 255, 255, 0.94));
+}
+
+.threshold-score-recommendation__header,
+.threshold-score-recommendation__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.threshold-score-recommendation__eyebrow,
+.threshold-stability-panel__section-title {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #52606d;
+}
+
+.threshold-score-recommendation__threshold {
+  display: block;
+  margin-top: 2px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #163d1b;
+}
+
+.threshold-score-recommendation__score {
+  text-align: right;
+  color: #334e68;
+}
+
+.threshold-score-recommendation__score span {
+  display: block;
+  font-size: 10px;
+}
+
+.threshold-score-recommendation__score strong {
+  font-size: 22px;
+  color: #1b5e20;
+}
+
+.threshold-score-recommendation__score small {
+  font-size: 10px;
+}
+
+.threshold-score-recommendation__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.threshold-score-recommendation__metrics span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #334e68;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.threshold-score-recommendation__footer > span {
+  max-width: 70%;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #52606d;
+}
+
+.threshold-stability-panel__section-title {
+  margin-top: 12px;
+}
+
 .threshold-stability-panel__current {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -650,5 +730,19 @@ label.disabled {
   .threshold-stability-region {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .threshold-score-recommendation__header,
+  .threshold-score-recommendation__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .threshold-score-recommendation__score {
+    text-align: left;
+  }
+
+  .threshold-score-recommendation__footer > span {
+    max-width: none;
   }
 }

@@ -483,8 +483,8 @@
                       [attr.aria-expanded]="thresholdStabilityExpanded"
                       (click)="toggleThresholdStabilityPanel()">
                       <span class="threshold-stability-toggle__text">
-                        <span class="threshold-stability-toggle__title">Threshold Stability</span>
-                        <span class="threshold-stability-toggle__subtitle">Compare flat sections of the orange line.</span>
+                        <span class="threshold-stability-toggle__title">Genetic Threshold Recommendation</span>
+                        <span class="threshold-stability-toggle__subtitle">Compare component structure across genetic-distance thresholds.</span>
                       </span>
                       <span class="threshold-stability-toggle__meta" title="Distinct threshold values drawn from the current distance data.">
                         @if (thresholdSweepSampleCount > 0) {
@@ -500,9 +500,45 @@
                           Orange line = cluster count at each threshold.
                           <i
                             class="pi pi-info-circle threshold-help-icon"
-                            title="Flat sections of the orange line mean the cluster count stays the same across that threshold range."></i>
+                            title="The recommendation uses only threshold-controlled genetic links. Epi/contact-only links do not affect the score."></i>
                         </div>
+                        @if (thresholdScoreRecommendation) {
+                          <div class="threshold-score-recommendation" data-testid="threshold-score-recommendation">
+                            <div class="threshold-score-recommendation__header">
+                              <div>
+                                <span class="threshold-score-recommendation__eyebrow">Recommended genetic threshold</span>
+                                <span class="threshold-score-recommendation__threshold">
+                                  {{ formatThresholdStabilityValue(thresholdScoreRecommendation.threshold) }}
+                                </span>
+                              </div>
+                              <div class="threshold-score-recommendation__score">
+                                <span>Component Structure Score</span>
+                                <strong>{{ formatComponentStructureScore(thresholdScoreRecommendation.componentStructureScore) }}</strong>
+                                <small>/ 100</small>
+                              </div>
+                            </div>
+                            <div class="threshold-score-recommendation__metrics">
+                              <span>{{ thresholdScoreRecommendation.clusterCount.toLocaleString() }} clusters</span>
+                              <span>L1 {{ formatThresholdMetricPercent(thresholdScoreRecommendation.largestClusterFraction) }}</span>
+                              <span>Clustered {{ formatThresholdMetricPercent(thresholdScoreRecommendation.clusteredFraction) }}</span>
+                              <span>Gini {{ formatThresholdMetricDecimal(thresholdScoreRecommendation.giniCoefficient) }}</span>
+                              <span>Largest / median {{ formatThresholdMetricDecimal(thresholdScoreRecommendation.largestToMedianClusterRatio) }}</span>
+                            </div>
+                            <div class="threshold-score-recommendation__footer">
+                              <span>Equal-weight V1 score: fragmentation, dominance, balance, participation, and equality. Decision support only.</span>
+                              <button
+                                type="button"
+                                class="btn btn-primary btn-sm"
+                                data-testid="threshold-score-apply"
+                                [attr.data-threshold]="thresholdScoreRecommendation.threshold"
+                                (click)="applyThresholdScoreRecommendation()">
+                                Use recommendation
+                              </button>
+                            </div>
+                          </div>
+                        }
                         @if (thresholdStabilityCurrent) {
+                          <div class="threshold-stability-panel__section-title">Current genetic threshold</div>
                           <div class="threshold-stability-panel__current">
                             <div class="threshold-stability-stat">
                               <span class="threshold-stability-stat__label">Threshold</span>
@@ -517,8 +553,24 @@
                               <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.singletonCount.toLocaleString() }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">Largest Cluster</span>
-                              <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.largestClusterSize.toLocaleString() }}</span>
+                              <span class="threshold-stability-stat__label">Score</span>
+                              <span class="threshold-stability-stat__value">{{ formatComponentStructureScore(thresholdStabilityCurrent.componentStructureScore) }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Largest Fraction (L1)</span>
+                              <span class="threshold-stability-stat__value">{{ formatThresholdMetricPercent(thresholdStabilityCurrent.largestClusterFraction) }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Clustered</span>
+                              <span class="threshold-stability-stat__value">{{ formatThresholdMetricPercent(thresholdStabilityCurrent.clusteredFraction) }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">Gini</span>
+                              <span class="threshold-stability-stat__value">{{ formatThresholdMetricDecimal(thresholdStabilityCurrent.giniCoefficient) }}</span>
+                            </div>
+                            <div class="threshold-stability-stat">
+                              <span class="threshold-stability-stat__label">L2 / L1</span>
+                              <span class="threshold-stability-stat__value">{{ formatThresholdMetricDecimal(thresholdStabilityCurrent.l2ToL1Ratio) }}</span>
                             </div>
                           </div>
                         }
@@ -526,6 +578,7 @@
                           <div class="threshold-stability-panel__message">{{ thresholdStabilityMessage }}</div>
                         }
                         @if (thresholdStabilityRegions.length > 0) {
+                          <div class="threshold-stability-panel__section-title">Other stable cluster-count ranges</div>
                           <div class="threshold-stability-panel__regions">
                             @for (region of thresholdStabilityRegions; track $index) {
                               <div class="threshold-stability-region" [class.threshold-stability-region--current]="region.isCurrent">
