@@ -11,6 +11,10 @@ import type {
   PatristicProgressResponse,
   PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
+import type {
+  NetworkStatisticsRequest,
+  NetworkStatisticsResult,
+} from './network-statistics';
 
 interface ComputePatristicOptions {
   origin?: string[];
@@ -612,6 +616,33 @@ export class WorkerComputeService {
         resolve();
         nnWorker.terminate();
         sub.unsubscribe();
+      });
+    });
+  }
+
+  public computeNetworkStatistics(request: NetworkStatisticsRequest): Promise<NetworkStatisticsResult> {
+    return new Promise<NetworkStatisticsResult>((resolve, reject) => {
+      const statisticsWorker = this.computer.getNetworkStatisticsWorker() as unknown as Worker;
+      statisticsWorker.postMessage(request);
+
+      const sub = this.fromWorker(statisticsWorker).subscribe({
+        next: (response: MessageEvent<any>) => {
+          try {
+            const decoder = new TextDecoder('utf-8');
+            const result = JSON.parse(decoder.decode(new Uint8Array(response.data.networkStatistics)));
+            resolve(result);
+          } catch (error) {
+            reject(error);
+          } finally {
+            statisticsWorker.terminate();
+            sub.unsubscribe();
+          }
+        },
+        error: (error) => {
+          reject(error);
+          statisticsWorker.terminate();
+          sub.unsubscribe();
+        }
       });
     });
   }
