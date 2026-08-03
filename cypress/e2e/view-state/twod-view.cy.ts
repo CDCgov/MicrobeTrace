@@ -124,6 +124,102 @@ describe('2D Network - Core Rendering and Stats', () => {
     expectMissingDateNodesVisible();
   });
 
+  it('should move only the current marker when the timeline bar is clicked', () => {
+    cy.enableTimelineMode('Date of symptom onset Date');
+    cy.closeGlobalSettings();
+
+    cy.get('#global-timeline .timeline-range-handle').should('have.length', 2).each(($handle) => {
+      const handle = $handle.get(0) as SVGPathElement;
+      const bounds = handle.getBBox();
+
+      expect(handle.tagName.toLowerCase(), 'range marker shape').to.equal('path');
+      expect(bounds.y + bounds.height, 'range marker stays above the timeline').to.be.lessThan(0);
+    });
+
+    cy.window().then((win: any) => {
+      const initialStart = new Date(win.commonService.session.state.timeStart).getTime();
+      const initialCurrent = new Date(win.commonService.session.state.timeEnd).getTime();
+      const initialTarget = new Date(win.commonService.session.state.timeTarget).getTime();
+      const timeline = win.commonService.visuals.microbeTrace;
+      const initialRangeStartX = Number(timeline.rangeStartHandle.attr('data-x'));
+      const initialRangeEndX = Number(win.commonService.visuals.microbeTrace.rangeEndHandle.attr('data-x'));
+      const rangeLabelBounds = (timeline.rangeStartLabel.node() as SVGTextElement).getBBox();
+      const currentLabelBounds = (timeline.label.node() as SVGTextElement).getBBox();
+      const rangeMarkerBounds = (timeline.rangeStartHandle.node() as SVGPathElement).getBBox();
+
+      expect(initialCurrent, 'current timeline starts at range start').to.equal(initialStart);
+      expect(Number(timeline.handle.attr('cx')), 'initial current marker')
+        .to.be.closeTo(initialRangeStartX, 1);
+      expect(rangeLabelBounds.y + rangeLabelBounds.height, 'range label clears current label')
+        .to.be.lessThan(currentLabelBounds.y);
+      expect(currentLabelBounds.y + currentLabelBounds.height, 'current label clears range marker')
+        .to.be.lessThan(rangeMarkerBounds.y);
+
+      cy.get('#global-timeline line.track-overlay').then(($track) => {
+        const trackWidth = $track.get(0).getBoundingClientRect().width;
+        cy.wrap($track).click(trackWidth / 2, 0, { force: true });
+      });
+
+      cy.window().should((updatedWin: any) => {
+        const state = updatedWin.commonService.session.state;
+        const microbeTrace = updatedWin.commonService.visuals.microbeTrace;
+
+        expect(new Date(state.timeTarget).getTime(), 'selected range end').to.equal(initialTarget);
+        expect(new Date(state.timeEnd).getTime(), 'current timeline date').to.be.lessThan(initialTarget);
+        expect(Number(microbeTrace.rangeEndHandle.attr('data-x')), 'range end marker').to.be.closeTo(initialRangeEndX, 1);
+        expect(Number(microbeTrace.handle.attr('cx')), 'current marker').to.be.lessThan(initialRangeEndX);
+      });
+    });
+  });
+
+  it('should drag the current marker independently from the range end marker', () => {
+    cy.enableTimelineMode('Date of symptom onset Date');
+    cy.closeGlobalSettings();
+
+    cy.window().then((win: any) => {
+      const timeline = win.commonService.visuals.microbeTrace;
+      const handle = timeline.handle.node() as SVGCircleElement;
+      const track = win.document.querySelector('#global-timeline line.track-overlay') as SVGLineElement;
+      const handleBox = handle.getBoundingClientRect();
+      const trackBox = track.getBoundingClientRect();
+      const trackStartX = Number(track.getAttribute('x1'));
+      const startX = handleBox.x + handleBox.width / 2;
+      const y = handleBox.y + handleBox.height / 2;
+      const targetX = trackBox.x + trackBox.width * 0.4;
+      const initialTarget = new Date(win.commonService.session.state.timeTarget).getTime();
+      const initialRangeEndX = Number(timeline.rangeEndHandle.attr('data-x'));
+
+      expect(win.document.elementFromPoint(startX, y), 'top element at current marker').to.equal(handle);
+
+      handle.dispatchEvent(new win.MouseEvent('mousedown', {
+        bubbles: true,
+        buttons: 1,
+        clientX: startX,
+        clientY: y,
+        view: win,
+      }));
+      win.dispatchEvent(new win.MouseEvent('mousemove', {
+        bubbles: true,
+        buttons: 1,
+        clientX: targetX,
+        clientY: y,
+        view: win,
+      }));
+      win.dispatchEvent(new win.MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: targetX,
+        clientY: y,
+        view: win,
+      }));
+
+      expect(new Date(win.commonService.session.state.timeTarget).getTime(), 'selected range end').to.equal(initialTarget);
+      expect(new Date(win.commonService.session.state.timeEnd).getTime(), 'current timeline date').to.be.lessThan(initialTarget);
+      expect(Number(timeline.rangeEndHandle.attr('data-x')), 'range end marker').to.be.closeTo(initialRangeEndX, 1);
+      expect(Number(timeline.handle.attr('cx')), 'current marker')
+        .to.be.closeTo(trackStartX + trackBox.width * 0.4, 2);
+    });
+  });
+
   it('should include selected nodes in the statistics table', () => {
     getCy().then((cyInstance) => {
       cyInstance.getElementById('MZ375596').select();

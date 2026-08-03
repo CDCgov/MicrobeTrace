@@ -3038,7 +3038,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const parsed = this.parseTimelineDate(this.commonService.session.state.timeEnd);
         const rangeStart = this.getSelectedTimelineStart();
         const rangeEnd = this.getSelectedTimelineEnd();
-        const active = this.clampTimelineDate(parsed ?? rangeEnd);
+        const active = this.clampTimelineDate(parsed ?? rangeStart);
         return new Date(Math.min(Math.max(active.getTime(), rangeStart.getTime()), rangeEnd.getTime()));
     }
 
@@ -3069,11 +3069,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         if (this.rangeStartHandle) {
-            this.rangeStartHandle.attr("cx", startX);
+            this.rangeStartHandle
+                .attr("data-x", startX)
+                .attr("transform", `translate(${startX},0)`);
         }
 
         if (this.rangeEndHandle) {
-            this.rangeEndHandle.attr("cx", endX);
+            this.rangeEndHandle
+                .attr("data-x", endX)
+                .attr("transform", `translate(${endX},0)`);
         }
 
         if (this.rangeStartLabel) {
@@ -3283,13 +3287,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.currentTimelineValue = width;
         this.currentTimelineTargetValue = width;
         this.commonService.session.state.timeStart = startDate;
+        const timelineHorizontalPadding = Math.min(9, width / 2);
 
         const that = this;
         const playButton = d3.select("#timeline-play-button");
         if (playButton.text() == "Pause") playButton.text("Play");
         this.xAttribute = d3.scaleTime()
             .domain([startDate, endDate])
-            .range([0, this.currentTimelineTargetValue])
+            .range([timelineHorizontalPadding, this.currentTimelineTargetValue - timelineHorizontalPadding])
             .clamp(true);
         const estimateTimelineTickWidth = (date: Date) => Math.max(28, String(tickDateFormat(date)).length * 7);
         const tickValues = [startDate, ...this.xAttribute.ticks(12), endDate]
@@ -3313,6 +3318,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const slider = svgTimeline.append("g")
             .attr("class", "slider")
             .attr("transform", "translate(0," + height/2 + ")");
+        const moveActiveTimelineMarker = () => {
+            const date = that.xAttribute.invert((d3 as any).event.x);
+            that.stopTimelinePlayback(true);
+            that.update(date);
+        };
 
         slider.append("line")
             .attr("class", "track")
@@ -3344,10 +3354,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .attr("stroke-width", "10px")  // Ensure this is a sufficient width
             .call(d3.drag()
                 .on("start.interrupt", function() { slider.interrupt(); })
-                .on("start drag", function() {
-                    const date = that.xAttribute.invert((d3 as any).event.x);
-                    that.setTimelineRange(that.commonService.session.state.timeStart, date, 'end');
-                })
+                .on("start drag", moveActiveTimelineMarker)
             );
         slider.insert("g", ".track-overlay")
             .attr("class", "ticks")
@@ -3365,27 +3372,32 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.rangeStartLabel = slider.append("text")
             .attr("class", "timeline-range-label timeline-range-start-label")
             .attr("text-anchor", "middle")
-            .attr("y", -36);
+            .attr("y", -46);
 
         this.rangeEndLabel = slider.append("text")
             .attr("class", "timeline-range-label timeline-range-end-label")
             .attr("text-anchor", "middle")
-            .attr("y", -36);
+            .attr("y", -46);
 
         this.label = slider.append("text")  
             .attr("class", "label")
             .attr("text-anchor", "middle")
             .text(this.handleDateFormat(endDate))
-            .attr("y", -18);
+            .attr("y", -25);
 
         this.handle = slider.append("circle")
             .attr("class", "handle")
-            .attr("r", 9);
+            .attr("data-testid", "timeline-current-handle")
+            .attr("r", 9)
+            .call(d3.drag()
+                .on("start.interrupt", function() { slider.interrupt(); })
+                .on("start drag", moveActiveTimelineMarker)
+            );
 
-        this.rangeStartHandle = slider.append("circle")
+        this.rangeStartHandle = slider.append("path")
             .attr("class", "timeline-range-handle timeline-range-start-handle")
             .attr("data-testid", "timeline-range-start-handle")
-            .attr("r", 8)
+            .attr("d", "M -8,-19 L 8,-19 L 0,-5 Z")
             .call(d3.drag()
                 .on("start.interrupt", function() { slider.interrupt(); })
                 .on("start drag", function() {
@@ -3394,10 +3406,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 })
             );
 
-        this.rangeEndHandle = slider.append("circle")
+        this.rangeEndHandle = slider.append("path")
             .attr("class", "timeline-range-handle timeline-range-end-handle")
             .attr("data-testid", "timeline-range-end-handle")
-            .attr("r", 8)
+            .attr("d", "M -8,-19 L 8,-19 L 0,-5 Z")
             .call(d3.drag()
                 .on("start.interrupt", function() { slider.interrupt(); })
                 .on("start drag", function() {
@@ -3409,7 +3421,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.session.style.widgets["timeline-date-field"] = field;
         let selectedStartDate = startDate;
         let selectedEndDate = endDate;
-        let activeEndDate = endDate;
+        let activeEndDate = selectedStartDate;
 
         if (loadingJsonFile) {
             selectedStartDate = this.clampTimelineDate(
@@ -3425,7 +3437,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
 
             activeEndDate = this.clampTimelineDate(
-                this.parseTimelineDate(this.commonService.session.state.timeEnd) ?? selectedEndDate
+                this.parseTimelineDate(this.commonService.session.state.timeEnd) ?? selectedStartDate
             );
             activeEndDate = new Date(Math.min(
                 Math.max(activeEndDate.getTime(), selectedStartDate.getTime()),

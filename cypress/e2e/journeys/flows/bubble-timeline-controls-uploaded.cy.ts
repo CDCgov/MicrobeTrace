@@ -175,7 +175,7 @@ const dragTimelineRangeHandleToDate = (
     const microbeTrace = typedWindow.commonService.visuals.microbeTrace;
     const targetDate = moment(date).toDate();
     const targetX = Number(microbeTrace.xAttribute(targetDate));
-    const handle = typedWindow.document.querySelector(selector) as SVGCircleElement | null;
+    const handle = typedWindow.document.querySelector(selector) as SVGPathElement | null;
     const slider = typedWindow.document.querySelector('#global-timeline svg g.slider') as SVGGElement | null;
     const svg = typedWindow.document.querySelector('#global-timeline svg') as SVGSVGElement | null;
 
@@ -189,7 +189,7 @@ const dragTimelineRangeHandleToDate = (
       point.y = y;
       return point.matrixTransform(slider!.getScreenCTM()!);
     };
-    const currentPoint = toScreenPoint(Number(handle!.getAttribute('cx') || 0), 0);
+    const currentPoint = toScreenPoint(Number(handle!.getAttribute('data-x') || 0), -12);
     const targetPoint = toScreenPoint(targetX, 0);
     const dispatchMouse = (target: EventTarget, type: string, point: DOMPoint, buttons: number) => {
       target.dispatchEvent(new typedWindow.MouseEvent(type, {
@@ -342,11 +342,11 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
 
       cy.get('#global-timeline svg .timeline-range-start-handle')
         .should(($handle) => {
-          expect(Number($handle.attr('cx')), 'range start handle x').to.be.closeTo(expectedStartX, 1);
+          expect(Number($handle.attr('data-x')), 'range start handle x').to.be.closeTo(expectedStartX, 1);
         });
       cy.get('#global-timeline svg .timeline-range-end-handle')
         .should(($handle) => {
-          expect(Number($handle.attr('cx')), 'range end handle x').to.be.closeTo(expectedEndX, 1);
+          expect(Number($handle.attr('data-x')), 'range end handle x').to.be.closeTo(expectedEndX, 1);
         });
     });
 

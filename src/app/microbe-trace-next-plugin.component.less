@@ -421,7 +421,7 @@ label[for="search"] {
     pointer-events: stroke;
     stroke-width: 50px;
     stroke: transparent;
-    // cursor: crosshair;
+    cursor: pointer;
   }
   .handle {
     fill: #fff;
@@ -430,9 +430,13 @@ label[for="search"] {
     stroke-opacity: 0.5;
     stroke-width: 1.25px;
   }
+  .handle:active {
+    cursor: grabbing;
+  }
   .timeline-range-handle {
     fill: #fff;
     stroke-width: 2px;
+    stroke-linejoin: miter;
     cursor: ew-resize;
   }
   .timeline-range-start-handle {
