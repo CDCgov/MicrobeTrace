@@ -8,7 +8,7 @@
  */
 
 import { Core } from 'cytoscape';
-import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
+import { ensureTwoDNetworkView, setTimelineRange, visitAppAndAcceptEula } from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
 
 const getCy = () => cy.window({ log: false }).its('cytoscapeInstance') as Cypress.Chainable<Core>;
@@ -76,6 +76,52 @@ describe('2D Network - Core Rendering and Stats', () => {
     // Assert that the stats panel shows the correct counts from the seeded data
     cy.get(selector.statsNodes).should('contain.text', '33');
     cy.get(selector.statsLinks).should('contain.text', '74');
+  });
+
+  it('should keep nodes with missing dates visible throughout the timeline', () => {
+    const timelineField = 'Date of symptom onset Date';
+    const absentDateNodeId = 'P3';
+    const missingDateNodeIds = ['P1', 'P2', absentDateNodeId];
+
+    cy.request('/COVID_DummySession.microbetrace').then((response) => {
+      const sampleSession = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+      const sourceNode = sampleSession.data.nodes.find((candidate: any) => candidate._id === absentDateNodeId);
+
+      expect(sourceNode, `${absentDateNodeId} source node`).to.exist;
+      expect(sourceNode, `${absentDateNodeId} source timeline date`).not.to.have.property(timelineField);
+    });
+
+    cy.window().then((win: any) => {
+      missingDateNodeIds.forEach((nodeId) => {
+        const node = win.commonService.session.data.nodes.find((candidate: any) => candidate._id === nodeId);
+        expect(node?.[timelineField], `${nodeId} normalized timeline date`).to.equal(null);
+      });
+
+      const absentDateNode = win.commonService.session.data.nodes.find(
+        (candidate: any) => candidate._id === absentDateNodeId
+      );
+      delete absentDateNode[timelineField];
+      expect(absentDateNode, `${absentDateNodeId} runtime timeline date`).not.to.have.property(timelineField);
+    });
+
+    cy.enableTimelineMode(timelineField);
+    cy.closeGlobalSettings();
+
+    const expectMissingDateNodesVisible = () => {
+      cy.window().should((win: any) => {
+        missingDateNodeIds.forEach((nodeId) => {
+          const node = win.commonService.session.data.nodes.find((candidate: any) => candidate._id === nodeId);
+          expect(node?.visible, `${nodeId} session visibility`).to.equal(true);
+          expect(win.cytoscapeInstance.getElementById(nodeId).empty(), `${nodeId} rendered`).to.equal(false);
+        });
+      });
+    };
+
+    setTimelineRange('2021-06-28', '2021-06-28');
+    expectMissingDateNodesVisible();
+
+    setTimelineRange('2021-07-16', '2021-08-21');
+    expectMissingDateNodesVisible();
   });
 
   it('should include selected nodes in the statistics table', () => {
