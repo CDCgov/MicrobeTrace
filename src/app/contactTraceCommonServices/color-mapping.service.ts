@@ -158,7 +158,7 @@ export class ColorMappingService {
     // For each distinct value, see if we have a color in the “history”
     const reservedColors = new Set<string>();
     distinctValues.forEach((value) => {
-      const existingColor = variableHistory[value] ?? storedColorsByValue[value];
+      const existingColor = storedColorsByValue[value] ?? variableHistory[value];
       if (typeof existingColor === 'string') {
         reservedColors.add(existingColor);
       }
@@ -166,7 +166,7 @@ export class ColorMappingService {
 
     const usedColors = new Set<string>();
     const mappedColors = distinctValues.map((value, index) => {
-      const existingColor = variableHistory[value] ?? storedColorsByValue[value];
+      const existingColor = storedColorsByValue[value] ?? variableHistory[value];
       if (typeof existingColor === 'string') {
         variableHistory[value] = existingColor;
         usedColors.add(existingColor);

@@ -11,6 +11,15 @@ type FileLoadOptions = {
   field3?: string;
 };
 
+const visibleSelectOverlay = '.p-select-overlay:visible';
+
+function closeVisibleSelectOverlays(): void {
+  cy.get('body').then(($body) => {
+    if (!$body.find(visibleSelectOverlay).length) return;
+    cy.get('body').type('{esc}', { force: true });
+  });
+}
+
 declare global {
   namespace Cypress {
     interface Chainable {
@@ -147,9 +156,29 @@ Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
 });
 
 Cypress.Commands.add('openGlobalSettings', () => {
-  cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
-  cy.get(byTestId(testIds.appGlobalSettingsDialog), { timeout: 15000 }).should('exist');
-  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 }).should('exist');
+  cy.get('body').then(($body) => {
+    const isOpen = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
+      .length > 0;
+
+    if (isOpen) return;
+    cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
+  });
+  cy.wait(250);
+  cy.get('body').then(($body) => {
+    const isOpen = $body
+      .find('.p-dialog:visible .p-dialog-title')
+      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
+      .length > 0;
+
+    if (isOpen) return;
+    cy.window().then((win: unknown) => {
+      (win as any).commonService?.visuals?.microbeTrace?.DisplayGlobalSettingsDialog?.();
+    });
+  });
+  cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings', { timeout: 15000 }).should('be.visible');
+  cy.contains('.p-dialog:visible .nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {
@@ -168,12 +197,44 @@ Cypress.Commands.add('closeGlobalSettings', () => {
 Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {
   cy.openGlobalSettings();
 
-  cy.contains('#global-settings-modal .nav-link', 'Timeline').click({ force: true });
-  cy.get('#global-settings-modal #timeline-config').should('exist');
+  cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
+  cy.get('.p-dialog:visible #timeline-config').should('exist').and('be.visible');
 
-  cy.get('#node-timeline-variable').click();
-  cy.get('p-selectitem').contains('li', variableLabel).click();
-  cy.get('#node-timeline-variable .p-select-label').should('contain', variableLabel);
+  closeVisibleSelectOverlays();
+  cy.get('.p-dialog:visible #node-timeline-variable').click({ force: true });
+  cy.get(visibleSelectOverlay, { timeout: 15000 })
+    .last()
+    .then(($overlay) => {
+      if (variableLabel !== 'None') return;
+
+      const scrollable = $overlay
+        .find('.p-select-list-container, .p-virtualscroller, .p-select-items-wrapper')
+        .filter((_, element) => element.scrollHeight > element.clientHeight)
+        .first();
+
+      if (scrollable.length) {
+        scrollable.get(0).scrollTop = 0;
+        scrollable.get(0).dispatchEvent(new Event('scroll', { bubbles: true }));
+      }
+    });
+  cy.get(visibleSelectOverlay, { timeout: 15000 })
+    .last()
+    .find('p-selectitem')
+    .find('li')
+    .then(($options) => {
+      const exactMatch = $options
+        .filter((_, option) => String(option.textContent || '').trim() === variableLabel)
+        .first();
+      const partialMatch = $options
+        .filter((_, option) => String(option.textContent || '').includes(variableLabel))
+        .first();
+      const match = exactMatch.length ? exactMatch : partialMatch;
+
+      expect(match.length, `timeline option matching "${variableLabel}"`).to.be.greaterThan(0);
+      cy.wrap(match).click({ force: true });
+    });
+  closeVisibleSelectOverlays();
+  cy.get('.p-dialog:visible #node-timeline-variable .p-select-label').should('contain', variableLabel);
 });
 
 Cypress.Commands.add('waitForNetworkToRender', (timeout = 20000) => {

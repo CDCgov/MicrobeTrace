@@ -1090,7 +1090,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   private dismissWelcomeOverlay() {
-    $('#overlay').stop(true, true).fadeOut('fast');
+    const overlay = $('#overlay');
+    overlay.addClass('overlay-hidden').css('pointer-events', 'none');
+    overlay.find('.dnd-input').css('pointer-events', 'none');
+    overlay.stop(true, true).fadeOut('fast');
     $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
     $('.m-portlet').stop(true, true).fadeTo('fast', 1);
   }
@@ -2813,8 +2816,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if(this.commonService.debugMode) {
       console.log('changing link threshold');
     }
-    const newValue = e.target?.value ?? e;
+    const newValue = e?.target?.value ?? e;
+
+    if (newValue === null || newValue === undefined || newValue === '') {
+      return;
+    }
+
     const parsedValue = parseFloat(newValue);
+    if (!Number.isFinite(parsedValue)) {
+      return;
+    }
 
     this.SelectedDefaultDistanceThresholdVariable = parsedValue;
     this.commonService.session.style.widgets['link-threshold'] = parsedValue;

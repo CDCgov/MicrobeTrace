@@ -258,7 +258,7 @@ label[for="search"] {
 #color-transparency-wrapper {
     display: none;
     position: absolute;
-    z-index: 1100;
+    z-index: 1300;
     border-radius: 0.25rem;
     color: #303030;
     background-color: #f8f9fa !important;
@@ -368,7 +368,11 @@ label[for="search"] {
     left: 0px;
     bottom: 0px;
     right: 15px;
-    z-index: 1001;
+    z-index: 100;
+  }
+
+  #global-timeline svg {
+    overflow: visible;
   }
   
   #timeline-play-button {
@@ -407,11 +411,17 @@ label[for="search"] {
     stroke: #dcdcdc;
     stroke-width: 8px;
   }
+  .timeline-selected-range {
+    stroke: #3b82f6;
+    stroke-width: 8px;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
   .track-overlay {
     pointer-events: stroke;
     stroke-width: 50px;
     stroke: transparent;
-    // cursor: crosshair;
+    cursor: pointer;
   }
   .handle {
     fill: #fff;
@@ -419,6 +429,26 @@ label[for="search"] {
     cursor:grab;
     stroke-opacity: 0.5;
     stroke-width: 1.25px;
+  }
+  .handle:active {
+    cursor: grabbing;
+  }
+  .timeline-range-handle {
+    fill: #fff;
+    stroke-width: 2px;
+    stroke-linejoin: miter;
+    cursor: ew-resize;
+  }
+  .timeline-range-start-handle {
+    stroke: #16a34a;
+  }
+  .timeline-range-end-handle {
+    stroke: #dc2626;
+  }
+  .timeline-range-label {
+    fill: #495057;
+    font-size: 11px;
+    pointer-events: none;
   }
 
   .p-dialog .p-dialog-header button {

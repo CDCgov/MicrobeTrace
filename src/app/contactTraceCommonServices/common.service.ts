@@ -633,9 +633,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                 settingsLoaded: false,
             },
             state: {
-                timeStart: 0,
-                timeEnd: new Date(),
-                timeTarget: null,
+                timeStart: null as Date | number | string | null,
+                timeEnd: new Date() as Date | number | string | null,
+                timeTarget: null as Date | number | string | null,
                 networkSubsetFilter: this.createDefaultNetworkSubsetFilterState()
             },
             style: {
@@ -736,13 +736,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
+        const historicalColor = this.session.style.nodeColorsTableHistory?.[variable]?.[String(value)];
         let color = fallbackColor;
         let alpha = 1;
 
-        try {
-            color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
-        } catch {
-            color = fallbackColor;
+        if (typeof historicalColor === 'string' && historicalColor) {
+            // Timeline color tables only contain currently visible categories. Keep
+            // hidden/newly visible nodes on their persisted category color instead
+            // of letting d3 assign a temporary color for a missing scale-domain key.
+            color = historicalColor;
+        } else {
+            try {
+                color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+            } catch {
+                color = fallbackColor;
+            }
         }
 
         try {
@@ -2678,7 +2686,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         console.log('this.temp: ', this.temp);
         this.temp.matrix = [];
         this.session.files = oldSession.files;
-        this.session.state = oldSession.state;
+        this.session.state = Object.assign({},
+            this.sessionSkeleton().state,
+            oldSession.state || {}
+        );
         this.ensureNetworkSubsetFilterState();
         this.session.style = oldSession.style;
 
@@ -4034,6 +4045,36 @@ align(params): Promise<any> {
         return out;
     };
 
+    private getLinkEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return String(endpoint._id ?? endpoint.id ?? '');
+        }
+
+        return String(endpoint ?? '');
+    }
+
+    /**
+     * Gets visible links for timeline-aware tables and statistics.
+     * In timeline mode, links are only counted when both endpoints are currently timeline-visible.
+     */
+    getVisibleLinksForCurrentTimeline(copy: any = false) {
+        const visibleLinks = this.getVisibleLinks(copy);
+        const timelineDateField = this.session.style.widgets["timeline-date-field"];
+
+        if (timelineDateField == 'None') {
+            return visibleLinks;
+        }
+
+        const visibleNodeIds = new Set(
+            this.getVisibleNodes().map(node => String(node._id ?? node.id ?? ''))
+        );
+
+        return visibleLinks.filter(link =>
+            visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
+            visibleNodeIds.has(this.getLinkEndpointId(link.target))
+        );
+    }
+
     /**
      * Gets links for non-target data views while preserving all non-timeline filters.
      * Link visibility is currently computed independently of the timeline node gate, so the
@@ -4102,6 +4143,7 @@ align(params): Promise<any> {
         }
         let vnodes = this.getVisibleNodes();
         let vlinks = this.getVisibleLinks();
+        const effectiveVisibleLinks = this.getVisibleLinksForCurrentTimeline();
         console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
@@ -4109,26 +4151,20 @@ align(params): Promise<any> {
         const timelineDateField = this.session.style.widgets["timeline-date-field"];
         const timelineMode = timelineDateField != 'None';
         if (!timelineMode) {
-            linkCount = vlinks.length;
+            linkCount = effectiveVisibleLinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
               cluster => cluster.visible && cluster.nodes > 1).length;
             singletons = vnodes.filter(d => d.degree == 0).length;
         } else {
             const metric = this.session.style.widgets["link-sort-variable"];
-            const visibleNodeIds = new Set(
-                vnodes.map(node => String(node._id ?? node.id ?? ''))
-            );
-            const timelineLinks = vlinks.filter(link => {
-                return visibleNodeIds.has(String(link.source)) && visibleNodeIds.has(String(link.target));
-            });
             const timelineSummary = buildVisibleClusterSummary(
                 vnodes,
-                timelineLinks.map(link => ({ ...link, visible: true })),
+                effectiveVisibleLinks.map(link => ({ ...link, visible: true })),
                 metric
             );
 
-            linkCount = timelineLinks.length;
+            linkCount = effectiveVisibleLinks.length;
             clusterCount = timelineSummary.clusterCount;
             singletons = timelineSummary.singletonCount;
         }
@@ -4218,7 +4254,7 @@ align(params): Promise<any> {
             return [];
         }
 
-        const links = this.getVisibleLinks();
+        const links = this.getVisibleLinksForCurrentTimeline();
       
         let linkColors;
         if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {
@@ -4765,6 +4801,10 @@ align(params): Promise<any> {
             clusters = this.session.data.clusters;
         let n = nodes.length;
         let visibleNodes = 0;
+        const hasTimelineStart = this.hasValidTimelineDateValue(this.session.state.timeStart);
+        const hasTimelineEnd = this.hasValidTimelineDateValue(this.session.state.timeEnd);
+        const timelineStart = hasTimelineStart ? moment(this.session.state.timeStart).toDate() : null;
+        const timelineEnd = hasTimelineEnd ? moment(this.session.state.timeEnd).toDate() : null;
         const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
@@ -4784,10 +4824,12 @@ align(params): Promise<any> {
             }
             if (node.visible && dateField != "None") {
                 const rawDateValue = node[dateField];
-                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                if (this.hasValidTimelineDateValue(rawDateValue) && timelineEnd) {
+                    const nodeDate = moment(rawDateValue).toDate();
                     node.visible =
                         node.visible &&
-                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                        timelineEnd >= nodeDate &&
+                        (!timelineStart || timelineStart <= nodeDate);
                 }
             }
 
