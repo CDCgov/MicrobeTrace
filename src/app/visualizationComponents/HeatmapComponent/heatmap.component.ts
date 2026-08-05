@@ -70,6 +70,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   SelectedDistanceMatrixFilenameVariable: string = "distance_matrix.csv";
   heatmapLabels: string[];
   heatmapMetric: string;
+  showIncompleteDistanceWarning: boolean = false;
   private destroy$ = new Subject<void>();
   private heatmapDrawInFlight: Promise<void> | null = null;
   private heatmapDrawIdentity = '';
@@ -114,6 +115,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     }
     PlotlyModule.plotlyjs.relayout("heatmap", reCenter);
     this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
+  }
+
+  openIncompleteDistanceDialog(): void {
+    this.visuals.microbeTrace?.openHeatmapDistanceWarningDialog();
   }
   
   ngOnInit(): void {
@@ -175,6 +180,28 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
   private usesPercentageDistanceDisplay(): boolean {
     return this.commonService.tn93PercentageDisplayEnabled('heatmap-distance');
+  }
+
+  private heatmapMatrixHasMissingValues(matrix: any[], expectedSize: number): boolean {
+    if (!Array.isArray(matrix) || matrix.length !== expectedSize) {
+      return true;
+    }
+
+    for (let rowIndex = 0; rowIndex < expectedSize; rowIndex++) {
+      const row = matrix[rowIndex];
+      if (!Array.isArray(row) || row.length !== expectedSize) {
+        return true;
+      }
+
+      for (let columnIndex = 0; columnIndex < expectedSize; columnIndex++) {
+        const value = row[columnIndex];
+        if (value == null || !Number.isFinite(Number(value))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   private formatHeatmapDistanceValue(
@@ -252,6 +279,13 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       if (identity !== this.getHeatmapDataIdentity()) {
         return;
       }
+
+      const hasMissingValues = this.heatmapMatrixHasMissingValues(dm, labels.length);
+      const completionStatus = this.commonService.getPatristicDistanceCompletionStatus();
+      this.showIncompleteDistanceWarning = Boolean(
+        hasMissingValues && completionStatus.eligible && !completionStatus.complete
+      );
+      this.cdref.markForCheck();
       this.nodeIds = labels;
       const xLabels = labels.map(d => d);
       const yLabels = xLabels.slice();

@@ -11,7 +11,21 @@
         <span style="overflow: visible; position: relative; width: 110px;">
           <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
             (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+        </span>
+        @if (showIncompleteDistanceWarning) {
+          <span style="overflow: visible; position: relative; width: 110px;">
+            <button
+              type="button"
+              title="Some Heatmap distances are missing"
+              aria-label="Some Heatmap distances are missing. Open distance calculation options."
+              data-testid="heatmap-missing-distance-warning"
+              class="btn btn-sm btn-clean btn-icon btn-icon-md heatmap-distance-warning-button"
+              style="float:left"
+              (click)="openIncompleteDistanceDialog()">
+              <i class="pi pi-exclamation-triangle"></i>
+            </button>
           </span>
+        }
           <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Current Distance Metric: {{this.heatmapMetric}}</span>
         </div>
         <div class="m-portlet__body" style="height: 100%; overflow: auto">

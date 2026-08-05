@@ -97,6 +97,22 @@ interface SequenceDistancePreparationBarrier {
 
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
+const DEFAULT_COMPLETE_PATRISTIC_DISTANCE_WARNING_THRESHOLD = 500000;
+
+export interface PatristicDistanceCompletionStatus {
+    eligible: boolean;
+    complete: boolean;
+    nodeCount: number;
+    expectedPairs: number;
+    cachedPairs: number;
+}
+
+export interface PatristicDistanceCalculationProgress {
+    phase: 'calculating' | 'finalizing';
+    completedPairs: number;
+    totalPairs: number;
+    percent: number;
+}
 
 @Directive()
 @Injectable({
@@ -110,6 +126,9 @@ export class CommonService extends AppComponentBase implements OnInit {
     r01: any = Math.random;
 
     thresholdHistogram: any;
+    thresholdHistogramMaxValue: number | null = null;
+    private thresholdHistogramRenderedElement: any = null;
+    private thresholdHistogramRenderedCache: StoredDistanceEdgeCache | null = null;
 
     computer: WorkerModule;
 
@@ -211,6 +230,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     public _debouncedUpdateNetworkVisuals = _.debounce(() => {
         const threshold = Number(this.session.style.widgets["link-threshold"]);
         this.ensurePatristicEdgesForThreshold(threshold)
+            .then(() => this.updateThresholdHistogramIfChanged())
             .catch(error => {
                 console.error('Patristic threshold re-query failed:', error);
             })
@@ -1178,6 +1198,44 @@ export class CommonService extends AppComponentBase implements OnInit {
         return rebuilt;
     }
 
+    private thresholdHistogramCachesMatch(
+        first: StoredDistanceEdgeCache | null,
+        second: StoredDistanceEdgeCache | null
+    ): boolean {
+        if (first === second) {
+            return true;
+        }
+
+        if (!first || !second || first.metric !== second.metric) {
+            return false;
+        }
+
+        if (first.nodeIds.length !== second.nodeIds.length || first.sortedEdges.length !== second.sortedEdges.length) {
+            return false;
+        }
+
+        for (let index = 0; index < first.nodeIds.length; index++) {
+            if (first.nodeIds[index] !== second.nodeIds[index]) {
+                return false;
+            }
+        }
+
+        for (let index = 0; index < first.sortedEdges.length; index++) {
+            const firstEdge = first.sortedEdges[index];
+            const secondEdge = second.sortedEdges[index];
+
+            if (
+                firstEdge.sourceIndex !== secondEdge.sourceIndex ||
+                firstEdge.targetIndex !== secondEdge.targetIndex ||
+                firstEdge.value !== secondEdge.value
+            ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private getNewickBackedSourceFile(): any {
         return this.session.files?.find(file =>
             file?.format === 'newick' || file?.format === 'auspice' ||
@@ -1287,6 +1345,159 @@ export class CommonService extends AppComponentBase implements OnInit {
         analysis.thresholdSweepCache = {};
     }
 
+    getCompletePatristicDistanceWarningThreshold(): number {
+        const override = Number(
+            (this.session?.meta as any)?.guardrails?.completePatristicDistanceWarningThreshold
+        );
+
+        return Number.isFinite(override) && override > 0
+            ? Math.floor(override)
+            : DEFAULT_COMPLETE_PATRISTIC_DISTANCE_WARNING_THRESHOLD;
+    }
+
+    getPatristicDistanceCompletionStatus(metric = 'distance'): PatristicDistanceCompletionStatus {
+        const nodeCount = this.session.data?.nodes?.length || 0;
+        const expectedPairs = nodeCount * (nodeCount - 1) / 2;
+        const newickString = this.session.data?.newickString;
+        const eligible = nodeCount > 0 && this.hasNewickBackedDistanceSource(newickString);
+
+        if (!eligible) {
+            return {
+                eligible: false,
+                complete: false,
+                nodeCount,
+                expectedPairs,
+                cachedPairs: 0
+            };
+        }
+
+        const completeCache = this.getCompletePatristicDistanceCache(metric);
+        if (completeCache || expectedPairs === 0) {
+            return {
+                eligible: true,
+                complete: true,
+                nodeCount,
+                expectedPairs,
+                cachedPairs: expectedPairs
+            };
+        }
+
+        const distanceCache = this.getStoredDistanceEdgeCache(metric);
+        return {
+            eligible: true,
+            complete: false,
+            nodeCount,
+            expectedPairs,
+            cachedPairs: Math.min(expectedPairs, distanceCache.sortedEdges.length)
+        };
+    }
+
+    async calculateCompletePatristicDistanceData(
+        onProgress?: (progress: PatristicDistanceCalculationProgress) => void
+    ): Promise<PatristicDistanceCompletionStatus> {
+        const metric = 'distance';
+        const initialStatus = this.getPatristicDistanceCompletionStatus(metric);
+        if (!initialStatus.eligible) {
+            throw new Error('Complete distance calculation is only available for Newick and Nextstrain tree data.');
+        }
+        if (initialStatus.complete) {
+            return initialStatus;
+        }
+
+        const loadGeneration = this.getDataLoadGeneration();
+        const newickString = String(this.session.data.newickString || '');
+        const startedAt = Date.now();
+        const startedMemory = this.readPerformanceMemorySnapshot();
+        const analysisCache = this.getAnalysisCache();
+        const previousPatristicCache = analysisCache.patristicDistanceCache[metric];
+        const previousStoredDistanceCache = analysisCache.storedDistanceCache[metric];
+        let replacedDistanceCache = false;
+        const assertCurrentDataset = () => {
+            if (
+                !this.isCurrentDataLoad(loadGeneration) ||
+                String(this.session.data?.newickString || '') !== newickString
+            ) {
+                throw new Error('The dataset changed before the distance calculation completed.');
+            }
+        };
+
+        try {
+            await this.workerComputeService.ensurePatristicTreeInitialized(newickString, this.session);
+            assertCurrentDataset();
+
+            const analysisResult = await this.workerComputeService.collectPatristicDistanceAnalysisEdges(
+                this.session,
+                {
+                    bypassPairLimit: true,
+                    onProgress: progress => onProgress?.({
+                        phase: 'calculating',
+                        ...progress
+                    })
+                }
+            );
+            assertCurrentDataset();
+
+            if (analysisResult.skipped) {
+                throw new Error(analysisResult.skipReason || 'The complete distance calculation was skipped.');
+            }
+            if (analysisResult.totalPairs !== initialStatus.expectedPairs) {
+                throw new Error(
+                    `The tree contains ${analysisResult.totalPairs.toLocaleString()} pairs, but the current nodes contain ${initialStatus.expectedPairs.toLocaleString()} pairs.`
+                );
+            }
+
+            onProgress?.({
+                phase: 'finalizing',
+                completedPairs: analysisResult.totalPairs,
+                totalPairs: analysisResult.totalPairs,
+                percent: 100
+            });
+
+            const leafNames = this.workerComputeService
+                .getPatristicLeafNames()
+                .map(name => this.filterXSS(name));
+            this.setPatristicThresholdAnalysisEdges(metric, leafNames, analysisResult.edges);
+            replacedDistanceCache = true;
+
+            const completedStatus = this.getPatristicDistanceCompletionStatus(metric);
+            if (!completedStatus.complete) {
+                throw new Error('Not every tree leaf could be matched to a node in the current dataset.');
+            }
+
+            this.recordPerformanceDuration('patristic', 'completeDistanceAnalysis', Date.now() - startedAt, {
+                nodeCount: completedStatus.nodeCount,
+                totalPairs: completedStatus.expectedPairs,
+                completed: true,
+                startedMemory
+            });
+            return completedStatus;
+        } catch (error: any) {
+            if (replacedDistanceCache) {
+                if (previousPatristicCache) {
+                    analysisCache.patristicDistanceCache[metric] = previousPatristicCache;
+                } else {
+                    delete analysisCache.patristicDistanceCache[metric];
+                }
+
+                if (previousStoredDistanceCache) {
+                    analysisCache.storedDistanceCache[metric] = previousStoredDistanceCache;
+                } else {
+                    delete analysisCache.storedDistanceCache[metric];
+                }
+                analysisCache.thresholdSweepCache = {};
+            }
+
+            this.recordPerformanceDuration('patristic', 'completeDistanceAnalysis', Date.now() - startedAt, {
+                nodeCount: initialStatus.nodeCount,
+                totalPairs: initialStatus.expectedPairs,
+                completed: false,
+                error: String(error?.message || error),
+                startedMemory
+            });
+            throw error;
+        }
+    }
+
     public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
         const analysis = this.getAnalysisCache();
         const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
@@ -1305,6 +1516,65 @@ export class CommonService extends AppComponentBase implements OnInit {
         );
         analysis.thresholdSweepCache[cacheKey] = summary;
         return summary;
+    }
+
+    private getCompletePatristicDistanceCache(metric: string): StoredDistanceEdgeCache | null {
+        const analysis = this.getAnalysisCache();
+        const cache = analysis.patristicDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
+
+        if (!cache || !this.storedDistanceCacheMatchesCurrentNodes(cache)) {
+            return null;
+        }
+
+        const nodeCount = cache.nodeIds.length;
+        const expectedPairCount = nodeCount * (nodeCount - 1) / 2;
+
+        // Large Newick/Auspice trees deliberately skip the all-pairs analysis cache.
+        // In that case Heatmap must retain the existing sparse, thresholded fallback.
+        if (cache.sortedEdges.length !== expectedPairCount) {
+            return null;
+        }
+
+        return cache;
+    }
+
+    private getCompletePatristicDistanceMatrix(metric: string): { dm: Array<Array<number | null>>; labels: string[] } | null {
+        const cache = this.getCompletePatristicDistanceCache(metric);
+        if (!cache) {
+            return null;
+        }
+
+        const nodeCount = cache.nodeIds.length;
+        const expectedPairCount = nodeCount * (nodeCount - 1) / 2;
+        const dm: Array<Array<number | null>> = Array.from({ length: nodeCount }, (_, index) => {
+            const row = new Array<number | null>(nodeCount).fill(null);
+            row[index] = 0;
+            return row;
+        });
+        let populatedPairCount = 0;
+
+        for (const edge of cache.sortedEdges) {
+            const { sourceIndex, targetIndex, value } = edge;
+            if (
+                sourceIndex < 0 || sourceIndex >= nodeCount ||
+                targetIndex < 0 || targetIndex >= nodeCount ||
+                sourceIndex === targetIndex ||
+                !Number.isFinite(value) ||
+                dm[sourceIndex][targetIndex] !== null
+            ) {
+                return null;
+            }
+
+            dm[sourceIndex][targetIndex] = value;
+            dm[targetIndex][sourceIndex] = value;
+            populatedPairCount++;
+        }
+
+        if (populatedPairCount !== expectedPairCount) {
+            return null;
+        }
+
+        return { dm, labels: [...cache.nodeIds] };
     }
 
     private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
@@ -4623,7 +4893,13 @@ align(params): Promise<any> {
         return exactDistancesReady.then(() => new Promise(resolve => {
             let labels = [];
             let dm : any = '';
-            if (this.session.data['newick']){
+            const metric = this.session.style.widgets['link-sort-variable'];
+            const completePatristicMatrix = this.getCompletePatristicDistanceMatrix(metric);
+
+            if (completePatristicMatrix) {
+                labels = completePatristicMatrix.labels;
+                dm = completePatristicMatrix.dm;
+            } else if (this.session.data['newick']){
                 let treeObj = patristic.parseNewick(this.session.data['newick']);
                 dm = treeObj.toMatrix();
             } else {
@@ -4634,10 +4910,8 @@ align(params): Promise<any> {
                 //console.log("Before sorting: " + labels);
                 //labels = labels.sort();
                 //console.log("After sorting: " + labels);
-                let metric = this.session.style.widgets['link-sort-variable'];
                 const n = labels.length;
                 dm = new Array(n);
-                const m = new Array(n);
                 for (let i = 0; i < n; i++) {
                     dm[i] = new Array(n);
                     dm[i][i] = 0;
@@ -6215,7 +6489,26 @@ align(params): Promise<any> {
      * Clicking on the histogram will update the link threshold
      * @param [histogram] - optional parameter
      */
-    async updateThresholdHistogram(histogram?: any) {
+    async updateThresholdHistogramIfChanged(histogram?: any): Promise<boolean> {
+        const histogramElement = histogram || this.thresholdHistogram;
+        if (!histogramElement) {
+            return false;
+        }
+
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const distanceCache = this.getStoredDistanceEdgeCache(metric);
+        if (
+            histogramElement === this.thresholdHistogramRenderedElement &&
+            this.thresholdHistogramCachesMatch(distanceCache, this.thresholdHistogramRenderedCache)
+        ) {
+            return false;
+        }
+
+        await this.updateThresholdHistogram(histogramElement);
+        return true;
+    }
+
+    async updateThresholdHistogram(histogram?: any): Promise<boolean> {
 
         let width = 260,
         height = 48,
@@ -6226,6 +6519,16 @@ align(params): Promise<any> {
         if(histogram){
             this.thresholdHistogram = histogram;
         }
+
+        if (!this.thresholdHistogram) {
+            this.thresholdHistogramMaxValue = null;
+            return false;
+        }
+
+        const lsv = this.session.style.widgets["link-sort-variable"];
+        const distanceCache = this.getStoredDistanceEdgeCache(lsv);
+        const data = [...distanceCache.sortedValues];
+        const sweepSummary = this.getThresholdSweepSummary(lsv);
         
         svg = d3
         .select(this.thresholdHistogram)
@@ -6233,17 +6536,16 @@ align(params): Promise<any> {
         .attr("width", width)
         .attr("height", height);
 
-        const lsv = this.session.style.widgets["link-sort-variable"];
-        const distanceCache = this.getStoredDistanceEdgeCache(lsv);
-        const data = [...distanceCache.sortedValues];
-        const sweepSummary = this.getThresholdSweepSummary(lsv);
+        this.thresholdHistogramRenderedElement = this.thresholdHistogram;
+        this.thresholdHistogramRenderedCache = distanceCache;
+        this.thresholdHistogramMaxValue = data.length > 0 ? data[data.length - 1] : null;
 
         if (data.length === 0) {
             const readout = getReadout();
             if (readout.length > 0) {
                 readout.text("No threshold readout available");
             }
-            return;
+            return true;
         }
 
         let min = data[0];
@@ -6583,6 +6885,7 @@ align(params): Promise<any> {
 
         data.length = 0;
 
+        return true;
     };
 
 }

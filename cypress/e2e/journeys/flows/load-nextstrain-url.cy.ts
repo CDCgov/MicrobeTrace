@@ -2,6 +2,7 @@
 
 import {
   ensureTwoDNetworkView,
+  goToHeatmapView,
   openGlobalFilteringTab,
   setGlobalLinkThreshold,
   waitForProcessingDialogToClear,
@@ -50,11 +51,21 @@ describe('Journey Flow - Load Nextstrain URL', () => {
     });
 
     openGlobalFilteringTab();
+    cy.window().then((win: any) => {
+      expect(
+        Number(win.commonService.thresholdHistogramMaxValue),
+        'initial threshold histogram maximum',
+      ).to.be.closeTo(0.005, 1e-8);
+
+      cy.spy(win.commonService, 'updateThresholdHistogram').as('thresholdHistogramRenders');
+      cy.spy(win.commonService, 'ensurePatristicEdgesForThreshold').as('patristicThresholdQueries');
+      cy.spy(win.commonService.workerComputeService, 'buildPatristicEdges').as('patristicEdgeBuilds');
+    });
+
     setGlobalLinkThreshold(0.025);
-    cy.closeGlobalSettings();
     waitForProcessingDialogToClear(60000);
 
-    cy.window().then((win: any) => {
+    cy.window().should((win: any) => {
       const links = win.commonService.session.data.links;
       const visibleLinks = links.filter(l => l.visible);
 
@@ -64,10 +75,168 @@ describe('Journey Flow - Load Nextstrain URL', () => {
         win.commonService.session.meta.performance.patristic.edgeGeneration.threshold,
         'patristic re-query threshold',
       ).to.equal(0.025);
+      expect(
+        Number(win.commonService.thresholdHistogramMaxValue),
+        'expanded threshold histogram maximum',
+      ).to.be.closeTo(0.023, 1e-8);
     });
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicThresholdQueries').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.015);
+    cy.window().should((win: any) => {
+      const visibleLinks = win.commonService.session.data.links.filter(link => link.visible);
+      expect(visibleLinks.length, 'visible links after lowering threshold').to.equal(3);
+    });
+    cy.get('@patristicThresholdQueries').should('have.callCount', 2);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.025);
+    cy.window().should((win: any) => {
+      const visibleLinks = win.commonService.session.data.links.filter(link => link.visible);
+      expect(visibleLinks.length, 'visible links after restoring threshold').to.equal(6);
+    });
+    cy.get('@patristicThresholdQueries').should('have.callCount', 3);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.03);
+    cy.get('@patristicThresholdQueries').should('have.callCount', 4);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    setGlobalLinkThreshold(0.04);
+    cy.get('@patristicThresholdQueries').should('have.callCount', 5);
+    cy.get('@thresholdHistogramRenders').should('have.callCount', 1);
+    cy.get('@patristicEdgeBuilds').should('have.callCount', 1);
+
+    cy.closeGlobalSettings();
 
     openPhylogeneticTreeView();
     cy.get('#phylocanvas', { timeout: 30000 }).should('be.visible');
+  });
+
+  it('completes tree distance data without adding 2D links or recalculating clusters', () => {
+    cy.intercept('GET', nextstrainUrl, { fixture: fixtureName }).as('loadNextstrainDistances');
+
+    visitAppAndAcceptEula({
+      extraQuery: { url: nextstrainUrl },
+    });
+
+    cy.wait('@loadNextstrainDistances', { timeout: 30000 });
+    waitForProcessingDialogToClear(120000);
+    cy.window({ timeout: 300000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('equal', true);
+    ensureTwoDNetworkView();
+
+    let linkCountBefore = 0;
+    let visibleLinkCountBefore = 0;
+    let clustersBefore: Array<{ id: string; cluster: number }> = [];
+
+    cy.window().then((win: any) => {
+      const links = win.commonService.session.data.links;
+      const nodes = win.commonService.session.data.nodes;
+      expect(
+        win.commonService.getCompletePatristicDistanceWarningThreshold(),
+        'default complete-distance warning threshold',
+      ).to.equal(500000);
+      linkCountBefore = links.length;
+      visibleLinkCountBefore = links.filter((link: any) => link.visible).length;
+      clustersBefore = nodes.map((node: any) => ({ id: node._id, cluster: node.cluster }));
+
+      win.commonService.session.meta.guardrails = {
+        ...(win.commonService.session.meta.guardrails || {}),
+        completePatristicDistanceWarningThreshold: 5,
+      };
+
+      cy.spy(win.commonService, 'addLink').as('distanceCalculationAddLink');
+      cy.spy(win.commonService, 'updateNetworkVisuals').as('distanceCalculationNetworkUpdates');
+    });
+
+    openGlobalFilteringTab();
+    cy.get('[data-testid="complete-distance-panel"]')
+      .should('exist')
+      .scrollIntoView()
+      .should('be.visible');
+    cy.get('[data-testid="complete-distance-status"]')
+      .should('contain.text', '3 of 6 pairwise distances are available');
+
+    cy.closeGlobalSettings();
+    goToHeatmapView();
+    cy.window({ timeout: 30000 }).should((win: any) => {
+      const trace = win.commonService.visuals.heatmap?.heatmapData?.[0];
+      const matrix = trace?.z || [];
+      const values = Array.from({ length: 4 }, (_, rowIndex) => (
+        Array.from({ length: 4 }, (_, columnIndex) => matrix[rowIndex]?.[columnIndex])
+      )).flat();
+      expect(values, 'rendered sparse heatmap values').to.have.length(16);
+      expect(values.some((value: unknown) => value == null), 'sparse heatmap has missing distances').to.equal(true);
+    });
+
+    cy.get('[data-testid="heatmap-missing-distance-warning"]', { timeout: 15000 })
+      .should('be.visible')
+      .click({ force: true });
+    cy.get('[data-testid="heatmap-distance-warning-dialog"]')
+      .should('be.visible')
+      .and('contain.text', 'Some Heatmap cells are blank')
+      .and('contain.text', 'will not add links to the 2D network or recalculate clusters');
+    cy.get('[data-testid="heatmap-distance-status"]')
+      .should('contain.text', '3 of 6 pairwise distances are available');
+
+    cy.get('[data-testid="heatmap-distance-calculate"]').click({ force: true });
+    cy.contains('.p-dialog:visible', 'This dataset has 6 possible pairwise links', { timeout: 15000 })
+      .as('distanceWarningDialog');
+    cy.get('@distanceWarningDialog').should('contain.text', 'will not add these links to the 2D network');
+    cy.get('@distanceWarningDialog').contains('button', 'Cancel').click({ force: true });
+    cy.get('[data-testid="heatmap-distance-status"]')
+      .should('contain.text', '3 of 6 pairwise distances are available');
+
+    cy.get('[data-testid="heatmap-distance-calculate"]').click({ force: true });
+    cy.contains('.p-dialog:visible', 'This dataset has 6 possible pairwise links', { timeout: 15000 })
+      .contains('button', 'Continue')
+      .click({ force: true });
+
+    cy.window({ timeout: 30000 }).should((win: any) => {
+      const status = win.commonService.getPatristicDistanceCompletionStatus();
+      expect(status.complete, 'pairwise distance completion status').to.equal(true);
+      expect(status.cachedPairs, 'cached pairwise distances').to.equal(6);
+    });
+    cy.get('[data-testid="heatmap-distance-warning-dialog"]').should('not.be.visible');
+    cy.get('[data-testid="heatmap-missing-distance-warning"]').should('not.exist');
+
+    cy.window().then((win: any) => {
+      const links = win.commonService.session.data.links;
+      const nodes = win.commonService.session.data.nodes;
+      const clustersAfter = nodes.map((node: any) => ({ id: node._id, cluster: node.cluster }));
+      const cache = win.commonService.temp.analysis.patristicDistanceCache.distance;
+      const telemetry = win.commonService.session.meta.performance.patristic.completeDistanceAnalysis;
+
+      expect(links.length, 'stored links unchanged').to.equal(linkCountBefore);
+      expect(links.filter((link: any) => link.visible).length, 'visible links unchanged').to.equal(visibleLinkCountBefore);
+      expect(clustersAfter, 'cluster assignments unchanged').to.deep.equal(clustersBefore);
+      expect(cache.sortedEdges, 'all patristic pairs cached').to.have.length(6);
+      expect(Number(win.commonService.thresholdHistogramMaxValue), 'complete histogram maximum').to.be.closeTo(0.023, 1e-8);
+      expect(telemetry.completed, 'completion telemetry').to.equal(true);
+      expect(telemetry.totalPairs, 'telemetry pair count').to.equal(6);
+    });
+    cy.get('@distanceCalculationAddLink').should('not.have.been.called');
+    cy.get('@distanceCalculationNetworkUpdates').should('not.have.been.called');
+
+    cy.window().then((win: any) => win.commonService.getDM()).then(({ dm, labels }: any) => {
+      expect(labels, 'complete heatmap labels').to.have.length(4);
+      expect(dm, 'complete heatmap rows').to.have.length(4);
+      expect(dm.flat().every((value: unknown) => Number.isFinite(Number(value))), 'complete heatmap values').to.equal(true);
+    });
+
+    cy.window({ timeout: 30000 }).should((win: any) => {
+      const trace = win.commonService.visuals.heatmap?.heatmapData?.[0];
+      const values = trace?.z?.flat?.() || [];
+      expect(values, 'rendered complete heatmap values').to.have.length(16);
+      expect(values.every((value: unknown) => Number.isFinite(Number(value))), 'no missing heatmap distances').to.equal(true);
+    });
   });
 
   it('loads Nextstrain URL data when geo resolutions omit referenced demes', () => {
