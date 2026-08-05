@@ -43,6 +43,11 @@ import {
     NodeShapeOption,
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
+import {
+    DialogRectSnapshot,
+    GlobalSettingsDialogRequest,
+    NormalizedGlobalSettingsDialogRequest
+} from './helperClasses/globalSettingsDialogRequest';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -74,6 +79,12 @@ type DashboardOpenEntry = {
 
 type KeyTableDisplayMode = 'Show' | 'Dock' | 'Hide';
 type TimelineRangeBoundary = 'start' | 'end' | 'both';
+
+type DialogPlacementCandidate = {
+    top: number;
+    left: number;
+    overlapArea: number;
+};
 
 interface NodeShapeOptionGroup {
     key: NodeShapeGroupKey;
@@ -166,7 +177,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ExportDashboardScale: number = 1;
     ExportDashboardResolution: { width: number, height:number, summary:string} = {width: 0, height: 0, summary: ''};
     public readonly keyTablesController = new KeyTablesController();
+    public readonly GlobalSettingsDialogBaseZIndex = 5000;
+    public GlobalSettingsDialogStyle: Record<string, string> = { 'z-index': String(this.GlobalSettingsDialogBaseZIndex) };
     private preserveNextKeyTablesRemoval: boolean = false;
+    private readonly linkedSettingsDialogGap = 16;
+    private readonly linkedSettingsDialogViewportMargin = 8;
 
     private thresholdDebouncer: Subject<number> = new Subject<number>();
     nodeColorRows: StyleKeyTableRow[] = [];
@@ -5070,7 +5085,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
-    DisplayGlobalSettingsDialog(activeTab = "Styling") {
+    DisplayGlobalSettingsDialog(request: GlobalSettingsDialogRequest = "Styling") {
+        const dialogRequest = this.normalizeGlobalSettingsDialogRequest(request);
+        this.GlobalSettingsDialogStyle = this.getGlobalSettingsDialogBaseStyle();
 
         this.getGlobalSettingsData();
         // TODO: May need to refacor this
@@ -5086,7 +5103,152 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
 
-        this.globalSettingsTab.tabs[activeTab === "Styling" ? 1 : 0].active = true;
+        this.globalSettingsTab.tabs[dialogRequest.activeTab === "Styling" ? 1 : 0].active = true;
+
+        if (dialogRequest.sourceDialogRect) {
+            this.scheduleGlobalSettingsDialogPlacement(dialogRequest.sourceDialogRect);
+        }
+    }
+
+    private normalizeGlobalSettingsDialogRequest(request: GlobalSettingsDialogRequest): NormalizedGlobalSettingsDialogRequest {
+        if (typeof request === 'string') {
+            return { activeTab: request };
+        }
+
+        return {
+            activeTab: request?.activeTab ?? 'Styling',
+            sourceDialogRect: request?.sourceDialogRect
+        };
+    }
+
+    private getGlobalSettingsDialogBaseStyle(): Record<string, string> {
+        return { 'z-index': String(this.GlobalSettingsDialogBaseZIndex) };
+    }
+
+    private getGlobalSettingsDialogPlacementStyle(top: number, left: number): Record<string, string> {
+        const margin = this.linkedSettingsDialogViewportMargin;
+        return {
+            ...this.getGlobalSettingsDialogBaseStyle(),
+            position: 'fixed',
+            top: `${Math.round(top)}px`,
+            left: `${Math.round(left)}px`,
+            margin: '0',
+            transform: 'none',
+            overflow: 'auto',
+            'max-height': `calc(100vh - ${margin * 2}px)`,
+            'max-width': `calc(100vw - ${margin * 2}px)`
+        };
+    }
+
+    private scheduleGlobalSettingsDialogPlacement(sourceDialogRect: DialogRectSnapshot): void {
+        const runNextFrame = window.requestAnimationFrame?.bind(window) ?? ((callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0));
+
+        setTimeout(() => {
+            runNextFrame(() => {
+                runNextFrame(() => this.positionGlobalSettingsDialogNearSource(sourceDialogRect));
+            });
+        }, 0);
+    }
+
+    private positionGlobalSettingsDialogNearSource(sourceDialogRect: DialogRectSnapshot): void {
+        const dialog = this.getVisibleDialogByTitle('Global Settings');
+        if (!dialog) {
+            return;
+        }
+
+        const dialogRect = dialog.getBoundingClientRect();
+        const dialogWidth = dialog.offsetWidth || dialogRect.width;
+        const dialogHeight = dialog.offsetHeight || dialogRect.height;
+        const placement = this.findBestGlobalSettingsDialogPlacement(sourceDialogRect, dialogWidth, dialogHeight);
+        const style = this.getGlobalSettingsDialogPlacementStyle(placement.top, placement.left);
+
+        this.GlobalSettingsDialogStyle = style;
+        this.applyDialogStyle(dialog, style);
+        this.cdref.detectChanges();
+    }
+
+    private getVisibleDialogByTitle(title: string): HTMLElement | undefined {
+        return Array
+            .from(document.querySelectorAll<HTMLElement>('.p-dialog'))
+            .find(dialog => {
+                const titleElement = dialog.querySelector<HTMLElement>('.p-dialog-title');
+                const computedStyle = window.getComputedStyle(dialog);
+                return titleElement?.textContent?.trim() === title
+                    && computedStyle.display !== 'none'
+                    && computedStyle.visibility !== 'hidden';
+            });
+    }
+
+    private findBestGlobalSettingsDialogPlacement(
+        sourceRect: DialogRectSnapshot,
+        dialogWidth: number,
+        dialogHeight: number
+    ): DialogPlacementCandidate {
+        const gap = this.linkedSettingsDialogGap;
+        const margin = this.linkedSettingsDialogViewportMargin;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const placementWidth = Math.min(dialogWidth, Math.max(0, viewportWidth - margin * 2));
+        const placementHeight = Math.min(dialogHeight, Math.max(0, viewportHeight - margin * 2));
+        const rawCandidates = [
+            { left: sourceRect.right + gap, top: sourceRect.top },
+            { left: sourceRect.left - placementWidth - gap, top: sourceRect.top },
+            { left: sourceRect.left, top: sourceRect.bottom + gap },
+            { left: sourceRect.left, top: sourceRect.top - placementHeight - gap }
+        ];
+
+        const candidates = rawCandidates.map(candidate => {
+            const placement = this.clampDialogPlacement(candidate.left, candidate.top, placementWidth, placementHeight);
+            return {
+                ...placement,
+                overlapArea: this.getDialogOverlapArea(
+                    {
+                        ...placement,
+                        right: placement.left + placementWidth,
+                        bottom: placement.top + placementHeight,
+                        width: placementWidth,
+                        height: placementHeight
+                    },
+                    sourceRect
+                )
+            };
+        });
+
+        return candidates.find(candidate => candidate.overlapArea === 0)
+            ?? candidates.reduce((best, candidate) => candidate.overlapArea < best.overlapArea ? candidate : best);
+    }
+
+    private clampDialogPlacement(
+        left: number,
+        top: number,
+        dialogWidth: number,
+        dialogHeight: number
+    ): { top: number; left: number } {
+        const margin = this.linkedSettingsDialogViewportMargin;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const maxLeft = Math.max(margin, viewportWidth - dialogWidth - margin);
+        const maxTop = Math.max(margin, viewportHeight - dialogHeight - margin);
+
+        return {
+            left: this.clamp(left, margin, maxLeft),
+            top: this.clamp(top, margin, maxTop)
+        };
+    }
+
+    private getDialogOverlapArea(first: DialogRectSnapshot, second: DialogRectSnapshot): number {
+        const width = Math.max(0, Math.min(first.right, second.right) - Math.max(first.left, second.left));
+        const height = Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top));
+
+        return width * height;
+    }
+
+    private clamp(value: number, minimum: number, maximum: number): number {
+        return Math.min(Math.max(value, minimum), maximum);
+    }
+
+    private applyDialogStyle(dialog: HTMLElement, style: Record<string, string>): void {
+        Object.entries(style).forEach(([property, value]) => dialog.style.setProperty(property, value));
     }
 
     toggleThresholdStabilityPanel(): void {

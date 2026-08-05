@@ -14,6 +14,7 @@ import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/ex
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { buildPieChartPatternDef, buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -44,7 +45,7 @@ interface BubblePieSvgExportReplacement {
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
-  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
   @ViewChild('cyBubble', { static: false }) cyContainer: ElementRef;
   @ViewChild('bubbleTooltip') toolTip: ElementRef;
@@ -1207,8 +1208,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   /**
   * Opens Global Setting Dialog
   */
-  showGlobalSettings() {
-    this.DisplayGlobalSettingsDialogEvent.emit("Styling");
+  showGlobalSettings(event?: MouseEvent) {
+    this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
   }
 
   updateNodeColors() {

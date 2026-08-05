@@ -33,6 +33,7 @@ import {
 } from '../KeyTablesComponent/style-key-table.component';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
 import { buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -64,7 +65,7 @@ interface CollapsedAggregatePositionAnchor {
     standalone: false
 })
 export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
-    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
@@ -2764,9 +2765,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Opens Global Setting Dialog
      */
-    showGlobalSettings() {
+    showGlobalSettings(event?: MouseEvent) {
         //console.log("threshold: ",  this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
-        this.DisplayGlobalSettingsDialogEvent.emit("Styling");
+        this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
     }
 
 

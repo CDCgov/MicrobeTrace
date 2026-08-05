@@ -312,6 +312,9 @@
 
   <p-dialog id="global-settings-modal" data-testid="app-global-settings-dialog"
     [(visible)]="GlobalSettingsDialogSettings.isVisible"
+    [baseZIndex]="GlobalSettingsDialogBaseZIndex"
+    [style]="GlobalSettingsDialogStyle"
+    [keepInViewport]="true"
     header="Global Settings" >
     <div class="modal-dialog" role="document">
       <div class="modal-content">
