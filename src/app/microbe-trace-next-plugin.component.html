@@ -28,17 +28,17 @@
         <button class="navbar-item" data-testid="app-view-menu-button" mat-button [matMenuTriggerFor]="viewMenu"><i class="far nav-icon flaticon-web"></i>View<span class="dropdown-symbol">&#9660;</span></button>
         <mat-menu #viewMenu="matMenu" overlapTrigger="false">
           <button data-testid="app-view-menu-2d-network" mat-menu-item (click)="Viewclick('2D Network')">2D Network</button>
-          <button data-testid="app-view-menu-table" mat-menu-item (click)="Viewclick('Table')">Table</button>
-          <button data-testid="app-view-menu-map" mat-menu-item (click)="Viewclick('Map')">Map</button>
-          <button mat-menu-item (click)="Viewclick('Epi Curve')">Epi Curve</button>
-          <button mat-menu-item (click)="Viewclick('Phylogenetic Tree')">Phylogenetic Tree</button>
-          <button data-testid="app-view-menu-alignment" mat-menu-item (click)="Viewclick('Alignment View')">Alignment View</button>
-          <button data-testid="app-view-menu-crosstab" mat-menu-item (click)="Viewclick('Crosstab')">CrossTab</button>
           <button data-testid="app-view-menu-aggregate" mat-menu-item (click)="Viewclick('Aggregate')">Aggregate</button>
+          <button data-testid="app-view-menu-alignment" mat-menu-item (click)="Viewclick('Alignment View')">Alignment View</button>
+          <button data-testid="app-view-menu-bubble" mat-menu-item (click)="Viewclick('Bubble')">Bubble</button>
+          <button data-testid="app-view-menu-crosstab" mat-menu-item (click)="Viewclick('Crosstab')">CrossTab</button>
+          <button mat-menu-item (click)="Viewclick('Epi Curve')">Epi Curve</button>
           <button mat-menu-item (click)="Viewclick('Gantt Chart')">Gantt Chart</button>
           <button mat-menu-item (click)="Viewclick('Heatmap')">Heatmap</button>
-          <button data-testid="app-view-menu-bubble" mat-menu-item (click)="Viewclick('Bubble')">Bubble</button>
+          <button data-testid="app-view-menu-map" mat-menu-item (click)="Viewclick('Map')">Map</button>
+          <button mat-menu-item (click)="Viewclick('Phylogenetic Tree')">Phylogenetic Tree</button>
           <button data-testid="app-view-menu-sankey" mat-menu-item (click)="Viewclick('Sankey')">Sankey</button>
+          <button data-testid="app-view-menu-table" mat-menu-item (click)="Viewclick('Table')">Table</button>
           <button data-testid="app-view-menu-waterfall" mat-menu-item (click)="Viewclick('Waterfall')">Waterfall</button>
         </mat-menu>
         <button class="navbar-item" mat-button [matMenuTriggerFor]="windowMenu"><i class="far nav-icon flaticon-web"></i>Window<span class="dropdown-symbol">&#9660;</span></button>
