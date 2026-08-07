@@ -1,0 +1,302 @@
+name: Dependabot Security Project Sync
+
+on:
+  pull_request_target:
+    branches:
+      - dev
+    types:
+      - opened
+      - reopened
+      - synchronize
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log matching PRs without changing the project.
+        required: true
+        type: boolean
+        default: true
+      update_existing_status:
+        description: Set the configured Status on matching PRs already in the project.
+        required: true
+        type: boolean
+        default: false
+      pull_request_number:
+        description: Optional single PR number to sync; leave blank to backfill all open PRs targeting dev.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sync-security-prs:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ inputs.dry_run || false }}
+      UPDATE_EXISTING_STATUS: ${{ inputs.update_existing_status || false }}
+      PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number || '' }}
+      PROJECT_TOKEN_CONFIGURED: ${{ secrets.DEPENDABOT_PROJECT_TOKEN != '' || secrets.USER_STORY_PROJECT_TOKEN != '' }}
+      DEPENDABOT_PROJECT_OWNER: ${{ vars.DEPENDABOT_PROJECT_OWNER || vars.PR_PROJECT_OWNER || vars.USER_STORY_PROJECT_OWNER || 'CDCgov' }}
+      DEPENDABOT_PROJECT_OWNER_TYPE: ${{ vars.DEPENDABOT_PROJECT_OWNER_TYPE || vars.PR_PROJECT_OWNER_TYPE || vars.USER_STORY_PROJECT_OWNER_TYPE || 'organization' }}
+      DEPENDABOT_PROJECT_NUMBER: ${{ vars.DEPENDABOT_PROJECT_NUMBER || vars.PR_PROJECT_NUMBER || vars.USER_STORY_PROJECT_NUMBER || '79' }}
+      DEPENDABOT_PROJECT_STATUS: ${{ vars.DEPENDABOT_PROJECT_STATUS || 'Security Prompts' }}
+      DEPENDABOT_PROJECT_STATUS_FIELD: ${{ vars.DEPENDABOT_PROJECT_STATUS_FIELD || vars.USER_STORY_PROJECT_STATUS_FIELD || 'Status' }}
+    steps:
+      # This pull_request_target job never checks out or executes pull-request code.
+      - name: Sync Dependabot security PRs to project
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DEPENDABOT_PROJECT_TOKEN || secrets.USER_STORY_PROJECT_TOKEN || github.token }}
+          script: |
+            const isPullRequestEvent = context.eventName === 'pull_request_target';
+            const dryRun = isPullRequestEvent ? false : process.env.DRY_RUN === 'true';
+            const updateExistingStatus = isPullRequestEvent || process.env.UPDATE_EXISTING_STATUS === 'true';
+            const requestedPullNumberText = (process.env.PULL_REQUEST_NUMBER || '').trim();
+            const expectedBase = 'dev';
+
+            const owner = process.env.DEPENDABOT_PROJECT_OWNER;
+            const ownerType = (process.env.DEPENDABOT_PROJECT_OWNER_TYPE || 'organization').trim().toLowerCase();
+            const projectNumber = Number(process.env.DEPENDABOT_PROJECT_NUMBER);
+            const statusFieldName = process.env.DEPENDABOT_PROJECT_STATUS_FIELD || 'Status';
+            const statusValue = process.env.DEPENDABOT_PROJECT_STATUS || 'Security Prompts';
+
+            if (!['organization', 'user'].includes(ownerType)) {
+              throw new Error(`DEPENDABOT_PROJECT_OWNER_TYPE must be organization or user; got ${ownerType || '(empty)'}.`);
+            }
+            if (!Number.isInteger(projectNumber) || projectNumber < 1) {
+              throw new Error(`DEPENDABOT_PROJECT_NUMBER must be a positive integer; got ${process.env.DEPENDABOT_PROJECT_NUMBER || '(empty)'}.`);
+            }
+
+            // GitHub-generated security-update PRs include both phrases. Requiring
+            // them keeps ordinary Dependabot version-update PRs out of this bucket.
+            function isDependabotSecurityPullRequest(pullRequest) {
+              if (!pullRequest.user || pullRequest.user.login !== 'dependabot[bot]') {
+                return false;
+              }
+
+              const body = (pullRequest.body || '').toLowerCase();
+              return body.includes('disable automated security fix prs') && body.includes('security alerts page');
+            }
+
+            function normalizePullRequest(pullRequest) {
+              return {
+                number: pullRequest.number,
+                nodeId: pullRequest.node_id,
+                url: pullRequest.html_url,
+                title: pullRequest.title,
+                body: pullRequest.body || '',
+                user: pullRequest.user,
+                baseRef: pullRequest.base && pullRequest.base.ref,
+              };
+            }
+
+            async function loadCandidatePullRequests() {
+              if (isPullRequestEvent) {
+                return [normalizePullRequest(context.payload.pull_request)];
+              }
+
+              if (requestedPullNumberText) {
+                const pullNumber = Number(requestedPullNumberText);
+                if (!Number.isInteger(pullNumber) || pullNumber < 1) {
+                  throw new Error(`pull_request_number must be a positive integer; got ${requestedPullNumberText}.`);
+                }
+
+                const { data: pullRequest } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pullNumber,
+                });
+                return [normalizePullRequest(pullRequest)];
+              }
+
+              const pullRequests = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                base: expectedBase,
+                per_page: 100,
+              });
+
+              return pullRequests.map(normalizePullRequest);
+            }
+
+            async function loadProject() {
+              const fieldFragment = `
+                id
+                fields(first: 100) {
+                  nodes {
+                    ... on ProjectV2Field {
+                      id
+                      name
+                    }
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                      options {
+                        id
+                        name
+                      }
+                    }
+                    ... on ProjectV2IterationField {
+                      id
+                      name
+                    }
+                  }
+                }
+              `;
+
+              const query = ownerType === 'user'
+                ? `query($owner: String!, $number: Int!) { user(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`
+                : `query($owner: String!, $number: Int!) { organization(login: $owner) { projectV2(number: $number) { ${fieldFragment} } } }`;
+
+              const result = await github.graphql(query, { owner, number: projectNumber });
+              const project = ownerType === 'user'
+                ? result.user && result.user.projectV2
+                : result.organization && result.organization.projectV2;
+
+              if (!project) {
+                throw new Error(`Could not find ${ownerType} project ${owner}/${projectNumber}.`);
+              }
+
+              const statusField = project.fields.nodes.find((field) => field && field.name === statusFieldName);
+              if (!statusField || !statusField.options) {
+                throw new Error(`Could not find single-select project field ${statusFieldName}.`);
+              }
+
+              const statusOption = statusField.options.find((option) => option.name === statusValue);
+              if (!statusOption) {
+                const available = statusField.options.map((option) => option.name).join(', ');
+                throw new Error(`Could not find project status option ${statusValue}. Available options: ${available}.`);
+              }
+
+              return {
+                id: project.id,
+                statusFieldId: statusField.id,
+                statusOptionId: statusOption.id,
+              };
+            }
+
+            async function findProjectItemId(projectId, pullRequestNodeId) {
+              const result = await github.graphql(
+                `query($pullRequestNodeId: ID!) {
+                  node(id: $pullRequestNodeId) {
+                    ... on PullRequest {
+                      projectItems(first: 100) {
+                        nodes {
+                          id
+                          project {
+                            id
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { pullRequestNodeId }
+              );
+
+              const projectItems = (result.node && result.node.projectItems && result.node.projectItems.nodes) || [];
+              const existingItem = projectItems.find((item) => item.project && item.project.id === projectId);
+              return existingItem ? existingItem.id : null;
+            }
+
+            async function addProjectItem(projectId, pullRequestNodeId) {
+              const result = await github.graphql(
+                `mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                    item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId,
+                  contentId: pullRequestNodeId,
+                }
+              );
+
+              return result.addProjectV2ItemById.item.id;
+            }
+
+            async function updateProjectStatus(project, itemId) {
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item {
+                      id
+                    }
+                  }
+                }`,
+                {
+                  projectId: project.id,
+                  itemId,
+                  fieldId: project.statusFieldId,
+                  optionId: project.statusOptionId,
+                }
+              );
+            }
+
+            const candidates = await loadCandidatePullRequests();
+            const matchingPullRequests = candidates
+              .filter((pullRequest) => pullRequest.baseRef === expectedBase)
+              .filter(isDependabotSecurityPullRequest)
+              .sort((left, right) => left.number - right.number);
+
+            if (!matchingPullRequests.length) {
+              core.info(`No Dependabot security-update PRs targeting ${expectedBase} matched this run.`);
+              return;
+            }
+
+            if (!dryRun && process.env.PROJECT_TOKEN_CONFIGURED !== 'true') {
+              throw new Error(
+                'Project sync requires DEPENDABOT_PROJECT_TOKEN (recommended in both Actions and Dependabot secrets) ' +
+                'or USER_STORY_PROJECT_TOKEN.'
+              );
+            }
+
+            core.info(`Matched ${matchingPullRequests.length} Dependabot security-update PR(s) targeting ${expectedBase}.`);
+
+            if (dryRun) {
+              for (const pullRequest of matchingPullRequests) {
+                core.info(`[dry-run] Would ensure PR #${pullRequest.number} is in project ${owner}/${projectNumber} with ${statusFieldName}=${statusValue}: ${pullRequest.url}`);
+              }
+              return;
+            }
+
+            const project = await loadProject();
+            let addedCount = 0;
+            let updatedCount = 0;
+            let unchangedCount = 0;
+
+            for (const pullRequest of matchingPullRequests) {
+              let itemId = await findProjectItemId(project.id, pullRequest.nodeId);
+
+              if (!itemId) {
+                itemId = await addProjectItem(project.id, pullRequest.nodeId);
+                await updateProjectStatus(project, itemId);
+                addedCount += 1;
+                core.info(`Added PR #${pullRequest.number} with ${statusFieldName}=${statusValue}: ${pullRequest.url}`);
+                continue;
+              }
+
+              if (updateExistingStatus) {
+                await updateProjectStatus(project, itemId);
+                updatedCount += 1;
+                core.info(`Updated PR #${pullRequest.number} to ${statusFieldName}=${statusValue}: ${pullRequest.url}`);
+              } else {
+                unchangedCount += 1;
+                core.info(`PR #${pullRequest.number} is already in the project; leaving its status unchanged: ${pullRequest.url}`);
+              }
+            }
+
+            core.info(`Project sync complete: ${addedCount} added, ${updatedCount} updated, ${unchangedCount} unchanged.`);
