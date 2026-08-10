@@ -4719,17 +4719,66 @@ align(params): Promise<any> {
      * @param {string} title 
      */
     titleize(title: string): string {
-        const small = title.toLowerCase().replace(/_/g, " ");
-        if (small == "null") return "(Empty)";
-        if (small == "id" || small == " id") return "ID";
-        if (small == "tn93") return "TN93";
-        if (small == "snps") return "SNPs";
-        if (small == "2d network") return "2D Network";
-        if (small == "3d network") return "3D Network";
-        if (small == "geo map") return "Map";
-        if (small == "nn") return "Nearest Neighbor";
-        return title;
-        return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
+        const raw = `${title ?? ''}`;
+        const trimmed = raw.trim();
+        const small = trimmed.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const exactTitles: { [key: string]: string } = {
+            'null': '(Empty)',
+            'id': 'ID',
+            'tn93': 'TN93',
+            'snps': 'SNPs',
+            '2d network': '2D Network',
+            '3d network': '3D Network',
+            'geo map': 'Map',
+            'nn': 'Nearest Neighbor',
+            'seq': 'Sequence',
+            'hasdistance': 'Has Distance',
+            'distanceorigin': 'Distance Origin',
+            'distanceorigins': 'Distance Origins'
+        };
+
+        if (exactTitles[small]) return exactTitles[small];
+
+        // Preserve free-form labels that users already wrote with spaces/case.
+        if (!/[_-]/.test(trimmed)) {
+            return raw;
+        }
+
+        // Network import provenance fields use raw snake_case keys internally;
+        // keep those keys stable while showing readable labels in the UI.
+        const words: { [key: string]: string } = {
+            'id': 'ID',
+            'ids': 'IDs',
+            'mt': 'MicrobeTrace',
+            'nn': 'Nearest Neighbor',
+            'seq': 'Sequence',
+            'snps': 'SNPs',
+            'tn93': 'TN93',
+            'graphml': 'GraphML',
+            'graphmlgraph': 'GraphML Graph',
+            'gexf': 'GEXF',
+            'xgmml': 'XGMML',
+            'cx2': 'CX2',
+            'cyjs': 'Cytoscape JSON',
+            'cx': 'CX',
+            'dot': 'DOT',
+            'gml': 'GML',
+            'x': 'X',
+            'y': 'Y',
+            'vx': 'VX',
+            'vy': 'VY'
+        };
+        const readable = trimmed
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return readable
+            .split(' ')
+            .filter(part => part.length > 0)
+            .map(part => words[part.toLowerCase()] || part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
     };
 
     /** 

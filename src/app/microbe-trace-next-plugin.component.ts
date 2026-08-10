@@ -18,6 +18,7 @@ import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
 import { CommonStoreService } from './contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
+import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
@@ -452,6 +453,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private el: ElementRef, 
         private store: CommonStoreService,
         private exportService: ExportService,
+        private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService
     ) {
 
@@ -1951,6 +1953,30 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             accept,
             reject,
         });
+    }
+
+    openNetworkImportWarnings(warnings: string[]) {
+        if (!warnings.length) {
+            return;
+        }
+
+        this.confirmationService.confirm({
+            header: 'Network Import Warnings',
+            message: `Some Network file features are not supported by MicrobeTrace and were ignored or imported as data fields.
+
+${warnings.join('\n')}`,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectVisible: false,
+            acceptButtonProps: {
+                label: 'Confirm',
+            },
+        });
+    }
+
+    openGraphMLImportWarnings(warnings: string[]) {
+        this.openNetworkImportWarnings(warnings);
     }
 
     onPruneWithTypesChanged(newValue: string) {
@@ -4617,6 +4643,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         } else {
             this.performExport(elementsToExport, this.exportTables['node-color'], this.exportTables['link-color'], this.exportTables['node-symbol']);
         }
+    }
+
+    ExportGraphML() {
+        const graphMLExport = this.graphMLService.exportSession(this.commonService.session);
+        const blob = new Blob([graphMLExport.contents], { type: 'application/graphml+xml;charset=utf-8' });
+        this.saveGeneratedFile(blob, 'microbetrace.graphml');
     }
 
     updateExportResolution() {
