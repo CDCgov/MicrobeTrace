@@ -168,4 +168,64 @@ describe('Journey Flow - Network Statistics view', () => {
         expectTrimmedCellText(1, '6');
       });
   });
+
+  it('keeps approximate statistics responsive while exact values finish in the background', () => {
+    const backgroundProfile = getProfile('network-statistics-background-exact');
+
+    launchProfileToTwoD(backgroundProfile);
+    assertAfterLaunchCounts(backgroundProfile);
+    openNetworkStatisticsView();
+
+    cy.window({ timeout: 30000 }).should((win: any) => {
+      const statistics = win.commonService.visuals.networkStatistics;
+      expect(statistics?.networkStatisticsResult, 'provisional statistics result').to.exist;
+      expect(statistics.networkStatisticsResult.summary.approximatePathMetrics).to.equal(true);
+      expect(statistics.networkStatisticsResult.summary.approximateBetweenness).to.equal(true);
+      expect(statistics.networkStatisticsResult.summary.sampledSourceCount).to.equal(256);
+      expect(statistics.networkStatisticsExactState).to.equal('running');
+    });
+
+    cy.get('[data-testid="network-statistics-exact-status"]', { timeout: 30000 })
+      .should('be.visible')
+      .and('contain.text', 'updating in the background')
+      .and('contain.text', 'deterministic sample');
+    cy.get('[data-testid="network-statistics-exact-progress"]')
+      .should('have.attr', 'role', 'progressbar')
+      .and('have.attr', 'aria-valuenow');
+    cy.get('[data-testid="network-statistics-exact-cancel"]').should('be.enabled');
+
+    cy.get('[data-testid="network-statistics-export"]').should('be.visible').click({ force: true });
+    cy.get('[data-testid="network-statistics-export-approximation-notice"]')
+      .should('be.visible')
+      .and('contain.text', 'currently displayed approximate statistics')
+      .and('contain.text', 'sampled calculation mode');
+    cy.get('.p-dialog:visible').within(() => {
+      cy.contains('button', 'Cancel').click({ force: true });
+    });
+
+    selectStatisticsSection('Degree Distribution');
+    cy.get('[data-testid="network-statistics-table-shell"]')
+      .should('contain.text', 'Degree')
+      .and('contain.text', 'Nodes');
+
+    cy.get('[data-testid="app-view-menu-button"]').click({ force: true });
+    cy.get('[data-testid="app-view-menu-2d-network"]').click({ force: true });
+    cy.get('#cy', { timeout: 15000 }).should('be.visible');
+
+    cy.window({ timeout: 120000 }).should((win: any) => {
+      const statistics = win.commonService.visuals.networkStatistics;
+      expect(statistics?.networkStatisticsResult, 'exact statistics result').to.exist;
+      expect(statistics.networkStatisticsResult.summary.approximatePathMetrics).to.equal(false);
+      expect(statistics.networkStatisticsResult.summary.approximateBetweenness).to.equal(false);
+      expect(statistics.networkStatisticsResult.summary.sampledSourceCount).to.equal(3003);
+      expect(statistics.networkStatisticsExactState).to.equal('complete');
+    });
+
+    openNetworkStatisticsView();
+    cy.get('[data-testid="network-statistics-exact-status"]').should('not.exist');
+    cy.get('[data-testid="network-statistics-approximation"]').should('not.exist');
+    cy.get('[data-testid="network-statistics-table-shell"]')
+      .should('contain.text', 'Degree')
+      .and('contain.text', 'Nodes');
+  });
 });

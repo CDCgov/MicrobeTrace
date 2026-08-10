@@ -9,6 +9,7 @@ export class InlineWorker {
 
     private readonly worker: Worker;
     private readonly jobId: number;
+    private readonly isDedicated: boolean;
     private onMessage = new Subject<MessageEvent>();
     private onError = new Subject<ErrorEvent>();
     private readonly listenerWrappers = {
@@ -16,14 +17,20 @@ export class InlineWorker {
         error: new Map<EventListenerOrEventListenerObject, EventListener>()
     };
 
-    constructor(private readonly task: ComputeWorkerTask) {
+    constructor(
+        private readonly task: ComputeWorkerTask,
+        options: { dedicated?: boolean } = {}
+    ) {
         const WORKER_ENABLED = !!(Worker);
 
         if (!WORKER_ENABLED) {
             throw new Error('WebWorker is not enabled');
         }
 
-        this.worker = InlineWorker.getWorker(task);
+        this.isDedicated = Boolean(options.dedicated);
+        this.worker = this.isDedicated
+            ? InlineWorker.createWorker(task)
+            : InlineWorker.getWorker(task);
         this.jobId = InlineWorker.nextJobId++;
 
         this.worker.addEventListener('message', this.handleMessage);
@@ -33,13 +40,17 @@ export class InlineWorker {
     private static getWorker(task: ComputeWorkerTask): Worker {
         let worker = InlineWorker.sharedWorkers.get(task);
         if (!worker) {
-            worker = new Worker(
-                new URL('../workers/compute.worker', import.meta.url),
-                { type: 'module', name: `mt-${task}` }
-            );
+            worker = InlineWorker.createWorker(task);
             InlineWorker.sharedWorkers.set(task, worker);
         }
         return worker;
+    }
+
+    private static createWorker(task: ComputeWorkerTask): Worker {
+        return new Worker(
+            new URL('../workers/compute.worker', import.meta.url),
+            { type: 'module', name: `mt-${task}` }
+        );
     }
 
     private handleMessage = (data: MessageEvent) => {
@@ -114,6 +125,9 @@ export class InlineWorker {
         this.worker.removeEventListener('error', this.handleError);
         this.onMessage.complete();
         this.onError.complete();
+        if (this.isDedicated) {
+            this.worker.terminate();
+        }
     }
 
 }

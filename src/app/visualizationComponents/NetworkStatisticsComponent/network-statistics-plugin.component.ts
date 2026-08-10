@@ -14,6 +14,8 @@ import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import {
   buildNetworkStatisticsExportSections,
+  NetworkStatisticsProgress,
+  NetworkStatisticsRequest,
   NetworkStatisticsResult,
   serializeNetworkStatisticsCsv,
 } from '@app/contactTraceCommonServices/network-statistics';
@@ -28,6 +30,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { saveAs } from 'file-saver';
 
 type NetworkStatisticsSection = 'summary' | 'centrality' | 'components' | 'degree';
+type NetworkStatisticsExactState = 'idle' | 'running' | 'cancelled' | 'failed' | 'complete';
 
 interface NetworkStatisticsColumn {
   field: string;
@@ -65,6 +68,9 @@ export class NetworkStatisticsComponent
   networkStatisticsResult: NetworkStatisticsResult | null = null;
   networkStatisticsLoading = false;
   networkStatisticsError = '';
+  networkStatisticsExactState: NetworkStatisticsExactState = 'idle';
+  networkStatisticsExactProgress: NetworkStatisticsProgress | null = null;
+  networkStatisticsExactError = '';
 
   ShowNetworkStatisticsSettingsPane = false;
   ShowNetworkStatisticsExportPane = false;
@@ -109,6 +115,11 @@ export class NetworkStatisticsComponent
   private readonly visuals: MicrobeTraceNextVisuals;
   private networkStatisticsRequestId = 0;
   private isDestroyed = false;
+  private initialCalculationController: AbortController | null = null;
+  private exactCalculationController: AbortController | null = null;
+  private exactCalculationFrame: number | null = null;
+  private currentRequest: NetworkStatisticsRequest | null = null;
+  private currentRequestSignature = '';
   private readonly sectionColumns: Record<NetworkStatisticsSection, NetworkStatisticsColumn[]> = {
     summary: [
       { field: 'metric', header: 'Metric' },
@@ -139,9 +150,7 @@ export class NetworkStatisticsComponent
   };
 
   private readonly nodeSelectedWindowHandler = () => {
-    if (this.viewActive) {
-      void this.refreshNetworkStatistics();
-    }
+    void this.refreshNetworkStatistics();
   };
 
   constructor(
@@ -178,24 +187,20 @@ export class NetworkStatisticsComponent
     this.container.on('show', () => {
       this.viewActive = true;
       void this.refreshNetworkStatistics();
-      this.cdref.detectChanges();
+      this.goldenLayoutComponentResize();
     });
 
     $(document).on('node-selected.network-statistics', () => {
-      if (this.viewActive) {
-        void this.refreshNetworkStatistics();
-      }
+      void this.refreshNetworkStatistics();
     });
     window.addEventListener('node-selected', this.nodeSelectedWindowHandler);
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      if (this.viewActive) {
-        void this.refreshNetworkStatistics();
-      }
+      void this.refreshNetworkStatistics();
     });
 
     this.store.networkUpdated$.pipe(takeUntil(this.destroy$)).subscribe((networkUpdated) => {
-      if (this.viewActive && networkUpdated) {
+      if (networkUpdated) {
         void this.refreshNetworkStatistics();
         this.store.setNetworkUpdated(false);
       }
@@ -215,6 +220,33 @@ export class NetworkStatisticsComponent
     return `Approx. sampled metrics from ${summary.sampledSourceCount.toLocaleString()} source nodes`;
   }
 
+  get networkStatisticsResultIsApproximate(): boolean {
+    const summary = this.networkStatisticsResult?.summary;
+    return Boolean(summary?.approximateBetweenness || summary?.approximatePathMetrics);
+  }
+
+  get shouldShowNetworkStatisticsExactStatus(): boolean {
+    return this.networkStatisticsResultIsApproximate && (
+      this.networkStatisticsExactState === 'running'
+      || this.networkStatisticsExactState === 'cancelled'
+      || this.networkStatisticsExactState === 'failed'
+    );
+  }
+
+  get networkStatisticsExactProgressPercent(): number {
+    const percentage = Number(this.networkStatisticsExactProgress?.percentage || 0);
+    return Math.max(0, Math.min(100, percentage));
+  }
+
+  get networkStatisticsExactProgressLabel(): string {
+    const progress = this.networkStatisticsExactProgress;
+    const completed = Number(progress?.completedSourceCount || 0).toLocaleString();
+    const total = Number(
+      progress?.totalSourceCount || this.networkStatisticsResult?.summary.nodeCount || 0
+    ).toLocaleString();
+    return `${completed} of ${total} source nodes processed`;
+  }
+
   openSettings(): void {
     this.ShowNetworkStatisticsSettingsPane = !this.ShowNetworkStatisticsSettingsPane;
   }
@@ -226,15 +258,13 @@ export class NetworkStatisticsComponent
   openCenter(): void {}
 
   openRefreshScreen(): void {
-    void this.refreshNetworkStatistics();
+    void this.refreshNetworkStatistics(true);
   }
 
   onLoadNewData(): void {
     this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
     if (!this.IsDataAvailable) {
-      this.networkStatisticsResult = null;
-      this.syncSelectedTableData();
-      this.cdref.detectChanges();
+      this.clearNetworkStatistics();
       return;
     }
 
@@ -386,29 +416,50 @@ export class NetworkStatisticsComponent
     const paneWidth = Math.max(hostWidth - 23, 300);
     const selectedColumnCount = Math.max(this.SelectedTableData?.tableColumns?.length || 1, 1);
     const minimumColumnWidth = selectedColumnCount * this.columnMinWidth;
-    this.scrollHeight = Math.max(hostHeight - 70 - 60 - 10, 180) + 'px';
+    const exactStatusHeight = this.shouldShowNetworkStatisticsExactStatus
+      ? Number(host.find('.network-statistics-exact-status').outerHeight(true) || 76)
+      : 0;
+    this.scrollHeight = Math.max(hostHeight - 70 - 60 - 10 - exactStatusHeight, 180) + 'px';
     this.tableStyle = {
       width: paneWidth + 'px',
       'min-width': Math.max(paneWidth, minimumColumnWidth) + 'px',
     };
   }
 
-  async refreshNetworkStatistics(): Promise<void> {
+  async refreshNetworkStatistics(force = false): Promise<void> {
     this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
     if (!this.IsDataAvailable) {
-      this.networkStatisticsResult = null;
-      this.syncSelectedTableData();
-      this.cdref.detectChanges();
+      this.clearNetworkStatistics();
       return;
     }
 
+    const request = this.buildNetworkStatisticsRequest();
+    const requestSignature = this.buildNetworkStatisticsRequestSignature(request);
+    if (
+      !force
+      && requestSignature === this.currentRequestSignature
+      && (this.networkStatisticsLoading || this.networkStatisticsResult !== null)
+    ) {
+      return;
+    }
+
+    this.cancelActiveCalculations();
     const requestId = ++this.networkStatisticsRequestId;
+    const controller = new AbortController();
+    this.initialCalculationController = controller;
+    this.currentRequest = request;
+    this.currentRequestSignature = requestSignature;
     this.networkStatisticsLoading = true;
     this.networkStatisticsError = '';
+    this.networkStatisticsExactState = 'idle';
+    this.networkStatisticsExactProgress = null;
+    this.networkStatisticsExactError = '';
     this.cdref.detectChanges();
 
     try {
-      const result = await this.workerComputeService.computeNetworkStatistics(this.buildNetworkStatisticsRequest());
+      const result = await this.workerComputeService.computeNetworkStatistics(request, {
+        signal: controller.signal,
+      });
       if (this.isDestroyed || requestId !== this.networkStatisticsRequestId) {
         return;
       }
@@ -418,15 +469,132 @@ export class NetworkStatisticsComponent
       this.networkStatisticsError = '';
       this.syncSelectedTableData();
       this.markNetworkStatisticsRendered();
-    } catch {
+
+      if (result.summary.approximateBetweenness || result.summary.approximatePathMetrics) {
+        this.scheduleExactNetworkStatistics(requestId, requestSignature);
+      } else {
+        this.networkStatisticsExactState = 'complete';
+      }
+    } catch (error) {
       if (this.isDestroyed || requestId !== this.networkStatisticsRequestId) {
+        return;
+      }
+
+      if (this.isAbortError(error)) {
         return;
       }
 
       this.networkStatisticsLoading = false;
       this.networkStatisticsError = 'Network statistics could not be calculated.';
     } finally {
+      if (this.initialCalculationController === controller) {
+        this.initialCalculationController = null;
+      }
       if (!this.isDestroyed && requestId === this.networkStatisticsRequestId) {
+        this.cdref.detectChanges();
+      }
+    }
+  }
+
+  cancelExactNetworkStatistics(): void {
+    this.cancelScheduledExactCalculation();
+    const controller = this.exactCalculationController;
+    this.exactCalculationController = null;
+    controller?.abort();
+
+    if (this.networkStatisticsResultIsApproximate) {
+      this.networkStatisticsExactState = 'cancelled';
+      this.networkStatisticsExactError = '';
+      this.updateTableDimensions();
+      this.cdref.detectChanges();
+    }
+  }
+
+  async startExactNetworkStatistics(): Promise<void> {
+    const request = this.currentRequest;
+    const requestSignature = this.currentRequestSignature;
+    const requestId = this.networkStatisticsRequestId;
+    if (!request || !requestSignature || !this.networkStatisticsResultIsApproximate) {
+      return;
+    }
+
+    this.cancelScheduledExactCalculation();
+    this.exactCalculationController?.abort();
+    const controller = new AbortController();
+    this.exactCalculationController = controller;
+    this.networkStatisticsExactState = 'running';
+    this.networkStatisticsExactError = '';
+    this.networkStatisticsExactProgress = {
+      completedSourceCount: 0,
+      totalSourceCount: this.networkStatisticsResult?.summary.nodeCount || request.nodes.length,
+      percentage: 0,
+    };
+    this.cdref.detectChanges();
+    this.updateTableDimensions();
+
+    const exactRequest: NetworkStatisticsRequest = {
+      ...request,
+      approximation: {
+        ...(request.approximation || {}),
+        forceApproximate: false,
+        forceExact: true,
+      },
+    };
+
+    try {
+      const exactResult = await this.workerComputeService.computeNetworkStatistics(exactRequest, {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (
+            this.isDestroyed
+            || controller !== this.exactCalculationController
+            || requestId !== this.networkStatisticsRequestId
+            || requestSignature !== this.currentRequestSignature
+          ) {
+            return;
+          }
+
+          this.networkStatisticsExactProgress = progress;
+          this.cdref.detectChanges();
+        },
+      });
+
+      if (
+        this.isDestroyed
+        || controller !== this.exactCalculationController
+        || requestId !== this.networkStatisticsRequestId
+        || requestSignature !== this.currentRequestSignature
+      ) {
+        return;
+      }
+
+      this.networkStatisticsResult = exactResult;
+      this.networkStatisticsExactState = 'complete';
+      this.networkStatisticsExactProgress = null;
+      this.networkStatisticsExactError = '';
+      this.syncSelectedTableData();
+    } catch (error) {
+      if (
+        this.isDestroyed
+        || requestId !== this.networkStatisticsRequestId
+        || requestSignature !== this.currentRequestSignature
+        || this.isAbortError(error)
+      ) {
+        return;
+      }
+
+      this.networkStatisticsExactState = 'failed';
+      this.networkStatisticsExactError = 'Exact network statistics could not be calculated.';
+    } finally {
+      if (this.exactCalculationController === controller) {
+        this.exactCalculationController = null;
+      }
+      if (
+        !this.isDestroyed
+        && requestId === this.networkStatisticsRequestId
+        && requestSignature === this.currentRequestSignature
+      ) {
+        this.updateTableDimensions();
         this.cdref.detectChanges();
       }
     }
@@ -434,6 +602,8 @@ export class NetworkStatisticsComponent
 
   ngOnDestroy(): void {
     this.isDestroyed = true;
+    this.networkStatisticsRequestId++;
+    this.cancelActiveCalculations();
     $(document).off('node-selected.network-statistics');
     window.removeEventListener('node-selected', this.nodeSelectedWindowHandler);
     if (this.commonService.visuals.networkStatistics === this) {
@@ -443,7 +613,7 @@ export class NetworkStatisticsComponent
     this.destroy$.complete();
   }
 
-  private buildNetworkStatisticsRequest() {
+  private buildNetworkStatisticsRequest(): NetworkStatisticsRequest {
     const visibleNodes = this.commonService.getVisibleNodes();
     const visibleNodeIds = new Set(visibleNodes.map((node) => this.getNodeId(node)).filter(Boolean));
     const visibleLinks = (this.commonService.session.data.links || [])
@@ -464,8 +634,8 @@ export class NetworkStatisticsComponent
         selected: !!node.selected,
       })),
       links: visibleLinks.map((link) => ({
-        source: link.source,
-        target: link.target,
+        source: this.getEndpointId(link.source),
+        target: this.getEndpointId(link.target),
         visible: true,
       })),
       selectedNodeIds: visibleNodes
@@ -475,6 +645,69 @@ export class NetworkStatisticsComponent
       metricLabel,
       threshold: this.formatThreshold(rawThreshold, metricLabel),
     };
+  }
+
+  private buildNetworkStatisticsRequestSignature(request: NetworkStatisticsRequest): string {
+    return JSON.stringify({
+      nodes: request.nodes.map((node) => [this.getNodeId(node), Boolean(node.selected)]),
+      links: request.links.map((link) => [
+        this.getEndpointId(link.source),
+        this.getEndpointId(link.target),
+      ]),
+      selectedNodeIds: request.selectedNodeIds || [],
+      metricLabel: request.metricLabel || '',
+      threshold: request.threshold ?? null,
+    });
+  }
+
+  private scheduleExactNetworkStatistics(requestId: number, requestSignature: string): void {
+    this.cancelScheduledExactCalculation();
+    this.exactCalculationFrame = window.requestAnimationFrame(() => {
+      this.exactCalculationFrame = null;
+      if (
+        this.isDestroyed
+        || requestId !== this.networkStatisticsRequestId
+        || requestSignature !== this.currentRequestSignature
+      ) {
+        return;
+      }
+      void this.startExactNetworkStatistics();
+    });
+  }
+
+  private cancelScheduledExactCalculation(): void {
+    if (this.exactCalculationFrame === null) {
+      return;
+    }
+    window.cancelAnimationFrame(this.exactCalculationFrame);
+    this.exactCalculationFrame = null;
+  }
+
+  private cancelActiveCalculations(): void {
+    this.cancelScheduledExactCalculation();
+    this.initialCalculationController?.abort();
+    this.initialCalculationController = null;
+    this.exactCalculationController?.abort();
+    this.exactCalculationController = null;
+  }
+
+  private clearNetworkStatistics(): void {
+    this.networkStatisticsRequestId++;
+    this.cancelActiveCalculations();
+    this.currentRequest = null;
+    this.currentRequestSignature = '';
+    this.networkStatisticsResult = null;
+    this.networkStatisticsLoading = false;
+    this.networkStatisticsError = '';
+    this.networkStatisticsExactState = 'idle';
+    this.networkStatisticsExactProgress = null;
+    this.networkStatisticsExactError = '';
+    this.syncSelectedTableData();
+    this.cdref.detectChanges();
+  }
+
+  private isAbortError(error: any): boolean {
+    return error?.name === 'AbortError';
   }
 
   private getNodeId(node: any): string {

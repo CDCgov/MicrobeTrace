@@ -1,6 +1,7 @@
 import {
   buildNetworkStatisticsExportSections,
   computeNetworkStatistics,
+  NetworkStatisticsProgress,
   serializeNetworkStatisticsCsv,
 } from './network-statistics';
 
@@ -104,6 +105,127 @@ describe('computeNetworkStatistics', () => {
     expect(result.summary.approximateBetweenness).toBeTrue();
     expect(result.summary.approximatePathMetrics).toBeTrue();
     expect(result.summary.sampledSourceCount).toBe(2);
+  });
+
+  it('keeps the default approximation thresholds exclusive and applies either trigger', () => {
+    const nodesAtLimit = Array.from({ length: 2000 }, (_, index) => ({ _id: `N${index}` }));
+    const nodesAboveLimit = [...nodesAtLimit, { _id: 'N2000' }];
+
+    const atNodeLimit = computeNetworkStatistics({ nodes: nodesAtLimit, links: [] });
+    const aboveNodeLimit = computeNetworkStatistics({ nodes: nodesAboveLimit, links: [] });
+
+    expect(atNodeLimit.summary.approximatePathMetrics).toBeFalse();
+    expect(aboveNodeLimit.summary.approximatePathMetrics).toBeTrue();
+    expect(aboveNodeLimit.summary.sampledSourceCount).toBe(256);
+
+    const denseNodes = Array.from({ length: 142 }, (_, index) => ({ _id: `D${index}` }));
+    const denseLinks: Array<{ source: string; target: string; visible: boolean }> = [];
+    for (let source = 0; source < denseNodes.length && denseLinks.length < 10001; source++) {
+      for (let target = source + 1; target < denseNodes.length && denseLinks.length < 10001; target++) {
+        denseLinks.push({
+          source: denseNodes[source]._id,
+          target: denseNodes[target]._id,
+          visible: true,
+        });
+      }
+    }
+
+    const atLinkLimit = computeNetworkStatistics({ nodes: denseNodes, links: denseLinks.slice(0, 10000) });
+    const aboveLinkLimit = computeNetworkStatistics({
+      nodes: denseNodes,
+      links: denseLinks,
+      approximation: { sampleSize: 8 },
+    });
+
+    expect(atLinkLimit.summary.approximatePathMetrics).toBeFalse();
+    expect(aboveLinkLimit.summary.approximatePathMetrics).toBeTrue();
+    expect(aboveLinkLimit.summary.sampledSourceCount).toBe(8);
+  });
+
+  it('keeps the 256-source heuristic deterministic and prioritizes high-degree nodes', () => {
+    const nodes = Array.from({ length: 300 }, (_, index) => ({ _id: `N${index}` }));
+    const links = nodes.slice(1).map((node) => ({
+      source: nodes[0]._id,
+      target: node._id,
+      visible: true,
+    }));
+    const request = {
+      nodes,
+      links,
+      approximation: { forceApproximate: true },
+    };
+
+    const first = computeNetworkStatistics(request);
+    const second = computeNetworkStatistics(request);
+    const { generatedAtIso: firstGeneratedAt, ...firstComparable } = first;
+    const { generatedAtIso: secondGeneratedAt, ...secondComparable } = second;
+
+    expect(first.summary.sampledSourceCount).toBe(256);
+    expect(firstComparable).toEqual(secondComparable);
+    expect(firstGeneratedAt).toBeTruthy();
+    expect(secondGeneratedAt).toBeTruthy();
+
+    const hubOnlySample = computeNetworkStatistics({
+      nodes: nodes.slice(0, 6),
+      links: links.slice(0, 5),
+      approximation: { forceApproximate: true, sampleSize: 1 },
+    });
+    expect(hubOnlySample.summary.averagePathLength).toBe(1);
+
+    const pathNodes = Array.from({ length: 6 }, (_, index) => ({ _id: `P${index}` }));
+    const distributedSample = computeNetworkStatistics({
+      nodes: pathNodes,
+      links: pathNodes.slice(1).map((node, index) => ({
+        source: pathNodes[index]._id,
+        target: node._id,
+      })),
+      approximation: { forceApproximate: true, sampleSize: 4 },
+    });
+    expect(distributedSample.summary.averagePathLength).toBe(2.3);
+
+    const summarySection = buildNetworkStatisticsExportSections(first)[0];
+    expect(summarySection.rows).toContain([
+      'Calculation Mode',
+      'Approximate sampled metrics from 256 source nodes',
+    ]);
+  });
+
+  it('forces exact metrics with bounded monotonic progress', () => {
+    const nodes = Array.from({ length: 125 }, (_, index) => ({ _id: `N${index}` }));
+    const links = nodes.slice(1).map((node, index) => ({
+      source: nodes[index]._id,
+      target: node._id,
+      visible: true,
+    }));
+    const progress: NetworkStatisticsProgress[] = [];
+
+    const result = computeNetworkStatistics({
+      nodes,
+      links,
+      approximation: {
+        exactNodeLimit: 1,
+        exactLinkLimit: 1,
+        forceApproximate: true,
+        forceExact: true,
+      },
+    }, (update) => progress.push(update));
+
+    expect(result.summary.approximateBetweenness).toBeFalse();
+    expect(result.summary.approximatePathMetrics).toBeFalse();
+    expect(result.summary.sampledSourceCount).toBe(nodes.length);
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress.length).toBeLessThanOrEqual(100);
+    expect(progress.every((update, index) => (
+      index === 0 || update.completedSourceCount > progress[index - 1].completedSourceCount
+    ))).toBeTrue();
+    expect(progress[progress.length - 1]).toEqual({
+      completedSourceCount: nodes.length,
+      totalSourceCount: nodes.length,
+      percentage: 100,
+    });
+
+    const summarySection = buildNetworkStatisticsExportSections(result)[0];
+    expect(summarySection.rows).toContain(['Calculation Mode', 'Exact']);
   });
 
   it('serializes network statistics as human-readable CSV sections', () => {

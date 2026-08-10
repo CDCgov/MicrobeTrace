@@ -50,6 +50,61 @@
     }
   </div>
 
+  @if (shouldShowNetworkStatisticsExactStatus) {
+    <div
+      class="network-statistics-exact-status"
+      [class.network-statistics-exact-status-error]="networkStatisticsExactState === 'failed'"
+      data-testid="network-statistics-exact-status">
+      <div class="network-statistics-exact-status-copy">
+        @if (networkStatisticsExactState === 'running') {
+          <strong role="status" aria-live="polite">Network statistics are updating in the background.</strong>
+          <span>
+            Current path, diameter, and betweenness values use a deterministic sample of
+            {{ networkStatisticsResult?.summary?.sampledSourceCount?.toLocaleString() }} source nodes and may change.
+          </span>
+          <span data-testid="network-statistics-exact-progress-label">
+            {{ networkStatisticsExactProgressLabel }}.
+          </span>
+        } @else if (networkStatisticsExactState === 'cancelled') {
+          <strong role="status" aria-live="polite">Exact calculation was cancelled.</strong>
+          <span>The displayed sampled statistics remain available.</span>
+        } @else if (networkStatisticsExactState === 'failed') {
+          <strong role="status" aria-live="polite">{{ networkStatisticsExactError }}</strong>
+          <span>The displayed sampled statistics remain available.</span>
+        }
+      </div>
+
+      @if (networkStatisticsExactState === 'running') {
+        <div
+          class="network-statistics-exact-progress"
+          role="progressbar"
+          aria-label="Exact network statistics calculation progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="networkStatisticsExactProgressPercent"
+          [attr.aria-valuetext]="networkStatisticsExactProgressLabel"
+          data-testid="network-statistics-exact-progress">
+          <span [style.width.%]="networkStatisticsExactProgressPercent"></span>
+        </div>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          (click)="cancelExactNetworkStatistics()"
+          data-testid="network-statistics-exact-cancel">
+          Cancel
+        </button>
+      } @else {
+        <button
+          type="button"
+          class="btn btn-sm btn-primary"
+          (click)="startExactNetworkStatistics()"
+          data-testid="network-statistics-exact-start">
+          {{ networkStatisticsExactState === 'failed' ? 'Retry' : 'Calculate exact' }}
+        </button>
+      }
+    </div>
+  }
+
   @if (networkStatisticsLoading) {
     <div class="network-statistics-state" data-testid="network-statistics-loading">Calculating...</div>
   }
@@ -185,6 +240,14 @@
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-body" style="width: 400px; height: 100%;">
+            @if (networkStatisticsResultIsApproximate) {
+              <div
+                class="network-statistics-export-notice"
+                data-testid="network-statistics-export-approximation-notice">
+                This export will contain the currently displayed approximate statistics. The Summary sheet records
+                the sampled calculation mode.
+              </div>
+            }
             <div class="form-group row">
               <div class="col-12">
                 <input

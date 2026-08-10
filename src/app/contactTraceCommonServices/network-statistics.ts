@@ -15,6 +15,13 @@ export interface NetworkStatisticsApproximationOptions {
   exactLinkLimit?: number;
   sampleSize?: number;
   forceApproximate?: boolean;
+  forceExact?: boolean;
+}
+
+export interface NetworkStatisticsProgress {
+  completedSourceCount: number;
+  totalSourceCount: number;
+  percentage: number;
 }
 
 export interface NetworkStatisticsRequest {
@@ -384,7 +391,8 @@ function computePathAndBetweenness(
   componentByNode: number[],
   components: NetworkStatisticsComponentRow[],
   approximate: boolean,
-  sampleSize: number
+  sampleSize: number,
+  onProgress?: (progress: NetworkStatisticsProgress) => void
 ): {
   betweenness: number[];
   averagePathLength: number;
@@ -401,8 +409,9 @@ function computePathAndBetweenness(
   let pathLengthSum = 0;
   let reachablePairCount = 0;
   let graphDiameter = 0;
+  const progressInterval = Math.max(1, Math.ceil(sources.length / 100));
 
-  sources.forEach((source) => {
+  sources.forEach((source, sourceIndex) => {
     const result = shortestPathsFrom(adjacency, source);
     const sourceComponentId = componentByNode[source];
 
@@ -438,6 +447,18 @@ function computePathAndBetweenness(
         betweenness[w] += delta[w];
       }
     }
+
+    const completedSourceCount = sourceIndex + 1;
+    if (
+      onProgress &&
+      (completedSourceCount % progressInterval === 0 || completedSourceCount === sources.length)
+    ) {
+      onProgress({
+        completedSourceCount,
+        totalSourceCount: sources.length,
+        percentage: safeRatio(completedSourceCount, sources.length) * 100
+      });
+    }
   });
 
   const betweennessScale = approximate && sources.length > 0
@@ -461,7 +482,10 @@ function computePathAndBetweenness(
   };
 }
 
-export function computeNetworkStatistics(request: NetworkStatisticsRequest): NetworkStatisticsResult {
+export function computeNetworkStatistics(
+  request: NetworkStatisticsRequest,
+  onProgress?: (progress: NetworkStatisticsProgress) => void
+): NetworkStatisticsResult {
   const exactNodeLimit = request.approximation?.exactNodeLimit ?? DEFAULT_EXACT_NODE_LIMIT;
   const exactLinkLimit = request.approximation?.exactLinkLimit ?? DEFAULT_EXACT_LINK_LIMIT;
   const sampleSize = request.approximation?.sampleSize ?? DEFAULT_SAMPLE_SIZE;
@@ -473,16 +497,20 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
   const maxDegree = degrees.reduce((max, degree) => Math.max(max, degree), 0);
   const componentsResult = buildComponents(graph.nodeIds, graph.adjacency, graph.edges);
   const clustering = computeClustering(graph.adjacency);
-  const approximate = Boolean(request.approximation?.forceApproximate)
+  const forceExact = Boolean(request.approximation?.forceExact);
+  const approximate = !forceExact && (
+    Boolean(request.approximation?.forceApproximate)
     || nodeCount > exactNodeLimit
-    || linkCount > exactLinkLimit;
+    || linkCount > exactLinkLimit
+  );
   const pathAndBetweenness = computePathAndBetweenness(
     graph.nodeIds,
     graph.adjacency,
     componentsResult.componentByNode,
     componentsResult.components,
     approximate,
-    sampleSize
+    sampleSize,
+    onProgress
   );
 
   const degreeBuckets = new Map<number, number>();

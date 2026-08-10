@@ -11,9 +11,15 @@ import type {
   PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
 import type {
+  NetworkStatisticsProgress,
   NetworkStatisticsRequest,
   NetworkStatisticsResult,
 } from './network-statistics';
+
+export interface ComputeNetworkStatisticsOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: NetworkStatisticsProgress) => void;
+}
 
 interface ComputePatristicOptions {
   origin?: string[];
@@ -587,30 +593,90 @@ export class WorkerComputeService {
     });
   }
 
-  public computeNetworkStatistics(request: NetworkStatisticsRequest): Promise<NetworkStatisticsResult> {
+  public computeNetworkStatistics(
+    request: NetworkStatisticsRequest,
+    options: ComputeNetworkStatisticsOptions = {}
+  ): Promise<NetworkStatisticsResult> {
     return new Promise<NetworkStatisticsResult>((resolve, reject) => {
       const statisticsWorker = this.computer.getNetworkStatisticsWorker() as unknown as Worker;
-      statisticsWorker.postMessage(request);
+      let settled = false;
+      let sub: { unsubscribe: () => void } | undefined;
+      const createAbortError = (): Error => {
+        const error = new Error('Network statistics calculation was cancelled.');
+        error.name = 'AbortError';
+        return error;
+      };
+      const cleanup = () => {
+        options.signal?.removeEventListener('abort', onAbort);
+        if (sub) {
+          const activeSubscription = sub;
+          sub = undefined;
+          activeSubscription.unsubscribe();
+        } else {
+          statisticsWorker.terminate();
+        }
+      };
+      const onAbort = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        reject(createAbortError());
+      };
 
-      const sub = this.fromWorker(statisticsWorker).subscribe({
+      if (options.signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+
+      sub = this.fromWorker(statisticsWorker).subscribe({
         next: (response: MessageEvent<any>) => {
+          if (response.data?.networkStatisticsProgress) {
+            options.onProgress?.(response.data.networkStatisticsProgress as NetworkStatisticsProgress);
+            return;
+          }
+
+          if (!response.data?.networkStatistics || settled) {
+            return;
+          }
+
           try {
             const decoder = new TextDecoder('utf-8');
             const result = JSON.parse(decoder.decode(new Uint8Array(response.data.networkStatistics)));
+            settled = true;
             resolve(result);
           } catch (error) {
+            settled = true;
             reject(error);
           } finally {
-            statisticsWorker.terminate();
-            sub.unsubscribe();
+            cleanup();
           }
         },
         error: (error) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
           reject(error);
-          statisticsWorker.terminate();
-          sub.unsubscribe();
+          cleanup();
         }
       });
+
+      try {
+        statisticsWorker.postMessage({
+          request,
+          reportProgress: Boolean(options.onProgress)
+        });
+      } catch (error) {
+        if (!settled) {
+          settled = true;
+          reject(error);
+          cleanup();
+        }
+      }
     });
   }
 

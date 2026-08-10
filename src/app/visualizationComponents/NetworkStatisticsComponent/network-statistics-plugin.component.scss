@@ -55,6 +55,65 @@
   white-space: nowrap;
 }
 
+.network-statistics-exact-status {
+  align-items: center;
+  background: #e8f3ff;
+  border: 1px solid #9bc7ee;
+  color: #173b5c;
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  justify-content: space-between;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  min-height: 54px;
+  padding: 8px 12px;
+}
+
+.network-statistics-exact-status-error {
+  background: #fff4f2;
+  border-color: #f3aaa2;
+  color: #7a271a;
+}
+
+.network-statistics-exact-status-copy {
+  align-items: baseline;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.network-statistics-exact-progress {
+  background: #c9def1;
+  border-radius: 4px;
+  flex: 0 0 160px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.network-statistics-exact-progress span {
+  background: #236fa1;
+  display: block;
+  height: 100%;
+  transition: width 160ms ease-out;
+}
+
+.network-statistics-exact-status button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.network-statistics-export-notice {
+  background: #fff8e6;
+  border: 1px solid #e8c46a;
+  color: #674d00;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+}
+
 .tool-btn {
   display: inline;
   height: 30px;
@@ -164,5 +223,19 @@
 
   .network-statistics-approximation {
     width: 100%;
+  }
+
+  .network-statistics-exact-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .network-statistics-exact-progress {
+    flex-basis: 8px;
+    width: 100%;
+  }
+
+  .network-statistics-exact-status button {
+    align-self: flex-start;
   }
 }

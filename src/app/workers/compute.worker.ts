@@ -192,7 +192,11 @@ function handleTree(payload: any, jobId: number): void {
 }
 
 function handleNetworkStatistics(payload: any, jobId: number): void {
-  const result = computeNetworkStatistics(payload);
+  const request = payload?.request ?? payload;
+  const onProgress = payload?.reportProgress
+    ? (progress: unknown) => postMessage({ networkStatisticsProgress: progress, jobId })
+    : undefined;
+  const result = computeNetworkStatistics(request, onProgress);
   postJsonResponse('networkStatistics', result, Date.now(), jobId);
 }
 
