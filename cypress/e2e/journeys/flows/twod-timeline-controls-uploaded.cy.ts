@@ -38,7 +38,7 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 const normalizeLogicalLinkId = (value: string): string => String(value || '').replace(/-\d+$/, '');
 
 const clickVisiblePrimeOption = (label: string): void => {
-  cy.get('.p-select-overlay', { timeout: 15000 })
+  cy.get('.p-select-overlay:visible', { timeout: 15000 })
     .last()
     .find('p-selectitem')
     .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
@@ -189,7 +189,6 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
   const midCheckpoint = timeline.checkpoints.find((checkpoint) => checkpoint.id === 'timeline-mid') ?? timeline.checkpoints[0];
 
   it('keeps 2D timeline play/pause and manual slider checkpoints aligned on uploaded data', () => {
-    let initialLabel = '';
     let initialTime = 0;
 
     const oracleSteps: OracleStep[] = [
@@ -221,12 +220,6 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
       assertNetworkMatchesOracleSnapshot(snapshot);
     });
 
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
-
     cy.window().then((win: unknown) => {
       const value = (win as WinWithCy).commonService.session.state.timeEnd;
       initialTime = new Date(value as string | number | Date).getTime();
@@ -245,11 +238,11 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     cy.get('#timeline-play-button').should('contain', 'Pause').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithCy).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     assertTwoDTimelineNodeMembershipAligned();
     assertRenderedLogicalLinkCountMatchesMetric();

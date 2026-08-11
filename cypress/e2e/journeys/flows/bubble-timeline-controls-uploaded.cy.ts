@@ -219,7 +219,6 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
   const recoloredNodeId = 'MZ415508';
 
   it('keeps Bubble timeline play/pause and slider jumps aligned with uploaded visible membership', () => {
-    let initialLabel = '';
     let initialTime = 0;
     let selectedStartTime = 0;
     let pausedTime = 0;
@@ -231,12 +230,6 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
 
     setTimelineField(timeline.field);
     assertExpandedBubbleTimelineAligned();
-
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
 
     cy.window().then((win: unknown) => {
       const state = (win as WinWithBubble).commonService.session.state;
@@ -274,11 +267,11 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     cy.get('#timeline-play-button').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     assertExpandedBubbleTimelineAligned();
 
@@ -397,7 +390,6 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
   });
 
   it('keeps collapsed Bubble timeline playback aligned with aggregate totals and scaled node sizes', () => {
-    let initialLabel = '';
     let initialTime = 0;
 
     launchProfileToTwoD(profile);
@@ -406,12 +398,6 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     configureBubbleForTimeline(true);
 
     setTimelineField(timeline.field);
-
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
 
     cy.window().then((win: unknown) => {
       const value = (win as WinWithBubble).commonService.session.state.timeEnd;
@@ -431,11 +417,11 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     cy.get('#timeline-play-button').should('contain', 'Pause').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'collapsed timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     setTimelineDate(midCheckpoint.date);
     assertMetricCount('#numberOfNodes', midCheckpoint.after.nodes!);

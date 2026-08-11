@@ -870,6 +870,9 @@ function applyStep(state: OracleState, step: OracleStep): void {
       if (step.field === 'None') {
         state.timelineStart = null;
         state.timelineEnd = null;
+      } else {
+        state.timelineStart = null;
+        state.timelineEnd = computeEarliestDateForField(state.graph, step.field);
       }
       return;
 
