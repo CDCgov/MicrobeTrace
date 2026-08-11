@@ -154,14 +154,17 @@ export default class AuspiceHandler {
 
   public addLatLong = (nodes, metadata) => {
     const newNodes = [];
+    const geoResolutions = Array.isArray(metadata?.geo_resolutions)
+      ? metadata.geo_resolutions
+      : [];
+
     for (const node of nodes) {
-      if (metadata.hasOwnProperty('geo_resolutions')) {
-        for (let i=0; i<metadata.geo_resolutions.length; i++) {
-          const deme = node[metadata.geo_resolutions[i].key];
-          if (deme) {
-            node.latitude = metadata.geo_resolutions[i].demes[deme].latitude;
-            node.longtude = metadata.geo_resolutions[i].demes[deme].longitude;
-          }
+      for (const resolution of geoResolutions) {
+        const deme = node[resolution?.key];
+        const coordinates = deme ? resolution?.demes?.[deme] : undefined;
+        if (coordinates) {
+          node.latitude = coordinates.latitude;
+          node.longtude = coordinates.longitude;
         }
       }
       newNodes.push(node);
