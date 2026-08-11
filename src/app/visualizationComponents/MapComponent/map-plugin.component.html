@@ -276,7 +276,7 @@
   <div class="form-group row">
     <div class="col-4">Color</div>
     <div class="col-8"><button class="btn btn-sm map-btn w-100"
-    (click)="displayColorOptions()">Color Options</button></div>
+    (click)="displayColorOptions($event)">Color Options</button></div>
   </div>
   <div class="form-group row">
     <div class="col-4">Collapsing</div>
@@ -326,7 +326,7 @@
   <div class="form-group row">
     <div class="col-4">Color</div>
     <div class="col-8"><button class="btn btn-sm map-btn w-100" 
-    (click)="displayColorOptions()">Color Options</button></div>
+    (click)="displayColorOptions($event)">Color Options</button></div>
   </div>
   <div class="form-group row" title="How transparent would you like links to be?">
     <div class="col-4"><label for="map-link-transparency">Transparency</label></div>
@@ -354,6 +354,9 @@
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-body" style='min-width: 400px; height: 100%;'>
+          <div class="export-scope-label">
+            {{ commonService.isNetworkSubsetFilterActive() ? 'Export scope: filtered visible network (' + commonService.getNetworkSubsetFilterLabel() + ')' : 'Export scope: full visible network' }}
+          </div>
           <div class="form-group row">
             <div class="col-8">
               <input type="text" id="map-export-filename" class="form-control form-control-sm"

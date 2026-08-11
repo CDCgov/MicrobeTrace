@@ -8,7 +8,7 @@
  */
 
 import { Core } from 'cytoscape';
-import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
+import { ensureTwoDNetworkView, setTimelineRange, visitAppAndAcceptEula } from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
 
 const getCy = () => cy.window({ log: false }).its('cytoscapeInstance') as Cypress.Chainable<Core>;
@@ -60,7 +60,7 @@ const selector : any = {
 // Test suite for core rendering and functionality
 describe('2D Network - Core Rendering and Stats', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
   });
 
@@ -76,6 +76,173 @@ describe('2D Network - Core Rendering and Stats', () => {
     // Assert that the stats panel shows the correct counts from the seeded data
     cy.get(selector.statsNodes).should('contain.text', '33');
     cy.get(selector.statsLinks).should('contain.text', '74');
+  });
+
+  it('should keep nodes with missing dates visible throughout the timeline', () => {
+    const timelineField = 'Date of symptom onset Date';
+    const absentDateNodeId = 'P3';
+    const missingDateNodeIds = ['P1', 'P2', absentDateNodeId];
+
+    cy.request('/COVID_DummySession.microbetrace').then((response) => {
+      const sampleSession = typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+      const sourceNode = sampleSession.data.nodes.find((candidate: any) => candidate._id === absentDateNodeId);
+
+      expect(sourceNode, `${absentDateNodeId} source node`).to.exist;
+      expect(sourceNode, `${absentDateNodeId} source timeline date`).not.to.have.property(timelineField);
+    });
+
+    cy.window().then((win: any) => {
+      missingDateNodeIds.forEach((nodeId) => {
+        const node = win.commonService.session.data.nodes.find((candidate: any) => candidate._id === nodeId);
+        expect(node?.[timelineField], `${nodeId} normalized timeline date`).to.equal(null);
+      });
+
+      const absentDateNode = win.commonService.session.data.nodes.find(
+        (candidate: any) => candidate._id === absentDateNodeId
+      );
+      delete absentDateNode[timelineField];
+      expect(absentDateNode, `${absentDateNodeId} runtime timeline date`).not.to.have.property(timelineField);
+    });
+
+    cy.enableTimelineMode(timelineField);
+    cy.closeGlobalSettings();
+
+    const expectMissingDateNodesVisible = () => {
+      cy.window().should((win: any) => {
+        missingDateNodeIds.forEach((nodeId) => {
+          const node = win.commonService.session.data.nodes.find((candidate: any) => candidate._id === nodeId);
+          expect(node?.visible, `${nodeId} session visibility`).to.equal(true);
+          expect(win.cytoscapeInstance.getElementById(nodeId).empty(), `${nodeId} rendered`).to.equal(false);
+        });
+      });
+    };
+
+    setTimelineRange('2021-06-28', '2021-06-28');
+    expectMissingDateNodesVisible();
+
+    setTimelineRange('2021-07-16', '2021-08-21');
+    expectMissingDateNodesVisible();
+  });
+
+  it('should keep a newly visible node on its persisted category color', () => {
+    const nodeId = 'MZ727698';
+    const timelineField = 'Date of symptom onset Date';
+
+    cy.enableTimelineMode(timelineField);
+    cy.closeGlobalSettings();
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const node = commonService.session.data.nodes.find((candidate: any) => candidate._id === nodeId);
+      const colorVariable = commonService.session.style.widgets['node-color-variable'];
+      const expectedColor = commonService.session.style.nodeColorsTableHistory[colorVariable][node[colorVariable]];
+
+      expect(node.visible, `${nodeId} starts outside the active timeline`).to.equal(false);
+      expect(expectedColor, `${node[colorVariable]} persisted color`).to.equal('#f07cab');
+      expect(commonService.getNodeFillStyle(node).color, 'hidden node resolved color').to.equal(expectedColor);
+
+      commonService.visuals.microbeTrace.update(new Date(node[timelineField]));
+
+      const renderedNode = win.cytoscapeInstance.getElementById(nodeId);
+      expect(renderedNode.empty(), `${nodeId} rendered on its first timeline tick`).to.equal(false);
+      expect(renderedNode.data('nodeColor'), `${nodeId} first-tick color`).to.equal(expectedColor);
+    });
+  });
+
+  it('should move only the current marker when the timeline bar is clicked', () => {
+    cy.enableTimelineMode('Date of symptom onset Date');
+    cy.closeGlobalSettings();
+
+    cy.get('#global-timeline .timeline-range-handle').should('have.length', 2).each(($handle) => {
+      const handle = $handle.get(0) as SVGPathElement;
+      const bounds = handle.getBBox();
+
+      expect(handle.tagName.toLowerCase(), 'range marker shape').to.equal('path');
+      expect(bounds.y + bounds.height, 'range marker stays above the timeline').to.be.lessThan(0);
+    });
+
+    cy.window().then((win: any) => {
+      const initialStart = new Date(win.commonService.session.state.timeStart).getTime();
+      const initialCurrent = new Date(win.commonService.session.state.timeEnd).getTime();
+      const initialTarget = new Date(win.commonService.session.state.timeTarget).getTime();
+      const timeline = win.commonService.visuals.microbeTrace;
+      const initialRangeStartX = Number(timeline.rangeStartHandle.attr('data-x'));
+      const initialRangeEndX = Number(win.commonService.visuals.microbeTrace.rangeEndHandle.attr('data-x'));
+      const rangeLabelBounds = (timeline.rangeStartLabel.node() as SVGTextElement).getBBox();
+      const currentLabelBounds = (timeline.label.node() as SVGTextElement).getBBox();
+      const rangeMarkerBounds = (timeline.rangeStartHandle.node() as SVGPathElement).getBBox();
+
+      expect(initialCurrent, 'current timeline starts at range start').to.equal(initialStart);
+      expect(Number(timeline.handle.attr('cx')), 'initial current marker')
+        .to.be.closeTo(initialRangeStartX, 1);
+      expect(rangeLabelBounds.y + rangeLabelBounds.height, 'range label clears current label')
+        .to.be.lessThan(currentLabelBounds.y);
+      expect(currentLabelBounds.y + currentLabelBounds.height, 'current label clears range marker')
+        .to.be.lessThan(rangeMarkerBounds.y);
+
+      cy.get('#global-timeline line.track-overlay').then(($track) => {
+        const trackWidth = $track.get(0).getBoundingClientRect().width;
+        cy.wrap($track).click(trackWidth / 2, 0, { force: true });
+      });
+
+      cy.window().should((updatedWin: any) => {
+        const state = updatedWin.commonService.session.state;
+        const microbeTrace = updatedWin.commonService.visuals.microbeTrace;
+
+        expect(new Date(state.timeTarget).getTime(), 'selected range end').to.equal(initialTarget);
+        expect(new Date(state.timeEnd).getTime(), 'current timeline date').to.be.lessThan(initialTarget);
+        expect(Number(microbeTrace.rangeEndHandle.attr('data-x')), 'range end marker').to.be.closeTo(initialRangeEndX, 1);
+        expect(Number(microbeTrace.handle.attr('cx')), 'current marker').to.be.lessThan(initialRangeEndX);
+      });
+    });
+  });
+
+  it('should drag the current marker independently from the range end marker', () => {
+    cy.enableTimelineMode('Date of symptom onset Date');
+    cy.closeGlobalSettings();
+
+    cy.window().then((win: any) => {
+      const timeline = win.commonService.visuals.microbeTrace;
+      const handle = timeline.handle.node() as SVGCircleElement;
+      const track = win.document.querySelector('#global-timeline line.track-overlay') as SVGLineElement;
+      const handleBox = handle.getBoundingClientRect();
+      const trackBox = track.getBoundingClientRect();
+      const trackStartX = Number(track.getAttribute('x1'));
+      const startX = handleBox.x + handleBox.width / 2;
+      const y = handleBox.y + handleBox.height / 2;
+      const targetX = trackBox.x + trackBox.width * 0.4;
+      const initialTarget = new Date(win.commonService.session.state.timeTarget).getTime();
+      const initialRangeEndX = Number(timeline.rangeEndHandle.attr('data-x'));
+
+      expect(win.document.elementFromPoint(startX, y), 'top element at current marker').to.equal(handle);
+
+      handle.dispatchEvent(new win.MouseEvent('mousedown', {
+        bubbles: true,
+        buttons: 1,
+        clientX: startX,
+        clientY: y,
+        view: win,
+      }));
+      win.dispatchEvent(new win.MouseEvent('mousemove', {
+        bubbles: true,
+        buttons: 1,
+        clientX: targetX,
+        clientY: y,
+        view: win,
+      }));
+      win.dispatchEvent(new win.MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: targetX,
+        clientY: y,
+        view: win,
+      }));
+
+      expect(new Date(win.commonService.session.state.timeTarget).getTime(), 'selected range end').to.equal(initialTarget);
+      expect(new Date(win.commonService.session.state.timeEnd).getTime(), 'current timeline date').to.be.lessThan(initialTarget);
+      expect(Number(timeline.rangeEndHandle.attr('data-x')), 'range end marker').to.be.closeTo(initialRangeEndX, 1);
+      expect(Number(timeline.handle.attr('cx')), 'current marker')
+        .to.be.closeTo(trackStartX + trackBox.width * 0.4, 2);
+    });
   });
 
   it('should include selected nodes in the statistics table', () => {
@@ -175,7 +342,7 @@ describe('2D Network - Core Rendering and Stats', () => {
 describe('2D Network - Settings Pane Interactions', () => {
 
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
     cy.get(selector.settingsBtn).click();
@@ -699,7 +866,7 @@ describe('2D Network - Context Menu Interactions', () => {
   };
 
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
     cy.get(selector.canvas, { timeout: 15000 }).should('be.visible');
   });
@@ -778,7 +945,7 @@ describe('2D Network - Context Menu Interactions', () => {
       const getCy = () => cy.window({ log: false }).its('cytoscapeInstance');
   
       beforeEach(() => {
-          visitAppAndAcceptEula({ skipDemoSession: false });
+          visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
           ensureTwoDNetworkView();
           cy.window({ timeout: 15000 }).should('have.property', 'cytoscapeInstance');
       });

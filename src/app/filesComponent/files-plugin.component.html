@@ -2,6 +2,54 @@
 
   <div id="file-panel" appDnd (fileDropped)="processFiles($event)" class="container-fluid files-drop-zone" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
+      @for (row of fileTableRows; track row.rowId) {
+        <div class="file-table-row" style="position: relative; z-index: 1; margin-bottom: 24px;">
+          <div class="row w-100">
+            <div class="file-name col">
+              <a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file" (click)="removeFileTableRow(row)"></a>
+              <a
+                href="javascript:void(0);"
+                class="far flaticon-download-1 align-middle p-1"
+                [style.color]="isFileTableRowContentsEmpty(row) ? 'gray' : null"
+                [title]="getFileTableDownloadTitle(row)"
+                (click)="resaveFileTableRow(row)">
+              </a>
+              <span class="p-1">{{ row.fileName }}</span>
+              <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
+                @for (format of fileTableFormatOptions; track format.value) {
+                  <label class="btn btn-light" [class.active]="row.format === format.value">
+                    <input
+                      type="radio"
+                      [name]="'options-' + row.rowId"
+                      [attr.data-type]="format.value"
+                      autocomplete="off"
+                      [checked]="row.format === format.value"
+                      (change)="onFileTableFormatChange(row, format.value)">
+                    {{ format.label }}
+                  </label>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="row w-100">
+            @for (fieldNumber of fileTableFieldNumbers; track fieldNumber) {
+              <div class="col-4" [style.display]="isFileTableFieldVisible(row, fieldNumber) ? null : 'none'">
+                <label [for]="getFileTableFieldId(row, fieldNumber)">{{ getFileTableFieldLabel(row, fieldNumber) }}</label>
+                <select
+                  [id]="getFileTableFieldId(row, fieldNumber)"
+                  class="form-control form-control-sm"
+                  [ngModel]="getFileTableFieldValue(row, fieldNumber)"
+                  (ngModelChange)="onFileTableFieldChange(row, fieldNumber, $event)">
+                  <option value="None">None</option>
+                  @for (option of row.headerOptions; track option.value) {
+                    <option [value]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
+            }
+          </div>
+        </div>
+      }
     </div>
     @if (handoffError) {
       <div class="alert alert-danger mx-auto mt-4" role="alert" style="max-width: 960px;">

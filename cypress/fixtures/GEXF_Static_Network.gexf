@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" version="1.3">
+  <meta lastmodifieddate="2026-07-01">
+    <creator>MicrobeTrace Cypress</creator>
+    <description>Static GEXF import fixture</description>
+  </meta>
+  <graph mode="static" defaultedgetype="undirected">
+    <attributes class="node">
+      <attribute id="sample_type" title="sample_type" type="string"/>
+      <attribute id="viral_load" title="viral_load" type="float"/>
+      <attribute id="active" title="active" type="boolean">
+        <default>true</default>
+      </attribute>
+    </attributes>
+    <attributes class="edge">
+      <attribute id="kind" title="kind" type="string"/>
+      <attribute id="distance" title="distance" type="double"/>
+      <attribute id="confirmed" title="confirmed" type="boolean"/>
+    </attributes>
+    <nodes>
+      <node id="G1" label="Alpha">
+        <attvalues>
+          <attvalue for="sample_type" value="case"/>
+          <attvalue for="viral_load" value="2.5"/>
+        </attvalues>
+      </node>
+      <node id="G2" label="Beta">
+        <attvalues>
+          <attvalue for="sample_type" value="contact"/>
+          <attvalue for="viral_load" value="3.75"/>
+          <attvalue for="active" value="false"/>
+        </attvalues>
+      </node>
+      <node id="G3" label="Gamma">
+        <attvalues>
+          <attvalue for="sample_type" value="case"/>
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge id="e1" source="G1" target="G2" type="directed" weight="4.5">
+        <attvalues>
+          <attvalue for="kind" value="contact"/>
+          <attvalue for="distance" value="4.5"/>
+          <attvalue for="confirmed" value="true"/>
+        </attvalues>
+      </edge>
+      <edge id="e2" source="G2" target="G3">
+        <attvalues>
+          <attvalue for="kind" value="genetic"/>
+          <attvalue for="distance" value="7"/>
+          <attvalue for="confirmed" value="false"/>
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>
