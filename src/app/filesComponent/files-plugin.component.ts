@@ -116,6 +116,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   private destroy$ = new Subject<void>();
   private loadViewSubscription?: Subscription;
+  private pendingEmbedLaunchOptions: {
+    launch: EmbedLaunchOptionsV1 | undefined;
+    metadataDatasetName: string | undefined;
+  } | null = null;
 
   
 
@@ -781,6 +785,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
   }
 
+  private applyPendingEmbedLaunchOptions(finalize = false): void {
+    const pending = this.pendingEmbedLaunchOptions;
+
+    if (!pending) {
+      return;
+    }
+
+    if (finalize) {
+      this.pendingEmbedLaunchOptions = null;
+    }
+    this.applyEmbedLaunchOptions(pending.launch, pending.metadataDatasetName);
+  }
+
   private applyPatristicDistanceDefaults(maxDistance: number): number {
     const configuredThreshold = parseFloat(
       `${this.commonService.session.style.widgets['link-threshold'] ?? this.SelectedDefaultDistanceThresholdVariable}`
@@ -840,9 +857,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.addToTable(file);
     });
 
+    this.pendingEmbedLaunchOptions = {
+      launch: result.handoff.launch,
+      metadataDatasetName: result.handoff.metadata?.datasetName,
+    };
+
     try {
       this.applyEmbedLaunchOptions(result.handoff.launch, result.handoff.metadata?.datasetName);
     } catch (error) {
+      this.pendingEmbedLaunchOptions = null;
       this.isLoadingFiles = false;
       this.handoffError = error instanceof Error ? error.message : 'Unable to apply the partner handoff launch options.';
       this.cdr.markForCheck();
@@ -854,7 +877,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.cdr.markForCheck();
 
     setTimeout(() => {
-      this.launchClick();
+      this.launchClick({ embedHandoff: true });
     }, 100);
   }
 
@@ -1010,7 +1033,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * or resets all settings when requested by the Files tab reset update action.
    * Calls creatLaunchSequences to process the data files loaded.
    */
-  launchClick(options: { resetSettings?: boolean } = {}) {
+  launchClick(options: { resetSettings?: boolean; embedHandoff?: boolean } = {}) {
+
+    if (!options.embedHandoff) {
+      this.pendingEmbedLaunchOptions = null;
+    }
 
      // Set to false to indicate that the network is not fully loaded  as new network is launching
      const loadGeneration = this.commonService.beginDataLoad();
@@ -1169,6 +1196,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.onLinkThresholdChange('16');
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
           }
+          this.applyPendingEmbedLaunchOptions();
           this.commonService.session.meta.startTime = Date.now();
           this.commonService.session.data.tree = auspiceData['tree'];
           this.commonService.session.data.newickString = auspiceData['newick'];
@@ -1874,6 +1902,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
       return;
     }
+
+    this.applyPendingEmbedLaunchOptions(true);
 
     let nodes = this.commonService.session.data.nodes;
     if(this.commonService.debugMode) {

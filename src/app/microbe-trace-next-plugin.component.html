@@ -10,6 +10,15 @@
         <span class="trace-font">Trace</span>
         <span class="version-font">v{{version}}</span>
         <span><img alt="microbetrace" class="mt-icon-toolbar" [src]="appRootUrl() + 'assets/images/Logo.png'"></span>
+        @if ($any(commonService.session?.meta)?.partnerEmbed?.datasetName; as datasetName) {
+          <span
+            class="partner-dataset-name"
+            data-testid="partner-dataset-name"
+            [attr.aria-label]="'Partner dataset: ' + datasetName"
+            [title]="'Partner dataset: ' + datasetName">
+            Dataset: {{ datasetName }}
+          </span>
+        }
       </div>
       <div class="menu-items">
         <button class="navbar-item" data-testid="app-file-menu-button" mat-button [matMenuTriggerFor]="fileMenu"><i class="far nav-icon flaticon-file-1"></i>File<span class="dropdown-symbol">&#9660;</span></button>

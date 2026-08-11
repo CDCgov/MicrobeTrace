@@ -28,6 +28,48 @@ describe('partner handoff URL handling', () => {
     });
   });
 
+  it('preserves Auspice launch defaults through rendering', () => {
+    const handoffId = 'cypress-auspice-launch-handoff';
+
+    cy.fixture('nextstrain-yellow-fever-small.json').then((dataset) => {
+      visitAndSeedHandoff(handoffId, {
+        files: [{
+          name: 'partner-auspice.json',
+          kind: 'auspice',
+          mimeType: 'application/json',
+          contents: dataset,
+        }],
+        launchOverrides: {
+          linkThreshold: 0.025,
+          globalSettings: {
+            nodeColorBy: '_id',
+            nodeShapeBy: '_id',
+          },
+        },
+      });
+      cy.visit(`/#handoff=${handoffId}`);
+
+      cy.window({ timeout: 120000 })
+        .its('commonService.session.network.isFullyLoaded')
+        .should('equal', true);
+
+      assertHandoffLoadedAndUrlCleaned(handoffId, {
+        fileName: 'partner-auspice.json',
+        distanceMetric: 'tn93',
+        linkThreshold: 0.025,
+        nodeColorBy: '_id',
+        nodeShapeBy: '_id',
+        tn93DistanceDisplayFormat: 'percentage',
+      });
+
+      cy.window().its('commonService.session.data.links').should('have.length', 6);
+      cy.window().its('commonService.activeTab').should('equal', 'Table');
+      cy.get('[data-testid="partner-dataset-name"]')
+        .should('be.visible')
+        .and('contain.text', 'Cypress Partner Dataset');
+    });
+  });
+
   it('uses the metric default threshold only when no custom launch threshold is supplied', () => {
     const handoffId = 'cypress-metric-default-threshold-handoff';
 
@@ -51,12 +93,16 @@ describe('partner handoff URL handling', () => {
 });
 
 type HandoffSeedOptions = {
+  files?: Array<Record<string, unknown>>;
   launchOverrides?: Record<string, unknown>;
 };
 
 type ExpectedLaunchState = {
   distanceMetric: 'snps' | 'tn93';
+  fileName?: string;
   linkThreshold: number;
+  nodeColorBy?: string;
+  nodeShapeBy?: string;
   tn93DistanceDisplayFormat?: 'decimal' | 'percentage';
 };
 
@@ -69,7 +115,7 @@ function assertHandoffLoadedAndUrlCleaned(handoffId: string, expected: ExpectedL
   cy.window({ timeout: 30000 }).should((win) => {
     const commonService = (win as any).commonService;
 
-    expect(commonService?.session?.files?.map((file) => file.name)).to.include('nodes.csv');
+    expect(commonService?.session?.files?.map((file) => file.name)).to.include(expected.fileName ?? 'nodes.csv');
   });
 
   cy.window({ timeout: 30000 }).should((win) => {
@@ -82,9 +128,9 @@ function assertHandoffLoadedAndUrlCleaned(handoffId: string, expected: ExpectedL
     expect(widgets?.['link-threshold']).to.equal(expected.linkThreshold);
     expect(widgets?.['ambiguity-resolution-strategy']).to.equal('RESOLVE');
     expect(widgets?.['ambiguity-threshold']).to.equal(0.1);
-    expect(widgets?.['node-color-variable']).to.equal('group');
+    expect(widgets?.['node-color-variable']).to.equal(expected.nodeColorBy ?? 'group');
     expect(widgets?.['link-color-variable']).to.equal('distance');
-    expect(widgets?.['node-symbol-variable']).to.equal('seq');
+    expect(widgets?.['node-symbol-variable']).to.equal(expected.nodeShapeBy ?? 'seq');
     expect(widgets?.['node-color']).to.equal('#123456');
     expect(widgets?.['link-color']).to.equal('#654321');
     expect(widgets?.['node-symbol']).to.equal('diamond');
@@ -133,7 +179,7 @@ function seedHandoff(win: Cypress.AUTWindow, handoffId: string, options: Handoff
       datasetName: 'Legacy Cypress Dataset',
     },
     launch,
-    files: [
+    files: options.files ?? [
       {
         name: 'nodes.csv',
         kind: 'node',
