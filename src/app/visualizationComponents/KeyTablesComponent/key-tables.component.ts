@@ -401,7 +401,10 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
     }
 
     getNodeShapeGroupDisplayName(rawValue: any): string {
-        return this.visuals.microbeTrace?.getNodeValueDisplayName(rawValue)
+        return this.visuals.microbeTrace?.getNodeValueDisplayName(
+            rawValue,
+            this.visuals.microbeTrace?.SelectedNodeSymbolVariable
+        )
             ?? this.formatNodeShapeGroup(String(rawValue));
     }
 

@@ -1160,6 +1160,8 @@ export function setTN93DistanceDisplayFormat(format: 'decimal' | 'percentage'): 
   cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 })
     .parents('.p-dialog')
     .find('#tn93-distance-display-format')
+    .scrollIntoView()
+    .should('be.visible')
     .contains('span', buttonLabel)
     .click({ force: true });
 

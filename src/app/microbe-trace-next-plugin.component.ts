@@ -2235,7 +2235,7 @@ ${warnings.join('\n')}`,
         return this.shapeAggregates.map(group => ({
             rawValue: group.rawValue,
             trackKey: `node-shape-${String(group.rawValue)}`,
-            displayName: this.getNodeValueDisplayName(group.rawValue),
+            displayName: this.getNodeValueDisplayName(group.rawValue, this.SelectedNodeSymbolVariable),
             count: group.count,
             frequency: group.frequency,
             shapeSelection: this.getNodeShapeTableValue(group.rawValue),
@@ -2252,12 +2252,27 @@ ${warnings.join('\n')}`,
         return style.nodeValueNames;
     }
 
-    public getNodeValueDisplayName(rawValue: any): string {
+    private getStyleValueDisplayName(
+        rawValue: any,
+        selectedVariable: string,
+        valueNames: Record<string, string>
+    ): string {
         const key = String(rawValue);
-        const nodeValueNames = this.getNodeValueNameMap();
-        return Object.prototype.hasOwnProperty.call(nodeValueNames, key)
-            ? nodeValueNames[key]
+        if (Object.prototype.hasOwnProperty.call(valueNames, key)) {
+            return valueNames[key];
+        }
+
+        return selectedVariable?.toLowerCase() === 'origin'
+            ? key
             : this.commonService.titleize(key);
+    }
+
+    public getNodeValueDisplayName(rawValue: any, selectedVariable: string = ''): string {
+        return this.getStyleValueDisplayName(
+            rawValue,
+            selectedVariable,
+            this.getNodeValueNameMap()
+        );
     }
 
     public setNodeValueDisplayName(rawValue: any, displayName: any): void {
@@ -2870,9 +2885,11 @@ ${warnings.join('\n')}`,
                 ? ''
                 : (aggregates[value] / vlinks.length).toLocaleString();
             const linkValueNames = this.commonService.session.style.linkValueNames;
-            const displayName = Object.prototype.hasOwnProperty.call(linkValueNames, value)
-                ? linkValueNames[value]
-                : this.commonService.titleize(String(value));
+            const displayName = this.getStyleValueDisplayName(
+                value,
+                this.SelectedColorLinksByVariable,
+                linkValueNames
+            );
 
             return {
                 rawValue: value,
@@ -3616,7 +3633,7 @@ ${warnings.join('\n')}`,
             .map(({ value, i }) => ({
                 rawValue: value,
                 trackKey: `node-color-${String(value)}`,
-                displayName: this.getNodeValueDisplayName(value),
+                displayName: this.getNodeValueDisplayName(value, this.SelectedColorNodesByVariable),
                 count: aggregates[value],
                 frequency: vnodes.length === 0 ? '' : (aggregates[value] / vnodes.length).toLocaleString(),
                 color: this.commonService.temp.style.nodeColorMap(value),
