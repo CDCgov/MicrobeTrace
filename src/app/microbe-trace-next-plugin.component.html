@@ -339,9 +339,17 @@
                     <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDistanceMetricVariable" (ngModelChange)="onDistanceMetricChanged()">
                       <option value="tn93">TN93</option>
                       <option value="snps">SNPs</option>
+                      <option value="mlst">MLST</option>
                     </select>
                   </div>
                 </div>
+                @if (isMLSTSelected()) {
+                  <div class="form-group row mt-n2" data-testid="settings-mlst-equivalence-note" role="note">
+                    <div class="offset-4 col-8">
+                      <small class="text-muted"><i class="pi pi-info-circle" aria-hidden="true"></i> In MicrobeTrace, MLST is equivalent to SNP distance and uses the same calculation as SNPs.</small>
+                    </div>
+                  </div>
+                }
                 @if (isTN93Selected()) {
                   <div class="form-group row" title="Choose how TN93 distance values are shown throughout the app. Decimal uses raw values like 0.015. Percentage uses values like 1.5%.">
                     <div class="col-4">
@@ -589,6 +597,31 @@
                       <p-select id="node-color-variable" class="width-percent-100" [options]="FieldList" appendTo="body" [(ngModel)]="SelectedColorNodesByVariable" (onChange)="onColorNodesByChanged()"></p-select>
                     </div>
                   </div>
+
+                  @if (SelectedColorNodesByVariable && SelectedColorNodesByVariable !== 'None') {
+                    <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors to values in the selected node variable.">
+                      <div class="col-5">Apply Color Assignment File</div>
+                      <div class="col-7">
+                        <input
+                          type="file"
+                          id="node-color-assignment-file"
+                          data-testid="node-color-assignment-file"
+                          class="d-none"
+                          (change)="onApplyNodeColorAssignments($event)">
+                        <label class="custom-file-label" for="node-color-assignment-file">Choose File</label>
+                      </div>
+                    </div>
+                    @if (nodeColorAssignmentStatus) {
+                      <div
+                        id="node-color-assignment-status"
+                        data-testid="node-color-assignment-status"
+                        class="node-color-assignment-status"
+                        [ngClass]="'node-color-assignment-status--' + nodeColorAssignmentStatus.kind"
+                        [attr.role]="nodeColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
+                        {{ nodeColorAssignmentStatus.message }}
+                      </div>
+                    }
+                  }
 
                   @if (SelectedColorNodesByVariable === 'None') {
                     <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">

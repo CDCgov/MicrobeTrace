@@ -38,6 +38,11 @@ import {
 } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
+    ColorAssignmentService,
+    NodeColorAssignmentParseError,
+    ParsedNodeColorAssignments
+} from './contactTraceCommonServices/color-assignment.service';
+import {
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
     NodeShapeGroupKey,
@@ -85,6 +90,11 @@ type DialogPlacementCandidate = {
     top: number;
     left: number;
     overlapArea: number;
+};
+
+type NodeColorAssignmentStatus = {
+    kind: 'success' | 'error' | 'info';
+    message: string;
 };
 
 interface NodeShapeOptionGroup {
@@ -364,6 +374,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorVariable: string = '#ff8300';
     SelectedBackgroundColorVariable: string = '#ffffff';
     SelectedApplyStyleVariable: string = '';
+    nodeColorAssignmentStatus: NodeColorAssignmentStatus | null = null;
 
 
     activeTabNdx = null;
@@ -454,7 +465,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private store: CommonStoreService,
         private exportService: ExportService,
         private graphMLService: GraphMLService,
-        private embedHandoffService: EmbedHandoffService
+        private embedHandoffService: EmbedHandoffService,
+        private colorAssignmentService: ColorAssignmentService
     ) {
 
 
@@ -1853,6 +1865,95 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     /**
+     * Parses and applies a node color-assignment file to the field selected in
+     * Color Nodes By. Parsing is atomic; state changes only after validation
+     * and any dataset-label mismatch confirmation succeeds.
+     */
+    public onApplyNodeColorAssignments(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        const selectedField = String(this.SelectedColorNodesByVariable ?? '').trim();
+
+        if (!file) {
+            return;
+        }
+        if (!selectedField || selectedField === 'None') {
+            this.setNodeColorAssignmentStatus('error', 'Select a node color variable before choosing an assignment file.');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.setNodeColorAssignmentStatus('error', `Unable to read "${file.name}".`);
+            input.value = '';
+        };
+        reader.onload = () => {
+            try {
+                const parsed = this.colorAssignmentService.parse(
+                    String(reader.result ?? ''),
+                    selectedField,
+                    this.commonService.session.data.nodes || []
+                );
+                this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
+            } catch (error) {
+                const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
+                    ? error.message
+                    : 'The color assignment file could not be parsed.';
+                this.setNodeColorAssignmentStatus('error', message);
+            } finally {
+                input.value = '';
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    private applyParsedNodeColorAssignments(
+        parsed: ParsedNodeColorAssignments,
+        selectedField: string,
+        fileName: string
+    ): void {
+        try {
+            this.commonService.applyNodeColorAssignments(selectedField, parsed.assignments);
+
+            const currentValues = new Set<string>();
+            this.commonService.session.data.nodes.forEach(node => {
+                const rawValue = node?.[selectedField];
+                currentValues.add(String(rawValue === null ? 'null' : rawValue).trim());
+            });
+            const importedValues = Object.keys(parsed.assignments);
+            const matchedCount = importedValues.filter(value => currentValues.has(value)).length;
+            const unmappedCurrentCount = Array.from(currentValues)
+                .filter(value => !Object.prototype.hasOwnProperty.call(parsed.assignments, value))
+                .length;
+            const retainedForFutureCount = importedValues.length - matchedCount;
+
+            if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
+                this.generateNodeColorTable('#node-color-table');
+            }
+            this.refreshKeyTablesView();
+            this.publishUpdateNodeColors();
+            this.setNodeColorAssignmentStatus(
+                'success',
+                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" to ${selectedField}: ` +
+                `${matchedCount} matched current value${matchedCount === 1 ? '' : 's'}, ` +
+                `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
+                `${retainedForFutureCount} retained for future data.`
+            );
+        } catch (error) {
+            this.setNodeColorAssignmentStatus(
+                'error',
+                error instanceof Error ? error.message : 'The color assignments could not be applied.'
+            );
+        }
+    }
+
+    private setNodeColorAssignmentStatus(kind: NodeColorAssignmentStatus['kind'], message: string): void {
+        this.nodeColorAssignmentStatus = { kind, message };
+        this.cdref.markForCheck();
+    }
+
+    /**
      * Reads the file and applies the style to MicrobeTrace session.style
      * 
      */
@@ -2727,10 +2828,12 @@ ${warnings.join('\n')}`,
 
         this.commonService.session.style.nodeColorsTable = {};
         this.commonService.session.style.nodeColorsTableKeys = {};
+        this.commonService.session.style.nodeColorAssignments = {};
         this.commonService.session.style.linkColorsTable = {};
         this.commonService.session.style.linkColorsTableKeys = {};
         this.commonService.session.style.nodeSymbolsTable = {};
         this.commonService.session.style.nodeSymbolsTableKeys = {};
+        this.nodeColorAssignmentStatus = null;
 
         KEY_TABLE_NAMES.forEach(table => {
             this.setKeyTableDisplayMode(table, 'Dock');
@@ -3546,7 +3649,7 @@ ${warnings.join('\n')}`,
      * Called when SelectedColorNodesByVariable (keeps track of what variable to use to color nodes by) is changed.
      */
     onColorNodesByChanged(silent: boolean = false) {
-
+        this.nodeColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
@@ -3676,7 +3779,8 @@ ${warnings.join('\n')}`,
         const nextColor = change.color;
 
         this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(resolvedKey, 1, nextColor);
-        const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory;
+        const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory || {};
+        this.commonService.session.style.nodeColorsTableHistory = nodeColorsTableHistory;
         const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
         const variableHistory = storedVariableHistory
             && typeof storedVariableHistory === 'object'
@@ -3685,6 +3789,12 @@ ${warnings.join('\n')}`,
             : {};
         nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
         variableHistory[tableKeys[resolvedKey]] = nextColor;
+
+        const explicitAssignments = this.commonService.session.style.nodeColorAssignments?.[this.SelectedColorNodesByVariable];
+        if (explicitAssignments && Object.prototype.hasOwnProperty.call(explicitAssignments, value)) {
+            explicitAssignments[value] = nextColor;
+        }
+
         this.commonService.session.style.nodeColors.splice(change.row.index ?? resolvedKey, 1, nextColor);
         this.commonService.temp.style.nodeColorMap = d3
             .scaleOrdinal(this.commonService.session.style.nodeColors)
@@ -6089,6 +6199,10 @@ ${warnings.join('\n')}`,
         return String(this.SelectedDistanceMetricVariable || this.commonService.session.style.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93';
     }
 
+    isMLSTSelected() {
+        return String(this.SelectedDistanceMetricVariable || '').toLowerCase() === 'mlst';
+    }
+
     /**
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
@@ -6096,11 +6210,12 @@ ${warnings.join('\n')}`,
   onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     const selectedMetric = String(this.SelectedDistanceMetricVariable).toLowerCase();
+    const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
     this.SelectedDistanceMetricVariable = selectedMetric;
-    this.metric = selectedMetric;
-    this.store.updatecurrentThresholdStepSize(selectedMetric);
+    this.metric = calculationMetric;
+    this.store.updatecurrentThresholdStepSize(calculationMetric);
     let didRecomputeSequenceLinks = false;
-    if (selectedMetric === 'snps') {
+    if (calculationMetric === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
         .val(16)

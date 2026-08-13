@@ -89,9 +89,17 @@
           <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
             <option value="tn93" selected>TN93</option>
             <option value="snps">SNPs</option>
+            <option value="mlst">MLST</option>
           </select>
         </div>
       </div>
+      @if (isMLSTSelected()) {
+        <div class="form-group row mt-n2" data-testid="files-mlst-equivalence-note" role="note">
+          <div class="offset-6 col-6">
+            <small class="text-muted"><i class="pi pi-info-circle" aria-hidden="true"></i> In MicrobeTrace, MLST is equivalent to SNP distance and uses the same calculation as SNPs.</small>
+          </div>
+        </div>
+      }
       @if (SelectedDefaultDistanceMetricVariable=='tn93') {
         <div id="ambiguities-row" class="form-group row">
           <div class="col-6">
