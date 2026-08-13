@@ -44,7 +44,7 @@ jobs:
       DEPENDABOT_PROJECT_OWNER: ${{ vars.DEPENDABOT_PROJECT_OWNER || vars.PR_PROJECT_OWNER || vars.USER_STORY_PROJECT_OWNER || 'CDCgov' }}
       DEPENDABOT_PROJECT_OWNER_TYPE: ${{ vars.DEPENDABOT_PROJECT_OWNER_TYPE || vars.PR_PROJECT_OWNER_TYPE || vars.USER_STORY_PROJECT_OWNER_TYPE || 'organization' }}
       DEPENDABOT_PROJECT_NUMBER: ${{ vars.DEPENDABOT_PROJECT_NUMBER || vars.PR_PROJECT_NUMBER || vars.USER_STORY_PROJECT_NUMBER || '79' }}
-      DEPENDABOT_PROJECT_STATUS: ${{ vars.DEPENDABOT_PROJECT_STATUS || 'Security Prompts' }}
+      DEPENDABOT_PROJECT_STATUS: ${{ vars.DEPENDABOT_PROJECT_STATUS || 'Security Bumps' }}
       DEPENDABOT_PROJECT_STATUS_FIELD: ${{ vars.DEPENDABOT_PROJECT_STATUS_FIELD || vars.USER_STORY_PROJECT_STATUS_FIELD || 'Status' }}
     steps:
       # This pull_request_target job never checks out or executes pull-request code.
@@ -63,7 +63,7 @@ jobs:
             const ownerType = (process.env.DEPENDABOT_PROJECT_OWNER_TYPE || 'organization').trim().toLowerCase();
             const projectNumber = Number(process.env.DEPENDABOT_PROJECT_NUMBER);
             const statusFieldName = process.env.DEPENDABOT_PROJECT_STATUS_FIELD || 'Status';
-            const statusValue = process.env.DEPENDABOT_PROJECT_STATUS || 'Security Prompts';
+            const statusValue = process.env.DEPENDABOT_PROJECT_STATUS || 'Security Bumps';
 
             if (!['organization', 'user'].includes(ownerType)) {
               throw new Error(`DEPENDABOT_PROJECT_OWNER_TYPE must be organization or user; got ${ownerType || '(empty)'}.`);

@@ -7,7 +7,7 @@ The `Dependabot Security Project Sync` workflow adds Dependabot security-update 
 - Project owner: `CDCgov`
 - Project number: `79`
 - Status field: `Status`
-- Status value: `Security Prompts`
+- Status value: `Security Bumps`
 
 These defaults can be overridden with repository variables named `DEPENDABOT_PROJECT_OWNER`, `DEPENDABOT_PROJECT_OWNER_TYPE`, `DEPENDABOT_PROJECT_NUMBER`, `DEPENDABOT_PROJECT_STATUS_FIELD`, and `DEPENDABOT_PROJECT_STATUS`.
 
@@ -30,6 +30,6 @@ After the workflow is present on the default branch:
 2. Leave `dry_run` enabled and run against all open PRs, or enter one PR number.
 3. Review the matching PRs in the run log.
 4. Run again with `dry_run` disabled to add missing items.
-5. Enable `update_existing_status` only when existing matching items should be moved to `Security Prompts`.
+5. Enable `update_existing_status` only when existing matching items should be moved to `Security Bumps`.
 
 The workflow is idempotent: it reuses an existing project item instead of adding a duplicate.
