@@ -11,6 +11,7 @@ export type EpiCurveFieldLabel =
   | 'Date Field 2'
   | 'Date Field 3'
   | 'Color By'
+  | 'Stack Order'
   | 'Bin Size';
 
 export type EpiCurveBinSize = 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
@@ -20,6 +21,14 @@ export type EpiCurveTickInterval = 1 | 2 | 3 | 4;
 
 type WinWithMT = Window & {
   commonService: any;
+};
+
+type EpiCurveSettingsTab = 'Graph' | 'Legend & Labels' | 'Order & Color';
+type EpiCurveStackItem = {
+  label: string;
+  value: any;
+  color: string;
+  transparency: number;
 };
 
 function getEpiCurveSettingsDialog(): Cypress.Chainable<JQuery<HTMLElement>> {
@@ -48,6 +57,30 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function selectEpiCurveSettingsTab(tab: EpiCurveSettingsTab): void {
+  getEpiCurveSettingsDialog()
+    .contains('.nav-link', new RegExp(`^${escapeRegExp(tab)}$`), { timeout: 10000 })
+    .should('exist')
+    .then(($tab) => {
+      if (!$tab.hasClass('active')) {
+        cy.wrap($tab).click({ force: true });
+      }
+    });
+
+  getEpiCurveSettingsDialog()
+    .contains('.nav-link', new RegExp(`^${escapeRegExp(tab)}$`), { timeout: 10000 })
+    .should('have.class', 'active');
+}
+
+function selectEpiCurveFieldTab(field: EpiCurveFieldLabel): void {
+  if (field === 'Color By' || field === 'Stack Order') {
+    selectEpiCurveSettingsTab('Order & Color');
+    return;
+  }
+
+  selectEpiCurveSettingsTab('Graph');
+}
+
 function getEpiCurveRowByLabel(label: string): Cypress.Chainable<JQuery<HTMLElement>> {
   return cy.contains(
     '.p-dialog:visible .form-group.row label',
@@ -65,6 +98,17 @@ function getEpiCurveRowByText(text: string): Cypress.Chainable<JQuery<HTMLElemen
     .should('exist');
 }
 
+function getEpiStackOptionByLabel(label: string): Cypress.Chainable<JQuery<HTMLElement>> {
+  selectEpiCurveSettingsTab('Order & Color');
+
+  return getEpiCurveSettingsDialog()
+    .find('#epi-stack-order-list [role="option"]', { timeout: 10000 })
+    .should('have.length.greaterThan', 0)
+    .filter((_, option) => String(option.textContent || '').includes(label))
+    .first()
+    .should('exist');
+}
+
 const normalizeValue = (value: string): string => String(value || '')
   .replace(/_/g, '')
   .trim()
@@ -76,11 +120,14 @@ const widgetPathByField: Record<EpiCurveFieldLabel, string> = {
   'Date Field 2': 'commonService.session.style.widgets.epiCurve-date-fields.1',
   'Date Field 3': 'commonService.session.style.widgets.epiCurve-date-fields.2',
   'Color By': 'commonService.session.style.widgets.epiCurve-stackColorBy',
+  'Stack Order': 'commonService.session.style.widgets.epiCurve-stackOrder',
   'Bin Size': 'commonService.session.style.widgets.epiCurve-binSize',
 };
 
 export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string): void {
   const visibleOverlaySelector = '.p-select-overlay:visible';
+
+  selectEpiCurveFieldTab(field);
 
   getEpiCurveRowByLabel(field)
     .scrollIntoView()
@@ -123,6 +170,8 @@ export function setEpiCurveColor(index: 0 | 1 | 2, color: string): void {
     ? '#epi-color-select'
     : `#epi-color-select-${index + 1}`;
 
+  selectEpiCurveSettingsTab('Graph');
+
   getEpiCurveSettingsDialog()
     .find(inputId)
     .should('have.length', 1)
@@ -143,6 +192,8 @@ export function assertEpiCurveColorPickerVisible(index: 0 | 1 | 2): void {
     ? '#epi-color-select'
     : `#epi-color-select-${index + 1}`;
 
+  selectEpiCurveSettingsTab('Graph');
+
   getEpiCurveSettingsDialog()
     .find(inputId)
     .should('have.length', 1)
@@ -156,6 +207,8 @@ export function assertEpiCurveColorPickerVisible(index: 0 | 1 | 2): void {
 }
 
 export function setEpiCurveRange(label: EpiCurveRangeLabel, value: number): void {
+  selectEpiCurveSettingsTab('Legend & Labels');
+
   getEpiCurveRowByLabel(label)
     .find('input[type="range"]')
     .invoke('val', value)
@@ -171,6 +224,8 @@ export function setEpiCurveRange(label: EpiCurveRangeLabel, value: number): void
 }
 
 export function setEpiCurveLegendPosition(position: EpiCurveLegendPosition): void {
+  selectEpiCurveSettingsTab('Legend & Labels');
+
   getEpiCurveRowByLabel('Legend Position')
     .contains('.p-selectbutton .p-togglebutton-label', position)
     .click({ force: true });
@@ -183,6 +238,8 @@ export function setEpiCurveLegendPosition(position: EpiCurveLegendPosition): voi
 export function setEpiCurveCumulative(cumulative: boolean): void {
   const toggleLabel = cumulative ? 'Cumulative' : 'Noncumulative';
 
+  selectEpiCurveSettingsTab('Graph');
+
   getEpiCurveRowByText('Epi Curve')
     .find('.p-selectbutton .p-togglebutton-label')
     .contains(toggleLabel)
@@ -194,6 +251,8 @@ export function setEpiCurveCumulative(cumulative: boolean): void {
 }
 
 export function setEpiCurveTickInterval(value: EpiCurveTickInterval): void {
+  selectEpiCurveSettingsTab('Legend & Labels');
+
   getEpiCurveSettingsDialog()
     .find('#epi-tick-size input[type="number"]')
     .should('be.visible')
@@ -217,12 +276,14 @@ export function setEpiCurveTickInterval(value: EpiCurveTickInterval): void {
 }
 
 export function readEpiCurveBars():
-  Cypress.Chainable<Array<{ fill: string; height: number; width: number }>> {
+  Cypress.Chainable<Array<{ fill: string; height: number; opacity: number; width: number; y: number }>> {
   return cy.get('#epiCurveSVG .epiCurve-epi-curve rect', { timeout: 15000 })
     .then(($rects) => [...$rects].map((rect) => ({
       fill: String(rect.getAttribute('fill') || ''),
       height: Number(rect.getAttribute('height') || 0),
+      opacity: Number(rect.getAttribute('opacity') || 1),
       width: Number(rect.getAttribute('width') || 0),
+      y: Number(String(rect.getAttribute('transform') || '').match(/,\s*([^)]+)\)/)?.[1] || 0),
     })));
 }
 
@@ -256,4 +317,75 @@ export function readEpiCurveXAxisTickLabels(): Cypress.Chainable<string[]> {
     .then(($texts) => [...$texts]
       .map((text) => String(text.textContent || '').trim())
       .filter(Boolean));
+}
+
+export function readEpiStackOrderItems(): Cypress.Chainable<EpiCurveStackItem[]> {
+  return cy.window().then((win: unknown) => {
+    const epiCurve = (win as WinWithMT).commonService.visuals.epiCurve as any;
+    return (epiCurve.customStackOrderItems || []).map((item: EpiCurveStackItem) => ({ ...item }));
+  });
+}
+
+export function readEpiStackOrderLabels(): Cypress.Chainable<string[]> {
+  selectEpiCurveSettingsTab('Order & Color');
+
+  return getEpiCurveSettingsDialog()
+    .find('#epi-stack-order-list [role="option"]', { timeout: 10000 })
+    .then(($options) => [...$options].map((option) => {
+      const label = option.querySelector('.d-flex > span');
+      return String(label?.textContent || '').replace(/\s+/g, ' ').trim();
+    }).filter(Boolean));
+}
+
+export function setEpiStackGroupColor(label: string, color: string): void {
+  getEpiStackOptionByLabel(label)
+    .find('input[type="color"]')
+    .should('have.length', 1)
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = color;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+  readEpiStackOrderItems().should((items) => {
+    const item = items.find((candidate) => candidate.label === label);
+    expect(item?.color?.toLowerCase(), `${label} stack group color`).to.equal(color.toLowerCase());
+  });
+}
+
+export function setEpiStackGroupOpacity(label: string, opacity: number): void {
+  getEpiStackOptionByLabel(label)
+    .find('.transparency-symbol')
+    .should('have.length', 1)
+    .click({ force: true });
+
+  cy.get('#color-transparency-wrapper', { timeout: 10000 })
+    .should('be.visible');
+
+  cy.get('#color-transparency')
+    .invoke('val', String(opacity))
+    .trigger('change');
+
+  readEpiStackOrderItems().should((items) => {
+    const item = items.find((candidate) => candidate.label === label);
+    expect(item?.transparency, `${label} stack group transparency`).to.be.closeTo(1 - opacity, 0.001);
+  });
+}
+
+export function reorderEpiStackGroups(dragIndex: number, dropIndex: number): void {
+  selectEpiCurveSettingsTab('Order & Color');
+
+  cy.window().then((win: unknown) => {
+    const epiCurve = (win as WinWithMT).commonService.visuals.epiCurve as any;
+    const items = [...(epiCurve.customStackOrderItems || [])];
+    const [movedItem] = items.splice(dragIndex, 1);
+
+    expect(movedItem, `stack group at index ${dragIndex}`).to.exist;
+
+    items.splice(dropIndex, 0, movedItem);
+    epiCurve.customStackOrderItems = items;
+    epiCurve.onCustomStackOrderReorder();
+    epiCurve.cdref?.detectChanges?.();
+  });
 }

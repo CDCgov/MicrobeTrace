@@ -25,6 +25,7 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { getMapNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 declare var google: any;
 
@@ -73,7 +74,7 @@ const ESRI_WORLD_IMAGERY_ATTRIBUTION = 'Tiles &copy; Esri - Source: Esri, Maxar,
 
 export class MapComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
 
-    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
     @ViewChild('mapContainer') exportContainer: ElementRef;
 
     viewActive: boolean = true;
@@ -348,7 +349,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             that.nodes = visNodes;
             that.matchCoordinates(undefined, true);
             that.nodes.forEach(node => {
-                if (node._jlat == undefined || node._jlon == undefined) {
+                if (!that.hasValidMapCoordinates(node)) {
                     that.rerollNodeAndJitter(node);
                 }
             })
@@ -1263,8 +1264,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         new Promise(resolve => setTimeout(resolve, 2000)).then(() => this.lmap.addControl(this.lmap.zoomControl))
     }
 
-    displayColorOptions() {
-        this.DisplayGlobalSettingsDialogEvent.emit("Styling");
+    displayColorOptions(event?: MouseEvent) {
+        this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
     }
 
     codeAddress(addressList: any[]) {
