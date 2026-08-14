@@ -50,14 +50,12 @@ describe('Journey Flow - Node color assignment file import', () => {
     });
   });
 
-  it('applies partial iTOL assignments, refreshes colors, and saves unused mappings', () => {
+  it('selects the iTOL-declared field, applies assignments, and saves unused mappings', () => {
     const sessionFileBase = `color_assignments_${Date.now()}`;
     const sessionFilePath = `${Cypress.config('downloadsFolder')}/${sessionFileBase}.microbetrace`;
 
     launchProfileToTwoD(profile);
     openGlobalStylingTab();
-    cy.get('[data-testid="node-color-assignment-file"]').should('not.exist');
-    selectNodeColorField('Lineage');
     cy.get('[data-testid="node-color-assignment-file"]').should('exist');
     cy.get('#node-color-assignment-row')
       .should('contain.text', 'Apply Color Assignment File')
@@ -66,7 +64,9 @@ describe('Journey Flow - Node color assignment file import', () => {
 
     cy.get('[data-testid="node-color-assignment-status"]', { timeout: 15000 })
       .should('contain.text', 'Applied 3 color assignments')
+      .and('contain.text', 'set Color Nodes By to Lineage')
       .and('contain.text', '1 retained for future data');
+    cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Lineage');
 
     cy.window().should((rawWindow: unknown) => {
       const assignments = (rawWindow as WinWithMT).commonService?.session?.style?.nodeColorAssignments?.Lineage;
@@ -93,35 +93,40 @@ describe('Journey Flow - Node color assignment file import', () => {
     });
   });
 
-  it('applies an iTOL label mismatch without confirmation and accepts a selected-field table', () => {
+  it('rejects an unavailable declared field and switches to the field declared by a table', () => {
     launchProfileToTwoD(profile);
     openGlobalStylingTab();
-    selectNodeColorField('Lineage');
+    selectNodeColorField('Profession');
 
     uploadColorAssignments('Cypress_Color_Assignments_Mismatch.txt');
     cy.get('.p-confirmdialog').should('not.exist');
-    cy.window().should((rawWindow: unknown) => {
-      const assignments = (rawWindow as WinWithMT).commonService?.session?.style?.nodeColorAssignments?.Lineage;
-      expect(assignments?.['B.1.617.2']).to.equal('#cc9999');
-    });
+    cy.get('[data-testid="node-color-assignment-status"]')
+      .should('have.attr', 'role', 'alert')
+      .and('contain.text', 'MLST')
+      .and('contain.text', 'not available');
+    cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
 
     uploadColorAssignments('Cypress_Color_Assignments_Table.csv');
+    cy.get('[data-testid="node-color-assignment-status"]')
+      .should('contain.text', 'set Color Nodes By to Lineage');
     cy.window().should((rawWindow: unknown) => {
+      expect((rawWindow as WinWithMT).commonService?.session?.style?.widgets?.['node-color-variable']).to.equal('Lineage');
       const assignments = (rawWindow as WinWithMT).commonService?.session?.style?.nodeColorAssignments?.Lineage;
       expect(assignments?.['B.1.617.2']).to.equal('#654321');
     });
     assertRenderedNodeColor('Lineage', 'B.1.617.2', 'rgb(101,67,33)');
   });
 
-  it('matches the fixed first iTOL column to the selected node ID field', () => {
+  it('selects the node ID field from an iTOL ID alias and uses the first data column', () => {
     launchProfileToTwoD(profile);
     openGlobalStylingTab();
-    selectNodeColorField('Id');
+    selectNodeColorField('Lineage');
 
     uploadColorAssignments('Cypress_Color_Assignments_ID_iTOL.txt');
     cy.get('[data-testid="node-color-assignment-status"]')
       .should('contain.text', '1 matched current value')
       .and('contain.text', '0 retained for future data');
+    cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', '_id');
     cy.window().should((rawWindow: unknown) => {
       const assignments = (rawWindow as WinWithMT).commonService?.session?.style?.nodeColorAssignments?._id;
       expect(assignments?.['375596']).to.equal('#00daff');

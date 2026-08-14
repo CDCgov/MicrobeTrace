@@ -18,6 +18,11 @@ export interface ParsedNodeColorAssignments {
   matchedSampleIdCount?: number;
 }
 
+export interface NodeColorAssignmentFileDescriptor {
+  format: NodeColorAssignmentFormat;
+  declaredField?: string;
+}
+
 interface ParsedItolRow {
   line: number;
   sampleId: string;
@@ -52,6 +57,52 @@ export class NodeColorAssignmentParseError extends Error {
   providedIn: 'root'
 })
 export class ColorAssignmentService {
+  inspect(contents: string): NodeColorAssignmentFileDescriptor {
+    const normalizedContents = String(contents ?? '').replace(/^\uFEFF/, '');
+    const lines = normalizedContents.split(/\r?\n/);
+    const firstContentLine = lines.find(line => {
+      const trimmed = line.trim();
+      return trimmed.length > 0 && !trimmed.startsWith('#');
+    });
+
+    if (!firstContentLine) {
+      throw new NodeColorAssignmentParseError([
+        { line: 1, message: 'The file is empty.' }
+      ]);
+    }
+
+    if (firstContentLine.trim().toUpperCase() === 'DATASET_COLORSTRIP') {
+      return {
+        format: 'itol-colorstrip',
+        declaredField: this.inspectItolDatasetLabel(lines)
+      };
+    }
+
+    const result = Papa.parse<string[]>(normalizedContents, {
+      delimiter: '',
+      skipEmptyLines: 'greedy',
+      preview: 1
+    });
+    const delimiter = result.meta.delimiter;
+    if (delimiter !== ',' && delimiter !== '\t') {
+      throw new NodeColorAssignmentParseError([
+        { line: 1, message: 'Simple assignment tables must be comma- or tab-delimited.' }
+      ]);
+    }
+
+    const declaredField = String(result.data?.[0]?.[0] ?? '').trim();
+    if (!declaredField) {
+      throw new NodeColorAssignmentParseError([
+        { line: 1, message: 'The first column must identify the node field to color by.' }
+      ]);
+    }
+
+    return {
+      format: 'delimited-table',
+      declaredField
+    };
+  }
+
   parse(
     contents: string,
     selectedField: string,
@@ -201,6 +252,35 @@ export class ColorAssignmentService {
       uniqueAssignmentCount: Object.keys(assignments).length,
       matchedSampleIdCount
     };
+  }
+
+  private inspectItolDatasetLabel(lines: string[]): string | undefined {
+    let separator: ' ' | '\t' | ',' | null = null;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+
+      const separatorMatch = trimmed.match(/^SEPARATOR(?:\s+|,|\t)(SPACE|TAB|COMMA)$/i);
+      if (separatorMatch) {
+        const separatorName = separatorMatch[1].toUpperCase();
+        separator = separatorName === 'SPACE' ? ' ' : separatorName === 'TAB' ? '\t' : ',';
+        continue;
+      }
+
+      if (separator && this.getItolKeyword(line, separator) === 'DATASET_LABEL') {
+        const fields = this.splitItolLine(line, separator);
+        return fields.slice(1).join(separator === ' ' ? ' ' : separator).trim() || undefined;
+      }
+
+      if (trimmed.toUpperCase() === 'DATA') {
+        break;
+      }
+    }
+
+    return undefined;
   }
 
   private createNodeIdIndex(nodes: ReadonlyArray<Record<string, any>>): Map<string, Record<string, any>> {

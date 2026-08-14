@@ -598,29 +598,29 @@
                     </div>
                   </div>
 
-                  @if (SelectedColorNodesByVariable && SelectedColorNodesByVariable !== 'None') {
-                    <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors to values in the selected node variable.">
-                      <div class="col-5">Apply Color Assignment File</div>
-                      <div class="col-7">
-                        <input
-                          type="file"
-                          id="node-color-assignment-file"
-                          data-testid="node-color-assignment-file"
-                          class="d-none"
-                          (change)="onApplyNodeColorAssignments($event)">
-                        <label class="custom-file-label" for="node-color-assignment-file">Choose File</label>
-                      </div>
+                  <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors and select the node variable declared by the file.">
+                    <div class="col-5">Apply Color Assignment File
+                      <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Color-Assignment-File" target="_blank"><i class="pi pi-info-circle"></i></a>
                     </div>
-                    @if (nodeColorAssignmentStatus) {
-                      <div
-                        id="node-color-assignment-status"
-                        data-testid="node-color-assignment-status"
-                        class="node-color-assignment-status"
-                        [ngClass]="'node-color-assignment-status--' + nodeColorAssignmentStatus.kind"
-                        [attr.role]="nodeColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
-                        {{ nodeColorAssignmentStatus.message }}
-                      </div>
-                    }
+                    <div class="col-7">
+                      <input
+                        type="file"
+                        id="node-color-assignment-file"
+                        data-testid="node-color-assignment-file"
+                        class="d-none"
+                        (change)="onApplyNodeColorAssignments($event)">
+                      <label class="custom-file-label" for="node-color-assignment-file">Choose File</label>
+                    </div>
+                  </div>
+                  @if (nodeColorAssignmentStatus) {
+                    <div
+                      id="node-color-assignment-status"
+                      data-testid="node-color-assignment-status"
+                      class="node-color-assignment-status"
+                      [ngClass]="'node-color-assignment-status--' + nodeColorAssignmentStatus.kind"
+                      [attr.role]="nodeColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
+                      {{ nodeColorAssignmentStatus.message }}
+                    </div>
                   }
 
                   @if (SelectedColorNodesByVariable === 'None') {

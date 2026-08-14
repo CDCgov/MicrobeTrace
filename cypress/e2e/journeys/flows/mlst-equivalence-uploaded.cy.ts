@@ -62,7 +62,7 @@ describe('Journey Flow - MLST distance metric equivalence', () => {
   });
 
   it('keeps the SNP network and threshold when MLST is selected after launch', () => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
 
     cy.get('#numberOfVisibleLinks')

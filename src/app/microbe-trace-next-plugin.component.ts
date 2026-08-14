@@ -1872,14 +1872,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public onApplyNodeColorAssignments(event: Event): void {
         const input = event.target as HTMLInputElement;
         const file = input.files?.[0];
-        const selectedField = String(this.SelectedColorNodesByVariable ?? '').trim();
 
         if (!file) {
-            return;
-        }
-        if (!selectedField || selectedField === 'None') {
-            this.setNodeColorAssignmentStatus('error', 'Select a node color variable before choosing an assignment file.');
-            input.value = '';
             return;
         }
 
@@ -1890,8 +1884,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         };
         reader.onload = () => {
             try {
+                const contents = String(reader.result ?? '');
+                const descriptor = this.colorAssignmentService.inspect(contents);
+                const selectedField = this.resolveNodeColorAssignmentField(descriptor.declaredField);
                 const parsed = this.colorAssignmentService.parse(
-                    String(reader.result ?? ''),
+                    contents,
                     selectedField,
                     this.commonService.session.data.nodes || []
                 );
@@ -1906,6 +1903,36 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             }
         };
         reader.readAsText(file, 'UTF-8');
+    }
+
+    private resolveNodeColorAssignmentField(declaredField?: string): string {
+        const requestedField = String(declaredField ?? '').trim();
+        const currentField = String(this.SelectedColorNodesByVariable ?? '').trim();
+
+        if (!requestedField) {
+            if (currentField && currentField !== 'None') {
+                return currentField;
+            }
+            throw new Error('The color assignment file does not declare a node field. Add DATASET_LABEL to an iTOL file or use the node field as the first table-column header.');
+        }
+
+        const styleableFields = this.commonService.getStyleableNodeFields();
+        const normalizeFieldName = (value: string): string => String(value ?? '')
+            .trim()
+            .toLocaleLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        const requestedKey = normalizeFieldName(requestedField);
+        const idAliases = new Set(['id', 'isolate', 'isolateid', 'sample', 'sampleid', 'nodeid']);
+        const matchedField = styleableFields.find(field => normalizeFieldName(field) === requestedKey)
+            ?? (idAliases.has(requestedKey)
+                ? styleableFields.find(field => String(field).trim().toLocaleLowerCase() === '_id')
+                : undefined);
+
+        if (!matchedField) {
+            throw new Error(`The color assignment field "${requestedField}" is not available as a node color variable in the current dataset.`);
+        }
+
+        return matchedField;
     }
 
     private applyParsedNodeColorAssignments(
@@ -1928,14 +1955,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 .length;
             const retainedForFutureCount = importedValues.length - matchedCount;
 
-            if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
-                this.generateNodeColorTable('#node-color-table');
+            if (this.SelectedColorNodesByVariable !== selectedField) {
+                this.SelectedColorNodesByVariable = selectedField;
+                this.onColorNodesByChanged();
+            } else {
+                if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
+                    this.generateNodeColorTable('#node-color-table');
+                }
+                this.refreshKeyTablesView();
+                this.publishUpdateNodeColors();
             }
-            this.refreshKeyTablesView();
-            this.publishUpdateNodeColors();
             this.setNodeColorAssignmentStatus(
                 'success',
-                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" to ${selectedField}: ` +
+                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" and set Color Nodes By to ${selectedField}: ` +
                 `${matchedCount} matched current value${matchedCount === 1 ? '' : 's'}, ` +
                 `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
                 `${retainedForFutureCount} retained for future data.`

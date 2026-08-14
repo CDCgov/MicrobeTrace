@@ -11,7 +11,7 @@ describe('ColorAssignmentService', () => {
   });
 
   it('parses the synthetic iTOL color strip and collapses identical duplicates', () => {
-    const result = service.parse(`DATASET_COLORSTRIP
+    const contents = `DATASET_COLORSTRIP
 SEPARATOR SPACE
 DATASET_LABEL MLST
 #LEGEND_TITLE Example
@@ -34,8 +34,11 @@ GCWGS-2 #f8da6a 84
 GCWGS-3 #CC9999 8
 GCWGS-4 #bababa 902
 GCWGS-5 #cbf7cb 189
-GCWGS-6 #CC9999 8`, 'MLST');
+GCWGS-6 #CC9999 8`;
+    const descriptor = service.inspect(contents);
+    const result = service.parse(contents, 'MLST');
 
+    expect(descriptor).toEqual({ format: 'itol-colorstrip', declaredField: 'MLST' });
     expect(result.format).toBe('itol-colorstrip');
     expect(result.datasetLabel).toBe('MLST');
     expect(result.rowCount).toBe(6);
@@ -88,6 +91,8 @@ GCWGS-6 #CC9999 8`, 'MLST');
   });
 
   it('uses the first table column as the matching value and the named color column as its color', () => {
+    expect(service.inspect('MLST\textra\tcolor\n8\tignored\t#CC9999'))
+      .toEqual({ format: 'delimited-table', declaredField: 'MLST' });
     const genericResult = service.parse('id,value,color\nA,8,#123\nB,84,#abcdef', 'MLST');
     const fieldResult = service.parse('MLST\textra\tcolor\n8\tignored\t#CC9999', 'MLST');
 
