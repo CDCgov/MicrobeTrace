@@ -48,6 +48,38 @@ interface SequencePairwiseLinkGuardrailResult {
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_WARNING_THRESHOLD = 1000000;
 const DEFAULT_SEQUENCE_PAIRWISE_LINK_HARD_LIMIT = 2000000;
 
+export type NetworkSubsetFilterOperator =
+    'contains'
+    | 'equals'
+    | 'notEquals'
+    | 'startsWith'
+    | 'endsWith'
+    | 'in'
+    | 'lt'
+    | 'lte'
+    | 'gt'
+    | 'gte';
+
+export interface NetworkSubsetFilterRule {
+    enabled?: boolean;
+    field?: string;
+    operator?: NetworkSubsetFilterOperator | string;
+    value?: any;
+}
+
+export interface NetworkSubsetFilterState {
+    node?: NetworkSubsetFilterRule;
+    link?: NetworkSubsetFilterRule;
+}
+
+interface ResolvedNetworkSubsetFilter {
+    active: boolean;
+    nodeRuleActive: boolean;
+    linkRuleActive: boolean;
+    visibleNodeIds: Set<string>;
+    visibleLinkKeys: Set<string>;
+}
+
 @Directive()
 @Injectable({
     providedIn: 'root',
@@ -70,6 +102,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         '2D Network',
         'Map',
         'Table',
+        'Network Statistics',
         'Epi Curve',
         'Phylogenetic Tree',
         'Alignment View',
@@ -90,6 +123,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         'geomap': 'Map',
         'map': 'Map',
         'table': 'Table',
+        'network_statistics': 'Network Statistics',
+        'networkstatistics': 'Network Statistics',
+        'statistics': 'Network Statistics',
         'timeline': 'Epi Curve',
         'epi_curve': 'Epi Curve',
         'epicurve': 'Epi Curve',
@@ -182,6 +218,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedApplyStyleVariable: '',
         SelectedRevealTypesVariable: 'Everything'
     };
+
+    // Resolve display aliases to the calculation metrics supported by the data pipeline.
+    normalizeDistanceMetric(metric: unknown): 'snps' | 'tn93' {
+        return String(metric || 'snps').toLowerCase() === 'tn93' ? 'tn93' : 'snps';
+    }
 
     // Helper functions for TN93 distance display values
     private normalizeDisplayedDistanceField(linkField: string = 'distance'): string {
@@ -472,6 +513,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'network-friction': 0.4,
             'network-gravity': 0.05,
             'network-link-strength': 0.124,
+            'network-node-collapse-enabled': false,
+            'network-node-collapse-threshold': 0,
             'node-charge': 200,
             'node-border-width' : 2.0,
             'node-color': '#1f77b4',
@@ -600,9 +643,10 @@ export class CommonService extends AppComponentBase implements OnInit {
                 settingsLoaded: false,
             },
             state: {
-                timeStart: 0,
-                timeEnd: new Date(),
-                timeTarget: null
+                timeStart: null as Date | number | string | null,
+                timeEnd: new Date() as Date | number | string | null,
+                timeTarget: null as Date | number | string | null,
+                networkSubsetFilter: this.createDefaultNetworkSubsetFilterState()
             },
             style: {
                 linkAlphas: [1],
@@ -611,6 +655,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 keyTableColumnNames: {},
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
+                nodeColorAssignments: {},
                 nodeColorsTable: {},
                 nodeColorsTableHistory: {},
                 nodeColorsTableKeys: {},
@@ -689,6 +734,53 @@ export class CommonService extends AppComponentBase implements OnInit {
         return Math.min(1, Math.max(0, numericValue));
     }
 
+    private ensureNodeColorAssignmentState(style: any = this.session?.style): Record<string, Record<string, string>> {
+        if (!style || typeof style !== 'object') {
+            return {};
+        }
+
+        if (!style.nodeColorAssignments || typeof style.nodeColorAssignments !== 'object' || Array.isArray(style.nodeColorAssignments)) {
+            style.nodeColorAssignments = {};
+        }
+
+        return style.nodeColorAssignments as Record<string, Record<string, string>>;
+    }
+
+    public applyNodeColorAssignments(field: string, assignments: Record<string, string>): Record<string, string> {
+        const selectedField = String(field ?? '').trim();
+        if (!selectedField || selectedField === 'None') {
+            throw new Error('Select a node color variable before applying color assignments.');
+        }
+
+        const incomingEntries = Object.entries(assignments || {});
+        const invalidEntry = incomingEntries.find(([value, color]) =>
+            !String(value).trim() || !/^#[0-9a-f]{6}$/i.test(String(color))
+        );
+        if (invalidEntry) {
+            throw new Error(`Invalid color assignment for value "${invalidEntry[0]}".`);
+        }
+
+        const assignmentState = this.ensureNodeColorAssignmentState();
+        const mergedAssignments = Object.create(null) as Record<string, string>;
+        const existingAssignments = assignmentState[selectedField];
+
+        if (existingAssignments && typeof existingAssignments === 'object' && !Array.isArray(existingAssignments)) {
+            Object.keys(existingAssignments).forEach(value => {
+                const color = existingAssignments[value];
+                if (typeof color === 'string') {
+                    mergedAssignments[value] = color;
+                }
+            });
+        }
+        incomingEntries.forEach(([value, color]) => {
+            mergedAssignments[String(value).trim()] = String(color).toLowerCase();
+        });
+
+        assignmentState[selectedField] = mergedAssignments;
+        this.createNodeColorMap();
+        return mergedAssignments;
+    }
+
     public getNodeFillStyle(node: any): { color: string; alpha: number } {
         const widgets = this.session.style.widgets;
         const variable = widgets['node-color-variable'];
@@ -702,13 +794,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
+        const historicalColor = this.session.style.nodeColorsTableHistory?.[variable]?.[String(value)];
         let color = fallbackColor;
         let alpha = 1;
 
-        try {
-            color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
-        } catch {
-            color = fallbackColor;
+        if (typeof historicalColor === 'string' && historicalColor) {
+            // Timeline color tables only contain currently visible categories. Keep
+            // hidden/newly visible nodes on their persisted category color instead
+            // of letting d3 assign a temporary color for a missing scale-domain key.
+            color = historicalColor;
+        } else {
+            try {
+                color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+            } catch {
+                color = fallbackColor;
+            }
         }
 
         try {
@@ -2014,6 +2114,302 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
+    private createDefaultNetworkSubsetFilterRule(): NetworkSubsetFilterRule {
+        return {
+            enabled: false,
+            field: 'None',
+            operator: 'equals',
+            value: ''
+        };
+    }
+
+    private createDefaultNetworkSubsetFilterState(): NetworkSubsetFilterState {
+        return {
+            node: this.createDefaultNetworkSubsetFilterRule(),
+            link: this.createDefaultNetworkSubsetFilterRule()
+        };
+    }
+
+    private normalizeNetworkSubsetFilterRule(rule?: NetworkSubsetFilterRule): NetworkSubsetFilterRule {
+        return {
+            ...this.createDefaultNetworkSubsetFilterRule(),
+            ...(rule || {})
+        };
+    }
+
+    ensureNetworkSubsetFilterState(): NetworkSubsetFilterState {
+        if (!this.session.state) {
+            (this.session as any).state = {
+                timeStart: 0,
+                timeEnd: new Date(),
+                timeTarget: null
+            };
+        }
+
+        const state = this.session.state as any;
+        const existing = state.networkSubsetFilter || {};
+        const normalized = {
+            node: this.normalizeNetworkSubsetFilterRule(existing.node),
+            link: this.normalizeNetworkSubsetFilterRule(existing.link)
+        };
+
+        state.networkSubsetFilter = normalized;
+        return normalized;
+    }
+
+    setNetworkSubsetFilterState(filter: NetworkSubsetFilterState, updateNetwork: boolean = true): void {
+        if (!this.session.state) {
+            (this.session as any).state = {
+                timeStart: 0,
+                timeEnd: new Date(),
+                timeTarget: null
+            };
+        }
+
+        (this.session.state as any).networkSubsetFilter = {
+            node: this.normalizeNetworkSubsetFilterRule(filter?.node),
+            link: this.normalizeNetworkSubsetFilterRule(filter?.link)
+        };
+
+        if (updateNetwork) {
+            this.updateNetworkAfterSubsetFilterChange();
+        }
+    }
+
+    clearNetworkSubsetFilter(updateNetwork: boolean = true): void {
+        this.setNetworkSubsetFilterState(this.createDefaultNetworkSubsetFilterState(), updateNetwork);
+    }
+
+    isNetworkSubsetFilterActive(): boolean {
+        const filter = this.ensureNetworkSubsetFilterState();
+        return this.isNetworkSubsetRuleActive(filter.node) || this.isNetworkSubsetRuleActive(filter.link);
+    }
+
+    getNetworkSubsetFilterLabel(): string {
+        const filter = this.ensureNetworkSubsetFilterState();
+        const parts = [];
+
+        if (this.isNetworkSubsetRuleActive(filter.node)) {
+            parts.push(`Nodes: ${filter.node.field} ${this.getNetworkSubsetOperatorLabel(filter.node.operator)} ${filter.node.value}`);
+        }
+
+        if (this.isNetworkSubsetRuleActive(filter.link)) {
+            parts.push(`Links: ${filter.link.field} ${this.getNetworkSubsetOperatorLabel(filter.link.operator)} ${filter.link.value}`);
+        }
+
+        return parts.join('; ');
+    }
+
+    private getNetworkSubsetOperatorLabel(operator: string): string {
+        switch (operator) {
+            case 'notEquals':
+                return 'does not equal';
+            case 'startsWith':
+                return 'starts with';
+            case 'endsWith':
+                return 'ends with';
+            case 'lt':
+                return '<';
+            case 'lte':
+                return '<=';
+            case 'gt':
+                return '>';
+            case 'gte':
+                return '>=';
+            case 'in':
+                return 'is in';
+            case 'equals':
+                return 'equals';
+            case 'contains':
+            default:
+                return 'contains';
+        }
+    }
+
+    private updateNetworkAfterSubsetFilterChange(): void {
+        if (!this.session.data.nodes.length) {
+            return;
+        }
+
+        this.setLinkVisibility(true, false);
+        this.updateNetworkVisuals(false, true);
+    }
+
+    private isNetworkSubsetRuleActive(rule?: NetworkSubsetFilterRule): boolean {
+        const field = `${rule?.field ?? ''}`.trim();
+        const value = rule?.value;
+        const hasValue = value !== undefined && value !== null && `${value}`.trim() !== '';
+
+        return Boolean(rule?.enabled) && field.length > 0 && field !== 'None' && hasValue;
+    }
+
+    private getNetworkSubsetNodeId(node: any): string {
+        return String(node?._id ?? node?.id ?? '');
+    }
+
+    private getNetworkSubsetLinkKey(link: any, index: number): string {
+        return String(link?.id ?? link?.index ?? index);
+    }
+
+    private normalizeNetworkSubsetValue(value: any): string {
+        if (value === undefined || value === null) {
+            return '';
+        }
+
+        return String(value).trim();
+    }
+
+    private getNetworkSubsetFieldValues(value: any): string[] {
+        if (Array.isArray(value)) {
+            return value.map(item => this.normalizeNetworkSubsetValue(item));
+        }
+
+        return [this.normalizeNetworkSubsetValue(value)];
+    }
+
+    private networkSubsetValueMatches(rawValue: any, operator: string = 'contains', expectedValue: any): boolean {
+        const expected = this.normalizeNetworkSubsetValue(expectedValue);
+        const expectedLower = expected.toLowerCase();
+        const rawValues = this.getNetworkSubsetFieldValues(rawValue);
+        const rawLowerValues = rawValues.map(value => value.toLowerCase());
+
+        switch (operator) {
+            case 'equals':
+                return rawLowerValues.some(value => value === expectedLower);
+            case 'notEquals':
+                return rawLowerValues.every(value => value !== expectedLower);
+            case 'startsWith':
+                return rawLowerValues.some(value => value.startsWith(expectedLower));
+            case 'endsWith':
+                return rawLowerValues.some(value => value.endsWith(expectedLower));
+            case 'in': {
+                const expectedValues = expectedLower
+                    .split(',')
+                    .map(value => value.trim())
+                    .filter(value => value.length > 0);
+                return rawLowerValues.some(value => expectedValues.includes(value));
+            }
+            case 'lt':
+            case 'lte':
+            case 'gt':
+            case 'gte': {
+                const expectedNumber = Number(expected);
+                if (!Number.isFinite(expectedNumber)) {
+                    return false;
+                }
+
+                return rawValues.some(value => {
+                    const rawNumber = Number(value);
+                    if (!Number.isFinite(rawNumber)) {
+                        return false;
+                    }
+
+                    if (operator === 'lt') return rawNumber < expectedNumber;
+                    if (operator === 'lte') return rawNumber <= expectedNumber;
+                    if (operator === 'gt') return rawNumber > expectedNumber;
+                    return rawNumber >= expectedNumber;
+                });
+            }
+            case 'contains':
+            default:
+                return rawLowerValues.some(value => value.includes(expectedLower));
+        }
+    }
+
+    private objectMatchesNetworkSubsetRule(record: any, rule?: NetworkSubsetFilterRule): boolean {
+        if (!this.isNetworkSubsetRuleActive(rule)) {
+            return true;
+        }
+
+        return this.networkSubsetValueMatches(record?.[rule.field], rule.operator, rule.value);
+    }
+
+    private resolveNetworkSubsetFilter(): ResolvedNetworkSubsetFilter {
+        const filter = this.ensureNetworkSubsetFilterState();
+        const nodeRuleActive = this.isNetworkSubsetRuleActive(filter.node);
+        const linkRuleActive = this.isNetworkSubsetRuleActive(filter.link);
+        const active = nodeRuleActive || linkRuleActive;
+        const nodes = this.session.data.nodes || [];
+        const links = this.session.data.links || [];
+        const visibleNodeIds = new Set<string>();
+        const visibleLinkKeys = new Set<string>();
+
+        if (!active) {
+            return {
+                active: false,
+                nodeRuleActive,
+                linkRuleActive,
+                visibleNodeIds,
+                visibleLinkKeys
+            };
+        }
+
+        if (nodeRuleActive) {
+            nodes.forEach(node => {
+                if (this.objectMatchesNetworkSubsetRule(node, filter.node)) {
+                    visibleNodeIds.add(this.getNetworkSubsetNodeId(node));
+                }
+            });
+        }
+
+        if (linkRuleActive && !nodeRuleActive) {
+            links.forEach((link, index) => {
+                if (!this.objectMatchesNetworkSubsetRule(link, filter.link)) {
+                    return;
+                }
+
+                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
+                visibleNodeIds.add(String(link.source ?? ''));
+                visibleNodeIds.add(String(link.target ?? ''));
+            });
+        } else {
+            const eligibleNodeIds = nodeRuleActive
+                ? visibleNodeIds
+                : new Set(nodes.map(node => this.getNetworkSubsetNodeId(node)));
+
+            links.forEach((link, index) => {
+                const sourceId = String(link.source ?? '');
+                const targetId = String(link.target ?? '');
+
+                if (!eligibleNodeIds.has(sourceId) || !eligibleNodeIds.has(targetId)) {
+                    return;
+                }
+
+                if (linkRuleActive && !this.objectMatchesNetworkSubsetRule(link, filter.link)) {
+                    return;
+                }
+
+                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
+            });
+        }
+
+        return {
+            active,
+            nodeRuleActive,
+            linkRuleActive,
+            visibleNodeIds,
+            visibleLinkKeys
+        };
+    }
+
+    private nodePassesNetworkSubset(node: any, resolvedFilter: ResolvedNetworkSubsetFilter): boolean {
+        return !resolvedFilter.active || resolvedFilter.visibleNodeIds.has(this.getNetworkSubsetNodeId(node));
+    }
+
+    private linkPassesNetworkSubset(link: any, index: number, resolvedFilter: ResolvedNetworkSubsetFilter): boolean {
+        return !resolvedFilter.active || resolvedFilter.visibleLinkKeys.has(this.getNetworkSubsetLinkKey(link, index));
+    }
+
+    private getNetworkSubsetBaseNodes(nodes: any[] = this.session.data.nodeFilteredValues || []): any[] {
+        const resolvedFilter = this.resolveNetworkSubsetFilter();
+
+        if (!resolvedFilter.active) {
+            return nodes;
+        }
+
+        return nodes.filter(node => this.nodePassesNetworkSubset(node, resolvedFilter));
+    }
+
     private isDistanceBackedOrigin(originName: string, distanceOrigins: string[]): boolean {
         return distanceOrigins.some(distanceOrigin => {
             return Boolean(originName) && Boolean(distanceOrigin) && originName.includes(distanceOrigin);
@@ -2348,8 +2744,13 @@ export class CommonService extends AppComponentBase implements OnInit {
         console.log('this.temp: ', this.temp);
         this.temp.matrix = [];
         this.session.files = oldSession.files;
-        this.session.state = oldSession.state;
+        this.session.state = Object.assign({},
+            this.sessionSkeleton().state,
+            oldSession.state || {}
+        );
+        this.ensureNetworkSubsetFilterState();
         this.session.style = oldSession.style;
+        this.ensureNodeColorAssignmentState(this.session.style);
 
         this.session.meta.startTime = Date.now();
 
@@ -2492,6 +2893,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
+        this.ensureNodeColorAssignmentState(style);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
             this.defaultWidgets(),
@@ -3626,7 +4028,7 @@ align(params): Promise<any> {
     };
 
     private buildNonTimelineVisibleClusterSummary() {
-        const nodes = this.session.data.nodeFilteredValues || [];
+        const nodes = this.getNetworkSubsetBaseNodes(this.session.data.nodeFilteredValues || []);
         const metric = this.session.style.widgets["link-sort-variable"];
         const minClusterSize = Number(this.session.style.widgets["cluster-minimum-size"] ?? 1);
         const summary = buildVisibleClusterSummary(
@@ -3648,7 +4050,7 @@ align(params): Promise<any> {
      * while ignoring the timeline-specific node visibility gate.
      */
     getVisibleNodesIgnoringTimeline(copy: any = false) {
-        const nodes = this.session.data.nodeFilteredValues || [];
+        const nodes = this.getNetworkSubsetBaseNodes(this.session.data.nodeFilteredValues || []);
         const summary = this.buildNonTimelineVisibleClusterSummary();
         const out = [];
 
@@ -3705,6 +4107,36 @@ align(params): Promise<any> {
         }
         return out;
     };
+
+    private getLinkEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return String(endpoint._id ?? endpoint.id ?? '');
+        }
+
+        return String(endpoint ?? '');
+    }
+
+    /**
+     * Gets visible links for timeline-aware tables and statistics.
+     * In timeline mode, links are only counted when both endpoints are currently timeline-visible.
+     */
+    getVisibleLinksForCurrentTimeline(copy: any = false) {
+        const visibleLinks = this.getVisibleLinks(copy);
+        const timelineDateField = this.session.style.widgets["timeline-date-field"];
+
+        if (timelineDateField == 'None') {
+            return visibleLinks;
+        }
+
+        const visibleNodeIds = new Set(
+            this.getVisibleNodes().map(node => String(node._id ?? node.id ?? ''))
+        );
+
+        return visibleLinks.filter(link =>
+            visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
+            visibleNodeIds.has(this.getLinkEndpointId(link.target))
+        );
+    }
 
     /**
      * Gets links for non-target data views while preserving all non-timeline filters.
@@ -3774,6 +4206,7 @@ align(params): Promise<any> {
         }
         let vnodes = this.getVisibleNodes();
         let vlinks = this.getVisibleLinks();
+        const effectiveVisibleLinks = this.getVisibleLinksForCurrentTimeline();
         console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
@@ -3781,26 +4214,20 @@ align(params): Promise<any> {
         const timelineDateField = this.session.style.widgets["timeline-date-field"];
         const timelineMode = timelineDateField != 'None';
         if (!timelineMode) {
-            linkCount = vlinks.length;
+            linkCount = effectiveVisibleLinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
               cluster => cluster.visible && cluster.nodes > 1).length;
             singletons = vnodes.filter(d => d.degree == 0).length;
         } else {
             const metric = this.session.style.widgets["link-sort-variable"];
-            const visibleNodeIds = new Set(
-                vnodes.map(node => String(node._id ?? node.id ?? ''))
-            );
-            const timelineLinks = vlinks.filter(link => {
-                return visibleNodeIds.has(String(link.source)) && visibleNodeIds.has(String(link.target));
-            });
             const timelineSummary = buildVisibleClusterSummary(
                 vnodes,
-                timelineLinks.map(link => ({ ...link, visible: true })),
+                effectiveVisibleLinks.map(link => ({ ...link, visible: true })),
                 metric
             );
 
-            linkCount = timelineLinks.length;
+            linkCount = effectiveVisibleLinks.length;
             clusterCount = timelineSummary.clusterCount;
             singletons = timelineSummary.singletonCount;
         }
@@ -3845,6 +4272,7 @@ align(params): Promise<any> {
         const nodeColorsTable = this.session.style.nodeColorsTable;       // e.g. { varName: [ ... ] }
         const nodeColorsTableKeys = this.session.style.nodeColorsTableKeys;
         const nodeColorsTableHistory = this.session.style.nodeColorsTableHistory;
+        const nodeColorAssignments = this.ensureNodeColorAssignmentState()[nodeColorVariable] || {};
     
         // 2) Call your new colorMappingService
         const result = this.colorMappingService.createNodeColorMap(
@@ -3855,6 +4283,7 @@ align(params): Promise<any> {
         nodeColorsTable,
         nodeColorsTableKeys,
         nodeColorsTableHistory,
+        nodeColorAssignments,
         this.debugMode
         );
     
@@ -3890,7 +4319,7 @@ align(params): Promise<any> {
             return [];
         }
 
-        const links = this.getVisibleLinks();
+        const links = this.getVisibleLinksForCurrentTimeline();
       
         let linkColors;
         if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {
@@ -4355,17 +4784,66 @@ align(params): Promise<any> {
      * @param {string} title 
      */
     titleize(title: string): string {
-        const small = title.toLowerCase().replace(/_/g, " ");
-        if (small == "null") return "(Empty)";
-        if (small == "id" || small == " id") return "ID";
-        if (small == "tn93") return "TN93";
-        if (small == "snps") return "SNPs";
-        if (small == "2d network") return "2D Network";
-        if (small == "3d network") return "3D Network";
-        if (small == "geo map") return "Map";
-        if (small == "nn") return "Nearest Neighbor";
-        return title;
-        return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
+        const raw = `${title ?? ''}`;
+        const trimmed = raw.trim();
+        const small = trimmed.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const exactTitles: { [key: string]: string } = {
+            'null': '(Empty)',
+            'id': 'ID',
+            'tn93': 'TN93',
+            'snps': 'SNPs',
+            '2d network': '2D Network',
+            '3d network': '3D Network',
+            'geo map': 'Map',
+            'nn': 'Nearest Neighbor',
+            'seq': 'Sequence',
+            'hasdistance': 'Has Distance',
+            'distanceorigin': 'Distance Origin',
+            'distanceorigins': 'Distance Origins'
+        };
+
+        if (exactTitles[small]) return exactTitles[small];
+
+        // Preserve free-form labels that users already wrote with spaces/case.
+        if (!/[_-]/.test(trimmed)) {
+            return raw;
+        }
+
+        // Network import provenance fields use raw snake_case keys internally;
+        // keep those keys stable while showing readable labels in the UI.
+        const words: { [key: string]: string } = {
+            'id': 'ID',
+            'ids': 'IDs',
+            'mt': 'MicrobeTrace',
+            'nn': 'Nearest Neighbor',
+            'seq': 'Sequence',
+            'snps': 'SNPs',
+            'tn93': 'TN93',
+            'graphml': 'GraphML',
+            'graphmlgraph': 'GraphML Graph',
+            'gexf': 'GEXF',
+            'xgmml': 'XGMML',
+            'cx2': 'CX2',
+            'cyjs': 'Cytoscape JSON',
+            'cx': 'CX',
+            'dot': 'DOT',
+            'gml': 'GML',
+            'x': 'X',
+            'y': 'Y',
+            'vx': 'VX',
+            'vy': 'VY'
+        };
+        const readable = trimmed
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return readable
+            .split(' ')
+            .filter(part => part.length > 0)
+            .map(part => words[part.toLowerCase()] || part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
     };
 
     /** 
@@ -4377,21 +4855,37 @@ align(params): Promise<any> {
         return new Promise<void>(resolve => {
             const start = Date.now();
             const metric = this.session.style.widgets["link-sort-variable"];
+            const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
+            const nodesForClusters = resolvedSubsetFilter.active
+                ? this.session.data.nodes.filter(node => this.nodePassesNetworkSubset(node, resolvedSubsetFilter))
+                : this.session.data.nodes;
+            const linksForClusters = resolvedSubsetFilter.active
+                ? this.session.data.links.filter((link, index) => this.linkPassesNetworkSubset(link, index, resolvedSubsetFilter))
+                : this.session.data.links;
             const summary = buildVisibleClusterSummary(
-                this.session.data.nodes,
-                this.session.data.links,
+                nodesForClusters,
+                linksForClusters,
                 metric
             );
 
             this.session.data.clusters = summary.clusters;
             this.temp.nodes = [];
 
-            this.session.data.nodes.forEach((node, index) => {
+            this.session.data.nodes.forEach(node => {
+                node.cluster = null;
+                node.degree = 0;
+            });
+
+            nodesForClusters.forEach((node, index) => {
                 node.cluster = summary.nodeClusterByIndex[index];
                 node.degree = summary.degrees[index];
             });
 
-            this.session.data.links.forEach((link, index) => {
+            this.session.data.links.forEach(link => {
+                link.cluster = null;
+            });
+
+            linksForClusters.forEach((link, index) => {
                 link.cluster = summary.linkClusterByIndex[index];
             });
 
@@ -4402,6 +4896,7 @@ align(params): Promise<any> {
                 nodes: this.session.data.nodes.length,
                 links: this.session.data.links.length,
                 clusters: this.session.data.clusters.length,
+                subsetActive: resolvedSubsetFilter.active,
                 metric
             });
             resolve();
@@ -4420,25 +4915,35 @@ align(params): Promise<any> {
             clusters = this.session.data.clusters;
         let n = nodes.length;
         let visibleNodes = 0;
+        const hasTimelineStart = this.hasValidTimelineDateValue(this.session.state.timeStart);
+        const hasTimelineEnd = this.hasValidTimelineDateValue(this.session.state.timeEnd);
+        const timelineStart = hasTimelineStart ? moment(this.session.state.timeStart).toDate() : null;
+        const timelineEnd = hasTimelineEnd ? moment(this.session.state.timeEnd).toDate() : null;
+        const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
 
             node.visible = true;
+            if (!this.nodePassesNetworkSubset(node, resolvedSubsetFilter)) {
+                node.visible = false;
+            }
             const cluster = clusters[node.cluster];
 
-            if (cluster) {
+            if (node.visible && cluster) {
                 // TODO: uncomment if something breaks since this was defaulted to visible
                 // cluster.visible = true;
                 // console.log('setting cluster vis: ', cluster);
                 // console.log('setting node vis: ', node.visible);
                 node.visible = node.visible && cluster.visible;
             }
-            if (dateField != "None") {
+            if (node.visible && dateField != "None") {
                 const rawDateValue = node[dateField];
-                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                if (this.hasValidTimelineDateValue(rawDateValue) && timelineEnd) {
+                    const nodeDate = moment(rawDateValue).toDate();
                     node.visible =
                         node.visible &&
-                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                        timelineEnd >= nodeDate &&
+                        (!timelineStart || timelineStart <= nodeDate);
                 }
             }
 
@@ -4457,7 +4962,8 @@ align(params): Promise<any> {
             nodes: n,
             visibleNodes,
             silent,
-            dateField
+            dateField,
+            subsetActive: resolvedSubsetFilter.active
         });
 
         if(this.debugMode) {
@@ -4482,6 +4988,7 @@ align(params): Promise<any> {
         let n = links.length;
         let visibleLinks = 0;
         const globalOriginOrder = this.normalizeLinkOrigins(this.session.style.widgets['link-origin-array-order']);
+        const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
     
     
         if(this.debugMode) {
@@ -4567,9 +5074,13 @@ align(params): Promise<any> {
             }
     
             // Cluster Visibility Check
+            if (visible && !this.linkPassesNetworkSubset(link, i, resolvedSubsetFilter)) {
+                visible = false;
+            }
+
             const cluster = clusters[link.cluster];
-            if (cluster && checkCluster) {
-                visible = visible && cluster.visible;
+            if (checkCluster && clusters.length > 0) {
+                visible = visible && Boolean(cluster) && cluster.visible;
             }
     
             link.origin = this.orderLinkOriginsForDisplay(finalOrigins, globalOriginOrder);
@@ -4594,7 +5105,8 @@ align(params): Promise<any> {
             checkCluster,
             metric,
             threshold,
-            showNN
+            showNN,
+            subsetActive: resolvedSubsetFilter.active
         });
 
         if(this.debugMode) {

@@ -76,6 +76,45 @@ describe('File Handling and Processing', () => {
     cy.get(`[id="file-${nodeFile}-field-2"]`).should('have.value', 'seq');
   });
 
+  it('renders quote-bearing file names as text and keeps file controls functional', () => {
+    const unsafeFileName = 'Nodes" autofocus onfocus="window.__mtInjected=true".csv';
+    const csvContents = '_id,seq\nA,AAAA\nB,CCCC\n';
+
+    cy.get('#fileDropRef').then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      const win = input.ownerDocument.defaultView as Window & typeof globalThis & { __mtInjected?: boolean };
+      const data = new win.DataTransfer();
+      const file = new win.File([csvContents], unsafeFileName, { type: 'text/csv' });
+
+      win.__mtInjected = false;
+      data.items.add(file);
+      input.files = data.files;
+      input.dispatchEvent(new win.Event('change', { bubbles: true }));
+    });
+
+    cy.contains('#file-table .file-table-row', unsafeFileName, { timeout: 20000 })
+      .as('unsafeFileRow')
+      .should('be.visible');
+    cy.get('@unsafeFileRow')
+      .find('.file-name > span.p-1')
+      .should('have.text', unsafeFileName);
+    cy.get('@unsafeFileRow').find('[autofocus]').should('not.exist');
+    cy.get('@unsafeFileRow').find('[onfocus]').should('not.exist');
+    cy.get('@unsafeFileRow').find('input[type="radio"]').should('have.length', 7);
+    cy.window().its('__mtInjected').should('equal', false);
+
+    cy.get('@unsafeFileRow').find('input[data-type="node"]').should('be.checked');
+    cy.get('@unsafeFileRow').find('input[data-type="link"]').click({ force: true });
+    cy.get('@unsafeFileRow').find('select').eq(0).select('seq', { force: true });
+
+    cy.window().then((win: any) => {
+      const file = win.commonService.session.files.find((sessionFile: any) => sessionFile.name === unsafeFileName);
+      expect(file.format).to.equal('link');
+      expect(file.field1).to.equal('seq');
+      expect(file.field2).to.equal('seq');
+    });
+  });
+
   it('uploads via the welcome overlay input and launches without hitting the error boundary', () => {
     cy.attach_files('#fileDropRef', [nodeFile, linkFile]);
 

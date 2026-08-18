@@ -39,6 +39,7 @@ import type {
   PhylogeneticBootstrapComputeResult,
   PhylogeneticBootstrapProgress,
 } from '@app/workers/phylogenetic-bootstrap.types';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 /**
  * @title PhylogeneticComponent
@@ -52,7 +53,7 @@ import type {
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 
-  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
   viewActive: boolean = true;
   svgStyle: object = {
     height: '0px',
@@ -971,8 +972,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-leaf-label-show'] = this.SelectedLeafLabelShowVariable
   }
 
-  showGlobalSettings() {
-    this.DisplayGlobalSettingsDialogEvent.emit('Styling');
+  showGlobalSettings(event?: MouseEvent) {
+    this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
   }
 
   private ensureGlobalNodeShapeTableVisible(): void {

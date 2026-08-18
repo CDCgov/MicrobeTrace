@@ -36,9 +36,9 @@ Use it to validate generated WAR files before handing them to DevOps.
 
 ## Typical local flow
 
-`bash scripts/tomcat/run-war-smoke.sh --skip-build --war dist/MicrobeTrace_2.2.0.war --context ROOT`
+`bash scripts/tomcat/run-war-smoke.sh --skip-build --war dist/MicrobeTrace_2.2.1.war --context ROOT`
 
-`scripts/tomcat/run-war-smoke.cmd --skip-build --war dist\\MicrobeTrace_2.2.0.war --context ROOT`
+`scripts/tomcat/run-war-smoke.cmd --skip-build --war dist\\MicrobeTrace_2.2.1.war --context ROOT`
 
 ## Package.json shortcuts
 
