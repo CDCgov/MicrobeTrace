@@ -250,6 +250,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.data.geoJSON = data;
       this.commonService.session.data.geoJSONLayerName = this.commonService.filterXSS(file.name);
       this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+      this.commonService.session.style.widgets['map-floorplan-background-mode'] = 'Hide';
+      this.commonService.session.style.widgets['map-user-geojson-label-field'] = 'None';
 
       if (matchedNodes > 0) {
         this.commonService.session.style.widgets['map-field-lat'] = GEOJSON_LATITUDE_FIELD;
@@ -1868,6 +1870,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.commonService.session.data.geoJSON = data;
           this.commonService.session.data.geoJSONLayerName = this.commonService.filterXSS(file.name);
           this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+          this.commonService.session.style.widgets['map-floorplan-background-mode'] = 'Hide';
+          this.commonService.session.style.widgets['map-user-geojson-label-field'] = 'None';
 
           this.showMessage(` - Parsed ${extracted.featureCount} GeoJSON features from ${file.name}.`);
         } catch (error) {

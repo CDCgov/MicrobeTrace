@@ -145,6 +145,47 @@
   white-space: nowrap;
 }
 
+.map-geojson-color-picker {
+  background: transparent;
+  border: 1px solid #ced4da;
+  border-radius: .25rem;
+  cursor: pointer;
+  height: 31px;
+  padding: .15rem;
+  width: 100%;
+}
+
+.map-geojson-transparency-control {
+  align-items: center;
+  display: flex;
+  gap: .5rem;
+}
+
+.map-geojson-transparency-control .custom-range {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.map-geojson-transparency-value {
+  color: #495057;
+  flex: 0 0 3rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+:host ::ng-deep .map-user-geojson-label {
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
+  overflow: visible;
+  padding: 0;
+  text-overflow: clip;
+}
+
+:host ::ng-deep .map-user-geojson-label::before {
+  display: none;
+}
+
 .map-manual-position-heading {
   border-top: 1px solid #d9dee3;
   color: #495057;

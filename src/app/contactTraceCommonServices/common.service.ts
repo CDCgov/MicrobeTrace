@@ -369,6 +369,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             floorplanImageBounds: null,
             floorplanImageWidth: null,
             floorplanImageHeight: null,
+            floorplanBackgroundBaseLayerState: null as any,
             floorplanBoundaryField: 'None',
             floorplanBoundaries: [],
             tree: {},
@@ -503,6 +504,9 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-state': 'None',
             'map-field-country': 'None',
             'map-user-geojson-show': false,
+            'map-user-geojson-color': '#3388ff',
+            'map-user-geojson-transparency': 0.25,
+            'map-user-geojson-label-field': 'None',
             'map-floorplan-image-show': false,
             'map-floorplan-boundaries-show': true,
             'map-link-show': true,
@@ -2759,6 +2763,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
             this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
         }
+
+        this.session.data['floorplanBackgroundBaseLayerState'] = oldSession.data?.floorplanBackgroundBaseLayerState || null;
 
         this.session.data['floorplanBoundaryField'] = oldSession.data.floorplanBoundaryField || 'None';
         this.session.data['floorplanBoundaries'] = Array.isArray(oldSession.data.floorplanBoundaries)

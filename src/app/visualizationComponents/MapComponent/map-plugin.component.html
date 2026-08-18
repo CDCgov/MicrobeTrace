@@ -333,7 +333,7 @@
     <div class="form-group row" title="Open the custom map tutorial document.">
       <div class="col-4">Tutorial</div>
       <div class="col-8">
-        <a class="btn btn-sm map-btn w-100" href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View"
+        <a class="btn btn-sm map-btn w-100" href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View-with-GeoJSON-Files-and-Custom-Maps"
           target="_blank" rel="noreferrer noopener" role="button"
           title="Open the custom map tutorial document for GeoJSON and image floorplans.">More Information</a>
       </div>
@@ -360,6 +360,37 @@
         <div class="col-4">Loaded</div>
         <div class="col-8 map-user-geojson-summary">
           {{ floorplanBackgroundFileName }}{{ floorplanBackgroundSummary ? ' (' + floorplanBackgroundSummary + ')' : '' }}
+        </div>
+      </div>
+    }
+    @if (commonService.session.data.geoJSON) {
+      <div class="form-group row" title="Choose the color used to draw the GeoJSON layer.">
+        <div class="col-4"><label for="map-user-geojson-color">Color</label></div>
+        <div class="col-8">
+          <input type="color" class="map-geojson-color-picker" id="map-user-geojson-color"
+            aria-label="Custom map GeoJSON color"
+            [(ngModel)]="SelectedUserGeoJSONColorVariable"
+            (ngModelChange)="onUserGeoJSONColorChange($event)">
+        </div>
+      </div>
+      <div class="form-group row" title="Choose how transparent the GeoJSON layer should be.">
+        <div class="col-4"><label for="map-user-geojson-transparency">Transparency</label></div>
+        <div class="col-8 map-geojson-transparency-control">
+          <input type="range" class="custom-range" id="map-user-geojson-transparency"
+            min="0" max="1" step="0.01"
+            aria-label="Custom map GeoJSON transparency"
+            [(ngModel)]="SelectedUserGeoJSONTransparencyVariable"
+            (ngModelChange)="onUserGeoJSONTransparencyChange($event)">
+          <span class="map-geojson-transparency-value">{{ getUserGeoJSONTransparencyPercent() }}%</span>
+        </div>
+      </div>
+      <div class="form-group row" title="Choose a GeoJSON feature property to display as labels.">
+        <div class="col-4"><label for="map-user-geojson-label-field">Labels</label></div>
+        <div class="col-8">
+          <p-select id="map-user-geojson-label-field" [options]="UserGeoJSONLabelFields"
+            [(ngModel)]="SelectedUserGeoJSONLabelField"
+            (ngModelChange)="onUserGeoJSONLabelFieldChange($event)"
+            appendTo="body"></p-select>
         </div>
       </div>
     }

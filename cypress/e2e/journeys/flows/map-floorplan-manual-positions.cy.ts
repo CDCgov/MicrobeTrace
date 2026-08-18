@@ -16,6 +16,8 @@ import {
   writeCapturedDownloadToDisk,
 } from '../../../support/journey-helpers';
 
+const takeScreenshots = Cypress.env('takeScreenshots') === true;
+
 type WinWithMap = Window & {
   commonService: any;
 };
@@ -34,6 +36,8 @@ const manualMapPoint = {
   latitude: 39.5,
   longitude: -82.5,
 };
+const customGeoJSONColor = '#ff00aa';
+const customGeoJSONTransparency = 0.4;
 const excludedNodesButtonSelector = '#tool-btn-container-map a[title="Nodes without Location Data"]';
 
 const openMapSettingsTab = (label: 'Components' | 'Custom Map' | 'Data' | 'Nodes'): void => {
@@ -42,6 +46,9 @@ const openMapSettingsTab = (label: 'Components' | 'Custom Map' | 'Data' | 'Nodes
 
 const openCustomMapTab = (): void => {
   openMapSettingsTab('Custom Map');
+  cy.get('@mapSettings')
+    .find('.p-dialog-content')
+    .scrollTo('top', { duration: 0, ensureScrollable: false });
   cy.get('@mapSettings').find('#map-floorplan-background-file').should('exist');
   cy.get('@mapSettings')
     .contains('label.custom-file-label', 'Choose Custom Map File')
@@ -52,7 +59,7 @@ const openCustomMapTab = (): void => {
     .and('have.attr', 'title', 'Open the custom map tutorial document for GeoJSON and image floorplans.');
 };
 
-const setFloorplanLayer = (selection: 'Show' | 'Hide'): void => {
+const setFloorplanLayer = (selection: 'Show' | 'Overlay' | 'Hide'): void => {
   cy.get('@mapSettings')
     .find('#map-floorplan-background-show-hide')
     .contains(selection)
@@ -109,7 +116,10 @@ const assertFloorplanBackgroundHidden = (): void => {
     const widgets = mapView.commonService.session.style.widgets;
 
     expect(widgets['map-user-geojson-show'], 'user GeoJSON widget').to.equal(false);
+    expect(widgets['map-floorplan-background-mode'], 'custom map mode').to.equal('Hide');
     expect(mapView.lmap.hasLayer(mapView.layers.userGeoJSON), 'user GeoJSON layer hidden').to.equal(false);
+    expect(widgets['map-countries-show'], 'offline map restored after hiding exclusive custom map').to.equal(true);
+    expect(mapView.lmap.hasLayer(mapView.layers.countries), 'restored offline map layer visible').to.equal(true);
   });
 };
 
@@ -122,6 +132,7 @@ const assertFloorplanBackgroundShown = (): void => {
     expect(session.data.geoJSON?.type, 'stored GeoJSON type').to.equal('FeatureCollection');
     expect(session.data.geoJSONLayerName, 'stored GeoJSON layer name').to.equal(floorplanFixture);
     expect(widgets['map-user-geojson-show'], 'user GeoJSON widget').to.equal(true);
+    expect(widgets['map-floorplan-background-mode'], 'custom map mode').to.equal('Show');
     expect(widgets['map-floorplan-image-show'], 'floorplan image widget').to.equal(false);
     expect(mapView.lmap.hasLayer(mapView.layers.userGeoJSON), 'user GeoJSON layer visible').to.equal(true);
     expect(mapView.layers.userGeoJSON.getLayers().length, 'user GeoJSON features rendered').to.be.greaterThan(0);
@@ -135,6 +146,141 @@ const assertFloorplanBackgroundShown = (): void => {
     ].forEach(([layerKey, widgetKey]) => {
       expect(widgets[widgetKey], `${widgetKey} hidden by floorplan`).to.equal(false);
       expect(mapView.lmap.hasLayer(mapView.layers[layerKey]), `${layerKey} layer hidden by floorplan`).to.equal(false);
+    });
+  });
+};
+
+const selectGeoJSONLabelField = (field: 'None' | 'name'): void => {
+  cy.get('@mapSettings')
+    .find('#map-user-geojson-label-field .p-select-dropdown')
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible li[role="option"]', { timeout: 15000 })
+    .contains(new RegExp(`^${field}$`))
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible').should('not.exist');
+  cy.window()
+    .its('commonService.session.style.widgets.map-user-geojson-label-field')
+    .should('equal', field);
+};
+
+const assertFloorplanBackgroundOverlay = (): void => {
+  cy.window({ timeout: 15000 }).should((win: unknown) => {
+    const typedWindow = win as WinWithMap;
+    const mapView = typedWindow.commonService.visuals.gisMap;
+    const widgets = mapView.commonService.session.style.widgets;
+
+    expect(widgets['map-floorplan-background-mode'], 'custom map mode').to.equal('Overlay');
+    expect(widgets['map-user-geojson-show'], 'user GeoJSON widget').to.equal(true);
+    expect(widgets['map-basemap-show'], 'basemap preserved under overlay').to.equal(true);
+    expect(mapView.lmap.hasLayer(mapView.layers.userGeoJSON), 'user GeoJSON overlay visible').to.equal(true);
+    expect(mapView.lmap.hasLayer(mapView.layers.basemap), 'basemap visible under overlay').to.equal(true);
+
+    const customPane = mapView.lmap.getPane('map-custom-background');
+    const linkPane = mapView.lmap.getPane('map-network-links');
+    const tilePane = mapView.lmap.getPane('tilePane');
+    const markerPane = mapView.lmap.getPane('markerPane');
+    const paneZIndex = (pane: HTMLElement) => Number(typedWindow.getComputedStyle(pane).zIndex);
+
+    expect(paneZIndex(customPane), 'custom map above basemap tiles').to.be.greaterThan(paneZIndex(tilePane));
+    expect(paneZIndex(customPane), 'custom map below links').to.be.lessThan(paneZIndex(linkPane));
+    expect(paneZIndex(customPane), 'custom map below nodes').to.be.lessThan(paneZIndex(markerPane));
+  });
+};
+
+const assertFloorplanBackgroundOverOfflineMap = (): void => {
+  cy.window({ timeout: 15000 }).should((win: unknown) => {
+    const typedWindow = win as WinWithMap;
+    const mapView = typedWindow.commonService.visuals.gisMap;
+    const widgets = mapView.commonService.session.style.widgets;
+
+    expect(widgets['map-floorplan-background-mode'], 'custom map mode').to.equal('Overlay');
+    expect(widgets['map-countries-show'], 'offline countries layer preserved').to.equal(true);
+    expect(widgets['map-basemap-show'], 'online basemap remains hidden').to.equal(false);
+    expect(mapView.lmap.hasLayer(mapView.layers.countries), 'offline countries layer visible').to.equal(true);
+    expect(mapView.lmap.hasLayer(mapView.layers.userGeoJSON), 'user GeoJSON overlay visible').to.equal(true);
+
+    const customPane = mapView.lmap.getPane('map-custom-background');
+    const offlinePane = mapView.lmap.getPane('overlayPane');
+    const linkPane = mapView.lmap.getPane('map-network-links');
+    const paneZIndex = (pane: HTMLElement) => Number(typedWindow.getComputedStyle(pane).zIndex);
+
+    expect(paneZIndex(customPane), 'custom map above offline map').to.be.greaterThan(paneZIndex(offlinePane));
+    expect(paneZIndex(customPane), 'custom map below links').to.be.lessThan(paneZIndex(linkPane));
+  });
+};
+
+const assertCustomGeoJSONStyle = (): void => {
+  cy.window({ timeout: 15000 }).should((win: unknown) => {
+    const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+    const widgets = mapView.commonService.session.style.widgets;
+    const layers = mapView.layers.userGeoJSON.getLayers();
+
+    expect(widgets['map-user-geojson-color'], 'stored GeoJSON color').to.equal(customGeoJSONColor);
+    expect(widgets['map-user-geojson-transparency'], 'stored GeoJSON transparency').to.equal(customGeoJSONTransparency);
+    expect(layers.length, 'styled GeoJSON features').to.be.greaterThan(0);
+    layers.forEach((layer: any) => {
+      expect(layer.options.color, 'GeoJSON stroke color').to.equal(customGeoJSONColor);
+      expect(layer.options.fillColor, 'GeoJSON fill color').to.equal(customGeoJSONColor);
+      expect(layer.options.opacity, 'GeoJSON stroke remains opaque').to.equal(1);
+      expect(layer.options.fillOpacity, 'GeoJSON fill opacity').to.equal(1 - customGeoJSONTransparency);
+      expect(layer.options.pane, 'GeoJSON pane').to.equal('map-custom-background');
+    });
+  });
+};
+
+const assertCustomGeoJSONFullyTransparentFill = (): void => {
+  cy.window({ timeout: 15000 }).should((win: unknown) => {
+    const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+    const layers = mapView.layers.userGeoJSON.getLayers();
+
+    expect(layers.length, 'styled GeoJSON features').to.be.greaterThan(0);
+    layers.forEach((layer: any) => {
+      expect(layer.options.color, 'GeoJSON stroke retains selected color').to.equal(customGeoJSONColor);
+      expect(layer.options.fillColor, 'GeoJSON fill retains selected color').to.equal(customGeoJSONColor);
+      expect(layer.options.opacity, 'GeoJSON stroke remains visible').to.equal(1);
+      expect(layer.options.fillOpacity, 'GeoJSON fill is fully transparent').to.equal(0);
+    });
+  });
+};
+
+const assertCustomGeoJSONLabels = (): void => {
+  cy.get('.mapStyle .map-user-geojson-label', { timeout: 15000 })
+    .should('have.length', 2)
+    .then(($labels) => {
+      const labelText = Array.from($labels, label => label.textContent?.trim());
+      expect(labelText, 'rendered GeoJSON labels').to.have.members(['Cypress Floorplan', 'Interior Wall']);
+      $labels.each((_index, label) => {
+        expect(label.classList.contains('map-admin-label'), 'custom label uses administrative label styling').to.equal(true);
+        expect(label.classList.contains('map-admin-label-states'), 'custom label uses state label styling').to.equal(true);
+      });
+    });
+
+  cy.window().should((win: unknown) => {
+    const typedWindow = win as WinWithMap;
+    const mapView = typedWindow.commonService.visuals.gisMap;
+    const labelPane = mapView.lmap.getPane('map-custom-labels');
+    const backgroundPane = mapView.lmap.getPane('map-custom-background');
+    const linkPane = mapView.lmap.getPane('map-network-links');
+    const markerPane = mapView.lmap.getPane('markerPane');
+    const paneZIndex = (pane: HTMLElement) => Number(typedWindow.getComputedStyle(pane).zIndex);
+
+    expect(mapView.SelectedUserGeoJSONLabelField, 'selected GeoJSON label property').to.equal('name');
+    expect(paneZIndex(labelPane), 'labels above custom geometry').to.be.greaterThan(paneZIndex(backgroundPane));
+    expect(paneZIndex(labelPane), 'labels below links').to.be.lessThan(paneZIndex(linkPane));
+    expect(paneZIndex(labelPane), 'labels below nodes').to.be.lessThan(paneZIndex(markerPane));
+
+    const renderedLabels = typedWindow.document.querySelectorAll<HTMLElement>('.mapStyle .map-user-geojson-label');
+    renderedLabels.forEach(label => {
+      const style = typedWindow.getComputedStyle(label);
+      expect(style.backgroundColor, 'custom label background').to.equal('rgba(0, 0, 0, 0)');
+      expect(style.borderTopWidth, 'custom label border').to.equal('0px');
+      expect(style.boxShadow, 'custom label box shadow').to.equal('none');
+      expect(style.fontFamily, 'custom label font family').to.contain('Arial');
+      expect(style.fontSize, 'custom label font size').to.equal('11px');
+      expect(style.fontWeight, 'custom label font weight').to.equal('600');
+      expect(style.textShadow, 'custom label text halo').not.to.equal('none');
+      expect(style.paddingTop, 'custom label padding').to.equal('0px');
+      expect(typedWindow.getComputedStyle(label, '::before').display, 'custom label tooltip arrow').to.equal('none');
     });
   });
 };
@@ -241,6 +387,92 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
       .should('contain.text', floorplanFixture)
       .and('contain.text', '2 features');
     assertFloorplanBackgroundShown();
+    cy.get('@mapSettings').find('#map-user-geojson-color').should('be.visible');
+    cy.get('@mapSettings').find('#map-user-geojson-transparency').should('be.visible');
+    cy.get('@mapSettings')
+      .find('#map-user-geojson-label-field')
+      .should('be.visible')
+      .find('.p-select-label')
+      .should('contain.text', 'None');
+    cy.window().should((win: unknown) => {
+      const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+      expect(mapView.UserGeoJSONLabelFields.map((option: any) => option.value), 'GeoJSON property options')
+        .to.deep.equal(['None', 'name']);
+      expect(mapView.SelectedUserGeoJSONLabelField, 'default label property').to.equal('None');
+    });
+    cy.get('.mapStyle .map-user-geojson-label').should('not.exist');
+
+    selectGeoJSONLabelField('name');
+    assertCustomGeoJSONLabels();
+    if (takeScreenshots) {
+      cy.screenshot('map/custom-geojson-label-controls', { overwrite: true });
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.window().then((win: unknown) => {
+        const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+        mapView.lmap.fitBounds(mapView.layers.userGeoJSON.getBounds(), { animate: false, padding: [30, 30] });
+      });
+      cy.get('.mapStyle .map-user-geojson-label').should('be.visible');
+      cy.screenshot('map/custom-geojson-labels', { overwrite: true });
+      openMapSettingsDialog();
+      openCustomMapTab();
+    }
+    selectGeoJSONLabelField('None');
+    cy.get('.mapStyle .map-user-geojson-label').should('not.exist');
+    selectGeoJSONLabelField('name');
+    assertCustomGeoJSONLabels();
+
+    setFloorplanLayer('Overlay');
+    assertFloorplanBackgroundOverlay();
+    cy.get('@mapSettings')
+      .find('#map-user-geojson-color')
+      .invoke('val', customGeoJSONColor)
+      .trigger('input');
+    cy.get('@mapSettings')
+      .find('#map-user-geojson-transparency')
+      .invoke('val', String(customGeoJSONTransparency))
+      .trigger('input');
+    cy.get('@mapSettings').find('.map-geojson-transparency-value').should('have.text', '40%');
+    assertCustomGeoJSONStyle();
+
+    cy.get('@mapSettings')
+      .find('#map-user-geojson-transparency')
+      .invoke('val', '1')
+      .trigger('input');
+    cy.get('@mapSettings').find('.map-geojson-transparency-value').should('have.text', '100%');
+    assertCustomGeoJSONFullyTransparentFill();
+    if (takeScreenshots) {
+      cy.closeSettingsPane('Geospatial Settings');
+      cy.window().then((win: unknown) => {
+        const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+        mapView.lmap.fitBounds(mapView.layers.userGeoJSON.getBounds(), { animate: false, padding: [30, 30] });
+      });
+      cy.screenshot('map/custom-geojson-transparent-fill-solid-border', { overwrite: true });
+      openMapSettingsDialog();
+      openCustomMapTab();
+    }
+    cy.get('@mapSettings')
+      .find('#map-user-geojson-transparency')
+      .invoke('val', String(customGeoJSONTransparency))
+      .trigger('input');
+    assertCustomGeoJSONStyle();
+
+    setFloorplanLayer('Hide');
+    openMapSettingsTab('Components');
+    cy.get('@mapSettings')
+      .find('#map-countries-show-hide')
+      .contains('Borders Only')
+      .click({ force: true });
+    cy.window().should((win: unknown) => {
+      const mapView = (win as WinWithMap).commonService.visuals.gisMap;
+      expect(mapView.commonService.session.style.widgets['map-countries-show'], 'offline countries selected').to.equal(true);
+      expect(mapView.lmap.hasLayer(mapView.layers.countries), 'offline countries rendered').to.equal(true);
+    });
+    openCustomMapTab();
+    setFloorplanLayer('Overlay');
+    assertFloorplanBackgroundOverOfflineMap();
+
+    setFloorplanLayer('Show');
+    assertFloorplanBackgroundShown();
 
     cy.get('@mapSettings')
       .find('#map-manual-positioning')
@@ -272,6 +504,10 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
       expect(savedSession, 'saved session contains GeoJSON').to.include('"geoJSON"');
       expect(savedSession, 'saved session contains manual floorplan x').to.include('"map_floorplan_x"');
       expect(savedSession, 'saved session contains floorplan layer flag').to.include('"map-user-geojson-show"');
+      expect(savedSession, 'saved session contains custom map mode').to.include('"map-floorplan-background-mode":"Show"');
+      expect(savedSession, 'saved session contains GeoJSON color').to.include(`"map-user-geojson-color":"${customGeoJSONColor}"`);
+      expect(savedSession, 'saved session contains GeoJSON transparency').to.include(`"map-user-geojson-transparency":${customGeoJSONTransparency}`);
+      expect(savedSession, 'saved session contains GeoJSON label property').to.include('"map-user-geojson-label-field":"name"');
     });
 
     visitAppAndAcceptEula();
@@ -279,6 +515,8 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     assertMapReady(30000);
 
     assertFloorplanBackgroundShown();
+    assertCustomGeoJSONStyle();
+    assertCustomGeoJSONLabels();
     assertNodeUsesFloorplanCoordinates(placedNodeId, placedPoint.x, placedPoint.y);
   });
 
@@ -297,6 +535,35 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
       .and('contain.text', 'x 0.00-80.00, y 0.00-80.00');
 
     assertSquareImageFloorplanBackgroundShown();
+    cy.get('@mapSettings').find('#map-user-geojson-color').should('not.exist');
+    cy.get('@mapSettings').find('#map-user-geojson-transparency').should('not.exist');
+    cy.get('@mapSettings').find('#map-user-geojson-label-field').should('not.exist');
+
+    cy.readFile(`cypress/fixtures/${floorplanFixture}`, 'utf8').then((contents: string) => {
+      cy.get('@mapSettings').find('#map-floorplan-background-file').selectFile({
+        contents: Cypress.Buffer.from(contents),
+        fileName: 'map-floorplan.json',
+        mimeType: 'application/json',
+      }, { force: true });
+    });
+    cy.get('@mapSettings')
+      .find('.map-user-geojson-summary', { timeout: 15000 })
+      .should('contain.text', 'map-floorplan.json')
+      .and('contain.text', '2 features');
+    cy.get('@mapSettings').find('#map-user-geojson-color').should('be.visible');
+    cy.get('@mapSettings').find('#map-user-geojson-transparency').should('be.visible');
+    cy.get('@mapSettings')
+      .find('#map-user-geojson-label-field')
+      .should('be.visible')
+      .find('.p-select-label')
+      .should('contain.text', 'None');
+    cy.window().should((win: unknown) => {
+      const session = (win as WinWithMap).commonService.session;
+      expect(session.data.geoJSONLayerName, 'JSON background layer name').to.equal('map-floorplan.json');
+      expect(session.style.widgets['map-floorplan-image-show'], 'image layer replaced by JSON').to.equal(false);
+      expect(session.style.widgets['map-user-geojson-show'], 'JSON layer visible').to.equal(true);
+      expect(session.style.widgets['map-user-geojson-label-field'], 'JSON label property defaults to None').to.equal('None');
+    });
   });
 
   it('updates the excluded-node count when a node is manually placed on the map', () => {
