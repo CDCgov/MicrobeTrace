@@ -50,6 +50,7 @@ interface CustomNodeSvgExportReplacement {
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
+type TwoDNetworkLayout = 'force-directed' | 'order-by-size';
 
 interface CollapsedAggregatePositionAnchor {
     id: string;
@@ -77,6 +78,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     cy: Core;
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
+    private forceDirectedLayoutSnapshot: Map<string, { x: number; y: number }> = new Map();
     private nodeDataById: Map<string, any> = new Map();
     data;
     pendingPartialUpdate = false;
@@ -650,6 +652,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
+    readonly NetworkLayoutOptions: { label: string; value: TwoDNetworkLayout }[] = [
+        { label: 'Force directed', value: 'force-directed' },
+        { label: 'Order clusters by size', value: 'order-by-size' }
+    ];
+    SelectedNetworkLayoutVariable: TwoDNetworkLayout = 'force-directed';
+
     SelecetedNetworkLinkStrengthVariable: any = 0.123;
     SelectedNetworkExportFilenameVariable: string = "";
 
@@ -718,6 +726,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
+        this.ensureNetworkLayoutWidgetDefault();
 
         this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
         this.container.on('hide', () => { 
@@ -1039,6 +1048,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!Number.isFinite(Number(this.widgets['network-node-collapse-threshold']))) {
             this.widgets['network-node-collapse-threshold'] = 0;
         }
+    }
+
+    private ensureNetworkLayoutWidgetDefault(): void {
+        const sessionWidgets = this.commonService.session?.style?.widgets;
+        if (sessionWidgets) {
+            this.widgets = sessionWidgets;
+        }
+        if (!this.widgets) return;
+
+        const layout = this.widgets['network-layout'];
+        if (layout !== 'force-directed' && layout !== 'order-by-size') {
+            this.widgets['network-layout'] = 'force-directed';
+        }
+    }
+
+    private getNetworkLayout(): TwoDNetworkLayout {
+        return this.widgets?.['network-layout'] === 'order-by-size'
+            ? 'order-by-size'
+            : 'force-directed';
     }
 
     private getNodeCollapseMetric(): string {
@@ -2584,6 +2612,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
         }
         this.ensureNodeCollapseWidgetDefaults();
+        this.ensureNetworkLayoutWidgetDefault();
 
         // Subscribe to style file applied event
         this.styleFileSub = this.store.styleFileApplied$.subscribe(() => {
@@ -4342,11 +4371,280 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (updateLayout) await this.updateLayout();
     }
 
+    private applyOrderByClusterSizeLayout(): void {
+        if (!this.cy || this.commonService.session.network.allPinned) return;
+
+        const layoutStart = this.getPerformanceNow();
+        const renderedNodes = this.cy.nodes()
+            .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+            .toArray() as cytoscape.NodeSingular[];
+        if (renderedNodes.length === 0) return;
+
+        const nodeById = new Map(renderedNodes.map(node => [node.id(), node]));
+        const adjacentNodeIds = new Map<string, Set<string>>(
+            renderedNodes.map(node => [node.id(), new Set<string>()])
+        );
+        this.getRenderedLayoutLinks().forEach(link => {
+            if (link.source === link.target) return;
+            adjacentNodeIds.get(link.source)?.add(link.target);
+            adjacentNodeIds.get(link.target)?.add(link.source);
+        });
+
+        type OrderedComponent = {
+            key: string;
+            nodes: cytoscape.NodeSingular[];
+            size: number;
+            minX: number;
+            minY: number;
+            width: number;
+            height: number;
+        };
+
+        const visitedNodeIds = new Set<string>();
+        const components: OrderedComponent[] = [];
+        Array.from(nodeById.keys()).sort().forEach(startNodeId => {
+            if (visitedNodeIds.has(startNodeId)) return;
+
+            const componentNodeIds: string[] = [];
+            const pendingNodeIds = [startNodeId];
+            visitedNodeIds.add(startNodeId);
+            while (pendingNodeIds.length > 0) {
+                const nodeId = pendingNodeIds.pop();
+                if (!nodeId) continue;
+
+                componentNodeIds.push(nodeId);
+                adjacentNodeIds.get(nodeId)?.forEach(adjacentNodeId => {
+                    if (!visitedNodeIds.has(adjacentNodeId) && nodeById.has(adjacentNodeId)) {
+                        visitedNodeIds.add(adjacentNodeId);
+                        pendingNodeIds.push(adjacentNodeId);
+                    }
+                });
+            }
+
+            const componentNodes = componentNodeIds
+                .sort()
+                .map(nodeId => nodeById.get(nodeId))
+                .filter((node): node is cytoscape.NodeSingular => !!node);
+            let minX = Number.POSITIVE_INFINITY;
+            let minY = Number.POSITIVE_INFINITY;
+            let maxX = Number.NEGATIVE_INFINITY;
+            let maxY = Number.NEGATIVE_INFINITY;
+            componentNodes.forEach(node => {
+                const bounds = node.boundingBox({
+                    includeLabels: false,
+                    includeOverlays: false
+                });
+                minX = Math.min(minX, bounds.x1);
+                minY = Math.min(minY, bounds.y1);
+                maxX = Math.max(maxX, bounds.x2);
+                maxY = Math.max(maxY, bounds.y2);
+            });
+            const representedNodeCount = componentNodes.reduce((count, node) => {
+                const aggregateCount = Number(node.data('totalCount'));
+                return count + (
+                    node.data('isCollapsedAggregate') === true
+                    && Number.isFinite(aggregateCount)
+                    && aggregateCount > 0
+                        ? aggregateCount
+                        : 1
+                );
+            }, 0);
+
+            const minimumComponentSize = this.getNodeLayoutSpacing();
+            components.push({
+                key: componentNodeIds[0],
+                nodes: componentNodes,
+                size: representedNodeCount,
+                minX,
+                minY,
+                width: Math.max(minimumComponentSize, maxX - minX),
+                height: Math.max(minimumComponentSize, maxY - minY)
+            });
+        });
+
+        components.sort((left, right) => left.size - right.size || left.key.localeCompare(right.key));
+        const componentsBySize = new Map<number, OrderedComponent[]>();
+        components.forEach(component => {
+            if (!componentsBySize.has(component.size)) componentsBySize.set(component.size, []);
+            componentsBySize.get(component.size).push(component);
+        });
+
+        const spacing = this.getNodeLayoutSpacing();
+        const verticalGap = spacing;
+        const columnGap = spacing * 1.25;
+        const bandGap = spacing * 2;
+        const containerRect = this.cyContainer?.nativeElement?.getBoundingClientRect();
+        const aspectRatio = Math.max(
+            0.75,
+            Math.min(2, Number(containerRect?.width || 1) / Math.max(1, Number(containerRect?.height || 1)))
+        );
+        const totalArea = components.reduce(
+            (area, component) => area + (component.width + columnGap) * (component.height + verticalGap),
+            0
+        );
+        const targetHeight = Math.max(
+            ...components.map(component => component.height),
+            Math.sqrt(totalArea / aspectRatio)
+        );
+
+        type ComponentColumn = { items: OrderedComponent[]; width: number; height: number };
+        const bands = Array.from(componentsBySize.entries()).map(([size, sizeComponents]) => {
+            const columns: ComponentColumn[] = [];
+            let currentColumn: ComponentColumn = { items: [], width: 0, height: 0 };
+
+            sizeComponents.forEach(component => {
+                const nextHeight = currentColumn.items.length === 0
+                    ? component.height
+                    : currentColumn.height + verticalGap + component.height;
+                if (currentColumn.items.length > 0 && nextHeight > targetHeight) {
+                    columns.push(currentColumn);
+                    currentColumn = { items: [], width: 0, height: 0 };
+                }
+
+                currentColumn.width = Math.max(currentColumn.width, component.width);
+                currentColumn.height = currentColumn.items.length === 0
+                    ? component.height
+                    : currentColumn.height + verticalGap + component.height;
+                currentColumn.items.push(component);
+            });
+            if (currentColumn.items.length > 0) columns.push(currentColumn);
+
+            return {
+                size,
+                columns,
+                width: columns.reduce(
+                    (width, column, index) => width + column.width + (index > 0 ? columnGap : 0),
+                    0
+                ),
+                height: Math.max(...columns.map(column => column.height))
+            };
+        });
+        const layoutHeight = Math.max(
+            ...bands.map(band => band.height),
+            targetHeight
+        );
+
+        let currentX = 0;
+        this.cy.batch(() => {
+            bands.forEach((band, bandIndex) => {
+                let columnX = currentX;
+                band.columns.forEach((column, columnIndex) => {
+                    let currentY = (layoutHeight - column.height) / 2;
+                    column.items.forEach(component => {
+                        const componentX = columnX + ((column.width - component.width) / 2);
+                        const offsetX = componentX - component.minX;
+                        const offsetY = currentY - component.minY;
+                        component.nodes.forEach(node => {
+                            const position = node.position();
+                            node.position({
+                                x: position.x + offsetX,
+                                y: position.y + offsetY
+                            });
+                        });
+                        currentY += component.height + verticalGap;
+                    });
+
+                    columnX += column.width;
+                    if (columnIndex < band.columns.length - 1) columnX += columnGap;
+                });
+                currentX += band.width;
+                if (bandIndex < bands.length - 1) currentX += bandGap;
+            });
+        });
+
+        renderedNodes.forEach(node => this.nodePositions.set(node.id(), { ...node.position() }));
+        this.syncVisibleNodePositionsFromCy();
+        this.cacheCollapsedAggregatePositions();
+        this.fit();
+        this.recordTwoDRenderTiming('twoDOrderClustersBySizeLayout', layoutStart, {
+            nodes: renderedNodes.length,
+            edges: this.getRenderedLayoutLinks().length,
+            clusters: components.length,
+            clusterSizes: Array.from(componentsBySize.keys())
+        });
+    }
+
+    private captureForceDirectedLayout(): void {
+        const cy = this.cy;
+        this.forceDirectedLayoutSnapshot.clear();
+        if (!this.isCytoscapeUsable(cy)) return;
+
+        cy.nodes()
+            .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+            .forEach((node: any) => {
+                this.forceDirectedLayoutSnapshot.set(node.id(), { ...node.position() });
+            });
+    }
+
+    private restoreForceDirectedLayout(): boolean {
+        const cy = this.cy;
+        if (!this.isCytoscapeUsable(cy) || this.forceDirectedLayoutSnapshot.size === 0) {
+            return false;
+        }
+
+        const renderedNodes = cy.nodes()
+            .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+            .toArray() as cytoscape.NodeSingular[];
+        if (
+            renderedNodes.length === 0
+            || renderedNodes.some(node => !this.forceDirectedLayoutSnapshot.has(node.id()))
+        ) {
+            this.forceDirectedLayoutSnapshot.clear();
+            return false;
+        }
+
+        cy.batch(() => {
+            renderedNodes.forEach(node => {
+                const position = this.forceDirectedLayoutSnapshot.get(node.id());
+                if (position) node.position(position);
+            });
+        });
+        renderedNodes.forEach(node => this.nodePositions.set(node.id(), { ...node.position() }));
+        this.syncVisibleNodePositionsFromCy();
+        this.cacheCollapsedAggregatePositions();
+        this.forceDirectedLayoutSnapshot.clear();
+        this.fit();
+        return true;
+    }
+
+    async onNetworkLayoutChange(layout: TwoDNetworkLayout): Promise<void> {
+        this.ensureNetworkLayoutWidgetDefault();
+        const previousLayout = this.getNetworkLayout();
+        const selectedLayout: TwoDNetworkLayout = layout === 'order-by-size'
+            ? 'order-by-size'
+            : 'force-directed';
+
+        if (previousLayout === 'force-directed' && selectedLayout === 'order-by-size') {
+            this.captureForceDirectedLayout();
+        }
+
+        this.widgets['network-layout'] = selectedLayout;
+        this.SelectedNetworkLayoutVariable = selectedLayout;
+
+        if (this.cy && !this.commonService.session.network.allPinned) {
+            if (
+                previousLayout === 'order-by-size'
+                && selectedLayout === 'force-directed'
+                && this.restoreForceDirectedLayout()
+            ) {
+                return;
+            }
+            await this.updateLayout();
+        }
+    }
+
     pinNodes() {
         this.commonService.session.network.allPinned = !this.commonService.session.network.allPinned;
     }
 
     async updateLayout(): Promise<void> {
+        if (this.commonService.session.network.allPinned) return;
+
+        if (this.getNetworkLayout() === 'order-by-size') {
+            await this._partialUpdate();
+            return;
+        }
+
         if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
             await this._partialUpdate();
         } else if (this.getRenderedLayoutLinks().length === 0) {
@@ -5227,6 +5525,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.isDestroyed) return;
 
+        this.ensureNetworkLayoutWidgetDefault();
+
         console.log('--- TwoD DATA network rerender');
         const rerenderStart = this.getPerformanceNow();
         const hadCytoscapeAtStart = !!this.cy;
@@ -5752,6 +6052,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
 
          }
+            if (
+                this.cy
+                && this.getNetworkLayout() === 'order-by-size'
+                && (!hadCytoscapeAtStart || timelineTick)
+            ) {
+                this.applyOrderByClusterSizeLayout();
+            }
             console.log('--- TwoD DATA network rerender complete');
     }
 
@@ -6679,7 +6986,11 @@ scaleLinkWidth() {
         //     }
         // });
 
-        this.fit();
+        if (this.getNetworkLayout() === 'order-by-size') {
+            this.applyOrderByClusterSizeLayout();
+        } else {
+            this.fit();
+        }
 
            // Set rendered to true now that network has rendered
            this.store.setNetworkRendered(true); 
@@ -6696,6 +7007,7 @@ scaleLinkWidth() {
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
+        this.ensureNetworkLayoutWidgetDefault();
         this.loadSettings();
         this._partialUpdate(); 
     }
@@ -6743,6 +7055,7 @@ scaleLinkWidth() {
         console.log('onLoadNewData');
         this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
+        this.ensureNetworkLayoutWidgetDefault();
         this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
 
         if (!this.IsDataAvailable) {
@@ -6796,6 +7109,7 @@ scaleLinkWidth() {
      */
     loadSettings() {
         this.ensureNodeCollapseWidgetDefaults();
+        this.ensureNetworkLayoutWidgetDefault();
 
         //Polygons|Label Size
         this.SelectedPolygonLabelSizeVariable = this.widgets['polygons-label-size'];
@@ -6910,6 +7224,9 @@ scaleLinkWidth() {
         //Network|Gridlines
         this.SelectedNetworkGridLineTypeVariable = this.widgets['network-gridlines-show'] ? "Show" : "Hide";
         this.onNetworkGridlinesShowHideChange(this.SelectedNetworkGridLineTypeVariable);
+
+        // Network|Layout
+        this.SelectedNetworkLayoutVariable = this.getNetworkLayout();
 
         //Network|Link Strength
         this.SelecetedNetworkLinkStrengthVariable = this.widgets['network-link-strength'];

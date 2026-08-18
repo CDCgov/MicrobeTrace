@@ -301,6 +301,12 @@
               <p-selectButton id="network-gridlines-show-hide" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-selectButton>
             </div>
           </div>
+          <div class="form-group row" title="Choose how the visible network is arranged. Order clusters by size keeps connected clusters intact, places equal-sized clusters together, and increases cluster sizes from left to right.">
+            <div class="col-3"><label for="network-layout">Layout</label></div>
+            <div class="col-9">
+              <p-select id="network-layout" data-testid="twod-network-layout" [options]="NetworkLayoutOptions" appendTo="body" class="width-percent-100" [disabled]="commonService.session.network.allPinned" [(ngModel)]="SelectedNetworkLayoutVariable" (ngModelChange)="onNetworkLayoutChange($event)"></p-select>
+            </div>
+          </div>
         </div>
       </p-accordion-content>
     </p-accordion-panel>

@@ -52,6 +52,7 @@ export const testIds = {
   twodSettingsDialog: 'twod-settings-dialog',
   twodPinAllButton: 'twod-pin-all-button',
   twodRecalculateLayoutButton: 'twod-recalculate-layout-button',
+  twodNetworkLayout: 'twod-network-layout',
   bubbleCanvas: 'bubble-canvas',
   bubbleSettingsButton: 'bubble-settings-button',
   bubbleSettingsDialog: 'bubble-settings-dialog',
