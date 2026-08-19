@@ -55,6 +55,14 @@ const setBootstrapReplicates = (replicates: string): void => {
     .trigger('change', { force: true });
 };
 
+const setBootstrapSupportThreshold = (threshold: string): void => {
+  cy.get('@phyloSettings').find('#bootstrap-support-threshold')
+    .clear({ force: true })
+    .type(threshold, { force: true })
+    .trigger('change', { force: true })
+    .should('have.value', threshold);
+};
+
 const assertBootstrapConfirmationVisible = (): void => {
   cy.contains('.p-dialog:visible', BOOTSTRAP_CONFIRMATION_TEXT, { timeout: 15000 })
     .as('bootstrapConfirmDialog')
@@ -105,6 +113,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
         expect(widgets['tree-bootstrap-stop-when-stable']).to.equal(false);
         expect(widgets['tree-bootstrap-custom-replicates']).to.equal(100);
         expect(widgets['tree-bootstrap-decimal-length']).to.equal(1);
+        expect(widgets['tree-bootstrap-support-threshold']).to.equal(0);
       });
     cy.get('@phyloSettings').find('#bootstrap-replicates').should('have.value', '100');
     cy.get('@phyloSettings').find('#calculate-bootstrap').should('not.be.disabled');
@@ -138,6 +147,47 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
 
     setBootstrapReplicates('5000');
     cy.get('@phyloSettings').find('#bootstrap-replicates').should('have.value', '1000');
+
+    cy.window().then((win: WinWithMT) => {
+      const phylo = win.commonService.visuals.phylogenetic;
+      phylo.hasTreeBeenModifiedFromOriginal = true;
+      phylo.cdref.detectChanges();
+    });
+    cy.get('@phyloSettings').find('#calculate-bootstrap').should('be.disabled');
+    cy.get('#bootstrap-status')
+      .should('contain.text', 'Bootstrap support calculated from 5 replicates.')
+      .and('contain.text', 'Restore the full tree before calculating bootstrap support.');
+  });
+
+  it('formats and filters bootstrap support imported with a Newick tree', () => {
+    launchProfileToPhyloTree(getProfile('phylo-tn93-newick'));
+    assertPhyloTreeReady();
+
+    openPhyloSettingsDialog();
+    cy.get('@phyloSettings').contains('a', 'Branches').click({ force: true });
+    cy.get('@phyloSettings').contains('p-accordion-header', 'Branch Nodes').click({ force: true });
+    cy.get('@phyloSettings').find('#branch-node-visibility2').contains('Show').click({ force: true });
+
+    assertBootstrapLabelsVisible();
+    openBootstrapTab();
+    selectBootstrapDecimals('2');
+    assertBootstrapLabelsVisible(/^\d+\.\d{2}%$/);
+
+    setBootstrapSupportThreshold('90');
+    cy.get(SELECTORS.internalNodeLabels).should(($labels) => {
+      const supportLabels = Array.from($labels)
+        .map(label => ({
+          value: parseFloat(String(label.textContent || '')),
+          opacity: getComputedStyle(label).opacity,
+        }))
+        .filter(label => Number.isFinite(label.value));
+      const visible = supportLabels.filter(label => label.opacity !== '0');
+      const hidden = supportLabels.filter(label => label.opacity === '0');
+
+      expect(visible.length, 'visible support labels').to.be.greaterThan(0);
+      expect(hidden.length, 'hidden support labels').to.be.greaterThan(0);
+      expect(visible.every(label => label.value >= 90), 'visible labels meet threshold').to.equal(true);
+    });
   });
 
   it('shows bootstrap as unavailable for matrix-only and Newick-only phylogeny inputs', () => {

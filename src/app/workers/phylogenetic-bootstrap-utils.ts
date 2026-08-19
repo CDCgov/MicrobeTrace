@@ -14,7 +14,7 @@ export const BOOTSTRAP_SPLIT_SEPARATOR = '\u001f';
 export const BOOTSTRAP_MAX_REPLICATES = 1000;
 export const BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT = 0.5;
 
-const BOOTSTRAP_LABEL_PATTERN = /^(?:\d+(?:\.\d+)?%|(?:0(?:\.\d+)?|1(?:\.0+)?))$/;
+const BOOTSTRAP_NUMERIC_LABEL_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 function sortedUniqueTaxa(values: Iterable<unknown>): string[] {
   const seen = new Set<string>();
@@ -201,6 +201,12 @@ export function normalizeBootstrapDecimalLength(value: unknown): number {
   return Math.min(3, Math.max(0, parsed));
 }
 
+export function normalizeBootstrapSupportThreshold(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.min(100, Math.max(0, parsed));
+}
+
 export function formatBootstrapSupportPercent(value: unknown, decimalLength: unknown): string {
   const bounded = normalizeBootstrapSupportPercentValue(value);
   return `${bounded.toFixed(normalizeBootstrapDecimalLength(decimalLength))}%`;
@@ -211,12 +217,27 @@ export function normalizeBootstrapSupportPercentValue(value: unknown): number {
   return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0;
 }
 
+export function parseBootstrapSupportPercent(value: unknown): number | null {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+
+  const hasPercentSuffix = text.endsWith('%');
+  const numericText = hasPercentSuffix ? text.slice(0, -1).trim() : text;
+  if (!BOOTSTRAP_NUMERIC_LABEL_PATTERN.test(numericText)) return null;
+
+  const parsed = Number(numericText);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+
+  const percent = hasPercentSuffix || parsed > 1 ? parsed : parsed * 100;
+  return percent <= 100 ? percent : null;
+}
+
 export function formatBootstrapSupportDecimal(value: unknown): string {
   return String(normalizeBootstrapSupportPercentValue(value) / 100);
 }
 
 export function looksLikeBootstrapLabel(value: unknown): boolean {
-  return BOOTSTRAP_LABEL_PATTERN.test(String(value ?? '').trim());
+  return parseBootstrapSupportPercent(value) !== null;
 }
 
 export function clearBootstrapInternalLabels(root: BootstrapTreeNode | null | undefined): void {

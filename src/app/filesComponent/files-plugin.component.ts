@@ -6,6 +6,7 @@ import { saveAs } from 'file-saver';
 import * as fileto from 'fileto';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';
+import * as patristic from 'patristic';
 import * as _ from 'lodash';
 import JSZip from 'jszip';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
@@ -18,6 +19,7 @@ import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
 import { EmbedLaunchOptionsV1, ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
+import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
 
 interface FileTableOption {
   label: string;
@@ -2113,10 +2115,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       } else { // if(file.format === 'newick'){
 
-        this.commonService.session.data.newickString = file.contents;
+        let normalizedNewick = file.contents;
+        let normalizedTerminalBranchCount = 0;
+        try {
+          const parsedNewick = patristic.parseNewick(file.contents);
+          normalizedTerminalBranchCount = clampNegativeBranchLengthsToZero(parsedNewick, { terminalOnly: true });
+          if (normalizedTerminalBranchCount > 0) {
+            normalizedNewick = parsedNewick.toNewick(false);
+          }
+        } catch {
+          // Let the patristic worker report parse errors with the existing UI path.
+        }
+
+        this.commonService.session.data.newickString = normalizedNewick;
         this.commonService.session.data.newickSource = 'newick';
         const patristicStart = Date.now();
-        this.workerComputeService.initPatristicTree(file.contents).then(async treeReady => {
+        this.workerComputeService.initPatristicTree(normalizedNewick).then(async treeReady => {
           if (!isCurrentLoad()) return;
 
           this.commonService.recordPerformanceTiming('ingestion', 'preprocessNewickPatristicTree', patristicStart, {
@@ -2137,7 +2151,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               origin,
               distanceOrigin: file.name,
               check,
-              newickString: file.contents,
+              newickString: normalizedNewick,
             }
           );
 
@@ -2201,6 +2215,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             activeThreshold
           });
           this.showMessage(` - Parsed ${newNodes} New, ${leafNames.length} Total Nodes from Newick Tree.`);
+          if (normalizedTerminalBranchCount > 0) {
+            const branchLabel = normalizedTerminalBranchCount === 1 ? 'branch length' : 'branch lengths';
+            this.showMessage(` - Set ${normalizedTerminalBranchCount} negative terminal ${branchLabel} to zero.`);
+          }
           if (guardrail?.message) {
             this.showMessage(` - ${guardrail.message}`);
           }

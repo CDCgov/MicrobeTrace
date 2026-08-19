@@ -576,6 +576,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-animation-on': true,
             'tree-bootstrap-custom-replicates': 100,
             'tree-bootstrap-decimal-length': 1,
+            'tree-bootstrap-support-threshold': 0,
             'tree-bootstrap-stop-when-stable': false,
             'tree-branch-distances-hide': true,
             'tree-branch-distance-size': 12,

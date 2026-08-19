@@ -34,6 +34,8 @@ import {
   formatBootstrapSupportPercent,
   normalizeBootstrapDecimalLength,
   normalizeBootstrapReplicateCount,
+  normalizeBootstrapSupportThreshold,
+  parseBootstrapSupportPercent,
 } from '@app/workers/phylogenetic-bootstrap-utils';
 import type {
   PhylogeneticBootstrapComputeResult,
@@ -145,6 +147,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? 100);
   SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? false;
   SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? 1);
+  SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? 0);
   BootstrapRunning = false;
   BootstrapProgressValue = 0;
   BootstrapStatusMessage = '';
@@ -427,32 +430,33 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   private getBootstrapSupportForBranch(data: any): number | null {
-    const metadata = this.commonService.session.data?.phylogeneticBootstrap;
-    if (!this.tree?.data || !metadata?.supportBySplitKey) {
-      return null;
-    }
-
     const branch = data?.data ?? data;
-    const allLeafIds = Array.isArray(metadata.labels) && metadata.labels.length
-      ? metadata.labels.map(label => String(label))
-      : collectLeafIds(this.tree.data);
-    const splitKey = canonicalSplitKey(collectLeafIds(branch), allLeafIds);
+    const metadata = this.commonService.session.data?.phylogeneticBootstrap;
+    if (this.tree?.data && metadata?.supportBySplitKey) {
+      const allLeafIds = Array.isArray(metadata.labels) && metadata.labels.length
+        ? metadata.labels.map(label => String(label))
+        : collectLeafIds(this.tree.data);
+      const splitKey = canonicalSplitKey(collectLeafIds(branch), allLeafIds);
 
-    if (!splitKey || !Object.prototype.hasOwnProperty.call(metadata.supportBySplitKey, splitKey)) {
-      return null;
+      if (splitKey && Object.prototype.hasOwnProperty.call(metadata.supportBySplitKey, splitKey)) {
+        const value = Number(metadata.supportBySplitKey[splitKey]);
+        if (Number.isFinite(value)) return value;
+      }
     }
 
-    const value = Number(metadata.supportBySplitKey[splitKey]);
-    return Number.isFinite(value) ? value : null;
+    return parseBootstrapSupportPercent(branch?.id);
   }
 
   styleBranchLabel = (label, data) => {
     const supportValue = this.getBootstrapSupportForBranch(data);
-    const selection = d3.select(label);
+    const selection = d3.select(label).interrupt();
     if (supportValue !== null) {
       selection.text(formatBootstrapSupportPercent(supportValue, this.SelectedBootstrapDecimalLength));
     }
-    selection.style('font-size', `${this.SelectedBranchLabelSizeVariable}px`);
+    const meetsSupportThreshold = supportValue === null || supportValue >= this.SelectedBootstrapSupportThreshold;
+    selection
+      .style('font-size', `${this.SelectedBranchLabelSizeVariable}px`)
+      .style('opacity', this.SelectedBranchLabelShowVariable && meetsSupportThreshold ? 1 : 0);
   }
 
   styleBranchNode = (node, data) => {
@@ -1146,6 +1150,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.cdref.detectChanges();
   }
 
+  onBootstrapSupportThresholdChange(event) {
+    const target = event?.target as HTMLInputElement | undefined;
+    const value = target?.value ?? this.SelectedBootstrapSupportThreshold;
+    this.SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(value);
+    this.settings['tree-bootstrap-support-threshold'] = this.SelectedBootstrapSupportThreshold;
+    this.styleTree();
+    this.cdref.detectChanges();
+  }
+
   cancelBootstrapSupport() {
     this.workerComputeService.cancelPhylogeneticBootstrapJob();
   }
@@ -1646,6 +1659,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   this.SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? this.SelectedBootstrapCustomReplicates)
   this.SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? this.SelectedBootstrapStopWhenStable
   this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? this.SelectedBootstrapDecimalLength)
+  this.SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? this.SelectedBootstrapSupportThreshold)
 
   // Colors
   if (this.settings['node-color']) {

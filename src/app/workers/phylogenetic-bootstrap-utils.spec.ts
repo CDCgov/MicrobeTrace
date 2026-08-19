@@ -6,6 +6,8 @@ import {
   countMatchingTreeSplits,
   formatBootstrapSupportPercent,
   isSupportStable,
+  normalizeBootstrapSupportThreshold,
+  parseBootstrapSupportPercent,
   splitTaxaFromKey,
 } from './phylogenetic-bootstrap-utils';
 
@@ -44,6 +46,22 @@ describe('phylogenetic bootstrap utilities', () => {
     expect(formatBootstrapSupportPercent(85.234, 1)).toBe('85.2%');
     expect(formatBootstrapSupportPercent(85.234, 10)).toBe('85.234%');
     expect(formatBootstrapSupportPercent(120, 0)).toBe('100%');
+  });
+
+  it('normalizes imported fractional and percentage support labels', () => {
+    expect(parseBootstrapSupportPercent('0.8095238095238095')).toBeCloseTo(80.95238095238095);
+    expect(parseBootstrapSupportPercent('85.25')).toBe(85.25);
+    expect(parseBootstrapSupportPercent('91.5%')).toBe(91.5);
+    expect(parseBootstrapSupportPercent('clade-a')).toBeNull();
+    expect(parseBootstrapSupportPercent('-0.5')).toBeNull();
+    expect(parseBootstrapSupportPercent('101')).toBeNull();
+  });
+
+  it('bounds bootstrap support thresholds to percentages', () => {
+    expect(normalizeBootstrapSupportThreshold(-10)).toBe(0);
+    expect(normalizeBootstrapSupportThreshold(70)).toBe(70);
+    expect(normalizeBootstrapSupportThreshold(120)).toBe(100);
+    expect(normalizeBootstrapSupportThreshold('not-a-number')).toBe(0);
   });
 
   it('detects stable support snapshots within tolerance', () => {
