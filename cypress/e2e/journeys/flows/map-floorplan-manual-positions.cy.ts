@@ -54,7 +54,7 @@ const openCustomMapTab = (): void => {
     .contains('label.custom-file-label', 'Choose Custom Map File')
     .should('be.visible');
   cy.get('@mapSettings')
-    .contains('a[href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View"]', 'More Information')
+    .contains('a[href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View-with-GeoJSON-Files-and-Custom-Maps"]', 'More Information')
     .should('have.attr', 'target', '_blank')
     .and('have.attr', 'title', 'Open the custom map tutorial document for GeoJSON and image floorplans.');
 };
