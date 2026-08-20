@@ -367,6 +367,16 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeTableColumns: [],
             linkTableColumns: [],
             clusterTableColumns: [],
+            geoJSON: null,
+            geoJSONLayerName: '',
+            floorplanImage: null,
+            floorplanImageLayerName: '',
+            floorplanImageBounds: null,
+            floorplanImageWidth: null,
+            floorplanImageHeight: null,
+            floorplanBackgroundBaseLayerState: null as any,
+            floorplanBoundaryField: 'None',
+            floorplanBoundaries: [],
             tree: {},
             newickString: '',
             newickSource: '',
@@ -498,6 +508,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-county': 'None',
             'map-field-state': 'None',
             'map-field-country': 'None',
+            'map-user-geojson-show': false,
+            'map-user-geojson-color': '#3388ff',
+            'map-user-geojson-transparency': 0.25,
+            'map-user-geojson-label-field': 'None',
+            'map-floorplan-image-show': false,
+            'map-floorplan-boundaries-show': true,
             'map-link-show': true,
             'map-link-tooltip-variable': 'None',
             'map-link-transparency': 0,
@@ -2802,10 +2818,25 @@ export class CommonService extends AppComponentBase implements OnInit {
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
 
-         if (oldSession.data.geoJSONLayerName !== "") {
+        if (oldSession.data?.geoJSONLayerName || oldSession.data?.geoJSON) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
-            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
+            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName || '';
         }
+
+        if (oldSession.data?.floorplanImageLayerName || oldSession.data?.floorplanImage) {
+            this.session.data['floorplanImage'] = oldSession.data.floorplanImage;
+            this.session.data['floorplanImageLayerName'] = oldSession.data.floorplanImageLayerName || '';
+            this.session.data['floorplanImageBounds'] = oldSession.data.floorplanImageBounds || null;
+            this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
+            this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
+        }
+
+        this.session.data['floorplanBackgroundBaseLayerState'] = oldSession.data?.floorplanBackgroundBaseLayerState || null;
+
+        this.session.data['floorplanBoundaryField'] = oldSession.data.floorplanBoundaryField || 'None';
+        this.session.data['floorplanBoundaries'] = Array.isArray(oldSession.data.floorplanBoundaries)
+            ? oldSession.data.floorplanBoundaries
+            : [];
 
         // Previous versions of MT could store jQuery events instead of color strings.
         // Node color history is now nested by variable, so sanitize its leaf values.

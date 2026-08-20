@@ -16,6 +16,16 @@ import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
 import { EmbedLaunchOptionsV1, ImportedEmbedFile } from '@app/embed/embed-handoff.types';
+import {
+  extractGeoJSONFeatureLocations,
+  GEOJSON_FEATURE_ID_FIELD,
+  GEOJSON_LATITUDE_FIELD,
+  GEOJSON_LONGITUDE_FIELD,
+  getGeoJSONIdFields,
+  isGeoJSONData,
+  parseGeoJSONContent,
+  validateGeoJSONLocationData
+} from '@app/contactTraceCommonServices/geojson-import';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 
@@ -131,6 +141,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     { label: 'FASTA', value: 'fasta' },
     { label: 'Newick', value: 'newick' },
     { label: 'Auspice', value: 'auspice' },
+    { label: 'GeoJSON', value: 'geojson' },
     { label: 'Network', value: 'network' },
   ];
   readonly fileTableFieldNumbers = [1, 2, 3];
@@ -200,6 +211,93 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   private isFilesPageDropEnabled(): boolean {
     return this.commonService.activeTab === FilesComponent.componentTypeName || this.isFilesViewVisible();
+  }
+
+  private getGeoJSONData(file: any): any {
+    return parseGeoJSONContent(file?.contents);
+  }
+
+  private resolveGeoJSONIdField(file: any, data: any): string {
+    const fields = getGeoJSONIdFields(data);
+    const selected = file?.field1;
+    if (selected && selected !== 'None' && fields.includes(selected)) {
+      return selected;
+    }
+
+    const preferredFields = ['_id', 'id', 'ID', 'Id', 'node_id', 'nodeId', 'Node ID', 'NodeID', 'Sample ID', 'SampleID', 'sample_id', 'name', 'Name'];
+    return preferredFields.find(field => fields.includes(field)) || fields[0] || 'id';
+  }
+
+  private ensureGeoJSONNodeFields(): void {
+    [GEOJSON_LATITUDE_FIELD, GEOJSON_LONGITUDE_FIELD, GEOJSON_FEATURE_ID_FIELD].forEach(field => {
+      if (!this.commonService.includes(this.commonService.session.data.nodeFields, field)) {
+        this.commonService.session.data.nodeFields.push(field);
+      }
+    });
+  }
+
+  private applyGeoJSONLocationFiles(): void {
+    const geoJSONFiles = this.commonService.session.files.filter(file => file.format === 'geojson');
+    if (!geoJSONFiles.length) {
+      return;
+    }
+
+    this.ensureGeoJSONNodeFields();
+
+    geoJSONFiles.forEach(file => {
+      let data: any;
+      try {
+        data = this.getGeoJSONData(file);
+        validateGeoJSONLocationData(data);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to parse GeoJSON location data.';
+        this.showMessage(` - Skipped ${file.name}: ${message}`);
+        return;
+      }
+
+      const idField = this.resolveGeoJSONIdField(file, data);
+      file.field1 = idField;
+      file.field2 = 'None';
+      file.field3 = 'None';
+
+      const extracted = extractGeoJSONFeatureLocations(data, idField);
+      const nodesById = new Map<string, any>();
+      this.commonService.session.data.nodes.forEach(node => {
+        const id = String(node?._id ?? node?.id ?? '').trim();
+        if (id) {
+          nodesById.set(id, node);
+        }
+      });
+
+      let matchedNodes = 0;
+      extracted.locations.forEach(location => {
+        const node = nodesById.get(location.id);
+        if (!node) {
+          return;
+        }
+
+        node[GEOJSON_LATITUDE_FIELD] = location.latitude;
+        node[GEOJSON_LONGITUDE_FIELD] = location.longitude;
+        node[GEOJSON_FEATURE_ID_FIELD] = this.commonService.filterXSS(location.id);
+
+        const existingOrigin = Array.isArray(node.origin) ? node.origin : [];
+        node.origin = this.commonService.uniq(existingOrigin.concat([file.name]));
+        matchedNodes++;
+      });
+
+      this.commonService.session.data.geoJSON = data;
+      this.commonService.session.data.geoJSONLayerName = this.commonService.filterXSS(file.name);
+      this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+      this.commonService.session.style.widgets['map-floorplan-background-mode'] = 'Hide';
+      this.commonService.session.style.widgets['map-user-geojson-label-field'] = 'None';
+
+      if (matchedNodes > 0) {
+        this.commonService.session.style.widgets['map-field-lat'] = GEOJSON_LATITUDE_FIELD;
+        this.commonService.session.style.widgets['map-field-lon'] = GEOJSON_LONGITUDE_FIELD;
+      }
+
+      this.showMessage(` - Matched ${matchedNodes} of ${extracted.featureCount} GeoJSON features from ${file.name}.`);
+    });
   }
 
   @HostListener('document:dragover', ['$event'])
@@ -329,6 +427,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   private matchFileTableHeaders(row: FileTableRow, type: string): void {
+    if (type === 'geojson') {
+      const preferredFields = ['_id', 'id', 'ID', 'Id', 'node_id', 'nodeId', 'Node ID', 'NodeID', 'Sample ID', 'SampleID', 'sample_id', 'name', 'Name'];
+      const selected = row.file?.field1;
+      const idField = selected && this.commonService.includes(row.headers, selected)
+        ? selected
+        : preferredFields.find(field => this.commonService.includes(row.headers, field)) || row.headers[0] || 'id';
+
+      row.field1 = idField;
+      row.field2 = 'None';
+      row.field3 = 'None';
+      return;
+    }
+
     const sourceHeaders = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'];
     const targetHeaders = type === 'node'
       ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq']
@@ -379,7 +490,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   getFileTableFieldLabel(row: FileTableRow, fieldNumber: number): string {
     if (fieldNumber === 1) {
-      return row.format === 'node' ? 'ID' : 'Source';
+      return row.format === 'node' || row.format === 'geojson' ? 'ID' : 'Source';
     }
 
     if (fieldNumber === 2) {
@@ -402,13 +513,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   isFileTableFieldVisible(row: FileTableRow, fieldNumber: number): boolean {
-    return row.format === 'link' || (row.format === 'node' && fieldNumber < 3);
+    return row.format === 'link' ||
+      (row.format === 'node' && fieldNumber < 3) ||
+      (row.format === 'geojson' && fieldNumber === 1);
   }
 
   onFileTableFormatChange(row: FileTableRow, format: string): void {
     row.format = format;
 
-    if (format === 'node' || format === 'link') {
+    if (format === 'node' || format === 'link' || format === 'geojson') {
       this.matchFileTableHeaders(row, format);
     }
 
@@ -1418,8 +1531,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const nFiles = this.commonService.session.files.length - 1;
     const check = nFiles > 0;
 
-    // sorts files based on hierarchy
-    const hierarchy = ['auspice', 'newick', 'matrix', 'network', 'graphml', 'link', 'node', 'fasta'];
+    // GeoJSON location files are merged in processData() after node-producing inputs
+    // have populated session.data.nodes.
+    const hierarchy = ['geojson', 'auspice', 'newick', 'matrix', 'network', 'graphml', 'link', 'node', 'fasta'];
     this.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
 
@@ -2111,6 +2225,32 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           //});
         }
 
+      } else if (file.format === 'geojson') {
+
+        this.showMessage(`Parsing ${file.name} as GeoJSON Location Data...`);
+        try {
+          const data = this.getGeoJSONData(file);
+          validateGeoJSONLocationData(data);
+          const idField = this.resolveGeoJSONIdField(file, data);
+          file.field1 = idField;
+          file.field2 = 'None';
+          file.field3 = 'None';
+          const extracted = extractGeoJSONFeatureLocations(data, idField);
+
+          this.commonService.session.data.geoJSON = data;
+          this.commonService.session.data.geoJSONLayerName = this.commonService.filterXSS(file.name);
+          this.commonService.session.style.widgets['map-user-geojson-show'] = false;
+          this.commonService.session.style.widgets['map-floorplan-background-mode'] = 'Hide';
+          this.commonService.session.style.widgets['map-user-geojson-label-field'] = 'None';
+
+          this.showMessage(` - Parsed ${extracted.featureCount} GeoJSON features from ${file.name}.`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to parse GeoJSON location data.';
+          this.showMessage(` - Skipped ${file.name}: ${message}`);
+        }
+
+        if (fileNum === nFiles) this.processData(loadGeneration);
+
       } else { // if(file.format === 'newick'){
 
         this.commonService.session.data.newickString = file.contents;
@@ -2226,6 +2366,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
       return;
     }
+
+    this.applyGeoJSONLocationFiles();
 
     this.applyPendingEmbedLaunchOptions(true);
 
@@ -2523,6 +2665,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               const auspiceFile = { contents: output, name: fileName, extension: extension, format: 'auspice', datatype: 'auspice'};
               this.commonService.session.files.push(auspiceFile);
               this.addToTable(auspiceFile);
+            } else if (isGeoJSONData(output)) {
+              const geoJSONFile = {
+                contents: out.target['result'] as string,
+                name: fileName,
+                extension: extension,
+                format: 'geojson',
+                field1: this.resolveGeoJSONIdField({ field1: undefined }, output),
+                field2: 'None',
+                field3: 'None'
+              };
+              this.commonService.session.files.push(geoJSONFile);
+              this.addToTable(geoJSONFile);
             } else {
               this.commonService.processJSON(out.target, extension);
             }
@@ -2574,7 +2728,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if (explicitFormat === 'network' || explicitFormat === 'graphml') {
       return 'network';
     }
-    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice'];
+    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice', 'geojson'];
     if (knownFormats.includes(explicitFormat)) {
       return explicitFormat;
     }
@@ -2654,7 +2808,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       || this.graphMLService.looksLikeNetworkDocument(file.contents);
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
-    const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
+    const isAuspice = (extension === 'json' && file.contents && typeof file.contents === 'object' && file.contents.meta && file.contents.tree);
+    let parsedGeoJSONData: any = null;
+    let isGeoJSON = false;
+
+    if (extension === 'geojson') {
+      isGeoJSON = true;
+    } else if (isJSON && !isAuspice) {
+      try {
+        parsedGeoJSONData = this.getGeoJSONData(file);
+        isGeoJSON = isGeoJSONData(parsedGeoJSONData);
+      } catch {
+        isGeoJSON = false;
+      }
+    }
+
     const tableFormatHints = { isFasta, isNewick, isAuspice, isNetworkDocument };
     if (isXL) {
       try {
@@ -2673,6 +2841,24 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         addTableTile([file.field1, file.field2, file.field3], this);
         return;
       }
+    } else if (isGeoJSON) {
+      let headers = ['id'];
+      file.format = 'geojson';
+      file.field2 = 'None';
+      file.field3 = 'None';
+
+      try {
+        parsedGeoJSONData = parsedGeoJSONData ?? this.getGeoJSONData(file);
+        const fields = getGeoJSONIdFields(parsedGeoJSONData);
+        headers = fields.length ? fields : headers;
+        file.field1 = this.resolveGeoJSONIdField(file, parsedGeoJSONData);
+      } catch (error) {
+        console.log('Unable to read GeoJSON location file: ', file.name, error);
+        file.field1 = file.field1 || 'id';
+      }
+
+      addTableTile(headers, this);
+      this.nodeEdgeCheck();
     } else if (isNetworkDocument) {
       try {
         const networkDocument = this.graphMLService.importNetworkDocument(file.contents, { sourceName: file.name });
