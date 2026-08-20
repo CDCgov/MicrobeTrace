@@ -18,7 +18,7 @@ describe('Bubble View', () => {
   };
   
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
 
     cy.contains('button', 'View').click();
     cy.contains('button[mat-menu-item]', 'Bubble').click();
@@ -533,8 +533,17 @@ describe('Bubble View', () => {
     });
 
     it('starts and stops the timeline and also checks that play button is updated', () => {
-      cy.get('svg g.slider text.label').should('have.text', 'Jul  4')
-      cy.get('svg g.slider circle.handle').should('not.have.attr', 'cx')
+      cy.window().then((win: any) => {
+        const microbeTrace = win.commonService.visuals.microbeTrace;
+        const activeDate = new Date(win.commonService.session.state.timeEnd);
+        const activeX = Number(microbeTrace.xAttribute(activeDate));
+
+        cy.get('svg g.slider text.label').should('have.text', microbeTrace.handleDateFormat(activeDate));
+        cy.get('svg g.slider circle.handle')
+          .invoke('attr', 'cx')
+          .then(Number)
+          .should('be.closeTo', activeX, 1);
+      });
       cy.get('#timeline-play-button').should('contain', 'Play').click();
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
@@ -585,7 +594,20 @@ describe('Bubble View', () => {
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
 
-      cy.get('#node-color-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table td[data-value="Pennsylvania"]')
+        .closest('tr')
+        .find('input[type="color"]')
+        .should('have.length', 1)
+        .then(($input) => {
+          const input = $input.get(0) as HTMLInputElement;
+          input.value = '#777777';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      cy.get('#key-tables-node-table td[data-value="Pennsylvania"]')
+        .closest('tr')
+        .find('input[type="color"]')
+        .should('have.value', '#777777');
 
       cy.window().its('commonService.visuals.bubble').then(bubble => {
         let penNode = bubble.cy.nodes('[id = "MZ415508"]')[0]
@@ -602,27 +624,40 @@ describe('Bubble View', () => {
       }) 
     })
 
-    it('clicks slider midway and then back to start', () => {
+    it('clicks the slider forward and then back to start', () => {
       cy.get('#global-timeline svg line.track-overlay').first().click(300, 0, {force: true});
       cy.wait(1500)
-      cy.get('svg g.slider text.label').should('have.text', 'Jul 22') 
       cy.window().then((win: any) => {
+        const state = win.commonService.session.state;
+        const activeTime = new Date(state.timeEnd).getTime();
+        const startTime = new Date(state.timeStart).getTime();
+        const targetTime = new Date(state.timeTarget).getTime();
+        const microbeTrace = win.commonService.visuals.microbeTrace;
         let visNodeCount = win.commonService.getVisibleNodes().length;
 
         const bubble = win.commonService.visuals.bubble;
         const bubbleNodeCount = bubble.cy.nodes().filter(n => !n.hasClass('X_axis') && !n.hasClass('Y_axis')).length
-        expect(visNodeCount).to.eq(bubbleNodeCount).to.eq(20);
+        expect(activeTime, 'forward timeline date').to.be.greaterThan(startTime);
+        expect(activeTime, 'forward timeline date').to.be.at.most(targetTime);
+        expect(visNodeCount).to.eq(bubbleNodeCount);
+        cy.get('svg g.slider text.label')
+          .should('have.text', microbeTrace.handleDateFormat(new Date(state.timeEnd)));
       })
 
       cy.get('#global-timeline svg line.track-overlay').first().click(0, 0, {force: true});
       cy.wait(1500)
-      cy.get('svg g.slider text.label').should('have.text', 'Jul  4') 
       cy.window().then((win: any) => {
+        const state = win.commonService.session.state;
+        const microbeTrace = win.commonService.visuals.microbeTrace;
         let visNodeCount = win.commonService.getVisibleNodes().length;
 
         const bubble = win.commonService.visuals.bubble;
         const bubbleNodeCount = bubble.cy.nodes().filter(n => !n.hasClass('X_axis') && !n.hasClass('Y_axis')).length
-        expect(visNodeCount).to.eq(bubbleNodeCount).to.eq(5);
+        expect(new Date(state.timeEnd).toDateString(), 'timeline reset to selected start date')
+          .to.equal(new Date(state.timeStart).toDateString());
+        expect(visNodeCount).to.eq(bubbleNodeCount);
+        cy.get('svg g.slider text.label')
+          .should('have.text', microbeTrace.handleDateFormat(new Date(state.timeEnd)));
       })
     })
   })

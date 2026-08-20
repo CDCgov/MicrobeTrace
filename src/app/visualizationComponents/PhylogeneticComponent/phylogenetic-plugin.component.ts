@@ -24,6 +24,7 @@ import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 /**
  * @title PhylogeneticComponent
@@ -36,7 +37,7 @@ import { getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScal
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 
-  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
   viewActive: boolean = true;
   svgStyle: object = {
     height: '0px',
@@ -930,8 +931,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-leaf-label-show'] = this.SelectedLeafLabelShowVariable
   }
 
-  showGlobalSettings() {
-    this.DisplayGlobalSettingsDialogEvent.emit('Styling');
+  showGlobalSettings(event?: MouseEvent) {
+    this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
   }
 
   private ensureGlobalNodeShapeTableVisible(): void {

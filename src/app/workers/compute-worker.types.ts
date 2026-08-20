@@ -8,7 +8,8 @@ export type ComputeWorkerTask =
   | 'mst'
   | 'nn'
   | 'triangulation'
-  | 'parseFasta';
+  | 'parseFasta'
+  | 'networkStatistics';
 
 export interface ComputeWorkerRequest<T = any> {
   jobId: number;

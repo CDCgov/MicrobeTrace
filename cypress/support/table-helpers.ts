@@ -74,22 +74,24 @@ export function selectTableDataset(dataset: TableDataset): void {
 }
 
 export function assertTableDatasetMatchesSession(dataset: TableDataset): void {
-  cy.window().then((win: unknown) => {
+  let renderedRows = 0;
+
+  cy.window().should((win: unknown) => {
     const typedWindow = win as WinWithMT;
     const tableComp = typedWindow.commonService.visuals.tableComp;
     const sessionRows =
       dataset === 'Node'
         ? typedWindow.commonService.getVisibleNodes()
         : dataset === 'Link'
-          ? typedWindow.commonService.session.data.links.filter((link: { visible: boolean }) => link.visible)
+          ? typedWindow.commonService.getVisibleLinksForCurrentTimeline()
           : typedWindow.commonService.session.data.clusters.filter((cluster: { visible: boolean }) => cluster.visible);
     const expectedRows = sessionRows.length;
-    const renderedRows = Math.min(expectedRows, Number(tableComp.selectedRows) || 10);
+    renderedRows = Math.min(expectedRows, Number(tableComp.selectedRows) || 10);
 
     expect(tableComp.SelectedTableData.tableType, `${dataset} table type`).to.equal(dataset.toLowerCase());
     expect(tableComp.SelectedTableData.data.length, `${dataset} table data length`).to.equal(expectedRows);
     expect(expectedRows, `${dataset} session rows`).to.be.greaterThan(0);
-
+  }).then(() => {
     cy.get(`${TABLE_ROOT} .p-datatable-tbody > tr`, { timeout: 15000 })
       .should('have.length', renderedRows);
   });

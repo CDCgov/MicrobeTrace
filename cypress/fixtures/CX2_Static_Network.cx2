@@ -1,0 +1,73 @@
+[
+  {
+    "CXVersion": "2.0",
+    "hasFragments": true
+  },
+  {
+    "metaData": [
+      { "name": "attributeDeclarations", "elementCount": 1 },
+      { "name": "networkAttributes", "elementCount": 1 },
+      { "name": "nodes", "elementCount": 3 },
+      { "name": "edges", "elementCount": 2 }
+    ]
+  },
+  {
+    "attributeDeclarations": [
+      {
+        "networkAttributes": {
+          "name": { "d": "string" },
+          "description": { "d": "string" }
+        },
+        "nodes": {
+          "name": { "d": "string" },
+          "sample_type": { "d": "string", "a": "st" },
+          "viral_load": { "d": "double", "a": "vl", "v": 0 },
+          "active": { "d": "boolean", "v": true }
+        },
+        "edges": {
+          "kind": { "d": "string", "a": "k" },
+          "distance": { "d": "double", "a": "d" },
+          "confirmed": { "d": "boolean", "a": "c" },
+          "origin": { "d": "list_of_string", "a": "o" }
+        }
+      }
+    ]
+  },
+  {
+    "networkAttributes": [
+      {
+        "name": "CX2 Fixture",
+        "description": "Static CX2 import fixture"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      { "id": 1, "x": 150, "y": 75, "v": { "name": "Alpha", "st": "case", "vl": 2.5 } },
+      { "id": 2, "x": 320, "y": 210, "v": { "name": "Beta", "st": "contact", "vl": 3.75, "active": false } },
+      { "id": 3, "x": 500, "y": 300, "v": { "name": "Gamma", "st": "case" } }
+    ]
+  },
+  {
+    "edges": [
+      { "id": 100, "s": 1, "t": 2, "v": { "k": "contact", "d": 4.5, "c": true, "o": ["Contact.csv"] } }
+    ]
+  },
+  {
+    "edges": [
+      { "id": 101, "s": 2, "t": 3, "v": { "k": "distance", "d": 7, "c": false } }
+    ]
+  },
+  {
+    "nodeBypasses": [
+      { "id": 2, "v": { "NODE_BACKGROUND_COLOR": "#3366ff" } }
+    ]
+  },
+  {
+    "status": [
+      {
+        "success": true
+      }
+    ]
+  }
+]

@@ -1,16 +1,21 @@
 /// <reference types="cypress" />
 
+import moment from 'moment';
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
   assertMetricCount,
+  computeOracleForProfile,
+  getOracleSnapshot,
   goToBubbleView,
   launchProfileToTwoD,
   openBubbleSettingsDialog,
   openGlobalStylingTab,
   setTimelineDate,
   setTimelineField,
+  setTimelineRange,
 } from '../../../support/journey-helpers';
+import type { OracleStep } from '../../../oracle/types';
 
 type WinWithBubble = Window & {
   commonService: any;
@@ -32,16 +37,26 @@ const hexToRgbString = (hex: string): string => {
 };
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const visibleSelectOverlay = '.p-select-overlay:visible';
+
+const closeVisiblePrimeOverlays = (): void => {
+  cy.get('body').then(($body) => {
+    if (!$body.find(visibleSelectOverlay).length) return;
+    cy.get('body').type('{esc}', { force: true });
+  });
+};
 
 const clickVisiblePrimeOption = (label: string): void => {
-  cy.get('.p-select-overlay', { timeout: 15000 })
+  cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
     .find('p-selectitem')
     .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
     .click({ force: true });
+  closeVisiblePrimeOverlays();
 };
 
 const selectPrimeOption = (selector: string, label: string): void => {
+  closeVisiblePrimeOverlays();
   cy.get(selector).click({ force: true });
   clickVisiblePrimeOption(label);
 };
@@ -146,7 +161,52 @@ const clickTimelineSliderAtDate = (date: string): void => {
     .should((value) => {
       expect(new Date(value as string | number | Date).toDateString(), 'timeline slider date')
         .to.equal(new Date(date).toDateString());
-    });
+  });
+};
+
+const formatDateInput = (date: string): string => moment(date).format('YYYY-MM-DD');
+
+const dragTimelineRangeHandleToDate = (
+  selector: '.timeline-range-start-handle' | '.timeline-range-end-handle',
+  date: string,
+): void => {
+  cy.window().then((win: unknown) => {
+    const typedWindow = win as WinWithBubble;
+    const microbeTrace = typedWindow.commonService.visuals.microbeTrace;
+    const targetDate = moment(date).toDate();
+    const targetX = Number(microbeTrace.xAttribute(targetDate));
+    const handle = typedWindow.document.querySelector(selector) as SVGPathElement | null;
+    const slider = typedWindow.document.querySelector('#global-timeline svg g.slider') as SVGGElement | null;
+    const svg = typedWindow.document.querySelector('#global-timeline svg') as SVGSVGElement | null;
+
+    expect(handle, `${selector} handle`).to.exist;
+    expect(slider, 'timeline slider group').to.exist;
+    expect(svg, 'timeline svg').to.exist;
+
+    const toScreenPoint = (x: number, y: number) => {
+      const point = svg!.createSVGPoint();
+      point.x = x;
+      point.y = y;
+      return point.matrixTransform(slider!.getScreenCTM()!);
+    };
+    const currentPoint = toScreenPoint(Number(handle!.getAttribute('data-x') || 0), -12);
+    const targetPoint = toScreenPoint(targetX, 0);
+    const dispatchMouse = (target: EventTarget, type: string, point: DOMPoint, buttons: number) => {
+      target.dispatchEvent(new typedWindow.MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: typedWindow,
+        button: 0,
+        buttons,
+        clientX: point.x,
+        clientY: point.y,
+      }));
+    };
+
+    dispatchMouse(handle!, 'mousedown', currentPoint, 1);
+    dispatchMouse(typedWindow.document, 'mousemove', targetPoint, 1);
+    dispatchMouse(typedWindow.document, 'mouseup', targetPoint, 0);
+  });
 };
 
 describe('Journey Flow - Bubble uploaded timeline controls', () => {
@@ -154,11 +214,14 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
   const timeline = profile.expectations.timeline!;
   const startCheckpoint = timeline.checkpoints.find((checkpoint) => checkpoint.id === 'timeline-start') ?? timeline.checkpoints[0];
   const midCheckpoint = timeline.checkpoints.find((checkpoint) => checkpoint.id === 'timeline-mid') ?? timeline.checkpoints[0];
+  const maxCheckpoint = timeline.checkpoints.find((checkpoint) => checkpoint.id === 'timeline-max') ?? timeline.checkpoints[timeline.checkpoints.length - 1];
+  const playbackEndDate = '7/17/2021';
   const recoloredNodeId = 'MZ415508';
 
   it('keeps Bubble timeline play/pause and slider jumps aligned with uploaded visible membership', () => {
-    let initialLabel = '';
     let initialTime = 0;
+    let selectedStartTime = 0;
+    let pausedTime = 0;
 
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
@@ -168,15 +231,10 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     setTimelineField(timeline.field);
     assertExpandedBubbleTimelineAligned();
 
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
-
     cy.window().then((win: unknown) => {
-      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
-      initialTime = new Date(value as string | number | Date).getTime();
+      const state = (win as WinWithBubble).commonService.session.state;
+      initialTime = new Date(state.timeEnd as string | number | Date).getTime();
+      selectedStartTime = new Date(state.timeStart as string | number | Date).getTime();
     });
 
     cy.get('#timeline-play-button').should('contain', 'Play').click();
@@ -187,16 +245,33 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
       const nextTime = new Date(nextValue as string | number | Date).getTime();
       expect(Number.isFinite(nextTime), 'timeline playback date').to.equal(true);
       expect(nextTime, 'timeline playback advanced the current date').not.to.equal(initialTime);
+      expect(nextTime, 'timeline playback advanced past the selected start').to.be.greaterThan(selectedStartTime);
     });
 
     cy.get('#timeline-play-button').should('contain', 'Pause').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
+      pausedTime = new Date(value as string | number | Date).getTime();
+      expect(pausedTime, 'paused timeline date').to.be.greaterThan(selectedStartTime);
+    });
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.get('#timeline-play-button').click();
+    cy.get('#timeline-play-button', { timeout: 15000 }).should('contain', 'Pause');
+    cy.window().should((win: unknown) => {
+      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
+      const resumedTime = new Date(value as string | number | Date).getTime();
+      expect(resumedTime, 'timeline resumes from the paused date').to.be.at.least(pausedTime);
+      expect(resumedTime, 'timeline does not restart from selected start').to.be.greaterThan(selectedStartTime);
+    });
+    cy.get('#timeline-play-button').click();
+    cy.get('#timeline-play-button').should('contain', 'Play');
+
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     assertExpandedBubbleTimelineAligned();
 
@@ -209,8 +284,112 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     assertExpandedBubbleTimelineAligned(startCheckpoint.after.nodes);
   });
 
+  it('links timeline range inputs, draggable handles, reset, and bounded playback', () => {
+    const rangeSnapshotId = 'timeline-mid-to-max-range';
+    const draggedRangeSnapshotId = 'timeline-dragged-start-to-max-range';
+    const oracleSteps: OracleStep[] = [
+      {
+        id: 'timeline-enabled',
+        kind: 'set-timeline-field',
+        field: timeline.field,
+      },
+      {
+        id: rangeSnapshotId,
+        kind: 'set-timeline-range',
+        start: midCheckpoint.date,
+        end: maxCheckpoint.date,
+      },
+      {
+        id: draggedRangeSnapshotId,
+        kind: 'set-timeline-range',
+        start: startCheckpoint.date,
+        end: maxCheckpoint.date,
+      },
+    ];
+
+    computeOracleForProfile(profile, oracleSteps);
+
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+    goToBubbleView();
+    configureBubbleForTimeline(false);
+
+    setTimelineField(timeline.field);
+    setTimelineRange(midCheckpoint.date, maxCheckpoint.date);
+
+    cy.openGlobalSettings();
+    cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
+    cy.get('.p-dialog:visible #timeline-range-start').should('have.value', formatDateInput(midCheckpoint.date));
+    cy.get('.p-dialog:visible #timeline-range-end').should('have.value', formatDateInput(maxCheckpoint.date));
+    cy.closeGlobalSettings();
+
+    getOracleSnapshot('oracleResult', rangeSnapshotId).then((snapshot) => {
+      assertMetricCount('#numberOfNodes', snapshot.visibleNodes);
+      assertExpandedBubbleTimelineAligned(snapshot.visibleNodes);
+    });
+
+    cy.window().then((win: unknown) => {
+      const microbeTrace = (win as WinWithBubble).commonService.visuals.microbeTrace;
+      const expectedStartX = Number(microbeTrace.xAttribute(moment(midCheckpoint.date).toDate()));
+      const expectedEndX = Number(microbeTrace.xAttribute(moment(maxCheckpoint.date).toDate()));
+
+      cy.get('#global-timeline svg .timeline-range-start-handle')
+        .should(($handle) => {
+          expect(Number($handle.attr('data-x')), 'range start handle x').to.be.closeTo(expectedStartX, 1);
+        });
+      cy.get('#global-timeline svg .timeline-range-end-handle')
+        .should(($handle) => {
+          expect(Number($handle.attr('data-x')), 'range end handle x').to.be.closeTo(expectedEndX, 1);
+        });
+    });
+
+    setTimelineRange(midCheckpoint.date, playbackEndDate);
+    cy.window().then((win: unknown) => {
+      const microbeTrace = (win as WinWithBubble).commonService.visuals.microbeTrace;
+      microbeTrace.timelineSpeed = 1;
+    });
+    cy.get('#timeline-play-button').should('contain', 'Play').click();
+    cy.window().should((win: unknown) => {
+      const state = (win as WinWithBubble).commonService.session.state;
+      expect(moment(state.timeStart).format('M/D/YYYY'), 'timeline playback range start')
+        .to.equal(moment(midCheckpoint.date).format('M/D/YYYY'));
+      expect(moment(state.timeEnd).format('M/D/YYYY'), 'timeline playback starts at selected start')
+        .to.equal(moment(midCheckpoint.date).format('M/D/YYYY'));
+    });
+    cy.get('#timeline-play-button', { timeout: 20000 }).should('contain', 'Play');
+    cy.window().should((win: unknown) => {
+      const state = (win as WinWithBubble).commonService.session.state;
+      expect(moment(state.timeEnd).format('M/D/YYYY'), 'timeline playback stops at selected end')
+        .to.equal(moment(playbackEndDate).format('M/D/YYYY'));
+    });
+
+    setTimelineRange(midCheckpoint.date, maxCheckpoint.date);
+    dragTimelineRangeHandleToDate('.timeline-range-start-handle', startCheckpoint.date);
+
+    cy.openGlobalSettings();
+    cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
+    cy.get('.p-dialog:visible #timeline-range-start').should('have.value', formatDateInput(startCheckpoint.date));
+    cy.get('.p-dialog:visible #timeline-range-end').should('have.value', formatDateInput(maxCheckpoint.date));
+    cy.closeGlobalSettings();
+
+    getOracleSnapshot('oracleResult', draggedRangeSnapshotId).then((snapshot) => {
+      assertMetricCount('#numberOfNodes', snapshot.visibleNodes);
+      assertExpandedBubbleTimelineAligned(snapshot.visibleNodes);
+    });
+
+    setTimelineRange(midCheckpoint.date, maxCheckpoint.date);
+    cy.openGlobalSettings();
+    cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
+    cy.get('.p-dialog:visible #timeline-range-reset').click({ force: true });
+    cy.get('.p-dialog:visible #timeline-range-start').should('have.value', formatDateInput(startCheckpoint.date));
+    cy.get('.p-dialog:visible #timeline-range-end').should('have.value', formatDateInput(maxCheckpoint.date));
+    cy.closeGlobalSettings();
+
+    assertMetricCount('#numberOfNodes', maxCheckpoint.after.nodes!);
+    assertExpandedBubbleTimelineAligned(maxCheckpoint.after.nodes);
+  });
+
   it('keeps collapsed Bubble timeline playback aligned with aggregate totals and scaled node sizes', () => {
-    let initialLabel = '';
     let initialTime = 0;
 
     launchProfileToTwoD(profile);
@@ -219,12 +398,6 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     configureBubbleForTimeline(true);
 
     setTimelineField(timeline.field);
-
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
 
     cy.window().then((win: unknown) => {
       const value = (win as WinWithBubble).commonService.session.state.timeEnd;
@@ -244,11 +417,11 @@ describe('Journey Flow - Bubble uploaded timeline controls', () => {
     cy.get('#timeline-play-button').should('contain', 'Pause').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'collapsed timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithBubble).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     setTimelineDate(midCheckpoint.date);
     assertMetricCount('#numberOfNodes', midCheckpoint.after.nodes!);

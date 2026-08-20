@@ -8,19 +8,37 @@ import { generateCanvas } from '../visualizationComponents/AlignmentViewComponen
 import * as tn93 from 'tn93';
 import * as _ from 'lodash';
 import JSZip from 'jszip';
-import { MicrobeTraceNextVisuals } from '../microbe-trace-next-plugin-visuals';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { cloneDeep } from 'lodash';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-import { relativeTimeThreshold } from 'moment';
 import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
 import { EmbedLaunchOptionsV1, ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
-// import { ComponentContainer } from 'golden-layout';
-// import { ConsoleReporter } from 'jasmine';
+import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
+
+interface FileTableOption {
+  label: string;
+  value: string;
+}
+
+interface FileTableRow {
+  rowId: number;
+  file: any;
+  fileName: string;
+  headers: string[];
+  headerOptions: FileTableOption[];
+  format: string;
+  field1: string;
+  field2: string;
+  field3: string;
+}
+
+interface AddToTableOptions {
+  predictFields?: boolean;
+}
 
 
 @Component({
@@ -47,6 +65,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     'Epi Curve',
     'Sankey',
     'Table',
+    'Network Statistics',
     'Crosstab',
     'Map',
     'Bubble',
@@ -105,6 +124,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     return !this.isLoadingFiles && (this.commonService.session?.files?.length ?? 0) > 0;
   }
 
+  readonly fileTableFormatOptions: FileTableOption[] = [
+    { label: 'Link', value: 'link' },
+    { label: 'Node', value: 'node' },
+    { label: 'Matrix', value: 'matrix' },
+    { label: 'FASTA', value: 'fasta' },
+    { label: 'Newick', value: 'newick' },
+    { label: 'Auspice', value: 'auspice' },
+    { label: 'Network', value: 'network' },
+  ];
+  readonly fileTableFieldNumbers = [1, 2, 3];
+  fileTableRows: FileTableRow[] = [];
+  private nextFileTableRowId = 0;
+
   nodeIds: { fileName: string; ids: string[] }[] = [];
   edgeIds: { fileName: string; ids: { source: string; target: string }[] }[] = [];
 
@@ -114,8 +146,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   public title: string;
   public id: string;
 
+  private pendingNetworkImportWarnings: string[] = [];
   private destroy$ = new Subject<void>();
   private loadViewSubscription?: Subscription;
+  private pendingEmbedLaunchOptions: {
+    launch: EmbedLaunchOptionsV1 | undefined;
+    metadataDatasetName: string | undefined;
+  } | null = null;
 
   
 
@@ -127,7 +164,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private store: CommonStoreService,
     private embedHandoffService: EmbedHandoffService,
     private ngZone: NgZone,
-    private workerComputeService: WorkerComputeService
+    private workerComputeService: WorkerComputeService,
+    private graphMLService: GraphMLService
     ) {
 
     super(elRef.nativeElement);
@@ -216,6 +254,207 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       $(this.rootHtmlElement).find('#launch').focus();
     }
     this.refreshTemplateState();
+  }
+
+  private normalizeFileTableValue(value: any): string {
+    return value === undefined || value === null || value === '' ? 'None' : String(value);
+  }
+
+  private createFileTableHeaderOptions(headers: any[] = []): FileTableOption[] {
+    return headers.map(header => {
+      const value = String(header ?? '');
+
+      return {
+        value,
+        label: this.commonService.titleize(value)
+      };
+    });
+  }
+
+  private addFileTableRow(file: any, headers: any[], detectedFormat: string, predictFields: boolean = true): FileTableRow {
+    const row: FileTableRow = {
+      rowId: ++this.nextFileTableRowId,
+      file,
+      fileName: String(file?.name ?? ''),
+      headers: (headers || []).map(header => String(header ?? '')),
+      headerOptions: this.createFileTableHeaderOptions(headers || []),
+      format: detectedFormat,
+      field1: this.normalizeFileTableValue(file?.field1),
+      field2: this.normalizeFileTableValue(file?.field2),
+      field3: this.normalizeFileTableValue(file?.field3),
+    };
+
+    this.fileTableRows = [...this.fileTableRows, row];
+    if (predictFields) {
+      this.matchFileTableHeaders(row, detectedFormat);
+    }
+    this.applyFileTableRowMetadata(row);
+    this.setLaunchButtonsDisabled(false, true);
+
+    return row;
+  }
+
+  private getSessionFileIndexForRow(row: FileTableRow): number {
+    const rowIndex = this.fileTableRows.indexOf(row);
+    const fileAtRowIndex = this.commonService.session.files?.[rowIndex];
+
+    if (fileAtRowIndex?.name === row.fileName) {
+      return rowIndex;
+    }
+
+    const exactFileIndex = this.commonService.session.files?.indexOf(row.file) ?? -1;
+    if (exactFileIndex >= 0) {
+      return exactFileIndex;
+    }
+
+    return this.commonService.session.files?.findIndex(file => file.name === row.fileName) ?? -1;
+  }
+
+  private getSessionFileForRow(row: FileTableRow): any {
+    const fileIndex = this.getSessionFileIndexForRow(row);
+
+    return fileIndex >= 0 ? this.commonService.session.files[fileIndex] : row.file;
+  }
+
+  private assignFileTableField(row: FileTableRow, fieldNumber: number, value: any): void {
+    const normalizedValue = this.normalizeFileTableValue(value);
+
+    if (fieldNumber === 1) {
+      row.field1 = normalizedValue;
+    } else if (fieldNumber === 2) {
+      row.field2 = normalizedValue;
+    } else {
+      row.field3 = normalizedValue;
+    }
+  }
+
+  private matchFileTableHeaders(row: FileTableRow, type: string): void {
+    const sourceHeaders = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'];
+    const targetHeaders = type === 'node'
+      ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq']
+      : ['TARGET', 'Target', 'target'];
+    const distanceHeaders = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
+    const explicitSelections = [row.file?.field1, row.file?.field2, row.file?.field3];
+    [sourceHeaders, targetHeaders, distanceHeaders].forEach((list, index) => {
+      const existingSelection = explicitSelections[index];
+      if (existingSelection && (existingSelection === 'None' || this.commonService.includes(row.headers, existingSelection))) {
+        this.assignFileTableField(row, index + 1, existingSelection);
+        return;
+      }
+
+      let selectedValue = 'None';
+
+      list.forEach(title => {
+        if (this.commonService.includes(row.headers, title)) {
+          selectedValue = title;
+        }
+      });
+
+      if (selectedValue === 'None' &&
+        !(index === 1 && type === 'node') &&
+        !(index === 2 && type === 'link')) {
+        selectedValue = row.headers[index] || 'None';
+      }
+
+      this.assignFileTableField(row, index + 1, selectedValue);
+    });
+  }
+
+  private applyFileTableRowMetadata(row: FileTableRow): void {
+    const file = this.getSessionFileForRow(row);
+
+    if (!file) {
+      return;
+    }
+
+    file.format = row.format;
+    file.field1 = row.field1;
+    file.field2 = row.field2;
+    file.field3 = row.field3;
+  }
+
+  getFileTableFieldId(row: FileTableRow, fieldNumber: number): string {
+    return `file-${row.fileName}-field-${fieldNumber}`;
+  }
+
+  getFileTableFieldLabel(row: FileTableRow, fieldNumber: number): string {
+    if (fieldNumber === 1) {
+      return row.format === 'node' ? 'ID' : 'Source';
+    }
+
+    if (fieldNumber === 2) {
+      return row.format === 'node' ? 'Sequence' : 'Target';
+    }
+
+    return 'Distance';
+  }
+
+  getFileTableFieldValue(row: FileTableRow, fieldNumber: number): string {
+    if (fieldNumber === 1) {
+      return row.field1;
+    }
+
+    if (fieldNumber === 2) {
+      return row.field2;
+    }
+
+    return row.field3;
+  }
+
+  isFileTableFieldVisible(row: FileTableRow, fieldNumber: number): boolean {
+    return row.format === 'link' || (row.format === 'node' && fieldNumber < 3);
+  }
+
+  onFileTableFormatChange(row: FileTableRow, format: string): void {
+    row.format = format;
+
+    if (format === 'node' || format === 'link') {
+      this.matchFileTableHeaders(row, format);
+    }
+
+    this.applyFileTableRowMetadata(row);
+    this.setLaunchButtonsDisabled(false, true);
+  }
+
+  onFileTableFieldChange(row: FileTableRow, fieldNumber: number, value: any): void {
+    this.assignFileTableField(row, fieldNumber, value);
+    this.applyFileTableRowMetadata(row);
+  }
+
+  isFileTableRowContentsEmpty(row: FileTableRow): boolean {
+    return this.isFileContentsEmpty(this.getSessionFileForRow(row));
+  }
+
+  getFileTableDownloadTitle(row: FileTableRow): string {
+    return this.isFileTableRowContentsEmpty(row) ? 'Unable to resave this file' : 'Resave this file';
+  }
+
+  resaveFileTableRow(row: FileTableRow): void {
+    const file = this.getSessionFileForRow(row);
+
+    if (this.isFileContentsEmpty(file)) {
+      alert('Unable to resave this file.');
+      return;
+    }
+
+    saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+  }
+
+  removeFileTableRow(row: FileTableRow): void {
+    const fileIndex = this.getSessionFileIndexForRow(row);
+
+    if (fileIndex >= 0) {
+      this.commonService.session.files.splice(fileIndex, 1);
+    }
+
+    this.removeFile(row.fileName);
+    this.fileTableRows = this.fileTableRows.filter(existingRow => existingRow !== row);
+
+    if (this.commonService.session.files.length === 0) {
+      this.setLaunchButtonsDisabled(true);
+    } else {
+      this.setLaunchButtonsDisabled(false, true);
+    }
   }
 
   private syncGlobalSettingsModelFromWidgets(): void {
@@ -529,11 +768,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       //debugger;
 
       const target = e.target as HTMLInputElement | HTMLSelectElement | null;
-      const lsv = target?.value ?? e.data ?? 'tn93';
-      this.commonService.localStorageService.setItem('default-distance-metric', lsv);
-      $('#default-distance-metric').val(lsv);
-      console.log(lsv);
-      if (lsv.toLowerCase() === 'snps') {
+      const selectedMetric = String(target?.value ?? e.data ?? 'tn93').toLowerCase();
+      const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
+      this.SelectedDefaultDistanceMetricVariable = selectedMetric;
+      this.commonService.localStorageService.setItem('default-distance-metric', selectedMetric);
+      $('#default-distance-metric').val(selectedMetric);
+      console.log(selectedMetric);
+      if (calculationMetric === 'snps') {
         $('#ambiguities-row').slideUp();
         $('#default-distance-threshold') //, #link-threshold')
           .attr('step', 1)
@@ -554,8 +795,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         console.log('default-distance-metric change file-plugin.component.ts tn93');
         this.store.setLinkThreshold(0.015);
       }
-      this.commonService.session.style.widgets['default-distance-metric'] = lsv;
-      this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = lsv;
+      this.commonService.session.style.widgets['default-distance-metric'] = calculationMetric;
+      this.commonService.GlobalSettingsModel.SelectedDefaultDistanceMetricVariable = calculationMetric;
+      this.refreshTemplateState();
     });
 
     let cachedLSV = "";
@@ -783,6 +1025,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
   }
 
+  private applyPendingEmbedLaunchOptions(finalize = false): void {
+    const pending = this.pendingEmbedLaunchOptions;
+
+    if (!pending) {
+      return;
+    }
+
+    if (finalize) {
+      this.pendingEmbedLaunchOptions = null;
+    }
+    this.applyEmbedLaunchOptions(pending.launch, pending.metadataDatasetName);
+  }
+
   private applyPatristicDistanceDefaults(maxDistance: number): number {
     const configuredThreshold = parseFloat(
       `${this.commonService.session.style.widgets['link-threshold'] ?? this.SelectedDefaultDistanceThresholdVariable}`
@@ -842,9 +1097,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.addToTable(file);
     });
 
+    this.pendingEmbedLaunchOptions = {
+      launch: result.handoff.launch,
+      metadataDatasetName: result.handoff.metadata?.datasetName,
+    };
+
     try {
       this.applyEmbedLaunchOptions(result.handoff.launch, result.handoff.metadata?.datasetName);
     } catch (error) {
+      this.pendingEmbedLaunchOptions = null;
       this.isLoadingFiles = false;
       this.handoffError = error instanceof Error ? error.message : 'Unable to apply the partner handoff launch options.';
       this.cdr.markForCheck();
@@ -856,12 +1117,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.cdr.markForCheck();
 
     setTimeout(() => {
-      this.launchClick();
+      this.launchClick({ embedHandoff: true });
     }, 100);
   }
 
   private dismissWelcomeOverlay() {
-    $('#overlay').stop(true, true).fadeOut('fast');
+    const overlay = $('#overlay');
+    overlay.addClass('overlay-hidden').css('pointer-events', 'none');
+    overlay.find('.dnd-input').css('pointer-events', 'none');
+    overlay.stop(true, true).fadeOut('fast');
     $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
     $('.m-portlet').stop(true, true).fadeTo('fast', 1);
   }
@@ -888,13 +1152,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * For each file in commonService.session.files, addToTable(file)
    */
   public populateTable() {  
-    const fileTableRows = $(this.rootHtmlElement).find(".file-table-row");
-    fileTableRows.stop(true, true).remove();
+    this.fileTableRows = [];
 
     let files = cloneDeep(this.commonService.session.files);
     if (this.commonService.debugMode) {
       console.log('---  Populate TABLE Row Files 2: ', files);
-      console.log('--- files table 2 : ', $(".file-table-row"));
+      console.log('--- files table 2 : ', this.fileTableRows);
     }
 
     if(files && files.length > 0) {
@@ -902,11 +1165,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         console.log('--- Populate for: ', files);
       }
       for(let i = 0; i < files.length; i++) {
-        this.addToTable(files[i]);
+        this.addToTable(files[i], { predictFields: false });
       }
 
       if (this.commonService.debugMode) {
-        console.log('--- GetFile Content Populate TABLE End: ', $(".file-table-row"));
+        console.log('--- GetFile Content Populate TABLE End: ', this.fileTableRows);
       }
 
     } 
@@ -1002,6 +1265,43 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.store.setLoadingMessageUpdated(msg);
   }
+
+  showNetworkImportWarnings(fileName: string, warnings: string[]) {
+    if (!warnings.length) {
+      return;
+    }
+
+    this.pendingNetworkImportWarnings.push(...warnings.map(warning => `${fileName}: ${warning}`));
+  }
+
+  showGraphMLWarnings(fileName: string, warnings: string[]) {
+    this.showNetworkImportWarnings(fileName, warnings);
+  }
+
+  flushNetworkImportWarnings() {
+    if (!this.pendingNetworkImportWarnings.length) {
+      return;
+    }
+
+    const warnings = [...this.pendingNetworkImportWarnings];
+    this.pendingNetworkImportWarnings = [];
+
+    const microbeTrace = this.commonService.visuals.microbeTrace;
+    if (microbeTrace?.openNetworkImportWarnings) {
+      microbeTrace.openNetworkImportWarnings(warnings);
+      return;
+    }
+    if (microbeTrace?.openGraphMLImportWarnings) {
+      microbeTrace.openGraphMLImportWarnings(warnings);
+      return;
+    }
+
+    warnings.forEach(warning => this.showMessage(warning));
+  }
+
+  flushGraphMLWarnings() {
+    this.flushNetworkImportWarnings();
+  }
   
 
   /**
@@ -1009,7 +1309,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * or resets all settings when requested by the Files tab reset update action.
    * Calls creatLaunchSequences to process the data files loaded.
    */
-  launchClick(options: { resetSettings?: boolean } = {}) {
+  launchClick(options: { resetSettings?: boolean; embedHandoff?: boolean } = {}) {
+
+    if (!options.embedHandoff) {
+      this.pendingEmbedLaunchOptions = null;
+    }
 
      // Set to false to indicate that the network is not fully loaded  as new network is launching
      const loadGeneration = this.commonService.beginDataLoad();
@@ -1030,11 +1334,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedDefaultDistanceThresholdVariable ??
       this.commonService.session.style.widgets["link-threshold"]
     ));
-    const metricOnLaunch = String(
+    const selectedMetricOnLaunch = String(
       $('#default-distance-metric').val() ??
       this.SelectedDefaultDistanceMetricVariable ??
       this.commonService.session.style.widgets["default-distance-metric"]
     ).toLowerCase();
+    const metricOnLaunch = this.commonService.normalizeDistanceMetric(selectedMetricOnLaunch);
     const ambiguityOnLaunch = String(
       $('#ambiguity-resolution-strategy').val() ??
       this.SelectedAmbiguityResolutionStrategyVariable ??
@@ -1074,6 +1379,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.commonService.session.messages = [];
     this.messages = [];
+    this.pendingNetworkImportWarnings = [];
 
     if (this.commonService.debugMode) {
       console.log('session files', this.commonService.session.files);
@@ -1115,7 +1421,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const check = nFiles > 0;
 
     // sorts files based on hierarchy
-    const hierarchy = ['auspice', 'newick', 'matrix', 'link', 'node', 'fasta'];
+    const hierarchy = ['auspice', 'newick', 'matrix', 'network', 'graphml', 'link', 'node', 'fasta'];
     this.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
 
@@ -1168,6 +1474,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.onLinkThresholdChange('16');
             this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = 16;
           }
+          this.applyPendingEmbedLaunchOptions();
           this.commonService.session.meta.startTime = Date.now();
           this.commonService.session.data.tree = auspiceData['tree'];
           this.commonService.session.data.newickString = auspiceData['newick'];
@@ -1251,6 +1558,54 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.showMessage(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from FASTA.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
         });
+
+      } else if (file.format === 'network' || file.format === 'graphml') {
+
+        this.showMessage(`Parsing ${file.name} as Network...`);
+        try {
+          const networkDocument = this.graphMLService.importNetworkDocument(file.contents, { sourceName: file.name });
+          let newNodes = 0;
+          let newLinks = 0;
+
+          networkDocument.nodeFields.forEach(field => {
+            if (!this.commonService.includes(this.commonService.session.data.nodeFields, field)) {
+              this.commonService.session.data.nodeFields.push(field);
+            }
+          });
+          networkDocument.linkFields.forEach(field => {
+            if (!this.commonService.includes(this.commonService.session.data.linkFields, field)) {
+              this.commonService.session.data.linkFields.push(field);
+            }
+          });
+
+          networkDocument.nodes.forEach(node => {
+            newNodes += this.commonService.addNode(node, check);
+          });
+          networkDocument.links.forEach(link => {
+            newLinks += this.commonService.addLink(link, check);
+          });
+
+          this.showNetworkImportWarnings(file.name, networkDocument.warnings);
+
+          console.log('Network Parse time:', (Date.now() - start).toLocaleString(), 'ms');
+          this.commonService.recordPerformanceTiming('ingestion', networkDocument.format === 'graphml' ? 'parseAndMergeGraphML' : 'parseAndMergeNetworkDocument', start, {
+            file: file.name,
+            format: networkDocument.format,
+            graphs: networkDocument.graphIds.length,
+            newNodes,
+            totalNodes: networkDocument.nodes.length,
+            newLinks,
+            totalLinks: networkDocument.links.length,
+            warnings: networkDocument.warnings.length
+          });
+          this.showMessage(` - Parsed ${newNodes} New, ${networkDocument.nodes.length} Total Nodes from ${networkDocument.formatLabel}.`);
+          this.showMessage(` - Parsed ${newLinks} New, ${networkDocument.links.length} Total Links from ${networkDocument.graphIds.length} ${networkDocument.formatLabel} Graph${networkDocument.graphIds.length === 1 ? '' : 's'}.`);
+          if (fileNum === nFiles) this.processData(loadGeneration);
+        } catch (error: any) {
+          console.error('Network parse error:', error);
+          this.showMessage(` - Error processing Network file: ${error?.message || error}`);
+          this.commonService.session.network.isFullyLoaded = false;
+        }
 
       } else if (file.format === 'link') {
 
@@ -1874,6 +2229,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       return;
     }
 
+    this.applyPendingEmbedLaunchOptions(true);
+
+    this.flushNetworkImportWarnings();
+
     let nodes = this.commonService.session.data.nodes;
     if(this.commonService.debugMode) {
       console.log(nodes);
@@ -2149,9 +2508,20 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         reader.onerror = () => reject(reader.error);
         reader.onloadend = (out) => {
           try {
-            const output = JSON.parse(out.target['result'] as string);
+            const rawContents = out.target['result'] as string;
+            const output = JSON.parse(rawContents);
             console.log(output);
-            if (output.meta && output.tree) {
+            if (this.graphMLService.looksLikeCX2(output)) {
+              const cxFile = {
+                contents: rawContents,
+                name: fileName,
+                extension: extension,
+                type: rawfile.type || 'application/json',
+                format: 'network'
+              };
+              this.commonService.session.files.push(cxFile);
+              this.addToTable(cxFile);
+            } else if (output.meta && output.tree) {
               const auspiceFile = { contents: output, name: fileName, extension: extension, format: 'auspice', datatype: 'auspice'};
               this.commonService.session.files.push(auspiceFile);
               this.addToTable(auspiceFile);
@@ -2184,9 +2554,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Calls nodeEdgeCheck
    */
   removeAllFiles() {
-    const fileTableRows = $(this.rootHtmlElement).find(".file-table-row");
-    fileTableRows.stop(true, true).remove();
-
+    this.fileTableRows = [];
     this.commonService.session.files = [];
     this.nodeIds = [];
     this.edgeIds = [];
@@ -2202,9 +2570,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   private inferTabularFileFormat(
     file: any,
     headers: any[] = [],
-    hints: { isFasta?: boolean; isNewick?: boolean; isAuspice?: boolean } = {}
+    hints: { isFasta?: boolean; isNewick?: boolean; isAuspice?: boolean; isNetworkDocument?: boolean; isNetworkXml?: boolean } = {}
   ): string {
     const explicitFormat = String(file?.format ?? '').toLowerCase();
+    if (explicitFormat === 'network' || explicitFormat === 'graphml') {
+      return 'network';
+    }
     const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice'];
     if (knownFormats.includes(explicitFormat)) {
       return explicitFormat;
@@ -2212,6 +2583,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     if (hints.isAuspice) {
       return 'auspice';
+    }
+    if (hints.isNetworkDocument || hints.isNetworkXml) {
+      return 'network';
     }
     if (hints.isFasta) {
       return 'fasta';
@@ -2267,7 +2641,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   /**
    * Gets information from file about extension, file type, and header and uses that information to addTableTile for file-table
    */
-  addToTable(file) {
+  addToTable(file, options: AddToTableOptions = {}) {
     if(this.commonService.debugMode) {
       console.log('addToTable: ', file);
     }
@@ -2276,10 +2650,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
     const isFasta = extension.indexOf('fas') > -1;
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
+    // Some network formats are uploaded as generic XML/JSON/text, so detect by
+    // extension first and then by document shape.
+    const isNetworkDocument = ['graphml', 'gexf', 'xgmml', 'cx', 'cx2', 'dot', 'gv', 'gml'].includes(extension)
+      || this.graphMLService.looksLikeNetworkDocument(file.contents);
     const isXL = (extension === 'xlsx' || extension === 'xls');
     const isJSON = (extension === 'json');
     const isAuspice = (extension === 'json' && file.contents.meta && file.contents.tree);
-    const tableFormatHints = { isFasta, isNewick, isAuspice };
+    const tableFormatHints = { isFasta, isNewick, isAuspice, isNetworkDocument };
     if (isXL) {
       try {
         const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
@@ -2296,6 +2674,33 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         console.log('Unable to read excel file: ', file.name);
         addTableTile([file.field1, file.field2, file.field3], this);
         return;
+      }
+    } else if (isNetworkDocument) {
+      try {
+        const networkDocument = this.graphMLService.importNetworkDocument(file.contents, { sourceName: file.name });
+        file.format = 'network';
+        const detectedFormat = addTableTile(['network_format', '_id', 'source', 'target', 'distance', 'origin'], this);
+        this.nodeIds = this.nodeIds.filter(x => x.fileName !== file.name);
+        this.edgeIds = this.edgeIds.filter(x => x.fileName !== file.name);
+        this.nodeIds.push({
+          fileName: file.name,
+          ids: networkDocument.nodes.map(node => '' + node._id)
+        });
+        this.edgeIds.push({
+          fileName: file.name,
+          ids: networkDocument.links.map(link => ({
+            source: '' + link.source,
+            target: '' + link.target
+          }))
+        });
+        networkDocument.warnings.forEach(warning => console.warn(`Network ${file.name}: ${warning}`));
+        this.nodeEdgeCheck();
+        if(this.commonService.debugMode) {
+          console.log('addToTable Network detected format: ', detectedFormat, networkDocument);
+        }
+      } catch (error) {
+        console.error('Unable to read Network file: ', file.name, error);
+        addTableTile(['network_format', '_id', 'source', 'target'], this);
       }
     } else if (isJSON) {
         let data = [];
@@ -2354,162 +2759,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       }
     }
 
-    //For the love of all that's good...
-    //TODO: Rewrite this as a [Web Component](https://developer.mozilla.org/en-US/docs/Web/Web_Components/Using_custom_elements) or [something](https://reactjs.org/docs/react-component.html) or something.
     /**
      * Adds a file-table-row for the file.
      */
     function addTableTile(headers, context) {
-
-
-      console.log('addTableTile: ', headers);
       const parentContext = context;
       const detectedFormat = parentContext.inferTabularFileFormat(file, headers, tableFormatHints);
-      file.format = detectedFormat;
-      const isNode = detectedFormat === 'node';
-      const showsColumnMapping = detectedFormat === 'node' || detectedFormat === 'link';
-      const root = $('<div class="file-table-row" style="position: relative; z-index: 1;margin-bottom: 24px;"></div>').data('filename', file.name);
-      const fnamerow = $('<div class="row w-100"></div>');
-      $('<div class="file-name col"></div>')
-        .append($('<a href="javascript:void(0);" class="far flaticon-delete-1 align-middle p-1" title="Remove this file"></a>').on('click', () => {
-          const fileIndex = parentContext.commonService.session.files.findIndex(f => f.name === file.name);
-          if (fileIndex >= 0) {
-            parentContext.commonService.session.files.splice(fileIndex, 1);
-          }
-          parentContext.removeFile(file.name);
-          if (parentContext.commonService.session.files.length === 0) {
-            parentContext.setLaunchButtonsDisabled(true);
-          } else {
-            parentContext.setLaunchButtonsDisabled(false, true);
-          }
-          root.slideUp(() => root.remove());
-          parentContext.refreshTemplateState();
-        }))
-        .append($(`<a href="javascript:void(0);" class="far flaticon-download-1 align-middle p-1" ${parentContext.isFileContentsEmpty(file) ? 'style="color: gray" title="Unable to resave this file"': 'title="Resave this file"' } ></a>`).on('click', () => {
-          if (parentContext.isFileContentsEmpty(file)) {
-            alert('Unable to resave this file.');
-          } else {
-            saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
-          }
-        }))
-        .append('<span class="p-1">' + file.name + '</span>')
-        .append(`
-                    <div class="btn-group btn-group-toggle btn-group-sm float-right" data-toggle="buttons">
-                      <label class="btn btn-light${detectedFormat === 'link' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="link" autocomplete="off"${detectedFormat === 'link' ? ' checked' : ''}>Link
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'node' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="node" autocomplete="off"${detectedFormat === 'node' ? ' checked' : ''}>Node
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'matrix' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="matrix" autocomplete="off"${detectedFormat === 'matrix' ? ' checked' : ''}>Matrix
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'fasta' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="fasta" autocomplete="off"${detectedFormat === 'fasta' ? ' checked' : ''}>FASTA
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'newick' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="newick" autocomplete="off"${detectedFormat === 'newick' ? ' checked' : ''}>Newick
-                      </label>
-                      <label class="btn btn-light${detectedFormat === 'auspice' ? ' active' : ''}">
-                        <input type="radio" name="options-${file.name}" data-type="auspice" autocomplete="off"${detectedFormat === 'auspice' ? ' checked' : ''}>Auspice
-                      </label>
-                    </div>`).appendTo(fnamerow);
-
-      fnamerow.appendTo(root);
-      const optionsrow = $('<div class="row w-100"></div>');
-      const options = '<option>None</option>' + headers.map(h => `<option value="${h}">${parentContext.commonService.titleize(h)}</option>`).join('\n');
-      optionsrow.append(`
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-1">${isNode ? 'ID' : 'Source'}</label>
-                    <select id="file-${file.name}-field-1" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-2">${isNode ? 'Sequence' : 'Target'}</label>
-                    <select id="file-${file.name}-field-2" class="form-control form-control-sm">${options}</select>
-                  </div>
-                  <div class='col-4 '${showsColumnMapping ? '' : ' style="display: none;"'} data-file='${file.name}'>
-                    <label for="file-${file.name}-field-3">Distance</label>
-                    <select id="file-${file.name}-field-3" class="form-control form-control-sm">${options}</select>
-                  </div>`);
-
-      optionsrow.appendTo(root);
-
-      function matchHeaders(type) {
-
-        const these = root.find('select');
-        const a = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'],
-          b = type === 'node' ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq'] : ['TARGET', 'Target', 'target'],
-          c = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
-        const explicitSelections = [file.field1, file.field2, file.field3];
-        [a, b, c].forEach((list, i) => {
-          const existingSelection = explicitSelections[i];
-
-          if (existingSelection && (existingSelection === 'None' || parentContext.commonService.includes(headers, existingSelection))) {
-            $(these.get(i)).val(existingSelection);
-            return;
-          }
-
-          $(these.get(i)).val("None");
-          list.forEach(title => {
-            if (parentContext.commonService.includes(headers, title)) $(these.get(i)).val(title);
-          });
-          if ($(these.get(i)).val() === 'None' &&
-            !(i === 1 && type === 'node') && //If Node Sequence...
-            !(i === 2 && type === 'link')) { //...or Link distance...
-            //...don't match to a variable in the dataset, leave them as "None".
-            $(these.get(i)).val(headers[i] || 'None');
-            //Everything else, just guess the next ordinal column.
-          }
-        });
-      }
-
-      const fileTable = parentContext.rootHtmlElement.querySelector('#file-table');
-      if (!fileTable) {
-        console.log('Skipping file table row render because the Files view is no longer mounted.', file.name);
-        return detectedFormat;
-      }
-
-      root.appendTo(fileTable);
-      matchHeaders(root.find('input[type="radio"]:checked').data('type'));
-
-      function refit(e: any = null) {
-        const type = $(e ? e.target : root.find('input[type="radio"]:checked')).data('type'),
-          these = root.find('[data-file]'),
-          first = $(these.get(0)),
-          second = $(these.get(1)),
-          third = $(these.get(2));
-        if (type === 'node') {
-          first.slideDown().find('label').text('ID');
-          second.slideDown().find('label').text('Sequence');
-          third.slideUp();
-          matchHeaders(type);
-        } else if (type === 'link') {
-          first.slideDown().find('label').text('Source');
-          second.slideDown().find('label').text('Target');
-          third.slideDown();
-          matchHeaders(type);
-        } else {
-          these.slideUp();
-        }
-        parentContext.updateMetadata(file);
-
-        parentContext.setLaunchButtonsDisabled(false, true);
-      };
-
-      const selectElements = root[0].querySelectorAll('select');
-
-      for (let i = 0; i < selectElements.length; i++) {
-        selectElements[i].addEventListener('change', (event) => {
-          // Handle change event here
-          parentContext.updateMetadata(file);
-        });
-      }
-
+      parentContext.addFileTableRow(file, headers, detectedFormat, options.predictFields !== false);
       console.log('addTableTile end: ', headers);
 
-
-      root.find('input[type="radio"]').on("change", refit);
-      refit();
       return detectedFormat;
     }
   };
@@ -2534,22 +2792,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Updates commonService.session.files info, such as field1, field2 ...etc, based on value user selects
    */
   updateMetadata(file) {
-    $(this.rootHtmlElement).find('.file-table-row').each((i, el) => {
-      const $el = $(el);
-      const fname = $el.data('filename');
-      const selects = $el.find('select');
-      const checkedFormat = $el.find('input[type="radio"]:checked');
-      const f = this.commonService.session.files.find(file => file.name === fname);
-      if (this.commonService.debugMode) {
-        console.log(f);
-      }
-      if (f && selects.length >= 3 && checkedFormat.length > 0) {
-        f.format = checkedFormat.data('type');
-        f.field1 = selects.get(0).value;
-        f.field2 = selects.get(1).value;
-        f.field3 = selects.get(2).value;
-      }
-    });
+    this.fileTableRows.forEach(row => this.applyFileTableRowMetadata(row));
 
   }
 
@@ -2749,8 +2992,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     if(this.commonService.debugMode) {
       console.log('changing link threshold');
     }
-    const newValue = e.target?.value ?? e;
+    const newValue = e?.target?.value ?? e;
+
+    if (newValue === null || newValue === undefined || newValue === '') {
+      return;
+    }
+
     const parsedValue = parseFloat(newValue);
+    if (!Number.isFinite(parsedValue)) {
+      return;
+    }
 
     this.SelectedDefaultDistanceThresholdVariable = parsedValue;
     this.commonService.session.style.widgets['link-threshold'] = parsedValue;
@@ -2769,14 +3020,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     
     // 1. Update the component's state property for the dropdown
-    this.SelectedDefaultDistanceMetricVariable = metric;
+    const selectedMetric = String(metric || 'snps').toLowerCase();
+    const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
+    this.SelectedDefaultDistanceMetricVariable = selectedMetric;
 
     // 2. Update the session state and notify the store (maintains original functionality)
-    this.commonService.session.style.widgets['default-distance-metric'] = metric.toLowerCase();
-    this.store.setMetricChanged(metric);
-    this.store.updatecurrentThresholdStepSize(metric.toLowerCase());
+    this.commonService.session.style.widgets['default-distance-metric'] = calculationMetric;
+    this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = calculationMetric;
+    this.store.setMetricChanged(calculationMetric);
+    this.store.updatecurrentThresholdStepSize(calculationMetric);
 
-    if (metric.toLowerCase() === 'snps') {
+    if (calculationMetric === 'snps') {
       // 3. Update the step attribute and UI visibility
       $('#default-distance-threshold').attr('step', 1);
       $("#ambiguities-row").slideUp();
@@ -2791,6 +3045,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedDefaultDistanceThresholdVariable = 0.015;
       this.onLinkThresholdChange('0.015');
     }
+  }
+
+  isMLSTSelected(): boolean {
+    return String(this.SelectedDefaultDistanceMetricVariable || '').toLowerCase() === 'mlst';
   }
 
   onAmbiguityStrategyChanged() {

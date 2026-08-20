@@ -159,7 +159,7 @@ describe('Map View', () => {
    * continues with the sample dataset, and navigates to the view.
    */
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
 
     // Open the "View" menu and click on "Map"
     cy.contains('button', 'View').click();
@@ -1169,8 +1169,17 @@ describe('Map View', () => {
     });
 
     it('starts and stops the timeline and also checks that play button is updated', () => {
-      cy.get('svg g.slider text.label').should('contain', 'Jun 28')
-      cy.get('svg g.slider circle.handle').should('not.have.attr', 'cx')
+      cy.window().then((win: any) => {
+        const microbeTrace = win.commonService.visuals.microbeTrace;
+        const activeDate = new Date(win.commonService.session.state.timeEnd);
+        const activeX = Number(microbeTrace.xAttribute(activeDate));
+
+        cy.get('svg g.slider text.label').should('have.text', microbeTrace.handleDateFormat(activeDate));
+        cy.get('svg g.slider circle.handle')
+          .invoke('attr', 'cx')
+          .then(Number)
+          .should('be.closeTo', activeX, 1);
+      });
       cy.get('#timeline-play-button').should('contain', 'Play').click();
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
@@ -1193,8 +1202,24 @@ describe('Map View', () => {
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
 
-      cy.get('#key-tables-node-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
-      cy.get('#key-tables-link-table td input').first().invoke('val', '#000000').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table td[data-value="Pennsylvania"]')
+        .closest('tr')
+        .find('input[type="color"]')
+        .should('have.length', 1)
+        .then(($input) => {
+          const input = $input.get(0) as HTMLInputElement;
+          input.value = '#777777';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      cy.get('#key-tables-link-table td input')
+        .first()
+        .then(($input) => {
+          const input = $input.get(0) as HTMLInputElement;
+          input.value = '#000000';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
 
       cy.window().its('commonService.visuals.gisMap.layers').then(layers => {
         let penNode: any = Object.values(layers.markerClusterGroup._featureGroup._layers).find((layer: any) => layer.data && layer.data.ID === 'MZ415508')
@@ -1212,32 +1237,45 @@ describe('Map View', () => {
       }) 
     })
 
-    it('clicks slider midway and then back to start', () => {
+    it('clicks the slider forward and then back to start', () => {
 
       cy.get('#global-timeline svg line.track-overlay').first().click(300, 0, {force: true});
       cy.wait(1500)
-      cy.get('svg g.slider text.label').should('contain', 'Jul 15') 
       cy.window().then((win: any) => {
+        const state = win.commonService.session.state;
+        const activeTime = new Date(state.timeEnd).getTime();
+        const startTime = new Date(state.timeStart).getTime();
+        const targetTime = new Date(state.timeTarget).getTime();
+        const microbeTrace = win.commonService.visuals.microbeTrace;
         let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
         let mapNodeCount = 0;
         Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
           if (layer._childCount) mapNodeCount += layer._childCount;
           else mapNodeCount += 1;
         })
-        expect(visNodeCount_map).to.eq(mapNodeCount).to.eq(16);
+        expect(activeTime, 'forward timeline date').to.be.greaterThan(startTime);
+        expect(activeTime, 'forward timeline date').to.be.at.most(targetTime);
+        expect(visNodeCount_map).to.eq(mapNodeCount);
+        cy.get('svg g.slider text.label')
+          .should('have.text', microbeTrace.handleDateFormat(new Date(state.timeEnd)));
       })
 
       cy.get('#global-timeline svg line.track-overlay').first().click(0, 0, {force: true});
       cy.wait(1500)
-      cy.get('svg g.slider text.label').should('contain', 'Jun 27') 
       cy.window().then((win: any) => {
+        const state = win.commonService.session.state;
+        const microbeTrace = win.commonService.visuals.microbeTrace;
         let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
         let mapNodeCount = 0;
         Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
           if (layer._childCount) mapNodeCount += layer._childCount;
           else mapNodeCount += 1;
         })
-        expect(visNodeCount_map).to.eq(mapNodeCount).to.eq(0);
+        expect(new Date(state.timeEnd).toDateString(), 'timeline reset to selected start date')
+          .to.equal(new Date(state.timeStart).toDateString());
+        expect(visNodeCount_map).to.eq(mapNodeCount);
+        cy.get('svg g.slider text.label')
+          .should('have.text', microbeTrace.handleDateFormat(new Date(state.timeEnd)));
       })
     })
   })

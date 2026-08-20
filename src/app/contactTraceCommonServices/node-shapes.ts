@@ -1103,6 +1103,10 @@ export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, stro
     return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, undefined, fillOpacity);
 }
 
+export function getNodeShapePreviewDataUri(shapeKey: string): string {
+    return getMapNodeShapeDataUri(resolveNodeShapeKey(shapeKey), '#000000', '#000000', 2);
+}
+
 export function getTreeNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number = 1): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     if (isCustomNodeShape(normalizedShapeKey)) {
