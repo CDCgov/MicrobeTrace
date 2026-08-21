@@ -1,3 +1,5 @@
+import { normalizeNodeStyleCategoryValue } from './color-mapping.service';
+
 export type NodeShapeGroupKey = 'basic' | 'places' | 'people' | 'vectors' | 'animals' | 'specimen' | 'other';
 
 export const DEFAULT_NODE_SHAPE_KEY = 'ellipse';
@@ -674,12 +676,12 @@ export function resolveNodeShapeForNode(
         return defaultShape;
     }
 
-    const nodeValue = node[symbolVariable];
+    const nodeValue = normalizeNodeStyleCategoryValue(node[symbolVariable]);
     const tableKeys = style?.nodeSymbolsTableKeys?.[symbolVariable];
     const tableShapes = style?.nodeSymbolsTable?.[symbolVariable];
 
     if (Array.isArray(tableKeys) && Array.isArray(tableShapes)) {
-        const tableIndex = tableKeys.findIndex(value => value === nodeValue || `${value}` === `${nodeValue}`);
+        const tableIndex = tableKeys.findIndex(value => normalizeNodeStyleCategoryValue(value) === nodeValue);
         if (tableIndex >= 0 && tableIndex < tableShapes.length) {
             return resolveNodeShapeKey(tableShapes[tableIndex], defaultShape);
         }
@@ -690,6 +692,31 @@ export function resolveNodeShapeForNode(
     }
 
     return defaultShape;
+}
+
+export interface NodeShapeCategoryAggregation {
+    counts: Map<string, number>;
+    visibleNodeCount: number;
+}
+
+export function aggregateNodeShapeCategories(
+    nodes: any[],
+    variable: string
+): NodeShapeCategoryAggregation {
+    const counts = new Map<string, number>();
+    let visibleNodeCount = 0;
+
+    (nodes || []).forEach(node => {
+        if (!node || typeof node !== 'object' || !node.visible) {
+            return;
+        }
+
+        visibleNodeCount++;
+        const category = normalizeNodeStyleCategoryValue(node[variable]);
+        counts.set(category, (counts.get(category) ?? 0) + 1);
+    });
+
+    return { counts, visibleNodeCount };
 }
 
 export function isCustomNodeShape(shapeKey: string | null | undefined): boolean {

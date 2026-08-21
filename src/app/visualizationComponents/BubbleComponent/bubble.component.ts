@@ -14,8 +14,13 @@ import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/ex
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { getMixedNodeShapeDataUri } from '@app/contactTraceCommonServices/node-shapes';
-import { buildPieChartPatternDef, buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartPatternDef, buildPieChartSvgDataUri, expandPieChartSlicesBySegments, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { NodeFillStyle } from '@app/contactTraceCommonServices/color-mapping.service';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
+import {
+  getBubbleCollapseGroupKey,
+  groupVisibleNodesByBubbleAxes
+} from './bubble-collapse-utils';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any, mixedColorImage?: string }//selected: boolean }
 
@@ -235,6 +240,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   private refreshCollapsedData(sortData = false) {
+    this.hideTooltip();
+    // Cluster membership and other computed axis values can change while the
+    // view is open. Refresh both category lists before rebuilding aggregates.
+    this.updateAxisValues('X');
+    this.updateAxisValues('Y');
     this.visibleData = [];
     this.svgDefs = {};
     this.getCollapsedData(sortData, true);
@@ -619,7 +629,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         } 
       </style>
       <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable'])}</th><th> Count </th><th> % </th></thead><tbody>`;
-      d.counts.forEach((x) => tooltipHTML += `<tr><td>${x.label}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
+      d.counts.forEach((x) => tooltipHTML += `<tr><td>${this.commonService.titleize(x.label)}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
       tooltipHTML += `<tr><td>Total</td><td> ${d.totalCount}</td><td></td></tr></tbody></table>`;
     } else {
       tooltipHTML = `${d.id}`
@@ -648,12 +658,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   hideTooltip() {
-    Object.assign(this.toolTip.nativeElement.style, {
+    const tooltipElement = this.toolTip?.nativeElement;
+    if (!tooltipElement) {
+      return;
+    }
+
+    Object.assign(tooltipElement.style, {
       transition: 'opacity 100ms',
       opacity: 0
     })
-    this.toolTip.nativeElement.addEventListener('transitionend', () => {
-      this.toolTip.nativeElement.style.zIndex = '-1'
+    tooltipElement.addEventListener('transitionend', () => {
+      tooltipElement.style.zIndex = '-1'
     }, { once: true })
   }
 
@@ -805,42 +820,30 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
     
     if (initial) {
-      this.visibleData = [];
-      let fullNodes = this.commonService.session.data.nodeFilteredValues;
-      this.allData.forEach(node => {
-        let X_group = 0, Y_group = 0;
-        let currentFullNode = fullNodes.find(fNode => fNode.index == node.index)
-        if (!currentFullNode) {
-          return;
-        }
-        if (this.xVariable != undefined && this.xVariable != 'None') {
-          let nodeX = currentFullNode[this.xVariable];
-          X_group = this.X_categories.indexOf(nodeX);
-        }
-        if (this.yVariable != undefined && this.yVariable != 'None') {
-          let nodeY = currentFullNode[this.yVariable];
-          Y_group = this.Y_categories.indexOf(nodeY);
-        }
+      const groups = groupVisibleNodesByBubbleAxes(
+        this.commonService.getVisibleNodes(),
+        this.xVariable,
+        this.yVariable,
+        this.X_categories,
+        this.Y_categories
+      );
 
-        let index = this.visibleData.findIndex((node) => node.Xgroup==X_group && node.Ygroup==Y_group);
-        if (index == -1) {
-          //console.log(X_group, Y_group)
-          let length = this.visibleData.length;
-          this.visibleData.push({
-            index: length,
-            id: `cNode${length}`,
-            x: X_group,
-            y: Y_group,
-            color: node.color,
-            opacity: node.opacity,
-            Xgroup: X_group,
-            Ygroup: Y_group,
-            strokeColor: '#000000',
-            totalCount: 0,
-            counts: []
-          })
-        }
-      })
+      this.visibleData = groups.map((group, index) => {
+        const nodeStyle = this.commonService.getNodeFillStyle(group.nodes[0]);
+        return {
+          index,
+          id: `cNode${index}`,
+          x: group.Xgroup,
+          y: group.Ygroup,
+          color: nodeStyle.color,
+          opacity: nodeStyle.alpha,
+          Xgroup: group.Xgroup,
+          Ygroup: group.Ygroup,
+          strokeColor: '#000000',
+          totalCount: 0,
+          counts: []
+        };
+      });
 
     }
 
@@ -859,9 +862,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.cy.style().resetToDefault();
     this.cy.style(this.getCytoscapeStyle())
     this.visibleData.forEach((node) => {
-      if ( node.totalCount == 1 || node.counts.length == 1) {
-        return;
-      } else {
+      if (this.hasCollapsedBubblePie(node)) {
         this.applyCollapsedBubblePieStyle(node);
       }
     })
@@ -901,24 +902,38 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
    * @returns an array of indexes of visibleData that was changed
    */
   generateCollapsedCounts() {
-    let fullNodes = this.commonService.getVisibleNodes();
-    let colorCategory = this.commonService.session.style.widgets['node-color-variable']
-    let changedVisibleNodes = [];
+    const groupedNodes = groupVisibleNodesByBubbleAxes(
+      this.commonService.getVisibleNodes(),
+      this.xVariable,
+      this.yVariable,
+      this.X_categories,
+      this.Y_categories
+    );
+    const nodesByGroup = new Map(
+      groupedNodes.map(group => [
+        getBubbleCollapseGroupKey(group.Xgroup, group.Ygroup),
+        group.nodes
+      ])
+    );
+    const colorCategory = this.commonService.session.style.widgets['node-color-variable'];
+    const changedVisibleNodes = [];
 
     this.visibleData.forEach(node => {
       if (node.id == '' && node.index == 1000) {
         node.counts = { label: '', count: 0}
         return;
       }
-      let X = this.X_categories[node.Xgroup]
-      let Y = this.Y_categories[node.Ygroup]
-      
-      let currentNodes = fullNodes.filter(fNode => fNode[this.xVariable] == X && fNode[this.yVariable]==Y) 
+      const currentNodes = nodesByGroup.get(
+        getBubbleCollapseGroupKey(node.Xgroup, node.Ygroup)
+      ) || [];
+      const previousCounts = JSON.stringify(node.counts || []);
       node.counts = [];
-      let previousTotal = node.totalCount;
+      const previousTotal = node.totalCount;
       node.totalCount = 0;
       currentNodes.forEach(cNode => {
-        let currentCategory = cNode[colorCategory];
+        const currentCategory = colorCategory === 'None'
+          ? 'All Nodes'
+          : this.commonService.normalizeNodeStyleCategoryValue(cNode[colorCategory]);
         let index = node.counts.findIndex((countItem) => countItem.label == currentCategory)
         if (index == -1) {
           node.counts.push({
@@ -930,7 +945,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         }
         node.totalCount += 1;
       })
-      if (previousTotal != node.totalCount) {
+      if (previousTotal != node.totalCount || previousCounts !== JSON.stringify(node.counts)) {
         //console.log('node updated: ', node.totalCount, node.index)
         changedVisibleNodes.push(node.index)
       }
@@ -938,7 +953,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return changedVisibleNodes;
   }
 
-  private getNodeFillStyleForColorValue(value: any): { color: string; alpha: number } {
+  private getNodeFillStyleForColorValue(value: any): NodeFillStyle {
     const colorVariable = this.commonService.session.style.widgets['node-color-variable'];
     const syntheticNode = colorVariable === 'None' ? undefined : { [colorVariable]: value };
     return this.commonService.getNodeFillStyle(syntheticNode);
@@ -963,15 +978,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   private getPieSlicesForCollapsedBubbleNode(node: DataRecord): PieChartSlice[] {
-    return (node.counts || []).map(count => {
-      const nodeStyle = this.getNodeFillStyleForColorValue(count.label);
-      return {
-        label: count.label,
-        count: count.count,
-        color: nodeStyle.color,
-        alpha: nodeStyle.alpha
-      };
-    });
+    const counts = Array.isArray(node.counts) ? node.counts : [];
+    return expandPieChartSlicesBySegments(
+      counts,
+      label => this.getNodeFillStyleForColorValue(label)
+    );
+  }
+
+  private hasCollapsedBubblePie(node: DataRecord): boolean {
+    return this.getPieSlicesForCollapsedBubbleNode(node).length > 1;
   }
 
   private getCollapsedBubblePieDataUri(node: DataRecord, patternId: string): string {
@@ -1005,11 +1020,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     changedVisibleNodes.forEach((indexNumber) => {
       let node = this.visibleData.find(vNode => vNode.index == indexNumber);
 
-      if (node == undefined || node.totalCount < 2 || node.counts.length == 1) {
+      if (node == undefined) {
         return;
       }
 
       const slices = this.getPieSlicesForCollapsedBubbleNode(node);
+      if (slices.length <= 1) {
+        return;
+      }
       const stablePatternId = this.getCollapsedBubblePatternId(node);
       this.svgDefs[stablePatternId] = buildPieChartPatternDef(stablePatternId, slices);
       this.svgDefs[`node${indexNumber}`] = buildPieChartPatternDef(`node${indexNumber}`, slices);
@@ -1270,8 +1288,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       this.updateNodes();
 
       this.visibleData.forEach((node) => {
-        if ( node.totalCount == 1 || node.counts.length == 1) {
-          let currrentVar = node.counts[0].label
+        if (!this.hasCollapsedBubblePie(node)) {
+          const currrentVar = Array.isArray(node.counts) ? node.counts[0]?.label : undefined;
           const nodeStyle = this.getNodeFillStyleForColorValue(currrentVar);
           this.cy.style().selector(`#${node.id}`).style({
             'background-color': nodeStyle.color,
@@ -1713,8 +1731,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       const counts = Array.isArray(dataNode.counts)
         ? dataNode.counts.filter((count) => Number(count?.count || 0) > 0)
         : [];
+      const pieSlices = this.getPieSlicesForCollapsedBubbleNode(dataNode);
 
-      if (totalCount <= 1 || counts.length <= 1) {
+      if (totalCount <= 0 || counts.length === 0 || pieSlices.length <= 1) {
         return;
       }
 
@@ -1738,7 +1757,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         return;
       }
 
-      const sliceTotal = counts.reduce((sum, count) => sum + Number(count.count || 0), 0);
+      const sliceTotal = pieSlices.reduce((sum, slice) => sum + Number(slice.count || 0), 0);
       if (sliceTotal <= 0) {
         return;
       }
@@ -1751,16 +1770,13 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         exportWidth: nodeWidth * exportScale,
         exportX: (position.x - graphBounds.x1 - nodeWidth / 2) * exportScale,
         exportY: (position.y - graphBounds.y1 - nodeHeight / 2) * exportScale,
-        slices: counts.map((count) => {
-          const label = String(count.label);
-          const countValue = Number(count.count || 0);
-          const nodeStyle = this.getNodeFillStyleForColorValue(label);
-
+        slices: pieSlices.map((slice) => {
+          const countValue = Number(slice.count || 0);
           return {
-            label,
+            label: slice.label,
             count: countValue,
-            color: nodeStyle.color,
-            opacity: nodeStyle.alpha,
+            color: slice.color,
+            opacity: Number.isFinite(Number(slice.alpha)) ? Number(slice.alpha) : 1,
             fraction: countValue / sliceTotal,
           };
         }),

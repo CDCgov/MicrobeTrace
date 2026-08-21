@@ -16,7 +16,7 @@ import { GraphData } from '@app/visualizationComponents/TwoDComponent/data';
 import { CommonStoreService } from './common-store.services';
 import { LayoutConfig } from 'golden-layout';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
-import { ColorMappingService, NodeFillStyle, getMixedNodeColorSegments } from './color-mapping.service';
+import { ColorMappingService, NodeFillStyle, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
 import {
     buildStoredDistanceEdgeCache,
@@ -732,6 +732,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         return Math.min(1, Math.max(0, numericValue));
     }
 
+    public normalizeNodeStyleCategoryValue(value: any): string {
+        return normalizeNodeStyleCategoryValue(value);
+    }
+
     private ensureNodeColorAssignmentState(style: any = this.session?.style): Record<string, Record<string, string>> {
         if (!style || typeof style !== 'object') {
             return {};
@@ -792,8 +796,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
+        const normalizedValue = this.normalizeNodeStyleCategoryValue(value);
         const colorHistory = this.session.style.nodeColorsTableHistory?.[variable];
-        const historicalColor = colorHistory?.[String(value)];
+        const historicalColor = colorHistory?.[normalizedValue];
         const mixedColorsEnabled = widgets['node-mixed-colors-enabled'] === true;
         if (mixedColorsEnabled) {
             const segments = getMixedNodeColorSegments(
@@ -832,14 +837,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             color = historicalColor;
         } else {
             try {
-                color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+                color = this.temp.style.nodeColorMap?.(normalizedValue) || fallbackColor;
             } catch {
                 color = fallbackColor;
             }
         }
 
         try {
-            alpha = this.temp.style.nodeAlphaMap?.(value) ?? 1;
+            alpha = this.temp.style.nodeAlphaMap?.(normalizedValue) ?? 1;
         } catch {
             alpha = 1;
         }

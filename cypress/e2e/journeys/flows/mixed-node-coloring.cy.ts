@@ -6,7 +6,10 @@ import {
   ensureMapView,
   goToPhyloTreeView,
   launchProfileToTwoD,
+  openBubbleSettingsDialog,
+  openGlobalFilteringTab,
   openGlobalStylingTab,
+  setGlobalLinkThreshold,
 } from '../../../support/journey-helpers';
 
 type WinWithMicrobeTrace = Window & {
@@ -106,11 +109,152 @@ describe('Journey Flow - mixed node coloring', () => {
 
     assertMixedStyleSegments('#00aa00');
 
+    openGlobalFilteringTab();
+    setGlobalLinkThreshold(1);
+    cy.closeGlobalSettings();
+
+    cy.window().should((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const clusterTotals = commonService.getVisibleNodes().reduce(
+        (totals: Map<number, number>, node: any) => {
+          totals.set(node.cluster, (totals.get(node.cluster) || 0) + 1);
+          return totals;
+        },
+        new Map<number, number>(),
+      );
+
+      expect(Array.from(clusterTotals.entries())).to.deep.equal([[0, 7], [1, 2]]);
+    });
+
+    cy.window().then((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const twoD = commonService.visuals.twoD;
+      twoD.onNodeCollapseThresholdDisplayedChange(1);
+      twoD.onNodeCollapseEnabledChange(true);
+    });
+
+    cy.window().should((win: unknown) => {
+      const twoD = (win as WinWithMicrobeTrace).commonService.visuals.twoD;
+      const renderedNodes = twoD.cy.nodes(':visible');
+      const aggregates = renderedNodes
+        .filter((node: any) => node.data('isCollapsedAggregate') === true)
+        .toArray()
+        .sort((a: any, b: any) => a.data('totalCount') - b.data('totalCount'));
+
+      expect(renderedNodes.length, '2D rendered collapsed node count').to.equal(2);
+      expect(aggregates.map((node: any) => node.data('totalCount'))).to.deep.equal([2, 7]);
+
+      const mixedAggregate = aggregates[1];
+      const pieSlices = twoD.getCollapsedPieSlices(mixedAggregate.data('counts'));
+      expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
+        ['1a', 1],
+        ['2a', 1],
+        ['2a', 0.5],
+        ['3a', 1],
+        ['3a', 0.5],
+        ['6', 0.5],
+        ['7a', 0.5],
+        ['null', 2],
+      ]);
+      expect(String(mixedAggregate.style('background-image'))).to.contain('data:image');
+    });
+
+    cy.window().then((win: unknown) => {
+      (win as WinWithMicrobeTrace).commonService.visuals.twoD.onNodeCollapseEnabledChange(false);
+    });
+
+    cy.window().should((win: unknown) => {
+      const renderedNodes = (win as WinWithMicrobeTrace).commonService.visuals.twoD.cy.nodes(':visible');
+      expect(renderedNodes.length, '2D restored node count').to.equal(9);
+      expect(renderedNodes.filter((node: any) => node.data('isCollapsedAggregate') === true).length).to.equal(0);
+    });
+
+    // Preserve the reported handoff state: related-node collapse remains on
+    // at distance 1 when Bubble is opened and its own collapse is enabled.
+    cy.window().then((win: unknown) => {
+      (win as WinWithMicrobeTrace).commonService.visuals.twoD.onNodeCollapseEnabledChange(true);
+    });
+
     ensureBubbleView();
     cy.window().then((win: unknown) => {
       const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
       const mixedBubbleNode = bubble.cy.getElementById('sample-4');
       expect(String(mixedBubbleNode.data('mixedColorImage') || '')).to.contain('data:image/svg+xml');
+    });
+
+    openBubbleSettingsDialog();
+    cy.get('@bubbleSettings').find('#bubble-node-collapsing').contains('On').click({ force: true });
+    cy.closeSettingsPane('Bubble Settings');
+
+    cy.window().should((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const bubble = commonService.visuals.bubble;
+      const aggregates = [...bubble.visibleData].sort((a: any, b: any) => a.Xgroup - b.Xgroup);
+      const renderedNodes = bubble.cy.nodes().filter((node: any) => node.classes().length === 0);
+
+      expect(aggregates.map((node: any) => node.Xgroup)).to.deep.equal([0, 1]);
+      expect(aggregates.map((node: any) => node.totalCount)).to.deep.equal([7, 2]);
+      expect(
+        aggregates.reduce((total: number, node: any) => total + Number(node.totalCount || 0), 0),
+        'collapsed Bubble node total',
+      ).to.equal(9);
+      expect(aggregates[0].counts).to.deep.equal([
+        { label: '1a', count: 1 },
+        { label: '2a', count: 1 },
+        { label: '3a', count: 1 },
+        { label: '2a/3a', count: 1 },
+        { label: '6/7a', count: 1 },
+        { label: 'null', count: 2 },
+      ]);
+      expect(aggregates[1].counts).to.deep.equal([{ label: 'null', count: 2 }]);
+      expect(renderedNodes.length, 'rendered collapsed Bubble count').to.equal(2);
+
+      aggregates.forEach((aggregate: any) => {
+        const renderedNode = bubble.cy.getElementById(aggregate.id);
+        expect(renderedNode.empty(), `rendered aggregate ${aggregate.id}`).to.equal(false);
+        expect(renderedNode.style('display'), `displayed aggregate ${aggregate.id}`).to.equal('element');
+        expect(renderedNode.style('visibility'), `visible aggregate ${aggregate.id}`).to.equal('visible');
+      });
+
+      const pieSlices = bubble.getPieSlicesForCollapsedBubbleNode(aggregates[0]);
+      expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
+        ['1a', 1],
+        ['2a', 1],
+        ['2a', 0.5],
+        ['3a', 1],
+        ['3a', 0.5],
+        ['6', 0.5],
+        ['7a', 0.5],
+        ['null', 2],
+      ]);
+      expect(
+        pieSlices.reduce((total: number, slice: any) => total + Number(slice.count || 0), 0),
+        'cluster-0 pie total',
+      ).to.equal(7);
+    });
+
+    cy.window().then((win: unknown) => {
+      const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
+      const clusterZero = bubble.visibleData.find((node: any) => node.Xgroup === 0);
+      const renderedNode = bubble.cy.getElementById(clusterZero.id);
+      renderedNode.emit('mouseover', renderedNode.renderedPosition());
+    });
+
+    cy.get('#bubbleTooltip', { timeout: 5000 })
+      .should('be.visible')
+      .within(() => {
+        cy.contains('tr', '(Empty)').should('contain', '2');
+        cy.contains('tr', 'Total').should('contain', '7');
+      });
+
+    openGlobalFilteringTab();
+    setGlobalLinkThreshold(16);
+    cy.closeGlobalSettings();
+
+    cy.get('#bubbleTooltip').should('not.be.visible');
+    cy.window().should((win: unknown) => {
+      const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
+      expect(bubble.visibleData.map((node: any) => node.totalCount)).to.deep.equal([9]);
     });
 
     ensureMapView();

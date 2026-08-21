@@ -43,6 +43,7 @@ import {
     ParsedNodeColorAssignments
 } from './contactTraceCommonServices/color-assignment.service';
 import {
+    aggregateNodeShapeCategories,
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
     NodeShapeGroupKey,
@@ -2582,32 +2583,34 @@ ${warnings.join('\n')}`,
         }
 
         const style = this.commonService.session.style;
-        const values = [...(style.nodeSymbolsTableKeys[variable] ?? [])];
-        const previousKeys = [...values];
-        const aggregateMap = new Map<any, number>();
-        let visibleNodeCount = 0;
+        const rawPreviousKeys = [...(style.nodeSymbolsTableKeys[variable] ?? [])];
+        const rawPreviousSymbols = this.normalizeNodeShapeState(variable);
+        const previousKeys: string[] = [];
+        const previousSymbols: string[] = [];
 
-        for (const node of this.commonService.session.data.nodes) {
-            if (!node || typeof node !== 'object' || !node.visible) {
-                continue;
+        rawPreviousKeys.forEach((key, index) => {
+            const normalizedKey = this.commonService.normalizeNodeStyleCategoryValue(key);
+            if (this.findNodeShapeValueIndex(previousKeys, normalizedKey) !== -1) {
+                return;
             }
 
-            visibleNodeCount++;
+            previousKeys.push(normalizedKey);
+            previousSymbols.push(rawPreviousSymbols[index] ?? this.getDefaultNodeShape());
+        });
 
-            const groupValue = node[variable];
-            if (groupValue === undefined) {
-                continue;
-            }
+        const values = [...previousKeys];
+        const { counts: aggregateMap, visibleNodeCount } = aggregateNodeShapeCategories(
+            this.commonService.session.data.nodes,
+            variable
+        );
 
+        aggregateMap.forEach((_count, groupValue) => {
             if (this.findNodeShapeValueIndex(values, groupValue) === -1) {
                 values.push(groupValue);
             }
-
-            aggregateMap.set(groupValue, (aggregateMap.get(groupValue) ?? 0) + 1);
-        }
+        });
 
         const baseNodeShapes = this.getBaseNodeShapes();
-        const previousSymbols = this.normalizeNodeShapeState(variable);
 
         values.sort((a, b) => (aggregateMap.get(b) ?? 0) - (aggregateMap.get(a) ?? 0));
 

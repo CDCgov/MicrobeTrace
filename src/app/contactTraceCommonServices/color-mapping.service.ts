@@ -14,7 +14,7 @@ export interface NodeFillStyle {
   segments?: NodeColorSegment[];
 }
 
-function isNullLikeNodeColorValue(value: any): boolean {
+export function isNullLikeNodeColorValue(value: any): boolean {
   if (value === undefined || value === null) {
     return true;
   }
@@ -29,7 +29,16 @@ function isNullLikeNodeColorValue(value: any): boolean {
     || normalizedValue === 'null'
     || normalizedValue === 'undefined'
     || normalizedValue === 'nan'
-    || normalizedValue === 'n/a';
+    || normalizedValue === 'n/a'
+    || normalizedValue === '(empty)';
+}
+
+export function normalizeNodeStyleCategoryValue(value: any): string {
+  if (isNullLikeNodeColorValue(value)) {
+    return 'null';
+  }
+
+  return typeof value === 'string' ? value.trim() : String(value);
 }
 
 function splitMixedNodeColorText(value: string): string[] {
@@ -109,16 +118,7 @@ export class ColorMappingService {
   constructor() {}
 
   public normalizeStyleCategoryValue(value: any): string {
-    if (isNullLikeNodeColorValue(value)) {
-      return 'null';
-    }
-
-    if (typeof value === 'string') {
-      const trimmedValue = value.trim();
-      return trimmedValue;
-    }
-
-    return String(value);
+    return normalizeNodeStyleCategoryValue(value);
   }
 
   private parseScalarMixedColorValue(value: any): string[] {

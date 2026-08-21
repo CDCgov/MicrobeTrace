@@ -5,8 +5,102 @@ export interface PieChartSlice {
   alpha?: number;
 }
 
+export interface SegmentedPieChartStyle {
+  color: string;
+  alpha?: number;
+  segments?: Array<{
+    value?: any;
+    color: string;
+    alpha?: number;
+    weight?: number;
+  }>;
+}
+
 export interface PieChartPathSlice extends PieChartSlice {
   path: string;
+}
+
+export function groupPieChartSlicesByRenderedColor(slices: PieChartSlice[]): PieChartSlice[] {
+  const groupedSlices = new Map<string, PieChartSlice[]>();
+
+  (slices || []).forEach(slice => {
+    const count = Number(slice?.count);
+    if (!Number.isFinite(count) || count <= 0) {
+      return;
+    }
+
+    const color = String(slice?.color ?? '').trim();
+    if (!color) {
+      return;
+    }
+
+    const rawAlpha = Number(slice.alpha);
+    const renderedAlpha = Number.isFinite(rawAlpha)
+      ? Math.max(0, Math.min(1, rawAlpha))
+      : 1;
+    const renderedColorKey = `${color.toLowerCase()}|${renderedAlpha}`;
+    const normalizedSlice = {
+      ...slice,
+      count,
+      color
+    };
+    const colorGroup = groupedSlices.get(renderedColorKey);
+
+    if (colorGroup) {
+      colorGroup.push(normalizedSlice);
+    } else {
+      groupedSlices.set(renderedColorKey, [normalizedSlice]);
+    }
+  });
+
+  return Array.from(groupedSlices.values()).flat();
+}
+
+export function expandPieChartSlicesBySegments(
+  counts: Array<{ label: any; count: number }>,
+  resolveStyle: (label: any) => SegmentedPieChartStyle
+): PieChartSlice[] {
+  const slices: PieChartSlice[] = [];
+
+  (counts || []).forEach(countEntry => {
+    const count = Number(countEntry?.count);
+    if (!Number.isFinite(count) || count <= 0) {
+      return;
+    }
+
+    const style = resolveStyle(countEntry.label);
+    const segments = (style?.segments || [])
+      .map(segment => {
+        const rawWeight = Number(segment?.weight);
+        return {
+          ...segment,
+          weight: Number.isFinite(rawWeight) && rawWeight > 0 ? rawWeight : 1
+        };
+      })
+      .filter(segment => typeof segment.color === 'string' && segment.color && segment.weight > 0);
+
+    if (segments.length > 1) {
+      const totalWeight = segments.reduce((total, segment) => total + segment.weight, 0);
+      segments.forEach(segment => {
+        slices.push({
+          label: String(segment.value ?? countEntry.label ?? ''),
+          count: count * segment.weight / totalWeight,
+          color: segment.color,
+          alpha: segment.alpha ?? style.alpha
+        });
+      });
+      return;
+    }
+
+    slices.push({
+      label: String(countEntry.label ?? ''),
+      count,
+      color: style.color,
+      alpha: style.alpha
+    });
+  });
+
+  return groupPieChartSlicesByRenderedColor(slices);
 }
 
 export function getPieChartTotalCount(slices: PieChartSlice[]): number {

@@ -32,7 +32,7 @@ import {
     StyleKeyTableSortColumn
 } from '../KeyTablesComponent/style-key-table.component';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
-import { buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartSvgDataUri, expandPieChartSlicesBySegments, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 interface CustomNodeSvgExportReplacement {
@@ -1458,8 +1458,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const counts = new Map<string, number>();
         memberNodes.forEach(node => {
-            const rawLabel = node?.[colorVariable];
-            const label = rawLabel === undefined || rawLabel === null ? '' : String(rawLabel);
+            const label = this.commonService.normalizeNodeStyleCategoryValue(node?.[colorVariable]);
             counts.set(label, (counts.get(label) || 0) + 1);
         });
 
@@ -1470,16 +1469,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const colorVariable = this.widgets['node-color-variable'];
         const fixedColor = this.widgets['node-color'];
 
-        return counts.map(count => ({
-            label: count.label,
-            count: count.count,
-            color: colorVariable === 'None'
-                ? fixedColor
-                : this.commonService.temp.style.nodeColorMap(count.label),
-            alpha: colorVariable === 'None'
-                ? 1 - Number(this.widgets['node-opacity'] || 0)
-                : this.commonService.temp.style.nodeAlphaMap(count.label)
-        }));
+        return expandPieChartSlicesBySegments(counts, label => {
+            if (colorVariable === 'None') {
+                return {
+                    color: fixedColor,
+                    alpha: 1 - Number(this.widgets['node-opacity'] || 0)
+                };
+            }
+
+            const syntheticNode = { [colorVariable]: label };
+            return this.commonService.getNodeFillStyle(syntheticNode);
+        });
     }
 
     private getCollapsedSolidNodeColor(counts: Array<{ label: string; count: number }>): [string, number] {
@@ -1490,10 +1490,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const label = counts[0]?.label ?? '';
-        return [
-            this.commonService.temp.style.nodeColorMap(label),
-            this.commonService.temp.style.nodeAlphaMap(label)
-        ];
+        const nodeStyle = this.commonService.getNodeFillStyle({ [colorVariable]: label });
+        return [nodeStyle.color, nodeStyle.alpha];
     }
 
     private getCollapsedNodeDistanceSummary(
@@ -4542,7 +4540,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           const countRows = (d.counts || []).map(count => {
             const countValue = Number(count.count || 0);
             const percent = totalCount > 0 ? (countValue / totalCount * 100).toFixed(1) + '%' : '0.0%';
-            return [count.label, countValue, percent];
+            return [this.commonService.titleize(count.label), countValue, percent];
           });
 
           tooltipHtml = this.tabulate([

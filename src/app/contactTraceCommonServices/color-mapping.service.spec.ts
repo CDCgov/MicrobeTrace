@@ -1,6 +1,21 @@
-import { ColorMappingService, getMixedNodeColorSegments, parseMixedNodeColorValue } from './color-mapping.service';
+import { ColorMappingService, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue } from './color-mapping.service';
 
 describe('mixed node color helpers', () => {
+  it('normalizes null-like aliases to the shared empty category', () => {
+    expect([
+      undefined,
+      null,
+      '',
+      ' null ',
+      'N/A',
+      'n/a',
+      'NaN',
+      'undefined',
+      '(Empty)'
+    ].map(normalizeNodeStyleCategoryValue)).toEqual(new Array(9).fill('null'));
+    expect(normalizeNodeStyleCategoryValue(' 2a ')).toBe('2a');
+  });
+
   it('splits strings on supported delimiters', () => {
     expect(parseMixedNodeColorValue('1a/2a, 3a;4a+5a|6a and 7a')).toEqual([
       '1a',

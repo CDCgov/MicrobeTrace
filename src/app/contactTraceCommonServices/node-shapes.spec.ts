@@ -1,4 +1,4 @@
-import { getMixedNodeShapeDataUri } from './node-shapes';
+import { aggregateNodeShapeCategories, getMixedNodeShapeDataUri, resolveNodeShapeForNode } from './node-shapes';
 
 function decodeSvgDataUri(dataUri: string): string {
   return decodeURIComponent(dataUri.split(',')[1]);
@@ -90,5 +90,42 @@ describe('mixed node shape SVG helpers', () => {
 
     expect(svg).toContain('fill="url(#mixed-node-fill)"');
     expect(svg).not.toContain('stroke-width="8"');
+  });
+});
+
+describe('node shape category normalization', () => {
+  it('merges blank and N/A aliases into one empty table count', () => {
+    const result = aggregateNodeShapeCategories([
+      { visible: true, Genotype: undefined },
+      { visible: true, Genotype: null },
+      { visible: true, Genotype: 'N/A' },
+      { visible: true, Genotype: 'n/a' },
+      { visible: true, Genotype: '(Empty)' },
+      { visible: true, Genotype: '2a' },
+      { visible: false, Genotype: 'N/A' }
+    ], 'Genotype');
+
+    expect(Array.from(result.counts.entries())).toEqual([
+      ['null', 5],
+      ['2a', 1]
+    ]);
+    expect(result.visibleNodeCount).toBe(6);
+  });
+
+  it('resolves N/A aliases through the shared empty-category shape', () => {
+    const widgets = {
+      'node-symbol': 'ellipse',
+      'node-symbol-variable': 'Genotype'
+    };
+    const style = {
+      nodeSymbolsTableKeys: { Genotype: ['null', '2a'] },
+      nodeSymbolsTable: { Genotype: ['triangle', 'square'] }
+    };
+    const nodeSymbolMap = (value: any) => value === 'null' ? 'triangle' : 'square';
+
+    expect(resolveNodeShapeForNode({ Genotype: 'N/A' }, widgets, style, nodeSymbolMap)).toBe('triangle');
+    expect(resolveNodeShapeForNode({ Genotype: 'n/a' }, widgets, style, nodeSymbolMap)).toBe('triangle');
+    expect(resolveNodeShapeForNode({ Genotype: null }, widgets, style, nodeSymbolMap)).toBe('triangle');
+    expect(resolveNodeShapeForNode({ Genotype: '2a' }, widgets, style, nodeSymbolMap)).toBe('rectangle');
   });
 });
