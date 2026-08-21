@@ -20,6 +20,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
+import { getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
@@ -3804,7 +3805,7 @@ ${warnings.join('\n')}`,
         const aggregateValues = Object.keys(aggregates);
         this.nodeColorDomain = aggregateValues;
 
-        this.nodeColorRows = aggregateValues
+        const componentRows: StyleKeyTableRow[] = aggregateValues
             .map((value, i) => ({ value, i }))
             .filter(({ value }) => Number(aggregates[value] ?? 0) > 0)
             .map(({ value, i }) => ({
@@ -3817,6 +3818,30 @@ ${warnings.join('\n')}`,
                 alpha: this.commonService.temp.style.nodeAlphaMap(value),
                 index: i
             }));
+
+        const mixedRows: StyleKeyTableRow[] = this.SelectedNodeMixedColorsEnabledVariable
+            ? getMixedNodeColorLegendEntries(vnodes, this.SelectedColorNodesByVariable)
+                .map(entry => {
+                    const fillStyle = this.commonService.getNodeFillStyle({
+                        [this.SelectedColorNodesByVariable]: entry.components
+                    });
+
+                    return {
+                        rawValue: entry.value,
+                        trackKey: `node-color-mixed-${entry.value}`,
+                        displayName: this.getNodeValueDisplayName(entry.value, this.SelectedColorNodesByVariable),
+                        count: entry.count,
+                        frequency: vnodes.length === 0 ? '' : (entry.count / vnodes.length).toLocaleString(),
+                        colorSegments: fillStyle.segments?.map(segment => ({
+                            color: segment.color,
+                            opacity: segment.alpha
+                        }))
+                    };
+                })
+                .filter(row => (row.colorSegments?.length ?? 0) > 1)
+            : [];
+
+        this.nodeColorRows = [...componentRows, ...mixedRows];
         this.applyStyleKeyTableSort('node-color');
         $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
         this.cdref.markForCheck();

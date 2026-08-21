@@ -14,6 +14,12 @@ export interface NodeFillStyle {
   segments?: NodeColorSegment[];
 }
 
+export interface MixedNodeColorLegendEntry {
+  value: string;
+  components: string[];
+  count: number;
+}
+
 export function isNullLikeNodeColorValue(value: any): boolean {
   if (value === undefined || value === null) {
     return true;
@@ -70,6 +76,36 @@ export function parseMixedNodeColorValue(value: any): string[] {
   });
 
   return tokens;
+}
+
+export function getMixedNodeColorLegendEntries(nodes: any[], variable: string): MixedNodeColorLegendEntry[] {
+  if (!variable || variable === 'None') {
+    return [];
+  }
+
+  const entries = new Map<string, MixedNodeColorLegendEntry>();
+
+  (nodes || []).forEach(node => {
+    const components = parseMixedNodeColorValue(node?.[variable]);
+    if (components.length < 2) {
+      return;
+    }
+
+    const key = components.join('\u001f');
+    const existingEntry = entries.get(key);
+    if (existingEntry) {
+      existingEntry.count += 1;
+      return;
+    }
+
+    entries.set(key, {
+      value: components.join('/'),
+      components,
+      count: 1
+    });
+  });
+
+  return Array.from(entries.values());
 }
 
 export function getMixedNodeColorSegments(

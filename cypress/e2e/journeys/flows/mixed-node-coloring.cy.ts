@@ -86,6 +86,17 @@ describe('Journey Flow - mixed node coloring', () => {
       .should('be.enabled')
       .check({ force: true });
     cy.window().its('commonService.session.style.widgets.node-mixed-colors-enabled').should('equal', true);
+
+    ['2a/3a', '6/7a'].forEach((mixedValue) => {
+      cy.get(`#key-tables-node-table td[data-value="${mixedValue}"]`, { timeout: 15000 })
+        .parents('tr')
+        .within(() => {
+          cy.get('.tableCount').should('have.text', '1');
+          cy.get('[data-mixed-color-swatch="true"] [data-color-segment]').should('have.length', 2);
+          cy.get('input[type="color"]').should('not.exist');
+        });
+    });
+
     cy.closeGlobalSettings();
 
     assertMixedStyleSegments();

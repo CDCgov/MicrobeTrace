@@ -19,6 +19,7 @@ export interface StyleKeyTableRow {
     color?: string;
     alpha?: number | string;
     index?: number;
+    colorSegments?: StyleKeyTableDuoSegment[];
     duoSegments?: StyleKeyTableDuoSegment[];
     shapeSelection?: TreeNode<any> | null;
     shapeKey?: string | null;
@@ -127,14 +128,19 @@ export interface StyleKeyTableShapePanelRequest {
                     @if (showFrequencies) {
                         <td class="tableFrequency">{{ row.frequency }}</td>
                     }
-                    <td [style.background-color]="!editable && controlType === 'color' && !row.duoSegments?.length ? row.color : null">
+                    <td [style.background-color]="!editable && controlType === 'color' && !getColorSegments(row).length ? row.color : null">
                         @if (controlType === 'color') {
-                            @if (row.duoSegments?.length) {
-                                <div class="style-key-table__duo-swatch">
-                                    <div class="style-key-table__duo-inner">
-                                        @for (segment of row.duoSegments; track $index) {
+                            @if (getColorSegments(row).length) {
+                                <div
+                                    class="style-key-table__color-swatch style-key-table__duo-swatch"
+                                    role="img"
+                                    [attr.aria-label]="(row.colorSegments?.length ? 'Mixed colors for ' : 'Link colors for ') + row.displayName"
+                                    [attr.data-mixed-color-swatch]="row.colorSegments?.length ? 'true' : null">
+                                    <div class="style-key-table__color-swatch-inner style-key-table__duo-inner">
+                                        @for (segment of getColorSegments(row); track $index) {
                                             <span
-                                                class="duo-link-color-segment"
+                                                class="style-key-table__color-segment duo-link-color-segment"
+                                                [attr.data-color-segment]="$index"
                                                 [attr.data-duo-index]="$index"
                                                 [style.background]="segment.color"
                                                 [style.opacity]="segment.opacity">
@@ -218,10 +224,11 @@ export interface StyleKeyTableShapePanelRequest {
             width: 42px;
         }
 
-        .duo-link-color-segment {
+        .style-key-table__color-segment {
             display: inline-block;
+            flex: 1 1 0;
             height: 100%;
-            width: 50%;
+            min-width: 0;
         }
 
         .style-key-table__shape-option {
@@ -269,6 +276,10 @@ export class StyleKeyTableComponent {
     @Output() shapePanelRequest = new EventEmitter<StyleKeyTableShapePanelRequest>();
 
     private readonly shapePreviewSrcCache = new Map<string, string>();
+
+    getColorSegments(row: StyleKeyTableRow): StyleKeyTableDuoSegment[] {
+        return row.colorSegments?.length ? row.colorSegments : row.duoSegments ?? [];
+    }
 
     getShapePreviewSrc(shapeKey: string | null | undefined): string {
         const key = String(shapeKey ?? '');

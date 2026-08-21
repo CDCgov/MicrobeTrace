@@ -1,4 +1,4 @@
-import { ColorMappingService, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue } from './color-mapping.service';
+import { ColorMappingService, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue } from './color-mapping.service';
 
 describe('mixed node color helpers', () => {
   it('normalizes null-like aliases to the shared empty category', () => {
@@ -48,6 +48,20 @@ describe('mixed node color helpers', () => {
     )).toEqual([
       { value: '2a', color: '#00aa00', alpha: 0.4, weight: 1 },
       { value: '3a', color: '#ffff00', alpha: 0.8, weight: 1 }
+    ]);
+  });
+
+  it('builds one legend entry for each distinct mixed value', () => {
+    expect(getMixedNodeColorLegendEntries([
+      { Genotype: '2a/3a' },
+      { Genotype: '2a, 3a' },
+      { Genotype: '6/7a' },
+      { Genotype: '2a' },
+      { Genotype: 'N/A' },
+      { Genotype: null }
+    ], 'Genotype')).toEqual([
+      { value: '2a/3a', components: ['2a', '3a'], count: 2 },
+      { value: '6/7a', components: ['6', '7a'], count: 1 }
     ]);
   });
 
