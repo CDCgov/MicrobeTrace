@@ -95,7 +95,6 @@
     "@types/googlemaps": "^3.43.3",
     "@types/leaflet.markercluster": "^1.5.1",
     "angular-cli-ghpages": "^3.0.2",
-    "angular-google-tag-manager": "1.10.0",
     "angular-plotly.js": "^6.0.0",
     "assert": "^2.1.0",
     "chart.js": "^2.9.4",

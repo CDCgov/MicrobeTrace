@@ -21,7 +21,6 @@ import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals
 import * as _ from 'lodash';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { getMapNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
@@ -393,8 +392,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
-        private exportService: ExportService,
-        private gtmService: GoogleTagManagerService) {
+        private exportService: ExportService) {
 
             super(elRef.nativeElement);
 
@@ -404,12 +402,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
 
     ngOnInit() {
-
-        this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/map",
-            page_title: "Map View"
-        });
 
         if (!this.NodeMapSettingsExportDialogSettings) {
             this.NodeMapSettingsExportDialogSettings = new DialogSettings('#map-settings-pane', false);

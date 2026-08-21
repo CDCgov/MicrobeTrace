@@ -14,7 +14,6 @@ import TidyTree from './tidytree';
 import * as d3 from 'd3';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { runInThisContext } from 'vm';
 //import { MatHint } from '@angular/material/form-field';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
@@ -169,7 +168,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService) {
 
@@ -560,12 +558,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   ngOnInit() {
     let that = this;
-
-    this.gtmService.pushTag({
-      event: "page_view",
-      page_location: "/phylogenetic",
-      page_title: "Phylogenetic Tree View"
-    });
 
     this.LeafLabelFieldList.push({ label: 'None', value: 'None' });
     this.commonService.session.data['nodeFields'].map((d, i) => {

@@ -54,6 +54,7 @@ import {
     GlobalSettingsDialogRequest,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
+import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -466,7 +467,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private exportService: ExportService,
         private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService,
-        private colorAssignmentService: ColorAssignmentService
+        private colorAssignmentService: ColorAssignmentService,
+        private analyticsService: AnalyticsService
     ) {
 
 
@@ -823,6 +825,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(goldenLayoutComponent.container);
         
         this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
+        this.analyticsService.trackView(component);
         
         console.log('--- addComponent Tab added');
 
@@ -4534,7 +4537,7 @@ ${warnings.join('\n')}`,
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
         });
-        
+
         this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
     }

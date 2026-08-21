@@ -20,7 +20,6 @@ import {
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
@@ -152,7 +151,6 @@ export class NetworkStatisticsComponent
     private commonService: CommonService,
     private store: CommonStoreService,
     private workerComputeService: WorkerComputeService,
-    private gtmService: GoogleTagManagerService,
   ) {
     super(elRef.nativeElement);
     this.visuals = commonService.visuals;
@@ -160,12 +158,6 @@ export class NetworkStatisticsComponent
   }
 
   ngOnInit(): void {
-    this.gtmService.pushTag({
-      event: 'page_view',
-      page_location: '/network-statistics',
-      page_title: 'Network Statistics View',
-    });
-
     this.SelectedTableData = this.getTableData(this.dataSetViewSelected);
     this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
     this.goldenLayoutComponentResize();
