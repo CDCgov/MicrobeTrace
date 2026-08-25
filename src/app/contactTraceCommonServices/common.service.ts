@@ -3852,25 +3852,17 @@ align(params): Promise<any> {
 
         console.log('----- finishUp -- search fields, color variable sort varialbe, distance UI');
 
-        $("#search-field")
-            .html(this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#search-field", this.session.data.nodeFields)
             .val(this.session.style.widgets["search-field"]);
         $("#search-form").css("display", "flex");
-        $("#link-sort-variable")
-            .html(this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#link-sort-variable", this.session.data.linkFields)
             .val(this.session.style.widgets["link-sort-variable"]);
-        $("#node-color-variable")
-            .html(
-                "<option selected>None</option>" +
-                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#node-color-variable", this.getStyleableNodeFields(), true)
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);
-        $("#link-color-variable")
-        .html(
-            "<option>None</option>" +
-            this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
-        .val(this.session.style.widgets["link-color-variable"]);
+        this.replaceSelectOptions("#link-color-variable", this.session.data.linkFields, true)
+            .val(this.session.style.widgets["link-color-variable"]);
         try {
             // TODO:: Refactoring asses need for this
             // this.updateThresholdHistogram();
@@ -3956,6 +3948,22 @@ align(params): Promise<any> {
         });
     };
 
+    /**
+     * Replaces a select element's options without interpreting field names as HTML.
+     */
+    private replaceSelectOptions(selector: string, fields: string[], includeNone = false) {
+        const select = $(selector).empty();
+
+        if (includeNone) {
+            select.append($("<option>").text("None"));
+        }
+
+        fields.forEach(field => {
+            select.append($("<option>").val(field).text(this.titleize(field)));
+        });
+
+        return select;
+    }
 
     updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
         const updateStart = Date.now();
