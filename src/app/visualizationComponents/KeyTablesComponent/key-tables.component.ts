@@ -10,6 +10,7 @@ import {
     StyleKeyTableColumnNameChange,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
+    StyleKeyTableSegmentAlphaChange,
     StyleKeyTableShapeChange,
     StyleKeyTableShapePanelRequest,
     StyleKeyTableSortColumn
@@ -483,6 +484,11 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
         this.visuals.microbeTrace?.onNodeColorAlphaRequested(request);
+        this.cdref.markForCheck();
+    }
+
+    onNodeColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        this.visuals.microbeTrace?.onNodeColorSegmentAlphaChange(change);
         this.cdref.markForCheck();
     }
 

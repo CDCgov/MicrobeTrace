@@ -1,62 +1,31 @@
+import { buildMixedNodeStripePatternDefinition } from './node-shapes';
+
 export interface PieChartSlice {
   label: string;
   count: number;
   color: string;
   alpha?: number;
+  segments?: PieChartFillSegment[];
+}
+
+export interface PieChartFillSegment {
+  value?: any;
+  color: string;
+  alpha?: number;
+  weight?: number;
 }
 
 export interface SegmentedPieChartStyle {
   color: string;
   alpha?: number;
-  segments?: Array<{
-    value?: any;
-    color: string;
-    alpha?: number;
-    weight?: number;
-  }>;
+  segments?: PieChartFillSegment[];
 }
 
 export interface PieChartPathSlice extends PieChartSlice {
   path: string;
 }
 
-export function groupPieChartSlicesByRenderedColor(slices: PieChartSlice[]): PieChartSlice[] {
-  const groupedSlices = new Map<string, PieChartSlice[]>();
-
-  (slices || []).forEach(slice => {
-    const count = Number(slice?.count);
-    if (!Number.isFinite(count) || count <= 0) {
-      return;
-    }
-
-    const color = String(slice?.color ?? '').trim();
-    if (!color) {
-      return;
-    }
-
-    const rawAlpha = Number(slice.alpha);
-    const renderedAlpha = Number.isFinite(rawAlpha)
-      ? Math.max(0, Math.min(1, rawAlpha))
-      : 1;
-    const renderedColorKey = `${color.toLowerCase()}|${renderedAlpha}`;
-    const normalizedSlice = {
-      ...slice,
-      count,
-      color
-    };
-    const colorGroup = groupedSlices.get(renderedColorKey);
-
-    if (colorGroup) {
-      colorGroup.push(normalizedSlice);
-    } else {
-      groupedSlices.set(renderedColorKey, [normalizedSlice]);
-    }
-  });
-
-  return Array.from(groupedSlices.values()).flat();
-}
-
-export function expandPieChartSlicesBySegments(
+export function buildPieChartSlicesWithSegmentedFills(
   counts: Array<{ label: any; count: number }>,
   resolveStyle: (label: any) => SegmentedPieChartStyle
 ): PieChartSlice[] {
@@ -79,28 +48,21 @@ export function expandPieChartSlicesBySegments(
       })
       .filter(segment => typeof segment.color === 'string' && segment.color && segment.weight > 0);
 
-    if (segments.length > 1) {
-      const totalWeight = segments.reduce((total, segment) => total + segment.weight, 0);
-      segments.forEach(segment => {
-        slices.push({
-          label: String(segment.value ?? countEntry.label ?? ''),
-          count: count * segment.weight / totalWeight,
-          color: segment.color,
-          alpha: segment.alpha ?? style.alpha
-        });
-      });
-      return;
-    }
-
     slices.push({
       label: String(countEntry.label ?? ''),
       count,
       color: style.color,
-      alpha: style.alpha
+      alpha: style.alpha,
+      segments: segments.length > 1
+        ? segments.map(segment => ({
+            ...segment,
+            alpha: segment.alpha ?? style.alpha
+          }))
+        : undefined
     });
   });
 
-  return groupPieChartSlicesByRenderedColor(slices);
+  return slices;
 }
 
 export function getPieChartTotalCount(slices: PieChartSlice[]): number {
@@ -115,6 +77,12 @@ export function getValidPieChartSlices(slices: PieChartSlice[]): PieChartSlice[]
     const count = Number(slice?.count);
     return Number.isFinite(count) && count > 0;
   });
+}
+
+export function hasCompositePieChartFill(slices: PieChartSlice[]): boolean {
+  const validSlices = getValidPieChartSlices(slices);
+  return validSlices.length > 1
+    || validSlices.some(slice => (slice.segments || []).length > 1);
 }
 
 export function buildPieChartPathSlices(
@@ -161,46 +129,45 @@ export function buildPieChartPathSlices(
   });
 }
 
-export function buildPieChartPatternDef(patternId: string, slices: PieChartSlice[]): string {
+export function buildPieChartPatternDef(patternId: string, slices: PieChartSlice[], renderedSize: number = 24): string {
   const totalCount = getPieChartTotalCount(slices);
   const validSlices = getValidPieChartSlices(slices);
 
-  if (!patternId || totalCount <= 0 || validSlices.length < 2) {
+  if (!patternId || totalCount <= 0 || !hasCompositePieChartFill(validSlices)) {
     return '';
   }
 
-  const coordinates: Array<[number, number]> = [];
-  const proportions: number[] = [];
-  let cumulative = 0;
-
-  validSlices.forEach(slice => {
-    const proportion = Number(slice.count) / totalCount;
-    cumulative += proportion;
-    proportions.push(proportion);
-    coordinates.push([
-      Math.cos(2 * Math.PI * cumulative),
-      Math.sin(2 * Math.PI * cumulative)
-    ]);
-  });
-
-  let patternString = `<pattern id='${patternId}' viewBox='-1 -1 2 2' style='transform: rotate(-.25turn)' width='100%' height='100%'>`;
-
-  for (let i = 0; i < coordinates.length; i++) {
-    const arcStart = i === 0 ? '1 0' : `${coordinates[i - 1][0]} ${coordinates[i - 1][1]}`;
-    const largeArcFlag = proportions[i] > 0.5 ? 1 : 0;
-    const arcEnd = i === coordinates.length - 1 ? '1 0' : `${coordinates[i][0]} ${coordinates[i][1]}`;
-    const alpha = Number(validSlices[i].alpha);
+  const pathSlices = buildPieChartPathSlices(validSlices, 0, 0, 1);
+  const stripedFillDefs: string[] = [];
+  const paths = pathSlices.map((slice, sliceIndex) => {
+    const segments = (slice.segments || []).filter(segment => {
+      const weight = Number(segment?.weight ?? 1);
+      return typeof segment?.color === 'string' && !!segment.color && Number.isFinite(weight) && weight > 0;
+    });
+    const alpha = Number(slice.alpha);
     const fillOpacity = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
-    patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${validSlices[i].color}' fill-opacity='${fillOpacity}' />`;
-  }
 
-  patternString += '</pattern>';
-  return patternString;
+    if (segments.length < 2) {
+      return `<path d='${slice.path}' fill='${slice.color}' fill-opacity='${fillOpacity}' />`;
+    }
+
+    const stripedPatternId = `${patternId}-stripes-${sliceIndex}`;
+    stripedFillDefs.push(buildMixedNodeStripePatternDefinition(
+      stripedPatternId,
+      segments,
+      fillOpacity,
+      2,
+      renderedSize
+    ));
+    return `<path d='${slice.path}' fill='url(#${stripedPatternId})' fill-opacity='1' />`;
+  }).join('');
+
+  return `${stripedFillDefs.join('')}<pattern id='${patternId}' viewBox='-1 -1 2 2' width='100%' height='100%'>${paths}</pattern>`;
 }
 
 export function buildPieChartSvgDataUri(patternId: string, size: number, slices: PieChartSlice[]): string {
   const safeSize = Math.max(1, Number(size) || 1);
-  const patternDef = buildPieChartPatternDef(patternId, slices);
+  const patternDef = buildPieChartPatternDef(patternId, slices, safeSize);
 
   if (!patternDef) {
     return '';

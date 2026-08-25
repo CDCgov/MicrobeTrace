@@ -13,8 +13,8 @@ import svg from 'cytoscape-svg';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-import { getMixedNodeShapeDataUri } from '@app/contactTraceCommonServices/node-shapes';
-import { buildPieChartPatternDef, buildPieChartSvgDataUri, expandPieChartSlicesBySegments, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { getMixedNodeShapeDataUri, MIXED_NODE_STRIPE_BAND_WIDTH_PX } from '@app/contactTraceCommonServices/node-shapes';
+import { buildPieChartPatternDef, buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, hasCompositePieChartFill, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 import { NodeFillStyle } from '@app/contactTraceCommonServices/color-mapping.service';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
@@ -30,6 +30,7 @@ type BubblePieExportSlice = {
   color: string;
   opacity: number;
   fraction: number;
+  segments?: Array<{ color: string; alpha?: number; weight?: number }>;
 };
 
 interface BubblePieSvgExportReplacement {
@@ -973,7 +974,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       fillOpacity,
       segments,
       null,
-      { fillCanvas: true, includeStroke: false }
+      { fillCanvas: true, includeStroke: false, renderedSize: this.nodeSize }
     );
   }
 
@@ -987,14 +988,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   private getPieSlicesForCollapsedBubbleNode(node: DataRecord): PieChartSlice[] {
     const counts = Array.isArray(node.counts) ? node.counts : [];
-    return expandPieChartSlicesBySegments(
+    return buildPieChartSlicesWithSegmentedFills(
       counts,
       label => this.getNodeFillStyleForColorValue(label)
     );
   }
 
   private hasCollapsedBubblePie(node: DataRecord): boolean {
-    return this.getPieSlicesForCollapsedBubbleNode(node).length > 1;
+    return hasCompositePieChartFill(this.getPieSlicesForCollapsedBubbleNode(node));
   }
 
   private getCollapsedBubblePieDataUri(node: DataRecord, patternId: string): string {
@@ -1033,12 +1034,13 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       }
 
       const slices = this.getPieSlicesForCollapsedBubbleNode(node);
-      if (slices.length <= 1) {
+      if (!hasCompositePieChartFill(slices)) {
         return;
       }
       const stablePatternId = this.getCollapsedBubblePatternId(node);
-      this.svgDefs[stablePatternId] = buildPieChartPatternDef(stablePatternId, slices);
-      this.svgDefs[`node${indexNumber}`] = buildPieChartPatternDef(`node${indexNumber}`, slices);
+      const size = this.nodeSize * Math.sqrt(Math.max(1, Number(node.totalCount) || 1));
+      this.svgDefs[stablePatternId] = buildPieChartPatternDef(stablePatternId, slices, size);
+      this.svgDefs[`node${indexNumber}`] = buildPieChartPatternDef(`node${indexNumber}`, slices, size);
     })
   }
 
@@ -1271,6 +1273,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         this.cy.nodes().forEach(node => {
           node.data('nodeSize', this.nodeSize * Math.sqrt(node.data().totalCount));
         });
+        this.visibleData.forEach(node => {
+          if (this.hasCollapsedBubblePie(node)) {
+            this.applyCollapsedBubblePieStyle(node);
+          }
+        });
         this.cy.style().update();
         this.cy.fit(this.cy.nodes(), 30);
       }
@@ -1280,6 +1287,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         this.cy.nodes().forEach(node => {
           node.data('nodeSize', this.nodeSize);
         }); 
+        this.updateColors();
         this.cy.style().update(); 
         this.cy.fit(this.cy.nodes(), 30);
       }
@@ -1593,10 +1601,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     return bestMatch;
   }
 
-  private formatSvgPercent(value: number): string {
-    return `${this.formatSvgNumber(Math.min(1, Math.max(0, value)) * 100)}%`;
-  }
-
   private getWeightedMixedExportSegments(
     segments: Array<{ color: string; alpha?: number; weight?: number }>
   ): Array<{ color: string; alpha: number; startFraction: number; endFraction: number }> {
@@ -1623,36 +1627,36 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     });
   }
 
-  private appendMixedFillGradient(
+  private appendMixedStripePattern(
     doc: XMLDocument,
     parent: SVGElement,
-    gradientId: string,
+    patternId: string,
     segments: Array<{ color: string; alpha?: number; weight?: number }>
   ): void {
     const svgNamespace = 'http://www.w3.org/2000/svg';
     const defs = doc.createElementNS(svgNamespace, 'defs');
-    const gradient = doc.createElementNS(svgNamespace, 'linearGradient');
-    gradient.setAttribute('id', gradientId);
-    gradient.setAttribute('x1', '0%');
-    gradient.setAttribute('y1', '0%');
-    gradient.setAttribute('x2', '100%');
-    gradient.setAttribute('y2', '0%');
-    gradient.setAttribute('gradientUnits', 'objectBoundingBox');
+    const pattern = doc.createElementNS(svgNamespace, 'pattern');
+    const weightedSegments = this.getWeightedMixedExportSegments(segments);
+    const safeStripePeriod = MIXED_NODE_STRIPE_BAND_WIDTH_PX
+      * Math.max(2, weightedSegments.length);
+    pattern.setAttribute('id', patternId);
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('width', this.formatSvgNumber(safeStripePeriod));
+    pattern.setAttribute('height', this.formatSvgNumber(safeStripePeriod));
+    pattern.setAttribute('patternTransform', 'rotate(45)');
 
-    this.getWeightedMixedExportSegments(segments).forEach(segment => {
-      [
-        this.formatSvgPercent(segment.startFraction),
-        this.formatSvgPercent(segment.endFraction)
-      ].forEach(offset => {
-        const stop = doc.createElementNS(svgNamespace, 'stop');
-        stop.setAttribute('offset', offset);
-        stop.setAttribute('stop-color', segment.color);
-        stop.setAttribute('stop-opacity', this.formatSvgNumber(segment.alpha));
-        gradient.appendChild(stop);
-      });
+    weightedSegments.forEach(segment => {
+      const stripe = doc.createElementNS(svgNamespace, 'rect');
+      stripe.setAttribute('x', this.formatSvgNumber(segment.startFraction * safeStripePeriod));
+      stripe.setAttribute('y', '0');
+      stripe.setAttribute('width', this.formatSvgNumber((segment.endFraction - segment.startFraction) * safeStripePeriod));
+      stripe.setAttribute('height', this.formatSvgNumber(safeStripePeriod));
+      stripe.setAttribute('fill', segment.color);
+      stripe.setAttribute('fill-opacity', this.formatSvgNumber(segment.alpha));
+      pattern.appendChild(stripe);
     });
 
-    defs.appendChild(gradient);
+    defs.appendChild(pattern);
     parent.appendChild(defs);
   }
 
@@ -1684,15 +1688,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     const imageHeight = this.getSvgLengthAttribute(sourceImage, 'height') ?? replacement.exportHeight;
     const imageX = this.getSvgLengthAttribute(sourceImage, 'x') ?? 0;
     const imageY = this.getSvgLengthAttribute(sourceImage, 'y') ?? 0;
-    const gradientId = `mt-bubble-mixed-export-${replacementIndex}`;
-    this.appendMixedFillGradient(doc, vectorGroup, gradientId, replacement.segments);
+    const patternId = `mt-bubble-mixed-export-${replacementIndex}`;
+    this.appendMixedStripePattern(doc, vectorGroup, patternId, replacement.segments);
 
     const fillRect = doc.createElementNS(svgNamespace, 'rect');
     fillRect.setAttribute('x', this.formatSvgNumber(imageX));
     fillRect.setAttribute('y', this.formatSvgNumber(imageY));
     fillRect.setAttribute('width', this.formatSvgNumber(imageWidth));
     fillRect.setAttribute('height', this.formatSvgNumber(imageHeight));
-    fillRect.setAttribute('fill', `url(#${gradientId})`);
+    fillRect.setAttribute('fill', `url(#${patternId})`);
     fillRect.setAttribute('stroke', 'none');
     vectorGroup.appendChild(fillRect);
 
@@ -1747,7 +1751,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         : [];
       const pieSlices = this.getPieSlicesForCollapsedBubbleNode(dataNode);
 
-      if (totalCount <= 0 || counts.length === 0 || pieSlices.length <= 1) {
+      if (totalCount <= 0 || counts.length === 0 || !hasCompositePieChartFill(pieSlices)) {
         return;
       }
 
@@ -1792,6 +1796,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
             color: slice.color,
             opacity: Number.isFinite(Number(slice.alpha)) ? Number(slice.alpha) : 1,
             fraction: countValue / sliceTotal,
+            segments: slice.segments?.map(segment => ({
+              color: segment.color,
+              alpha: segment.alpha,
+              weight: segment.weight
+            })),
           };
         }),
       });
@@ -1842,6 +1851,17 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     startFraction: number,
     endFraction: number
   ): string {
+    if (endFraction - startFraction >= 1 - Number.EPSILON) {
+      const topY = centerY - radius;
+      const bottomY = centerY + radius;
+      return [
+        'M', this.formatSvgNumber(centerX), this.formatSvgNumber(topY),
+        'A', this.formatSvgNumber(radius), this.formatSvgNumber(radius), '0', '1', '1', this.formatSvgNumber(centerX), this.formatSvgNumber(bottomY),
+        'A', this.formatSvgNumber(radius), this.formatSvgNumber(radius), '0', '1', '1', this.formatSvgNumber(centerX), this.formatSvgNumber(topY),
+        'Z',
+      ].join(' ');
+    }
+
     const startAngle = -Math.PI / 2 + startFraction * 2 * Math.PI;
     const endAngle = -Math.PI / 2 + endFraction * 2 * Math.PI;
     const startX = centerX + radius * Math.cos(startAngle);
@@ -1896,14 +1916,24 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     replacement.slices.forEach((slice, index) => {
       const sliceEnd = index === replacement.slices.length - 1 ? 1 : sliceStart + slice.fraction;
       const path = doc.createElementNS(svgNamespace, 'path');
+      const weightedSegments = this.getWeightedMixedExportSegments(slice.segments || []);
       path.setAttribute('class', 'bubble-export-pie-slice');
       path.setAttribute('data-mt-export', 'bubble-pie-slice');
       path.setAttribute('data-mt-node-id', replacement.nodeId);
       path.setAttribute('data-mt-slice-label', slice.label);
       path.setAttribute('data-mt-slice-count', `${slice.count}`);
       path.setAttribute('data-mt-slice-fraction', this.formatSvgNumber(slice.fraction));
-      path.setAttribute('fill', slice.color);
-      path.setAttribute('fill-opacity', this.formatSvgNumber(slice.opacity));
+      if (weightedSegments.length > 1) {
+        const safeNodeId = replacement.nodeId.replace(/[^A-Za-z0-9_-]/g, '-');
+        const stripedPatternId = `mt-bubble-pie-${safeNodeId}-stripes-${index}`;
+        this.appendMixedStripePattern(doc, vectorGroup, stripedPatternId, slice.segments || []);
+        path.setAttribute('data-mt-segmented-fill', 'true');
+        path.setAttribute('fill', `url(#${stripedPatternId})`);
+        path.setAttribute('fill-opacity', '1');
+      } else {
+        path.setAttribute('fill', slice.color);
+        path.setAttribute('fill-opacity', this.formatSvgNumber(slice.opacity));
+      }
       path.setAttribute('stroke', 'none');
       path.setAttribute('d', this.getBubblePieSlicePath(centerX, centerY, radius, sliceStart, sliceEnd));
       vectorGroup.appendChild(path);

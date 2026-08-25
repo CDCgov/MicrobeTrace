@@ -8,6 +8,9 @@ export type StyleKeyTableSortColumn = 'value' | 'count' | 'frequency';
 export interface StyleKeyTableDuoSegment {
     color: string;
     opacity: number | string;
+    value?: any;
+    displayName?: string;
+    index?: number;
 }
 
 export interface StyleKeyTableRow {
@@ -47,6 +50,14 @@ export interface StyleKeyTableAlphaRequest {
     row: StyleKeyTableRow;
     value: any;
     event: MouseEvent;
+}
+
+export interface StyleKeyTableSegmentAlphaChange {
+    row: StyleKeyTableRow;
+    value: any;
+    segment: StyleKeyTableDuoSegment;
+    segmentIndex: number;
+    alpha: number;
 }
 
 export interface StyleKeyTableShapeChange {
@@ -148,6 +159,56 @@ export interface StyleKeyTableShapePanelRequest {
                                         }
                                     </div>
                                 </div>
+                                @if (row.colorSegments?.length) {
+                                    <a
+                                        class="transparency-symbol style-key-table__segment-alpha-trigger"
+                                        role="button"
+                                        tabindex="0"
+                                        [attr.aria-label]="'Adjust transparency for mixed colors in ' + row.displayName"
+                                        [attr.aria-expanded]="isSegmentAlphaEditorOpen(row)"
+                                        data-mixed-alpha-trigger="true"
+                                        (click)="onSegmentAlphaTriggerClick(row, $event)"
+                                        (keydown)="onSegmentAlphaTriggerKeydown(row, $event)">&#8691;</a>
+                                }
+                                @if (row.colorSegments?.length && isSegmentAlphaEditorOpen(row)) {
+                                    <div
+                                        class="style-key-table__segment-alpha-editor"
+                                        role="group"
+                                        [style.top.px]="segmentAlphaEditorTop"
+                                        [style.left.px]="segmentAlphaEditorLeft"
+                                        [attr.aria-label]="'Mixed color transparency for ' + row.displayName"
+                                        (click)="onSegmentAlphaEditorClick($event)">
+                                        @for (segment of row.colorSegments; track $index) {
+                                            <div class="style-key-table__segment-alpha-control">
+                                                <label
+                                                    class="style-key-table__segment-alpha-label"
+                                                    [attr.for]="getSegmentAlphaControlId(row, $index)">
+                                                    <span class="style-key-table__segment-alpha-name">
+                                                        <span
+                                                            class="style-key-table__segment-alpha-color"
+                                                            [style.background]="segment.color"
+                                                            [style.opacity]="segment.opacity">
+                                                        </span>
+                                                        {{ getSegmentDisplayName(segment, $index) }}
+                                                    </span>
+                                                    <span>{{ formatAlphaPercent(segment.opacity) }}</span>
+                                                </label>
+                                                <div class="style-key-table__segment-alpha-slider-frame">
+                                                    <input
+                                                        type="range"
+                                                        class="custom-range style-key-table__segment-alpha-slider"
+                                                        min="0"
+                                                        max="1"
+                                                        step="0.05"
+                                                        [id]="getSegmentAlphaControlId(row, $index)"
+                                                        [value]="segment.opacity"
+                                                        [attr.aria-label]="getSegmentDisplayName(segment, $index) + ' transparency'"
+                                                        (input)="onSegmentAlphaInput(row, segment, $index, $event)">
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
                             } @else if (editable) {
                                 <input
                                     type="color"
@@ -211,10 +272,23 @@ export interface StyleKeyTableShapePanelRequest {
 
         .style-key-table__duo-swatch {
             background: #f0f0f0;
-            display: flex;
+            display: inline-flex;
             height: 25px;
             padding: 4px;
+            vertical-align: middle;
             width: 50px;
+        }
+
+        .style-key-table__segment-alpha-trigger {
+            cursor: pointer;
+            display: inline-block;
+            margin-left: 2px;
+            vertical-align: middle;
+        }
+
+        .style-key-table__segment-alpha-trigger:focus-visible {
+            outline: 2px solid #1474d4;
+            outline-offset: 2px;
         }
 
         .style-key-table__duo-inner {
@@ -229,6 +303,68 @@ export interface StyleKeyTableShapePanelRequest {
             flex: 1 1 0;
             height: 100%;
             min-width: 0;
+        }
+
+        .style-key-table__segment-alpha-editor {
+            align-items: flex-start;
+            background: #f8f9fa;
+            border: 1px solid #d8e2da;
+            border-radius: 0.25rem;
+            box-shadow: 0 4px 12px rgba(32, 51, 39, 0.18);
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            padding: 8px;
+            position: fixed;
+            z-index: 1300;
+        }
+
+        .style-key-table__segment-alpha-control {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 44px;
+        }
+
+        .style-key-table__segment-alpha-label,
+        .style-key-table__segment-alpha-name {
+            display: flex;
+            align-items: center;
+        }
+
+        .style-key-table__segment-alpha-label {
+            flex-direction: column;
+            gap: 2px;
+            margin: 0;
+            font-size: 12px;
+        }
+
+        .style-key-table__segment-alpha-name {
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .style-key-table__segment-alpha-color {
+            flex: 0 0 12px;
+            height: 12px;
+            border: 1px solid #777777;
+            border-radius: 2px;
+        }
+
+        .style-key-table__segment-alpha-slider-frame {
+            height: 112px;
+            position: relative;
+            width: 24px;
+        }
+
+        .style-key-table__segment-alpha-slider {
+            left: 50%;
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(270deg);
+            transform-origin: center;
+            width: 112px;
         }
 
         .style-key-table__shape-option {
@@ -272,10 +408,14 @@ export class StyleKeyTableComponent {
     @Output() sortChange = new EventEmitter<StyleKeyTableSortColumn>();
     @Output() colorChange = new EventEmitter<StyleKeyTableColorChange>();
     @Output() alphaRequest = new EventEmitter<StyleKeyTableAlphaRequest>();
+    @Output() segmentAlphaChange = new EventEmitter<StyleKeyTableSegmentAlphaChange>();
     @Output() shapeChange = new EventEmitter<StyleKeyTableShapeChange>();
     @Output() shapePanelRequest = new EventEmitter<StyleKeyTableShapePanelRequest>();
 
     private readonly shapePreviewSrcCache = new Map<string, string>();
+    private expandedSegmentAlphaRowKey: string | null = null;
+    segmentAlphaEditorTop = 0;
+    segmentAlphaEditorLeft = 0;
 
     getColorSegments(row: StyleKeyTableRow): StyleKeyTableDuoSegment[] {
         return row.colorSegments?.length ? row.colorSegments : row.duoSegments ?? [];
@@ -334,11 +474,105 @@ export class StyleKeyTableComponent {
     }
 
     onAlphaClick(row: StyleKeyTableRow, event: MouseEvent): void {
+        event.stopPropagation();
         this.alphaRequest.emit({
             row,
             value: row.rawValue,
             event
         });
+    }
+
+    isSegmentAlphaEditorOpen(row: StyleKeyTableRow): boolean {
+        return this.expandedSegmentAlphaRowKey === row.trackKey;
+    }
+
+    onSegmentAlphaTriggerClick(row: StyleKeyTableRow, event: MouseEvent): void {
+        if (!row.colorSegments?.length) {
+            return;
+        }
+
+        event.stopPropagation();
+        this.toggleSegmentAlphaEditor(row, event.currentTarget as HTMLElement | null, event.clientX, event.clientY);
+    }
+
+    onSegmentAlphaTriggerKeydown(row: StyleKeyTableRow, event: KeyboardEvent): void {
+        if (!row.colorSegments?.length || (event.key !== 'Enter' && event.key !== ' ')) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggleSegmentAlphaEditor(row, event.currentTarget as HTMLElement | null);
+    }
+
+    onSegmentAlphaEditorClick(event: MouseEvent): void {
+        event.stopPropagation();
+    }
+
+    onSegmentAlphaInput(
+        row: StyleKeyTableRow,
+        segment: StyleKeyTableDuoSegment,
+        segmentIndex: number,
+        event: Event
+    ): void {
+        const input = event.target as HTMLInputElement | null;
+        const numericAlpha = Number(input?.value ?? segment.opacity);
+        const alpha = Number.isFinite(numericAlpha)
+            ? Math.min(1, Math.max(0, numericAlpha))
+            : 1;
+        segment.opacity = alpha;
+        this.segmentAlphaChange.emit({
+            row,
+            value: segment.value,
+            segment,
+            segmentIndex,
+            alpha
+        });
+    }
+
+    getSegmentDisplayName(segment: StyleKeyTableDuoSegment, segmentIndex: number): string {
+        return String(segment.displayName ?? segment.value ?? `Color ${segmentIndex + 1}`);
+    }
+
+    getSegmentAlphaControlId(row: StyleKeyTableRow, segmentIndex: number): string {
+        const safeRowKey = row.trackKey.replace(/[^A-Za-z0-9_-]/g, '-');
+        return `${this.tableId || this.tableKey || 'style-key-table'}-${safeRowKey}-alpha-${segmentIndex}`;
+    }
+
+    formatAlphaPercent(alphaValue: number | string): string {
+        const numericAlpha = Number(alphaValue);
+        const alpha = Number.isFinite(numericAlpha)
+            ? Math.min(1, Math.max(0, numericAlpha))
+            : 1;
+        return `${Math.round(alpha * 100)}%`;
+    }
+
+    private toggleSegmentAlphaEditor(
+        row: StyleKeyTableRow,
+        anchor: HTMLElement | null,
+        clientX = 0,
+        clientY = 0
+    ): void {
+        if (this.isSegmentAlphaEditorOpen(row)) {
+            this.expandedSegmentAlphaRowKey = null;
+            return;
+        }
+
+        const rect = anchor?.getBoundingClientRect();
+        const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
+        const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight;
+        const editorWidth = Math.max(68, row.colorSegments!.length * 54 + 16);
+        const editorHeight = 170;
+        const anchorLeft = rect?.left ?? clientX;
+        const anchorRight = rect?.right ?? clientX;
+        const anchorTop = rect?.top ?? clientY;
+        const preferredLeft = anchorRight + 8;
+
+        this.segmentAlphaEditorLeft = preferredLeft + editorWidth <= viewportWidth - 8
+            ? preferredLeft
+            : Math.max(8, anchorLeft - editorWidth - 8);
+        this.segmentAlphaEditorTop = Math.max(8, Math.min(anchorTop - 72, viewportHeight - editorHeight - 8));
+        this.expandedSegmentAlphaRowKey = row.trackKey;
     }
 
     onShapeSelectionChange(row: StyleKeyTableRow, selectedNode: TreeNode<any> | null): void {

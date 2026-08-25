@@ -206,7 +206,8 @@
             (rowNameChange)="onNodeColorRowNameChange($event)"
             (sortChange)="onStyleKeyTableSort('node-color', $event)"
             (colorChange)="onNodeColorTableColorChange($event)"
-            (alphaRequest)="onNodeColorAlphaRequested($event)">
+            (alphaRequest)="onNodeColorAlphaRequested($event)"
+            (segmentAlphaChange)="onNodeColorSegmentAlphaChange($event)">
           </style-key-table>
         </div>
       </p-dialog>
@@ -1082,8 +1083,11 @@
       </div>
     </ng-template>
   </p-dialog>
-<div id="color-transparency-wrapper">
-  <input type="range" class="custom-range" id="color-transparency" min="0" max="1" step="0.05" value="1" >
+<div id="color-transparency-wrapper" (click)="onColorTransparencyWrapperClick($event)">
+  <output id="color-transparency-percentage" for="color-transparency">{{ colorTransparencyPercent }}%</output>
+  <div class="color-transparency-slider-frame">
+    <input type="range" class="custom-range" id="color-transparency" min="0" max="1" step="0.05" value="1" (input)="onColorTransparencyInput($event)">
+  </div>
 </div>
 
 

@@ -10,17 +10,18 @@ describe('mixed node shape SVG helpers', () => {
     { value: '3a', color: '#ffff00', alpha: 0.8, weight: 1 }
   ];
 
-  it('emits hard-stop band fills with the component colors', () => {
+  it('emits diagonal stripe fills with the component colors', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri('triangle', '#ffffff', '#000000', 4, 1, segments));
 
-    expect(svg).toContain('<linearGradient');
-    expect(svg).toContain('stop-color="#00aa00"');
-    expect(svg).toContain('stop-color="#ffff00"');
-    expect(svg).toContain('offset="50%"');
+    expect(svg).toContain('<pattern');
+    expect(svg).toContain('patternTransform="rotate(45)"');
+    expect(svg).toContain('fill="#00aa00"');
+    expect(svg).toContain('fill="#ffff00"');
+    expect(svg).toContain('width="100" height="100"');
     expect(svg).not.toContain('A 1 1 0');
   });
 
-  it('does not emit a mixed gradient when fewer than two segments are supplied', () => {
+  it('does not emit a mixed pattern when fewer than two segments are supplied', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri(
       'triangle',
       '#ffffff',
@@ -30,8 +31,34 @@ describe('mixed node shape SVG helpers', () => {
       [segments[0]]
     ));
 
-    expect(svg).not.toContain('<linearGradient');
+    expect(svg).not.toContain('<pattern');
     expect(svg).toContain('fill="#ffffff"');
+  });
+
+  it('keeps stripe bands four screen pixels wide across rendered node sizes', () => {
+    const smallSvg = decodeSvgDataUri(getMixedNodeShapeDataUri(
+      'ellipse',
+      '#ffffff',
+      '#000000',
+      4,
+      1,
+      segments,
+      null,
+      { fillCanvas: true, includeStroke: false, renderedSize: 20 }
+    ));
+    const largeSvg = decodeSvgDataUri(getMixedNodeShapeDataUri(
+      'ellipse',
+      '#ffffff',
+      '#000000',
+      4,
+      1,
+      segments,
+      null,
+      { fillCanvas: true, includeStroke: false, renderedSize: 40 }
+    ));
+
+    expect(smallSvg).toContain('width="120" height="120"');
+    expect(largeSvg).toContain('width="60" height="60"');
   });
 
   it('can provide a full-canvas fill without embedding an oversized Cytoscape border', () => {
@@ -71,7 +98,7 @@ describe('mixed node shape SVG helpers', () => {
   it('clips custom icon shapes to the selected path instead of using pie arcs', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri('virus', '#ffffff', '#000000', 8, 1, segments));
 
-    expect(svg).toContain('<linearGradient');
+    expect(svg).toContain('<pattern');
     expect(svg).toContain('fill="url(#mixed-node-fill)"');
     expect(svg).not.toContain('A 1 1 0');
   });

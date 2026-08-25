@@ -23,7 +23,7 @@ import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-import { getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
+import { getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, MIXED_NODE_STRIPE_BAND_WIDTH_PX, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 /**
@@ -159,7 +159,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   originalTreeData: any = null;
   hasTreeBeenModifiedFromOriginal = false;
   private treeLeafShapeUriCache = new Map<string, string>();
-  private mixedLeafGradientIdCounter = 0;
+  private mixedLeafPatternIdCounter = 0;
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
@@ -456,14 +456,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     return this.visuals.phylogenetic.commonService.getNodeFillStyle(nodeData);
   }
 
-  private formatSvgFraction(value: number): string {
-    return Number(value.toFixed(6)).toString();
-  }
-
-  private formatSvgPercent(value: number): string {
-    return `${this.formatSvgFraction(Math.min(1, Math.max(0, value)) * 100)}%`;
-  }
-
   private getWeightedMixedSegments(segments: any[]): Array<{ segment: any; startFraction: number; endFraction: number }> {
     const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
     const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
@@ -483,14 +475,14 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     });
   }
 
-  private getLeafMixedFillGradientId(node: SVGElement): string {
-    const nodeWithGradient = node as SVGElement & { __mixedFillGradientId?: string };
-    if (!nodeWithGradient.__mixedFillGradientId) {
-      this.mixedLeafGradientIdCounter += 1;
-      nodeWithGradient.__mixedFillGradientId = `mt-tree-mixed-fill-${this.mixedLeafGradientIdCounter}`;
+  private getLeafMixedFillPatternId(node: SVGElement): string {
+    const nodeWithPattern = node as SVGElement & { __mixedFillPatternId?: string };
+    if (!nodeWithPattern.__mixedFillPatternId) {
+      this.mixedLeafPatternIdCounter += 1;
+      nodeWithPattern.__mixedFillPatternId = `mt-tree-mixed-fill-${this.mixedLeafPatternIdCounter}`;
     }
 
-    return nodeWithGradient.__mixedFillGradientId;
+    return nodeWithPattern.__mixedFillPatternId;
   }
 
   private renderLeafCircleMixedFill(node: SVGElement, segments: any[], fallbackOpacity: number): string | null {
@@ -507,45 +499,50 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         .attr('class', 'mt-tree-mixed-fill-defs');
     }
 
-    const gradientId = this.getLeafMixedFillGradientId(node);
-    const gradientSelection = defsSelection
-      .selectAll<SVGLinearGradientElement, string>(`linearGradient#${gradientId}`)
-      .data([gradientId]);
+    const patternId = this.getLeafMixedFillPatternId(node);
+    const stripePeriod = MIXED_NODE_STRIPE_BAND_WIDTH_PX * weightedSegments.length;
+    const patternSelection = defsSelection
+      .selectAll<SVGPatternElement, string>(`pattern#${patternId}`)
+      .data([patternId]);
 
-    const mergedGradient = gradientSelection
+    const mergedPattern = patternSelection
       .join(
         enter => enter
-          .append('linearGradient')
-          .attr('id', gradientId)
-          .attr('x1', '0%')
-          .attr('y1', '0%')
-          .attr('x2', '100%')
-          .attr('y2', '0%'),
+          .append('pattern')
+          .attr('id', patternId),
         update => update
       )
-      .attr('gradientUnits', 'objectBoundingBox');
+      .attr('patternUnits', 'userSpaceOnUse')
+      .attr('width', stripePeriod)
+      .attr('height', stripePeriod)
+      .attr('patternTransform', 'rotate(45)');
 
-    const stops = weightedSegments.flatMap(({ segment, startFraction, endFraction }) => {
+    const stripes = weightedSegments.map(({ segment, startFraction, endFraction }) => {
       const color = String(segment.color || '#000000');
       const opacity = Number.isFinite(Number(segment.alpha))
         ? Math.min(1, Math.max(0, Number(segment.alpha)))
         : Math.min(1, Math.max(0, Number(fallbackOpacity)));
 
-      return [
-        { offset: this.formatSvgPercent(startFraction), color, opacity },
-        { offset: this.formatSvgPercent(endFraction), color, opacity }
-      ];
+      return {
+        x: startFraction * stripePeriod,
+        width: (endFraction - startFraction) * stripePeriod,
+        color,
+        opacity
+      };
     });
 
-    mergedGradient
-      .selectAll<SVGStopElement, { offset: string; color: string; opacity: number }>('stop')
-      .data(stops)
-      .join('stop')
-      .attr('offset', stop => stop.offset)
-      .attr('stop-color', stop => stop.color)
-      .attr('stop-opacity', stop => stop.opacity);
+    mergedPattern
+      .selectAll<SVGRectElement, { x: number; width: number; color: string; opacity: number }>('rect')
+      .data(stripes)
+      .join('rect')
+      .attr('x', stripe => stripe.x)
+      .attr('y', 0)
+      .attr('width', stripe => stripe.width)
+      .attr('height', stripePeriod)
+      .attr('fill', stripe => stripe.color)
+      .attr('fill-opacity', stripe => stripe.opacity);
 
-    return `url(#${gradientId})`;
+    return `url(#${patternId})`;
   }
 
   private removeLeafNodeShapeOverlay(node: SVGElement): void {
@@ -579,19 +576,20 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     strokeColor: string,
     strokeWidth: number,
     fillOpacity: number,
-    segments: any[] = []
+    segments: any[] = [],
+    renderedSize?: number
   ): string {
     const segmentKey = segments.length > 1
       ? segments.map(segment => `${segment.value ?? ''}:${segment.color}:${segment.alpha ?? fillOpacity}:${segment.weight ?? 1}`).join(',')
       : '';
-    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}|${segmentKey}`;
+    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}|${segmentKey}|${renderedSize ?? ''}`;
     const cachedUri = this.treeLeafShapeUriCache.get(cacheKey);
     if (cachedUri) {
       return cachedUri;
     }
 
     const dataUri = segments.length > 1
-      ? getMixedNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, null, { customShapePadding: 0, customShapeViewBoxPadding: 0 })
+      ? getMixedNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, null, { customShapePadding: 0, customShapeViewBoxPadding: 0, renderedSize })
       : getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
     this.treeLeafShapeUriCache.set(cacheKey, dataUri);
     return dataUri;
@@ -616,9 +614,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     const diameter = leafSize * 2;
     const strokeWidth = this.getLeafShapeStrokeWidth(shapeKey, isSelected);
-    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments);
     const overlayDiameter = diameter * getTreeNodeShapeScale(shapeKey);
     const overlayImageDiameter = overlayDiameter + 4;
+    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, overlayImageDiameter);
     const overlayOffset = overlayImageDiameter / 2;
     const overlaySelection = d3.select(parentNode)
       .selectAll<SVGImageElement, number>('image.tidytree-node-shape-overlay')

@@ -1,5 +1,6 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService } from './contactTraceCommonServices/common.service';
+import { HostListener } from '@angular/core';
 import * as d3 from 'd3';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
@@ -33,10 +34,12 @@ import {
     StyleKeyTableColumnNameChange,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
+    StyleKeyTableSegmentAlphaChange,
     StyleKeyTableShapeChange,
     StyleKeyTableShapePanelRequest,
     StyleKeyTableSortColumn
 } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
+import { hideColorTransparencyPicker, showColorTransparencyPicker } from './visualizationComponents/KeyTablesComponent/color-transparency-picker';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     ColorAssignmentService,
@@ -152,6 +155,8 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
+
+    colorTransparencyPercent = 100;
 
 
     // recommit original code
@@ -3833,8 +3838,11 @@ ${warnings.join('\n')}`,
                         count: entry.count,
                         frequency: vnodes.length === 0 ? '' : (entry.count / vnodes.length).toLocaleString(),
                         colorSegments: fillStyle.segments?.map(segment => ({
+                            value: segment.value,
+                            displayName: this.getNodeValueDisplayName(segment.value, this.SelectedColorNodesByVariable),
                             color: segment.color,
-                            opacity: segment.alpha
+                            opacity: segment.alpha,
+                            index: aggregateValues.findIndex(value => value === segment.value)
                         }))
                     };
                 })
@@ -3929,21 +3937,43 @@ ${warnings.join('\n')}`,
     }
 
     onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        const index = this.resolveNodeColorAlphaIndex(request.value, request.row.index);
         this.showColorAlphaPicker(
             request,
-            this.commonService.session.style.nodeAlphas[request.row.index ?? 0],
-            alphaValue => {
-                const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
-                const index = request.row.index ?? 0;
-                const alpha = this.commonService.clampStyleAlpha(alphaValue);
-                this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
-                this.commonService.temp.style.nodeAlphaMap = d3
-                    .scaleOrdinal(this.commonService.session.style.nodeAlphas)
-                    .domain(aggregateValues);
-                this.generateNodeColorTable('', true);
-                this.publishUpdateNodeColors();
-            }
+            this.commonService.session.style.nodeAlphas[index] ?? 1,
+            alphaValue => this.updateNodeColorAlpha(request.value, index, alphaValue)
         );
+    }
+
+    onNodeColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        const index = this.resolveNodeColorAlphaIndex(change.value, change.segment.index);
+        this.updateNodeColorAlpha(change.value, index, change.alpha);
+    }
+
+    private resolveNodeColorAlphaIndex(value: any, fallbackIndex?: number): number {
+        const aggregateValues = this.nodeColorDomain.length
+            ? this.nodeColorDomain
+            : this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? [];
+        const valueIndex = aggregateValues.findIndex(domainValue => domainValue === value);
+        if (valueIndex >= 0) {
+            return valueIndex;
+        }
+
+        return Math.max(0, Number(fallbackIndex) || 0);
+    }
+
+    private updateNodeColorAlpha(value: any, fallbackIndex: number, alphaValue: number): void {
+        const aggregateValues = this.nodeColorDomain.length
+            ? this.nodeColorDomain
+            : this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? [];
+        const index = this.resolveNodeColorAlphaIndex(value, fallbackIndex);
+        const alpha = this.commonService.clampStyleAlpha(alphaValue);
+        this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
+        this.commonService.temp.style.nodeAlphaMap = d3
+            .scaleOrdinal(this.commonService.session.style.nodeAlphas)
+            .domain(aggregateValues);
+        this.generateNodeColorTable('', true);
+        this.publishUpdateNodeColors();
     }
 
     onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
@@ -4013,20 +4043,39 @@ ${warnings.join('\n')}`,
     }
 
     private showColorAlphaPicker(request: StyleKeyTableAlphaRequest, currentAlpha: number, onChange: (alphaValue: number) => void): void {
-        $("#color-transparency-wrapper").css({
-            top: request.event.clientY + 129,
-            left: request.event.clientX,
-            display: "block"
-        });
+        const input = showColorTransparencyPicker(request.event, currentAlpha);
+        if (!input) {
+            return;
+        }
 
-        $("#color-transparency")
+        $(input)
             .off("change")
-            .val(currentAlpha)
             .one("change", event => {
                 onChange(parseFloat((event.target['value'] as string)));
                 $("#color-transparency-wrapper").fadeOut();
                 this.cdref.markForCheck();
             });
+    }
+
+    onColorTransparencyInput(event: Event): void {
+        const value = Number((event.target as HTMLInputElement | null)?.value);
+        const opacity = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+        this.colorTransparencyPercent = Math.round(opacity * 100);
+        this.cdref.markForCheck();
+    }
+
+    onColorTransparencyWrapperClick(event: MouseEvent): void {
+        event.stopPropagation();
+    }
+
+    @HostListener('document:click', ['$event'])
+    onColorTransparencyDocumentClick(event: MouseEvent): void {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('#color-transparency-wrapper') || target?.closest('.transparency-symbol')) {
+            return;
+        }
+
+        hideColorTransparencyPicker();
     }
 
     /**

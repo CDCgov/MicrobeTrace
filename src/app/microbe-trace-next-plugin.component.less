@@ -270,15 +270,38 @@ label[for="search"] {
 }
 
 #color-transparency-wrapper {
-    display: none;
-    position: absolute;
-    z-index: 1300;
-    border-radius: 0.25rem;
-    color: #303030;
+    align-items: center;
     background-color: #f8f9fa !important;
-    padding: 4px 8px;
-    transform: rotate(270deg);
-    transform-origin: top left;
+    border: 1px solid #d8e2da;
+    display: none;
+    border-radius: 0.25rem;
+    box-shadow: 0 4px 12px rgba(32, 51, 39, 0.18);
+    color: #303030;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    position: fixed;
+    z-index: 1300;
+}
+
+#color-transparency-percentage {
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.color-transparency-slider-frame {
+    height: 112px;
+    position: relative;
+    width: 24px;
+}
+
+#color-transparency {
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(270deg);
+    transform-origin: center;
+    width: 112px;
 }
 
 .mt-icon-toolbar {

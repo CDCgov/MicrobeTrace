@@ -58,7 +58,10 @@ export interface MixedNodeShapeDataUriOptions {
     customShapeViewBoxPadding?: number;
     fillCanvas?: boolean;
     includeStroke?: boolean;
+    renderedSize?: number;
 }
+
+export const MIXED_NODE_STRIPE_BAND_WIDTH_PX = 4;
 
 export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
     { key: 'ellipse', value: '\u2b24', name: ' (Circle) ', groupKey: 'basic' },
@@ -945,7 +948,7 @@ function buildBasicNodeShapeDataUri(
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-interface WeightedMixedNodeShapeSegment {
+export interface WeightedMixedNodeShapeSegment {
     segment: MixedNodeShapeSegment;
     startFraction: number;
     endFraction: number;
@@ -955,11 +958,7 @@ function formatSvgFraction(value: number): string {
     return Number(value.toFixed(6)).toString();
 }
 
-function formatSvgPercent(value: number): string {
-    return `${formatSvgFraction(Math.min(1, Math.max(0, value)) * 100)}%`;
-}
-
-function getWeightedMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): WeightedMixedNodeShapeSegment[] {
+export function getWeightedMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): WeightedMixedNodeShapeSegment[] {
     const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
     const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
     if (validSegments.length < 2 || totalWeight <= 0) {
@@ -979,27 +978,32 @@ function getWeightedMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): W
     });
 }
 
-function buildMixedFillGradientDefinition(
-    gradientId: string,
+export function buildMixedNodeStripePatternDefinition(
+    patternId: string,
     segments: MixedNodeShapeSegment[],
-    fallbackOpacity: number
+    fallbackOpacity: number,
+    coordinateSpan: number,
+    renderedSize: number
 ): string {
     const weightedSegments = getWeightedMixedNodeShapeSegments(segments);
     if (!weightedSegments.length) {
         return '';
     }
 
-    const stops = weightedSegments.flatMap(({ segment, startFraction, endFraction }) => {
+    const safeCoordinateSpan = Math.max(1, Number(coordinateSpan) || 1);
+    const safeRenderedSize = Math.max(1, Number(renderedSize) || 24);
+    const stripePeriod = MIXED_NODE_STRIPE_BAND_WIDTH_PX
+        * weightedSegments.length
+        * safeCoordinateSpan
+        / safeRenderedSize;
+    const stripes = weightedSegments.map(({ segment, startFraction, endFraction }) => {
         const color = sanitizeSvgColor(segment.color);
         const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
 
-        return [
-            `<stop offset="${formatSvgPercent(startFraction)}" stop-color="${color}" stop-opacity="${opacity}"/>`,
-            `<stop offset="${formatSvgPercent(endFraction)}" stop-color="${color}" stop-opacity="${opacity}"/>`
-        ];
+        return `<rect x="${formatSvgFraction(startFraction * stripePeriod)}" y="0" width="${formatSvgFraction((endFraction - startFraction) * stripePeriod)}" height="${formatSvgFraction(stripePeriod)}" fill="${color}" fill-opacity="${opacity}"/>`;
     }).join('');
 
-    return `<defs><linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="objectBoundingBox">${stops}</linearGradient></defs>`;
+    return `<pattern id="${patternId}" patternUnits="userSpaceOnUse" width="${formatSvgFraction(stripePeriod)}" height="${formatSvgFraction(stripePeriod)}" patternTransform="rotate(45)">${stripes}</pattern>`;
 }
 
 function buildMixedBasicNodeShapeContent(
@@ -1014,9 +1018,19 @@ function buildMixedBasicNodeShapeContent(
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
-    const gradient = buildMixedFillGradientDefinition('mixed-node-fill', segments, safeFillOpacity);
-    const fillPaint = gradient ? 'url(#mixed-node-fill)' : safeFill;
-    const fillOpacityValue = gradient ? 1 : safeFillOpacity;
+    const viewBoxPadding = !options.fillCanvas
+        ? Math.max(0, Number(options.basicShapeViewBoxPadding ?? 0))
+        : 0;
+    const stripePattern = buildMixedNodeStripePatternDefinition(
+        'mixed-node-fill',
+        segments,
+        safeFillOpacity,
+        300 + (viewBoxPadding * 2),
+        Number(options.renderedSize) || 24
+    );
+    const stripeDefinition = stripePattern ? `<defs>${stripePattern}</defs>` : '';
+    const fillPaint = stripePattern ? 'url(#mixed-node-fill)' : safeFill;
+    const fillOpacityValue = stripePattern ? 1 : safeFillOpacity;
     const includeStroke = options.includeStroke !== false;
     const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
     const strokeAttributes = includeStroke
@@ -1024,21 +1038,21 @@ function buildMixedBasicNodeShapeContent(
         : 'stroke="none"';
 
     if (options.fillCanvas) {
-        return `${gradient}<rect x="0" y="0" width="300" height="300" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" stroke="none"/>`;
+        return `${stripeDefinition}<rect x="0" y="0" width="300" height="300" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" stroke="none"/>`;
     }
 
     if (normalizedShapeKey === 'ellipse') {
-        return `${gradient}<circle cx="150" cy="150" r="110" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
+        return `${stripeDefinition}<circle cx="150" cy="150" r="110" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
     }
 
     const path = normalizedShapeKey === 'barrel'
         ? 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z'
         : buildBasicNodeShapePath(normalizedShapeKey);
     if (!path) {
-        return `${gradient}<circle cx="150" cy="150" r="110" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
+        return `${stripeDefinition}<circle cx="150" cy="150" r="110" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
     }
 
-    return `${gradient}<path d="${path}" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
+    return `${stripeDefinition}<path d="${path}" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" ${strokeAttributes}/>`;
 }
 
 function buildMixedCustomNodeShapeContent(
@@ -1053,21 +1067,29 @@ function buildMixedCustomNodeShapeContent(
 ): string {
     const safeFill = sanitizeSvgColor(fillColor);
     const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
-    const gradient = buildMixedFillGradientDefinition('mixed-node-fill', segments, safeFillOpacity);
-    const fillPaint = gradient ? 'url(#mixed-node-fill)' : safeFill;
-    const fillOpacityValue = gradient ? 1 : safeFillOpacity;
     const includeStroke = options.includeStroke !== false;
     const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
     const customShapePadding = Math.min(100, Math.max(0, Number(options.customShapePadding ?? 40)));
     const customShapeSize = Math.max(1, 300 - (customShapePadding * 2));
     const viewBoxPadding = Math.max(0, Number(options.customShapeViewBoxPadding ?? strokeWidth));
+    const renderedStripeAreaSize = (Number(options.renderedSize) || 24) * customShapeSize / 300;
+    const stripePattern = buildMixedNodeStripePatternDefinition(
+        'mixed-node-fill',
+        segments,
+        safeFillOpacity,
+        Math.max(definition.width, definition.height) + (viewBoxPadding * 2),
+        renderedStripeAreaSize
+    );
+    const stripeDefinition = stripePattern ? `<defs>${stripePattern}</defs>` : '';
+    const fillPaint = stripePattern ? 'url(#mixed-node-fill)' : safeFill;
+    const fillOpacityValue = stripePattern ? 1 : safeFillOpacity;
     const outlinePath = includeStroke
         ? `<path d="${definition.path}" fill="none" stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`
         : '';
 
     return [
         `<svg x="${customShapePadding}" y="${customShapePadding}" width="${customShapeSize}" height="${customShapeSize}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" preserveAspectRatio="xMidYMid meet">`,
-        gradient,
+        stripeDefinition,
         `<g transform="translate(0,${definition.height}) scale(1,-1)">`,
         `<path d="${definition.fillPath ?? definition.path}" fill="${fillPaint}" fill-opacity="${fillOpacityValue}" stroke="none"/>`,
         outlinePath,

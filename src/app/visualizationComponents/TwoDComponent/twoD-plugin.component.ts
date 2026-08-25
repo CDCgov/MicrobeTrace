@@ -14,7 +14,7 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
-import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, MIXED_NODE_STRIPE_BAND_WIDTH_PX, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -31,8 +31,9 @@ import {
     StyleKeyTableRowNameChange,
     StyleKeyTableSortColumn
 } from '../KeyTablesComponent/style-key-table.component';
+import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
-import { buildPieChartSvgDataUri, expandPieChartSlicesBySegments, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, hasCompositePieChartFill, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 interface CustomNodeSvgExportReplacement {
@@ -443,7 +444,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         };
     }
 
-    private getMixedColorNodeImage(node: any, shapeKey: string, fillColor: string, fillOpacity: number): string | undefined {
+    private getMixedColorNodeImage(
+        node: any,
+        shapeKey: string,
+        fillColor: string,
+        fillOpacity: number,
+        renderedSize?: number
+    ): string | undefined {
         const segments = this.commonService.getNodeFillStyle(node).segments;
         if (!segments || segments.length < 2) {
             return undefined;
@@ -464,7 +471,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 fillCanvas: !isCustomShape,
                 includeStroke: false,
                 customShapePadding: 0,
-                customShapeViewBoxPadding: 0
+                customShapeViewBoxPadding: 0,
+                renderedSize: renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.widgets['node-radius']))
             }
         );
     }
@@ -474,9 +482,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         fullNode: any,
         shapeKey: string,
         fillColor: string,
-        fillOpacity: number
+        fillOpacity: number,
+        renderedSize?: number
     ): void {
-        const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, fillColor, fillOpacity);
+        const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, fillColor, fillOpacity, renderedSize);
         if (mixedColorImage) {
             node.data('mixedColorImage', mixedColorImage);
         } else {
@@ -1469,7 +1478,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const colorVariable = this.widgets['node-color-variable'];
         const fixedColor = this.widgets['node-color'];
 
-        return expandPieChartSlicesBySegments(counts, label => {
+        return buildPieChartSlicesWithSegmentedFills(counts, label => {
             if (colorVariable === 'None') {
                 return {
                     color: fixedColor,
@@ -1570,7 +1579,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const aggregateRenderedSize = this.getCollapsedNodeRenderedSize(totalCount);
         const counts = this.buildCollapsedNodeCounts(memberNodes);
         const slices = this.getCollapsedPieSlices(counts);
-        const hasPie = this.widgets['node-color-variable'] !== 'None' && slices.length > 1;
+        const hasPie = this.widgets['node-color-variable'] !== 'None' && hasCompositePieChartFill(slices);
         const [solidColor, solidOpacity] = this.getCollapsedSolidNodeColor(counts);
         const distanceSummary = this.getCollapsedNodeDistanceSummary(memberNodes, metric);
 
@@ -3107,10 +3116,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return Number(value.toFixed(6)).toString();
     }
 
-    private formatSvgExportPercent(value: number): string {
-        return `${this.formatSvgExportNumber(Math.min(1, Math.max(0, value)) * 100)}%`;
-    }
-
     private getWeightedMixedExportSegments(
         segments: Array<{ color: string; alpha?: number; weight?: number }>
     ): Array<{ color: string; alpha: number; startFraction: number; endFraction: number }> {
@@ -3137,36 +3142,39 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
-    private appendMixedFillGradient(
+    private appendMixedStripePattern(
         doc: XMLDocument,
         parent: SVGElement,
-        gradientId: string,
-        segments: Array<{ color: string; alpha?: number; weight?: number }>
+        patternId: string,
+        segments: Array<{ color: string; alpha?: number; weight?: number }>,
+        coordinateScale: number = 1
     ): void {
         const svgNamespace = 'http://www.w3.org/2000/svg';
         const defs = doc.createElementNS(svgNamespace, 'defs');
-        const gradient = doc.createElementNS(svgNamespace, 'linearGradient');
-        gradient.setAttribute('id', gradientId);
-        gradient.setAttribute('x1', '0%');
-        gradient.setAttribute('y1', '0%');
-        gradient.setAttribute('x2', '100%');
-        gradient.setAttribute('y2', '0%');
-        gradient.setAttribute('gradientUnits', 'objectBoundingBox');
+        const pattern = doc.createElementNS(svgNamespace, 'pattern');
+        const weightedSegments = this.getWeightedMixedExportSegments(segments);
+        const safeCoordinateScale = Math.max(0.0001, Number(coordinateScale) || 1);
+        const stripePeriod = MIXED_NODE_STRIPE_BAND_WIDTH_PX
+            * Math.max(2, weightedSegments.length)
+            / safeCoordinateScale;
+        pattern.setAttribute('id', patternId);
+        pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+        pattern.setAttribute('width', this.formatSvgExportNumber(stripePeriod));
+        pattern.setAttribute('height', this.formatSvgExportNumber(stripePeriod));
+        pattern.setAttribute('patternTransform', 'rotate(45)');
 
-        this.getWeightedMixedExportSegments(segments).forEach(segment => {
-            [
-                this.formatSvgExportPercent(segment.startFraction),
-                this.formatSvgExportPercent(segment.endFraction)
-            ].forEach(offset => {
-                const stop = doc.createElementNS(svgNamespace, 'stop');
-                stop.setAttribute('offset', offset);
-                stop.setAttribute('stop-color', segment.color);
-                stop.setAttribute('stop-opacity', this.formatSvgExportNumber(segment.alpha));
-                gradient.appendChild(stop);
-            });
+        weightedSegments.forEach(segment => {
+            const stripe = doc.createElementNS(svgNamespace, 'rect');
+            stripe.setAttribute('x', this.formatSvgExportNumber(segment.startFraction * stripePeriod));
+            stripe.setAttribute('y', '0');
+            stripe.setAttribute('width', this.formatSvgExportNumber((segment.endFraction - segment.startFraction) * stripePeriod));
+            stripe.setAttribute('height', this.formatSvgExportNumber(stripePeriod));
+            stripe.setAttribute('fill', segment.color);
+            stripe.setAttribute('fill-opacity', this.formatSvgExportNumber(segment.alpha));
+            pattern.appendChild(stripe);
         });
 
-        defs.appendChild(gradient);
+        defs.appendChild(pattern);
         parent.appendChild(defs);
     }
 
@@ -3265,8 +3273,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             vectorGroup.setAttribute('transform', transforms.join(' '));
         }
 
-        const gradientId = `mt-mixed-node-export-${replacementIndex}`;
-        this.appendMixedFillGradient(doc, vectorGroup, gradientId, replacement.segments);
+        const patternId = `mt-mixed-node-export-${replacementIndex}`;
+        const coordinateScale = replacement.vectorData
+            ? Math.min(
+                imageWidth / replacement.vectorData.width,
+                imageHeight / replacement.vectorData.height
+            )
+            : 1;
+        this.appendMixedStripePattern(doc, vectorGroup, patternId, replacement.segments, coordinateScale);
 
         if (replacement.vectorData) {
             const scaleGroup = doc.createElementNS(svgNamespace, 'g');
@@ -3277,7 +3291,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             const fillPath = doc.createElementNS(svgNamespace, 'path');
             fillPath.setAttribute('d', replacement.vectorData.fillPath);
-            fillPath.setAttribute('fill', `url(#${gradientId})`);
+            fillPath.setAttribute('fill', `url(#${patternId})`);
             fillPath.setAttribute('stroke', 'none');
             shapeGroup.appendChild(fillPath);
 
@@ -3291,7 +3305,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         fillRect.setAttribute('y', '0');
         fillRect.setAttribute('width', `${imageWidth}`);
         fillRect.setAttribute('height', `${imageHeight}`);
-        fillRect.setAttribute('fill', `url(#${gradientId})`);
+        fillRect.setAttribute('fill', `url(#${patternId})`);
         fillRect.setAttribute('stroke', 'none');
         vectorGroup.appendChild(fillRect);
 
@@ -3736,15 +3750,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     onPolygonColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
-        $("#color-transparency-wrapper").css({
-            top: request.event.clientY + 129,
-            left: request.event.clientX,
-            display: "block"
-        });
+        const input = showColorTransparencyPicker(
+            request.event,
+            this.commonService.temp.style.polygonAlphaMap(request.value)
+        );
+        if (!input) {
+            return;
+        }
 
-        $("#color-transparency")
+        $(input)
             .off("change")
-            .val(this.commonService.temp.style.polygonAlphaMap(request.value))
             .one("change", event => {
                 const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == request.value);
                 const locInPolygonAlphas = polygonGroup?.index ?? request.row.index;
@@ -7320,8 +7335,18 @@ scaleLinkWidth() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
             if (this.isGroupNode(node)) return;
-	            const newSize = Number(this.getNodeSize(this.getFullNodeDataForCyNode(node)));
+	            const fullNode = this.getFullNodeDataForCyNode(node);
+	            const newSize = Number(this.getNodeSize(fullNode));
 	            node.data('nodeSize', newSize);
+	            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
+	            this.setMixedColorNodeImageData(
+                    node,
+                    fullNode,
+                    shapeKey,
+                    node.data('nodeColor'),
+                    Number(node.data('bgOpacity')),
+                    this.mapNodeSize(newSize)
+                );
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }

@@ -502,6 +502,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     onNodeRadiusChange() {
         this.commonService.session.style.widgets['map-node-size'] = this.mapNodeIconSize;
+        this.mapNodeIconCache = {};
         this.drawNodes(false);
     }
 
@@ -527,10 +528,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const segmentKey = segments.length > 1
             ? segments.map(segment => `${segment.value}:${segment.color}:${segment.alpha}:${segment.weight}`).join(',')
             : '';
-        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}|${segmentKey}|${selected ? safeStroke : ''}`;
+        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}|${segmentKey}|${selected ? safeStroke : ''}|${this.mapNodeIconSize}`;
         const mixedShapeOptions = isCustomNodeIconShape(normalizedShapeKey)
-            ? { customShapePadding: 0, customShapeViewBoxPadding: Math.max(20, strokeWidth) }
-            : { basicShapeViewBoxPadding: Math.max(20, strokeWidth) };
+            ? { customShapePadding: 0, customShapeViewBoxPadding: Math.max(20, strokeWidth), renderedSize: this.mapNodeIconSize }
+            : { basicShapeViewBoxPadding: Math.max(20, strokeWidth), renderedSize: this.mapNodeIconSize };
 
         if (!this.mapNodeIconCache[cacheKey]) {
             this.mapNodeIconCache[cacheKey] = segments.length > 1

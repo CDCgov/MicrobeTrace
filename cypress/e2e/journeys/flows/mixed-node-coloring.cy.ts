@@ -127,6 +127,28 @@ describe('Journey Flow - mixed node coloring', () => {
       cy.get(`#key-tables-node-table td[data-value="${mixedOnlyComponent}"]`).should('not.exist');
     });
 
+    cy.get('#key-tables-node-table td[data-value="2a/3a"]')
+      .parents('tr')
+      .find('[data-mixed-alpha-trigger="true"]')
+      .click({ force: true });
+    cy.get('#key-tables-node-table input[aria-label="2a transparency"]')
+      .should('have.value', '1')
+      .invoke('val', '0.35')
+      .trigger('input');
+    cy.get('#key-tables-node-table td[data-value="2a"]')
+      .parents('tr')
+      .find('input[type="color"]')
+      .should('have.css', 'opacity', '0.35');
+    cy.window().should((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const mixedStyle = commonService.getNodeFillStyle({ Genotype: '2a/3a' });
+      expect(commonService.temp.style.nodeAlphaMap('2a')).to.equal(0.35);
+      expect(mixedStyle.segments.map((segment: any) => [segment.value, segment.alpha])).to.deep.equal([
+        ['2a', 0.35],
+        ['3a', 1],
+      ]);
+    });
+
     cy.closeGlobalSettings();
 
     assertMixedStyleSegments();
@@ -190,13 +212,15 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
-        ['2a', 0.5],
         ['3a', 1],
-        ['3a', 0.5],
-        ['6', 0.5],
-        ['7a', 0.5],
+        ['2a/3a', 1],
+        ['6/7a', 1],
         ['null', 2],
       ]);
+      expect(pieSlices.find((slice: any) => slice.label === '2a/3a').segments.map((segment: any) => segment.value))
+        .to.deep.equal(['2a', '3a']);
+      expect(pieSlices.find((slice: any) => slice.label === '6/7a').segments.map((segment: any) => segment.value))
+        .to.deep.equal(['6', '7a']);
       expect(String(mixedAggregate.style('background-image'))).to.contain('data:image');
     });
 
@@ -271,13 +295,15 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
-        ['2a', 0.5],
         ['3a', 1],
-        ['3a', 0.5],
-        ['6', 0.5],
-        ['7a', 0.5],
+        ['2a/3a', 1],
+        ['6/7a', 1],
         ['null', 2],
       ]);
+      expect(pieSlices.find((slice: any) => slice.label === '2a/3a').segments.map((segment: any) => segment.value))
+        .to.deep.equal(['2a', '3a']);
+      expect(pieSlices.find((slice: any) => slice.label === '6/7a').segments.map((segment: any) => segment.value))
+        .to.deep.equal(['6', '7a']);
       expect(
         pieSlices.reduce((total: number, slice: any) => total + Number(slice.count || 0), 0),
         'cluster-0 pie total',
@@ -367,10 +393,10 @@ describe('Journey Flow - mixed node coloring', () => {
       .should(($circle) => {
         expect($circle.css('fill')).to.match(/url\(.+mt-tree-mixed-fill-/);
       });
-    cy.get('#phylocanvas defs.mt-tree-mixed-fill-defs linearGradient stop')
-      .should(($stops) => {
-        const stopColors = [...$stops].map((stop) => String(stop.getAttribute('stop-color')).toLowerCase());
-        expect(stopColors).to.include('#00aa00');
+    cy.get('#phylocanvas defs.mt-tree-mixed-fill-defs pattern rect')
+      .should(($stripes) => {
+        const stripeColors = [...$stripes].map((stripe) => String(stripe.getAttribute('fill')).toLowerCase());
+        expect(stripeColors).to.include('#00aa00');
       });
   });
 
@@ -444,6 +470,25 @@ describe('Journey Flow - mixed node coloring', () => {
         expect(emptyNode.color, `empty color for ${nodeId}`).to.equal(emptyStyle.color);
         expect(emptyNode.mixedColorImage, `no mixed fill for ${nodeId}`).to.equal(undefined);
       });
+    });
+
+    cy.window().then((win: unknown) => {
+      const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
+      bubble.SelectedNodeCollapsingTypeVariable = true;
+      bubble.onNodeCollapsingChange();
+    });
+
+    cy.window().should((win: unknown) => {
+      const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
+      const mixedSingleton = bubble.visibleData.find((node: any) => node.Xgroup === 1);
+      const slices = bubble.getPieSlicesForCollapsedBubbleNode(mixedSingleton);
+      const renderedNode = bubble.cy.getElementById(mixedSingleton.id);
+
+      expect(mixedSingleton.totalCount, 'collapsed mixed singleton count').to.equal(1);
+      expect(mixedSingleton.counts).to.deep.equal([{ label: '6/7a', count: 1 }]);
+      expect(slices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([['6/7a', 1]]);
+      expect(slices[0].segments.map((segment: any) => segment.value)).to.deep.equal(['6', '7a']);
+      expect(String(renderedNode.style('background-image'))).to.contain('data:image');
     });
   });
 });
