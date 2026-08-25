@@ -977,6 +977,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     );
   }
 
+  private getSourceNodeForDataRecord(
+    dataNode: Pick<DataRecord, 'id'>,
+    sourceNodes: any[] = this.commonService.session.data.nodeFilteredValues
+  ): any | undefined {
+    const dataNodeId = String(dataNode?.id ?? '');
+    return sourceNodes.find(node => String(node?._id ?? node?.id ?? '') === dataNodeId);
+  }
+
   private getPieSlicesForCollapsedBubbleNode(node: DataRecord): PieChartSlice[] {
     const counts = Array.isArray(node.counts) ? node.counts : [];
     return expandPieChartSlicesBySegments(
@@ -1041,7 +1049,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     let fullNodes = this.commonService.session.data.nodeFilteredValues;
 
     this.allData.forEach(node => {
-      let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
+      let currentFullNode = this.getSourceNodeForDataRecord(node, fullNodes);
       if (!currentFullNode) {
         return;
       }
@@ -1099,6 +1107,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.refreshCollapsedData(true);
     } else {
+      this.hideTooltip();
+      // Cluster membership and category order can change in another view while
+      // Bubble is collapsed. Rebuild both axes before restoring individual
+      // nodes so their group indexes and positions use the current categories.
+      this.updateAxisValues('X');
+      this.updateAxisValues('Y');
       this.cy.remove('node');
       this.getData();
       this.updateNodes();
@@ -1305,7 +1319,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       let fullNodes = this.commonService.session.data.nodeFilteredValues;
   
       this.allData.forEach(node => {
-        let currentFullNode = fullNodes.find(Fnode => node.index == Fnode.index);
+        let currentFullNode = this.getSourceNodeForDataRecord(node, fullNodes);
         if (!currentFullNode) {
           return;
         }
@@ -1503,7 +1517,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         return;
       }
 
-      const fullNode = fullNodes.find(node => node.index === dataNode.index);
+      const fullNode = this.getSourceNodeForDataRecord(dataNode, fullNodes);
       if (!fullNode) {
         return;
       }

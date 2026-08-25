@@ -2,6 +2,7 @@
 
 import type { DatasetProfile } from '../datasets/profile';
 import {
+  enableGroupingShow,
   ensureBubbleView,
   ensureMapView,
   goToPhyloTreeView,
@@ -46,6 +47,25 @@ const profile: DatasetProfile = {
       visibleLinks: 3,
     },
   },
+};
+
+const linkOnlyProfile: DatasetProfile = {
+  ...profile,
+  id: 'mixed-genotype-node-coloring-link-only',
+  files: [
+    {
+      name: 'Cypress_MixedGenotype_Nodes.csv',
+      datatype: 'node',
+      field1: 'ID',
+      field2: 'None',
+    },
+    {
+      name: 'Cypress_MixedGenotype_Links.csv',
+      datatype: 'link',
+      field1: 'source',
+      field2: 'target',
+    },
+  ],
 };
 
 const selectPrimeOption = (selector: string, label: string): void => {
@@ -95,6 +115,16 @@ describe('Journey Flow - mixed node coloring', () => {
           cy.get('[data-mixed-color-swatch="true"] [data-color-segment]').should('have.length', 2);
           cy.get('input[type="color"]').should('not.exist');
         });
+    });
+
+    ['2a', '3a'].forEach((singleValue) => {
+      cy.get(`#key-tables-node-table td[data-value="${singleValue}"]`)
+        .parents('tr')
+        .find('.tableCount')
+        .should('have.text', '1');
+    });
+    ['6', '7a'].forEach((mixedOnlyComponent) => {
+      cy.get(`#key-tables-node-table td[data-value="${mixedOnlyComponent}"]`).should('not.exist');
     });
 
     cy.closeGlobalSettings();
@@ -186,11 +216,21 @@ describe('Journey Flow - mixed node coloring', () => {
       (win as WinWithMicrobeTrace).commonService.visuals.twoD.onNodeCollapseEnabledChange(true);
     });
 
+    enableGroupingShow('cluster');
+
+    let expandedBubblePositions: Record<string, { xGroup: number; x: number; y: number }> = {};
     ensureBubbleView();
     cy.window().then((win: unknown) => {
       const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
       const mixedBubbleNode = bubble.cy.getElementById('sample-4');
       expect(String(mixedBubbleNode.data('mixedColorImage') || '')).to.contain('data:image/svg+xml');
+
+      expandedBubblePositions = Object.fromEntries(
+        bubble.visibleData.map((node: any) => [
+          String(node.id),
+          { xGroup: Number(node.Xgroup), x: Number(node.x), y: Number(node.y) },
+        ]),
+      );
     });
 
     openBubbleSettingsDialog();
@@ -244,6 +284,45 @@ describe('Journey Flow - mixed node coloring', () => {
       ).to.equal(7);
     });
 
+    // Cross-view cluster recomputation can invalidate Bubble's cached category
+    // order while aggregates are displayed. Expanding must rebuild both axes
+    // before restoring the individual node positions.
+    cy.window().then((win: unknown) => {
+      const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
+      bubble.X_categories = [...bubble.X_categories].reverse();
+    });
+
+    openBubbleSettingsDialog();
+    cy.get('@bubbleSettings').find('#bubble-node-collapsing').contains('Off').click({ force: true });
+    cy.closeSettingsPane('Bubble Settings');
+
+    cy.window().should((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const bubble = commonService.visuals.bubble;
+      const visibleNodesById = new Map(
+        commonService.getVisibleNodes().map((node: any) => [String(node._id ?? node.id), node]),
+      );
+
+      expect(bubble.X_categories, 'expanded Bubble cluster categories').to.deep.equal([0, 1]);
+      expect(bubble.visibleData.length, 'expanded Bubble node count').to.equal(9);
+
+      bubble.visibleData.forEach((node: any) => {
+        const sourceNode = visibleNodesById.get(String(node.id));
+        const before = expandedBubblePositions[String(node.id)];
+        expect(sourceNode, `source node ${node.id}`).to.exist;
+        expect(node.Xgroup, `current cluster position for ${node.id}`)
+          .to.equal(bubble.X_categories.indexOf(sourceNode.cluster));
+        expect(
+          { xGroup: Number(node.Xgroup), x: Number(node.x), y: Number(node.y) },
+          `restored Bubble position for ${node.id}`,
+        ).to.deep.equal(before);
+      });
+    });
+
+    openBubbleSettingsDialog();
+    cy.get('@bubbleSettings').find('#bubble-node-collapsing').contains('On').click({ force: true });
+    cy.closeSettingsPane('Bubble Settings');
+
     cy.window().then((win: unknown) => {
       const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
       const clusterZero = bubble.visibleData.find((node: any) => node.Xgroup === 0);
@@ -293,5 +372,78 @@ describe('Journey Flow - mixed node coloring', () => {
         const stopColors = [...$stops].map((stop) => String(stop.getAttribute('stop-color')).toLowerCase());
         expect(stopColors).to.include('#00aa00');
       });
+  });
+
+  it('keeps expanded Bubble colors tied to node IDs after related-node collapse renumbers indexes', () => {
+    launchProfileToTwoD(linkOnlyProfile);
+
+    openGlobalStylingTab();
+    selectPrimeOption('#node-color-variable', 'Genotype');
+    cy.get('#node-mixed-colors-enabled').check({ force: true });
+    cy.closeGlobalSettings();
+
+    enableGroupingShow('cluster');
+    cy.window().then((win: unknown) => {
+      const twoD = (win as WinWithMicrobeTrace).commonService.visuals.twoD;
+      twoD.onNodeCollapseThresholdDisplayedChange(1);
+      twoD.onNodeCollapseEnabledChange(true);
+    });
+
+    cy.window().should((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const renderedNodes = commonService.visuals.twoD.cy.nodes(':visible').filter(
+        (node: any) => !node.data('isParent') && node.children().length === 0,
+      );
+      const aggregate = renderedNodes.filter(
+        (node: any) => node.data('isCollapsedAggregate') === true,
+      );
+
+      expect(renderedNodes.length, '2D related-node collapsed count').to.equal(6);
+      expect(aggregate.length, '2D related-node aggregate count').to.equal(1);
+      expect(aggregate[0].data('collapsedMemberIds')).to.deep.equal([
+        'sample-1',
+        'sample-2',
+        'sample-3',
+        'sample-4',
+      ]);
+    });
+
+    ensureBubbleView();
+    cy.window().should((win: unknown) => {
+      const { commonService } = win as WinWithMicrobeTrace;
+      const bubble = commonService.visuals.bubble;
+      const sourceNodesById = new Map(
+        commonService.session.data.nodeFilteredValues.map(
+          (node: any) => [String(node._id ?? node.id), node],
+        ),
+      );
+
+      expect(bubble.SelectedNodeCollapsingTypeVariable, 'Bubble collapse state').to.equal(false);
+      expect(bubble.X_categories, 'Bubble cluster categories').to.deep.equal([0, 1, 2, 3, 4, 5]);
+
+      bubble.visibleData.forEach((dataNode: any) => {
+        const sourceNode = sourceNodesById.get(String(dataNode.id));
+        expect(sourceNode, `source node ${dataNode.id}`).to.exist;
+        const expectedStyle = commonService.getNodeFillStyle(sourceNode);
+        expect(dataNode.color, `color for ${dataNode.id}`).to.equal(expectedStyle.color);
+        expect(dataNode.opacity, `opacity for ${dataNode.id}`).to.equal(expectedStyle.alpha);
+        expect(
+          Boolean(dataNode.mixedColorImage),
+          `mixed fill state for ${dataNode.id}`,
+        ).to.equal(Array.isArray(expectedStyle.segments) && expectedStyle.segments.length > 1);
+      });
+
+      const mixedSingleton = bubble.visibleData.find((node: any) => node.id === 'sample-5');
+      expect(mixedSingleton.Xgroup, 'mixed singleton cluster').to.equal(1);
+      expect(String(mixedSingleton.mixedColorImage || '')).to.contain('data:image/svg+xml');
+
+      ['sample-6', 'sample-7', 'sample-8', 'sample-9'].forEach((nodeId) => {
+        const emptyNode = bubble.visibleData.find((node: any) => node.id === nodeId);
+        const sourceNode = sourceNodesById.get(nodeId);
+        const emptyStyle = commonService.getNodeFillStyle(sourceNode);
+        expect(emptyNode.color, `empty color for ${nodeId}`).to.equal(emptyStyle.color);
+        expect(emptyNode.mixedColorImage, `no mixed fill for ${nodeId}`).to.equal(undefined);
+      });
+    });
   });
 });

@@ -323,10 +323,19 @@ export class ColorMappingService {
       }
 
       const categories = this.getNodeColorCategoriesForValue(d[nodeColorVariable], splitMixedValues);
-      const categoryWeight = splitMixedValues && categories.length > 1 ? 1 / categories.length : 1;
+      const isMixedValue = splitMixedValues && categories.length > 1;
 
       categories.forEach(category => {
-        aggregates[category] = (aggregates[category] || 0) + categoryWeight;
+        // Mixed components must remain in the scale domain so each segment has
+        // a stable color, but the combined node is counted only by its mixed
+        // legend entry rather than fractionally against every component.
+        if (!Object.prototype.hasOwnProperty.call(aggregates, category)) {
+          aggregates[category] = 0;
+        }
+
+        if (!isMixedValue) {
+          aggregates[category] += 1;
+        }
       });
     });
 

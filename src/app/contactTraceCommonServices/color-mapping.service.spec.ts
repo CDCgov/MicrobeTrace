@@ -65,7 +65,7 @@ describe('mixed node color helpers', () => {
     ]);
   });
 
-  it('splits mixed values into component color table rows instead of adding combination rows', () => {
+  it('keeps mixed components in the color domain without adding fractional component counts', () => {
     const service = new ColorMappingService();
     const result = service.createNodeColorMap(
       [
@@ -84,8 +84,8 @@ describe('mixed node color helpers', () => {
       true
     );
 
-    expect(result.aggregates['2a']).toBeCloseTo(1.5);
-    expect(result.aggregates['3a']).toBeCloseTo(1.5);
+    expect(result.aggregates['2a']).toBe(1);
+    expect(result.aggregates['3a']).toBe(1);
     expect(result.updatedColorsTableKeys.Genotype).toEqual(['2a', '3a']);
     expect(result.updatedColorsTableKeys.Genotype).not.toContain('2a/3a');
   });
@@ -113,9 +113,9 @@ describe('mixed node color helpers', () => {
       true
     );
 
-    expect(result.aggregates['6']).toBeCloseTo(0.5);
-    expect(result.aggregates['7a']).toBeCloseTo(0.5);
-    expect(result.aggregates['null']).toBeCloseTo(2);
+    expect(result.aggregates['6']).toBe(0);
+    expect(result.aggregates['7a']).toBe(0);
+    expect(result.aggregates['null']).toBe(2);
     expect(result.updatedColorsTableKeys.Genotype).toContain('6');
     expect(result.updatedColorsTableKeys.Genotype).toContain('7a');
     expect(result.updatedColorsTableKeys.Genotype).toContain('null');
