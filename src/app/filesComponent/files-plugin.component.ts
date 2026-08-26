@@ -358,9 +358,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     return value === undefined || value === null || value === '' ? 'None' : String(value);
   }
 
+  /**
+   * Header names are user-controlled. Keep their original values for field
+   * mapping and let Angular bind them as option properties/text instead of
+   * attempting to sanitize HTML strings.
+   */
+  private normalizeFileTableHeaders(headers: any[] = []): string[] {
+    return headers.map(header => String(header ?? ''));
+  }
+
   private createFileTableHeaderOptions(headers: any[] = []): FileTableOption[] {
-    return headers.map(header => {
-      const value = String(header ?? '');
+    return this.normalizeFileTableHeaders(headers).map(value => {
 
       return {
         value,
@@ -374,7 +382,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       rowId: ++this.nextFileTableRowId,
       file,
       fileName: String(file?.name ?? ''),
-      headers: (headers || []).map(header => String(header ?? '')),
+      headers: this.normalizeFileTableHeaders(headers),
       headerOptions: this.createFileTableHeaderOptions(headers || []),
       format: detectedFormat,
       field1: this.normalizeFileTableValue(file?.field1),
@@ -532,6 +540,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   onFileTableFieldChange(row: FileTableRow, fieldNumber: number, value: any): void {
     this.assignFileTableField(row, fieldNumber, value);
     this.applyFileTableRowMetadata(row);
+  }
+
+  resetFileInput(event: Event): void {
+    (event.target as HTMLInputElement).value = '';
   }
 
   isFileTableRowContentsEmpty(row: FileTableRow): boolean {
@@ -2831,8 +2843,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         const headers = [];
         data.forEach(row => {
           Object.keys(row).forEach(key => {
-            const safeKey = this.commonService.filterXSS(key);
-            if (!this.commonService.includes(headers, safeKey)) headers.push(safeKey);
+            const header = String(key ?? '');
+            if (!this.commonService.includes(headers, header)) headers.push(header);
           });
         });
         addTableTile(headers, this);
@@ -2896,7 +2908,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           data = [file.contents];
         }
 
-        const detectedFormat = addTableTile(Object.keys(data[0]).map(this.commonService.filterXSS), this);
+        const detectedFormat = addTableTile(this.normalizeFileTableHeaders(Object.keys(data[0])), this);
 
         if (detectedFormat === 'node') {
           this.loadNodes(file.name, data, true);
@@ -2919,7 +2931,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         header: true,
         skipEmptyLines: true,
         complete: output => {
-          const detectedFormat = addTableTile(output.meta.fields.map(this.commonService.filterXSS), this);
+          const detectedFormat = addTableTile(this.normalizeFileTableHeaders(output.meta.fields), this);
 
           if (detectedFormat === 'node') {
             this.loadNodes(file.name, output, false);

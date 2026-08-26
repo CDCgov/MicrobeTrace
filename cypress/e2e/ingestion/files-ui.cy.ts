@@ -142,6 +142,39 @@ describe('File Handling and Processing', () => {
       });
   });
 
+  it('renders untrusted CSV headers as option text without executing them', () => {
+    const fileName = 'csv-header-xss.csv';
+    const unsafeHeader = 'x" class="fa-spin" onanimationstart="window.__mtHeaderInjected=true" y="';
+    const csvContents = `source,target,${unsafeHeader}\nA,B,1\nB,C,2\n`;
+
+    cy.window().then((win: Window & typeof globalThis & { __mtHeaderInjected?: boolean }) => {
+      win.__mtHeaderInjected = false;
+    });
+
+    cy.get('#fileDropRef').selectFile({
+      contents: Cypress.Buffer.from(csvContents),
+      fileName,
+      mimeType: 'text/csv',
+    }, { force: true });
+
+    cy.contains('#file-table .file-table-row', fileName, { timeout: 20000 })
+      .should('be.visible')
+      .find('select')
+      .first()
+      .find('option')
+      .then(($options) => {
+        const option = Array.from($options).find(item => item.value === unsafeHeader);
+
+        expect(option, 'CSV header option').to.exist;
+        expect(option?.getAttribute('class')).to.equal(null);
+        expect(option?.getAttribute('onanimationstart')).to.equal(null);
+        expect(option?.textContent).to.contain('onanimationstart');
+      });
+
+    cy.get('#file-table .file-table-row [onanimationstart]').should('not.exist');
+    cy.window().its('__mtHeaderInjected').should('equal', false);
+  });
+
   it('uploads via the welcome overlay input and launches without hitting the error boundary', () => {
     cy.attach_files('#fileDropRef', [nodeFile, linkFile]);
 
