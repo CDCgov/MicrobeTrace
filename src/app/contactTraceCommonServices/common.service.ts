@@ -379,6 +379,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             floorplanBoundaries: [],
             tree: {},
             newickString: '',
+            phylogeneticBootstrap: null,
             newickSource: '',
             auspiceMapData: {
                 countries: {
@@ -589,8 +590,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             'timeline-date-field': 'None',
             'timeline-noncumulative': true,
             'tree-animation-on': true,
+            'tree-bootstrap-custom-replicates': 100,
+            'tree-bootstrap-decimal-length': 1,
+            'tree-bootstrap-support-threshold': 0,
+            'tree-bootstrap-stop-when-stable': false,
             'tree-branch-distances-hide': true,
             'tree-branch-distance-size': 12,
+            'tree-branch-label-show': false,
             'tree-branch-nodes-show': false,
             'tree-horizontal-stretch': 1,
             'tree-layout-vertical': false,
@@ -2796,6 +2802,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
+        }
+        if (oldSession.data?.phylogeneticBootstrap) {
+            this.session.data.phylogeneticBootstrap = oldSession.data.phylogeneticBootstrap;
         }
         if (typeof oldSession.data?.newickSource === 'string') {
             this.session.data.newickSource = oldSession.data.newickSource;
