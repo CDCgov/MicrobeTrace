@@ -134,9 +134,9 @@ describe('Google Analytics virtual page views', () => {
 
       expect(pageViews, 'opening Epi Curve creates a page view').to.have.length(3);
       expect(pageViews[2][2]).to.deep.include({
-        page_location: new URL('timeline', win.document.baseURI).href,
+        page_location: new URL('epicurve', win.document.baseURI).href,
         page_referrer: new URL('sankey', win.document.baseURI).href,
-        page_title: 'Timeline View',
+        page_title: 'EpiCurve View',
       });
     });
 
@@ -151,8 +151,8 @@ describe('Google Analytics virtual page views', () => {
 
       expect(pageViews, 'reopening Epi Curve creates another page view').to.have.length(4);
       expect(pageViews[3][2]).to.deep.include({
-        page_location: new URL('timeline', win.document.baseURI).href,
-        page_title: 'Timeline View',
+        page_location: new URL('epicurve', win.document.baseURI).href,
+        page_title: 'EpiCurve View',
       });
     });
   });

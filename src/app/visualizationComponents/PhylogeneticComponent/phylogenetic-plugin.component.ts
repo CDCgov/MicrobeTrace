@@ -1505,8 +1505,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   hideContextMenu = () => {
-    $('#phylo-context-menu').animate({ opacity: 0 }, 80, () => {
-      $(this).css('z-index', -1);
+    $('#phylo-context-menu').animate({ opacity: 0 }, 80, function () {
+      $(this).css({display: 'none', 'z-index': -1});
     });
   }
 
