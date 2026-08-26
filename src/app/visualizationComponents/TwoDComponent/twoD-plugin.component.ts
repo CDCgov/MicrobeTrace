@@ -728,7 +728,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.ensureNodeCollapseWidgetDefaults();
         this.ensureNetworkLayoutWidgetDefault();
 
-        this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
+        this.container.on('resize', () => {
+            setTimeout(() => {
+                if (
+                    this.getNetworkLayout() === 'order-by-size'
+                    && !this.commonService.session.network.allPinned
+                ) {
+                    this.applyOrderByClusterSizeLayout();
+                } else {
+                    this.fit();
+                }
+            }, 200);
+        })
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -4463,92 +4474,71 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         components.sort((left, right) => left.size - right.size || left.key.localeCompare(right.key));
-        const componentsBySize = new Map<number, OrderedComponent[]>();
-        components.forEach(component => {
-            if (!componentsBySize.has(component.size)) componentsBySize.set(component.size, []);
-            componentsBySize.get(component.size).push(component);
-        });
+        const clusterSizes = Array.from(new Set(components.map(component => component.size)));
 
         const spacing = this.getNodeLayoutSpacing();
-        const verticalGap = spacing;
         const columnGap = spacing * 1.25;
         const bandGap = spacing * 2;
+        const rowGap = spacing * 1.5;
         const containerRect = this.cyContainer?.nativeElement?.getBoundingClientRect();
-        const aspectRatio = Math.max(
-            0.75,
-            Math.min(2, Number(containerRect?.width || 1) / Math.max(1, Number(containerRect?.height || 1)))
-        );
-        const totalArea = components.reduce(
-            (area, component) => area + (component.width + columnGap) * (component.height + verticalGap),
-            0
-        );
-        const targetHeight = Math.max(
-            ...components.map(component => component.height),
-            Math.sqrt(totalArea / aspectRatio)
+        const containerWidth = Math.max(1, Number(containerRect?.width || 1));
+        const fitPadding = 30;
+        const minimumHorizontalScale = 0.75;
+        const targetWidth = Math.max(
+            ...components.map(component => component.width),
+            (containerWidth - (fitPadding * 2)) / minimumHorizontalScale
         );
 
-        type ComponentColumn = { items: OrderedComponent[]; width: number; height: number };
-        const bands = Array.from(componentsBySize.entries()).map(([size, sizeComponents]) => {
-            const columns: ComponentColumn[] = [];
-            let currentColumn: ComponentColumn = { items: [], width: 0, height: 0 };
+        type ComponentRow = { items: OrderedComponent[]; width: number; height: number };
+        const rows: ComponentRow[] = [];
+        let currentRow: ComponentRow = { items: [], width: 0, height: 0 };
+        components.forEach(component => {
+            const previousComponent = currentRow.items[currentRow.items.length - 1];
+            const itemGap = previousComponent
+                ? (previousComponent.size === component.size ? columnGap : bandGap)
+                : 0;
+            const nextWidth = currentRow.width + itemGap + component.width;
 
-            sizeComponents.forEach(component => {
-                const nextHeight = currentColumn.items.length === 0
-                    ? component.height
-                    : currentColumn.height + verticalGap + component.height;
-                if (currentColumn.items.length > 0 && nextHeight > targetHeight) {
-                    columns.push(currentColumn);
-                    currentColumn = { items: [], width: 0, height: 0 };
-                }
+            if (currentRow.items.length > 0 && nextWidth > targetWidth) {
+                rows.push(currentRow);
+                currentRow = { items: [], width: 0, height: 0 };
+            }
 
-                currentColumn.width = Math.max(currentColumn.width, component.width);
-                currentColumn.height = currentColumn.items.length === 0
-                    ? component.height
-                    : currentColumn.height + verticalGap + component.height;
-                currentColumn.items.push(component);
-            });
-            if (currentColumn.items.length > 0) columns.push(currentColumn);
-
-            return {
-                size,
-                columns,
-                width: columns.reduce(
-                    (width, column, index) => width + column.width + (index > 0 ? columnGap : 0),
-                    0
-                ),
-                height: Math.max(...columns.map(column => column.height))
-            };
+            const rowPreviousComponent = currentRow.items[currentRow.items.length - 1];
+            const rowItemGap = rowPreviousComponent
+                ? (rowPreviousComponent.size === component.size ? columnGap : bandGap)
+                : 0;
+            currentRow.width += rowItemGap + component.width;
+            currentRow.height = Math.max(currentRow.height, component.height);
+            currentRow.items.push(component);
         });
-        const layoutHeight = Math.max(
-            ...bands.map(band => band.height),
-            targetHeight
-        );
+        if (currentRow.items.length > 0) rows.push(currentRow);
 
-        let currentX = 0;
+        let currentY = 0;
         this.cy.batch(() => {
-            bands.forEach((band, bandIndex) => {
-                let columnX = currentX;
-                band.columns.forEach((column, columnIndex) => {
-                    let currentY = (layoutHeight - column.height) / 2;
-                    column.items.forEach(component => {
-                        const componentX = columnX + ((column.width - component.width) / 2);
-                        const offsetX = componentX - component.minX;
-                        const offsetY = currentY - component.minY;
-                        component.nodes.forEach(node => {
-                            const position = node.position();
-                            node.position({
-                                x: position.x + offsetX,
-                                y: position.y + offsetY
-                            });
-                        });
-                        currentY += component.height + verticalGap;
-                    });
+            rows.forEach((row, rowIndex) => {
+                let currentX = 0;
+                row.items.forEach((component, componentIndex) => {
+                    if (componentIndex > 0) {
+                        const previousComponent = row.items[componentIndex - 1];
+                        currentX += previousComponent.size === component.size ? columnGap : bandGap;
+                    }
 
-                    columnX += column.width;
-                    if (columnIndex < band.columns.length - 1) columnX += columnGap;
+                    const componentY = currentY + ((row.height - component.height) / 2);
+                    const offsetX = currentX - component.minX;
+                    const offsetY = componentY - component.minY;
+                    component.nodes.forEach(node => {
+                        const position = node.position();
+                        node.position({
+                            x: position.x + offsetX,
+                            y: position.y + offsetY
+                        });
+                    });
+                    currentX += component.width;
                 });
-                currentX += band.width;
-                if (bandIndex < bands.length - 1) currentX += bandGap;
+
+                currentY += row.height;
+                if (rowIndex < rows.length - 1) currentY += rowGap;
             });
         });
 
@@ -4560,7 +4550,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             nodes: renderedNodes.length,
             edges: this.getRenderedLayoutLinks().length,
             clusters: components.length,
-            clusterSizes: Array.from(componentsBySize.keys())
+            rows: rows.length,
+            targetWidth,
+            clusterSizes
         });
     }
 

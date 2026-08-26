@@ -4,10 +4,19 @@ import { Core } from 'cytoscape';
 import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
 
-interface RenderedComponentBand {
+interface RenderedComponentBounds {
   size: number;
   minX: number;
   maxX: number;
+  minY: number;
+  maxY: number;
+  layoutWidth: number;
+}
+
+interface RenderedComponentRow {
+  components: RenderedComponentBounds[];
+  minY: number;
+  maxY: number;
 }
 
 interface RenderedNodePosition {
@@ -21,7 +30,10 @@ const getRenderedNodePositions = (cyInstance: Core): Map<string, RenderedNodePos
     .map(node => [node.id(), { ...node.position() }])
 );
 
-const getRenderedComponentBands = (cyInstance: Core): RenderedComponentBand[] => {
+const getRenderedComponentBounds = (
+  cyInstance: Core,
+  minimumComponentSize: number
+): RenderedComponentBounds[] => {
   const nodes = cyInstance.nodes().filter((node: any) => (
     !node.hasClass('parent')
     && node.children().length === 0
@@ -36,7 +48,12 @@ const getRenderedComponentBands = (cyInstance: Core): RenderedComponentBand[] =>
 
   return nodes.union(edges).components().map((component: any) => {
     const componentNodes = component.nodes();
-    const positions = componentNodes.map((node: any) => node.position('x'));
+    const xPositions = componentNodes.map((node: any) => node.position('x'));
+    const yPositions = componentNodes.map((node: any) => node.position('y'));
+    const bounds = componentNodes.boundingBox({
+      includeLabels: false,
+      includeOverlays: false
+    });
     const size = componentNodes.reduce((count: number, node: any) => {
       const aggregateCount = Number(node.data('totalCount'));
       return count + (
@@ -50,21 +67,96 @@ const getRenderedComponentBands = (cyInstance: Core): RenderedComponentBand[] =>
 
     return {
       size,
-      minX: Math.min(...positions),
-      maxX: Math.max(...positions)
+      minX: Math.min(...xPositions),
+      maxX: Math.max(...xPositions),
+      minY: Math.min(...yPositions),
+      maxY: Math.max(...yPositions),
+      layoutWidth: Math.max(minimumComponentSize, bounds.w)
     };
-  }).sort((left: RenderedComponentBand, right: RenderedComponentBand) => left.minX - right.minX);
+  });
+};
+
+const getRenderedComponentRows = (
+  cyInstance: Core,
+  minimumComponentSize: number
+): RenderedComponentRow[] => {
+  const rows: RenderedComponentRow[] = [];
+  const overlapTolerance = 1;
+
+  getRenderedComponentBounds(cyInstance, minimumComponentSize)
+    .sort((left, right) => left.minY - right.minY || left.minX - right.minX)
+    .forEach(component => {
+      const row = rows.find(candidate => (
+        component.minY <= candidate.maxY + overlapTolerance
+        && component.maxY >= candidate.minY - overlapTolerance
+      ));
+
+      if (row) {
+        row.components.push(component);
+        row.minY = Math.min(row.minY, component.minY);
+        row.maxY = Math.max(row.maxY, component.maxY);
+        return;
+      }
+
+      rows.push({
+        components: [component],
+        minY: component.minY,
+        maxY: component.maxY
+      });
+    });
+
+  return rows
+    .sort((left, right) => left.minY - right.minY)
+    .map(row => ({
+      ...row,
+      components: row.components.sort((left, right) => left.minX - right.minX)
+    }));
+};
+
+const getComponentGap = (
+  left: RenderedComponentBounds,
+  right: RenderedComponentBounds,
+  spacing: number
+): number => left.size === right.size ? spacing * 1.25 : spacing * 2;
+
+const getRowLayoutWidth = (row: RenderedComponentRow, spacing: number): number => (
+  row.components.reduce((width, component, index) => (
+    width
+    + component.layoutWidth
+    + (index > 0 ? getComponentGap(row.components[index - 1], component, spacing) : 0)
+  ), 0)
+);
+
+const assertOrderedNonOverlappingRows = (rows: RenderedComponentRow[]): void => {
+  const orderedComponents = rows.flatMap(row => row.components);
+
+  expect(orderedComponents.length, 'rendered connected components').to.be.greaterThan(1);
+  orderedComponents.slice(1).forEach((component, index) => {
+    const previousComponent = orderedComponents[index];
+    expect(previousComponent.size, 'component sizes increase in row order').to.be.at.most(component.size);
+  });
+  rows.forEach(row => {
+    row.components.slice(1).forEach((component, index) => {
+      const previousComponent = row.components[index];
+      expect(previousComponent.maxX, 'components do not overlap horizontally').to.be.lessThan(component.minX);
+    });
+  });
+  rows.slice(1).forEach((row, index) => {
+    const previousRow = rows[index];
+    expect(previousRow.maxY, 'component rows do not overlap vertically').to.be.lessThan(row.minY);
+  });
 };
 
 describe('2D Network - Cluster Size Layout', () => {
   beforeEach(() => {
+    cy.viewport(1024, 720);
     visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
     cy.get('#cy', { timeout: 15000 }).should('be.visible');
     cy.window({ timeout: 15000 }).should('have.property', 'cytoscapeInstance');
   });
 
-  it('orders connected components into ascending, non-overlapping left-to-right size bands', () => {
+  it('fills a horizontal size-ordered row before wrapping overflow', () => {
     let originalPositions: Map<string, RenderedNodePosition>;
 
     cy.window().then((win: any) => {
@@ -87,13 +179,45 @@ describe('2D Network - Cluster Size Layout', () => {
     cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).should('contain.text', 'Order clusters by size');
 
     cy.window().should((win: any) => {
-      const bands = getRenderedComponentBands(win.cytoscapeInstance as Core);
+      const cyInstance = win.cytoscapeInstance as Core;
+      const spacing = Math.max(
+        48,
+        Number(win.commonService.session.style.widgets['node-radius'] || 20) * 3
+      );
+      const rows = getRenderedComponentRows(cyInstance, spacing);
 
-      expect(bands.length, 'rendered connected components').to.be.greaterThan(1);
-      bands.slice(1).forEach((band, index) => {
-        const previousBand = bands[index];
-        expect(previousBand.size, 'component sizes increase from left to right').to.be.lessThan(band.size);
-        expect(previousBand.maxX, 'component bands do not overlap horizontally').to.be.lessThan(band.minX);
+      expect(rows.length, 'standard-width layout stays on one horizontal row').to.equal(1);
+      assertOrderedNonOverlappingRows(rows);
+    });
+
+    cy.viewport(800, 720);
+    cy.window().should((win: any) => {
+      const cyInstance = win.cytoscapeInstance as Core;
+      const spacing = Math.max(
+        48,
+        Number(win.commonService.session.style.widgets['node-radius'] || 20) * 3
+      );
+      const rows = getRenderedComponentRows(cyInstance, spacing);
+      const orderedComponents = rows.flatMap(row => row.components);
+      const containerWidth = cyInstance.container()?.getBoundingClientRect().width || 1;
+      const minimumHorizontalScale = 0.75;
+      const targetWidth = Math.max(
+        ...orderedComponents.map(component => component.layoutWidth),
+        (containerWidth - 60) / minimumHorizontalScale
+      );
+
+      expect(rows.length, 'narrow layout wraps onto multiple rows').to.be.greaterThan(1);
+      expect(rows[0].components.length, 'first row fills horizontally before wrapping').to.be.greaterThan(1);
+      assertOrderedNonOverlappingRows(rows);
+      rows.slice(0, -1).forEach((row, index) => {
+        const nextComponent = rows[index + 1].components[0];
+        const lastComponent = row.components[row.components.length - 1];
+        const widthWithNextComponent = getRowLayoutWidth(row, spacing)
+          + getComponentGap(lastComponent, nextComponent, spacing)
+          + nextComponent.layoutWidth;
+
+        expect(widthWithNextComponent, 'row wraps only when the next component would overflow')
+          .to.be.greaterThan(targetWidth);
       });
     });
 
@@ -107,7 +231,7 @@ describe('2D Network - Cluster Size Layout', () => {
         ) > 1;
       }).length;
 
-      expect(movedNodeCount, 'nodes moved into size bands').to.be.greaterThan(0);
+      expect(movedNodeCount, 'nodes moved into wrapped size rows').to.be.greaterThan(0);
     });
 
     cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).click();
