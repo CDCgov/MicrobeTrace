@@ -26,6 +26,7 @@ import { byTestId, testIds } from '../../../support/selectors';
 
 type DashboardWindow = Window & {
   commonService: any;
+  cytoscapeInstance?: any;
 };
 
 type DashboardCounts = {
@@ -192,6 +193,42 @@ const assertBubbleAlignedToVisibleNodes = (): void => {
   });
 };
 
+const normalizeLogicalLinkId = (linkId: string): string => linkId.replace(/-\d+$/, '');
+
+const assertTwoDAlignedToVisibleData = (): void => {
+  focusDashboardTab('2D Network');
+  cy.window().should((win: unknown) => {
+    const typedWindow = win as DashboardWindow;
+    const cyInstance = typedWindow.cytoscapeInstance;
+    const expectedNodeIds = typedWindow.commonService.getVisibleNodes()
+      .map((node: any) => getNodeId(node))
+      .sort();
+    const expectedLinkIds = typedWindow.commonService.getVisibleLinks()
+      .map((link: any) => {
+        const source = getEndpointId(link.source);
+        const target = getEndpointId(link.target);
+        return source < target ? `${source}-${target}` : `${target}-${source}`;
+      })
+      .sort();
+
+    expect(cyInstance, '2D Cytoscape instance').to.exist;
+
+    const renderedNodeIds = cyInstance
+      .nodes(':visible')
+      .filter((node: any) => node.children().length === 0)
+      .map((node: any) => String(node.id()))
+      .sort();
+    const renderedLinkIds = Array.from(new Set(
+      cyInstance
+        .edges(':visible')
+        .map((edge: any) => normalizeLogicalLinkId(String(edge.id()))),
+    )).sort();
+
+    expect(renderedNodeIds, '2D rendered node IDs').to.deep.equal(expectedNodeIds);
+    expect(renderedLinkIds, '2D rendered logical link IDs').to.deep.equal(expectedLinkIds);
+  });
+};
+
 const assertMapAlignedToVisibleLocationSubset = (): void => {
   focusDashboardTab('Map');
   cy.window().should((win: unknown) => {
@@ -314,6 +351,7 @@ const assertWaterfallAlignedToVisibleData = (): void => {
 
 const assertDashboardFilteringPropagation = (): void => {
   assertOpenDashboardTabs(DASHBOARD_TABS);
+  assertTwoDAlignedToVisibleData();
   assertBubbleAlignedToVisibleNodes();
   assertMapAlignedToVisibleLocationSubset();
   assertTableAlignedToVisibleNodes();
@@ -381,6 +419,65 @@ const setMinimumClusterSize = (value: number): void => {
   cy.closeGlobalSettings();
 };
 
+const getEndpointId = (endpoint: any): string => String(
+  endpoint && typeof endpoint === 'object'
+    ? endpoint._id ?? endpoint.id ?? endpoint.data?.id
+    : endpoint,
+);
+
+const assertVisibleGraph = (nodeIds: string[], linkIds: string[]): void => {
+  const expectedNodeIds = [...nodeIds].sort();
+  const expectedLinkIds = [...linkIds].sort();
+
+  cy.window().should((win: unknown) => {
+    const typedWindow = win as DashboardWindow;
+    const visibleNodes = typedWindow.commonService.getVisibleNodes()
+      .map((node: any) => getNodeId(node))
+      .sort();
+    const visibleLinks = typedWindow.commonService.getVisibleLinks()
+      .map((link: any) => {
+        const source = getEndpointId(link.source);
+        const target = getEndpointId(link.target);
+        return source < target ? `${source}-${target}` : `${target}-${source}`;
+      })
+      .sort();
+
+    expect(visibleNodes, 'visible node IDs').to.deep.equal(expectedNodeIds);
+    expect(visibleLinks, 'visible link IDs').to.deep.equal(expectedLinkIds);
+  });
+};
+
+const applyNodeSubset = (field: string, operator: string, value: string): void => {
+  openGlobalFilteringTab();
+  cy.get(byTestId(testIds.networkSubsetNodeField)).select(field);
+  cy.get(byTestId(testIds.networkSubsetNodeOperator)).select(operator);
+  cy.get(byTestId(testIds.networkSubsetNodeValue)).clear().type(value);
+  cy.get(byTestId(testIds.networkSubsetApply)).click({ force: true });
+  cy.get('#network-subset-active', { timeout: 15000 })
+    .should('contain', field)
+    .and('contain', value);
+  cy.closeGlobalSettings();
+};
+
+const applyLinkSubset = (field: string, operator: string, value: string): void => {
+  openGlobalFilteringTab();
+  cy.get(byTestId(testIds.networkSubsetLinkField)).select(field);
+  cy.get(byTestId(testIds.networkSubsetLinkOperator)).select(operator);
+  cy.get(byTestId(testIds.networkSubsetLinkValue)).clear().type(value);
+  cy.get(byTestId(testIds.networkSubsetApply)).click({ force: true });
+  cy.get('#network-subset-active', { timeout: 15000 })
+    .should('contain', field)
+    .and('contain', value);
+  cy.closeGlobalSettings();
+};
+
+const clearNetworkSubset = (): void => {
+  openGlobalFilteringTab();
+  cy.get(byTestId(testIds.networkSubsetClear)).click({ force: true });
+  cy.get('#network-subset-active').should('not.exist');
+  cy.closeGlobalSettings();
+};
+
 const prepareDashboard = (): void => {
   const profile = getProfile('map-covid-zipcode-threshold');
 
@@ -397,7 +494,80 @@ const prepareDashboard = (): void => {
   assertNoDashboardRuntimeBanner();
 };
 
+const prepareSubsetDashboard = (): void => {
+  const profile = getProfile('map-color-by-uploaded');
+
+  launchProfileToTwoD(profile);
+  assertAfterLaunchCounts(profile);
+  openDashboardViews(['Map', 'Bubble', 'Table', 'Aggregate', 'Crosstab', 'Waterfall']);
+  closeDialogIfPresent('Aggregate Settings');
+  closeDialogIfPresent('Crosstab Settings');
+  configureDashboardMapZipcode('Off');
+  focusDashboardTab('Table');
+  selectTableDataset('Node');
+  waitForProcessingDialogToClear();
+  assertOpenDashboardTabs(DASHBOARD_TABS);
+  assertNoDashboardRuntimeBanner();
+};
+
 describe('Journey Flow - Dashboard filtering propagation', () => {
+  it('applies and clears a network subset across every open main dashboard view', () => {
+    prepareSubsetDashboard();
+    assertVisibleGraph(['A', 'B', 'C', 'D'], ['A-B', 'A-C', 'B-D', 'C-D']);
+    assertDashboardFilteringPropagation();
+
+    applyNodeSubset('Profession', 'equals', 'Healthcare');
+    waitForProcessingDialogToClear();
+
+    assertMetricCount('#numberOfNodes', 2);
+    assertMetricCount('#numberOfVisibleLinks', 1);
+    assertVisibleGraph(['A', 'C'], ['A-C']);
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as DashboardWindow;
+      expect(typedWindow.commonService.session.data.nodes.length, 'source node count').to.equal(4);
+      expect(typedWindow.commonService.session.data.links.length, 'source link count').to.equal(4);
+    });
+    assertDashboardFilteringPropagation();
+
+    clearNetworkSubset();
+    waitForProcessingDialogToClear();
+
+    assertMetricCount('#numberOfNodes', 4);
+    assertMetricCount('#numberOfVisibleLinks', 4);
+    assertVisibleGraph(['A', 'B', 'C', 'D'], ['A-B', 'A-C', 'B-D', 'C-D']);
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as DashboardWindow;
+      expect(typedWindow.commonService.session.data.nodes.length, 'source node count after clear').to.equal(4);
+      expect(typedWindow.commonService.session.data.links.length, 'source link count after clear').to.equal(4);
+    });
+    assertDashboardFilteringPropagation();
+  });
+
+  it('keeps the link threshold when clearing a link-only network subset', () => {
+    prepareSubsetDashboard();
+
+    applyLinkSubset('Contact type', 'equals', 'classroom');
+    waitForProcessingDialogToClear();
+
+    assertMetricCount('#numberOfNodes', 3);
+    assertMetricCount('#numberOfVisibleLinks', 2);
+    assertVisibleGraph(['A', 'B', 'D'], ['A-B', 'B-D']);
+    assertDashboardFilteringPropagation();
+
+    setLinkThreshold(6);
+    waitForProcessingDialogToClear();
+    cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', 6);
+
+    clearNetworkSubset();
+    waitForProcessingDialogToClear();
+
+    assertMetricCount('#numberOfNodes', 4);
+    assertMetricCount('#numberOfVisibleLinks', 1);
+    assertVisibleGraph(['A', 'B', 'C', 'D'], ['A-B']);
+    cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', 6);
+    assertDashboardFilteringPropagation();
+  });
+
   it('keeps all open dashboard views synchronized through threshold, minimum-cluster-size, and reveal interactions', () => {
     prepareDashboard();
     assertDashboardFilteringPropagation();

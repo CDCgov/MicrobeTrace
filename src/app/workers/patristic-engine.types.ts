@@ -59,8 +59,45 @@ export interface PatristicEdgeTimings {
   threshold: number;
   pairScanMs: number;
   emittedEdgeCount: number;
+  /** Exact number of pairs that qualified, including pairs not emitted. */
+  matchedEdgeCount: number;
+  /** Number of candidate pairs evaluated before completion/cancellation. */
+  pairsProcessed: number;
   totalPairs: number;
   maxEdgesHit: boolean;
+  /** True when all candidate pairs were evaluated. */
+  pairScanComplete: boolean;
+}
+
+/**
+ * Exact analytical summary plus a bounded semantic view of a thresholded
+ * patristic graph. Typed arrays keep the result compact and transferable.
+ */
+export interface PatristicFilteredGraphSummary {
+  nodeCount: number;
+  matchedEdgeCount: number;
+  singletonCount: number;
+  componentCount: number;
+  degreeByLeaf: Uint32Array;
+  degreeHistogram: Uint32Array;
+  componentSizes: Uint32Array;
+  distanceMin: number;
+  distanceMax: number;
+  distanceMean: number;
+  /** Included leaf indices for the current filtered query. */
+  includedLeafIndices: Uint32Array;
+  /** Base aggregate index for every tree leaf; UINT32_MAX means excluded. */
+  aggregateByLeaf: Uint32Array;
+  /** Exact leaf index for focused base aggregates; -1 means aggregate. */
+  aggregateExactLeafIndices: Int32Array;
+  aggregateMemberCounts: Uint32Array;
+  aggregateInternalEdgeCounts: Float64Array;
+  aggregateEdgeSources: Uint32Array;
+  aggregateEdgeTargets: Uint32Array;
+  aggregateEdgeCounts: Float64Array;
+  aggregateEdgeDistanceMin: Float32Array;
+  aggregateEdgeDistanceMax: Float32Array;
+  aggregateEdgeDistanceMean: Float32Array;
 }
 
 export interface PatristicNearestNeighborTimings {
@@ -68,7 +105,9 @@ export interface PatristicNearestNeighborTimings {
   mstMs: number;
   pairScanMs: number;
   emittedEdgeCount: number;
+  pairsProcessed: number;
   totalPairs: number;
+  maxEdgesHit: boolean;
 }
 
 // ─── Worker request messages ─────────────────────────────────────────────────
@@ -87,6 +126,14 @@ export interface PatristicBuildEdgesRequest {
   maxEdges?: number;
   /** Number of edges per batch message. Default: 10000. */
   batchSize?: number;
+  /** Continue scanning after maxEdges so analytical counts remain exact. */
+  scanAllPairs?: boolean;
+  /** Maximum number of aggregate nodes in the semantic overview. */
+  viewNodeBudget?: number;
+  /** Optional leaf-index subset defining the filtered analytical graph. */
+  includedLeafIndices?: Uint32Array;
+  /** Optional included leaves that must remain exact in the base view. */
+  focusLeafIndices?: Uint32Array;
 }
 
 export interface PatristicBuildNearestNeighborRequest {
@@ -96,6 +143,8 @@ export interface PatristicBuildNearestNeighborRequest {
   epsilon: number;
   /** Number of edges per batch message. Default: 10000. */
   batchSize?: number;
+  /** Maximum legacy backbone edges to emit. Default: unlimited. */
+  maxEdges?: number;
 }
 
 export interface PatristicExportMatrixRequest {
@@ -150,6 +199,8 @@ export interface PatristicEdgeBatchResponse {
   done: boolean;
   /** Present only on the final batch. */
   timings?: PatristicEdgeTimings;
+  /** Present only on a final, fully scanned batch. */
+  summary?: PatristicFilteredGraphSummary;
 }
 
 export interface PatristicMatrixChunkResponse {

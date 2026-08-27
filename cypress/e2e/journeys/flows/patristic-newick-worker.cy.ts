@@ -159,7 +159,7 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     setThresholdAndAssertVisibleLinks(0.015, 14);
   });
 
-  it('warns and skips additional Newick edges when a threshold exceeds the browser guardrail', () => {
+  it('keeps exact statistics and uses an aggregate view when a threshold exceeds the drawing guardrail', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(tn93Profile.files);
     applyPreLaunchFileSettings(tn93Profile);
@@ -183,9 +183,11 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
 
     cy.get('#network-guardrail-warning', { timeout: 30000 })
       .should('be.visible')
-      .and('contain.text', 'exceeded the 20 visible-link browser guardrail');
+      .and('contain.text', 'exceeded the 20 exact-link drawing guardrail')
+      .and('contain.text', 'analyzed every qualifying link');
 
-    assertVisibleLinkCount(14);
+    assertVisibleLinkCount(45);
+    cy.get('[data-testid="adaptive-network-view-row"]').should('be.visible');
 
     cy.window().should((win: any) => {
       const warning = win.commonService.session.warnings.find((entry: any) => (
@@ -198,10 +200,16 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
         win.commonService.session.meta.performance.patristic.edgeGeneration.guardrail.hardLimitHit,
         'patristic guardrail telemetry',
       ).to.equal(true);
+      const summary = win.commonService.session.meta.adaptiveNetwork.fullGraphSummary;
+      const view = win.commonService.session.meta.adaptiveNetwork.lastView;
+      expect(summary.filteredLinkCount, 'exact threshold-qualified links').to.equal(45);
+      expect(summary.pairScanComplete, 'complete pair scan').to.equal(true);
+      expect(view.representedLinkCount, 'represented links').to.equal(45);
+      expect(view.representationComplete, 'complete semantic view').to.equal(true);
     });
   });
 
-  it('renders a nearest-neighbor backbone when the initial Newick threshold exceeds the browser guardrail', () => {
+  it('renders the full aggregate view while retaining a legacy nearest-neighbor backbone', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(highThresholdGuardrailProfile.files);
     applyPreLaunchFileSettings(highThresholdGuardrailProfile);
@@ -219,8 +227,10 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
 
     cy.get('#network-guardrail-warning', { timeout: 30000 })
       .should('be.visible')
-      .and('contain.text', 'exceeded the 20 visible-link browser guardrail')
-      .and('contain.text', 'nearest-neighbor tree backbone');
+      .and('contain.text', 'exceeded the 20 exact-link drawing guardrail')
+      .and('contain.text', 'nearest-neighbor backbone remains available');
+
+    assertVisibleLinkCount(45);
 
     cy.window().should((win: any) => {
       const visibleEdges = win.cytoscapeInstance.edges(':visible');
@@ -229,8 +239,11 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
       ));
       const fallback = win.commonService.session.meta.performance.patristic.edgeGeneration.fallback;
 
-      expect(visibleEdges.length, 'fallback visible Newick edge count').to.be.greaterThan(0);
-      expect(visibleEdges.length, 'fallback visible Newick edge count').to.be.at.most(20);
+      expect(visibleEdges.length, 'aggregate visible Newick edge count').to.equal(45);
+      visibleEdges.forEach((edge: any) => {
+        expect(edge.data('adaptiveAggregate'), `aggregate marker for ${edge.id()}`).to.equal(true);
+        expect(Number(edge.data('underlyingEdgeCount')), `represented links for ${edge.id()}`).to.be.greaterThan(0);
+      });
       expect(warning?.hardLimitHit, 'hard limit hit').to.equal(true);
       expect(warning?.fallbackApplied, 'fallback warning marker').to.equal(true);
       expect(fallback?.type, 'fallback telemetry type').to.equal('nearest-neighbor-backbone');

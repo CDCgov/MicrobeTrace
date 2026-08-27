@@ -23,6 +23,9 @@ import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
+import { AdaptiveNetworkViewService } from '@app/contactTraceCommonServices/adaptive-network-view.service';
+import { DEFAULT_ADAPTIVE_VIEW_BUDGET, type AdaptiveNetworkSessionState, type AdaptiveViewMetadata } from '@app/contactTraceCommonServices/network-graph.types';
+import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -74,6 +77,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         links: []
     };
     selectedNodeId = undefined;
+    private adaptiveLodTarget = 50;
+    private readonly adaptiveBaseAggregateBudget = 200;
+    private adaptiveExpandedAggregateKeys = new Set<string>();
+    private adaptiveLastZoom: number | null = null;
+    private adaptiveViewportTimer: ReturnType<typeof setTimeout> | null = null;
+    private adaptiveFocusTimer: ReturnType<typeof setTimeout> | null = null;
+    private adaptiveFocusSignature = '';
+    private adaptiveViewOnlyUpdate = false;
 
     private getPerformanceNow(): number {
         return typeof performance !== 'undefined' && performance.now
@@ -219,7 +230,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private buildCytoscapeNodeData(node: any, shapeKey: string, parent: any): any {
-        return {
+        const cytoscapeData: any = {
             ...this.getCytoscapeNodeMetadata(node),
             id: node.id,
             _id: node._id,
@@ -232,6 +243,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             visible: node.visible,
             selected: node.selected,
             degree: node.degree,
+            memberNodeCount: node.memberNodeCount,
+            memberNodeIds: node.memberNodeIds,
+            selectedMemberCount: node.selectedMemberCount,
+            internalEdgeCount: node.internalEdgeCount,
             label: node.label,
             nodeSize: node.nodeSize,
             nodeColor: node.nodeColor,
@@ -243,6 +258,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             shapeKey,
             ...getCustomNodeShapeData(shapeKey, node.nodeColor)
         };
+
+        // Cytoscape's `[field]` selectors test for field presence, not truthiness.
+        // Keep adaptive-only fields off ordinary/exact nodes so aggregate styles
+        // and gestures cannot leak into the normal network rendering path.
+        if (node.adaptiveAggregate === true) {
+            cytoscapeData.adaptiveAggregate = true;
+            cytoscapeData.adaptiveGroupKey = node.adaptiveGroupKey;
+            cytoscapeData.adaptiveParentKey = node.adaptiveParentKey;
+            cytoscapeData.adaptiveLabelVisible = node.adaptiveLabelVisible;
+            cytoscapeData.adaptiveAction = node.adaptiveParentKey
+                ? 'Double-click to collapse this group'
+                : 'Double-click to expand this group';
+        }
+
+        return cytoscapeData;
     }
 
     private yieldToBrowser(): Promise<void> {
@@ -513,7 +543,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         private gtmService: GoogleTagManagerService,
         private store: CommonStoreService,
         private exportService: ExportService,
-        private zone: NgZone 
+        private zone: NgZone,
+        private adaptiveNetworkViewService: AdaptiveNetworkViewService,
+        private workerComputeService: WorkerComputeService,
     ) {
 
         super(elRef.nativeElement);
@@ -581,7 +613,182 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             );
         }
 
-        return { nodes, links };
+        const sessionMeta = this.commonService.session?.meta as any;
+        const adaptiveEnabled = sessionMeta?.features?.adaptiveNetworkRendering !== false;
+        if (!adaptiveEnabled) {
+            this.updateAdaptiveViewStatistics(undefined);
+            return { nodes, links };
+        }
+
+        const state = sessionMeta?.adaptiveNetwork as AdaptiveNetworkSessionState | undefined;
+        const patristicView = state?.patristicView;
+        const threshold = Number(this.commonService.session.style.widgets['link-threshold']);
+        const configuredPatristicDrawLimit = Number(sessionMeta?.guardrails?.newickVisibleLinkHardLimit);
+        const patristicDrawLimit = Number.isFinite(configuredPatristicDrawLimit) && configuredPatristicDrawLimit > 0
+            ? Math.min(DEFAULT_ADAPTIVE_VIEW_BUDGET.maxEdges, configuredPatristicDrawLimit)
+            : DEFAULT_ADAPTIVE_VIEW_BUDGET.maxEdges;
+        const visibleNodeIds = new Set(nodes.map(node => String(node._id ?? node.id ?? '')));
+        const patristicViewApplies = Boolean(
+            patristicView &&
+            patristicView.representedLinkCount > patristicDrawLimit &&
+            Number(patristicView.threshold) === threshold &&
+            nodes.length === patristicView.includedLeafNames.length &&
+            patristicView.includedLeafNames.every(nodeId => visibleNodeIds.has(String(nodeId)))
+        );
+
+        const view = patristicViewApplies
+            ? this.adaptiveNetworkViewService.buildPatristicView(patristicView!, nodes, {
+                targetAggregateCount: this.adaptiveLodTarget,
+                expandedAggregateKeys: this.adaptiveExpandedAggregateKeys,
+              })
+            : this.adaptiveNetworkViewService.buildMaterializedView(nodes, links);
+
+        if (!view.metadata.representationComplete) {
+            console.error('Adaptive network representation invariant failed; using exact materialized view.', view.metadata);
+            this.updateAdaptiveViewStatistics(undefined);
+            return { nodes, links };
+        }
+
+        if (!sessionMeta.adaptiveNetwork) {
+            sessionMeta.adaptiveNetwork = { revision: view.metadata.revision };
+        }
+        sessionMeta.adaptiveNetwork.lastView = view.metadata;
+        this.updateAdaptiveViewStatistics(view.metadata);
+        return { nodes: view.nodes, links: view.links };
+    }
+
+    private updateAdaptiveViewStatistics(metadata?: AdaptiveViewMetadata): void {
+        const row = $('#adaptive-network-view-row');
+        if (!metadata?.active) {
+            row.hide();
+            return;
+        }
+
+        $('#adaptive-network-view-counts').text(
+            `${metadata.drawnNodeCount.toLocaleString()} / ${metadata.drawnEdgeCount.toLocaleString()} (LOD ${metadata.lodLevel})`
+        );
+        row
+            .attr(
+                'title',
+                `The canvas draws ${metadata.drawnNodeCount.toLocaleString()} node or cluster glyphs and ` +
+                `${metadata.drawnEdgeCount.toLocaleString()} link bundles representing ` +
+                `${metadata.filteredNodeCount.toLocaleString()} nodes and ${metadata.filteredLinkCount.toLocaleString()} links.`,
+            )
+            .show();
+    }
+
+    public resetAdaptiveDetail(): void {
+        this.adaptiveExpandedAggregateKeys.clear();
+        this.adaptiveLodTarget = 50;
+        void this.refreshAdaptiveViewOnly();
+    }
+
+    private isAdaptivePatristicViewActive(): boolean {
+        const state = (this.commonService.session?.meta as any)?.adaptiveNetwork as
+            AdaptiveNetworkSessionState | undefined;
+        return Boolean(
+            state?.patristicView &&
+            (state.lastView?.source === 'patristic-worker' ||
+                state.patristicView.representedLinkCount > DEFAULT_ADAPTIVE_VIEW_BUDGET.maxEdges),
+        );
+    }
+
+    public get adaptiveViewActive(): boolean {
+        return this.isAdaptivePatristicViewActive();
+    }
+
+    private async refreshAdaptiveViewOnly(): Promise<void> {
+        if (!this.cy || !this.isAdaptivePatristicViewActive()) return;
+        const priorZoom = this.cy.zoom();
+        const priorPan = { ...this.cy.pan() };
+        this.adaptiveViewOnlyUpdate = true;
+        try {
+            await this._partialUpdate();
+            if (this.cy && !this.cy.destroyed()) {
+                this.cy.zoom(priorZoom);
+                this.cy.pan(priorPan);
+            }
+        } finally {
+            this.adaptiveViewOnlyUpdate = false;
+        }
+    }
+
+    private scheduleAdaptiveViewportRefresh(): void {
+        if (!this.cy || !this.isAdaptivePatristicViewActive()) return;
+        if (this.adaptiveViewportTimer) clearTimeout(this.adaptiveViewportTimer);
+        this.adaptiveViewportTimer = setTimeout(() => {
+            this.adaptiveViewportTimer = null;
+            if (!this.cy) return;
+            const zoom = this.cy.zoom();
+            if (this.adaptiveLastZoom === null) {
+                this.adaptiveLastZoom = zoom;
+                return;
+            }
+            const ratio = zoom / Math.max(Number.EPSILON, this.adaptiveLastZoom);
+            let nextTarget = this.adaptiveLodTarget;
+            if (ratio >= 1.2) nextTarget = Math.min(this.adaptiveBaseAggregateBudget, nextTarget * 2);
+            if (ratio <= 0.8) nextTarget = Math.max(25, Math.floor(nextTarget / 2));
+            this.adaptiveLastZoom = zoom;
+            if (nextTarget !== this.adaptiveLodTarget) {
+                this.adaptiveLodTarget = nextTarget;
+                void this.refreshAdaptiveViewOnly();
+            }
+        }, 150);
+    }
+
+    private toggleAdaptiveAggregateDetail(node: cytoscape.NodeSingular): void {
+        const parentKey = String(node.data('adaptiveParentKey') || '');
+        const groupKey = String(node.data('adaptiveGroupKey') || '');
+        if (parentKey && this.adaptiveExpandedAggregateKeys.has(parentKey)) {
+            this.adaptiveExpandedAggregateKeys.delete(parentKey);
+        } else if (groupKey && Number(node.data('memberNodeCount') || 0) > 1) {
+            this.adaptiveExpandedAggregateKeys.add(groupKey);
+        } else {
+            return;
+        }
+        void this.refreshAdaptiveViewOnly();
+    }
+
+    private schedulePatristicFocusRefresh(): void {
+        const state = (this.commonService.session?.meta as any)?.adaptiveNetwork as
+            AdaptiveNetworkSessionState | undefined;
+        if (!state?.patristicView) return;
+        if (this.adaptiveFocusTimer) clearTimeout(this.adaptiveFocusTimer);
+        this.adaptiveFocusTimer = setTimeout(() => {
+            this.adaptiveFocusTimer = null;
+            const visibleNodes = this.commonService.getVisibleNodes();
+            const includedLeafNames = visibleNodes.map(node => String(node._id ?? node.id ?? ''));
+            const focusLeafNames = visibleNodes
+                .filter(node => node.selected || node.adaptivePinned || node.adaptiveFocus)
+                .map(node => String(node._id ?? node.id ?? ''))
+                .slice(0, DEFAULT_ADAPTIVE_VIEW_BUDGET.maxFocusExactNodes);
+            const signature = [
+                Number(this.commonService.session.style.widgets['link-threshold']),
+                [...includedLeafNames].sort().join('\u0001'),
+                [...focusLeafNames].sort().join('\u0001'),
+            ].join('\u0002');
+            if (signature === this.adaptiveFocusSignature && state.analyticsStatus === 'ready') return;
+            this.adaptiveFocusSignature = signature;
+            void this.workerComputeService.refreshPatristicAdaptiveGraph(this.commonService.session, {
+                includedLeafNames,
+                focusLeafNames,
+                viewNodeBudget: this.adaptiveBaseAggregateBudget,
+            }).then(summary => {
+                if (!summary || this.isDestroyed) return;
+                this.commonService.updateStatistics();
+                return this.refreshAdaptiveViewOnly();
+            }).then(() => {
+                if (!this.cy) return;
+                const selectedIds = new Set(
+                    this.commonService.getVisibleNodes()
+                        .filter(node => node.selected)
+                        .map(node => String(node._id ?? node.id ?? '')),
+                );
+                this.cy.nodes().forEach(node => {
+                    if (selectedIds.has(node.id())) node.select();
+                });
+            }).catch(error => console.error('Unable to refresh adaptive network focus.', error));
+        }, 25);
     }
 
 
@@ -603,6 +810,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
             if (this.data && this.store.settingsLoadedValue && newPruned) {
+                this.schedulePatristicFocusRefresh();
                 console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
                 if (this.viewActive){
                     this._rerender(false);
@@ -631,6 +839,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if(this.commonService.activeTab === '2D Network') {
                 if (this.threshold !== newThreshold) {
                     console.log('--- TwoD partial threshold changed', newThreshold);
+                    this.adaptiveFocusSignature = '';
+                    this.schedulePatristicFocusRefresh();
                     this._partialUpdate();
                 }
             }
@@ -657,6 +867,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     const edges = data.links.flatMap((link: any) => {
         if ((this.widgets['link-color-variable'] == 'Origin' || this.widgets['link-color-variable'] == 'origin') && link.origin.length > 1) {
             return link.origin.map((originItem: any, index) => ({
+                classes: link.adaptiveAggregate === true ? 'adaptive-aggregate' : undefined,
                 data: {
                     // Include any additional edge-specific data properties
                     ...link,
@@ -673,7 +884,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             }));
         }
-        return [{ data: {
+        return [{
+            classes: link.adaptiveAggregate === true ? 'adaptive-aggregate' : undefined,
+            data: {
             // Include any additional edge-specific data properties
             ...link,
             id: link.id,
@@ -707,6 +920,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
+	                classes: node.adaptiveAggregate === true ? 'adaptive-aggregate' : undefined,
+	                selectable: !node.adaptiveAggregate,
 	                position: { 
 	                    x:node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
 	                    y:node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
@@ -721,6 +936,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
+	                classes: node.adaptiveAggregate === true ? 'adaptive-aggregate' : undefined,
+	                selectable: !node.adaptiveAggregate,
 	                position: {
 	                    x: node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
 	                    y: node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
@@ -783,7 +1000,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             {
                 selector: 'node[label]',
                 css: {
-                  'label': 'data(label)' 
+                  'label': 'data(label)',
+                  'min-zoomed-font-size': 8,
                 }
               },
               {
@@ -835,6 +1053,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node[nodeColor]',
                 css: {
                     'background-color': 'data(nodeColor)'
+                }
+            },
+            {
+                selector: 'node.adaptive-aggregate',
+                css: {
+                    'shape': 'round-rectangle',
+                    'border-width': 2,
+                    'border-color': '#334155',
+                    'background-opacity': 0.82,
+                    'text-wrap': 'wrap',
+                    'text-max-width': '100px',
                 }
             },
             {
@@ -891,6 +1120,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     // 'target-arrow-shape': 'triangle',
                     'curve-style': 'straight'
                     // 'opacity': 'data(opacity)' // Existing opacity
+                }
+            },
+            {
+                selector: 'edge.adaptive-aggregate',
+                css: {
+                    'curve-style': 'haystack',
+                    'line-opacity': 0.45,
                 }
             },
             {
@@ -958,10 +1194,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const syncCySelectionToService = _.debounce(() => {
             const selectedNodes = this.cy.nodes(':selected');
             const selectedIds = new Set(selectedNodes.map(node => node.id()));
+            const renderedExactIds = new Set(
+                this.cy.nodes()
+                    .filter(node => !node.data('adaptiveAggregate'))
+                    .map(node => node.id()),
+            );
 
             let selectionChanged = false;
             // Sync with the main nodes array
             this.commonService.session.data.nodes.forEach(n => {
+                const nodeId = String(n._id || n.id);
+                if (this.isAdaptivePatristicViewActive() && !renderedExactIds.has(nodeId)) return;
                 const shouldBeSelected = selectedIds.has(n._id || n.id);
                 if (n.selected !== shouldBeSelected) {
                     n.selected = shouldBeSelected;
@@ -971,6 +1214,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // Sync with the filtered nodes array
             this.commonService.session.data.nodeFilteredValues.forEach(n => {
+                const nodeId = String(n._id || n.id);
+                if (this.isAdaptivePatristicViewActive() && !renderedExactIds.has(nodeId)) return;
                 const shouldBeSelected = selectedIds.has(n._id || n.id);
                 if (n.selected !== shouldBeSelected) {
                     n.selected = shouldBeSelected;
@@ -982,6 +1227,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (selectionChanged) {
                 $(document).trigger('node-selected');
             }
+            if (this.isAdaptivePatristicViewActive()) this.schedulePatristicFocusRefresh();
         }, 100); // Debounce for 100ms to handle rapid events efficiently.
 
         // Listen for all selection events to trigger the sync.
@@ -1510,6 +1756,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Used for timeline mode, TODO: update to use an RxJS Observable
             $(document).on("node-visibility", function () {
                 console.log('node-visibility called');
+                that.adaptiveFocusSignature = '';
+                that.schedulePatristicFocusRefresh();
                 that._rerender(true);
             });
 
@@ -1527,6 +1775,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
                 const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
               
+                if (that.isAdaptivePatristicViewActive()) {
+                  that.schedulePatristicFocusRefresh();
+                  that.commonService.updateStatistics();
+                  return;
+                }
+
                 // Clear cytoscape selection
                 that.cy.elements().unselect();
               
@@ -1840,6 +2094,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    private addAdaptiveNetworkSvgMetadata(doc: XMLDocument): void {
+        const state = (this.commonService.session?.meta as any)?.adaptiveNetwork as
+            AdaptiveNetworkSessionState | undefined;
+        const view = state?.lastView;
+        if (!view?.active) return;
+
+        const metadata = doc.createElementNS('http://www.w3.org/2000/svg', 'metadata');
+        metadata.setAttribute('id', 'microbetrace-adaptive-network-metadata');
+        metadata.textContent = JSON.stringify({
+            exportScope: 'current-adaptive-visual-summary',
+            filteredNodes: view.filteredNodeCount,
+            filteredLinks: view.filteredLinkCount,
+            representedNodes: view.representedNodeCount,
+            representedLinks: view.representedLinkCount,
+            drawnNodes: view.drawnNodeCount,
+            drawnEdges: view.drawnEdgeCount,
+            visibleLabels: view.visibleLabelCount,
+            lodLevel: view.lodLevel,
+            representationComplete: view.representationComplete,
+        });
+        doc.documentElement.insertBefore(metadata, doc.documentElement.firstChild);
+    }
+
     /**
      * Hides export pane, sets isExporting variable to true and calls exportWork2 to export the twoD network image
      */
@@ -1867,6 +2144,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
             this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
+            this.addAdaptiveNetworkSvgMetadata(doc);
             const svg1 = doc.documentElement;          
             svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
             svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
@@ -2837,6 +3115,26 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
+        if (d.adaptiveAggregate) {
+          const tooltipHtml = this.tabulate([
+            ['Summary', 'Collapsed network group'],
+            ['Nodes represented', Number(d.memberNodeCount || 0).toLocaleString()],
+            ['Selected nodes', Number(d.selectedMemberCount || 0).toLocaleString()],
+            ['Internal links', Number(d.internalEdgeCount || 0).toLocaleString()],
+            ['Detail', d.adaptiveAction || 'Double-click to expand this group'],
+          ]);
+          const [X, Y] = this.getRelativeMousePosition(event);
+          d3.select('#tooltip')
+            .html(tooltipHtml)
+            .style('position', 'absolute')
+            .style('left', (X + 10) + 'px')
+            .style('top', (Y - 10) + 'px')
+            .style('z-index', 1000)
+            .transition().duration(100)
+            .style('opacity', 1);
+          return;
+        }
+
         if (this.widgets['node-highlight']) {
           this.selectedNodeId = d.id;
         }
@@ -2868,6 +3166,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d link
      */
     showLinkTooltip(d, event) {
+        if (d?.adaptiveAggregate) {
+            const tooltipHtml = this.tabulate([
+                ['Summary', 'Collapsed link bundle'],
+                ['Links represented', Number(d.underlyingEdgeCount || 0).toLocaleString()],
+                ['Minimum distance', this.formatLinkDistanceForDisplay(d.distanceMin)],
+                ['Mean distance', this.formatLinkDistanceForDisplay(d.distance)],
+                ['Maximum distance', this.formatLinkDistanceForDisplay(d.distanceMax)],
+            ]);
+            const [X, Y] = this.getRelativeMousePosition(event);
+            d3.select('#tooltip')
+                .html(tooltipHtml)
+                .style('position', 'absolute')
+                .style('left', (X + 10) + 'px')
+                .style('top', (Y - 10) + 'px')
+                .style('z-index', 1000)
+                .transition().duration(100)
+                .style('opacity', 1);
+            return;
+        }
         let v: any = this.SelectedLinkTooltipVariable;
 
         if (v == 'None') return;
@@ -3552,6 +3869,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     getNodeLabel(node: any) {
 
+        if (node?.adaptiveAggregate) {
+            if (node.adaptiveLabelVisible === false) return '';
+            return `${Number(node.memberNodeCount || 0).toLocaleString()} nodes`;
+        }
+
         // If no label variable then should be none
         return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
@@ -3867,13 +4189,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
        // Instead of calling synchronously, await the precomputation:
        if (!this.cy) {
         const precomputeStart = this.getPerformanceNow();
-        const initialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300);
-        const refinementLayout = await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, 5, false);
+        const initialAdaptiveView = Boolean(
+            ((this.commonService.session?.meta as any)?.adaptiveNetwork as AdaptiveNetworkSessionState | undefined)
+                ?.lastView?.active,
+        );
+        const initialLayout = initialAdaptiveView
+            ? { nodes: networkData.nodes, links: networkData.links, tickBatches: 0, ticksPerYield: 0 }
+            : await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300);
+        const refinementLayout = initialAdaptiveView
+            ? initialLayout
+            : await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, 5, false);
         const { nodes: laidOutNodes, links: laidOutLinks } = refinementLayout;
         this.recordTwoDRenderTiming('twoDPrecomputePositions', precomputeStart, {
             nodes: laidOutNodes.length,
             links: laidOutLinks.length,
-            ticks: 305,
+            ticks: initialAdaptiveView ? 0 : 305,
             tickBatches: initialLayout.tickBatches + refinementLayout.tickBatches,
             initialTicksPerYield: initialLayout.ticksPerYield,
             refinementTicksPerYield: refinementLayout.ticksPerYield
@@ -4038,7 +4368,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               zoomingEnabled: true,
               userZoomingEnabled: true,
               panningEnabled: true,
-              userPanningEnabled: true
+              userPanningEnabled: true,
+              pixelRatio: 1,
+              hideLabelsOnViewport: true,
+              hideEdgesOnViewport: true,
             });
             this.cy.resize();
             this.recordTwoDRenderTiming('twoDCreateCytoscape', cytoscapeCreateStart, {
@@ -4252,9 +4585,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     });
                 }
               };
+              (window as any).Cypress.adaptiveNetwork = {
+                expandAggregate: (nodeId: string) => this.zone.run(() => {
+                  const node = this.cy.getElementById(nodeId);
+                  if (!node || node.empty()) return false;
+                  this.toggleAdaptiveAggregateDetail(node);
+                  return true;
+                }),
+                resetDetail: () => this.zone.run(() => this.resetAdaptiveDetail()),
+                setLodTarget: (target: number) => this.zone.run(() => {
+                  this.adaptiveLodTarget = Math.max(
+                    25,
+                    Math.min(this.adaptiveBaseAggregateBudget, Math.floor(target)),
+                  );
+                  return this.refreshAdaptiveViewOnly();
+                }),
+                exportFullData: () => this.workerComputeService
+                  .exportPatristicFilteredLinks(this.commonService.session),
+              };
             }
             // Attach events
             this.attachCytoscapeEvents();
+            this.adaptiveLastZoom = this.cy.zoom();
             
             const initialReadyStart = this.getPerformanceNow();
             let initialRenderFinished = false;
@@ -5120,7 +5472,9 @@ scaleLinkWidth() {
         })
     }
     const precomputeStart = this.getPerformanceNow();
-    const partialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
+    const partialLayout = this.adaptiveViewOnlyUpdate
+        ? { nodes: networkData.nodes, links: networkData.links, tickBatches: 0, ticksPerYield: 0 }
+        : await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
 
     if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
@@ -5176,6 +5530,10 @@ scaleLinkWidth() {
 	        this.data = this.commonService.convertToGraphDataArray(networkData);
 	        this.cacheNodeDataById(this.data.nodes);
 	        const newElements = this.mapDataToCytoscapeElements(this.data);
+        const adaptiveViewIsActive = Boolean(
+            ((this.commonService.session?.meta as any)?.adaptiveNetwork as AdaptiveNetworkSessionState | undefined)
+                ?.lastView?.active,
+        );
 
         // Collect new IDs for membership checks
         const newNodeIds = new Set(newElements.nodes.map(n => n.data.id));
@@ -5183,13 +5541,17 @@ scaleLinkWidth() {
         // @ts-ignore
         const newLinkIds = new Set(newElements.edges.map(l => l.data.id));
 
-        let cyNodeCount = 0;
         // Update node visibility and restore positions
         cy.nodes().forEach(node => {
-            if (!node.hasClass('parent')) { cyNodeCount += 1;}
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
-                // Hide node but keep its cached position
-                node.addClass('hidden');
+                if (adaptiveViewIsActive || node.data('adaptiveAggregate')) {
+                    // Superseded LOD elements must leave Cytoscape entirely so
+                    // repeated refinement cannot grow the primitive collection.
+                    cy.remove(node);
+                } else {
+                    // Ordinary timeline updates retain exact nodes and positions.
+                    node.addClass('hidden');
+                }
             } else {
                 // Ensure node is visible
                 node.removeClass('hidden');
@@ -5198,26 +5560,26 @@ scaleLinkWidth() {
                 const newNode = newNodeById.get(node.id());
                 if (newNode) {
                     node.data({ ...node.data(), ...newNode.data, });
+                    node.toggleClass('adaptive-aggregate', newNode.data.adaptiveAggregate === true);
                     node.position({x: newNode.data.x, y: newNode.data.y}); // Restore position
                 }
             }
         });
 
-        // some series of operations (ie. min-cluster size set to 2, then playing timeline, then setting min-cluster size back to) led to nodes being removed from
-        // this.cy.nodes, this checks and adds them back
-        if (cyNodeCount < newElements.nodes.length) {
-            let countd = 0;
-            newElements.nodes.forEach(n => {
-                const cyNode = cy.getElementById(n.data.id);
-                if (!cyNode || !cyNode.length) {
-                    countd += 1;
-                    cy.add(n); // Add node
-                } else {
-                    return
-                }
+        // Reconcile by identity, not only by count. Exact and aggregate views can
+        // contain the same number of nodes while using completely different IDs.
+        newElements.nodes.forEach(n => {
+            const cyNode = cy.getElementById(n.data.id);
+            if (!cyNode || !cyNode.length) {
+                cy.add(n);
+            }
+        });
 
-            });
-        }
+        this.cy.on('dbltap', 'node.adaptive-aggregate', (evt) => {
+            this.zone.run(() => this.toggleAdaptiveAggregateDetail(evt.target));
+        });
+
+        this.cy.on('zoom pan', () => this.scheduleAdaptiveViewportRefresh());
 
         // Remove old edges
         cy.edges().forEach(edge => {
@@ -5236,6 +5598,7 @@ scaleLinkWidth() {
                 cy.add(e); // Add edge
             } else {
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
+                cyEdge.toggleClass('adaptive-aggregate', e.data.adaptiveAggregate === true);
             }
 
             // Ensure label is updated based on filtered link data
@@ -5270,7 +5633,7 @@ scaleLinkWidth() {
         //     }
         // });
 
-        this.fit();
+        if (!this.adaptiveViewOnlyUpdate) this.fit();
 
            // Set rendered to true now that network has rendered
            this.store.setNetworkRendered(true); 
@@ -5294,6 +5657,8 @@ scaleLinkWidth() {
 
         console.log("calling destroy");
         this.isDestroyed = true;
+        if (this.adaptiveViewportTimer) clearTimeout(this.adaptiveViewportTimer);
+        if (this.adaptiveFocusTimer) clearTimeout(this.adaptiveFocusTimer);
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();

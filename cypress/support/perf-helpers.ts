@@ -52,6 +52,16 @@ export type PerformanceCounts = {
   singletonNodes: number;
   sequencesWithData: number;
   cytoscapeVisibleEdges: number | null;
+  cytoscapeTotalNodes: number | null;
+  cytoscapeTotalEdges: number | null;
+  filteredNodes: number | null;
+  filteredLinks: number | null;
+  representedNodes: number | null;
+  representedLinks: number | null;
+  drawnNodes: number | null;
+  drawnEdges: number | null;
+  drawnLabels: number | null;
+  lodLevel: number | null;
 };
 
 export type HeapSnapshot = {
@@ -141,6 +151,9 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
   const nodes = data.nodes || [];
   const links = data.links || [];
   const clusters = data.clusters || [];
+  const adaptiveState = session.meta?.adaptiveNetwork;
+  const fullSummary = adaptiveState?.fullGraphSummary;
+  const adaptiveView = adaptiveState?.lastView;
 
   return {
     nodes: nodes.length,
@@ -153,6 +166,36 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
     sequencesWithData: nodes.filter((node: any) => typeof node.seq === 'string' && node.seq.length > 0).length,
     cytoscapeVisibleEdges: win.cytoscapeInstance?.edges
       ? win.cytoscapeInstance.edges(':visible').length
+      : null,
+    cytoscapeTotalNodes: win.cytoscapeInstance?.nodes
+      ? win.cytoscapeInstance.nodes().length
+      : null,
+    cytoscapeTotalEdges: win.cytoscapeInstance?.edges
+      ? win.cytoscapeInstance.edges().length
+      : null,
+    filteredNodes: typeof fullSummary?.filteredNodeCount === 'number'
+      ? fullSummary.filteredNodeCount
+      : null,
+    filteredLinks: typeof fullSummary?.filteredLinkCount === 'number'
+      ? fullSummary.filteredLinkCount
+      : null,
+    representedNodes: typeof adaptiveView?.representedNodeCount === 'number'
+      ? adaptiveView.representedNodeCount
+      : null,
+    representedLinks: typeof adaptiveView?.representedLinkCount === 'number'
+      ? adaptiveView.representedLinkCount
+      : null,
+    drawnNodes: typeof adaptiveView?.drawnNodeCount === 'number'
+      ? adaptiveView.drawnNodeCount
+      : null,
+    drawnEdges: typeof adaptiveView?.drawnEdgeCount === 'number'
+      ? adaptiveView.drawnEdgeCount
+      : null,
+    drawnLabels: typeof adaptiveView?.visibleLabelCount === 'number'
+      ? adaptiveView.visibleLabelCount
+      : null,
+    lodLevel: typeof adaptiveView?.lodLevel === 'number'
+      ? adaptiveView.lodLevel
       : null,
   };
 }

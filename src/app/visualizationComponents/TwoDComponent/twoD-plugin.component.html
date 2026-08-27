@@ -22,6 +22,14 @@
         [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
         <i class="flaticon-refresh primary"></i></a>
       </span>
+      @if (adaptiveViewActive) {
+        <span style="overflow: visible; position: relative; width: 110px;">
+          <a title="Reset adaptive detail" aria-label="Reset adaptive network detail" data-testid="adaptive-network-reset-detail"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="resetAdaptiveDetail()">
+            <i class="flaticon2-refresh primary"></i>
+          </a>
+        </span>
+      }
     </div>
 
     <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
@@ -54,6 +62,10 @@
         <tr>
           <td id="numberOfSingletonNodes" class="text-right"></td>
           <td>Singletons</td>
+        </tr>
+        <tr id="adaptive-network-view-row" data-testid="adaptive-network-view-row" style="display: none;">
+          <td id="adaptive-network-view-counts" class="text-right"></td>
+          <td>Drawn nodes / link bundles</td>
         </tr>
         <tr>
           <td colspan="2">Link Threshold =
@@ -493,7 +505,11 @@
       <div class="modal-content">
         <div class="modal-body" style="min-width: 400px; height: 100%;">
           <div class="export-scope-label">
-            {{ commonService.isNetworkSubsetFilterActive() ? 'Export scope: filtered visible network (' + commonService.getNetworkSubsetFilterLabel() + ')' : 'Export scope: full visible network' }}
+            @if (adaptiveViewActive) {
+              Export scope: current adaptive visual summary. The statistics table reports the full filtered network.
+            } @else {
+              {{ commonService.isNetworkSubsetFilterActive() ? 'Export scope: filtered visible network (' + commonService.getNetworkSubsetFilterLabel() + ')' : 'Export scope: full visible network' }}
+            }
           </div>
           <div class="form-group row">
             <div class="col-8">

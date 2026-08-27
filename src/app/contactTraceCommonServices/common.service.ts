@@ -28,6 +28,7 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+import type { AdaptiveNetworkSessionState } from './network-graph.types';
 
 interface SequencePairwiseLinkGuardrails {
     warningThreshold: number;
@@ -4162,7 +4163,37 @@ align(params): Promise<any> {
         let singletons = 0;
         const timelineDateField = this.session.style.widgets["timeline-date-field"];
         const timelineMode = timelineDateField != 'None';
-        if (!timelineMode) {
+        const adaptiveState = (this.session?.meta as any)?.adaptiveNetwork as AdaptiveNetworkSessionState | undefined;
+        const patristicSummary = adaptiveState?.fullGraphSummary;
+        const patristicView = adaptiveState?.patristicView;
+        const activeThreshold = Number(this.session.style.widgets['link-threshold']);
+        const visibleNodeIds = new Set(vnodes.map(node => String(node._id ?? node.id ?? '')));
+        const summaryCoversVisibleNodes = Boolean(
+            patristicSummary?.source === 'patristic-worker' &&
+            patristicSummary.pairScanComplete &&
+            patristicView &&
+            Number(patristicSummary.threshold) === activeThreshold &&
+            vnodes.length === patristicView.includedLeafNames.length &&
+            patristicView.includedLeafNames.every(nodeId => visibleNodeIds.has(String(nodeId)))
+        );
+        if (!timelineMode && summaryCoversVisibleNodes) {
+            const exactSummary = patristicSummary!;
+            const exactView = patristicView!;
+            linkCount = exactSummary.filteredLinkCount;
+            clusterCount = exactSummary.componentCount;
+            singletons = exactSummary.singletonCount;
+
+            const degreeByNodeId = new Map(
+                Array.from(exactView.includedLeafIndices, leafIndex => [
+                    String(exactView.leafNames[leafIndex]),
+                    exactView.degreeByLeaf[leafIndex] || 0,
+                ] as const)
+            );
+            vnodes.forEach(node => {
+                const exactDegree = degreeByNodeId.get(String(node._id ?? node.id ?? ''));
+                if (exactDegree !== undefined) node.degree = exactDegree;
+            });
+        } else if (!timelineMode) {
             linkCount = vlinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
@@ -4206,7 +4237,9 @@ align(params): Promise<any> {
             visibleLinks: linkCount,
             visibleClusters: clusterCount,
             singletonNodes: singletons,
-            selectedNodes: vnodes.filter(d => d.selected).length
+            selectedNodes: vnodes.filter(d => d.selected).length,
+            exactPatristicSummary: summaryCoversVisibleNodes,
+            adaptiveView: adaptiveState?.lastView
         });
     };
 
@@ -4272,7 +4305,34 @@ align(params): Promise<any> {
             return [];
         }
 
-        const links = this.getVisibleLinks();
+        let links = this.getVisibleLinks();
+        const adaptiveState = (this.session?.meta as any)?.adaptiveNetwork as
+            AdaptiveNetworkSessionState | undefined;
+        const adaptiveView = adaptiveState?.lastView;
+        if (
+            adaptiveView?.active &&
+            adaptiveView.source === 'patristic-worker' &&
+            String(linkColorVariable).toLowerCase() === 'origin' &&
+            this.visuals?.twoD?.data
+        ) {
+            const viewNodes = this.visuals.twoD.data.nodes || [];
+            const viewLinks = this.visuals.twoD.data.links || [];
+            const distanceOrigin = adaptiveState?.patristicView?.distanceOrigin || 'Newick Tree';
+            links = [
+                ...viewLinks.map((link: any) => ({
+                    ...link,
+                    visible: true,
+                    adaptiveWeight: Number(link.underlyingEdgeCount || 1),
+                })),
+                ...viewNodes
+                    .filter((node: any) => Number(node.internalEdgeCount || 0) > 0)
+                    .map((node: any) => ({
+                        visible: true,
+                        origin: [distanceOrigin],
+                        adaptiveWeight: Number(node.internalEdgeCount),
+                    })),
+            ];
+        }
       
         let linkColors;
         if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {

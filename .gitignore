@@ -41,6 +41,9 @@
 
 # misc
 /.playwright-cli/
+/.codex-server-logs/
+/.codex-worktrees/
+/local-deliverables/
 /.angular/cache
 /.sass-cache
 /connect.lock
@@ -62,6 +65,7 @@ node_modules_dev
 node_modules
 .DS_Store
 Thumbs.db
+~$*
 slr/*
 slr_linux.tgz
 .agignore

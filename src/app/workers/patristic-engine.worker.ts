@@ -23,6 +23,7 @@ import type {
   PatristicWorkerResponse,
   PatristicEdgeBatchResponse,
   PatristicEdgeTimings,
+  PatristicFilteredGraphSummary,
   PatristicNearestNeighborBatchResponse,
   PatristicNearestNeighborTimings,
 } from './patristic-engine.types';
@@ -380,11 +381,33 @@ function generateThresholdedEdges(
   threshold: number,
   jobId: number,
   batchSize: number = 10000,
-  maxEdges: number = Infinity
+  maxEdges: number = Infinity,
+  scanAllPairs: boolean = false,
+  viewNodeBudget: number = 200,
+  requestedIncludedLeafIndices?: Uint32Array,
+  requestedFocusLeafIndices?: Uint32Array,
 ): void {
   const pairStart = performance.now();
   const n = tree.leafCount;
-  const totalPairs = (n * (n - 1)) / 2;
+  const includedMask = new Uint8Array(n);
+  const includedLeafList: number[] = [];
+  if (requestedIncludedLeafIndices) {
+    for (const rawLeafIndex of requestedIncludedLeafIndices) {
+      const leafIndex = Number(rawLeafIndex);
+      if (leafIndex < 0 || leafIndex >= n || includedMask[leafIndex]) continue;
+      includedMask[leafIndex] = 1;
+      includedLeafList.push(leafIndex);
+    }
+    includedLeafList.sort((left, right) => left - right);
+  } else {
+    for (let leafIndex = 0; leafIndex < n; leafIndex++) {
+      includedMask[leafIndex] = 1;
+      includedLeafList.push(leafIndex);
+    }
+  }
+  const includedLeafIndices = Uint32Array.from(includedLeafList);
+  const includedCount = includedLeafIndices.length;
+  const totalPairs = (includedCount * (includedCount - 1)) / 2;
 
   // Pre-allocate batch buffers
   let batchSources = new Uint32Array(batchSize);
@@ -392,11 +415,97 @@ function generateThresholdedEdges(
   let batchDistances = new Float32Array(batchSize);
   let batchPos = 0;
   let totalEmitted = 0;
+  let matchedEdgeCount = 0;
+  let matchedDistanceMin = Number.POSITIVE_INFINITY;
+  let matchedDistanceMax = Number.NEGATIVE_INFINITY;
+  let matchedDistanceSum = 0;
   let pairsProcessed = 0;
   let lastProgressPercent = -1;
 
-  for (let i = 0; i < n && totalEmitted < maxEdges; i++) {
-    for (let j = 0; j < i && totalEmitted < maxEdges; j++) {
+  const degreeByLeaf = new Uint32Array(n);
+  const componentParent = new Int32Array(n);
+  const componentRank = new Uint8Array(n);
+  for (let i = 0; i < n; i++) componentParent[i] = i;
+
+  const findComponent = (value: number): number => {
+    let root = value;
+    while (componentParent[root] !== root) root = componentParent[root];
+    while (componentParent[value] !== value) {
+      const next = componentParent[value];
+      componentParent[value] = root;
+      value = next;
+    }
+    return root;
+  };
+
+  const unionComponents = (a: number, b: number): void => {
+    let rootA = findComponent(a);
+    let rootB = findComponent(b);
+    if (rootA === rootB) return;
+    if (componentRank[rootA] < componentRank[rootB]) {
+      [rootA, rootB] = [rootB, rootA];
+    }
+    componentParent[rootB] = rootA;
+    if (componentRank[rootA] === componentRank[rootB]) componentRank[rootA]++;
+  };
+
+  const requestedFocus = new Set<number>();
+  if (requestedFocusLeafIndices) {
+    for (const rawLeafIndex of requestedFocusLeafIndices) {
+      const leafIndex = Number(rawLeafIndex);
+      if (leafIndex >= 0 && leafIndex < n && includedMask[leafIndex]) {
+        requestedFocus.add(leafIndex);
+      }
+    }
+  }
+  const focusLeafIndices = Array.from(requestedFocus)
+    .sort((left, right) => left - right)
+    .slice(0, Math.max(0, Math.min(includedCount, Math.floor(viewNodeBudget) || 1)));
+  const focusSet = new Set(focusLeafIndices);
+  const aggregateCount = Math.max(0, Math.min(includedCount, Math.floor(viewNodeBudget) || 1));
+  const aggregateMemberCounts = new Uint32Array(aggregateCount);
+  const aggregateInternalEdgeCounts = new Float64Array(aggregateCount);
+  const aggregateByLeaf = new Uint32Array(n);
+  aggregateByLeaf.fill(0xffffffff);
+  const aggregateExactLeafIndices = new Int32Array(aggregateCount);
+  aggregateExactLeafIndices.fill(-1);
+  const aggregateEdges = new Map<number, {
+    source: number;
+    target: number;
+    count: number;
+    distanceMin: number;
+    distanceMax: number;
+    distanceSum: number;
+  }>();
+  focusLeafIndices.forEach((leafIndex, aggregateIndex) => {
+    aggregateByLeaf[leafIndex] = aggregateIndex;
+    aggregateExactLeafIndices[aggregateIndex] = leafIndex;
+    aggregateMemberCounts[aggregateIndex] = 1;
+  });
+  const remainingLeaves = includedLeafList.filter(leafIndex => !focusSet.has(leafIndex));
+  const remainingAggregateCount = Math.max(0, aggregateCount - focusLeafIndices.length);
+  remainingLeaves.forEach((leafIndex, rank) => {
+    const relativeAggregate = remainingAggregateCount > 0
+      ? Math.min(
+        remainingAggregateCount - 1,
+        Math.floor((rank * remainingAggregateCount) / Math.max(1, remainingLeaves.length)),
+      )
+      : 0;
+    const aggregateIndex = Math.min(
+      Math.max(0, aggregateCount - 1),
+      focusLeafIndices.length + relativeAggregate,
+    );
+    aggregateByLeaf[leafIndex] = aggregateIndex;
+    if (aggregateCount > 0) aggregateMemberCounts[aggregateIndex]++;
+  });
+  const aggregateForLeaf = (leafIndex: number): number => aggregateByLeaf[leafIndex];
+
+  const shouldContinue = (): boolean => scanAllPairs || totalEmitted < maxEdges;
+
+  for (let includedI = 0; includedI < includedCount && shouldContinue(); includedI++) {
+    const i = includedLeafIndices[includedI];
+    for (let includedJ = 0; includedJ < includedI && shouldContinue(); includedJ++) {
+      const j = includedLeafIndices[includedJ];
       // Check cancellation periodically (every 100K pairs)
       if (pairsProcessed % 100000 === 0 && cancelledJobs.has(jobId)) {
         cancelledJobs.delete(jobId);
@@ -419,34 +528,134 @@ function generateThresholdedEdges(
       }
 
       if (dist <= threshold) {
-        batchSources[batchPos] = i;
-        batchTargets[batchPos] = j;
-        batchDistances[batchPos] = dist;
-        batchPos++;
-        totalEmitted++;
+        matchedEdgeCount++;
+        matchedDistanceMin = Math.min(matchedDistanceMin, dist);
+        matchedDistanceMax = Math.max(matchedDistanceMax, dist);
+        matchedDistanceSum += dist;
+        degreeByLeaf[i]++;
+        degreeByLeaf[j]++;
+        unionComponents(i, j);
 
-        // Flush batch when full
-        if (batchPos >= batchSize) {
-          flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, false);
-          // Allocate new buffers (old ones were transferred)
-          batchSources = new Uint32Array(batchSize);
-          batchTargets = new Uint32Array(batchSize);
-          batchDistances = new Float32Array(batchSize);
-          batchPos = 0;
+        const sourceAggregate = aggregateForLeaf(i);
+        const targetAggregate = aggregateForLeaf(j);
+        if (sourceAggregate === targetAggregate) {
+          aggregateInternalEdgeCounts[sourceAggregate]++;
+        } else {
+          const source = Math.min(sourceAggregate, targetAggregate);
+          const target = Math.max(sourceAggregate, targetAggregate);
+          const key = source * aggregateCount + target;
+          const existing = aggregateEdges.get(key);
+          if (existing) {
+            existing.count++;
+            existing.distanceMin = Math.min(existing.distanceMin, dist);
+            existing.distanceMax = Math.max(existing.distanceMax, dist);
+            existing.distanceSum += dist;
+          } else {
+            aggregateEdges.set(key, {
+              source,
+              target,
+              count: 1,
+              distanceMin: dist,
+              distanceMax: dist,
+              distanceSum: dist,
+            });
+          }
+        }
+
+        if (totalEmitted < maxEdges) {
+          batchSources[batchPos] = i;
+          batchTargets[batchPos] = j;
+          batchDistances[batchPos] = dist;
+          batchPos++;
+          totalEmitted++;
+
+          // Flush batch when full
+          if (batchPos >= batchSize) {
+            flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, false);
+            // Allocate new buffers (old ones were transferred)
+            batchSources = new Uint32Array(batchSize);
+            batchTargets = new Uint32Array(batchSize);
+            batchDistances = new Float32Array(batchSize);
+            batchPos = 0;
+          }
         }
       }
     }
   }
 
+  let singletonCount = 0;
+  const componentRoots = new Set<number>();
+  const componentSizeByRoot = new Map<number, number>();
+  let maximumDegree = 0;
+  for (const i of includedLeafIndices) {
+    maximumDegree = Math.max(maximumDegree, degreeByLeaf[i]);
+    if (degreeByLeaf[i] === 0) {
+      singletonCount++;
+    } else {
+      const root = findComponent(i);
+      componentRoots.add(root);
+      componentSizeByRoot.set(root, (componentSizeByRoot.get(root) || 0) + 1);
+    }
+  }
+  const componentSizes = Uint32Array.from(
+    Array.from(componentSizeByRoot.values()).sort((left, right) => right - left),
+  );
+  const degreeHistogram = new Uint32Array(maximumDegree + 1);
+  for (const leafIndex of includedLeafIndices) degreeHistogram[degreeByLeaf[leafIndex]]++;
+
+  const aggregateEdgeSources = new Uint32Array(aggregateEdges.size);
+  const aggregateEdgeTargets = new Uint32Array(aggregateEdges.size);
+  const aggregateEdgeCounts = new Float64Array(aggregateEdges.size);
+  const aggregateEdgeDistanceMin = new Float32Array(aggregateEdges.size);
+  const aggregateEdgeDistanceMax = new Float32Array(aggregateEdges.size);
+  const aggregateEdgeDistanceMean = new Float32Array(aggregateEdges.size);
+  let aggregateEdgeIndex = 0;
+  for (const edge of aggregateEdges.values()) {
+    aggregateEdgeSources[aggregateEdgeIndex] = edge.source;
+    aggregateEdgeTargets[aggregateEdgeIndex] = edge.target;
+    aggregateEdgeCounts[aggregateEdgeIndex] = edge.count;
+    aggregateEdgeDistanceMin[aggregateEdgeIndex] = edge.distanceMin;
+    aggregateEdgeDistanceMax[aggregateEdgeIndex] = edge.distanceMax;
+    aggregateEdgeDistanceMean[aggregateEdgeIndex] = edge.distanceSum / edge.count;
+    aggregateEdgeIndex++;
+  }
+
+  const pairScanComplete = pairsProcessed === totalPairs;
   // Flush remaining
   const timings: PatristicEdgeTimings = {
     threshold,
     pairScanMs: performance.now() - pairStart,
     emittedEdgeCount: totalEmitted,
+    matchedEdgeCount,
+    pairsProcessed,
     totalPairs,
-    maxEdgesHit: Number.isFinite(maxEdges) && totalEmitted >= maxEdges && pairsProcessed < totalPairs,
+    maxEdgesHit: Number.isFinite(maxEdges) && matchedEdgeCount > maxEdges,
+    pairScanComplete,
   };
-  flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true, timings);
+  const summary: PatristicFilteredGraphSummary | undefined = pairScanComplete ? {
+    nodeCount: includedCount,
+    matchedEdgeCount,
+    singletonCount,
+    componentCount: componentRoots.size,
+    degreeByLeaf,
+    degreeHistogram,
+    componentSizes,
+    distanceMin: matchedEdgeCount ? matchedDistanceMin : 0,
+    distanceMax: matchedEdgeCount ? matchedDistanceMax : 0,
+    distanceMean: matchedEdgeCount ? matchedDistanceSum / matchedEdgeCount : 0,
+    includedLeafIndices,
+    aggregateByLeaf,
+    aggregateExactLeafIndices,
+    aggregateMemberCounts,
+    aggregateInternalEdgeCounts,
+    aggregateEdgeSources,
+    aggregateEdgeTargets,
+    aggregateEdgeCounts,
+    aggregateEdgeDistanceMin,
+    aggregateEdgeDistanceMax,
+    aggregateEdgeDistanceMean,
+  } : undefined;
+  flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true, timings, summary);
 }
 
 function buildPatristicMst(tree: FlatTree, lca: LcaIndex, jobId: number): { parent: Int32Array; edgeWeight: Float64Array } {
@@ -518,7 +727,8 @@ function generateNearestNeighborEdges(
   lca: LcaIndex,
   epsilon: number,
   jobId: number,
-  batchSize: number = 10000
+  batchSize: number = 10000,
+  maxEdges: number = Number.POSITIVE_INFINITY,
 ): void {
   const n = tree.leafCount;
   const totalPairs = (n * (n - 1)) / 2;
@@ -542,7 +752,7 @@ function generateNearestNeighborEdges(
   let lastProgressPercent = -1;
 
   const emitEdge = (a: number, b: number, distance: number): void => {
-    if (a === b || a < 0 || b < 0) return;
+    if (a === b || a < 0 || b < 0 || totalEmitted >= maxEdges) return;
 
     const source = Math.max(a, b);
     const target = Math.min(a, b);
@@ -572,7 +782,7 @@ function generateNearestNeighborEdges(
     }
   }
 
-  for (let root = 0; root < n; root++) {
+  for (let root = 0; root < n && totalEmitted < maxEdges; root++) {
     if (cancelledJobs.has(jobId)) {
       cancelledJobs.delete(jobId);
       return;
@@ -596,7 +806,7 @@ function generateNearestNeighborEdges(
       }
     }
 
-    for (let target = 0; target < root; target++) {
+    for (let target = 0; target < root && totalEmitted < maxEdges; target++) {
       pairsProcessed++;
 
       const percent = Math.floor((pairsProcessed / totalPairs) * 100);
@@ -625,7 +835,9 @@ function generateNearestNeighborEdges(
     mstMs,
     pairScanMs: performance.now() - pairStart,
     emittedEdgeCount: totalEmitted,
+    pairsProcessed,
     totalPairs,
+    maxEdgesHit: Number.isFinite(maxEdges) && totalEmitted >= maxEdges,
   };
   flushNearestNeighborBatch(
     jobId,
@@ -694,7 +906,8 @@ function flushBatch(
   count: number,
   totalEmitted: number,
   done: boolean,
-  timings?: PatristicEdgeTimings
+  timings?: PatristicEdgeTimings,
+  summary?: PatristicFilteredGraphSummary
 ): void {
   // Slice to actual size if batch is partially filled
   const s = count < sources.length ? sources.slice(0, count) : sources;
@@ -713,9 +926,31 @@ function flushBatch(
   if (timings) {
     response.timings = timings;
   }
+  if (summary) {
+    response.summary = summary;
+  }
 
   // Transfer the typed array buffers (zero-copy)
-  postMessage(response, [s.buffer, t.buffer, d.buffer] as any);
+  const transferables: any[] = [s.buffer, t.buffer, d.buffer];
+  if (summary) {
+    transferables.push(
+      summary.degreeByLeaf.buffer,
+      summary.degreeHistogram.buffer,
+      summary.componentSizes.buffer,
+      summary.includedLeafIndices.buffer,
+      summary.aggregateByLeaf.buffer,
+      summary.aggregateExactLeafIndices.buffer,
+      summary.aggregateMemberCounts.buffer,
+      summary.aggregateInternalEdgeCounts.buffer,
+      summary.aggregateEdgeSources.buffer,
+      summary.aggregateEdgeTargets.buffer,
+      summary.aggregateEdgeCounts.buffer,
+      summary.aggregateEdgeDistanceMin.buffer,
+      summary.aggregateEdgeDistanceMax.buffer,
+      summary.aggregateEdgeDistanceMean.buffer,
+    );
+  }
+  postMessage(response, transferables as any);
 }
 
 function flushNearestNeighborBatch(
@@ -820,7 +1055,16 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
       }
 
       case 'BUILD_EDGES': {
-        const { jobId, threshold, maxEdges, batchSize } = data;
+        const {
+          jobId,
+          threshold,
+          maxEdges,
+          batchSize,
+          scanAllPairs,
+          viewNodeBudget,
+          includedLeafIndices,
+          focusLeafIndices,
+        } = data;
 
         if (!currentTree || !currentLca) {
           respond({ type: 'ERROR', jobId, message: 'No tree initialized. Call INIT_TREE first.' });
@@ -839,13 +1083,17 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           threshold,
           jobId,
           batchSize ?? 10000,
-          maxEdges ?? Infinity
+          maxEdges ?? Infinity,
+          scanAllPairs ?? false,
+          viewNodeBudget ?? 200,
+          includedLeafIndices,
+          focusLeafIndices,
         );
         break;
       }
 
       case 'BUILD_NEAREST_NEIGHBOR_EDGES': {
-        const { jobId, epsilon, batchSize } = data;
+        const { jobId, epsilon, batchSize, maxEdges } = data;
 
         if (!currentTree || !currentLca) {
           respond({ type: 'ERROR', jobId, message: 'No tree initialized. Call INIT_TREE first.' });
@@ -863,7 +1111,8 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           currentLca,
           epsilon,
           jobId,
-          batchSize ?? 10000
+          batchSize ?? 10000,
+          maxEdges ?? Number.POSITIVE_INFINITY,
         );
         break;
       }

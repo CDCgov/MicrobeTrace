@@ -340,6 +340,8 @@ export class ColorMappingService {
     const aggregates: Record<string, number> = {};
     links.forEach(l => {
       if (!l.visible) return;
+      const rawWeight = Number(l.adaptiveWeight ?? 1);
+      const weight = Number.isFinite(rawWeight) && rawWeight > 0 ? rawWeight : 1;
       if (linkColorVariable.toLowerCase() === 'origin') {
         const origins = Array.isArray(l.origin)
           ? l.origin
@@ -349,15 +351,15 @@ export class ColorMappingService {
           .filter((key): key is string => key !== null);
 
         if (originKeys.length > 1) {
-          multiLinkCount++;
+          multiLinkCount += weight;
         } else if (originKeys.length === 1) {
-          aggregates[originKeys[0]] += 1;
+          aggregates[originKeys[0]] += weight;
         }
 
       } else {
         const val = ensureAggregateKey(l[linkColorVariable], true);
         if (val !== null) {
-          aggregates[val] += 1;
+          aggregates[val] += weight;
         }
       }
     });

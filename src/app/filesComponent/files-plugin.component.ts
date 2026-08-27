@@ -65,6 +65,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   isLoadingFiles: boolean = false;
 
+  private builtInSampleLoad: Promise<void> | null = null;
+
   ReferenceTypes: any = [
     { label: 'LoadFrom FASTA', value: 'LoadFrom FASTA' },
     { label: 'First Sequence', value: 'First Sequence' },
@@ -615,9 +617,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     const skipDemoSession = new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
+    const largeNetworkDemo = this.isLargeNetworkDemoRequested();
     const hasPendingHandoff = this.embedHandoffService.hasPendingHandoffInUrl();
 
-    if (skipDemoSession || hasPendingHandoff) {
+    if ((skipDemoSession && !largeNetworkDemo) || hasPendingHandoff) {
       this.commonService.session.network.initialLoad = true;
     }
 
@@ -625,26 +628,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.loadPendingEmbedHandoff();
     }
 
-    if(!this.commonService.session.network.initialLoad && !this.auspiceUrlVal && this.commonService.session.data.nodes.length === 0) {
+    if(
+      !hasPendingHandoff &&
+      !this.auspiceUrlVal &&
+      this.commonService.session.data.nodes.length === 0 &&
+      (largeNetworkDemo || !this.commonService.session.network.initialLoad)
+    ) {
       console.log('launching outbreak');
-      const defaultLoadGeneration = this.commonService.getDataLoadGeneration();
-
-      $.getJSON("COVID_DummySession.microbetrace").then((defaultSession) => {
-        if (
-          !this.commonService.isCurrentDataLoad(defaultLoadGeneration) ||
-          this.commonService.session.network.initialLoad ||
-          this.commonService.session.data.nodes.length > 0
-        ) {
-          return;
-        }
-
-        this.commonService.applySession(defaultSession).then(() => {
-          this.populateTable();
-        });
-        this.commonService.session.network.launched = true;
-        this.commonService.session.network.initialLoad = true;
-      });
-
+      void this.loadBuiltInSampleDataset(false);
     }
 
     setTimeout(() => {
@@ -862,6 +853,107 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     $('#overlay').stop(true, true).fadeOut('fast');
     $('.ui-tabview-nav').stop(true, true).fadeTo('fast', 1);
     $('.m-portlet').stop(true, true).fadeTo('fast', 1);
+  }
+
+  private isLargeNetworkDemoRequested(): boolean {
+    return new URL(window.location.href).searchParams.get('largeDemo') === '1';
+  }
+
+  private buildLargeNetworkDemoNewick(): string {
+    const leaves = Array.from({ length: 500 }, (_value, index) => {
+      const id = `DNWK${String(index + 1).padStart(4, '0')}`;
+      const branchLength = index < 250 ? '0.0010' : '0.0025';
+      return `${id}:${branchLength}`;
+    });
+
+    return `((${leaves.join(',')}):0.0500);`;
+  }
+
+  private async loadDefaultSampleSession(): Promise<void> {
+    const defaultLoadGeneration = this.commonService.getDataLoadGeneration();
+    const defaultSession = await $.getJSON('COVID_DummySession.microbetrace');
+
+    if (
+      !this.commonService.isCurrentDataLoad(defaultLoadGeneration) ||
+      this.commonService.session.data.nodes.length > 0
+    ) {
+      return;
+    }
+
+    await this.commonService.applySession(defaultSession);
+    this.populateTable();
+    this.commonService.session.network.launched = true;
+    this.commonService.session.network.initialLoad = true;
+  }
+
+  private async loadLargeNetworkDemo(): Promise<void> {
+    const newick = this.buildLargeNetworkDemoNewick();
+    const demoFile = {
+      name: 'MicrobeTrace_Large_Network_Demo_500.nwk',
+      extension: 'nwk',
+      format: 'newick',
+      type: 'text/plain',
+      size: newick.length,
+      contents: newick,
+    };
+
+    this.removeAllFiles();
+    this.commonService.visuals.microbeTrace?.resetKeyTablesForNewDataset();
+    this.commonService.session.files.push(demoFile);
+    this.addToTable(demoFile);
+    this.setDefaultDistanceControls('tn93', 0.006, 0.001);
+    this.setDefaultView('2D Network');
+    const sessionMeta = this.commonService.session.meta as any;
+    sessionMeta.features = {
+      ...(sessionMeta.features || {}),
+      adaptiveNetworkRendering: true,
+    };
+    this.commonService.session.network.initialLoad = true;
+
+    await new Promise<void>(resolve => {
+      setTimeout(() => {
+        this.launchClick();
+        resolve();
+      }, 100);
+    });
+  }
+
+  /**
+   * Loads the built-in sample explicitly. `largeDemo=1` selects the deterministic
+   * 500-node/124,750-link Newick network used by the adaptive rendering tests.
+   */
+  public loadBuiltInSampleDataset(dismissOverlay: boolean = true): Promise<void> {
+    if (this.commonService.session.data.nodes.length > 0) {
+      if (dismissOverlay) this.dismissWelcomeOverlay();
+      return Promise.resolve();
+    }
+
+    if (!this.builtInSampleLoad) {
+      this.isLoadingFiles = true;
+      this.cdr.markForCheck();
+
+      const load = this.isLargeNetworkDemoRequested()
+        ? this.loadLargeNetworkDemo()
+        : this.loadDefaultSampleSession();
+
+      this.builtInSampleLoad = load
+        .catch((error: any) => {
+          console.error('Unable to load the built-in sample dataset:', error);
+          this.handoffError = error?.message || 'Unable to load the built-in sample dataset.';
+        })
+        .finally(() => {
+          this.isLoadingFiles = false;
+          this.builtInSampleLoad = null;
+          this.refreshTemplateState();
+          this.cdr.markForCheck();
+        });
+    }
+
+    return this.builtInSampleLoad.then(() => {
+      if (dismissOverlay && this.commonService.session.files.length > 0) {
+        this.dismissWelcomeOverlay();
+      }
+    });
   }
 
   ngOnDestroy() {

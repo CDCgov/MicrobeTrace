@@ -10,7 +10,9 @@ import type {
   PatristicNearestNeighborBatchResponse,
   PatristicProgressResponse,
   PatristicErrorResponse,
+  PatristicFilteredGraphSummary,
 } from '../workers/patristic-engine.types';
+import type { AdaptiveNetworkSessionState, PatristicAdaptiveViewRecord } from './network-graph.types';
 
 interface ComputePatristicOptions {
   origin?: string[];
@@ -18,6 +20,9 @@ interface ComputePatristicOptions {
   check?: any;
   maxEdges?: number;
   batchSize?: number;
+  viewNodeBudget?: number;
+  includedLeafIndices?: Uint32Array;
+  focusLeafIndices?: Uint32Array;
 }
 
 interface PatristicVisibleEdgeGuardrails {
@@ -43,6 +48,7 @@ interface PatristicMergeResult {
   totalLinks: number;
   leafNames: string[];
   guardrail?: PatristicGuardrailResult;
+  summary?: PatristicFilteredGraphSummary;
   fallback?: {
     type: 'nearest-neighbor-backbone';
     newLinks: number;
@@ -76,6 +82,7 @@ interface PatristicDistanceAnalysisResult {
 const DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD = 75000;
 const DEFAULT_NEWICK_VISIBLE_LINK_HARD_LIMIT = 100000;
 const DEFAULT_NEWICK_THRESHOLD_ANALYSIS_PAIR_LIMIT = 500000;
+const DEFAULT_NEWICK_LEGACY_BACKBONE_LINK_LIMIT = 20000;
 
 /**
  * This service delegates all Worker-based computations.
@@ -627,6 +634,8 @@ export class WorkerComputeService {
   private patristicOrigin: string[] = ['Newick Tree'];
   private patristicDistanceOrigin = 'Newick Tree';
   private patristicTreeInitCount = 0;
+  private patristicGraphRevision = 0;
+  private patristicAdaptiveRequestRevision = 0;
   private patristicGuardrailFallbackThresholds = new Set<string>();
 
   private recordPatristicPerformance(session: any, patch: any): void {
@@ -685,7 +694,7 @@ export class WorkerComputeService {
     if (!warningHit) return undefined;
 
     const message = hardLimitHit
-      ? `Newick threshold ${threshold} exceeded the ${this.formatCount(guardrails.hardLimit)} visible-link browser guardrail. MicrobeTrace did not add the additional Newick links for this threshold; lower the threshold, filter the network, or subset the tree before rendering.`
+      ? `Newick threshold ${threshold} exceeded the ${this.formatCount(guardrails.hardLimit)} exact-link drawing guardrail. MicrobeTrace analyzed every qualifying link and will draw a bounded aggregate view; statistics continue to describe the full threshold-qualified network.`
       : `Newick threshold ${threshold} produced ${this.formatCount(matchedEdgeCount)} visible links, which may render slowly in the browser. Consider filtering, subsetting, or using a stricter threshold.`;
 
     return {
@@ -726,7 +735,7 @@ export class WorkerComputeService {
     const warning = {
       id,
       type: 'newick-visible-link-guardrail',
-      severity: guardrail.hardLimitHit ? 'error' : 'warning',
+      severity: 'warning',
       message: guardrail.message,
       threshold: guardrail.threshold,
       matchedEdgeCount: guardrail.matchedEdgeCount,
@@ -749,6 +758,13 @@ export class WorkerComputeService {
   private getPatristicNearestNeighborEpsilon(session?: any): number {
     const rawEpsilon = Number(session?.style?.widgets?.["filtering-epsilon"]);
     return Number.isFinite(rawEpsilon) ? Math.pow(10, rawEpsilon) : 0;
+  }
+
+  private getPatristicLegacyBackboneLinkLimit(session?: any): number {
+    const configuredLimit = Number(session?.meta?.guardrails?.newickLegacyBackboneLinkLimit);
+    return Number.isFinite(configuredLimit) && configuredLimit > 0
+      ? Math.floor(configuredLimit)
+      : DEFAULT_NEWICK_LEGACY_BACKBONE_LINK_LIMIT;
   }
 
   private buildPatristicGuardrailFallbackKey(
@@ -794,7 +810,11 @@ export class WorkerComputeService {
       let selectedLinks = 0;
       let finalTimings: PatristicNearestNeighborBatchResponse['timings'] | undefined;
 
-      this.buildPatristicNearestNeighborEdges(epsilon, options.batchSize).subscribe({
+      this.buildPatristicNearestNeighborEdges(
+        epsilon,
+        options.batchSize,
+        this.getPatristicLegacyBackboneLinkLimit(session),
+      ).subscribe({
         next: (batch) => {
           const n = batch.sources.length;
           for (let k = 0; k < n; k++) {
@@ -899,7 +919,11 @@ export class WorkerComputeService {
   public buildPatristicEdges(
     threshold: number,
     maxEdges?: number,
-    batchSize?: number
+    batchSize?: number,
+    scanAllPairs: boolean = false,
+    viewNodeBudget: number = 200,
+    includedLeafIndices?: Uint32Array,
+    focusLeafIndices?: Uint32Array,
   ): Observable<PatristicEdgeBatchResponse> {
     const subject = new Subject<PatristicEdgeBatchResponse>();
     const worker = this.computer.getPatristicWorker();
@@ -932,6 +956,10 @@ export class WorkerComputeService {
       threshold,
       maxEdges,
       batchSize,
+      scanAllPairs,
+      viewNodeBudget,
+      includedLeafIndices,
+      focusLeafIndices,
     } as PatristicWorkerRequest);
 
     return subject.asObservable();
@@ -939,7 +967,8 @@ export class WorkerComputeService {
 
   public buildPatristicNearestNeighborEdges(
     epsilon: number,
-    batchSize?: number
+    batchSize?: number,
+    maxEdges?: number,
   ): Observable<PatristicNearestNeighborBatchResponse> {
     const subject = new Subject<PatristicNearestNeighborBatchResponse>();
     const worker = this.computer.getPatristicWorker();
@@ -971,6 +1000,7 @@ export class WorkerComputeService {
       jobId,
       epsilon,
       batchSize,
+      maxEdges,
     } as PatristicWorkerRequest);
 
     return subject.asObservable();
@@ -1005,30 +1035,41 @@ export class WorkerComputeService {
       let newLinks = 0;
       let totalLinks = 0;
       let finalTimings: PatristicEdgeBatchResponse['timings'] | undefined;
-      const pendingLinks: any[] = [];
+      let finalSummary: PatristicFilteredGraphSummary | undefined;
+      const pendingBatches: Array<{
+        sources: Uint32Array;
+        targets: Uint32Array;
+        distances: Float32Array;
+      }> = [];
+      let pendingEdgeCount = 0;
 
-      this.buildPatristicEdges(threshold, effectiveMaxEdges, options.batchSize).subscribe({
+      this.buildPatristicEdges(
+        threshold,
+        effectiveMaxEdges,
+        options.batchSize,
+        usingGuardrailLimit,
+        options.viewNodeBudget ?? 200,
+        options.includedLeafIndices,
+        options.focusLeafIndices,
+      ).subscribe({
         next: (batch) => {
-          const n = batch.sources.length;
-          for (let k = 0; k < n; k++) {
-            const sourceIdx = batch.sources[k];
-            const targetIdx = batch.targets[k];
-            pendingLinks.push({
-              source: leafNames[sourceIdx],
-              target: leafNames[targetIdx],
-              origin: [...origin],
-              distance: batch.distances[k],
-              distanceOrigin,
-              hasDistance: true,
-            });
-          }
+          pendingBatches.push({
+            sources: batch.sources,
+            targets: batch.targets,
+            distances: batch.distances,
+          });
+          pendingEdgeCount += batch.sources.length;
           if (batch.done) {
             finalTimings = batch.timings;
+            finalSummary = batch.summary;
           }
         },
         error: (err) => reject(err),
         complete: async () => {
-          const matchedEdgeCount = finalTimings?.emittedEdgeCount ?? pendingLinks.length;
+          const matchedEdgeCount = finalSummary?.matchedEdgeCount
+            ?? finalTimings?.matchedEdgeCount
+            ?? finalTimings?.emittedEdgeCount
+            ?? pendingEdgeCount;
           const hardLimitHit =
             (usingGuardrailLimit && Boolean(finalTimings?.maxEdgesHit)) ||
             matchedEdgeCount > guardrails.hardLimit;
@@ -1040,10 +1081,29 @@ export class WorkerComputeService {
           );
           let fallback: PatristicMergeResult['fallback'];
 
+          if (finalSummary) {
+            this.storePatristicAdaptiveState(
+              session,
+              threshold,
+              distanceOrigin,
+              leafNames,
+              finalSummary,
+            );
+          }
+
           if (!hardLimitHit) {
-            for (const link of pendingLinks) {
-              newLinks += addLink(link, check);
-              totalLinks++;
+            for (const batch of pendingBatches) {
+              for (let edgeIndex = 0; edgeIndex < batch.sources.length; edgeIndex++) {
+                newLinks += addLink({
+                  source: leafNames[batch.sources[edgeIndex]],
+                  target: leafNames[batch.targets[edgeIndex]],
+                  origin: [...origin],
+                  distance: batch.distances[edgeIndex],
+                  distanceOrigin,
+                  hasDistance: true,
+                }, check);
+                totalLinks++;
+              }
             }
             this.patristicGeneratedMaxThreshold = Math.max(
               this.patristicGeneratedMaxThreshold,
@@ -1069,7 +1129,7 @@ export class WorkerComputeService {
                   fallbackApplied: true,
                   fallbackLinkCount: fallback.totalLinks,
                   fallbackType: fallback.type,
-                  message: `${guardrail.message} MicrobeTrace rendered a nearest-neighbor tree backbone instead so the 2D network is not blank.`,
+                  message: `${guardrail.message} A nearest-neighbor backbone remains available to legacy non-2D views.`,
                 };
               }
             } catch (fallbackError) {
@@ -1100,7 +1160,7 @@ export class WorkerComputeService {
               fallback,
             },
           });
-          resolve({ newLinks, totalLinks, leafNames, guardrail, fallback });
+          resolve({ newLinks, totalLinks, leafNames, guardrail, fallback, summary: finalSummary });
         },
       });
     });
@@ -1376,6 +1436,151 @@ export class WorkerComputeService {
   }
 
   /**
+   * Rebuild the exact analytical summary and bounded semantic view for the
+   * current subset/focus state without materializing qualifying edge objects.
+   * A request revision prevents an older response from replacing newer state.
+   */
+  public refreshPatristicAdaptiveGraph(
+    session: any,
+    options: {
+      includedLeafNames?: string[];
+      focusLeafNames?: string[];
+      viewNodeBudget?: number;
+    } = {},
+  ): Promise<PatristicFilteredGraphSummary | null> {
+    if (!session || this.patristicLeafNames.length === 0) {
+      return Promise.resolve(null);
+    }
+
+    const leafIndexByName = new Map(
+      this.patristicLeafNames.map((leafName, leafIndex) => [String(leafName), leafIndex]),
+    );
+    const includedLeafIndices = Uint32Array.from(
+      Array.from(new Set(
+        (options.includedLeafNames ?? this.patristicLeafNames)
+          .map(name => leafIndexByName.get(String(name)))
+          .filter((leafIndex): leafIndex is number => leafIndex !== undefined),
+      )).sort((left, right) => left - right),
+    );
+    const includedSet = new Set<number>(includedLeafIndices);
+    const focusLeafIndices = Uint32Array.from(
+      Array.from(new Set(
+        (options.focusLeafNames ?? [])
+          .map(name => leafIndexByName.get(String(name)))
+          .filter((leafIndex): leafIndex is number =>
+            leafIndex !== undefined && includedSet.has(leafIndex),
+          ),
+      )).sort((left, right) => left - right),
+    );
+    const threshold = Number(session?.style?.widgets?.['link-threshold']);
+    if (!Number.isFinite(threshold) || threshold < 0) return Promise.resolve(null);
+
+    const requestRevision = ++this.patristicAdaptiveRequestRevision;
+    if (!session.meta) session.meta = {};
+    const priorState: AdaptiveNetworkSessionState = session.meta.adaptiveNetwork || { revision: 0 };
+    session.meta.adaptiveNetwork = {
+      ...priorState,
+      analyticsStatus: 'computing',
+      analyticsProgress: 0,
+    } as AdaptiveNetworkSessionState;
+
+    return new Promise((resolve, reject) => {
+      let finalSummary: PatristicFilteredGraphSummary | undefined;
+      this.buildPatristicEdges(
+        threshold,
+        0,
+        undefined,
+        true,
+        options.viewNodeBudget ?? 200,
+        includedLeafIndices,
+        focusLeafIndices,
+      ).subscribe({
+        next: batch => {
+          if (batch.done) finalSummary = batch.summary;
+        },
+        error: error => {
+          if (requestRevision === this.patristicAdaptiveRequestRevision) {
+            const current: AdaptiveNetworkSessionState = session.meta.adaptiveNetwork || { revision: 0 };
+            session.meta.adaptiveNetwork = { ...current, analyticsStatus: 'error' };
+          }
+          reject(error);
+        },
+        complete: () => {
+          if (!finalSummary || requestRevision !== this.patristicAdaptiveRequestRevision) {
+            resolve(null);
+            return;
+          }
+          this.storePatristicAdaptiveState(
+            session,
+            threshold,
+            this.patristicDistanceOrigin,
+            this.patristicLeafNames,
+            finalSummary,
+          );
+          resolve(finalSummary);
+        },
+      });
+    });
+  }
+
+  /**
+   * Materialize the complete current filtered patristic edge set only for an
+   * explicit scientific-data export. Normal rendering never calls this path.
+   */
+  public exportPatristicFilteredLinks(session: any): Promise<any[] | null> {
+    const state = session?.meta?.adaptiveNetwork as AdaptiveNetworkSessionState | undefined;
+    const record = state?.patristicView;
+    if (!record || this.patristicLeafNames.length === 0) return Promise.resolve(null);
+
+    const threshold = Number(session?.style?.widgets?.['link-threshold']);
+    if (!Number.isFinite(threshold) || Number(record.threshold) !== threshold) {
+      return Promise.resolve(null);
+    }
+    const origin = [...this.patristicOrigin];
+    const distanceOrigin = this.patristicDistanceOrigin;
+    const links: any[] = [];
+    state.analyticsStatus = 'computing';
+    state.analyticsProgress = 0;
+
+    return new Promise((resolve, reject) => {
+      this.buildPatristicEdges(
+        threshold,
+        Number.POSITIVE_INFINITY,
+        10000,
+        false,
+        1,
+        record.includedLeafIndices,
+      ).subscribe({
+        next: batch => {
+          for (let edgeIndex = 0; edgeIndex < batch.sources.length; edgeIndex++) {
+            links.push({
+              source: this.patristicLeafNames[batch.sources[edgeIndex]],
+              target: this.patristicLeafNames[batch.targets[edgeIndex]],
+              origin: [...origin],
+              distance: batch.distances[edgeIndex],
+              distanceOrigin,
+              hasDistance: true,
+              visible: true,
+            });
+          }
+          state.analyticsProgress = record.representedLinkCount > 0
+            ? Math.min(100, Math.floor((links.length / record.representedLinkCount) * 100))
+            : 100;
+        },
+        error: error => {
+          state.analyticsStatus = 'error';
+          reject(error);
+        },
+        complete: () => {
+          state.analyticsStatus = 'ready';
+          state.analyticsProgress = 100;
+          resolve(links);
+        },
+      });
+    });
+  }
+
+  /**
    * Terminate the patristic worker entirely.
    * Call when loading a new session or cleaning up.
    */
@@ -1386,5 +1591,76 @@ export class WorkerComputeService {
     this.patristicGeneratedMaxThreshold = -Infinity;
     this.patristicGuardrailFallbackThresholds.clear();
     this.patristicTreeInitCount = 0;
+    this.patristicGraphRevision = 0;
+    this.patristicAdaptiveRequestRevision++;
+  }
+
+  private storePatristicAdaptiveState(
+    session: any,
+    threshold: number,
+    distanceOrigin: string,
+    leafNames: string[],
+    summary: PatristicFilteredGraphSummary,
+  ): void {
+    if (!session) return;
+    const revision = ++this.patristicGraphRevision;
+    if (!session.meta) session.meta = {};
+    const state: AdaptiveNetworkSessionState = session.meta.adaptiveNetwork || { revision: 0 };
+    const includedNameSet = new Set(
+      Array.from(summary.includedLeafIndices, leafIndex => String(leafNames[leafIndex])),
+    );
+    const selectedNodeCount = (session?.data?.nodes || []).filter((node: any) =>
+      node?.selected === true && includedNameSet.has(String(node?._id ?? node?.id ?? '')),
+    ).length;
+    const patristicView: PatristicAdaptiveViewRecord = {
+      revision,
+      threshold,
+      distanceOrigin,
+      leafNames: [...leafNames],
+      includedLeafNames: Array.from(summary.includedLeafIndices, leafIndex => leafNames[leafIndex]),
+      degreeByLeaf: summary.degreeByLeaf,
+      includedLeafIndices: summary.includedLeafIndices,
+      aggregateByLeaf: summary.aggregateByLeaf,
+      exactLeafByAggregate: summary.aggregateExactLeafIndices,
+      memberCounts: summary.aggregateMemberCounts,
+      internalEdgeCounts: summary.aggregateInternalEdgeCounts,
+      edgeSources: summary.aggregateEdgeSources,
+      edgeTargets: summary.aggregateEdgeTargets,
+      edgeCounts: summary.aggregateEdgeCounts,
+      edgeDistanceMin: summary.aggregateEdgeDistanceMin,
+      edgeDistanceMax: summary.aggregateEdgeDistanceMax,
+      edgeDistanceMean: summary.aggregateEdgeDistanceMean,
+      representedNodeCount: summary.nodeCount,
+      representedLinkCount: summary.matchedEdgeCount,
+    };
+    session.meta.adaptiveNetwork = {
+      ...state,
+      revision,
+      analyticsStatus: 'ready',
+      analyticsProgress: 100,
+      fullGraphSummary: {
+        revision,
+        source: 'patristic-worker',
+        threshold,
+        distanceMetric: session?.style?.widgets?.['link-sort-variable'],
+        filteredNodeCount: summary.nodeCount,
+        filteredLinkCount: summary.matchedEdgeCount,
+        selectedNodeCount,
+        selectedLinkCount: 0,
+        singletonCount: summary.singletonCount,
+        componentCount: summary.componentCount,
+        componentSizes: summary.componentSizes,
+        degreeHistogram: summary.degreeHistogram,
+        distanceSummary: {
+          min: summary.distanceMin,
+          max: summary.distanceMax,
+          mean: summary.distanceMean,
+        },
+        exact: true,
+        pairScanComplete: true,
+        computedAt: Date.now(),
+      },
+      patristicView,
+    } as AdaptiveNetworkSessionState;
   }
 }

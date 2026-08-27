@@ -22,6 +22,8 @@ import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitiza
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
+import { WorkerComputeService } from './contactTraceCommonServices/worker-compute.service';
+import type { AdaptiveNetworkSessionState } from './contactTraceCommonServices/network-graph.types';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
@@ -386,7 +388,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private el: ElementRef, 
         private store: CommonStoreService,
         private exportService: ExportService,
-        private embedHandoffService: EmbedHandoffService
+        private embedHandoffService: EmbedHandoffService,
+        private workerComputeService: WorkerComputeService,
     ) {
 
 
@@ -1676,9 +1679,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      */
      public continueClicked() : void {
         // this._removeGlView('Files');
+        const filesComponent = this.homepageTabs[0]?.componentRef?.instance;
+        const skipDemoSession = new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
+        const shouldLoadRequestedSample = !skipDemoSession || this.isLargeNetworkDemoRequested();
+        if (
+            shouldLoadRequestedSample &&
+            this.commonService.session.data.nodes.length === 0 &&
+            typeof filesComponent?.loadBuiltInSampleDataset === 'function'
+        ) {
+            void filesComponent.loadBuiltInSampleDataset(true);
+            return;
+        }
+
         $('#overlay').fadeOut("slow");
         $('.ui-tabview-nav').fadeTo("slow", 1);
         $('.m-portlet').fadeTo("slow", 1);
+    }
+
+    public isLargeNetworkDemoRequested(): boolean {
+        return new URL(window.location.href).searchParams.get('largeDemo') === '1';
+    }
+
+    public isDemoSessionSuppressed(): boolean {
+        return new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
     }
 
     /**
@@ -2716,6 +2739,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     const aggregates = this.commonService.createLinkColorMap();
 
     const vlinks = this.commonService.getVisibleLinks();
+    const adaptiveAggregateTotal = Object.values(aggregates)
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    const linkFrequencyDenominator = adaptiveAggregateTotal > vlinks.length
+      ? adaptiveAggregateTotal
+      : vlinks.length;
 
     const aggregateValues = Object.keys(aggregates);
         const disabled: string = isEditable ? '' : 'disabled';
@@ -2727,9 +2755,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
             const hasBlankAggregate = aggregates[value] == 0;
             const aggregateCountText = hasBlankAggregate ? '' : aggregates[value];
-            const aggregateFrequencyText = hasBlankAggregate || vlinks.length === 0
+            const aggregateFrequencyText = hasBlankAggregate || linkFrequencyDenominator === 0
                 ? ''
-                : (aggregates[value] / vlinks.length).toLocaleString();
+                : (aggregates[value] / linkFrequencyDenominator).toLocaleString();
                 // console.log('link color aggregates value: ', aggregates[value]);
                 // console.log('link color value: ', value);
                 // console.log('link color map: ', this.commonService.temp.style.linkColorMap);
@@ -4368,7 +4396,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         saveAs(content as any, filename);
     }
 
-    DisplayStashDialog(saveStash: string) {
+    async DisplayStashDialog(saveStash: string) {
         switch (saveStash) {
             case "Save": {
 
@@ -4398,8 +4426,33 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     const singletonNodeList = [];
                     const dyadNodeList = [];
                     const dyadEdgeList = [];
-                    const nodes = this.commonService.session.data.nodes;
-                    const links = this.commonService.session.data.links;
+                    const adaptiveState = (this.commonService.session.meta as any)?.adaptiveNetwork as
+                        AdaptiveNetworkSessionState | undefined;
+                    const usePatristicFilteredExport = Boolean(
+                        adaptiveState?.fullGraphSummary?.source === 'patristic-worker' &&
+                        adaptiveState.fullGraphSummary.filteredLinkCount >
+                            this.commonService.getVisibleLinks().length,
+                    );
+                    const nodes = usePatristicFilteredExport
+                        ? this.commonService.getVisibleNodes()
+                        : this.commonService.session.data.nodes;
+                    let links = this.commonService.session.data.links;
+                    if (usePatristicFilteredExport) {
+                        const completePatristicLinks = await this.workerComputeService
+                            .exportPatristicFilteredLinks(this.commonService.session);
+                        if (!completePatristicLinks) {
+                            throw new Error('The complete filtered Newick network is unavailable for export.');
+                        }
+                        const clusterByNodeId = new Map(
+                            nodes.map((node: any) => [String(node._id ?? node.id ?? ''), node.cluster]),
+                        );
+                        completePatristicLinks.forEach(link => {
+                            const sourceCluster = clusterByNodeId.get(String(link.source));
+                            const targetCluster = clusterByNodeId.get(String(link.target));
+                            link.cluster = sourceCluster === targetCluster ? sourceCluster : sourceCluster;
+                        });
+                        links = completePatristicLinks;
+                    }
 
                     this.commonService.session.data.clusters.forEach(cluster => {
 

@@ -390,6 +390,16 @@ function buildNewickFixtures() {
     clusterCount: 40,
     leavesPerCluster: 50,
   });
+
+  // All 500 leaves qualify at threshold 0.006, producing 124,750 links.
+  // This fixture intentionally exceeds the default 100,000 exact-link
+  // drawing guardrail while remaining small enough for repeated worker tests.
+  buildNewickFixture({
+    fileName: 'dense-newick-500-above-guardrail.nwk',
+    leafPrefix: 'DNWK',
+    clusterCount: 1,
+    leavesPerCluster: 500,
+  });
 }
 
 ensureDir(outDir);
