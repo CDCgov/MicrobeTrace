@@ -10,7 +10,9 @@
 </ng-container> -->
 
 
-<div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
+@if (!commonService.session.style.widgets['map-basemap-show'] && !commonService.session.style.widgets['map-satellite-show']) {
+  <div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
+}
 
 <div id="tool-btn-container-map" class="tool-btn-container m-portlet">
     <span style="overflow: visible; position: relative; width: 110px;">
