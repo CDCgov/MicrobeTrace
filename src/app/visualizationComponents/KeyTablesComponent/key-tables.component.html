@@ -11,7 +11,7 @@
   <div class="key-tables-grid">
     <section class="key-table-card" [hidden]="!isTableDocked('node-color')" [class.key-table-card--collapsed]="nodeTableCollapsed">
       <div class="key-table-card__header">
-        <h5>Node Colors</h5>
+        <h5>{{ nodeColorContinuous ? 'Node Color Legend' : 'Node Colors' }}</h5>
         <div class="key-table-card__controls">
           <span>Global</span>
           <p-select
@@ -21,6 +21,7 @@
             [ngModel]="selectedNodeColorBy"
             (onChange)="onNodeColorByChange($event.value)">
           </p-select>
+          @if (!nodeColorContinuous) {
           <div class="key-table-card__menu-anchor">
             <button
               type="button"
@@ -44,6 +45,7 @@
               </button>
             </div>
           </div>
+          }
           <button
             type="button"
             [title]="getTableDockButtonTitle('node-color')"
@@ -75,7 +77,16 @@
         </p>
       </div>
       <div class="key-table-card__table" [hidden]="nodeTableCollapsed || !hasNodeColorTable">
-        <style-key-table
+        @if (nodeColorContinuous) {
+          <div id="key-tables-node-legend">
+            <continuous-color-ramp
+              controlId="key-tables-node-ramp"
+              [resolved]="nodeColorScale"
+              [config]="nodeColorScaleConfig">
+            </continuous-color-ramp>
+          </div>
+        } @else {
+          <style-key-table
           tableId="key-tables-node-table"
           tableKey="node-color"
           controlType="color"
@@ -92,13 +103,14 @@
           (sortChange)="onStyleKeyTableSort('node-color', $event)"
           (colorChange)="onNodeColorTableColorChange($event)"
           (alphaRequest)="onNodeColorAlphaRequested($event)">
-        </style-key-table>
+          </style-key-table>
+        }
       </div>
     </section>
 
     <section class="key-table-card" [hidden]="!isTableDocked('link-color')" [class.key-table-card--collapsed]="linkTableCollapsed">
       <div class="key-table-card__header">
-        <h5>Link Colors</h5>
+        <h5>{{ linkColorContinuous ? 'Link Color Legend' : 'Link Colors' }}</h5>
         <div class="key-table-card__controls">
           <span>Global</span>
           <p-select
@@ -108,6 +120,7 @@
             [ngModel]="selectedLinkColorBy"
             (onChange)="onLinkColorByChange($event.value)">
           </p-select>
+          @if (!linkColorContinuous) {
           <div class="key-table-card__menu-anchor">
             <button
               type="button"
@@ -131,6 +144,7 @@
               </button>
             </div>
           </div>
+          }
           <button
             type="button"
             [title]="getTableDockButtonTitle('link-color')"
@@ -162,7 +176,16 @@
         </p>
       </div>
       <div class="key-table-card__table" [hidden]="linkTableCollapsed || !hasLinkColorTable">
-        <style-key-table
+        @if (linkColorContinuous) {
+          <div id="key-tables-link-legend">
+            <continuous-color-ramp
+              controlId="key-tables-link-ramp"
+              [resolved]="linkColorScale"
+              [config]="linkColorScaleConfig">
+            </continuous-color-ramp>
+          </div>
+        } @else {
+          <style-key-table
           tableId="key-tables-link-table"
           tableKey="link-color"
           controlType="color"
@@ -179,7 +202,8 @@
           (sortChange)="onStyleKeyTableSort('link-color', $event)"
           (colorChange)="onLinkColorTableColorChange($event)"
           (alphaRequest)="onLinkColorAlphaRequested($event)">
-        </style-key-table>
+          </style-key-table>
+        }
       </div>
     </section>
 

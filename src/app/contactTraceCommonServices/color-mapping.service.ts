@@ -1,5 +1,12 @@
 import { Injectable } from '@angular/core';
 import * as d3 from 'd3';
+import {
+  buildContinuousGradientCss,
+  createDefaultVariableColorScaleConfig,
+  ResolvedVariableColorScale,
+  resolveVariableColorScale,
+  VariableColorScaleConfig
+} from './variable-color-scale';
 
 /**
  * A dedicated service for node, link, polygon color mapping.
@@ -13,6 +20,18 @@ import * as d3 from 'd3';
 export class ColorMappingService {
 
   constructor() {}
+
+  public resolveVariableColorScale(
+    items: any[],
+    field: string,
+    config?: VariableColorScaleConfig
+  ): ResolvedVariableColorScale {
+    return resolveVariableColorScale(items, field, config);
+  }
+
+  public buildContinuousGradientCss(resolved: ResolvedVariableColorScale): string {
+    return buildContinuousGradientCss(resolved);
+  }
 
   /**
    * Creates a node color-mapping scale based on a specified "nodeColorVariable"
@@ -48,17 +67,25 @@ export class ColorMappingService {
     nodeColorsTableKeys: any,
     nodeColorsTableHistory: any,
     nodeColorAssignments: Record<string, string>,
-    debugMode: boolean
+    debugMode: boolean,
+    variableColorScaleConfig?: VariableColorScaleConfig
   ): {
     aggregates: Record<string, number>;
-    colorMap: d3.ScaleOrdinal<string, string>;
-    alphaMap: d3.ScaleOrdinal<string, number>;
+    colorMap: (value: unknown) => string;
+    alphaMap: (value: unknown) => number;
     updatedNodeColors: string[];
     updatedNodeAlphas: number[];
     updatedColorsTable: any;
     updatedColorsTableKeys: any;
     updatedColorsTableHistory: any;
+    resolvedScale: ResolvedVariableColorScale;
   } {
+
+    const resolvedScale = resolveVariableColorScale(
+      nodes,
+      nodeColorVariable,
+      variableColorScaleConfig ?? createDefaultVariableColorScaleConfig('categorical')
+    );
 
     // If user hasn't chosen a variable, just return a single uniform color mapping
     if (nodeColorVariable === 'None') {
@@ -71,7 +98,22 @@ export class ColorMappingService {
         updatedNodeAlphas: nodeAlphas,
         updatedColorsTable: nodeColorsTable,
         updatedColorsTableKeys: nodeColorsTableKeys,
-        updatedColorsTableHistory: nodeColorsTableHistory
+        updatedColorsTableHistory: nodeColorsTableHistory,
+        resolvedScale
+      };
+    }
+
+    if (resolvedScale.mode === 'continuous') {
+      return {
+        aggregates: {},
+        colorMap: resolvedScale.colorMap,
+        alphaMap: () => 1,
+        updatedNodeColors: nodeColors,
+        updatedNodeAlphas: nodeAlphas,
+        updatedColorsTable: nodeColorsTable || {},
+        updatedColorsTableKeys: nodeColorsTableKeys || {},
+        updatedColorsTableHistory: nodeColorsTableHistory || {},
+        resolvedScale
       };
     }
 
@@ -234,7 +276,8 @@ export class ColorMappingService {
       updatedNodeAlphas,
       updatedColorsTable,
       updatedColorsTableKeys,
-      updatedColorsTableHistory
+      updatedColorsTableHistory,
+      resolvedScale
     };
   }
 
@@ -249,17 +292,26 @@ export class ColorMappingService {
     linkColorsTable: any,
     linkColorsTableKeys: any,
     linkColorsTableHistory: any,
-    debugMode: boolean
+    debugMode: boolean,
+    variableColorScaleConfig?: VariableColorScaleConfig,
+    domainLinks: any[] = links
   ): {
     aggregates: Record<string, number>;
-    colorMap: d3.ScaleOrdinal<string, string>;
-    alphaMap: d3.ScaleOrdinal<string, number>;
+    colorMap: (value: unknown) => string;
+    alphaMap: (value: unknown) => number;
     updatedLinkColors: string[];
     updatedLinkAlphas: number[];
     updatedLinkColorsTable: any;
     updatedLinkColorsTableKeys: any;
     updatedLinkColorsTableHistory: any;
+    resolvedScale: ResolvedVariableColorScale;
   } {
+
+    const resolvedScale = resolveVariableColorScale(
+      domainLinks,
+      linkColorVariable,
+      variableColorScaleConfig ?? createDefaultVariableColorScaleConfig('categorical')
+    );
     
 
     // If user hasn't chosen a variable
@@ -273,7 +325,22 @@ export class ColorMappingService {
         updatedLinkAlphas: linkAlphas,
         updatedLinkColorsTable: linkColorsTable,
         updatedLinkColorsTableKeys: linkColorsTableKeys,
-        updatedLinkColorsTableHistory: linkColorsTableHistory
+        updatedLinkColorsTableHistory: linkColorsTableHistory,
+        resolvedScale
+      };
+    }
+
+    if (resolvedScale.mode === 'continuous') {
+      return {
+        aggregates: {},
+        colorMap: resolvedScale.colorMap,
+        alphaMap: () => 1,
+        updatedLinkColors: linkColors,
+        updatedLinkAlphas: linkAlphas,
+        updatedLinkColorsTable: linkColorsTable || {},
+        updatedLinkColorsTableKeys: linkColorsTableKeys || {},
+        updatedLinkColorsTableHistory: linkColorsTableHistory || {},
+        resolvedScale
       };
     }
     
@@ -498,7 +565,8 @@ export class ColorMappingService {
       updatedLinkAlphas,
       updatedLinkColorsTable,
       updatedLinkColorsTableKeys,
-      updatedLinkColorsTableHistory
+      updatedLinkColorsTableHistory,
+      resolvedScale
     };
   }
 

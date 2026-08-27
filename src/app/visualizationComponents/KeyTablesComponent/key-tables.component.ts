@@ -160,6 +160,30 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         return this.visuals.microbeTrace?.linkColorTableEditable ?? true;
     }
 
+    get nodeColorContinuous(): boolean {
+        return !!this.visuals.microbeTrace?.isContinuousColorScale('node');
+    }
+
+    get linkColorContinuous(): boolean {
+        return !!this.visuals.microbeTrace?.isContinuousColorScale('link');
+    }
+
+    get nodeColorScale() {
+        return this.visuals.microbeTrace?.getResolvedVariableColorScale('node') ?? null;
+    }
+
+    get linkColorScale() {
+        return this.visuals.microbeTrace?.getResolvedVariableColorScale('link') ?? null;
+    }
+
+    get nodeColorScaleConfig() {
+        return this.visuals.microbeTrace?.getVariableColorConfig('node');
+    }
+
+    get linkColorScaleConfig() {
+        return this.visuals.microbeTrace?.getVariableColorConfig('link');
+    }
+
     private get dockController() {
         return this.visuals.microbeTrace?.keyTablesController;
     }

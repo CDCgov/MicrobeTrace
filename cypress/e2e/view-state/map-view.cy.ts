@@ -5,6 +5,11 @@ import { getRenderedMapNodeContainerPoint, readRenderedMapNodeStyle } from '../.
 import { visitAppAndAcceptEula } from '../../support/journey-helpers';
 const takeScreenshots: boolean = false;
 
+const selectCategoricalColorScale = (target: 'node' | 'link'): void => {
+  cy.get(`#${target}-color-scale-mode`).click();
+  cy.contains('li[role="option"]', 'Categorical', { timeout: 10000 }).click();
+};
+
 const findClusteredMapNodeTarget = (mapView: any, excludedNodeIds: string[] = []): string => {
   const markerClusterGroup = mapView.layers.markerClusterGroup;
   const excluded = new Set(excludedNodeIds);
@@ -979,6 +984,7 @@ describe('Map View', () => {
     it('should update link colors variable to Cluster and then change one of the colors', () => {
       cy.get('#link-tooltip-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      selectCategoricalColorScale('link')
 
       cy.wait(250);
       cy.get('#key-tables-link-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
@@ -1031,9 +1037,11 @@ describe('Map View', () => {
 
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      selectCategoricalColorScale('node')
 
       cy.get('#link-tooltip-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      selectCategoricalColorScale('link')
 
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
       for (let i = 0; i < 6; i++) {

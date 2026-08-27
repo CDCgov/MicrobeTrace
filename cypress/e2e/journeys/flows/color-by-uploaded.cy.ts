@@ -175,7 +175,7 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     selectPrimeOption('#node-color-variable', 'Profession');
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'Profession');
-    cy.get('#node-color-table-row').should('be.visible');
+    cy.get('#node-color-table-row').scrollIntoView().should('be.visible');
     cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
     cy.get('#key-tables-node-table tr').should(($rows) => {
       expect($rows.length, 'node color table rows').to.be.greaterThan(2);
@@ -185,7 +185,7 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     selectPrimeOption('#link-tooltip-variable', 'Contact type');
 
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'Contact type');
-    cy.get('#link-color-table-row').should('be.visible');
+    cy.get('#link-color-table-row').scrollIntoView().should('be.visible');
     cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
     cy.get('#key-tables-link-table tr').should(($rows) => {
       expect($rows.length, 'link color table rows').to.be.greaterThan(2);

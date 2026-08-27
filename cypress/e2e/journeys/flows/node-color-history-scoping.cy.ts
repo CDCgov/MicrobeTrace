@@ -46,6 +46,7 @@ describe('Journey Flow - Node color history is scoped by field', () => {
     openGlobalStylingTab();
 
     selectPrimeOption('#node-color-variable', 'Seedgroups');
+    selectPrimeOption('#node-color-scale-mode', 'Categorical');
 
     cy.window().should((win: any) => {
       const style = win.commonService.session.style as NodeColorStyle;
@@ -59,6 +60,7 @@ describe('Journey Flow - Node color history is scoped by field', () => {
     });
 
     selectPrimeOption('#node-color-variable', 'Raremutations');
+    selectPrimeOption('#node-color-scale-mode', 'Categorical');
 
     cy.window().should((win: any) => {
       const style = win.commonService.session.style as NodeColorStyle;

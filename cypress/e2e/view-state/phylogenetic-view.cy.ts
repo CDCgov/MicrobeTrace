@@ -117,6 +117,8 @@ describe('Phylogenetic Tree View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('#node-color-scale-mode').click()
+      cy.get('li[role="option"]').contains('Categorical').click()
 
       cy.get(selectors.treeSvg)
         .find('g.tidytree-node-leaf circle[title="MZ740979"]')

@@ -1,4 +1,5 @@
 import { ColorMappingService } from './color-mapping.service';
+import { createDefaultVariableColorScaleConfig } from './variable-color-scale';
 
 describe('ColorMappingService node assignments', () => {
   let service: ColorMappingService;
@@ -18,7 +19,8 @@ describe('ColorMappingService node assignments', () => {
       { MLST: ['8'] },
       history,
       { '8': '#444444' },
-      false
+      false,
+      createDefaultVariableColorScaleConfig('categorical')
     );
 
     expect(result.colorMap('8')).toBe('#444444');
@@ -39,7 +41,8 @@ describe('ColorMappingService node assignments', () => {
       { MLST: ['8', '84'] },
       {},
       { '8': '#cccccc' },
-      false
+      false,
+      createDefaultVariableColorScaleConfig('categorical')
     );
 
     expect(result.colorMap('8')).toBe('#cccccc');
@@ -57,7 +60,8 @@ describe('ColorMappingService node assignments', () => {
       {},
       history,
       { '8': '#cc9999' },
-      false
+      false,
+      createDefaultVariableColorScaleConfig('categorical')
     );
     expect(history.MLST['8']).toBe('#cc9999');
 
@@ -70,7 +74,8 @@ describe('ColorMappingService node assignments', () => {
       {},
       history,
       {},
-      false
+      false,
+      createDefaultVariableColorScaleConfig('categorical')
     );
 
     expect(otherResult.colorMap('8')).toBe('#123456');

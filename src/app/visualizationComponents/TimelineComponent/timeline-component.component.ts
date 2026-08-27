@@ -14,6 +14,16 @@ import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { parseContinuousNumber, ResolvedVariableColorScale } from '@app/contactTraceCommonServices/variable-color-scale';
+
+interface ContinuousEpiColorBin {
+  key: string;
+  label: string;
+  low?: number;
+  high?: number;
+  color: string;
+  missing?: boolean;
+}
 
 @Component({
     selector: 'app-timeline-component',
@@ -58,6 +68,8 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   CalculatedResolution: string;
 
   private localColorMap: any = (x) => undefined;
+  private continuousColorBins: ContinuousEpiColorBin[] = [];
+  private continuousNodeScale: ResolvedVariableColorScale | null = null;
 
   private svg;
   private margin = { top: 5, left: 45, right: 20, bottom: 50 };
@@ -201,6 +213,10 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     if (this.widgets['epiCurve-stackGroupTransparencies'] == undefined) {
       this.widgets['epiCurve-stackGroupTransparencies'] = {};
     }
+    const continuousBinCount = Math.round(Number(this.widgets['epiCurve-continuousBinCount'] ?? 5));
+    this.widgets['epiCurve-continuousBinCount'] = Number.isFinite(continuousBinCount)
+      ? Math.min(12, Math.max(2, continuousBinCount))
+      : 5;
 
     // binSize
     if (this.widgets['epiCurve-binSize'] == undefined) {
@@ -276,12 +292,23 @@ public refresh(): void {
   let colorVariable = this.commonService.session.style.widgets['node-color-variable'];
   let nodeColorKeys;
   if (colorVariable != 'None' && this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
-    nodeColorKeys = this.commonService.session.style.nodeColorsTableKeys[colorVariable].map(value => value=='null' ? null: value);
-    this.localColorMap = this.commonService.temp.style.nodeColorMap;
+    this.continuousNodeScale = this.getActiveContinuousNodeScale();
+    if (this.continuousNodeScale) {
+      this.continuousColorBins = this.buildContinuousColorBins(this.continuousNodeScale);
+      nodeColorKeys = this.continuousColorBins.map(bin => bin.key);
+      const colors = new Map(this.continuousColorBins.map(bin => [bin.key, bin.color]));
+      this.localColorMap = (key) => colors.get(key) || this.continuousNodeScale?.missingColor;
+    } else {
+      this.continuousColorBins = [];
+      nodeColorKeys = (this.commonService.session.style.nodeColorsTableKeys[colorVariable] || []).map(value => value=='null' ? null: value);
+      this.localColorMap = this.commonService.temp.style.nodeColorMap;
+    }
   } else if (this.widgets['epiCurve-stackColorBy'] != 'None') {
+    this.continuousNodeScale = null;
+    this.continuousColorBins = [];
     nodeColorKeys = this.updateLocalColorMap();
   }
-  if (nodeColorKeys) {
+  if (nodeColorKeys && !this.continuousNodeScale) {
     nodeColorKeys = this.getOrderedStackKeys(nodeColorKeys, this.widgets['epiCurve-stackColorBy'] == 'Node Color' ? colorVariable : this.widgets['epiCurve-stackColorBy']);
   }
 
@@ -506,7 +533,8 @@ private getDefaultOrderedStackKeys(keys, colorVariable, smallestAtBottom = false
   this.vnodes.forEach((node) => {
     if (!this.hasValidStackDate(node)) return;
 
-    const key = keys.find((value) => value == node[colorVariable]);
+    const nodeStackValue = this.getNodeStackValue(node, colorVariable);
+    const key = keys.find((value) => value == nodeStackValue);
     if (key === undefined) return;
 
     counts.set(key, (counts.get(key) || 0) + 1);
@@ -652,6 +680,12 @@ private getCurrentStackKeys(colorVariable) {
   }
 
   if (this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+    const continuousScale = this.getActiveContinuousNodeScale();
+    if (continuousScale) {
+      this.continuousNodeScale = continuousScale;
+      this.continuousColorBins = this.buildContinuousColorBins(continuousScale);
+      return this.continuousColorBins.map(bin => bin.key);
+    }
     const nodeColorKeys = this.commonService.session.style.nodeColorsTableKeys[colorVariable] || [];
     return nodeColorKeys.map(value => value=='null' ? null: value);
   }
@@ -768,6 +802,10 @@ private getSegmentCount(bin, segmentIndex): number {
 }
 
 private getTooltipLabel(value): string {
+  const continuousBin = this.continuousColorBins.find(bin => bin.key === value);
+  if (continuousBin) {
+    return continuousBin.label;
+  }
   if (value == null) {
     return "(Empty)";
   }
@@ -911,7 +949,8 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
     }
     fieldNames.forEach((name, i) => {
       // this first section calculates the location for each item/name in the legend
-      let nLength = name==null ? 7: name.toString().length
+      const legendLabel = this.getTooltipLabel(name);
+      let nLength = legendLabel.length
       let baseX = 70 + legendItemGap * rowCount + prevLength * legendCharWidth;
       if (baseX + markerRadius * 2 + markerTextGap + nLength * legendCharWidth > this.width - 70) {
         rowCount = 0;
@@ -921,7 +960,7 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
       }
 
       epiCurve.append("circle").attr("cx", baseX).attr("cy", y).attr("r", markerRadius).style("fill", colors[i]).style("opacity", opacities[i] ?? 1)
-      epiCurve.append("text").attr("x", baseX + markerRadius + markerTextGap).attr("y", y).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
+      epiCurve.append("text").attr("x", baseX + markerRadius + markerTextGap).attr("y", y).text(legendLabel).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
 
       prevLength += nLength;
       rowCount += 1;
@@ -941,7 +980,7 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
   }
   fieldNames.forEach((name, i) => {
     epiCurve.append("circle").attr("cx", xOffset).attr("cy", legendRowHeight * (count + 1)).attr("r", markerRadius).style("fill", colors[i]).style("opacity", opacities[i] ?? 1)
-    epiCurve.append("text").attr("x", xOffset + markerRadius + markerTextGap).attr("y", legendRowHeight * (count + 1)).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
+    epiCurve.append("text").attr("x", xOffset + markerRadius + markerTextGap).attr("y", legendRowHeight * (count + 1)).text(this.getTooltipLabel(name)).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
     count += 1;
   })
 }
@@ -1052,7 +1091,7 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
       bin.segmentCounts = [];
       bin.cumulativeSegmentCounts = [];
       nodeColorKeys.forEach((value, ind) => {
-        let currentCount = bin.filter((obj)=> obj[colorVariable]==value).length
+        let currentCount = bin.filter((obj)=> this.getNodeStackValue(obj, colorVariable)==value).length
         bin.segmentCounts.push(currentCount);
         heights[ind] += currentCount;
         bin.cumulativeSegmentCounts.push(heights[ind]);
@@ -1071,7 +1110,7 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
       bin.height = [];
       bin.segmentCounts = [];
       nodeColorKeys.forEach(value => {
-        let currentCount = bin.filter((obj)=> obj[colorVariable]==value).length
+        let currentCount = bin.filter((obj)=> this.getNodeStackValue(obj, colorVariable)==value).length
         bin.segmentCounts.push(currentCount);
         bin.length2.push(currentCount);
         bin.height.push(bin.length2.reduce((paritalSum, a)=> paritalSum+a,0));
@@ -1183,10 +1222,95 @@ onUseNodeColorChange() {
   } else {
     $('#epi-color-select').slideUp();
   }
-  if (this.widgets['epiCurve-stackOrder'] == 'Custom') {
+  if (this.widgets['epiCurve-stackOrder'] == 'Custom' && !this.isContinuousNodeColorStack()) {
     this.initializeCustomStackOrder(true);
   }
   this.refresh();
+}
+
+onContinuousBinCountChange(): void {
+  const value = Math.round(Number(this.widgets['epiCurve-continuousBinCount']));
+  this.widgets['epiCurve-continuousBinCount'] = Number.isFinite(value)
+    ? Math.min(12, Math.max(2, value))
+    : 5;
+  this.refresh();
+}
+
+isContinuousNodeColorStack(): boolean {
+  return !!this.getActiveContinuousNodeScale();
+}
+
+private getActiveContinuousNodeScale(): ResolvedVariableColorScale | null {
+  if (this.widgets?.['epiCurve-stackColorBy'] !== 'Node Color') {
+    return null;
+  }
+  const field = this.commonService.session?.style?.widgets?.['node-color-variable'];
+  if (!field || field === 'None') {
+    return null;
+  }
+  const cached = this.commonService.temp?.style?.nodeColorScale as ResolvedVariableColorScale;
+  const resolved = cached?.field === field ? cached : this.commonService.resolveVariableColorScale('node', field);
+  return resolved?.mode === 'continuous' ? resolved : null;
+}
+
+private buildContinuousColorBins(scale: ResolvedVariableColorScale): ContinuousEpiColorBin[] {
+  const format = d3.format('.6~g');
+  const { min, max } = scale.domain;
+  const requestedCount = Math.min(12, Math.max(2, Math.round(Number(this.widgets['epiCurve-continuousBinCount'] ?? 5))));
+  const bins: ContinuousEpiColorBin[] = [];
+
+  if (min === max) {
+    bins.push({
+      key: '__mt_continuous_0',
+      label: format(min),
+      low: min,
+      high: max,
+      color: scale.colorMap(min),
+    });
+  } else {
+    const width = (max - min) / requestedCount;
+    for (let index = 0; index < requestedCount; index += 1) {
+      const low = min + width * index;
+      const high = index === requestedCount - 1 ? max : min + width * (index + 1);
+      bins.push({
+        key: `__mt_continuous_${index}`,
+        label: `[${format(low)}, ${format(high)}${index === requestedCount - 1 ? ']' : ')'}`,
+        low,
+        high,
+        color: scale.colorMap(low + (high - low) / 2),
+      });
+    }
+  }
+
+  if (scale.summary.missingCount + scale.summary.invalidCount > 0) {
+    bins.push({
+      key: '__mt_continuous_missing',
+      label: 'Missing / invalid',
+      color: scale.missingColor,
+      missing: true,
+    });
+  }
+  return bins;
+}
+
+private getNodeStackValue(node, colorVariable) {
+  if (!this.continuousNodeScale || this.widgets['epiCurve-stackColorBy'] !== 'Node Color') {
+    return node?.[colorVariable];
+  }
+  const parsed = parseContinuousNumber(node?.[colorVariable]);
+  if (parsed.kind !== 'number') {
+    return '__mt_continuous_missing';
+  }
+  const numericBins = this.continuousColorBins.filter(bin => !bin.missing);
+  if (numericBins.length <= 1 || this.continuousNodeScale.domain[0] === this.continuousNodeScale.domain[1]) {
+    return numericBins[0]?.key;
+  }
+  const { min, max } = this.continuousNodeScale.domain;
+  const clamped = Math.min(max, Math.max(min, parsed.value));
+  const index = clamped === max
+    ? numericBins.length - 1
+    : Math.floor(((clamped - min) / (max - min)) * numericBins.length);
+  return numericBins[Math.min(numericBins.length - 1, Math.max(0, index))]?.key;
 }
 
 onStackOrderChange() {

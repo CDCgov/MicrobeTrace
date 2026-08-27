@@ -129,6 +129,18 @@
             </div>
           </div>
           @if (widgets['epiCurve-stackColorBy'] != 'None') {
+            @if (isContinuousNodeColorStack()) {
+              <div class="form-group row" title="Choose the number of equal-width groups used for the continuous node color ramp.">
+                <div class="col-4">
+                  <label for="epi-continuous-bin-count">Color Bins</label>
+                </div>
+                <div class="col-8">
+                  <input id="epi-continuous-bin-count" type="number" class="form-control" min="2" max="12" step="1"
+                    [(ngModel)]="widgets['epiCurve-continuousBinCount']" (change)="onContinuousBinCountChange()">
+                </div>
+              </div>
+              <div class="small text-muted mb-2">Bins use the global color scale domain and remain fixed as the timeline changes.</div>
+            } @else {
             <div class="form-group row" title="Select the order for stacked color groups.">
               <div class="col-4">
                 <label>Stack Order</label>
@@ -152,6 +164,7 @@
                 </p-orderList>
               </div>
             </div>
+            }
           }
         }
       </tab>

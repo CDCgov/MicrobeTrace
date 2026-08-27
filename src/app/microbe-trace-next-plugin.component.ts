@@ -54,6 +54,14 @@ import {
     GlobalSettingsDialogRequest,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
+import {
+    ColorScaleMode,
+    createDefaultVariableColorScaleConfig,
+    createVariableColorScaleState,
+    ResolvedVariableColorScale,
+    VariableColorScaleConfig,
+    VariableColorTarget
+} from './contactTraceCommonServices/variable-color-scale';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -343,7 +351,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
     SelectedColorLinksByVariable: string = 'origin';
-
     SelectedTimelineVariable: string = 'None';
     timelineSpeedOptions: number[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
     timelineSpeed: number = 200;
@@ -1074,34 +1081,36 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Performs the export of the visualization, including tables.
      */
-    private getGlobalTableElement(table: 'node-color' | 'link-color' | 'node-shape'): HTMLTableElement | undefined {
+    private getGlobalTableElement(table: 'node-color' | 'link-color' | 'node-shape'): HTMLElement | undefined {
+        const continuousTarget = table === 'node-color' ? 'node' : table === 'link-color' ? 'link' : null;
+        const useContinuousLegend = continuousTarget ? this.isContinuousColorScale(continuousTarget) : false;
         if (this.isKeyTableDocked(table)) {
             const dockedTableSelector = table === 'node-color'
-                ? '#key-tables-node-table'
+                ? useContinuousLegend ? '#key-tables-node-legend' : '#key-tables-node-table'
                 : table === 'link-color'
-                    ? '#key-tables-link-table'
+                    ? useContinuousLegend ? '#key-tables-link-legend' : '#key-tables-link-table'
                     : '#key-tables-node-shape-table';
-            const dockedTable = $(dockedTableSelector)[0] as HTMLTableElement | undefined;
+            const dockedTable = $(dockedTableSelector)[0] as HTMLElement | undefined;
             if (dockedTable) {
                 return dockedTable;
             }
         }
 
         const floatingTable = table === 'node-color'
-            ? document.querySelector('#node-color-table')
+            ? document.querySelector(useContinuousLegend ? '#node-color-legend' : '#node-color-table')
             : table === 'link-color'
-                ? document.querySelector('#link-color-table')
+                ? document.querySelector(useContinuousLegend ? '#link-color-legend' : '#link-color-table')
                 : document.querySelector('#node-shape-table');
 
-        return floatingTable as HTMLTableElement | undefined;
+        return floatingTable as HTMLElement | undefined;
     }
 
     private getGlobalTablesForExport(
         exportNodeTable: boolean = false,
         exportLinkTable: boolean = false,
         exportNodeShapeTable: boolean = false
-    ): HTMLTableElement[] {
-        const tablesToExport: HTMLTableElement[] = [];
+    ): HTMLElement[] {
+        const tablesToExport: HTMLElement[] = [];
 
         if (exportNodeTable
             && this.commonService.session.style.widgets['node-color-variable'] !== 'None'
@@ -1191,7 +1200,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 }
             }
             // if pos == 0, exporting just tables and not a view
-            let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
+            let pos = elementsForExport[0] === this.visualWrapperRef.nativeElement ? 1 : 0;
             const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
             elementsForExport.splice(pos, 0, ...globalTablesForExport);
             if (elementsForExport.length === 0) {
@@ -1305,7 +1314,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     private async performExportSVG(
-        elementsForExport: HTMLTableElement[],
+        elementsForExport: HTMLElement[],
         mainSVGString: string,
         exportNodeTable: boolean = false,
         exportLinkTable: boolean = false,
@@ -1339,7 +1348,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         let currentColWidth = 0;
 
         elementsForExport.forEach((element, index) => {
-            let output = this.exportService.exportTableAsSVG(element, true);
+            const output = element instanceof HTMLTableElement
+                ? this.exportService.exportTableAsSVG(element, true)
+                : this.exportService.exportColorLegendAsSVG(element);
             
             // exact logic from exporting a png
             if (index == 0) {
@@ -2863,6 +2874,9 @@ ${warnings.join('\n')}`,
         this.commonService.session.style.nodeColorAssignments = {};
         this.commonService.session.style.linkColorsTable = {};
         this.commonService.session.style.linkColorsTableKeys = {};
+        this.commonService.session.style.variableColorScales = createVariableColorScaleState();
+        this.commonService.temp.style.nodeColorScale = null;
+        this.commonService.temp.style.linkColorScale = null;
         this.commonService.session.style.nodeSymbolsTable = {};
         this.commonService.session.style.nodeSymbolsTableKeys = {};
         this.nodeColorAssignmentStatus = null;
@@ -2946,7 +2960,10 @@ ${warnings.join('\n')}`,
         if (this.SelectedColorLinksByVariable === 'None') {
           this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"] || this.SelectedLinkColorVariable;
           this.commonService.GlobalSettingsModel.SelectedLinkColorVariable = this.SelectedLinkColorVariable;
+          this.commonService.temp.style.linkColorScale = null;
           this.cdref.detectChanges();
+        } else {
+          this.commonService.createLinkColorMap();
         }
     
         this.onLinkColorTableChanged(silent);
@@ -2961,6 +2978,95 @@ ${warnings.join('\n')}`,
         }
     
       }
+
+    getSelectedColorField(target: VariableColorTarget): string {
+        return target === 'node'
+            ? this.SelectedColorNodesByVariable
+            : this.SelectedColorLinksByVariable;
+    }
+
+    getVariableColorConfig(target: VariableColorTarget): VariableColorScaleConfig {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return createDefaultVariableColorScaleConfig('categorical');
+        }
+        return this.commonService.getVariableColorScaleConfig(target, field);
+    }
+
+    getResolvedVariableColorScale(target: VariableColorTarget): ResolvedVariableColorScale | null {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return null;
+        }
+        const cachedScale = target === 'node'
+            ? this.commonService.temp.style.nodeColorScale
+            : this.commonService.temp.style.linkColorScale;
+        if (cachedScale?.field === field) {
+            return cachedScale;
+        }
+        return this.commonService.resolveVariableColorScale(target, field);
+    }
+
+    getColorScaleModeOptions(target: VariableColorTarget): Array<{ label: string; value: ColorScaleMode; disabled?: boolean }> {
+        const resolved = this.getResolvedVariableColorScale(target);
+        return [
+            { label: `Auto (${resolved?.summary.autoUsesContinuous ? 'Continuous' : 'Categorical'})`, value: 'auto' },
+            { label: 'Categorical', value: 'categorical' },
+            { label: 'Continuous', value: 'continuous', disabled: !resolved?.summary.canUseContinuous }
+        ];
+    }
+
+    isContinuousColorScale(target: VariableColorTarget): boolean {
+        return this.getResolvedVariableColorScale(target)?.mode === 'continuous';
+    }
+
+    getColorKeyTitle(target: VariableColorTarget): string {
+        const prefix = target === 'node' ? 'Node Color' : 'Link Color';
+        return `${prefix} ${this.isContinuousColorScale(target) ? 'Legend' : 'Table'}`;
+    }
+
+    onVariableColorModeChanged(target: VariableColorTarget, mode: ColorScaleMode): void {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return;
+        }
+        this.commonService.setVariableColorScaleMode(target, field, mode);
+        this.refreshVariableColorTarget(target);
+    }
+
+    onVariableColorConfigChanged(target: VariableColorTarget, config: VariableColorScaleConfig): void {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return;
+        }
+        this.commonService.setVariableColorScaleConfig(target, field, config);
+        this.refreshVariableColorTarget(target);
+    }
+
+    private refreshVariableColorTarget(target: VariableColorTarget): void {
+        if (target === 'node') {
+            this.commonService.createNodeColorMap();
+            if (this.isContinuousColorScale('node')) {
+                this.nodeColorRows = [];
+                this.nodeColorDomain = [];
+            } else if (this.SelectedColorNodesByVariable !== 'None') {
+                this.generateNodeColorTable('');
+            }
+            this.publishUpdateNodeColors();
+        } else {
+            this.commonService.createLinkColorMap();
+            if (this.isContinuousColorScale('link')) {
+                this.linkColorRows = [];
+                this.linkColorDomain = [];
+            } else if (this.SelectedColorLinksByVariable !== 'None') {
+                this.generateNodeLinkTable('');
+            }
+            this.publishUpdateLinkColor();
+        }
+
+        this.refreshKeyTablesView();
+        this.cdref.markForCheck();
+    }
 
 
     private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
@@ -3005,6 +3111,12 @@ ${warnings.join('\n')}`,
         }
 
         const aggregates = this.commonService.createLinkColorMap();
+        if (this.commonService.temp.style.linkColorScale?.mode === 'continuous') {
+            this.linkColorRows = [];
+            this.linkColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
         const vlinks = this.commonService.getVisibleLinks();
         const aggregateValues = Object.keys(aggregates);
         this.linkColorDomain = aggregateValues;
@@ -3737,6 +3849,7 @@ ${warnings.join('\n')}`,
 
             this.nodeColorRows = [];
             this.nodeColorDomain = [];
+            this.commonService.temp.style.nodeColorScale = null;
             this.applyKeyTableDisplayMode('node-color', silent);
             this.refreshKeyTablesView();
 
@@ -3758,6 +3871,12 @@ ${warnings.join('\n')}`,
         this.getNodeValueNameMap();
 
         const aggregates = this.commonService.createNodeColorMap();
+        if (this.commonService.temp.style.nodeColorScale?.mode === 'continuous') {
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
         const vnodes = this.commonService.getVisibleNodes();
         const aggregateValues = Object.keys(aggregates);
         this.nodeColorDomain = aggregateValues;
@@ -4781,7 +4900,7 @@ ${warnings.join('\n')}`,
         };
         this.exportService.setExportOptions(exportOptions);
 
-        let elementsToExport: HTMLTableElement[] = [];
+        let elementsToExport: HTMLElement[] = [];
 
         if (this.exportTables['polygon-color']) {
             const polygonTable = this.getPolygonColorTableElementForExport();

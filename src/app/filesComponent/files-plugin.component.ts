@@ -15,7 +15,7 @@ import { cloneDeep } from 'lodash';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { EmbedHandoffService } from '@app/embed/embed-handoff.service';
-import { EmbedLaunchOptionsV1, ImportedEmbedFile } from '@app/embed/embed-handoff.types';
+import { EmbedLaunchOptionsV1, EmbedVariableColorScaleV1, ImportedEmbedFile } from '@app/embed/embed-handoff.types';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 
@@ -971,6 +971,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       if (globalSettings.linkColorBy) {
         widgets['link-color-variable'] = globalSettings.linkColorBy;
       }
+      if (globalSettings.nodeColorScale && globalSettings.nodeColorBy) {
+        this.applyEmbedVariableColorScale('node', globalSettings.nodeColorBy, globalSettings.nodeColorScale);
+      }
+      if (globalSettings.linkColorScale && globalSettings.linkColorBy) {
+        this.applyEmbedVariableColorScale('link', globalSettings.linkColorBy, globalSettings.linkColorScale);
+      }
       if (globalSettings.nodeShapeBy) {
         widgets['node-symbol-variable'] = globalSettings.nodeShapeBy;
       }
@@ -1021,6 +1027,22 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       microbeTrace.syncThresholdDisplayFromStoredValue?.();
       microbeTrace.cdref?.markForCheck?.();
     }
+  }
+
+  private applyEmbedVariableColorScale(
+    target: 'node' | 'link',
+    field: string,
+    scale: EmbedVariableColorScaleV1
+  ): void {
+    const current = this.commonService.getVariableColorScaleConfig(target, field);
+    this.commonService.setVariableColorScaleConfig(target, field, {
+      mode: scale.mode,
+      domain: scale.domain
+        ? { kind: 'custom', min: scale.domain.min, max: scale.domain.max }
+        : { kind: 'auto' },
+      stops: scale.stops?.map(stop => ({ ...stop })),
+      missingColor: scale.missingColor ?? current.missingColor,
+    });
   }
 
   private applyPendingEmbedLaunchOptions(finalize = false): void {

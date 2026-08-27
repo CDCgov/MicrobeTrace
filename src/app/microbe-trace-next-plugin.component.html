@@ -123,9 +123,11 @@
         >
         <ng-template pTemplate="header">
           <div style="display: flex; justify-content: space-between; width: 100%;">
-            <span>Link Color Table</span>
+            <span>{{ getColorKeyTitle('link') }}</span>
             <span style="overflow: visible; position: relative;">
-              <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('link-color')"><i class="pi pi-cog"></i></button>
+              @if (!isContinuousColorScale('link')) {
+                <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('link-color')"><i class="pi pi-cog"></i></button>
+              }
               <button [title]="getKeyTableDockButtonTitle('link-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('link-color')"><i [className]="isKeyTableDocked('link-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="linkColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="linkColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('link-color', 'tableCounts')">
@@ -141,7 +143,16 @@
           </div>
         </ng-template>
         <div style="max-height: 50vh">
-          <style-key-table
+          @if (isContinuousColorScale('link')) {
+            <div id="link-color-legend">
+              <continuous-color-ramp
+                controlId="link-color-legend-ramp"
+                [resolved]="getResolvedVariableColorScale('link')"
+                [config]="getVariableColorConfig('link')">
+              </continuous-color-ramp>
+            </div>
+          } @else {
+            <style-key-table
             tableId="link-color-table"
             tableKey="link-color"
             controlType="color"
@@ -158,7 +169,8 @@
             (sortChange)="onStyleKeyTableSort('link-color', $event)"
             (colorChange)="onLinkColorTableColorChange($event)"
             (alphaRequest)="onLinkColorAlphaRequested($event)">
-          </style-key-table>
+            </style-key-table>
+          }
         </div>
       </p-dialog>
 
@@ -172,9 +184,11 @@
         >
         <ng-template pTemplate="header">
           <div style="display: flex; justify-content: space-between; width: 100%;">
-            <span>Node Color Table</span>
+            <span>{{ getColorKeyTitle('node') }}</span>
             <span style="overflow: visible; position: relative;">
-              <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-color')"><i class="pi pi-cog"></i></button>
+              @if (!isContinuousColorScale('node')) {
+                <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-color')"><i class="pi pi-cog"></i></button>
+              }
               <button [title]="getKeyTableDockButtonTitle('node-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('node-color')"><i [className]="isKeyTableDocked('node-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="nodeColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="nodeColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('node-color', 'tableCounts')">
@@ -190,7 +204,16 @@
           </div>
         </ng-template>
         <div style="max-height: 50vh">
-          <style-key-table
+          @if (isContinuousColorScale('node')) {
+            <div id="node-color-legend">
+              <continuous-color-ramp
+                controlId="node-color-legend-ramp"
+                [resolved]="getResolvedVariableColorScale('node')"
+                [config]="getVariableColorConfig('node')">
+              </continuous-color-ramp>
+            </div>
+          } @else {
+            <style-key-table
             tableId="node-color-table"
             tableKey="node-color"
             controlType="color"
@@ -207,7 +230,8 @@
             (sortChange)="onStyleKeyTableSort('node-color', $event)"
             (colorChange)="onNodeColorTableColorChange($event)"
             (alphaRequest)="onNodeColorAlphaRequested($event)">
-          </style-key-table>
+            </style-key-table>
+          }
         </div>
       </p-dialog>
 
@@ -598,6 +622,33 @@
                     </div>
                   </div>
 
+                  @if (SelectedColorNodesByVariable !== 'None') {
+                    <div class="form-group row" title="Choose automatic, categorical, or continuous numeric coloring.">
+                      <div class="col-5"><label for="node-color-scale-mode">Node Color Scale</label></div>
+                      <div class="col-7">
+                        <p-select
+                          id="node-color-scale-mode"
+                          data-testid="node-color-scale-mode"
+                          class="width-percent-100"
+                          appendTo="body"
+                          [options]="getColorScaleModeOptions('node')"
+                          [ngModel]="getVariableColorConfig('node').mode"
+                          (ngModelChange)="onVariableColorModeChanged('node', $event)">
+                        </p-select>
+                      </div>
+                    </div>
+                    @if (isContinuousColorScale('node')) {
+                      <continuous-color-ramp
+                        controlId="node-continuous-color-editor"
+                        [editable]="true"
+                        [resolved]="getResolvedVariableColorScale('node')"
+                        [config]="getVariableColorConfig('node')"
+                        (configChange)="onVariableColorConfigChanged('node', $event)">
+                      </continuous-color-ramp>
+                    }
+                  }
+
+                  @if (!isContinuousColorScale('node')) {
                   <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors and select the node variable declared by the file.">
                     <div class="col-5">Apply Color Assignment File
                       <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Color-Assignment-File" target="_blank"><i class="pi pi-info-circle"></i></a>
@@ -622,6 +673,7 @@
                       {{ nodeColorAssignmentStatus.message }}
                     </div>
                   }
+                  }
 
                   @if (SelectedColorNodesByVariable === 'None') {
                     <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
@@ -632,7 +684,7 @@
                     </div>
                   } @else {
                     <div id="node-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                      <div class="col-5"><label>Node Color Table</label></div>
+                      <div class="col-5"><label>{{ getColorKeyTitle('node') }}</label></div>
                       <div class="col-7">
                         <p-selectButton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-selectButton>
                       </div>
@@ -694,8 +746,33 @@
                     </div>
                   </div>
                   @if (SelectedColorLinksByVariable !== 'None') {
+                    <div class="form-group row" title="Choose automatic, categorical, or continuous numeric coloring.">
+                      <div class="col-5"><label for="link-color-scale-mode">Link Color Scale</label></div>
+                      <div class="col-7">
+                        <p-select
+                          id="link-color-scale-mode"
+                          data-testid="link-color-scale-mode"
+                          class="width-percent-100"
+                          appendTo="body"
+                          [options]="getColorScaleModeOptions('link')"
+                          [ngModel]="getVariableColorConfig('link').mode"
+                          (ngModelChange)="onVariableColorModeChanged('link', $event)">
+                        </p-select>
+                      </div>
+                    </div>
+                    @if (isContinuousColorScale('link')) {
+                      <continuous-color-ramp
+                        controlId="link-continuous-color-editor"
+                        [editable]="true"
+                        [resolved]="getResolvedVariableColorScale('link')"
+                        [config]="getVariableColorConfig('link')"
+                        (configChange)="onVariableColorConfigChanged('link', $event)">
+                      </continuous-color-ramp>
+                    }
+                  }
+                  @if (SelectedColorLinksByVariable !== 'None') {
                     <div id="link-color-table-row"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                      <div class="col-5"><label>Link Color Table</label></div>
+                      <div class="col-5"><label>{{ getColorKeyTitle('link') }}</label></div>
                       <div class="col-7">
                         <p-selectButton [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-selectButton>
                       </div>
@@ -881,11 +958,11 @@
           <div class="flex align-items-center row">
             <div class="col-5">
               <input type="checkbox" id="checkbox1" [(ngModel)]="exportTables['node-color']" [disabled]="SelectedColorNodesByVariable=='None'" style="margin-left: 10px;"/>
-              <label for="checkbox1" [class.disabled]="SelectedColorNodesByVariable=='None'">Node Color Table</label>
+              <label for="checkbox1" [class.disabled]="SelectedColorNodesByVariable=='None'">{{ getColorKeyTitle('node') }}</label>
             </div>
             <div class="col-5">
               <input type="checkbox" id="checkbox2" [(ngModel)]="exportTables['link-color']" [disabled]="SelectedColorLinksByVariable=='None'" style="margin-left: 10px;"/>
-              <label for="checkbox2" [class.disabled]="SelectedColorLinksByVariable=='None'">Link Color Table</label>
+              <label for="checkbox2" [class.disabled]="SelectedColorLinksByVariable=='None'">{{ getColorKeyTitle('link') }}</label>
             </div>
             <div class="col-5">
               <input type="checkbox" id="checkbox3" [(ngModel)]="exportTables['node-symbol']" [disabled]="commonService.session.style.widgets['node-symbol-variable']=='None'" style="margin-left: 10px;"/>
