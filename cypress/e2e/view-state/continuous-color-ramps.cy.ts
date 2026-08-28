@@ -53,6 +53,15 @@ describe('Continuous numeric color ramps', () => {
     cy.get('#key-tables-node-legend').should('contain.text', 'Missing / invalid');
     cy.get('#key-tables-node-table').should('not.exist');
 
+    cy.get('[data-testid="key-tables-node-color-ramp-edit"]')
+      .should('have.attr', 'aria-label', 'Edit node color ramp')
+      .click();
+    cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings').should('be.visible');
+    cy.get('#node-continuous-color-editor').scrollIntoView().should('be.visible');
+    cy.focused().should('have.id', 'node-continuous-color-editor-domain-kind');
+    cy.get('#key-tables-node-legend').should('be.visible');
+    cy.closeGlobalSettings();
+
     cy.window().then((win: any) => {
       const app = win.commonService.visuals.microbeTrace;
       const common = win.commonService;
@@ -110,6 +119,23 @@ describe('Continuous numeric color ramps', () => {
       .and('contain', '0 #000000')
       .and('contain', '4 #ff0000')
       .and('contain', '20 #ffffff');
+
+    cy.openGlobalSettings();
+    cy.get('#link-color-table-row', { timeout: 15000 })
+      .scrollIntoView()
+      .should('be.visible')
+      .contains('.p-togglebutton-label', 'Show')
+      .click({ force: true });
+    cy.closeGlobalSettings();
+
+    cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('[data-testid="floating-link-color-ramp-edit"]')
+      .should('have.attr', 'aria-label', 'Edit link color ramp')
+      .click();
+    cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings').should('be.visible');
+    cy.get('#link-continuous-color-editor').scrollIntoView().should('be.visible');
+    cy.focused().should('have.id', 'link-continuous-color-editor-domain-kind');
+    cy.get('#global-settings-link-color-table').should('be.visible');
   });
 
   it('uses fixed equal-width continuous Node Color bins in the Epi Curve', () => {

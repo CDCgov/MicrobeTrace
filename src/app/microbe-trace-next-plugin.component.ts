@@ -50,8 +50,10 @@ import {
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
 import {
+    createGlobalSettingsDialogRequest,
     DialogRectSnapshot,
     GlobalSettingsDialogRequest,
+    GlobalSettingsStylingTarget,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
 import {
@@ -5418,6 +5420,19 @@ ${warnings.join('\n')}`,
         if (dialogRequest.sourceDialogRect) {
             this.scheduleGlobalSettingsDialogPlacement(dialogRequest.sourceDialogRect);
         }
+
+        if (dialogRequest.stylingTarget) {
+            this.scheduleGlobalSettingsStylingTargetFocus(dialogRequest.stylingTarget);
+        }
+    }
+
+    openContinuousColorEditor(target: VariableColorTarget, event?: MouseEvent): void {
+        event?.stopPropagation();
+        this.DisplayGlobalSettingsDialog(createGlobalSettingsDialogRequest(
+            'Styling',
+            event,
+            target === 'node' ? 'node-color-ramp' : 'link-color-ramp'
+        ));
     }
 
     private normalizeGlobalSettingsDialogRequest(request: GlobalSettingsDialogRequest): NormalizedGlobalSettingsDialogRequest {
@@ -5427,8 +5442,32 @@ ${warnings.join('\n')}`,
 
         return {
             activeTab: request?.activeTab ?? 'Styling',
-            sourceDialogRect: request?.sourceDialogRect
+            sourceDialogRect: request?.sourceDialogRect,
+            stylingTarget: request?.stylingTarget
         };
+    }
+
+    private scheduleGlobalSettingsStylingTargetFocus(target: GlobalSettingsStylingTarget): void {
+        const editorId = target === 'node-color-ramp'
+            ? 'node-continuous-color-editor'
+            : 'link-continuous-color-editor';
+        const runNextFrame = window.requestAnimationFrame?.bind(window)
+            ?? ((callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0));
+
+        setTimeout(() => {
+            runNextFrame(() => {
+                runNextFrame(() => {
+                    const editor = document.getElementById(editorId);
+                    if (!editor) {
+                        return;
+                    }
+
+                    editor.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    editor.querySelector<HTMLElement>('select:not([disabled]), input:not([disabled]), button:not([disabled])')
+                        ?.focus({ preventScroll: true });
+                });
+            });
+        }, 0);
     }
 
     private getGlobalSettingsDialogBaseStyle(): Record<string, string> {

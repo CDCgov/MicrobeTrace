@@ -46,6 +46,17 @@
             </div>
           </div>
           }
+          @if (nodeColorContinuous) {
+          <button
+            type="button"
+            title="Edit node color ramp"
+            aria-label="Edit node color ramp"
+            data-testid="key-tables-node-color-ramp-edit"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
+            (click)="openContinuousColorEditor('node', $event)">
+            <i class="pi pi-palette" aria-hidden="true"></i>
+          </button>
+          }
           <button
             type="button"
             [title]="getTableDockButtonTitle('node-color')"
@@ -144,6 +155,17 @@
               </button>
             </div>
           </div>
+          }
+          @if (linkColorContinuous) {
+          <button
+            type="button"
+            title="Edit link color ramp"
+            aria-label="Edit link color ramp"
+            data-testid="key-tables-link-color-ramp-edit"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
+            (click)="openContinuousColorEditor('link', $event)">
+            <i class="pi pi-palette" aria-hidden="true"></i>
+          </button>
           }
           <button
             type="button"

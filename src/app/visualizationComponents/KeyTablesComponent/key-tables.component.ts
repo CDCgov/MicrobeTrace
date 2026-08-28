@@ -3,6 +3,10 @@ import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
+import {
+    createGlobalSettingsDialogRequest,
+    GlobalSettingsDialogRequest
+} from '@app/helperClasses/globalSettingsDialogRequest';
 import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controller';
 import {
     StyleKeyTableAlphaRequest,
@@ -24,7 +28,7 @@ import {
 export class KeyTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
     static readonly componentTypeName = DOCKED_KEY_TABLES_VIEW_NAME;
 
-    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<string>();
+    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
     viewActive = true;
     hasNodeColorTable = false;
@@ -74,6 +78,15 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     openStylingSettings(): void {
         this.DisplayGlobalSettingsDialogEvent.emit('Styling');
+    }
+
+    openContinuousColorEditor(target: 'node' | 'link', event?: MouseEvent): void {
+        event?.stopPropagation();
+        this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest(
+            'Styling',
+            event,
+            target === 'node' ? 'node-color-ramp' : 'link-color-ramp'
+        ));
     }
 
     get widgets() {

@@ -128,6 +128,18 @@
               @if (!isContinuousColorScale('link')) {
                 <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('link-color')"><i class="pi pi-cog"></i></button>
               }
+              @if (isContinuousColorScale('link')) {
+                <button
+                  type="button"
+                  title="Edit link color ramp"
+                  aria-label="Edit link color ramp"
+                  data-testid="floating-link-color-ramp-edit"
+                  class="btn btn-sm btn-clean btn-icon btn-icon-md"
+                  style="float:left"
+                  (click)="openContinuousColorEditor('link', $event)">
+                  <i class="pi pi-palette" aria-hidden="true"></i>
+                </button>
+              }
               <button [title]="getKeyTableDockButtonTitle('link-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('link-color')"><i [className]="isKeyTableDocked('link-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="linkColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="linkColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('link-color', 'tableCounts')">
@@ -188,6 +200,18 @@
             <span style="overflow: visible; position: relative;">
               @if (!isContinuousColorScale('node')) {
                 <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-color')"><i class="pi pi-cog"></i></button>
+              }
+              @if (isContinuousColorScale('node')) {
+                <button
+                  type="button"
+                  title="Edit node color ramp"
+                  aria-label="Edit node color ramp"
+                  data-testid="floating-node-color-ramp-edit"
+                  class="btn btn-sm btn-clean btn-icon btn-icon-md"
+                  style="float:left"
+                  (click)="openContinuousColorEditor('node', $event)">
+                  <i class="pi pi-palette" aria-hidden="true"></i>
+                </button>
               }
               <button [title]="getKeyTableDockButtonTitle('node-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('node-color')"><i [className]="isKeyTableDocked('node-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="nodeColorTableSettings" class="dropdown-menu" style="display: none;">
@@ -639,6 +663,8 @@
                     </div>
                     @if (isContinuousColorScale('node')) {
                       <continuous-color-ramp
+                        id="node-continuous-color-editor"
+                        data-testid="node-continuous-color-editor"
                         controlId="node-continuous-color-editor"
                         [editable]="true"
                         [resolved]="getResolvedVariableColorScale('node')"
@@ -762,6 +788,8 @@
                     </div>
                     @if (isContinuousColorScale('link')) {
                       <continuous-color-ramp
+                        id="link-continuous-color-editor"
+                        data-testid="link-continuous-color-editor"
                         controlId="link-continuous-color-editor"
                         [editable]="true"
                         [resolved]="getResolvedVariableColorScale('link')"
