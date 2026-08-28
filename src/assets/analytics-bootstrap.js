@@ -1,7 +1,9 @@
 (() => {
   const hash = window.location.hash.replace(/^#/, '');
   const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : hash;
-  const analyticsDisabled = new URLSearchParams(window.location.search).has('handoff')
+  const analyticsDisabledForLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+  const analyticsDisabled = analyticsDisabledForLocalHost
+    || new URLSearchParams(window.location.search).has('handoff')
     || new URLSearchParams(hashQuery).has('handoff');
 
   window.microbeTraceAnalyticsDisabled = analyticsDisabled;
