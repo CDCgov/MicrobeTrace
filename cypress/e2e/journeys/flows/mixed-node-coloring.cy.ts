@@ -113,7 +113,8 @@ describe('Journey Flow - mixed node coloring', () => {
         .within(() => {
           cy.get('.tableCount').should('have.text', '1');
           cy.get('[data-mixed-color-swatch="true"] [data-color-segment]').should('have.length', 2);
-          cy.get('input[type="color"]').should('not.exist');
+          cy.get('[data-mixed-color-swatch="true"] input[type="color"]')
+            .should('have.length', 2);
         });
     });
 
@@ -163,12 +164,17 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(singleNode.data('mixedColorImage')).to.equal(undefined);
     });
 
-    cy.get('#key-tables-node-table td[data-value="2a"]', { timeout: 15000 })
+    cy.get('#key-tables-node-table td[data-value="2a/3a"]', { timeout: 15000 })
       .parents('tr')
-      .find('input[type="color"]')
+      .find('[data-mixed-color-swatch="true"] input[data-color-segment="0"]')
       .invoke('val', '#00aa00')
       .trigger('input')
       .trigger('change');
+
+    cy.get('#key-tables-node-table td[data-value="2a"]')
+      .parents('tr')
+      .find('input[type="color"]')
+      .should('have.value', '#00aa00');
 
     assertMixedStyleSegments('#00aa00');
 

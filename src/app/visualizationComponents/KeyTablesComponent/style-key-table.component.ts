@@ -144,18 +144,30 @@ export interface StyleKeyTableShapePanelRequest {
                             @if (getColorSegments(row).length) {
                                 <div
                                     class="style-key-table__color-swatch style-key-table__duo-swatch"
-                                    role="img"
+                                    [attr.role]="editable && row.colorSegments?.length ? 'group' : 'img'"
                                     [attr.aria-label]="(row.colorSegments?.length ? 'Mixed colors for ' : 'Link colors for ') + row.displayName"
                                     [attr.data-mixed-color-swatch]="row.colorSegments?.length ? 'true' : null">
                                     <div class="style-key-table__color-swatch-inner style-key-table__duo-inner">
                                         @for (segment of getColorSegments(row); track $index) {
-                                            <span
-                                                class="style-key-table__color-segment duo-link-color-segment"
-                                                [attr.data-color-segment]="$index"
-                                                [attr.data-duo-index]="$index"
-                                                [style.background]="segment.color"
-                                                [style.opacity]="segment.opacity">
-                                            </span>
+                                            @if (editable && row.colorSegments?.length) {
+                                                <input
+                                                    type="color"
+                                                    class="style-key-table__color-segment style-key-table__color-segment-input"
+                                                    [attr.data-color-segment]="$index"
+                                                    [attr.aria-label]="'Change ' + getSegmentDisplayName(segment, $index) + ' color in ' + row.displayName"
+                                                    [attr.title]="'Change ' + getSegmentDisplayName(segment, $index) + ' color'"
+                                                    [value]="segment.color"
+                                                    [style.opacity]="segment.opacity"
+                                                    (change)="onSegmentColorInputChange(row, segment, $event)">
+                                            } @else {
+                                                <span
+                                                    class="style-key-table__color-segment duo-link-color-segment"
+                                                    [attr.data-color-segment]="$index"
+                                                    [attr.data-duo-index]="$index"
+                                                    [style.background]="segment.color"
+                                                    [style.opacity]="segment.opacity">
+                                                </span>
+                                            }
                                         }
                                     </div>
                                 </div>
@@ -303,6 +315,29 @@ export interface StyleKeyTableShapePanelRequest {
             flex: 1 1 0;
             height: 100%;
             min-width: 0;
+        }
+
+        .style-key-table__color-segment-input {
+            appearance: none;
+            border: 0;
+            cursor: pointer;
+            padding: 0;
+            width: 0;
+        }
+
+        .style-key-table__color-segment-input::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        .style-key-table__color-segment-input::-webkit-color-swatch,
+        .style-key-table__color-segment-input::-moz-color-swatch {
+            border: 0;
+        }
+
+        .style-key-table__color-segment-input:focus-visible {
+            outline: 2px solid #1474d4;
+            outline-offset: 1px;
+            z-index: 1;
         }
 
         .style-key-table__segment-alpha-editor {
@@ -470,6 +505,21 @@ export class StyleKeyTableComponent {
             row,
             value: row.rawValue,
             color: input?.value ?? row.color ?? '#000000'
+        });
+    }
+
+    onSegmentColorInputChange(
+        row: StyleKeyTableRow,
+        segment: StyleKeyTableDuoSegment,
+        event: Event
+    ): void {
+        const input = event.target as HTMLInputElement | null;
+        const color = input?.value ?? segment.color;
+        segment.color = color;
+        this.colorChange.emit({
+            row,
+            value: segment.value,
+            color
         });
     }
 

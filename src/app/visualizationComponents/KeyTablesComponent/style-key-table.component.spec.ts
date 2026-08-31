@@ -1,6 +1,6 @@
 import { StyleKeyTableComponent, StyleKeyTableRow } from './style-key-table.component';
 
-describe('StyleKeyTableComponent mixed color transparency', () => {
+describe('StyleKeyTableComponent mixed color controls', () => {
   let component: StyleKeyTableComponent;
   let mixedRow: StyleKeyTableRow;
 
@@ -47,6 +47,24 @@ describe('StyleKeyTableComponent mixed color transparency', () => {
         segment: jasmine.objectContaining({ index: 1 })
       })
     ]);
+  });
+
+  it('emits the component value when one color in a mixed swatch changes', () => {
+    const emittedChanges: any[] = [];
+    component.colorChange.subscribe(change => emittedChanges.push(change));
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = '#00aa00';
+
+    component.onSegmentColorInputChange(mixedRow, mixedRow.colorSegments![0], { target: input } as unknown as Event);
+
+    expect(mixedRow.colorSegments![0].color).toBe('#00aa00');
+    expect(mixedRow.colorSegments![1].color).toBe('#0000ff');
+    expect(emittedChanges).toEqual([{
+      row: mixedRow,
+      value: '2a',
+      color: '#00aa00'
+    }]);
   });
 
   it('keeps non-node segmented swatches non-interactive', () => {
