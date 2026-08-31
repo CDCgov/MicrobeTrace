@@ -430,6 +430,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private timelinePlaybackPaused: boolean = false;
 
+    private timelineTickDateFormat: ((date: Date) => string) | null = null;
+
+    private timelineResizeObserver: ResizeObserver | null = null;
+
+    private timelineResizeFrame: number | null = null;
+
+    private readonly timelineWindowResizeHandler = () => this.scheduleTimelineResize();
+
     private previousTab: string = '';
 
     private bpaaSPayloadWrappers: BpaaSPayloadWrapper[] = [];
@@ -3157,6 +3165,115 @@ ${warnings.join('\n')}`,
         }
     }
 
+    private getTimelineWidth(): number {
+        const wrapperWidth = this.visualWrapperRef?.nativeElement?.clientWidth
+            ?? Number($('#visualwrapper').width() || 0);
+        return Math.max(0, wrapperWidth * 4 / 5);
+    }
+
+    private getTimelineTickValues(startDate: Date, endDate: Date): Date[] {
+        if (!this.xAttribute) {
+            return [];
+        }
+
+        const formatDate = this.timelineTickDateFormat ?? ((date: Date) => String(date));
+        const estimateTimelineTickWidth = (date: Date) => Math.max(28, formatDate(date).length * 7);
+
+        return [startDate, ...this.xAttribute.ticks(12), endDate]
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())
+            .filter((date: Date, index: number, dates: Date[]) => (
+                index === 0 || date.getTime() !== dates[index - 1].getTime()
+            ))
+            .filter((date: Date, index: number, dates: Date[]) => {
+                const isEndpoint = date.getTime() === startDate.getTime()
+                    || date.getTime() === endDate.getTime();
+                if (isEndpoint) {
+                    return true;
+                }
+
+                const previousDate = dates[index - 1];
+                const nextDate = dates[index + 1];
+                const x = this.xAttribute(date);
+                const previousX = previousDate ? this.xAttribute(previousDate) : Number.NEGATIVE_INFINITY;
+                const nextX = nextDate ? this.xAttribute(nextDate) : Number.POSITIVE_INFINITY;
+                const minimumPreviousGap = (
+                    estimateTimelineTickWidth(date)
+                    + (previousDate ? estimateTimelineTickWidth(previousDate) : 0)
+                ) / 2 + 6;
+                const minimumNextGap = (
+                    estimateTimelineTickWidth(date)
+                    + (nextDate ? estimateTimelineTickWidth(nextDate) : 0)
+                ) / 2 + 6;
+                return x - previousX >= minimumPreviousGap && nextX - x >= minimumNextGap;
+            });
+    }
+
+    private resizeTimeline(): void {
+        if (!this.xAttribute || !this.timelineDomainStart || !this.timelineDomainEnd) {
+            return;
+        }
+
+        const svgTimeline = d3.select('#global-timeline svg');
+        if (svgTimeline.empty()) {
+            return;
+        }
+
+        const width = this.getTimelineWidth();
+        if (width <= 0 || Math.abs(Number(svgTimeline.attr('width')) - width) < 0.5) {
+            return;
+        }
+
+        const activeDate = this.getActiveTimelineEnd();
+        const horizontalPadding = Math.min(9, width / 2);
+        const rangeEnd = Math.max(horizontalPadding, width - horizontalPadding);
+        this.xAttribute.range([horizontalPadding, rangeEnd]);
+        svgTimeline.attr('width', width);
+
+        svgTimeline.selectAll('line.track, line.track-inset, line.track-overlay')
+            .attr('x1', horizontalPadding)
+            .attr('x2', rangeEnd);
+
+        const tickValues = this.getTimelineTickValues(this.timelineDomainStart, this.timelineDomainEnd);
+        const tickGroup = svgTimeline.select('g.ticks');
+        tickGroup.selectAll('text').remove();
+        tickGroup.selectAll('text')
+            .data(tickValues)
+            .enter()
+            .append('text')
+            .attr('x', this.xAttribute)
+            .attr('y', 10)
+            .attr('text-anchor', 'middle')
+            .text((date: Date) => this.timelineTickDateFormat?.(date) ?? '');
+
+        this.syncTimelineRangeGraphics();
+        const activeX = this.xAttribute(activeDate);
+        this.currentTimelineValue = activeX;
+        this.handle?.attr('cx', activeX);
+        this.label
+            ?.attr('x', activeX)
+            .text(this.handleDateFormat ? this.handleDateFormat(activeDate) : '');
+    }
+
+    private scheduleTimelineResize(): void {
+        if (this.timelineResizeFrame !== null) {
+            cancelAnimationFrame(this.timelineResizeFrame);
+        }
+
+        this.timelineResizeFrame = requestAnimationFrame(() => {
+            this.timelineResizeFrame = null;
+            this.resizeTimeline();
+        });
+    }
+
+    private observeTimelineResize(): void {
+        window.addEventListener('resize', this.timelineWindowResizeHandler);
+
+        if (typeof ResizeObserver !== 'undefined' && this.visualWrapperRef?.nativeElement) {
+            this.timelineResizeObserver = new ResizeObserver(() => this.scheduleTimelineResize());
+            this.timelineResizeObserver.observe(this.visualWrapperRef.nativeElement);
+        }
+    }
+
     private applyTimelineVisibility(): void {
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
@@ -3260,9 +3377,7 @@ ${warnings.join('\n')}`,
         }
 
         // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
-        if ('bubble' in this.commonService.visuals) {
-             this.commonService.visuals.bubble.sortData(variable);
-        }
+        this.commonService.visuals.bubble?.sortData(variable);
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");
@@ -3330,6 +3445,7 @@ ${warnings.join('\n')}`,
             else if (days<367*5) return formatDateIntoMonthYear(d);
             else return formatDateIntoYear(d);		
         }
+        this.timelineTickDateFormat = tickDateFormat;
         this.handleDateFormat = d => {
             if (days<367) return formatDateDateMonth(d);
             else return formatDateMonthYear(d);		
@@ -3337,7 +3453,7 @@ ${warnings.join('\n')}`,
         const startDate = timeDomainStart;
         const endDate = timeDomainEnd;
         const margin = {top:50, right:0, bottom:0, left:0},
-            width = Math.max(0, (($('#visualwrapper').width() || 0) * 4 / 5) - margin.left - margin.right),
+            width = Math.max(0, this.getTimelineWidth() - margin.left - margin.right),
             height = 200 - margin.top - margin.bottom;
 
         var svgTimeline = d3.select("#global-timeline")
@@ -3360,25 +3476,7 @@ ${warnings.join('\n')}`,
             .domain([startDate, endDate])
             .range([timelineHorizontalPadding, this.currentTimelineTargetValue - timelineHorizontalPadding])
             .clamp(true);
-        const estimateTimelineTickWidth = (date: Date) => Math.max(28, String(tickDateFormat(date)).length * 7);
-        const tickValues = [startDate, ...this.xAttribute.ticks(12), endDate]
-            .sort((a, b) => a.getTime() - b.getTime())
-            .filter((date, index, dates) => index === 0 || date.getTime() !== dates[index - 1].getTime())
-            .filter((date, index, dates) => {
-                const isEndpoint = date.getTime() === startDate.getTime() || date.getTime() === endDate.getTime();
-                if (isEndpoint) {
-                    return true;
-                }
-
-                const previousDate = dates[index - 1];
-                const nextDate = dates[index + 1];
-                const x = this.xAttribute(date);
-                const previousX = previousDate ? this.xAttribute(previousDate) : Number.NEGATIVE_INFINITY;
-                const nextX = nextDate ? this.xAttribute(nextDate) : Number.POSITIVE_INFINITY;
-                const minimumPreviousGap = (estimateTimelineTickWidth(date) + (previousDate ? estimateTimelineTickWidth(previousDate) : 0)) / 2 + 6;
-                const minimumNextGap = (estimateTimelineTickWidth(date) + (nextDate ? estimateTimelineTickWidth(nextDate) : 0)) / 2 + 6;
-                return x - previousX >= minimumPreviousGap && nextX - x >= minimumNextGap;
-            });
+        const tickValues = this.getTimelineTickValues(startDate, endDate);
         const slider = svgTimeline.append("g")
             .attr("class", "slider")
             .attr("transform", "translate(0," + height/2 + ")");
@@ -4462,6 +4560,7 @@ ${warnings.join('\n')}`,
         // this.cmpRef = this.targets.first.createComponent(factory);
         // setTimeout(() => {
             this._goldenLayoutHostComponent.initialise();
+            this.observeTimelineResize();
             
             // headerHeight (tab) is updated so that goldenLayout knows what the css is set to. 
             this._goldenLayoutHostComponent['_goldenLayout.layoutConfig.dimensions.headerHeight'] = 36;
@@ -6218,6 +6317,14 @@ ${warnings.join('\n')}`,
     }
 
     ngOnDestroy(): void {
+        window.removeEventListener('resize', this.timelineWindowResizeHandler);
+        this.timelineResizeObserver?.disconnect();
+        this.timelineResizeObserver = null;
+        if (this.timelineResizeFrame !== null) {
+            cancelAnimationFrame(this.timelineResizeFrame);
+            this.timelineResizeFrame = null;
+        }
+
         if (this.timelineTablesRefreshHandle !== null) {
             clearTimeout(this.timelineTablesRefreshHandle);
             this.timelineTablesRefreshHandle = null;
