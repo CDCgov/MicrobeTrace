@@ -21,7 +21,7 @@ import { ExportService, ExportOptions } from './contactTraceCommonServices/expor
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import * as XLSX from 'xlsx';
-import { buildDate, commitHash } from "src/environments/version";
+import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
@@ -230,7 +230,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.2.1';
+    readonly version: string = appVersion;
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
