@@ -10,7 +10,6 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 import { saveAs } from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -93,7 +92,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService) {
 
@@ -131,11 +129,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   ngOnInit() {
 
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/timeline",
-            page_title: "Timeline View"
-        });
     // populate this.twoD.FieldList with [None, ...nodeFields]
     this.updateFieldLists();
 

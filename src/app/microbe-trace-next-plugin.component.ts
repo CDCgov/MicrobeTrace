@@ -54,6 +54,7 @@ import {
     GlobalSettingsDialogRequest,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
+import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -466,7 +467,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private exportService: ExportService,
         private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService,
-        private colorAssignmentService: ColorAssignmentService
+        private colorAssignmentService: ColorAssignmentService,
+        private analyticsService: AnalyticsService
     ) {
 
 
@@ -823,6 +825,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(goldenLayoutComponent.container);
         
         this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
+        this.analyticsService.trackView(component);
         
         console.log('--- addComponent Tab added');
 
@@ -1152,18 +1155,46 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.exportService.getExportOptions();
+            const mapLibreCanvasSnapshots = elementsForExport.flatMap((element) =>
+                Array.from(element.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas')).map((canvas) => ({
+                    dataUrl: canvas.toDataURL('image/png'),
+                    width: canvas.width,
+                    height: canvas.height
+                }))
+            );
             let settings = {
                 scale: Number(options.scale) || 1,
                 useCORS: true, // Enable CORS if images are loaded from external sources,
                 allowTaint: true,
-                onclone: (clonedDoc) => {
+                onclone: async (clonedDoc: Document) => {
+                    // html2canvas does not reliably preserve a transformed WebGL canvas.
+                    // Replace MapLibre canvases in the clone with snapshots of their current
+                    // composited frames so panned/zoomed basemaps export at the visible position.
+                    const clonedMapLibreCanvases = clonedDoc.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas');
+                    const mapLibreImageLoads: Promise<void>[] = [];
+                    clonedMapLibreCanvases.forEach((clonedCanvas, index) => {
+                        const snapshot = mapLibreCanvasSnapshots[index];
+                        if (!snapshot) {
+                            return;
+                        }
+
+                        const image = clonedDoc.createElement('img');
+                        image.src = snapshot.dataUrl;
+                        image.width = snapshot.width;
+                        image.height = snapshot.height;
+                        image.className = clonedCanvas.className;
+                        image.style.cssText = clonedCanvas.style.cssText;
+                        clonedCanvas.parentNode?.replaceChild(image, clonedCanvas);
+                        mapLibreImageLoads.push(image.decode());
+                    });
+
                     // Remove all transparency symbols
                     const clonedTransparencySymbols = clonedDoc.querySelectorAll('a.transparency-symbol');
                     clonedTransparencySymbols.forEach(symbol => {
                         symbol.parentNode?.removeChild(symbol);
                     })
                     // Replace color input elements with colored spans
-                    const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
+                    const clonedInputs = clonedDoc.querySelectorAll<HTMLInputElement>('input[type="color"]');
                     clonedInputs.forEach(input => {
                         const color = input.getAttribute('value') || '#ffffff';
                         const opacity = input.style.opacity || '1'
@@ -1177,6 +1208,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         span.style.border = '1px solid #777777'; // Optional: Add border for visibility
                         input.parentNode?.replaceChild(span, input);
                     });
+
+                    await Promise.all(mapLibreImageLoads);
     
                     // Optionally, handle other elements that display hex codes
                     // For example, if you have spans or divs showing hex values:
@@ -4534,7 +4567,7 @@ ${warnings.join('\n')}`,
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
         });
-        
+
         this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
     }

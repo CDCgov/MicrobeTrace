@@ -1,7 +1,6 @@
 import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -103,7 +102,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService
   ) {
@@ -117,12 +115,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   ngOnInit(): void {
-    this.gtmService.pushTag({
-      event: "page_view",
-      page_location: "/bubble",
-      page_title: "Bubble View"
-    });
-
     try {
       this.viewHeight = this.container.height - 73;
       this.viewWidth = this.container.width - 42;

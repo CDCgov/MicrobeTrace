@@ -225,7 +225,7 @@
           <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)"></div>
         </div>
       }
-      @if (hasNewickFile) {
+      @if (hasNewickFile || hasBootstrapSupportMetadata()) {
       <div class="form-group row" title="Show branch Nodes labels?">
         <div class="col-5"><label for="branch-node-visibility2">Branch Nodes Labels</label></div>
         <div class="col-7">
@@ -233,7 +233,7 @@
         </div>
       </div>
       }
-      @if (SelectedBranchLabelShowVariable && hasNewickFile) {
+      @if (SelectedBranchLabelShowVariable && (hasNewickFile || hasBootstrapSupportMetadata())) {
         <div class="form-group row" title="How big should branch nodes labels be?">
           <div class="col-5"><label for="branch-node-size">Branch Node Label Size</label></div>
           <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="16" [(ngModel)]="SelectedBranchLabelSizeVariable" (ngModelChange)="onBranchLabelSizeChange($event)"></div>
@@ -244,8 +244,84 @@
   </p-accordion-panel> 
 </p-accordion>
 </tab>
+<tab heading="{{'Bootstrap' | localize}}" customClass="m-tabs__item">
+  <p-accordion [value]="['tree-bootstrap']" [multiple]="true">
+    <p-accordion-panel value="tree-bootstrap" style="color:#495057">
+      <p-accordion-header>Bootstrap</p-accordion-header>
+      <p-accordion-content><div #bootstrapcontrols>
+        <div class="form-group row" title="Number of bootstrap replicates">
+          <div class="col-5"><label for="bootstrap-replicates">Replicates</label></div>
+          <div class="col-7">
+            <input type="number" id="bootstrap-replicates" class="form-control form-control-sm" min="1" max="1000" step="1" [(ngModel)]="SelectedBootstrapCustomReplicates" (change)="onBootstrapCustomReplicatesChange($event)" (blur)="onBootstrapCustomReplicatesChange($event)">
+          </div>
+        </div>
+        <div class="form-group row" title="Stop bootstrap calculation when support values stabilize">
+          <div class="col-5"><label for="bootstrap-stop-stable">Stop When Stable</label></div>
+          <div class="col-7">
+            <p-selectButton id="bootstrap-stop-stable" [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBootstrapStopWhenStable" (ngModelChange)="onBootstrapStopWhenStableChange($event)"></p-selectButton>
+          </div>
+        </div>
+        <div class="form-group row" title="Decimal places for bootstrap support labels">
+          <div class="col-5"><label for="bootstrap-decimal-length">Decimals</label></div>
+          <div class="col-7">
+            <p-select id="bootstrap-decimal-length" appendTo="body" [options]="BootstrapDecimalLengthOptions" class="width-percent-100" [(ngModel)]="SelectedBootstrapDecimalLength" (ngModelChange)="onBootstrapDecimalLengthChange($event)"> </p-select>
+          </div>
+        </div>
+        <div class="form-group row" title="Only show bootstrap support labels at or above this percentage">
+          <div class="col-5"><label for="bootstrap-support-threshold">Minimum Support (%)</label></div>
+          <div class="col-7">
+            <input type="number" id="bootstrap-support-threshold" class="form-control form-control-sm" min="0" max="100" step="1" [(ngModel)]="SelectedBootstrapSupportThreshold" (change)="onBootstrapSupportThresholdChange($event)" (blur)="onBootstrapSupportThresholdChange($event)">
+          </div>
+        </div>
+        <div class="form-group row">
+          <div class="col-12">
+            <button pButton type="button" id="calculate-bootstrap" label="Calculate Bootstrap" class="ui-button-raised" [disabled]="!isBootstrapCalculationAvailable() || BootstrapRunning" (click)="calculateBootstrapSupport()"></button>
+            @if (BootstrapRunning) {
+              <button pButton type="button" id="cancel-bootstrap" label="Cancel" class="ui-button-secondary ml-2" (click)="cancelBootstrapSupport()"></button>
+            }
+          </div>
+        </div>
+        @if (BootstrapRunning) {
+          <div class="form-group row">
+            <div class="col-12 bootstrap-progress-wrapper">
+              <div
+                class="bootstrap-progress-track"
+                role="progressbar"
+                [attr.aria-valuenow]="BootstrapProgressValue"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <div class="bootstrap-progress-fill" [style.width.%]="BootstrapProgressValue"></div>
+              </div>
+              <div class="bootstrap-progress-label">{{ BootstrapProgressValue }}%</div>
+            </div>
+          </div>
+        }
+        @if (BootstrapStatusMessage || !isBootstrapCalculationAvailable()) {
+          <div class="form-group row">
+            <div class="col-12">
+              <small id="bootstrap-status" class="text-muted">
+                @if (BootstrapStatusMessage) {
+                  <span>{{ BootstrapStatusMessage }}</span>
+                }
+                @if (BootstrapStatusMessage && !isBootstrapCalculationAvailable()) {
+                  <br>
+                }
+                @if (!isBootstrapCalculationAvailable()) {
+                  <span>{{ getBootstrapUnavailableReason() }}</span>
+                }
+              </small>
+            </div>
+          </div>
+        }
+      </div>
+    </p-accordion-content>
+  </p-accordion-panel>
+  </p-accordion>
+</tab>
 </tabset>
 </p-dialog>
+<p-confirmDialog></p-confirmDialog>
 }
 </div>
 <div id="phylo-context-menu" class="dropdown-menu">

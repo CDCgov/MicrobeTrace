@@ -367,8 +367,19 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeTableColumns: [],
             linkTableColumns: [],
             clusterTableColumns: [],
+            geoJSON: null,
+            geoJSONLayerName: '',
+            floorplanImage: null,
+            floorplanImageLayerName: '',
+            floorplanImageBounds: null,
+            floorplanImageWidth: null,
+            floorplanImageHeight: null,
+            floorplanBackgroundBaseLayerState: null as any,
+            floorplanBoundaryField: 'None',
+            floorplanBoundaries: [],
             tree: {},
             newickString: '',
+            phylogeneticBootstrap: null,
             newickSource: '',
             auspiceMapData: {
                 countries: {
@@ -498,6 +509,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-county': 'None',
             'map-field-state': 'None',
             'map-field-country': 'None',
+            'map-user-geojson-show': false,
+            'map-user-geojson-color': '#3388ff',
+            'map-user-geojson-transparency': 0.25,
+            'map-user-geojson-label-field': 'None',
+            'map-floorplan-image-show': false,
+            'map-floorplan-boundaries-show': true,
             'map-link-show': true,
             'map-link-tooltip-variable': 'None',
             'map-link-transparency': 0,
@@ -573,8 +590,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             'timeline-date-field': 'None',
             'timeline-noncumulative': true,
             'tree-animation-on': true,
+            'tree-bootstrap-custom-replicates': 100,
+            'tree-bootstrap-decimal-length': 1,
+            'tree-bootstrap-support-threshold': 0,
+            'tree-bootstrap-stop-when-stable': false,
             'tree-branch-distances-hide': true,
             'tree-branch-distance-size': 12,
+            'tree-branch-label-show': false,
             'tree-branch-nodes-show': false,
             'tree-horizontal-stretch': 1,
             'tree-layout-vertical': false,
@@ -2781,6 +2803,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
         }
+        if (oldSession.data?.phylogeneticBootstrap) {
+            this.session.data.phylogeneticBootstrap = oldSession.data.phylogeneticBootstrap;
+        }
         if (typeof oldSession.data?.newickSource === 'string') {
             this.session.data.newickSource = oldSession.data.newickSource;
         }
@@ -2802,10 +2827,25 @@ export class CommonService extends AppComponentBase implements OnInit {
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
 
-         if (oldSession.data.geoJSONLayerName !== "") {
+        if (oldSession.data?.geoJSONLayerName || oldSession.data?.geoJSON) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
-            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
+            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName || '';
         }
+
+        if (oldSession.data?.floorplanImageLayerName || oldSession.data?.floorplanImage) {
+            this.session.data['floorplanImage'] = oldSession.data.floorplanImage;
+            this.session.data['floorplanImageLayerName'] = oldSession.data.floorplanImageLayerName || '';
+            this.session.data['floorplanImageBounds'] = oldSession.data.floorplanImageBounds || null;
+            this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
+            this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
+        }
+
+        this.session.data['floorplanBackgroundBaseLayerState'] = oldSession.data?.floorplanBackgroundBaseLayerState || null;
+
+        this.session.data['floorplanBoundaryField'] = oldSession.data.floorplanBoundaryField || 'None';
+        this.session.data['floorplanBoundaries'] = Array.isArray(oldSession.data.floorplanBoundaries)
+            ? oldSession.data.floorplanBoundaries
+            : [];
 
         // Previous versions of MT could store jQuery events instead of color strings.
         // Node color history is now nested by variable, so sanitize its leaf values.
@@ -3821,25 +3861,17 @@ align(params): Promise<any> {
 
         console.log('----- finishUp -- search fields, color variable sort varialbe, distance UI');
 
-        $("#search-field")
-            .html(this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#search-field", this.session.data.nodeFields)
             .val(this.session.style.widgets["search-field"]);
         $("#search-form").css("display", "flex");
-        $("#link-sort-variable")
-            .html(this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#link-sort-variable", this.session.data.linkFields)
             .val(this.session.style.widgets["link-sort-variable"]);
-        $("#node-color-variable")
-            .html(
-                "<option selected>None</option>" +
-                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#node-color-variable", this.getStyleableNodeFields(), true)
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);
-        $("#link-color-variable")
-        .html(
-            "<option>None</option>" +
-            this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
-        .val(this.session.style.widgets["link-color-variable"]);
+        this.replaceSelectOptions("#link-color-variable", this.session.data.linkFields, true)
+            .val(this.session.style.widgets["link-color-variable"]);
         try {
             // TODO:: Refactoring asses need for this
             // this.updateThresholdHistogram();
@@ -3925,6 +3957,22 @@ align(params): Promise<any> {
         });
     };
 
+    /**
+     * Replaces a select element's options without interpreting field names as HTML.
+     */
+    private replaceSelectOptions(selector: string, fields: string[], includeNone = false) {
+        const select = $(selector).empty();
+
+        if (includeNone) {
+            select.append($("<option>").text("None"));
+        }
+
+        fields.forEach(field => {
+            select.append($("<option>").val(field).text(this.titleize(field)));
+        });
+
+        return select;
+    }
 
     updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
         const updateStart = Date.now();
