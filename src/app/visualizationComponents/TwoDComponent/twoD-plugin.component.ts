@@ -802,7 +802,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     networkData.links,
                     showGroupHulls ? groupField : null,
                 );
-                if (!overviewLayout.applied) {
+                if (overviewLayout.applied) {
+                    this.sigmaPocLoadingMessage = 'Relaxing strongest ties into organic clusters…';
+                    this.cdref.markForCheck();
+                    await this.relaxSigmaOrganicOverview(networkData.nodes, layoutBackbone);
+                } else {
                     const layout = await this.precomputePositionsWithD3(
                         networkData.nodes,
                         layoutBackbone,
@@ -1854,6 +1858,34 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private getD3TicksPerYield(nodes: any[], links: any[]): number {
         const workUnits = nodes.length + links.length;
         return workUnits >= 12000 ? 1 : 5;
+    }
+
+    /**
+     * Gives dense Sigma overviews a short topology-aware relaxation after their
+     * cohort islands are seeded. It uses only the sparse strongest-link backbone,
+     * and is skipped above 7,500 nodes so visual polish cannot dominate load time.
+     */
+    private async relaxSigmaOrganicOverview(nodes: any[], links: any[]): Promise<void> {
+        if (this.commonService.session.network.allPinned || !links.length || nodes.length > 7500) return;
+        const ticks = nodes.length <= 1000 ? 72 : nodes.length <= 3000 ? 42 : 24;
+        const linkDistance = nodes.length <= 1000 ? 25 : 19;
+        const chargeStrength = nodes.length <= 1000 ? -13 : -8;
+        const simulation = d3.forceSimulation(nodes)
+            .force('charge', d3.forceManyBody().strength(chargeStrength).distanceMax(220))
+            .force('link', d3.forceLink(links)
+                .id((node: any) => node.id)
+                .distance(linkDistance)
+                .strength(0.16))
+            .force('collide', d3.forceCollide().radius((node: any) =>
+                Math.max(3.5, Math.min(9, Number(node.nodeSize) / 7 || 4.5))))
+            .force('x', d3.forceX((node: any) => Number(node._sigmaLayoutAnchorX) || 0).strength(0.018))
+            .force('y', d3.forceY((node: any) => Number(node._sigmaLayoutAnchorY) || 0).strength(0.018))
+            .stop();
+        await this.runStoppedD3Ticks(simulation, ticks, this.getD3TicksPerYield(nodes, links));
+        nodes.forEach(node => {
+            node.vx = 0;
+            node.vy = 0;
+        });
     }
 
     async precomputePositionsWithD3(nodes: any[], links: any[], ticks:number = 300, initial: boolean = true): Promise<{ nodes: any[]; links: any[]; tickBatches: number; ticksPerYield: number }> {

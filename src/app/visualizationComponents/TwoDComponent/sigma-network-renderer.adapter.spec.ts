@@ -25,10 +25,16 @@ describe('Sigma network renderer adapter', () => {
 
     const backbone = selectSigmaLayoutBackbone(links, 3);
     const representedNodes = new Set(backbone.flatMap(link => [link.source, link.target]));
+    const backboneDegree = new Map<string, number>();
+    backbone.forEach(link => {
+      backboneDegree.set(link.source, (backboneDegree.get(link.source) || 0) + 1);
+      backboneDegree.set(link.target, (backboneDegree.get(link.target) || 0) + 1);
+    });
 
     expect(links.length).toBeGreaterThan(2500);
     expect(backbone.length).toBeLessThan(links.length / 10);
     expect(representedNodes.size).toBe(80);
+    expect(Math.max(...Array.from(backboneDegree.values()))).toBeLessThanOrEqual(6);
     expect(backbone.some(link => link.id === '0-1')).toBeTrue();
     expect(links[0].source).toBe('0');
   });
@@ -53,6 +59,18 @@ describe('Sigma network renderer adapter', () => {
     expect(result).toEqual({ applied: true, cohortCount: 5, method: 'distance-cohorts' });
     expect(nodes.every(node => Number.isFinite((node as any).x) && Number.isFinite((node as any).y))).toBeTrue();
     expect(new Set(nodes.map(node => (node as any)._sigmaLayoutGroup)).size).toBe(5);
+    expect(new Set(nodes.map(node =>
+      `${(node as any)._sigmaLayoutAnchorX}:${(node as any)._sigmaLayoutAnchorY}`)).size).toBe(5);
+    const firstCohort = nodes.slice(0, 20);
+    const firstAnchor = {
+      x: (firstCohort[0] as any)._sigmaLayoutAnchorX,
+      y: (firstCohort[0] as any)._sigmaLayoutAnchorY,
+    };
+    const organicRadii = new Set(firstCohort.map(node => Math.round(Math.hypot(
+      Number((node as any).x) - firstAnchor.x,
+      Number((node as any).y) - firstAnchor.y,
+    ))));
+    expect(organicRadii.size).toBeGreaterThan(8);
     expect(nodes.length).toBe(100);
     expect(links.length).toBe(4950);
   });

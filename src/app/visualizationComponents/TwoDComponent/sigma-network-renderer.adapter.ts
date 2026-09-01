@@ -130,10 +130,11 @@ export function selectSigmaLayoutBackbone<T extends Record<string, any>>(
     if (distanceDelta !== 0) return distanceDelta;
     const leftKey = `${normalizeEndpoint(left.source)}\u0000${normalizeEndpoint(left.target)}\u0000${left.id ?? ''}`;
     const rightKey = `${normalizeEndpoint(right.source)}\u0000${normalizeEndpoint(right.target)}\u0000${right.id ?? ''}`;
-    return leftKey.localeCompare(rightKey);
+    return stableHash(leftKey) - stableHash(rightKey) || leftKey.localeCompare(rightKey);
   });
   const degree = new Map<string, number>();
   const selected: T[] = [];
+  const selectedKeys = new Set<string>();
 
   for (const link of ranked) {
     const source = normalizeEndpoint(link.source);
@@ -142,9 +143,28 @@ export function selectSigmaLayoutBackbone<T extends Record<string, any>>(
 
     const sourceDegree = degree.get(source) || 0;
     const targetDegree = degree.get(target) || 0;
-    if (sourceDegree >= neighborsPerNode && targetDegree >= neighborsPerNode) continue;
+    if (sourceDegree >= neighborsPerNode || targetDegree >= neighborsPerNode) continue;
 
     selected.push({ ...link, source, target });
+    selectedKeys.add(String(link.id ?? `${source}\u0000${target}`));
+    degree.set(source, sourceDegree + 1);
+    degree.set(target, targetDegree + 1);
+  }
+
+  // A balanced greedy pass can strand a node in irregular graphs. Add only the
+  // best missing ties needed for coverage, with a hard cap that prevents hubs.
+  const hardDegreeCap = Math.max(2, neighborsPerNode * 2);
+  for (const link of ranked) {
+    const source = normalizeEndpoint(link.source);
+    const target = normalizeEndpoint(link.target);
+    const key = String(link.id ?? `${source}\u0000${target}`);
+    if (selectedKeys.has(key)) continue;
+    const sourceDegree = degree.get(source) || 0;
+    const targetDegree = degree.get(target) || 0;
+    if (sourceDegree > 0 && targetDegree > 0) continue;
+    if (sourceDegree >= hardDegreeCap || targetDegree >= hardDegreeCap) continue;
+    selected.push({ ...link, source, target });
+    selectedKeys.add(key);
     degree.set(source, sourceDegree + 1);
     degree.set(target, targetDegree + 1);
   }
@@ -251,60 +271,82 @@ export function assignSigmaOverviewPositions<TNode extends Record<string, any>, 
   }
 
   const spacing = Math.max(12, Math.min(22, 360 / Math.sqrt(nodes.length)));
-  const padding = spacing * 5;
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
   const layouts = Array.from(buckets.entries())
     .map(([key, values]) => {
-      const columns = Math.max(1, Math.ceil(Math.sqrt(values.length * 1.35)));
-      const rows = Math.max(1, Math.ceil(values.length / columns));
+      const radius = Math.max(spacing * 3, spacing * Math.sqrt(values.length) * 0.72);
+      const keyHash = stableHash(key);
       return {
         key,
         values: [...values].sort((left, right) =>
           String(left._id ?? left.id).localeCompare(String(right._id ?? right.id))),
-        columns,
-        width: Math.max(spacing * 4, columns * spacing),
-        height: Math.max(spacing * 4, rows * spacing * 0.86),
+        radius,
+        rotation: (keyHash % 6283) / 1000,
+        stretchX: 0.82 + ((keyHash >>> 8) % 31) / 100,
+        stretchY: 0.82 + ((keyHash >>> 16) % 31) / 100,
       };
     })
     .sort((left, right) => right.values.length - left.values.length || left.key.localeCompare(right.key));
-  const totalArea = layouts.reduce((sum, layout) => sum + (layout.width + padding) * (layout.height + padding), 0);
-  const targetRowWidth = Math.sqrt(totalArea) * 1.35;
-  let cursorX = 0;
-  let cursorY = 0;
-  let rowHeight = 0;
-  let maxX = 0;
-  let maxY = 0;
+  const placedCohorts: Array<{ x: number; y: number; radius: number }> = [];
+  const searchStep = spacing * 2.2;
 
   for (let layoutIndex = 0; layoutIndex < layouts.length; layoutIndex++) {
     const layout = layouts[layoutIndex];
-    if (cursorX > 0 && cursorX + layout.width > targetRowWidth) {
-      cursorX = 0;
-      cursorY += rowHeight + padding;
-      rowHeight = 0;
+    let centerX = 0;
+    let centerY = 0;
+    if (layoutIndex > 0) {
+      const phase = layout.rotation + layoutIndex * 0.73;
+      for (let attempt = 1; attempt <= 10000; attempt++) {
+        const orbit = searchStep * Math.sqrt(attempt);
+        const angle = phase + attempt * goldenAngle;
+        const candidateX = Math.cos(angle) * orbit * 1.08;
+        const candidateY = Math.sin(angle) * orbit * 0.9;
+        const overlaps = placedCohorts.some(placed =>
+          Math.hypot(candidateX - placed.x, candidateY - placed.y) <
+            layout.radius + placed.radius + spacing * 2.2,
+        );
+        if (!overlaps) {
+          centerX = candidateX;
+          centerY = candidateY;
+          break;
+        }
+      }
     }
+    placedCohorts.push({ x: centerX, y: centerY, radius: layout.radius });
+
     layout.values.forEach((node, index) => {
       const positionedNode = node as Record<string, any>;
-      const row = Math.floor(index / layout.columns);
-      const column = index % layout.columns;
-      const jitter = (stableHash(String(node._id ?? node.id)) % 100) / 100 * spacing * 0.28;
-      positionedNode.x = cursorX + column * spacing + (row % 2 ? spacing * 0.5 : 0) + jitter;
-      positionedNode.y = cursorY + row * spacing * 0.86 + jitter;
+      const nodeHash = stableHash(String(node._id ?? node.id));
+      const hashNoise = (nodeHash % 1000) / 1000;
+      const angle = layout.rotation + index * goldenAngle + (hashNoise - 0.5) * 0.34;
+      const normalizedRadius = Math.sqrt((index + 0.65) / Math.max(1, layout.values.length));
+      const ripple = 0.86 + hashNoise * 0.27 + Math.sin(angle * 3 + layout.rotation) * 0.06;
+      const radialDistance = layout.radius * normalizedRadius * ripple;
+      const organicWarp = Math.sin(angle * 2.3 + hashNoise * Math.PI) * spacing * 0.22;
+      positionedNode.x = centerX +
+        Math.cos(angle) * radialDistance * layout.stretchX +
+        Math.sin(angle * 1.7) * organicWarp;
+      positionedNode.y = centerY +
+        Math.sin(angle) * radialDistance * layout.stretchY +
+        Math.cos(angle * 1.4) * organicWarp;
       positionedNode.vx = 0;
       positionedNode.vy = 0;
+      positionedNode._sigmaLayoutAnchorX = centerX;
+      positionedNode._sigmaLayoutAnchorY = centerY;
       positionedNode._sigmaLayoutGroup = method === 'group-by'
         ? (layout.key === '__ungrouped__' ? 'Ungrouped' : layout.key)
         : (layout.key === '__other_samples__' ? 'Other samples' : `Distance cohort ${layoutIndex + 1}`);
     });
-    cursorX += layout.width + padding;
-    rowHeight = Math.max(rowHeight, layout.height);
-    maxX = Math.max(maxX, cursorX - padding);
-    maxY = Math.max(maxY, cursorY + layout.height);
   }
-  const offsetX = maxX / 2;
-  const offsetY = maxY / 2;
+
+  const offsetX = nodes.reduce((sum, node) => sum + Number(node.x), 0) / nodes.length;
+  const offsetY = nodes.reduce((sum, node) => sum + Number(node.y), 0) / nodes.length;
   nodes.forEach(node => {
     const positionedNode = node as Record<string, any>;
     positionedNode.x -= offsetX;
     positionedNode.y -= offsetY;
+    positionedNode._sigmaLayoutAnchorX -= offsetX;
+    positionedNode._sigmaLayoutAnchorY -= offsetY;
   });
   return { applied: true, cohortCount: layouts.length, method };
 }
@@ -312,7 +354,7 @@ export function assignSigmaOverviewPositions<TNode extends Record<string, any>, 
 function markBackboneEdges(links: SigmaPocLink[], neighborsPerNode = 1): Set<string> {
   const ranked = [...links].sort((left, right) => {
     const distanceDelta = finiteDistance(left) - finiteDistance(right);
-    return distanceDelta || left.id.localeCompare(right.id);
+    return distanceDelta || stableHash(left.id) - stableHash(right.id) || left.id.localeCompare(right.id);
   });
   const degree = new Map<string, number>();
   const selected = new Set<string>();
@@ -321,7 +363,7 @@ function markBackboneEdges(links: SigmaPocLink[], neighborsPerNode = 1): Set<str
     if (link.source === link.target) continue;
     const sourceDegree = degree.get(link.source) || 0;
     const targetDegree = degree.get(link.target) || 0;
-    if (sourceDegree >= neighborsPerNode && targetDegree >= neighborsPerNode) continue;
+    if (sourceDegree >= neighborsPerNode || targetDegree >= neighborsPerNode) continue;
     selected.add(link.id);
     degree.set(link.source, sourceDegree + 1);
     degree.set(link.target, targetDegree + 1);
@@ -651,7 +693,10 @@ export class SigmaNetworkRendererAdapter {
         this.incidentEdgeIdsByNode.set(target, targetEdges);
       }
     });
-    this.rankedEdges.sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id));
+    this.rankedEdges.sort((left, right) =>
+      left.distance - right.distance ||
+      stableHash(left.id) - stableHash(right.id) ||
+      left.id.localeCompare(right.id));
   }
 
   private resolveViewportNodes(): { core: Set<string>; overscan: Set<string> } {
