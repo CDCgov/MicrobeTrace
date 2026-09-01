@@ -33,12 +33,12 @@ describe('Sigma network renderer adapter', () => {
     expect(links[0].source).toBe('0');
   });
 
-  it('separates dense distance cohorts without changing graph membership', () => {
-    const nodes = Array.from({ length: 80 }, (_value, index) => ({ id: String(index) }));
+  it('separates five dense distance cohorts without changing graph membership', () => {
+    const nodes = Array.from({ length: 100 }, (_value, index) => ({ id: String(index) }));
     const links: Array<{ id: string; source: string; target: string; distance: number }> = [];
     for (let source = 0; source < nodes.length; source++) {
       for (let target = source + 1; target < nodes.length; target++) {
-        const sameCohort = Math.floor(source / 40) === Math.floor(target / 40);
+        const sameCohort = Math.floor(source / 20) === Math.floor(target / 20);
         links.push({
           id: `${source}-${target}`,
           source: String(source),
@@ -50,10 +50,10 @@ describe('Sigma network renderer adapter', () => {
 
     const result = assignSigmaOverviewPositions(nodes, links);
 
-    expect(result).toEqual({ applied: true, cohortCount: 2, method: 'distance-cohorts' });
+    expect(result).toEqual({ applied: true, cohortCount: 5, method: 'distance-cohorts' });
     expect(nodes.every(node => Number.isFinite((node as any).x) && Number.isFinite((node as any).y))).toBeTrue();
-    expect(new Set(nodes.map(node => (node as any)._sigmaLayoutGroup)).size).toBe(2);
-    expect(nodes.length).toBe(80);
-    expect(links.length).toBe(3160);
+    expect(new Set(nodes.map(node => (node as any)._sigmaLayoutGroup)).size).toBe(5);
+    expect(nodes.length).toBe(100);
+    expect(links.length).toBe(4950);
   });
 });

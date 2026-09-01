@@ -17,7 +17,15 @@ describe('Sigma renderer proof of concept', () => {
       expect(adapter.getGraph().order).to.equal(500);
       expect(adapter.getGraph().size).to.equal(124750);
       expect(adapter.getRenderer().getSettings().enableNodeDrag).to.equal(true);
+      expect(adapter.getRenderer().getSettings().hideEdgesOnMove).to.equal(false);
+      const layoutGroups = new Set<string>();
+      adapter.getGraph().forEachNode((_node: string, attributes: any) => {
+        if (attributes.group) layoutGroups.add(String(attributes.group));
+      });
+      expect(layoutGroups.size).to.equal(5);
       const overview = adapter.getSummary();
+      expect(adapter.getDisplayGraph().size).to.equal(overview.drawnLinkCount);
+      expect(adapter.getRenderer().getGraph().size).to.equal(overview.drawnLinkCount);
       expect(overview.edgeDetailMode).to.equal('overview');
       expect(overview.drawnLinkCount).to.be.lessThan(overview.residentLinkCount);
       cy.wrap(overview.drawnLinkCount).as('overviewDrawnLinkCount');

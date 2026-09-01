@@ -74,6 +74,13 @@ interface SigmaEdgeAttributes extends Record<string, unknown> {
   raw: SigmaPocLink;
 }
 
+interface SigmaGroupHull {
+  label: string;
+  color: string;
+  points: Array<{ x: number; y: number }>;
+  center: { x: number; y: number };
+}
+
 const GROUP_PALETTE = [
   '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a',
   '#0891b2', '#ca8a04', '#4f46e5', '#be123c', '#0f766e',
@@ -341,13 +348,21 @@ function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number;
 }
 
 export class SigmaNetworkRendererAdapter {
+  /** Complete client-side graph used by statistics and interactions. */
   private graph: Graph<SigmaNodeAttributes, SigmaEdgeAttributes> = new Graph({
+    multi: true,
+    type: 'mixed',
+    allowSelfLoops: true,
+  });
+  /** Sigma-facing projection containing every node and only the edges currently drawn. */
+  private displayGraph: Graph<SigmaNodeAttributes, SigmaEdgeAttributes> = new Graph({
     multi: true,
     type: 'mixed',
     allowSelfLoops: true,
   });
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
+  private groupHulls: SigmaGroupHull[] = [];
   private selectedNodeIds = new Set<string>();
   private hoveredNodeId: string | null = null;
   private hoveredNeighborhood = new Set<string>();
@@ -410,11 +425,13 @@ export class SigmaNetworkRendererAdapter {
     this.showGroupHulls = data.showGroupHulls;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
+    this.displayGraph = this.createDisplayGraph();
+    this.rebuildGroupHulls();
 
     if (!this.renderer) {
       this.createRenderer();
     } else {
-      this.renderer.setGraph(graph);
+      this.renderer.setGraph(this.displayGraph);
     }
 
     if (priorCamera) this.renderer.getCamera().setState(priorCamera);
@@ -428,7 +445,7 @@ export class SigmaNetworkRendererAdapter {
     if (this.edgeDetailMode === mode) return;
     this.edgeDetailMode = mode;
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
-    this.renderer?.refresh({ skipIndexation: true });
+    this.rebuildDisplayGraph();
     this.emitSummary();
   }
 
@@ -451,15 +468,15 @@ export class SigmaNetworkRendererAdapter {
     return this.renderer;
   }
 
+  getDisplayGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
+    return this.displayGraph;
+  }
+
   getSummary(): SigmaPocRenderSummary {
-    let drawnLinkCount = 0;
-    this.graph.forEachEdge((_edge, attributes) => {
-      if (this.shouldDisplayEdge(attributes)) drawnLinkCount++;
-    });
     return {
       residentNodeCount: this.graph.order,
       residentLinkCount: this.graph.size,
-      drawnLinkCount,
+      drawnLinkCount: this.displayGraph.size,
       edgeDetailMode: this.edgeDetailMode,
       edgeStride: this.effectiveEdgeStride,
     };
@@ -471,16 +488,18 @@ export class SigmaNetworkRendererAdapter {
     this.renderer?.kill();
     this.renderer = null;
     this.groupLayer = null;
+    this.groupHulls = [];
     this.graph.clear();
+    this.displayGraph.clear();
   }
 
   private createRenderer(): void {
-    this.renderer = new Sigma(this.graph, this.container, {
+    this.renderer = new Sigma(this.displayGraph, this.container, {
       settings: {
         autoRescaleContent: 'nodes',
         enableNodeDrag: true,
         enableEdgeEvents: false,
-        hideEdgesOnMove: true,
+        hideEdgesOnMove: false,
         hideLabelsOnMove: true,
         labelDensity: 0.55,
         labelGridCellSize: 140,
@@ -539,15 +558,23 @@ export class SigmaNetworkRendererAdapter {
     });
     this.renderer.on('nodeDragEnd', payload => {
       for (const nodeId of payload.allDraggedNodes) {
+        const x = Number(this.displayGraph.getNodeAttribute(nodeId, 'x'));
+        const y = Number(this.displayGraph.getNodeAttribute(nodeId, 'y'));
+        if (this.graph.hasNode(nodeId)) {
+          this.graph.setNodeAttribute(nodeId, 'x', x);
+          this.graph.setNodeAttribute(nodeId, 'y', y);
+        }
         this.callbacks.onNodePositionChange?.(nodeId, {
-          x: Number(this.graph.getNodeAttribute(nodeId, 'x')),
-          y: Number(this.graph.getNodeAttribute(nodeId, 'y')),
+          x,
+          y,
         });
       }
+      this.rebuildGroupHulls();
+      this.drawGroupHulls();
     });
     this.renderer.getCamera().on('updated', camera => {
       const changed = this.updateEffectiveEdgeStride(camera.ratio);
-      if (changed) this.renderer?.refresh({ skipIndexation: true });
+      if (changed) this.rebuildDisplayGraph();
       this.scheduleSummary();
     });
   }
@@ -562,7 +589,7 @@ export class SigmaNetworkRendererAdapter {
     } else {
       this.callbacks.onNodeHover?.(null, event);
     }
-    this.renderer?.refresh({ skipIndexation: true });
+    this.rebuildDisplayGraph();
     this.emitSummary();
   }
 
@@ -587,8 +614,31 @@ export class SigmaNetworkRendererAdapter {
       this.graph.setNodeAttribute(nodeId, 'selected', this.selectedNodeIds.has(nodeId));
     });
     this.callbacks.onNodeSelectionChange?.(new Set(this.selectedNodeIds));
-    this.renderer?.refresh({ skipIndexation: true });
+    this.rebuildDisplayGraph();
     this.emitSummary();
+  }
+
+  private createDisplayGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
+    const displayGraph = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
+      multi: true,
+      type: 'mixed',
+      allowSelfLoops: true,
+    });
+    this.graph.forEachNode((nodeId, attributes) => {
+      displayGraph.addNode(nodeId, { ...attributes });
+    });
+    this.graph.forEachEdge((edgeId, attributes, source, target) => {
+      if (!this.shouldDisplayEdge(attributes)) return;
+      displayGraph.addEdgeWithKey(edgeId, source, target, { ...attributes });
+    });
+    return displayGraph;
+  }
+
+  private rebuildDisplayGraph(): void {
+    this.displayGraph = this.createDisplayGraph();
+    if (!this.renderer) return;
+    this.renderer.setGraph(this.displayGraph);
+    this.renderer.refresh();
   }
 
   private shouldDisplayEdge(attributes: SigmaEdgeAttributes): boolean {
@@ -640,6 +690,37 @@ export class SigmaNetworkRendererAdapter {
     this.callbacks.onSummaryChange?.(this.getSummary());
   }
 
+  private rebuildGroupHulls(): void {
+    if (!this.showGroupHulls) {
+      this.groupHulls = [];
+      return;
+    }
+    const groups = new Map<string, { color: string; points: Array<{ x: number; y: number }> }>();
+    this.graph.forEachNode((_nodeId, attributes) => {
+      if (!attributes.group) return;
+      const group = groups.get(attributes.group) || { color: attributes.groupColor, points: [] };
+      group.points.push({ x: Number(attributes.x), y: Number(attributes.y) });
+      groups.set(attributes.group, group);
+    });
+    if (groups.size < 2 || groups.size > 80) {
+      this.groupHulls = [];
+      return;
+    }
+    this.groupHulls = [];
+    groups.forEach((group, label) => {
+      if (group.points.length < 3) return;
+      const points = convexHull(group.points);
+      if (points.length < 3) return;
+      const center = points.reduce(
+        (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
+        { x: 0, y: 0 },
+      );
+      center.x /= points.length;
+      center.y /= points.length;
+      this.groupHulls.push({ label, color: group.color, points, center });
+    });
+  }
+
   private drawGroupHulls(): void {
     if (!this.renderer || !this.groupLayer) return;
     const width = this.renderer.getDimensions().width;
@@ -655,24 +736,10 @@ export class SigmaNetworkRendererAdapter {
     context.clearRect(0, 0, width, height);
     if (!this.showGroupHulls) return;
 
-    const groups = new Map<string, { color: string; points: Array<{ x: number; y: number }> }>();
-    this.graph.forEachNode((nodeId, attributes) => {
-      if (!attributes.group) return;
-      const point = this.renderer!.graphToViewport({ x: Number(attributes.x), y: Number(attributes.y) });
-      const group = groups.get(attributes.group) || { color: attributes.groupColor, points: [] };
-      group.points.push(point);
-      groups.set(attributes.group, group);
-    });
-    if (groups.size < 2 || groups.size > 80) return;
-
-    groups.forEach((group, label) => {
-      if (group.points.length < 3) return;
-      const hull = convexHull(group.points);
-      if (hull.length < 3) return;
-      const center = hull.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
-      center.x /= hull.length;
-      center.y /= hull.length;
-      const expanded = hull.map(point => {
+    for (const group of this.groupHulls) {
+      const center = this.renderer.graphToViewport(group.center);
+      const expanded = group.points.map(graphPoint => {
+        const point = this.renderer!.graphToViewport(graphPoint);
         const dx = point.x - center.x;
         const dy = point.y - center.y;
         const length = Math.max(1, Math.hypot(dx, dy));
@@ -691,13 +758,13 @@ export class SigmaNetworkRendererAdapter {
       context.lineWidth = 1.5;
       context.stroke();
 
-      if (groups.size <= 20) {
+      if (this.groupHulls.length <= 20) {
         context.globalAlpha = 0.8;
         context.fillStyle = group.color;
         context.font = '600 12px sans-serif';
-        context.fillText(label, center.x + 6, center.y - 6);
+        context.fillText(group.label, center.x + 6, center.y - 6);
       }
-    });
+    }
     context.globalAlpha = 1;
   }
 }

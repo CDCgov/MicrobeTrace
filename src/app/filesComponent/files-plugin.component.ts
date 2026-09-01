@@ -860,13 +860,18 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   private buildLargeNetworkDemoNewick(): string {
-    const leaves = Array.from({ length: 500 }, (_value, index) => {
-      const id = `DNWK${String(index + 1).padStart(4, '0')}`;
-      const branchLength = index < 250 ? '0.0010' : '0.0025';
-      return `${id}:${branchLength}`;
+    const cohortCount = 5;
+    const leavesPerCohort = 100;
+    const cohorts = Array.from({ length: cohortCount }, (_cohortValue, cohortIndex) => {
+      const leaves = Array.from({ length: leavesPerCohort }, (_leafValue, leafIndex) => {
+        const sampleIndex = cohortIndex * leavesPerCohort + leafIndex + 1;
+        const id = `DNWK${String(sampleIndex).padStart(4, '0')}`;
+        return `${id}:0.0010`;
+      });
+      return `(${leaves.join(',')}):0.0015`;
     });
 
-    return `((${leaves.join(',')}):0.0500);`;
+    return `(${cohorts.join(',')});`;
   }
 
   private async loadDefaultSampleSession(): Promise<void> {
