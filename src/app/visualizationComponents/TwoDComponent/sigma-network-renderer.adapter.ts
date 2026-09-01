@@ -81,6 +81,16 @@ interface SigmaGroupHull {
   center: { x: number; y: number };
 }
 
+interface SigmaViewportPoint {
+  x: number;
+  y: number;
+}
+
+interface SigmaGraphBounds {
+  x: [number, number];
+  y: [number, number];
+}
+
 interface SigmaRankedEdge {
   id: string;
   sourceId: string;
@@ -412,6 +422,7 @@ export class SigmaNetworkRendererAdapter {
   });
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
+  private selectionLayer: HTMLCanvasElement | null = null;
   private groupHulls: SigmaGroupHull[] = [];
   private selectedNodeIds = new Set<string>();
   private hoveredNodeId: string | null = null;
@@ -423,6 +434,47 @@ export class SigmaNetworkRendererAdapter {
   private rankedEdges: SigmaRankedEdge[] = [];
   private incidentEdgeIdsByNode = new Map<string, string[]>();
   private projectionTimer: ReturnType<typeof setTimeout> | null = null;
+  private hullRefreshFrame: number | null = null;
+  private selectionStart: SigmaViewportPoint | null = null;
+  private selectionEnd: SigmaViewportPoint | null = null;
+  private selectionPointerId: number | null = null;
+  private selectionMouseLayer: HTMLElement | null = null;
+  private nodeDragStartPointer: { x: number; y: number } | null = null;
+  private nodeDragStartPositions = new Map<string, { x: number; y: number }>();
+
+  private readonly handleSelectionPointerDown = (event: PointerEvent): void => {
+    if (!event.shiftKey || event.button !== 0 || !this.renderer) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.selectionPointerId = event.pointerId;
+    this.selectionStart = this.viewportPointFromPointer(event);
+    this.selectionEnd = this.selectionStart;
+    this.selectionMouseLayer?.setPointerCapture?.(event.pointerId);
+    document.addEventListener('pointermove', this.handleSelectionPointerMove, true);
+    document.addEventListener('pointerup', this.handleSelectionPointerUp, true);
+    document.addEventListener('pointercancel', this.handleSelectionPointerUp, true);
+    this.drawSelectionBox();
+  };
+
+  private readonly handleSelectionPointerMove = (event: PointerEvent): void => {
+    if (this.selectionPointerId !== event.pointerId || !this.selectionStart) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.selectionEnd = this.viewportPointFromPointer(event);
+    this.drawSelectionBox();
+  };
+
+  private readonly handleSelectionPointerUp = (event: PointerEvent): void => {
+    if (this.selectionPointerId !== event.pointerId || !this.selectionStart) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.selectionEnd = this.viewportPointFromPointer(event);
+    this.selectionMouseLayer?.releasePointerCapture?.(event.pointerId);
+    document.removeEventListener('pointermove', this.handleSelectionPointerMove, true);
+    document.removeEventListener('pointerup', this.handleSelectionPointerUp, true);
+    document.removeEventListener('pointercancel', this.handleSelectionPointerUp, true);
+    this.finishBoxSelection();
+  };
 
   constructor(
     private readonly container: HTMLElement,
@@ -480,12 +532,17 @@ export class SigmaNetworkRendererAdapter {
     this.rebuildEdgeIndexes();
     this.displayGraph = this.createDisplayGraph();
     this.rebuildGroupHulls();
+    const stableGraphBounds = this.resolveGraphBounds();
 
+    const existingRenderer = Boolean(this.renderer);
     if (!this.renderer) {
       this.createRenderer();
-    } else {
+    }
+    if (existingRenderer) {
       this.renderer.setGraph(this.displayGraph);
     }
+
+    this.renderer.setCustomBBox(stableGraphBounds);
 
     if (priorCamera) this.renderer.getCamera().setState(priorCamera);
     else void this.renderer.getCamera().reset({ duration: 0 });
@@ -511,6 +568,7 @@ export class SigmaNetworkRendererAdapter {
   resize(): void {
     this.renderer?.resize();
     this.drawGroupHulls();
+    this.drawSelectionBox();
     this.scheduleProjectionRefresh();
   }
 
@@ -539,9 +597,22 @@ export class SigmaNetworkRendererAdapter {
   destroy(): void {
     if (this.projectionTimer) clearTimeout(this.projectionTimer);
     this.projectionTimer = null;
+    if (this.hullRefreshFrame !== null) cancelAnimationFrame(this.hullRefreshFrame);
+    this.hullRefreshFrame = null;
+    this.selectionMouseLayer?.removeEventListener('pointerdown', this.handleSelectionPointerDown, true);
+    document.removeEventListener('pointermove', this.handleSelectionPointerMove, true);
+    document.removeEventListener('pointerup', this.handleSelectionPointerUp, true);
+    document.removeEventListener('pointercancel', this.handleSelectionPointerUp, true);
     this.renderer?.kill();
     this.renderer = null;
     this.groupLayer = null;
+    this.selectionLayer = null;
+    this.selectionMouseLayer = null;
+    this.selectionStart = null;
+    this.selectionEnd = null;
+    this.selectionPointerId = null;
+    this.nodeDragStartPointer = null;
+    this.nodeDragStartPositions.clear();
     this.groupHulls = [];
     this.rankedEdges = [];
     this.incidentEdgeIdsByNode.clear();
@@ -554,6 +625,12 @@ export class SigmaNetworkRendererAdapter {
       settings: {
         autoRescaleContent: 'nodes',
         enableNodeDrag: true,
+        getDraggedNodes: draggedNode => [draggedNode],
+        // Sigma v4's drag manager retains the graph supplied at construction.
+        // Edge LOD swaps the display graph, so the adapter applies pointer
+        // deltas to the current graph instead of letting that stale reference
+        // write node positions.
+        dragPositionToAttributes: () => ({}),
         enableEdgeEvents: false,
         hideEdgesOnMove: false,
         hideLabelsOnMove: true,
@@ -561,6 +638,7 @@ export class SigmaNetworkRendererAdapter {
         labelGridCellSize: 140,
         labelRenderedSizeThreshold: 6,
         minEdgeThickness: 0.35,
+        nodePickingPadding: 6,
         stagePadding: 48,
       },
       nodeReducer: (_key, displayData, attributes, state) => {
@@ -599,6 +677,12 @@ export class SigmaNetworkRendererAdapter {
       beforeLayer: 'stage',
       style: { pointerEvents: 'none' },
     });
+    this.selectionLayer = this.renderer.createCanvas('microbetrace-selection', {
+      afterLayer: 'stage',
+      style: { pointerEvents: 'none' },
+    });
+    this.selectionMouseLayer = this.renderer.getMouseLayer();
+    this.selectionMouseLayer.addEventListener('pointerdown', this.handleSelectionPointerDown, true);
     this.renderer.on('afterRender', () => this.drawGroupHulls());
     this.renderer.on('enterNode', payload => this.handleNodeHover(payload.node, payload.event.original));
     this.renderer.on('leaveNode', payload => this.handleNodeHover(null, payload.event.original));
@@ -611,19 +695,18 @@ export class SigmaNetworkRendererAdapter {
       const node = this.graph.getNodeAttribute(payload.node, 'raw');
       this.callbacks.onNodeContextMenu?.(node, event);
     });
+    this.renderer.on('nodeDragStart', payload => {
+      this.startNodeDrag(payload.allDraggedNodes, payload.event);
+    });
+    this.renderer.on('nodeDrag', payload => {
+      this.applyNodeDrag(payload.allDraggedNodes, payload.event);
+      this.syncDraggedNodePositions(payload.allDraggedNodes, false);
+    });
     this.renderer.on('nodeDragEnd', payload => {
-      for (const nodeId of payload.allDraggedNodes) {
-        const x = Number(this.displayGraph.getNodeAttribute(nodeId, 'x'));
-        const y = Number(this.displayGraph.getNodeAttribute(nodeId, 'y'));
-        if (this.graph.hasNode(nodeId)) {
-          this.graph.setNodeAttribute(nodeId, 'x', x);
-          this.graph.setNodeAttribute(nodeId, 'y', y);
-        }
-        this.callbacks.onNodePositionChange?.(nodeId, {
-          x,
-          y,
-        });
-      }
+      this.applyNodeDrag(payload.allDraggedNodes, payload.event);
+      this.syncDraggedNodePositions(payload.allDraggedNodes, true);
+      this.nodeDragStartPointer = null;
+      this.nodeDragStartPositions.clear();
       this.rebuildGroupHulls();
       this.drawGroupHulls();
       this.scheduleProjectionRefresh();
@@ -632,6 +715,163 @@ export class SigmaNetworkRendererAdapter {
       this.updateEffectiveEdgeStride(camera.ratio);
       this.scheduleProjectionRefresh();
     });
+  }
+
+  private resolveGraphBounds(): SigmaGraphBounds {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    this.graph.forEachNode((_nodeId, attributes) => {
+      const x = Number(attributes.x);
+      const y = Number(attributes.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    });
+    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return { x: [0, 1], y: [0, 1] };
+    if (minX === maxX) {
+      minX -= 0.5;
+      maxX += 0.5;
+    }
+    if (minY === maxY) {
+      minY -= 0.5;
+      maxY += 0.5;
+    }
+    return { x: [minX, maxX], y: [minY, maxY] };
+  }
+
+  private viewportPointFromPointer(event: PointerEvent): SigmaViewportPoint {
+    const bounds = this.container.getBoundingClientRect();
+    const width = this.renderer?.getDimensions().width || bounds.width;
+    const height = this.renderer?.getDimensions().height || bounds.height;
+    return {
+      x: Math.max(0, Math.min(width, event.clientX - bounds.left)),
+      y: Math.max(0, Math.min(height, event.clientY - bounds.top)),
+    };
+  }
+
+  private prepareOverlayCanvas(layer: HTMLCanvasElement): {
+    context: CanvasRenderingContext2D;
+    width: number;
+    height: number;
+  } | null {
+    if (!this.renderer) return null;
+    const { width, height } = this.renderer.getDimensions();
+    const pixelRatio = window.devicePixelRatio || 1;
+    const renderWidth = Math.max(1, Math.round(width * pixelRatio));
+    const renderHeight = Math.max(1, Math.round(height * pixelRatio));
+    if (layer.width !== renderWidth || layer.height !== renderHeight) {
+      layer.width = renderWidth;
+      layer.height = renderHeight;
+    }
+    layer.style.width = `${width}px`;
+    layer.style.height = `${height}px`;
+    const context = layer.getContext('2d');
+    if (!context) return null;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    return { context, width, height };
+  }
+
+  private drawSelectionBox(): void {
+    if (!this.selectionLayer) return;
+    const prepared = this.prepareOverlayCanvas(this.selectionLayer);
+    if (!prepared || !this.selectionStart || !this.selectionEnd) return;
+    const { context } = prepared;
+    const x = Math.min(this.selectionStart.x, this.selectionEnd.x);
+    const y = Math.min(this.selectionStart.y, this.selectionEnd.y);
+    const width = Math.abs(this.selectionEnd.x - this.selectionStart.x);
+    const height = Math.abs(this.selectionEnd.y - this.selectionStart.y);
+    context.save();
+    context.fillStyle = 'rgba(37, 99, 235, 0.12)';
+    context.strokeStyle = '#2563eb';
+    context.lineWidth = 1.5;
+    context.setLineDash([6, 4]);
+    context.fillRect(x, y, width, height);
+    context.strokeRect(x, y, width, height);
+    context.restore();
+  }
+
+  private finishBoxSelection(): void {
+    const start = this.selectionStart;
+    const end = this.selectionEnd;
+    this.selectionStart = null;
+    this.selectionEnd = null;
+    this.selectionPointerId = null;
+    this.drawSelectionBox();
+    if (!this.renderer || !start || !end) return;
+    if (Math.abs(end.x - start.x) < 4 || Math.abs(end.y - start.y) < 4) return;
+    const minX = Math.min(start.x, end.x);
+    const maxX = Math.max(start.x, end.x);
+    const minY = Math.min(start.y, end.y);
+    const maxY = Math.max(start.y, end.y);
+    this.graph.forEachNode((nodeId, attributes) => {
+      const displayedAttributes = this.displayGraph.hasNode(nodeId)
+        ? this.displayGraph.getNodeAttributes(nodeId)
+        : attributes;
+      const point = this.renderer!.graphToViewport({
+        x: Number(displayedAttributes.x),
+        y: Number(displayedAttributes.y),
+      });
+      if (point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY) {
+        this.selectedNodeIds.add(nodeId);
+      }
+    });
+    this.syncSelectionAttributes();
+  }
+
+  private syncDraggedNodePositions(nodeIds: string[], notify: boolean): void {
+    for (const nodeId of nodeIds) {
+      if (!this.displayGraph.hasNode(nodeId)) continue;
+      const x = Number(this.displayGraph.getNodeAttribute(nodeId, 'x'));
+      const y = Number(this.displayGraph.getNodeAttribute(nodeId, 'y'));
+      if (this.graph.hasNode(nodeId)) {
+        this.graph.setNodeAttribute(nodeId, 'x', x);
+        this.graph.setNodeAttribute(nodeId, 'y', y);
+      }
+      if (notify) this.callbacks.onNodePositionChange?.(nodeId, { x, y });
+    }
+    if (notify && this.hullRefreshFrame !== null) {
+      cancelAnimationFrame(this.hullRefreshFrame);
+      this.hullRefreshFrame = null;
+    }
+    if (!this.showGroupHulls || notify || this.hullRefreshFrame !== null) return;
+    this.hullRefreshFrame = requestAnimationFrame(() => {
+      this.hullRefreshFrame = null;
+      this.rebuildGroupHulls();
+      this.drawGroupHulls();
+    });
+  }
+
+  private startNodeDrag(nodeIds: string[], pointer: { x: number; y: number }): void {
+    if (!this.renderer) return;
+    this.nodeDragStartPointer = this.renderer.viewportToGraph(pointer);
+    this.nodeDragStartPositions.clear();
+    for (const nodeId of nodeIds) {
+      if (!this.displayGraph.hasNode(nodeId)) continue;
+      this.nodeDragStartPositions.set(nodeId, {
+        x: Number(this.displayGraph.getNodeAttribute(nodeId, 'x')),
+        y: Number(this.displayGraph.getNodeAttribute(nodeId, 'y')),
+      });
+    }
+  }
+
+  private applyNodeDrag(nodeIds: string[], pointer: { x: number; y: number }): void {
+    if (!this.renderer || !this.nodeDragStartPointer) return;
+    const currentPointer = this.renderer.viewportToGraph(pointer);
+    const deltaX = currentPointer.x - this.nodeDragStartPointer.x;
+    const deltaY = currentPointer.y - this.nodeDragStartPointer.y;
+    for (const nodeId of nodeIds) {
+      const start = this.nodeDragStartPositions.get(nodeId);
+      if (!start || !this.displayGraph.hasNode(nodeId)) continue;
+      this.displayGraph.mergeNodeAttributes(nodeId, {
+        x: start.x + deltaX,
+        y: start.y + deltaY,
+      });
+    }
   }
 
   private handleNodeHover(nodeId: string | null, event?: MouseEvent | TouchEvent): void {
@@ -740,7 +980,10 @@ export class SigmaNetworkRendererAdapter {
   private selectDisplayEdgeIds(): Set<string> {
     if (this.edgeDetailMode === 'all') return new Set(this.rankedEdges.map(edge => edge.id));
     if (this.hoveredNodeId) return new Set(this.incidentEdgeIdsByNode.get(this.hoveredNodeId) || []);
-    if (this.selectedNodeIds.size > 0) {
+    // A single/few selected nodes benefit from seeing every incident link. A
+    // large box selection must keep the normal viewport budget or a dense
+    // network can suddenly materialize tens of thousands of links.
+    if (this.selectedNodeIds.size > 0 && this.selectedNodeIds.size <= 8) {
       const selectedIncidentEdges = new Set<string>();
       this.selectedNodeIds.forEach(nodeId => {
         for (const edgeId of this.incidentEdgeIdsByNode.get(nodeId) || []) selectedIncidentEdges.add(edgeId);
@@ -857,6 +1100,7 @@ export class SigmaNetworkRendererAdapter {
     if (!this.renderer) return true;
     const settledCameraState = this.renderer.getCamera().getState();
     this.renderer.setGraph(this.displayGraph);
+    this.renderer.setCustomBBox(this.resolveGraphBounds());
     this.renderer.getCamera().setState(settledCameraState);
     this.renderer.refresh();
     return true;
@@ -938,17 +1182,9 @@ export class SigmaNetworkRendererAdapter {
 
   private drawGroupHulls(): void {
     if (!this.renderer || !this.groupLayer) return;
-    const width = this.renderer.getDimensions().width;
-    const height = this.renderer.getDimensions().height;
-    const pixelRatio = window.devicePixelRatio || 1;
-    if (this.groupLayer.width !== width * pixelRatio || this.groupLayer.height !== height * pixelRatio) {
-      this.groupLayer.width = width * pixelRatio;
-      this.groupLayer.height = height * pixelRatio;
-    }
-    const context = this.groupLayer.getContext('2d');
-    if (!context) return;
-    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    context.clearRect(0, 0, width, height);
+    const prepared = this.prepareOverlayCanvas(this.groupLayer);
+    if (!prepared) return;
+    const { context } = prepared;
     if (!this.showGroupHulls) return;
 
     for (const group of this.groupHulls) {
