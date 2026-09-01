@@ -23,7 +23,7 @@ import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-import { getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, MIXED_NODE_STRIPE_BAND_WIDTH_PX, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
+import { getEvenMixedNodeShapeSegments, getMixedNodeRingWidth, getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, MIXED_NODE_CENTER_COLOR, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 /**
@@ -159,7 +159,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   originalTreeData: any = null;
   hasTreeBeenModifiedFromOriginal = false;
   private treeLeafShapeUriCache = new Map<string, string>();
-  private mixedLeafPatternIdCounter = 0;
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
@@ -387,6 +386,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const fillColor = fillStyle.color;
     const fillOpacity = fillStyle.alpha;
     const mixedSegments = Array.isArray(fillStyle.segments) ? fillStyle.segments : [];
+    const hasMixedRing = mixedSegments.length > 1;
     const nodeSelection = d3.select(node);
 
     nodeSelection
@@ -395,6 +395,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     if (!this.SelectedLeafNodeShowVariable) {
       this.removeLeafNodeShapeOverlay(node);
+      this.removeLeafNodeMixedRing(node);
       nodeSelection
         .style('fill-opacity', 0)
         .style('stroke', 'transparent')
@@ -413,18 +414,17 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
       if (shapeKey === 'ellipse') {
         let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
-        const mixedFill = mixedSegments.length > 1
-          ? this.renderLeafCircleMixedFill(node, mixedSegments, fillOpacity)
-          : null;
         this.removeLeafNodeShapeOverlay(node);
         nodeSelection
-          .style('fill', mixedFill ?? fillColor)
-          .style('fill-opacity', mixedFill ? 1 : fillOpacity)
+          .style('fill', hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor)
+          .style('fill-opacity', hasMixedRing ? 1 : fillOpacity)
           .style('stroke', strokeColor)
           .style('stroke-width', strokeWidth);
+        this.renderLeafCircleMixedRing(node, mixedSegments, fillOpacity, leafSize, parseFloat(strokeWidth));
         return;
       }
 
+      this.removeLeafNodeMixedRing(node);
       this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity, mixedSegments);
       nodeSelection
         .style('fill', fillColor)
@@ -436,14 +436,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     this.removeLeafNodeShapeOverlay(node);
     let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
-    const mixedFill = mixedSegments.length > 1
-      ? this.renderLeafCircleMixedFill(node, mixedSegments, fillOpacity)
-      : null;
     nodeSelection
-      .style('fill', mixedFill ?? fillColor)
-      .style('fill-opacity', mixedFill ? 1 : fillOpacity)
+      .style('fill', hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor)
+      .style('fill-opacity', hasMixedRing ? 1 : fillOpacity)
       .style('stroke', isSelected ? selectedColor : '#000000')
       .style('stroke-width', strokeWidth);
+    this.renderLeafCircleMixedRing(node, mixedSegments, fillOpacity, leafSize, parseFloat(strokeWidth));
   }
 
   private getLeafNodeData(nodeId: string): any {
@@ -456,93 +454,68 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     return this.visuals.phylogenetic.commonService.getNodeFillStyle(nodeData);
   }
 
-  private getWeightedMixedSegments(segments: any[]): Array<{ segment: any; startFraction: number; endFraction: number }> {
-    const validSegments = segments.filter(segment => Number(segment.weight ?? 1) > 0);
-    const totalWeight = validSegments.reduce((sum, segment) => sum + Number(segment.weight ?? 1), 0);
-    if (validSegments.length < 2 || totalWeight <= 0) {
-      return [];
+  private renderLeafCircleMixedRing(
+    node: SVGElement,
+    segments: any[],
+    fallbackOpacity: number,
+    leafSize: number,
+    outlineStrokeWidth: number
+  ): void {
+    const parentNode = node.parentNode as SVGGElement | null;
+    const evenSegments = getEvenMixedNodeShapeSegments(segments);
+    if (!parentNode || evenSegments.length < 2) {
+      this.removeLeafNodeMixedRing(node);
+      return;
     }
 
-    let startFraction = 0;
-    return validSegments.map((segment, index) => {
-      const endFraction = index === validSegments.length - 1
-        ? 1
-        : startFraction + (Number(segment.weight ?? 1) / totalWeight);
-      const weightedSegment = { segment, startFraction, endFraction };
-      startFraction = endFraction;
-
-      return weightedSegment;
-    });
-  }
-
-  private getLeafMixedFillPatternId(node: SVGElement): string {
-    const nodeWithPattern = node as SVGElement & { __mixedFillPatternId?: string };
-    if (!nodeWithPattern.__mixedFillPatternId) {
-      this.mixedLeafPatternIdCounter += 1;
-      nodeWithPattern.__mixedFillPatternId = `mt-tree-mixed-fill-${this.mixedLeafPatternIdCounter}`;
+    const ringWidth = getMixedNodeRingWidth(leafSize * 2);
+    const ringRadius = leafSize - (outlineStrokeWidth / 2) - (ringWidth / 2);
+    if (ringRadius <= 0) {
+      this.removeLeafNodeMixedRing(node);
+      return;
     }
 
-    return nodeWithPattern.__mixedFillPatternId;
-  }
+    const ringSegments = evenSegments.map(({ segment, startFraction, endFraction }, index) => ({
+      color: String(segment.color || '#000000'),
+      dashOffset: -startFraction,
+      index,
+      length: endFraction - startFraction,
+      opacity: Number.isFinite(Number(segment.alpha))
+        ? Math.min(1, Math.max(0, Number(segment.alpha)))
+        : Math.min(1, Math.max(0, Number(fallbackOpacity)))
+    }));
 
-  private renderLeafCircleMixedFill(node: SVGElement, segments: any[], fallbackOpacity: number): string | null {
-    const weightedSegments = this.getWeightedMixedSegments(segments);
-    const svgElement = node.ownerSVGElement;
-    if (!svgElement || weightedSegments.length < 2) {
-      return null;
-    }
-
-    const svgSelection = d3.select(svgElement);
-    let defsSelection = svgSelection.select<SVGDefsElement>('defs.mt-tree-mixed-fill-defs');
-    if (defsSelection.empty()) {
-      defsSelection = svgSelection.insert('defs', ':first-child')
-        .attr('class', 'mt-tree-mixed-fill-defs');
-    }
-
-    const patternId = this.getLeafMixedFillPatternId(node);
-    const stripePeriod = MIXED_NODE_STRIPE_BAND_WIDTH_PX * weightedSegments.length;
-    const patternSelection = defsSelection
-      .selectAll<SVGPatternElement, string>(`pattern#${patternId}`)
-      .data([patternId]);
-
-    const mergedPattern = patternSelection
+    d3.select(parentNode)
+      .selectAll<SVGCircleElement, any>('circle.tidytree-node-mixed-ring')
+      .data(ringSegments, segment => segment.index)
       .join(
         enter => enter
-          .append('pattern')
-          .attr('id', patternId),
-        update => update
+          .insert('circle', 'text')
+          .attr('class', 'tidytree-node-mixed-ring')
+          .attr('data-mt-mixed-ring', 'true')
+          .style('pointer-events', 'none'),
+        update => update,
+        exit => exit.remove()
       )
-      .attr('patternUnits', 'userSpaceOnUse')
-      .attr('width', stripePeriod)
-      .attr('height', stripePeriod)
-      .attr('patternTransform', 'rotate(45)');
+      .attr('cx', 0)
+      .attr('cy', 0)
+      .attr('r', ringRadius)
+      .attr('pathLength', 1)
+      .attr('fill', 'none')
+      .attr('stroke', segment => segment.color)
+      .attr('stroke-opacity', segment => segment.opacity)
+      .attr('stroke-width', ringWidth)
+      .attr('stroke-dasharray', segment => `${segment.length} ${1 - segment.length}`)
+      .attr('stroke-dashoffset', segment => segment.dashOffset)
+      .attr('stroke-linecap', 'butt')
+      .attr('transform', 'rotate(-90)');
+  }
 
-    const stripes = weightedSegments.map(({ segment, startFraction, endFraction }) => {
-      const color = String(segment.color || '#000000');
-      const opacity = Number.isFinite(Number(segment.alpha))
-        ? Math.min(1, Math.max(0, Number(segment.alpha)))
-        : Math.min(1, Math.max(0, Number(fallbackOpacity)));
-
-      return {
-        x: startFraction * stripePeriod,
-        width: (endFraction - startFraction) * stripePeriod,
-        color,
-        opacity
-      };
-    });
-
-    mergedPattern
-      .selectAll<SVGRectElement, { x: number; width: number; color: string; opacity: number }>('rect')
-      .data(stripes)
-      .join('rect')
-      .attr('x', stripe => stripe.x)
-      .attr('y', 0)
-      .attr('width', stripe => stripe.width)
-      .attr('height', stripePeriod)
-      .attr('fill', stripe => stripe.color)
-      .attr('fill-opacity', stripe => stripe.opacity);
-
-    return `url(#${patternId})`;
+  private removeLeafNodeMixedRing(node: SVGElement): void {
+    const parentNode = node.parentNode as SVGGElement | null;
+    if (parentNode) {
+      d3.select(parentNode).selectAll('circle.tidytree-node-mixed-ring').remove();
+    }
   }
 
   private removeLeafNodeShapeOverlay(node: SVGElement): void {

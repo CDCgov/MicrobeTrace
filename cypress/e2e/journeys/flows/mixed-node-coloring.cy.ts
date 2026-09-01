@@ -161,6 +161,9 @@ describe('Journey Flow - mixed node coloring', () => {
       const singleNode = cyInstance.getElementById('sample-2');
 
       expect(String(mixedNode.data('mixedColorImage') || '')).to.contain('data:image/svg+xml');
+      const mixedNodeSvg = decodeURIComponent(String(mixedNode.data('mixedColorImage')).split(',')[1]);
+      expect(mixedNodeSvg).to.contain('fill="#ffffff"');
+      expect(mixedNodeSvg).to.contain('stroke-dasharray="0.5 0.5"');
       expect(singleNode.data('mixedColorImage')).to.equal(undefined);
     });
 
@@ -228,6 +231,14 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.find((slice: any) => slice.label === '6/7a').segments.map((segment: any) => segment.value))
         .to.deep.equal(['6', '7a']);
       expect(String(mixedAggregate.style('background-image'))).to.contain('data:image');
+      const aggregateSvg = atob(String(mixedAggregate.data('pieBackgroundImage')).split(',')[1]);
+      expect(aggregateSvg).to.contain("data-mt-aggregate-outline='outer'");
+      expect(aggregateSvg).not.to.contain("data-mt-aggregate-outline='inner'");
+      expect(aggregateSvg).to.contain("data-mt-mixed-hollow-slice='true'");
+      expect(aggregateSvg).to.contain("data-mt-solid-aggregate-slice='true'");
+      expect(aggregateSvg.match(/data-mt-mixed-ring-segment=/g)).to.have.length(4);
+      expect(aggregateSvg.match(/data-mt-aggregate-slice-separator=/g)).to.have.length(6);
+      expect(aggregateSvg).not.to.contain('data-mt-aggregate-mixed-indicator');
     });
 
     cy.window().then((win: unknown) => {
@@ -396,13 +407,13 @@ describe('Journey Flow - mixed node coloring', () => {
 
     goToPhyloTreeView();
     cy.get('#phylocanvas g.tidytree-node-leaf circle[title="sample-4"]', { timeout: 30000 })
-      .should(($circle) => {
-        expect($circle.css('fill')).to.match(/url\(.+mt-tree-mixed-fill-/);
-      });
-    cy.get('#phylocanvas defs.mt-tree-mixed-fill-defs pattern rect')
-      .should(($stripes) => {
-        const stripeColors = [...$stripes].map((stripe) => String(stripe.getAttribute('fill')).toLowerCase());
-        expect(stripeColors).to.include('#00aa00');
+      .should('have.css', 'fill', 'rgb(255, 255, 255)')
+      .parent()
+      .find('circle.tidytree-node-mixed-ring[data-mt-mixed-ring="true"]')
+      .should(($ringSegments) => {
+        expect($ringSegments).to.have.length(2);
+        const ringColors = [...$ringSegments].map((segment) => String(segment.getAttribute('stroke')).toLowerCase());
+        expect(ringColors).to.include('#00aa00');
       });
   });
 

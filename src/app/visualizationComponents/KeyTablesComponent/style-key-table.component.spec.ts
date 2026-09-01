@@ -1,3 +1,5 @@
+import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { StyleKeyTableComponent, StyleKeyTableRow } from './style-key-table.component';
 
 describe('StyleKeyTableComponent mixed color controls', () => {
@@ -83,5 +85,34 @@ describe('StyleKeyTableComponent mixed color controls', () => {
     component.onSegmentAlphaTriggerClick(duoRow, new MouseEvent('click'));
 
     expect(component.isSegmentAlphaEditorOpen(duoRow)).toBe(false);
+  });
+
+  it('renders mixed legend colors as one rectangular striped swatch', async () => {
+    await TestBed.configureTestingModule({
+      declarations: [StyleKeyTableComponent],
+      schemas: [NO_ERRORS_SCHEMA]
+    }).compileComponents();
+    const fixture: ComponentFixture<StyleKeyTableComponent> = TestBed.createComponent(StyleKeyTableComponent);
+    fixture.componentInstance.controlType = 'color';
+    fixture.componentInstance.editable = false;
+    fixture.componentInstance.rows = [mixedRow];
+    fixture.detectChanges();
+
+    const swatchSet = fixture.nativeElement.querySelector('[data-mixed-color-swatch="true"]') as HTMLElement;
+    const swatchBar = swatchSet.querySelector('.style-key-table__duo-inner') as HTMLElement;
+    const stripes = Array.from(
+      swatchSet.querySelectorAll('[data-color-segment]')
+    ) as HTMLElement[];
+
+    expect(stripes.length).toBe(2);
+    expect(stripes.map(stripe => getComputedStyle(stripe).backgroundColor)).toEqual([
+      'rgb(255, 0, 0)',
+      'rgb(0, 0, 255)'
+    ]);
+    expect(getComputedStyle(swatchSet).width).toBe('50px');
+    expect(getComputedStyle(swatchBar).width).toBe('42px');
+    expect(getComputedStyle(swatchBar).borderStyle).toBe('solid');
+    expect(getComputedStyle(swatchBar).borderRadius).toBe('0px');
+    expect(stripes.every(stripe => getComputedStyle(stripe).borderRadius === '0px')).toBe(true);
   });
 });
