@@ -855,7 +855,9 @@ export class SigmaNetworkRendererAdapter {
     if (!force && !projectionChanged) return false;
     this.displayGraph = this.createDisplayGraph(edgeIds);
     if (!this.renderer) return true;
+    const settledCameraState = this.renderer.getCamera().getState();
     this.renderer.setGraph(this.displayGraph);
+    this.renderer.getCamera().setState(settledCameraState);
     this.renderer.refresh();
     return true;
   }
@@ -890,7 +892,8 @@ export class SigmaNetworkRendererAdapter {
     this.projectionTimer = setTimeout(() => {
       this.projectionTimer = null;
       const graphState = this.renderer?.getGraphState();
-      if (graphState?.isPanning || graphState?.isZooming || graphState?.isDragging) {
+      const cameraIsAnimating = this.renderer?.getCamera().isAnimating() || false;
+      if (cameraIsAnimating || graphState?.isPanning || graphState?.isZooming || graphState?.isDragging) {
         this.scheduleProjectionRefresh();
         return;
       }

@@ -33,10 +33,12 @@ describe('Sigma renderer proof of concept', () => {
 
     cy.window().then((win: any) => {
       const adapter = win.sigmaPocInstance;
-      const camera = adapter.getRenderer().getCamera();
+      const renderer = adapter.getRenderer();
+      const camera = renderer.getCamera();
       const initialCamera = camera.getState();
       win.sigmaPocInitialCamera = initialCamera;
-      camera.setState({ ...initialCamera, ratio: initialCamera.ratio * 0.4 });
+      win.sigmaPocZoomRatio = initialCamera.ratio * 0.4;
+      camera.setState({ ...initialCamera, ratio: win.sigmaPocZoomRatio });
     });
     cy.get('@overviewDrawnLinkCount').then(overviewDrawnLinkCount => {
       cy.window({ timeout: 10000 }).should((win: any) => {
@@ -44,6 +46,7 @@ describe('Sigma renderer proof of concept', () => {
         const zoomed = adapter.getSummary();
         expect(zoomed.drawnLinkCount).to.be.greaterThan(Number(overviewDrawnLinkCount));
         expect(adapter.getDisplayGraph().size).to.equal(zoomed.drawnLinkCount);
+        expect(adapter.getRenderer().getCamera().getState().ratio).to.be.closeTo(win.sigmaPocZoomRatio, 0.000001);
       }).then((win: any) => {
         const adapter = win.sigmaPocInstance;
         adapter.getRenderer().getCamera().setState(win.sigmaPocInitialCamera);
