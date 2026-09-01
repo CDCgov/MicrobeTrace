@@ -95,9 +95,14 @@ describe('Sigma renderer proof of concept', () => {
       const selectedNodes = graph.nodes().filter((nodeId: string) =>
         Boolean(graph.getNodeAttribute(nodeId, 'selected')),
       );
-      expect(expected.length).to.be.greaterThan(0);
+      expect(expected.length).to.be.greaterThan(1);
       expect(selectedNodes).to.have.length(expected.length);
       expect(adapter.getSummary().drawnLinkCount).to.be.lessThan(adapter.getSummary().residentLinkCount);
+      adapter.getDisplayGraph().forEachEdge((edgeId: string, attributes: any) => {
+        const displayData = renderer.getEdgeDisplayData(edgeId);
+        expect(displayData.color, `multi-select edge ${edgeId} color`).to.equal(attributes.color);
+        expect(displayData.opacity, `multi-select edge ${edgeId} opacity`).to.equal(attributes.opacity);
+      });
       adapter.clearSelection();
     });
 

@@ -660,8 +660,10 @@ export class SigmaNetworkRendererAdapter {
           this.hoveredNodeId &&
           (attributes.sourceId === this.hoveredNodeId || attributes.targetId === this.hoveredNodeId),
         );
-        const incidentToSelection = this.selectedNodeIds.has(String(attributes.sourceId)) ||
-          this.selectedNodeIds.has(String(attributes.targetId));
+        const incidentToSelection = this.selectedNodeIds.size === 1 && (
+          this.selectedNodeIds.has(String(attributes.sourceId)) ||
+          this.selectedNodeIds.has(String(attributes.targetId))
+        );
         return {
           ...displayData,
           visibility: 'visible',
@@ -980,10 +982,10 @@ export class SigmaNetworkRendererAdapter {
   private selectDisplayEdgeIds(): Set<string> {
     if (this.edgeDetailMode === 'all') return new Set(this.rankedEdges.map(edge => edge.id));
     if (this.hoveredNodeId) return new Set(this.incidentEdgeIdsByNode.get(this.hoveredNodeId) || []);
-    // A single/few selected nodes benefit from seeing every incident link. A
-    // large box selection must keep the normal viewport budget or a dense
-    // network can suddenly materialize tens of thousands of links.
-    if (this.selectedNodeIds.size > 0 && this.selectedNodeIds.size <= 8) {
+    // A single selected node benefits from seeing every incident link. Multi-
+    // selection is a node-only state: retain the normal viewport projection so
+    // a dense network does not materialize or emphasize thousands of links.
+    if (this.selectedNodeIds.size === 1) {
       const selectedIncidentEdges = new Set<string>();
       this.selectedNodeIds.forEach(nodeId => {
         for (const edgeId of this.incidentEdgeIdsByNode.get(nodeId) || []) selectedIncidentEdges.add(edgeId);
