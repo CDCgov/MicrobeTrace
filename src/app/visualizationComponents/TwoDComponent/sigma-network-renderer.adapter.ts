@@ -81,6 +81,14 @@ interface SigmaGroupHull {
   center: { x: number; y: number };
 }
 
+interface SigmaRankedEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  distance: number;
+  isBackbone: boolean;
+}
+
 const GROUP_PALETTE = [
   '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a',
   '#0891b2', '#ca8a04', '#4f46e5', '#be123c', '#0f766e',
@@ -370,7 +378,9 @@ export class SigmaNetworkRendererAdapter {
   private baseEdgeStride = 1;
   private effectiveEdgeStride = 1;
   private showGroupHulls = false;
-  private summaryTimer: ReturnType<typeof setTimeout> | null = null;
+  private rankedEdges: SigmaRankedEdge[] = [];
+  private incidentEdgeIdsByNode = new Map<string, string[]>();
+  private projectionTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly container: HTMLElement,
@@ -425,6 +435,7 @@ export class SigmaNetworkRendererAdapter {
     this.showGroupHulls = data.showGroupHulls;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
+    this.rebuildEdgeIndexes();
     this.displayGraph = this.createDisplayGraph();
     this.rebuildGroupHulls();
 
@@ -458,6 +469,7 @@ export class SigmaNetworkRendererAdapter {
   resize(): void {
     this.renderer?.resize();
     this.drawGroupHulls();
+    this.scheduleProjectionRefresh();
   }
 
   getGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
@@ -483,12 +495,14 @@ export class SigmaNetworkRendererAdapter {
   }
 
   destroy(): void {
-    if (this.summaryTimer) clearTimeout(this.summaryTimer);
-    this.summaryTimer = null;
+    if (this.projectionTimer) clearTimeout(this.projectionTimer);
+    this.projectionTimer = null;
     this.renderer?.kill();
     this.renderer = null;
     this.groupLayer = null;
     this.groupHulls = [];
+    this.rankedEdges = [];
+    this.incidentEdgeIdsByNode.clear();
     this.graph.clear();
     this.displayGraph.clear();
   }
@@ -522,7 +536,6 @@ export class SigmaNetworkRendererAdapter {
         };
       },
       edgeReducer: (_key, displayData, attributes, state) => {
-        const visible = this.shouldDisplayEdge(attributes);
         const incidentToHover = Boolean(
           this.hoveredNodeId &&
           (attributes.sourceId === this.hoveredNodeId || attributes.targetId === this.hoveredNodeId),
@@ -531,7 +544,7 @@ export class SigmaNetworkRendererAdapter {
           this.selectedNodeIds.has(String(attributes.targetId));
         return {
           ...displayData,
-          visibility: visible ? 'visible' : 'hidden',
+          visibility: 'visible',
           color: incidentToHover || incidentToSelection ? this.selectedColor : String(attributes.color),
           opacity: incidentToHover || incidentToSelection ? 0.9 : Number(attributes.opacity),
           size: Number(attributes.size) * (incidentToHover || incidentToSelection || state.isHovered ? 1.75 : 1),
@@ -571,11 +584,11 @@ export class SigmaNetworkRendererAdapter {
       }
       this.rebuildGroupHulls();
       this.drawGroupHulls();
+      this.scheduleProjectionRefresh();
     });
     this.renderer.getCamera().on('updated', camera => {
-      const changed = this.updateEffectiveEdgeStride(camera.ratio);
-      if (changed) this.rebuildDisplayGraph();
-      this.scheduleSummary();
+      this.updateEffectiveEdgeStride(camera.ratio);
+      this.scheduleProjectionRefresh();
     });
   }
 
@@ -589,7 +602,7 @@ export class SigmaNetworkRendererAdapter {
     } else {
       this.callbacks.onNodeHover?.(null, event);
     }
-    this.rebuildDisplayGraph();
+    this.rebuildDisplayGraph(true);
     this.emitSummary();
   }
 
@@ -614,11 +627,166 @@ export class SigmaNetworkRendererAdapter {
       this.graph.setNodeAttribute(nodeId, 'selected', this.selectedNodeIds.has(nodeId));
     });
     this.callbacks.onNodeSelectionChange?.(new Set(this.selectedNodeIds));
-    this.rebuildDisplayGraph();
+    this.rebuildDisplayGraph(true);
     this.emitSummary();
   }
 
-  private createDisplayGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
+  private rebuildEdgeIndexes(): void {
+    this.rankedEdges = [];
+    this.incidentEdgeIdsByNode.clear();
+    this.graph.forEachEdge((edgeId, attributes, source, target) => {
+      this.rankedEdges.push({
+        id: edgeId,
+        sourceId: source,
+        targetId: target,
+        distance: finiteDistance(attributes.raw),
+        isBackbone: Boolean(attributes.isBackbone),
+      });
+      const sourceEdges = this.incidentEdgeIdsByNode.get(source) || [];
+      sourceEdges.push(edgeId);
+      this.incidentEdgeIdsByNode.set(source, sourceEdges);
+      if (source !== target) {
+        const targetEdges = this.incidentEdgeIdsByNode.get(target) || [];
+        targetEdges.push(edgeId);
+        this.incidentEdgeIdsByNode.set(target, targetEdges);
+      }
+    });
+    this.rankedEdges.sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id));
+  }
+
+  private resolveViewportNodes(): { core: Set<string>; overscan: Set<string> } {
+    const allNodes = new Set(this.graph.nodes());
+    if (!this.renderer) return { core: allNodes, overscan: allNodes };
+    const { width, height } = this.renderer.getDimensions();
+    if (width <= 0 || height <= 0) return { core: allNodes, overscan: allNodes };
+    const core = new Set<string>();
+    const overscan = new Set<string>();
+    const marginX = width * 0.3;
+    const marginY = height * 0.3;
+    this.graph.forEachNode((nodeId, attributes) => {
+      const point = this.renderer!.graphToViewport({ x: Number(attributes.x), y: Number(attributes.y) });
+      if (point.x >= 0 && point.x <= width && point.y >= 0 && point.y <= height) core.add(nodeId);
+      if (
+        point.x >= -marginX && point.x <= width + marginX &&
+        point.y >= -marginY && point.y <= height + marginY
+      ) {
+        overscan.add(nodeId);
+      }
+    });
+    if (core.size === 0) {
+      const fallback = overscan.size ? overscan : allNodes;
+      return { core: fallback, overscan: fallback };
+    }
+    return { core, overscan: overscan.size ? overscan : core };
+  }
+
+  private resolveDisplayEdgeBudget(): number {
+    if (this.edgeDetailMode === 'all') return this.graph.size;
+    const sampledBudget = Math.ceil(this.graph.size / Math.max(1, this.effectiveEdgeStride));
+    return Math.min(this.graph.size, sampledBudget + Math.min(this.graph.order, 1000));
+  }
+
+  private resolveNearestNeighborQuota(): number {
+    const ratio = this.renderer?.getCamera().getState().ratio || 1;
+    const zoomQuota = ratio <= 0.25 ? 12 : ratio <= 0.45 ? 8 : ratio <= 0.75 ? 5 : 2;
+    return this.edgeDetailMode === 'detail' ? Math.max(5, zoomQuota) : zoomQuota;
+  }
+
+  private selectDisplayEdgeIds(): Set<string> {
+    if (this.edgeDetailMode === 'all') return new Set(this.rankedEdges.map(edge => edge.id));
+    if (this.hoveredNodeId) return new Set(this.incidentEdgeIdsByNode.get(this.hoveredNodeId) || []);
+    if (this.selectedNodeIds.size > 0) {
+      const selectedIncidentEdges = new Set<string>();
+      this.selectedNodeIds.forEach(nodeId => {
+        for (const edgeId of this.incidentEdgeIdsByNode.get(nodeId) || []) selectedIncidentEdges.add(edgeId);
+      });
+      return selectedIncidentEdges;
+    }
+
+    const { core, overscan } = this.resolveViewportNodes();
+    const focus = core.size > 1 ? core : overscan;
+    const budget = this.resolveDisplayEdgeBudget();
+    const selected = new Set<string>();
+
+    // Stable global context skeleton retained while the camera is moving.
+    for (const edge of this.rankedEdges) {
+      if (edge.isBackbone) selected.add(edge.id);
+    }
+
+    // Shortest-distance spanning forest keeps the visible samples connected without redundant ties.
+    const parent = new Map<string, string>();
+    focus.forEach(nodeId => parent.set(nodeId, nodeId));
+    const find = (nodeId: string): string => {
+      const current = parent.get(nodeId) || nodeId;
+      if (current === nodeId) return current;
+      const root = find(current);
+      parent.set(nodeId, root);
+      return root;
+    };
+    for (const edge of this.rankedEdges) {
+      if (!focus.has(edge.sourceId) || !focus.has(edge.targetId)) continue;
+      const sourceRoot = find(edge.sourceId);
+      const targetRoot = find(edge.targetId);
+      if (sourceRoot === targetRoot) continue;
+      parent.set(targetRoot, sourceRoot);
+      selected.add(edge.id);
+    }
+
+    // Strongest bridge for each cohort pair preserves important between-cohort context.
+    const bridgedGroupPairs = new Set<string>();
+    for (const edge of this.rankedEdges) {
+      if (!focus.has(edge.sourceId) || !focus.has(edge.targetId)) continue;
+      const sourceGroup = String(this.graph.getNodeAttribute(edge.sourceId, 'group') || '');
+      const targetGroup = String(this.graph.getNodeAttribute(edge.targetId, 'group') || '');
+      if (!sourceGroup || !targetGroup || sourceGroup === targetGroup) continue;
+      const groupPair = [sourceGroup, targetGroup].sort().join('\u0000');
+      if (bridgedGroupPairs.has(groupPair)) continue;
+      bridgedGroupPairs.add(groupPair);
+      selected.add(edge.id);
+    }
+
+    // Nearest-neighbor coverage prevents high-degree areas from consuming the whole budget.
+    const neighborQuota = this.resolveNearestNeighborQuota();
+    const degree = new Map<string, number>();
+    for (const edge of this.rankedEdges) {
+      if (selected.size >= budget) break;
+      if (!focus.has(edge.sourceId) || !focus.has(edge.targetId)) continue;
+      const sourceDegree = degree.get(edge.sourceId) || 0;
+      const targetDegree = degree.get(edge.targetId) || 0;
+      if (sourceDegree >= neighborQuota && targetDegree >= neighborQuota) continue;
+      selected.add(edge.id);
+      degree.set(edge.sourceId, sourceDegree + 1);
+      degree.set(edge.targetId, targetDegree + 1);
+    }
+
+    // Fill remaining capacity with shortest links in the viewport and its overscan margin.
+    for (const nodeSet of [core, overscan]) {
+      for (const edge of this.rankedEdges) {
+        if (selected.size >= budget) break;
+        if (nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) selected.add(edge.id);
+      }
+      if (selected.size >= budget) break;
+    }
+
+    // One strong outbound link per visible node supplies boundary context without a hairball.
+    const outboundCovered = new Set<string>();
+    for (const edge of this.rankedEdges) {
+      if (selected.size >= budget) break;
+      const sourceInCore = core.has(edge.sourceId);
+      const targetInCore = core.has(edge.targetId);
+      if (sourceInCore === targetInCore) continue;
+      const coreNode = sourceInCore ? edge.sourceId : edge.targetId;
+      if (outboundCovered.has(coreNode)) continue;
+      outboundCovered.add(coreNode);
+      selected.add(edge.id);
+    }
+
+    return selected;
+  }
+
+  private createDisplayGraph(
+    edgeIds: Set<string> = this.selectDisplayEdgeIds(),
+  ): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
     const displayGraph = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
       multi: true,
       type: 'mixed',
@@ -627,30 +795,24 @@ export class SigmaNetworkRendererAdapter {
     this.graph.forEachNode((nodeId, attributes) => {
       displayGraph.addNode(nodeId, { ...attributes });
     });
-    this.graph.forEachEdge((edgeId, attributes, source, target) => {
-      if (!this.shouldDisplayEdge(attributes)) return;
-      displayGraph.addEdgeWithKey(edgeId, source, target, { ...attributes });
+    edgeIds.forEach(edgeId => {
+      if (!this.graph.hasEdge(edgeId)) return;
+      const [source, target] = this.graph.extremities(edgeId);
+      displayGraph.addEdgeWithKey(edgeId, source, target, { ...this.graph.getEdgeAttributes(edgeId) });
     });
     return displayGraph;
   }
 
-  private rebuildDisplayGraph(): void {
-    this.displayGraph = this.createDisplayGraph();
-    if (!this.renderer) return;
+  private rebuildDisplayGraph(force = false): boolean {
+    const edgeIds = this.selectDisplayEdgeIds();
+    const projectionChanged = edgeIds.size !== this.displayGraph.size ||
+      Array.from(edgeIds).some(edgeId => !this.displayGraph.hasEdge(edgeId));
+    if (!force && !projectionChanged) return false;
+    this.displayGraph = this.createDisplayGraph(edgeIds);
+    if (!this.renderer) return true;
     this.renderer.setGraph(this.displayGraph);
     this.renderer.refresh();
-  }
-
-  private shouldDisplayEdge(attributes: SigmaEdgeAttributes): boolean {
-    if (this.edgeDetailMode === 'all') return true;
-    if (this.hoveredNodeId) {
-      return attributes.sourceId === this.hoveredNodeId || attributes.targetId === this.hoveredNodeId;
-    }
-    if (this.selectedNodeIds.size > 0) {
-      return this.selectedNodeIds.has(String(attributes.sourceId)) ||
-        this.selectedNodeIds.has(String(attributes.targetId));
-    }
-    return Boolean(attributes.isBackbone) || Number(attributes.stableBucket) % this.effectiveEdgeStride === 0;
+    return true;
   }
 
   private resolveBaseEdgeStride(edgeCount: number): number {
@@ -678,12 +840,17 @@ export class SigmaNetworkRendererAdapter {
     return prior !== this.effectiveEdgeStride;
   }
 
-  private scheduleSummary(): void {
-    if (this.summaryTimer) clearTimeout(this.summaryTimer);
-    this.summaryTimer = setTimeout(() => {
-      this.summaryTimer = null;
-      this.emitSummary();
-    }, 120);
+  private scheduleProjectionRefresh(): void {
+    if (this.projectionTimer) clearTimeout(this.projectionTimer);
+    this.projectionTimer = setTimeout(() => {
+      this.projectionTimer = null;
+      const graphState = this.renderer?.getGraphState();
+      if (graphState?.isPanning || graphState?.isZooming || graphState?.isDragging) {
+        this.scheduleProjectionRefresh();
+        return;
+      }
+      if (this.rebuildDisplayGraph()) this.emitSummary();
+    }, 140);
   }
 
   private emitSummary(): void {

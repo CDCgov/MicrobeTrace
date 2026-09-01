@@ -31,6 +31,26 @@ describe('Sigma renderer proof of concept', () => {
       cy.wrap(overview.drawnLinkCount).as('overviewDrawnLinkCount');
     });
 
+    cy.window().then((win: any) => {
+      const adapter = win.sigmaPocInstance;
+      const camera = adapter.getRenderer().getCamera();
+      const initialCamera = camera.getState();
+      win.sigmaPocInitialCamera = initialCamera;
+      camera.setState({ ...initialCamera, ratio: initialCamera.ratio * 0.4 });
+    });
+    cy.get('@overviewDrawnLinkCount').then(overviewDrawnLinkCount => {
+      cy.window({ timeout: 10000 }).should((win: any) => {
+        const adapter = win.sigmaPocInstance;
+        const zoomed = adapter.getSummary();
+        expect(zoomed.drawnLinkCount).to.be.greaterThan(Number(overviewDrawnLinkCount));
+        expect(adapter.getDisplayGraph().size).to.equal(zoomed.drawnLinkCount);
+      }).then((win: any) => {
+        const adapter = win.sigmaPocInstance;
+        adapter.getRenderer().getCamera().setState(win.sigmaPocInitialCamera);
+      });
+    });
+    cy.wait(350);
+
     cy.get('[data-testid="sigma-edge-detail"]').click();
     cy.get('@overviewDrawnLinkCount').then(overviewDrawnLinkCount => {
       cy.window().then((win: any) => {
