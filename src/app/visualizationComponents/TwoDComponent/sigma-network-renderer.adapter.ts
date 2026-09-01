@@ -1,0 +1,703 @@
+import Graph from 'graphology';
+import Sigma from 'sigma';
+
+export type SigmaEdgeDetailMode = 'overview' | 'detail' | 'all';
+
+export interface SigmaPocNode {
+  id: string;
+  x: number;
+  y: number;
+  label: string;
+  color: string;
+  opacity: number;
+  size: number;
+  selected: boolean;
+  group?: string | null;
+  groupColor?: string;
+  raw: any;
+}
+
+export interface SigmaPocLink {
+  id: string;
+  source: string;
+  target: string;
+  color: string;
+  opacity: number;
+  size: number;
+  distance?: number;
+  raw: any;
+}
+
+export interface SigmaPocGraphData {
+  nodes: SigmaPocNode[];
+  links: SigmaPocLink[];
+  showGroupHulls: boolean;
+}
+
+export interface SigmaPocRenderSummary {
+  residentNodeCount: number;
+  residentLinkCount: number;
+  drawnLinkCount: number;
+  edgeDetailMode: SigmaEdgeDetailMode;
+  edgeStride: number;
+}
+
+export interface SigmaPocCallbacks {
+  onNodeSelectionChange?: (selectedNodeIds: Set<string>) => void;
+  onNodeHover?: (node: SigmaPocNode | null, event?: MouseEvent | TouchEvent) => void;
+  onNodeContextMenu?: (node: SigmaPocNode, event: MouseEvent) => void;
+  onNodePositionChange?: (nodeId: string, position: { x: number; y: number }) => void;
+  onSummaryChange?: (summary: SigmaPocRenderSummary) => void;
+}
+
+interface SigmaNodeAttributes extends Record<string, unknown> {
+  x: number;
+  y: number;
+  label: string;
+  color: string;
+  opacity: number;
+  size: number;
+  selected: boolean;
+  group: string | null;
+  groupColor: string;
+  raw: SigmaPocNode;
+}
+
+interface SigmaEdgeAttributes extends Record<string, unknown> {
+  color: string;
+  opacity: number;
+  size: number;
+  sourceId: string;
+  targetId: string;
+  stableBucket: number;
+  isBackbone: boolean;
+  raw: SigmaPocLink;
+}
+
+const GROUP_PALETTE = [
+  '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a',
+  '#0891b2', '#ca8a04', '#4f46e5', '#be123c', '#0f766e',
+];
+
+const normalizeEndpoint = (endpoint: any): string => String(
+  endpoint && typeof endpoint === 'object'
+    ? endpoint._id ?? endpoint.id ?? ''
+    : endpoint ?? '',
+);
+
+const finiteDistance = (link: any): number => {
+  const distance = Number(link?.distance);
+  return Number.isFinite(distance) ? distance : Number.POSITIVE_INFINITY;
+};
+
+const stableHash = (value: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+/**
+ * Picks a small, distance-ranked layout backbone without removing anything
+ * from the analytical graph. The returned links are copies because d3-force
+ * replaces source/target IDs with node objects while it runs.
+ */
+export function selectSigmaLayoutBackbone<T extends Record<string, any>>(
+  links: T[],
+  neighborsPerNode = 3,
+): T[] {
+  if (links.length <= 2500) return links.map(link => ({ ...link }));
+
+  const ranked = [...links].sort((left, right) => {
+    const distanceDelta = finiteDistance(left) - finiteDistance(right);
+    if (distanceDelta !== 0) return distanceDelta;
+    const leftKey = `${normalizeEndpoint(left.source)}\u0000${normalizeEndpoint(left.target)}\u0000${left.id ?? ''}`;
+    const rightKey = `${normalizeEndpoint(right.source)}\u0000${normalizeEndpoint(right.target)}\u0000${right.id ?? ''}`;
+    return leftKey.localeCompare(rightKey);
+  });
+  const degree = new Map<string, number>();
+  const selected: T[] = [];
+
+  for (const link of ranked) {
+    const source = normalizeEndpoint(link.source);
+    const target = normalizeEndpoint(link.target);
+    if (!source || !target || source === target) continue;
+
+    const sourceDegree = degree.get(source) || 0;
+    const targetDegree = degree.get(target) || 0;
+    if (sourceDegree >= neighborsPerNode && targetDegree >= neighborsPerNode) continue;
+
+    selected.push({ ...link, source, target });
+    degree.set(source, sourceDegree + 1);
+    degree.set(target, targetDegree + 1);
+  }
+
+  return selected;
+}
+
+export interface SigmaOverviewLayoutResult {
+  applied: boolean;
+  cohortCount: number;
+  method: 'group-by' | 'distance-cohorts' | 'unchanged';
+}
+
+/**
+ * Places dense networks into readable cohort islands. An explicit Group By
+ * field wins when it yields meaningful groups; otherwise the layout derives
+ * only its geometry from the strongest (lowest-distance) decile of links.
+ * No derived cohort is written back to session data or used by analytics.
+ */
+export function assignSigmaOverviewPositions<TNode extends Record<string, any>, TLink extends Record<string, any>>(
+  nodes: TNode[],
+  links: TLink[],
+  groupField?: string | null,
+): SigmaOverviewLayoutResult {
+  if (nodes.length < 40 || links.length < 2500) {
+    return { applied: false, cohortCount: 0, method: 'unchanged' };
+  }
+
+  const nodeById = new Map(nodes.map(node => [String(node._id ?? node.id ?? ''), node]));
+  let method: SigmaOverviewLayoutResult['method'] = 'unchanged';
+  let buckets = new Map<string, TNode[]>();
+
+  if (groupField && groupField !== 'None') {
+    for (const node of nodes) {
+      const rawGroup = Array.isArray(node[groupField]) ? node[groupField][0] : node[groupField];
+      const group = rawGroup == null ? '' : String(rawGroup).trim();
+      if (!group || group.toLowerCase() === 'null') continue;
+      const values = buckets.get(group) || [];
+      values.push(node);
+      buckets.set(group, values);
+    }
+    const groupedCount = Array.from(buckets.values()).reduce((sum, values) => sum + values.length, 0);
+    if (buckets.size >= 2 && buckets.size <= 80 && groupedCount >= nodes.length * 0.6) {
+      method = 'group-by';
+      const ungrouped = nodes.filter(node => {
+        const rawGroup = Array.isArray(node[groupField]) ? node[groupField][0] : node[groupField];
+        const group = rawGroup == null ? '' : String(rawGroup).trim();
+        return !group || group.toLowerCase() === 'null';
+      });
+      if (ungrouped.length) buckets.set('__ungrouped__', ungrouped);
+    } else {
+      buckets = new Map();
+    }
+  }
+
+  if (method === 'unchanged') {
+    const finiteDistances = links
+      .map(link => finiteDistance(link))
+      .filter(Number.isFinite)
+      .sort((left, right) => left - right);
+    if (finiteDistances.length === 0) {
+      return { applied: false, cohortCount: 0, method: 'unchanged' };
+    }
+    const strongTieDistance = finiteDistances[Math.floor((finiteDistances.length - 1) * 0.1)];
+    const parent = new Map<string, string>();
+    const find = (nodeId: string): string => {
+      const current = parent.get(nodeId) || nodeId;
+      if (current === nodeId) return current;
+      const root = find(current);
+      parent.set(nodeId, root);
+      return root;
+    };
+    const union = (left: string, right: string) => {
+      const leftRoot = find(left);
+      const rightRoot = find(right);
+      if (leftRoot !== rightRoot) parent.set(rightRoot, leftRoot);
+    };
+    nodeById.forEach((_node, nodeId) => parent.set(nodeId, nodeId));
+    for (const link of links) {
+      if (finiteDistance(link) > strongTieDistance) continue;
+      const source = normalizeEndpoint(link.source);
+      const target = normalizeEndpoint(link.target);
+      if (nodeById.has(source) && nodeById.has(target)) union(source, target);
+    }
+
+    const components = new Map<string, TNode[]>();
+    nodeById.forEach((node, nodeId) => {
+      const root = find(nodeId);
+      const values = components.get(root) || [];
+      values.push(node);
+      components.set(root, values);
+    });
+    const minimumCohortSize = Math.max(3, Math.ceil(nodes.length * 0.01));
+    const unclustered: TNode[] = [];
+    components.forEach((values, key) => {
+      if (values.length >= minimumCohortSize) buckets.set(key, values);
+      else unclustered.push(...values);
+    });
+    if (unclustered.length) buckets.set('__other_samples__', unclustered);
+    if (buckets.size < 2 || buckets.size > 80) {
+      return { applied: false, cohortCount: buckets.size, method: 'unchanged' };
+    }
+    method = 'distance-cohorts';
+  }
+
+  const spacing = Math.max(12, Math.min(22, 360 / Math.sqrt(nodes.length)));
+  const padding = spacing * 5;
+  const layouts = Array.from(buckets.entries())
+    .map(([key, values]) => {
+      const columns = Math.max(1, Math.ceil(Math.sqrt(values.length * 1.35)));
+      const rows = Math.max(1, Math.ceil(values.length / columns));
+      return {
+        key,
+        values: [...values].sort((left, right) =>
+          String(left._id ?? left.id).localeCompare(String(right._id ?? right.id))),
+        columns,
+        width: Math.max(spacing * 4, columns * spacing),
+        height: Math.max(spacing * 4, rows * spacing * 0.86),
+      };
+    })
+    .sort((left, right) => right.values.length - left.values.length || left.key.localeCompare(right.key));
+  const totalArea = layouts.reduce((sum, layout) => sum + (layout.width + padding) * (layout.height + padding), 0);
+  const targetRowWidth = Math.sqrt(totalArea) * 1.35;
+  let cursorX = 0;
+  let cursorY = 0;
+  let rowHeight = 0;
+  let maxX = 0;
+  let maxY = 0;
+
+  for (let layoutIndex = 0; layoutIndex < layouts.length; layoutIndex++) {
+    const layout = layouts[layoutIndex];
+    if (cursorX > 0 && cursorX + layout.width > targetRowWidth) {
+      cursorX = 0;
+      cursorY += rowHeight + padding;
+      rowHeight = 0;
+    }
+    layout.values.forEach((node, index) => {
+      const positionedNode = node as Record<string, any>;
+      const row = Math.floor(index / layout.columns);
+      const column = index % layout.columns;
+      const jitter = (stableHash(String(node._id ?? node.id)) % 100) / 100 * spacing * 0.28;
+      positionedNode.x = cursorX + column * spacing + (row % 2 ? spacing * 0.5 : 0) + jitter;
+      positionedNode.y = cursorY + row * spacing * 0.86 + jitter;
+      positionedNode.vx = 0;
+      positionedNode.vy = 0;
+      positionedNode._sigmaLayoutGroup = method === 'group-by'
+        ? (layout.key === '__ungrouped__' ? 'Ungrouped' : layout.key)
+        : (layout.key === '__other_samples__' ? 'Other samples' : `Distance cohort ${layoutIndex + 1}`);
+    });
+    cursorX += layout.width + padding;
+    rowHeight = Math.max(rowHeight, layout.height);
+    maxX = Math.max(maxX, cursorX - padding);
+    maxY = Math.max(maxY, cursorY + layout.height);
+  }
+  const offsetX = maxX / 2;
+  const offsetY = maxY / 2;
+  nodes.forEach(node => {
+    const positionedNode = node as Record<string, any>;
+    positionedNode.x -= offsetX;
+    positionedNode.y -= offsetY;
+  });
+  return { applied: true, cohortCount: layouts.length, method };
+}
+
+function markBackboneEdges(links: SigmaPocLink[], neighborsPerNode = 1): Set<string> {
+  const ranked = [...links].sort((left, right) => {
+    const distanceDelta = finiteDistance(left) - finiteDistance(right);
+    return distanceDelta || left.id.localeCompare(right.id);
+  });
+  const degree = new Map<string, number>();
+  const selected = new Set<string>();
+
+  for (const link of ranked) {
+    if (link.source === link.target) continue;
+    const sourceDegree = degree.get(link.source) || 0;
+    const targetDegree = degree.get(link.target) || 0;
+    if (sourceDegree >= neighborsPerNode && targetDegree >= neighborsPerNode) continue;
+    selected.add(link.id);
+    degree.set(link.source, sourceDegree + 1);
+    degree.set(link.target, targetDegree + 1);
+  }
+  return selected;
+}
+
+function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (points.length <= 2) return points;
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (origin: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+    (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+  const lower: Array<{ x: number; y: number }> = [];
+  const upper: Array<{ x: number; y: number }> = [];
+
+  for (const point of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) {
+      lower.pop();
+    }
+    lower.push(point);
+  }
+  for (let index = sorted.length - 1; index >= 0; index--) {
+    const point = sorted[index];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) {
+      upper.pop();
+    }
+    upper.push(point);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+export class SigmaNetworkRendererAdapter {
+  private graph: Graph<SigmaNodeAttributes, SigmaEdgeAttributes> = new Graph({
+    multi: true,
+    type: 'mixed',
+    allowSelfLoops: true,
+  });
+  private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
+  private groupLayer: HTMLCanvasElement | null = null;
+  private selectedNodeIds = new Set<string>();
+  private hoveredNodeId: string | null = null;
+  private hoveredNeighborhood = new Set<string>();
+  private edgeDetailMode: SigmaEdgeDetailMode = 'overview';
+  private baseEdgeStride = 1;
+  private effectiveEdgeStride = 1;
+  private showGroupHulls = false;
+  private summaryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private readonly container: HTMLElement,
+    private readonly selectedColor: string,
+    private readonly callbacks: SigmaPocCallbacks = {},
+  ) {}
+
+  render(data: SigmaPocGraphData, preserveCamera = false): void {
+    const priorCamera = preserveCamera ? this.renderer?.getCamera().getState() : null;
+    const graph = new Graph<SigmaNodeAttributes, SigmaEdgeAttributes>({
+      multi: true,
+      type: 'mixed',
+      allowSelfLoops: true,
+    });
+    const backboneEdges = markBackboneEdges(data.links);
+    this.selectedNodeIds.clear();
+
+    for (const node of data.nodes) {
+      if (node.selected) this.selectedNodeIds.add(node.id);
+      graph.addNode(node.id, {
+        x: Number.isFinite(node.x) ? node.x : 0,
+        y: Number.isFinite(node.y) ? node.y : 0,
+        label: node.label || node.id,
+        color: node.color || '#2563eb',
+        opacity: Number.isFinite(node.opacity) ? node.opacity : 1,
+        size: Math.max(2, Number(node.size) || 6),
+        selected: node.selected,
+        group: node.group || null,
+        groupColor: node.groupColor || GROUP_PALETTE[stableHash(node.group || node.id) % GROUP_PALETTE.length],
+        raw: node,
+      });
+    }
+
+    for (const link of data.links) {
+      if (!graph.hasNode(link.source) || !graph.hasNode(link.target)) continue;
+      let edgeId = link.id;
+      let duplicate = 1;
+      while (graph.hasEdge(edgeId)) edgeId = `${link.id}--${duplicate++}`;
+      graph.addEdgeWithKey(edgeId, link.source, link.target, {
+        color: link.color || '#94a3b8',
+        opacity: Number.isFinite(link.opacity) ? link.opacity : 0.35,
+        size: Math.max(0.25, Number(link.size) || 0.75),
+        sourceId: link.source,
+        targetId: link.target,
+        stableBucket: stableHash(edgeId),
+        isBackbone: backboneEdges.has(link.id),
+        raw: link,
+      });
+    }
+
+    this.graph = graph;
+    this.showGroupHulls = data.showGroupHulls;
+    this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
+    this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
+
+    if (!this.renderer) {
+      this.createRenderer();
+    } else {
+      this.renderer.setGraph(graph);
+    }
+
+    if (priorCamera) this.renderer.getCamera().setState(priorCamera);
+    else void this.renderer.getCamera().reset({ duration: 0 });
+    this.renderer.refresh();
+    this.drawGroupHulls();
+    this.emitSummary();
+  }
+
+  setEdgeDetailMode(mode: SigmaEdgeDetailMode): void {
+    if (this.edgeDetailMode === mode) return;
+    this.edgeDetailMode = mode;
+    this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
+    this.renderer?.refresh({ skipIndexation: true });
+    this.emitSummary();
+  }
+
+  fit(): void {
+    if (!this.renderer) return;
+    this.renderer.resize();
+    void this.renderer.getCamera().reset({ duration: 250 });
+  }
+
+  resize(): void {
+    this.renderer?.resize();
+    this.drawGroupHulls();
+  }
+
+  getGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
+    return this.graph;
+  }
+
+  getRenderer(): Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null {
+    return this.renderer;
+  }
+
+  getSummary(): SigmaPocRenderSummary {
+    let drawnLinkCount = 0;
+    this.graph.forEachEdge((_edge, attributes) => {
+      if (this.shouldDisplayEdge(attributes)) drawnLinkCount++;
+    });
+    return {
+      residentNodeCount: this.graph.order,
+      residentLinkCount: this.graph.size,
+      drawnLinkCount,
+      edgeDetailMode: this.edgeDetailMode,
+      edgeStride: this.effectiveEdgeStride,
+    };
+  }
+
+  destroy(): void {
+    if (this.summaryTimer) clearTimeout(this.summaryTimer);
+    this.summaryTimer = null;
+    this.renderer?.kill();
+    this.renderer = null;
+    this.groupLayer = null;
+    this.graph.clear();
+  }
+
+  private createRenderer(): void {
+    this.renderer = new Sigma(this.graph, this.container, {
+      settings: {
+        autoRescaleContent: 'nodes',
+        enableNodeDrag: true,
+        enableEdgeEvents: false,
+        hideEdgesOnMove: true,
+        hideLabelsOnMove: true,
+        labelDensity: 0.55,
+        labelGridCellSize: 140,
+        labelRenderedSizeThreshold: 6,
+        minEdgeThickness: 0.35,
+        stagePadding: 48,
+      },
+      nodeReducer: (_key, displayData, attributes, state) => {
+        const inActiveNeighborhood = !this.hoveredNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
+        const selected = this.selectedNodeIds.has(String(attributes.raw.id));
+        return {
+          ...displayData,
+          color: selected ? this.selectedColor : String(attributes.color),
+          opacity: inActiveNeighborhood ? Number(attributes.opacity) : 0.12,
+          size: Number(attributes.size) * (selected || state.isHovered ? 1.35 : 1),
+          label: inActiveNeighborhood ? String(attributes.label) : null,
+          labelVisibility: selected || state.isHovered ? 'visible' : 'auto',
+          highlighted: selected || state.isHovered,
+          zIndex: selected || state.isHovered ? 20 : 1,
+        };
+      },
+      edgeReducer: (_key, displayData, attributes, state) => {
+        const visible = this.shouldDisplayEdge(attributes);
+        const incidentToHover = Boolean(
+          this.hoveredNodeId &&
+          (attributes.sourceId === this.hoveredNodeId || attributes.targetId === this.hoveredNodeId),
+        );
+        const incidentToSelection = this.selectedNodeIds.has(String(attributes.sourceId)) ||
+          this.selectedNodeIds.has(String(attributes.targetId));
+        return {
+          ...displayData,
+          visibility: visible ? 'visible' : 'hidden',
+          color: incidentToHover || incidentToSelection ? this.selectedColor : String(attributes.color),
+          opacity: incidentToHover || incidentToSelection ? 0.9 : Number(attributes.opacity),
+          size: Number(attributes.size) * (incidentToHover || incidentToSelection || state.isHovered ? 1.75 : 1),
+          zIndex: incidentToHover || incidentToSelection ? 10 : 0,
+        };
+      },
+    });
+
+    this.groupLayer = this.renderer.createCanvas('microbetrace-groups', {
+      beforeLayer: 'stage',
+      style: { pointerEvents: 'none' },
+    });
+    this.renderer.on('afterRender', () => this.drawGroupHulls());
+    this.renderer.on('enterNode', payload => this.handleNodeHover(payload.node, payload.event.original));
+    this.renderer.on('leaveNode', payload => this.handleNodeHover(null, payload.event.original));
+    this.renderer.on('clickNode', payload => this.handleNodeClick(payload.node, payload.event.original));
+    this.renderer.on('clickStage', () => this.clearSelection());
+    this.renderer.on('rightClickNode', payload => {
+      const event = payload.event.original;
+      if (!(event instanceof MouseEvent)) return;
+      payload.preventSigmaDefault();
+      const node = this.graph.getNodeAttribute(payload.node, 'raw');
+      this.callbacks.onNodeContextMenu?.(node, event);
+    });
+    this.renderer.on('nodeDragEnd', payload => {
+      for (const nodeId of payload.allDraggedNodes) {
+        this.callbacks.onNodePositionChange?.(nodeId, {
+          x: Number(this.graph.getNodeAttribute(nodeId, 'x')),
+          y: Number(this.graph.getNodeAttribute(nodeId, 'y')),
+        });
+      }
+    });
+    this.renderer.getCamera().on('updated', camera => {
+      const changed = this.updateEffectiveEdgeStride(camera.ratio);
+      if (changed) this.renderer?.refresh({ skipIndexation: true });
+      this.scheduleSummary();
+    });
+  }
+
+  private handleNodeHover(nodeId: string | null, event?: MouseEvent | TouchEvent): void {
+    this.hoveredNodeId = nodeId;
+    this.hoveredNeighborhood.clear();
+    if (nodeId && this.graph.hasNode(nodeId)) {
+      this.hoveredNeighborhood.add(nodeId);
+      this.graph.forEachNeighbor(nodeId, neighbor => this.hoveredNeighborhood.add(neighbor));
+      this.callbacks.onNodeHover?.(this.graph.getNodeAttribute(nodeId, 'raw'), event);
+    } else {
+      this.callbacks.onNodeHover?.(null, event);
+    }
+    this.renderer?.refresh({ skipIndexation: true });
+    this.emitSummary();
+  }
+
+  private handleNodeClick(nodeId: string, event: MouseEvent | TouchEvent): void {
+    const mouseEvent = event instanceof MouseEvent ? event : null;
+    const additive = Boolean(mouseEvent?.ctrlKey || mouseEvent?.metaKey || mouseEvent?.shiftKey);
+    const wasSelected = this.selectedNodeIds.has(nodeId);
+    if (!additive) this.selectedNodeIds.clear();
+    if (!wasSelected || !additive) this.selectedNodeIds.add(nodeId);
+    else this.selectedNodeIds.delete(nodeId);
+    this.syncSelectionAttributes();
+  }
+
+  private clearSelection(): void {
+    if (this.selectedNodeIds.size === 0) return;
+    this.selectedNodeIds.clear();
+    this.syncSelectionAttributes();
+  }
+
+  private syncSelectionAttributes(): void {
+    this.graph.forEachNode(nodeId => {
+      this.graph.setNodeAttribute(nodeId, 'selected', this.selectedNodeIds.has(nodeId));
+    });
+    this.callbacks.onNodeSelectionChange?.(new Set(this.selectedNodeIds));
+    this.renderer?.refresh({ skipIndexation: true });
+    this.emitSummary();
+  }
+
+  private shouldDisplayEdge(attributes: SigmaEdgeAttributes): boolean {
+    if (this.edgeDetailMode === 'all') return true;
+    if (this.hoveredNodeId) {
+      return attributes.sourceId === this.hoveredNodeId || attributes.targetId === this.hoveredNodeId;
+    }
+    if (this.selectedNodeIds.size > 0) {
+      return this.selectedNodeIds.has(String(attributes.sourceId)) ||
+        this.selectedNodeIds.has(String(attributes.targetId));
+    }
+    return Boolean(attributes.isBackbone) || Number(attributes.stableBucket) % this.effectiveEdgeStride === 0;
+  }
+
+  private resolveBaseEdgeStride(edgeCount: number): number {
+    if (edgeCount > 100000) return 256;
+    if (edgeCount > 50000) return 128;
+    if (edgeCount > 20000) return 64;
+    if (edgeCount > 8000) return 32;
+    if (edgeCount > 3000) return 8;
+    return 1;
+  }
+
+  private updateEffectiveEdgeStride(cameraRatio: number): boolean {
+    const prior = this.effectiveEdgeStride;
+    if (this.edgeDetailMode === 'all') {
+      this.effectiveEdgeStride = 1;
+    } else {
+      const detailFactor = this.edgeDetailMode === 'detail' ? 0.25 : 1;
+      const zoomFactor = cameraRatio <= 0.25 ? 0.125
+        : cameraRatio <= 0.45 ? 0.25
+        : cameraRatio <= 0.75 ? 0.5
+        : cameraRatio >= 1.75 ? 2
+        : 1;
+      this.effectiveEdgeStride = Math.max(1, Math.round(this.baseEdgeStride * detailFactor * zoomFactor));
+    }
+    return prior !== this.effectiveEdgeStride;
+  }
+
+  private scheduleSummary(): void {
+    if (this.summaryTimer) clearTimeout(this.summaryTimer);
+    this.summaryTimer = setTimeout(() => {
+      this.summaryTimer = null;
+      this.emitSummary();
+    }, 120);
+  }
+
+  private emitSummary(): void {
+    this.callbacks.onSummaryChange?.(this.getSummary());
+  }
+
+  private drawGroupHulls(): void {
+    if (!this.renderer || !this.groupLayer) return;
+    const width = this.renderer.getDimensions().width;
+    const height = this.renderer.getDimensions().height;
+    const pixelRatio = window.devicePixelRatio || 1;
+    if (this.groupLayer.width !== width * pixelRatio || this.groupLayer.height !== height * pixelRatio) {
+      this.groupLayer.width = width * pixelRatio;
+      this.groupLayer.height = height * pixelRatio;
+    }
+    const context = this.groupLayer.getContext('2d');
+    if (!context) return;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    if (!this.showGroupHulls) return;
+
+    const groups = new Map<string, { color: string; points: Array<{ x: number; y: number }> }>();
+    this.graph.forEachNode((nodeId, attributes) => {
+      if (!attributes.group) return;
+      const point = this.renderer!.graphToViewport({ x: Number(attributes.x), y: Number(attributes.y) });
+      const group = groups.get(attributes.group) || { color: attributes.groupColor, points: [] };
+      group.points.push(point);
+      groups.set(attributes.group, group);
+    });
+    if (groups.size < 2 || groups.size > 80) return;
+
+    groups.forEach((group, label) => {
+      if (group.points.length < 3) return;
+      const hull = convexHull(group.points);
+      if (hull.length < 3) return;
+      const center = hull.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
+      center.x /= hull.length;
+      center.y /= hull.length;
+      const expanded = hull.map(point => {
+        const dx = point.x - center.x;
+        const dy = point.y - center.y;
+        const length = Math.max(1, Math.hypot(dx, dy));
+        return { x: point.x + dx / length * 14, y: point.y + dy / length * 14 };
+      });
+
+      context.beginPath();
+      context.moveTo(expanded[0].x, expanded[0].y);
+      for (let index = 1; index < expanded.length; index++) context.lineTo(expanded[index].x, expanded[index].y);
+      context.closePath();
+      context.globalAlpha = 0.09;
+      context.fillStyle = group.color;
+      context.fill();
+      context.globalAlpha = 0.45;
+      context.strokeStyle = group.color;
+      context.lineWidth = 1.5;
+      context.stroke();
+
+      if (groups.size <= 20) {
+        context.globalAlpha = 0.8;
+        context.fillStyle = group.color;
+        context.font = '600 12px sans-serif';
+        context.fillText(label, center.x + 6, center.y - 6);
+      }
+    });
+    context.globalAlpha = 1;
+  }
+}

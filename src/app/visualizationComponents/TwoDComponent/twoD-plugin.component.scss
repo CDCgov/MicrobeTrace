@@ -81,6 +81,75 @@
   left: 0;
 }
 
+#sigma-network-poc {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(219, 234, 254, 0.45), transparent 32%),
+    radial-gradient(circle at 82% 75%, rgba(224, 231, 255, 0.4), transparent 35%),
+    #ffffff;
+}
+
+.sigma-poc-banner {
+  position: absolute;
+  top: 46px;
+  right: 14px;
+  z-index: 8;
+  width: min(390px, calc(100% - 28px));
+  padding: 10px 12px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+  backdrop-filter: blur(6px);
+}
+
+.sigma-poc-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sigma-poc-loading {
+  margin-top: 4px;
+  color: #1d4ed8;
+}
+
+.sigma-poc-detail-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.sigma-poc-detail-controls button {
+  padding: 2px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sigma-poc-detail-controls button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: white;
+}
+
 
 
 .network {

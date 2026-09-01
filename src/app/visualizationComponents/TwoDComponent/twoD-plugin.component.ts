@@ -26,6 +26,13 @@ import { NgZone } from '@angular/core';
 import { AdaptiveNetworkViewService } from '@app/contactTraceCommonServices/adaptive-network-view.service';
 import { DEFAULT_ADAPTIVE_VIEW_BUDGET, type AdaptiveNetworkSessionState, type AdaptiveViewMetadata } from '@app/contactTraceCommonServices/network-graph.types';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
+import {
+    assignSigmaOverviewPositions,
+    selectSigmaLayoutBackbone,
+    SigmaEdgeDetailMode,
+    SigmaNetworkRendererAdapter,
+    SigmaPocRenderSummary,
+} from './sigma-network-renderer.adapter';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -55,12 +62,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
+    @ViewChild('sigmaPoc', { static: false }) sigmaPocContainer: ElementRef;
     @ViewChild('exportContainer') exportContainer: ElementRef;
     @ViewChild('polygonColorTable') polygonColorTable!: ElementRef;
     @ViewChild('networkStats') networkStatisticsTable!: ElementRef;
 
     // Cytoscape core instance
     cy: Core;
+    readonly sigmaPocEnabled = typeof window !== 'undefined' &&
+        new URL(window.location.href).searchParams.get('renderer') === 'sigma';
+    sigmaPocLoading = false;
+    sigmaPocLoadingMessage = 'Preparing the complete client-side graph…';
+    sigmaPocSummary: SigmaPocRenderSummary = {
+        residentNodeCount: 0,
+        residentLinkCount: 0,
+        drawnLinkCount: 0,
+        edgeDetailMode: 'overview',
+        edgeStride: 1,
+    };
+    private sigmaPocRenderer: SigmaNetworkRendererAdapter | null = null;
+    private sigmaPocRendering = false;
+    private sigmaPocRenderQueued = false;
+    private sigmaPocLinkCache: { key: string; links: any[] } | null = null;
+    private sigmaPocLayoutGroupByNodeId = new Map<string, string>();
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     private nodeDataById: Map<string, any> = new Map();
@@ -582,7 +606,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private destroy$ = new Subject<void>();
 
     private isCytoscapeContainerReady(): boolean {
-        const element = this.cyContainer?.nativeElement as HTMLElement | undefined;
+        const element = (
+            this.sigmaPocEnabled ? this.sigmaPocContainer?.nativeElement : this.cyContainer?.nativeElement
+        ) as HTMLElement | undefined;
         if (!element) return false;
 
         const rect = element.getBoundingClientRect();
@@ -655,6 +681,251 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         sessionMeta.adaptiveNetwork.lastView = view.metadata;
         this.updateAdaptiveViewStatistics(view.metadata);
         return { nodes: view.nodes, links: view.links };
+    }
+
+    private async collectSigmaPocNetworkData(): Promise<{ nodes: any[]; links: any[] }> {
+        const nodes = this.commonService.getVisibleNodes().map(node => {
+            const id = String(node._id ?? node.id ?? '');
+            const cachedPosition = this.nodePositions.get(id);
+            return {
+                ...node,
+                id,
+                x: cachedPosition?.x ?? node.x,
+                y: cachedPosition?.y ?? node.y,
+            };
+        });
+        const nodeIds = new Set(nodes.map(node => node.id));
+        let links = this.commonService.getVisibleLinks(true);
+        const adaptiveState = (this.commonService.session?.meta as any)?.adaptiveNetwork as
+            AdaptiveNetworkSessionState | undefined;
+        const record = adaptiveState?.patristicView;
+        const threshold = Number(this.widgets['link-threshold']);
+
+        if (record && Number(record.threshold) === threshold) {
+            const cacheKey = `${record.revision}:${threshold}:${nodes.length}:${record.representedLinkCount}`;
+            if (this.sigmaPocLinkCache?.key === cacheKey) {
+                links = this.sigmaPocLinkCache.links;
+            } else {
+                this.sigmaPocLoadingMessage =
+                    `Materializing ${Number(record.representedLinkCount).toLocaleString()} filtered links in the browser…`;
+                this.cdref.markForCheck();
+                const completeLinks = await this.workerComputeService.exportPatristicFilteredLinks(
+                    this.commonService.session,
+                );
+                if (completeLinks) {
+                    links = completeLinks;
+                    this.sigmaPocLinkCache = { key: cacheKey, links: completeLinks };
+                }
+            }
+        }
+
+        const normalizedLinks = links
+            .map((link, index) => {
+                const source = this.getLinkEndpointId(link.source);
+                const target = this.getLinkEndpointId(link.target);
+                return {
+                    ...link,
+                    id: String(link.id ?? `${source}--${target}--${index}`),
+                    source,
+                    target,
+                };
+            })
+            .filter(link => nodeIds.has(link.source) && nodeIds.has(link.target));
+
+        return { nodes, links: normalizedLinks };
+    }
+
+    private getSigmaPocGroupColor(group: string): string {
+        try {
+            return this.widgets['polygons-color-show']
+                ? this.commonService.temp.style.polygonColorMap(group)
+                : this.widgets['polygon-color'];
+        } catch {
+            return '#2563eb';
+        }
+    }
+
+    private syncSigmaPocSelection(selectedIds: Set<string>): void {
+        let selectionChanged = false;
+        const syncNodes = (nodes: any[]) => {
+            (nodes || []).forEach(node => {
+                const selected = selectedIds.has(String(node._id ?? node.id ?? ''));
+                if (node.selected !== selected) {
+                    node.selected = selected;
+                    selectionChanged = true;
+                }
+            });
+        };
+        syncNodes(this.commonService.session.data.nodes);
+        syncNodes(this.commonService.session.data.nodeFilteredValues);
+        if (selectionChanged) $(document).trigger('node-selected');
+        this.schedulePatristicFocusRefresh();
+    }
+
+    private async renderSigmaPoc(preserveCamera = false): Promise<void> {
+        if (!this.sigmaPocEnabled || this.isDestroyed) return;
+        if (this.sigmaPocRendering) {
+            this.sigmaPocRenderQueued = true;
+            return;
+        }
+        if (!this.isCytoscapeContainerReady()) {
+            if (this.viewActive) setTimeout(() => void this.renderSigmaPoc(preserveCamera), 50);
+            else this.rerenderOnActive = true;
+            return;
+        }
+
+        const renderStartedAt = this.getPerformanceNow();
+        this.sigmaPocRendering = true;
+        this.sigmaPocLoading = true;
+        this.sigmaPocLoadingMessage = 'Preparing the complete client-side graph…';
+        this.commonService.session.network.rendering = true;
+        this.store.setNetworkRendered(false);
+        this.cdref.markForCheck();
+
+        try {
+            const networkData = await this.collectSigmaPocNetworkData();
+            if (this.isDestroyed) return;
+
+            this.sigmaPocLoadingMessage = 'Computing a sparse layout backbone…';
+            this.cdref.markForCheck();
+            networkData.nodes.forEach(node => {
+                node.nodeSize = Number(this.getNodeSize(node));
+            });
+            const groupField = String(this.widgets['polygons-foci'] || 'None');
+            const showGroupHulls = Boolean(this.widgets['polygons-show']) && groupField !== 'None';
+            const layoutBackbone = selectSigmaLayoutBackbone(networkData.links, 3);
+            const needsInitialLayout = !this.sigmaPocRenderer ||
+                networkData.nodes.some(node => !this.hasFinitePosition(node));
+            if (needsInitialLayout) {
+                const overviewLayout = assignSigmaOverviewPositions(
+                    networkData.nodes,
+                    networkData.links,
+                    showGroupHulls ? groupField : null,
+                );
+                if (!overviewLayout.applied) {
+                    const layout = await this.precomputePositionsWithD3(
+                        networkData.nodes,
+                        layoutBackbone,
+                        networkData.nodes.length > 2500 ? 90 : 180,
+                    );
+                    networkData.nodes = layout.nodes;
+                }
+                networkData.nodes.forEach(node => {
+                    const nodeId = String(node._id ?? node.id);
+                    this.nodePositions.set(nodeId, { x: Number(node.x) || 0, y: Number(node.y) || 0 });
+                    if (node._sigmaLayoutGroup) {
+                        this.sigmaPocLayoutGroupByNodeId.set(nodeId, String(node._sigmaLayoutGroup));
+                    }
+                });
+            }
+            if (this.isDestroyed) return;
+
+            const sigmaNodes = networkData.nodes.map(node => {
+                const [color, opacity] = this.getNodeColor(node);
+                const nodeId = String(node._id ?? node.id);
+                const group = showGroupHulls
+                    ? this.normalizeGroupingValue(node[groupField])
+                    : this.sigmaPocLayoutGroupByNodeId.get(nodeId) || null;
+                return {
+                    id: nodeId,
+                    x: Number(node.x) || 0,
+                    y: Number(node.y) || 0,
+                    label: String(this.getNodeLabel(node) || node._id || node.id),
+                    color: String(color || '#2563eb'),
+                    opacity: Number.isFinite(Number(opacity)) ? Number(opacity) : 1,
+                    size: Math.max(2.5, Math.min(12, Number(node.nodeSize || this.widgets['node-radius']) / 5)),
+                    selected: node.selected === true,
+                    group,
+                    groupColor: group ? this.getSigmaPocGroupColor(group) : undefined,
+                    raw: node,
+                };
+            });
+            const sigmaLinks = networkData.links.map((link, index) => {
+                const linkColor = this.getLinkColor(link);
+                return {
+                    id: String(link.id ?? `sigma-edge-${index}`),
+                    source: String(link.source),
+                    target: String(link.target),
+                    color: String(linkColor.color || '#94a3b8'),
+                    opacity: Math.max(0.05, Math.min(1, Number(linkColor.opacity) || 0.25)),
+                    size: Math.max(0.25, Math.min(2.5, Number(this.getLinkWidth(link)) || 0.75)),
+                    distance: Number.isFinite(Number(link.distance)) ? Number(link.distance) : undefined,
+                    raw: link,
+                };
+            });
+
+            if (!this.sigmaPocRenderer) {
+                this.sigmaPocRenderer = new SigmaNetworkRendererAdapter(
+                    this.sigmaPocContainer.nativeElement,
+                    String(this.widgets['selected-color'] || '#ff2d55'),
+                    {
+                        onNodeSelectionChange: selectedIds => this.zone.run(() => {
+                            this.syncSigmaPocSelection(selectedIds);
+                        }),
+                        onNodeHover: (node, event) => this.zone.run(() => {
+                            if (node && event) this.showNodeTooltip(node.raw, event);
+                            else this.hideTooltip();
+                        }),
+                        onNodeContextMenu: (node, event) => this.zone.run(() => {
+                            this.showContextMenu(node.raw, event);
+                        }),
+                        onNodePositionChange: (nodeId, position) => this.zone.run(() => {
+                            this.nodePositions.set(nodeId, position);
+                            this.commonService.updateNodePosition(nodeId, position);
+                        }),
+                        onSummaryChange: summary => this.zone.run(() => {
+                            this.sigmaPocSummary = summary;
+                            this.cdref.markForCheck();
+                        }),
+                    },
+                );
+            }
+            const layoutGroupCount = new Set(sigmaNodes.map(node => node.group).filter(Boolean)).size;
+            const drawGroupHulls = showGroupHulls || (layoutGroupCount >= 2 && layoutGroupCount <= 20);
+            this.sigmaPocRenderer.render({ nodes: sigmaNodes, links: sigmaLinks, showGroupHulls: drawGroupHulls }, preserveCamera);
+            this.sigmaPocSummary = this.sigmaPocRenderer.getSummary();
+            const guardrailWarning = (this.commonService.session?.warnings || []).find(
+                (warning: any) => warning?.type === 'newick-visible-link-guardrail',
+            );
+            if (guardrailWarning) {
+                guardrailWarning.message =
+                    `Sigma POC: all ${this.sigmaPocSummary.residentLinkCount.toLocaleString()} threshold-qualified links ` +
+                    `are resident in the browser. Edge level-of-detail changes only what is drawn; statistics and ` +
+                    `interactions use the complete graph.`;
+            }
+
+            if ((window as any).Cypress) {
+                (window as any).sigmaPocInstance = this.sigmaPocRenderer;
+            }
+            this.store.setNetworkRendered(true);
+            this.store.setNetworkUpdated(false);
+            this.commonService.session.network.rendering = false;
+            this.commonService.demoNetworkRendered = true;
+            this.recordTwoDRenderTiming('twoDSigmaPocRender', renderStartedAt, {
+                nodes: this.sigmaPocSummary.residentNodeCount,
+                edges: this.sigmaPocSummary.residentLinkCount,
+                drawnEdges: this.sigmaPocSummary.drawnLinkCount,
+                layoutEdges: layoutBackbone.length,
+            });
+        } catch (error) {
+            this.commonService.session.network.rendering = false;
+            console.error('Unable to render the Sigma POC.', error);
+            this.sigmaPocLoadingMessage = error instanceof Error ? error.message : 'Unable to render Sigma POC.';
+        } finally {
+            this.sigmaPocLoading = false;
+            this.sigmaPocRendering = false;
+            this.cdref.markForCheck();
+            if (this.sigmaPocRenderQueued && !this.isDestroyed) {
+                this.sigmaPocRenderQueued = false;
+                setTimeout(() => void this.renderSigmaPoc(true), 0);
+            }
+        }
+    }
+
+    setSigmaPocEdgeDetailMode(mode: SigmaEdgeDetailMode): void {
+        this.sigmaPocRenderer?.setEdgeDetailMode(mode);
+        this.sigmaPocSummary = this.sigmaPocRenderer?.getSummary() || this.sigmaPocSummary;
+        this.cdref.markForCheck();
     }
 
     private updateAdaptiveViewStatistics(metadata?: AdaptiveViewMetadata): void {
@@ -852,7 +1123,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ngAfterViewInit(): void {
         console.log('--- TwoD ngAfterViewInit called');
 
-        if (this.commonService.session.data.nodes.length > 0 && !this.cy) {
+        if (
+            this.commonService.session.data.nodes.length > 0 &&
+            (this.sigmaPocEnabled ? !this.sigmaPocRenderer : !this.cy)
+        ) {
             this.onLoadNewData();
         }
       }
@@ -4131,6 +4405,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.isDestroyed) return;
 
+        if (this.sigmaPocEnabled) {
+            await this.renderSigmaPoc(Boolean(this.sigmaPocRenderer));
+            return;
+        }
+
         console.log('--- TwoD DATA network rerender');
         const rerenderStart = this.getPerformanceNow();
         const hadCytoscapeAtStart = !!this.cy;
@@ -5333,6 +5612,10 @@ scaleLinkWidth() {
      * centers the view
      */
     fit() {
+        if (this.sigmaPocEnabled) {
+            this.sigmaPocRenderer?.fit();
+            return;
+        }
         if (this.cy) {
             this.cy.resize();
             this.cy.fit(this.cy.nodes(), 30);
@@ -5425,6 +5708,10 @@ scaleLinkWidth() {
     }
 
     private async _partialUpdate() {
+        if (this.sigmaPocEnabled) {
+            await this.renderSigmaPoc(true);
+            return;
+        }
         const partialUpdateStart = this.getPerformanceNow();
         console.log('--- TwoD _partialUpdate called');
         const cy = this.cy;
@@ -5667,6 +5954,10 @@ scaleLinkWidth() {
         this.styleFileSub.unsubscribe();
 
         this.settingsLoadedSubscription.unsubscribe();
+
+        this.sigmaPocRenderer?.destroy();
+        this.sigmaPocRenderer = null;
+        if ((window as any).sigmaPocInstance) delete (window as any).sigmaPocInstance;
 
         if (this.cy){
             this.cy.removeAllListeners();
