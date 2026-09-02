@@ -109,6 +109,57 @@ describe('Sigma renderer proof of concept', () => {
     cy.window().then((win: any) => {
       const adapter = win.sigmaPocInstance;
       const renderer = adapter.getRenderer();
+      const graph = adapter.getGraph();
+      const group = adapter.groupHulls[0];
+      expect(group, 'draggable group hull').to.exist;
+      expect(group.nodeIds.length, 'group members').to.be.greaterThan(1);
+
+      const center = renderer.graphToViewport(group.center);
+      const beforeCamera = renderer.getCamera().getState();
+      const beforePositions = new Map<string, { x: number; y: number }>(group.nodeIds.map((nodeId: string) => {
+        const attributes = graph.getNodeAttributes(nodeId);
+        return [nodeId, { x: Number(attributes.x), y: Number(attributes.y) }] as const;
+      }));
+      const mouseEvent = (type: string, x: number, y: number) => ({
+        event: {
+          x,
+          y,
+          original: new win.MouseEvent(type, { button: 0 }),
+          sigmaDefaultPrevented: false,
+          preventSigmaDefault() {},
+        },
+        preventSigmaDefault() {},
+      });
+
+      renderer.emit('downStage', mouseEvent('mousedown', center.x, center.y));
+      renderer.emit('moveBody', mouseEvent('mousemove', center.x + 40, center.y + 25));
+      renderer.emit('upStage', mouseEvent('mouseup', center.x + 40, center.y + 25));
+
+      const selectedIds = graph.nodes()
+        .filter((nodeId: string) => Boolean(graph.getNodeAttribute(nodeId, 'selected')))
+        .sort();
+      expect(selectedIds).to.deep.equal([...group.nodeIds].sort());
+      expect(renderer.getCamera().getState()).to.deep.equal(beforeCamera);
+
+      const deltas = group.nodeIds.map((nodeId: string) => {
+        const before = beforePositions.get(nodeId)!;
+        const attributes = graph.getNodeAttributes(nodeId);
+        return {
+          x: Number(attributes.x) - before.x,
+          y: Number(attributes.y) - before.y,
+        };
+      });
+      expect(Math.hypot(deltas[0].x, deltas[0].y), 'group movement').to.be.greaterThan(0);
+      deltas.slice(1).forEach((delta: { x: number; y: number }) => {
+        expect(delta.x, 'rigid group x delta').to.be.closeTo(deltas[0].x, 0.000001);
+        expect(delta.y, 'rigid group y delta').to.be.closeTo(deltas[0].y, 0.000001);
+      });
+      adapter.clearSelection();
+    });
+
+    cy.window().then((win: any) => {
+      const adapter = win.sigmaPocInstance;
+      const renderer = adapter.getRenderer();
       const camera = renderer.getCamera();
       const initialCamera = camera.getState();
       win.sigmaPocInitialCamera = initialCamera;

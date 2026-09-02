@@ -77,8 +77,15 @@ interface SigmaEdgeAttributes extends Record<string, unknown> {
 interface SigmaGroupHull {
   label: string;
   color: string;
+  nodeIds: string[];
   points: Array<{ x: number; y: number }>;
   center: { x: number; y: number };
+}
+
+interface SigmaHullDragState {
+  nodeIds: string[];
+  startPointer: { x: number; y: number };
+  startPositions: Map<string, { x: number; y: number }>;
 }
 
 interface SigmaViewportPoint {
@@ -407,6 +414,31 @@ function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number;
   return lower.concat(upper);
 }
 
+function pointInPolygon(
+  point: SigmaViewportPoint,
+  polygon: SigmaViewportPoint[],
+): boolean {
+  let inside = false;
+  for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current++) {
+    const a = polygon[current];
+    const b = polygon[previous];
+    const crossesRay = (a.y > point.y) !== (b.y > point.y) &&
+      point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+    if (crossesRay) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonArea(points: SigmaViewportPoint[]): number {
+  let twiceArea = 0;
+  for (let index = 0; index < points.length; index++) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    twiceArea += current.x * next.y - next.x * current.y;
+  }
+  return Math.abs(twiceArea) / 2;
+}
+
 export class SigmaNetworkRendererAdapter {
   /** Complete client-side graph used by statistics and interactions. */
   private graph: Graph<SigmaNodeAttributes, SigmaEdgeAttributes> = new Graph({
@@ -441,6 +473,9 @@ export class SigmaNetworkRendererAdapter {
   private selectionMouseLayer: HTMLElement | null = null;
   private nodeDragStartPointer: { x: number; y: number } | null = null;
   private nodeDragStartPositions = new Map<string, { x: number; y: number }>();
+  private hullDragState: SigmaHullDragState | null = null;
+  private suppressStageClick = false;
+  private suppressStageClickTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly handleSelectionPointerDown = (event: PointerEvent): void => {
     if (!event.shiftKey || event.button !== 0 || !this.renderer) return;
@@ -613,6 +648,10 @@ export class SigmaNetworkRendererAdapter {
     this.selectionPointerId = null;
     this.nodeDragStartPointer = null;
     this.nodeDragStartPositions.clear();
+    this.hullDragState = null;
+    if (this.suppressStageClickTimer) clearTimeout(this.suppressStageClickTimer);
+    this.suppressStageClickTimer = null;
+    this.suppressStageClick = false;
     this.groupHulls = [];
     this.rankedEdges = [];
     this.incidentEdgeIdsByNode.clear();
@@ -689,7 +728,17 @@ export class SigmaNetworkRendererAdapter {
     this.renderer.on('enterNode', payload => this.handleNodeHover(payload.node, payload.event.original));
     this.renderer.on('leaveNode', payload => this.handleNodeHover(null, payload.event.original));
     this.renderer.on('clickNode', payload => this.handleNodeClick(payload.node, payload.event.original));
-    this.renderer.on('clickStage', () => this.clearSelection());
+    this.renderer.on('clickStage', () => {
+      if (this.suppressStageClick) {
+        this.suppressStageClick = false;
+        return;
+      }
+      this.clearSelection();
+    });
+    this.renderer.on('downStage', payload => this.startHullDrag(payload));
+    this.renderer.on('moveBody', payload => this.moveHullDrag(payload));
+    this.renderer.on('upStage', payload => this.finishHullDrag(payload));
+    this.renderer.on('upNode', payload => this.finishHullDrag(payload));
     this.renderer.on('rightClickNode', payload => {
       const event = payload.event.original;
       if (!(event instanceof MouseEvent)) return;
@@ -874,6 +923,102 @@ export class SigmaNetworkRendererAdapter {
         y: start.y + deltaY,
       });
     }
+  }
+
+  private viewportHullPolygon(group: SigmaGroupHull): SigmaViewportPoint[] {
+    if (!this.renderer) return [];
+    const center = this.renderer.graphToViewport(group.center);
+    return group.points.map(graphPoint => {
+      const point = this.renderer!.graphToViewport(graphPoint);
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      const length = Math.max(1, Math.hypot(dx, dy));
+      return { x: point.x + dx / length * 14, y: point.y + dy / length * 14 };
+    });
+  }
+
+  private hullAtViewportPoint(point: SigmaViewportPoint): SigmaGroupHull | null {
+    const matches = this.groupHulls
+      .map(group => ({ group, polygon: this.viewportHullPolygon(group) }))
+      .filter(candidate => pointInPolygon(point, candidate.polygon))
+      .sort((left, right) => polygonArea(left.polygon) - polygonArea(right.polygon));
+    return matches[0]?.group || null;
+  }
+
+  private startHullDrag(payload: {
+    event: { x: number; y: number; original: MouseEvent | TouchEvent };
+    preventSigmaDefault(): void;
+  }): void {
+    if (!this.renderer || !(payload.event.original instanceof MouseEvent)) return;
+    if (payload.event.original.button !== 0 || payload.event.original.shiftKey) return;
+    const group = this.hullAtViewportPoint(payload.event);
+    if (!group) return;
+
+    // This only runs for downStage. A pointer over a node produces downNode,
+    // allowing Sigma's node selection and drag behavior to take precedence.
+    payload.preventSigmaDefault();
+    this.selectedNodeIds.clear();
+    group.nodeIds.forEach(nodeId => this.selectedNodeIds.add(nodeId));
+    this.syncSelectionAttributes();
+
+    const startPositions = new Map<string, { x: number; y: number }>();
+    group.nodeIds.forEach(nodeId => {
+      if (!this.displayGraph.hasNode(nodeId)) return;
+      startPositions.set(nodeId, {
+        x: Number(this.displayGraph.getNodeAttribute(nodeId, 'x')),
+        y: Number(this.displayGraph.getNodeAttribute(nodeId, 'y')),
+      });
+    });
+    this.hullDragState = {
+      nodeIds: [...startPositions.keys()],
+      startPointer: this.renderer.viewportToGraph(payload.event),
+      startPositions,
+    };
+  }
+
+  private moveHullDrag(payload: {
+    event: { x: number; y: number };
+    preventSigmaDefault(): void;
+  }): void {
+    if (!this.renderer || !this.hullDragState) return;
+    payload.preventSigmaDefault();
+    const currentPointer = this.renderer.viewportToGraph(payload.event);
+    const deltaX = currentPointer.x - this.hullDragState.startPointer.x;
+    const deltaY = currentPointer.y - this.hullDragState.startPointer.y;
+    for (const nodeId of this.hullDragState.nodeIds) {
+      const start = this.hullDragState.startPositions.get(nodeId);
+      if (!start || !this.displayGraph.hasNode(nodeId)) continue;
+      this.displayGraph.mergeNodeAttributes(nodeId, {
+        x: start.x + deltaX,
+        y: start.y + deltaY,
+      });
+    }
+    this.syncDraggedNodePositions(this.hullDragState.nodeIds, false);
+  }
+
+  private finishHullDrag(payload: {
+    event: { x: number; y: number };
+    preventSigmaDefault(): void;
+  }): void {
+    if (!this.hullDragState) return;
+    payload.preventSigmaDefault();
+    this.moveHullDrag(payload);
+    const nodeIds = this.hullDragState.nodeIds;
+    this.hullDragState = null;
+    this.syncDraggedNodePositions(nodeIds, true);
+    this.rebuildGroupHulls();
+    this.drawGroupHulls();
+    this.scheduleProjectionRefresh();
+
+    // A no-movement hull click emits clickStage after upStage. Preserve the
+    // group selection for that click, while allowing later stage clicks to
+    // clear selection normally.
+    this.suppressStageClick = true;
+    if (this.suppressStageClickTimer) clearTimeout(this.suppressStageClickTimer);
+    this.suppressStageClickTimer = setTimeout(() => {
+      this.suppressStageClick = false;
+      this.suppressStageClickTimer = null;
+    }, 0);
   }
 
   private handleNodeHover(nodeId: string | null, event?: MouseEvent | TouchEvent): void {
@@ -1156,10 +1301,19 @@ export class SigmaNetworkRendererAdapter {
       this.groupHulls = [];
       return;
     }
-    const groups = new Map<string, { color: string; points: Array<{ x: number; y: number }> }>();
-    this.graph.forEachNode((_nodeId, attributes) => {
+    const groups = new Map<string, {
+      color: string;
+      nodeIds: string[];
+      points: Array<{ x: number; y: number }>;
+    }>();
+    this.graph.forEachNode((nodeId, attributes) => {
       if (!attributes.group) return;
-      const group = groups.get(attributes.group) || { color: attributes.groupColor, points: [] };
+      const group = groups.get(attributes.group) || {
+        color: attributes.groupColor,
+        nodeIds: [],
+        points: [],
+      };
+      group.nodeIds.push(nodeId);
       group.points.push({ x: Number(attributes.x), y: Number(attributes.y) });
       groups.set(attributes.group, group);
     });
@@ -1178,7 +1332,7 @@ export class SigmaNetworkRendererAdapter {
       );
       center.x /= points.length;
       center.y /= points.length;
-      this.groupHulls.push({ label, color: group.color, points, center });
+      this.groupHulls.push({ label, color: group.color, nodeIds: group.nodeIds, points, center });
     });
   }
 
@@ -1191,13 +1345,7 @@ export class SigmaNetworkRendererAdapter {
 
     for (const group of this.groupHulls) {
       const center = this.renderer.graphToViewport(group.center);
-      const expanded = group.points.map(graphPoint => {
-        const point = this.renderer!.graphToViewport(graphPoint);
-        const dx = point.x - center.x;
-        const dy = point.y - center.y;
-        const length = Math.max(1, Math.hypot(dx, dy));
-        return { x: point.x + dx / length * 14, y: point.y + dy / length * 14 };
-      });
+      const expanded = this.viewportHullPolygon(group);
 
       context.beginPath();
       context.moveTo(expanded[0].x, expanded[0].y);
