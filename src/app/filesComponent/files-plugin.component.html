@@ -320,7 +320,7 @@
   <div class="m-portlet" style="padding: 1px">
     <div class="d-flex justify-content-center" style="gap: 5px;">
       <span>
-        <input type="file" id="data-files1" class="d-none" multiple="true" onclick="this.value=null;" (change)="processFiles($event.target.files)">
+        <input type="file" id="data-files1" class="d-none" multiple="true" (click)="resetFileInput($event)" (change)="processFiles($event.target.files)">
         <label for="data-files1" class="btn btn-primary btn-nr floater mb-0">Add File(s)</label>
       </span>
       <span>

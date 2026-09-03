@@ -12,7 +12,6 @@ import * as _ from 'lodash';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
 import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
@@ -714,7 +713,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
         private clipboard: Clipboard,
-        private gtmService: GoogleTagManagerService,
         private store: CommonStoreService,
         private exportService: ExportService,
         private zone: NgZone 
@@ -2610,11 +2608,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('--- TwoD InitView called');
 
-        this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/2d_network",
-            page_title: "2D Network View"
-        });
         this.IsDataAvailable = (this.commonService.session.data.nodes.length === 0 ? false : true);
         if (!this.widgets['default-distance-metric']) {
             this.widgets['default-distance-metric'] =

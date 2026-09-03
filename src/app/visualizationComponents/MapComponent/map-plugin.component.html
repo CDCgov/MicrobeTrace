@@ -10,7 +10,9 @@
 </ng-container> -->
 
 
-<div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
+@if (!commonService.session.style.widgets['map-basemap-show'] && !commonService.session.style.widgets['map-satellite-show']) {
+  <div class="OSM-credit">Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.</div>
+}
 
 <div id="tool-btn-container-map" class="tool-btn-container m-portlet">
     <span style="overflow: visible; position: relative; width: 110px;">
@@ -23,7 +25,7 @@
         <a id="centerMapButton" title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Nodes without Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
+        <a data-testid="map-nodes-without-location-button" title="Nodes without Location Data" aria-label="Nodes without Map Location Data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutLoc.length === 0 ? '#005DAA': 'red' }" (click)="showPopup()">{{ nodesWithoutLoc.length }}</a>
     </span>
 </div>
 <div #mapContainer class="map-container">
@@ -32,6 +34,63 @@
     <div class="mapStyle" leaflet [leafletOptions]="leafletInitialOptions" (leafletMapReady)="onMapReady($event)"
       [leafletMarkerCluster]="leafletMarkers" [leafletMarkerClusterOptions]="leafletMarkerClusterOptions"
       (leafletMarkerClusterReady)="onMarkerClusterReady($event)">
+    </div>
+  }
+  @if (floorplanBoundaryEditorMode !== 'idle' && floorplanBoundaryEditorMode !== 'renaming') {
+    <div class="map-boundary-editor-toolbar" role="region" aria-label="Boundary editor">
+      <div class="map-boundary-editor-title">
+        @if (floorplanBoundaryEditorMode === 'polygon') {
+          Draw polygon
+        } @else if (floorplanBoundaryEditorMode === 'freehand') {
+          Draw freehand area
+        } @else if (floorplanBoundaryEditorMode === 'editing') {
+          Edit boundary
+        } @else {
+          Label boundary
+        }
+      </div>
+      @if (floorplanBoundaryMessage) {
+        <div class="map-boundary-editor-message">{{ floorplanBoundaryMessage }}</div>
+      }
+      @if (floorplanBoundaryEditorMode === 'polygon') {
+        <div class="map-boundary-editor-point-summary" aria-live="polite">
+          {{ getFloorplanBoundaryPointSummary() }}
+        </div>
+      }
+      @if (floorplanBoundaryWarning) {
+        <div class="alert alert-warning py-2 mb-2" role="status">{{ floorplanBoundaryWarning }}</div>
+      }
+      @if (floorplanBoundaryError) {
+        <div class="alert alert-danger py-2 mb-2" role="alert">{{ floorplanBoundaryError }}</div>
+      }
+      @if (isFloorplanBoundaryDrawing()) {
+        <div class="map-boundary-editor-actions">
+          @if (floorplanBoundaryEditorMode === 'polygon') {
+            <button type="button" id="map-boundary-undo" class="btn btn-sm btn-secondary"
+              [disabled]="!canUndoFloorplanBoundaryPoint()" (click)="undoFloorplanBoundaryPoint()">Undo</button>
+            <button type="button" id="map-boundary-finish" class="btn btn-sm map-btn"
+              [disabled]="!canFinishFloorplanBoundary()" (click)="finishFloorplanBoundaryDrawing()">Finish</button>
+          }
+          <button type="button" id="map-boundary-cancel-drawing" class="btn btn-sm btn-secondary"
+            (click)="cancelFloorplanBoundaryDrawing()">Cancel</button>
+        </div>
+      } @else {
+        <label for="map-floorplan-boundary-label" class="map-boundary-editor-label">Label</label>
+        <input type="text" id="map-floorplan-boundary-label" class="form-control form-control-sm mb-2"
+          maxlength="120" [(ngModel)]="floorplanBoundaryDraftLabel"
+          placeholder="Value from the selected node field">
+        <div class="map-boundary-editor-actions">
+          @if (floorplanBoundaryEditorMode === 'editing') {
+            <button type="button" id="map-boundary-remove-vertex" class="btn btn-sm btn-secondary"
+              [disabled]="!canRemoveFloorplanBoundaryVertex()"
+              (click)="removeSelectedFloorplanBoundaryVertex()">Remove vertex</button>
+          }
+          <button type="button" id="map-boundary-cancel" class="btn btn-sm btn-secondary"
+            (click)="cancelFloorplanBoundaryDrawing()">Cancel</button>
+          <button type="button" id="map-boundary-save" class="btn btn-sm map-btn"
+            [disabled]="!canSaveFloorplanBoundary()" (click)="saveFloorplanBoundary()">Save</button>
+        </div>
+      }
     </div>
   }
 </div>
@@ -272,6 +331,251 @@
 </p-accordion-panel>
 </p-accordion>
 </tab>
+<tab heading="{{'Custom Map' | localize}}" customClass="m-tabs__item">
+    <div class="form-group row" title="Open the custom map tutorial document.">
+      <div class="col-4">Tutorial</div>
+      <div class="col-8">
+        <a class="btn btn-sm map-btn w-100" href="https://github.com/CDCgov/MicrobeTrace/wiki/Map-View-with-GeoJSON-Files-and-Custom-Maps"
+          target="_blank" rel="noreferrer noopener" role="button"
+          title="Open the custom map tutorial document for GeoJSON and image floorplans.">More Information</a>
+      </div>
+    </div>
+    <div class="form-group row" title="Load a GeoJSON or image floorplan background.">
+      <div class="col-4">Background</div>
+      <div class="col-8">
+        <input type="file" id="map-floorplan-background-file" class="d-none"
+          accept=".geojson,.json,application/geo+json,application/json,image/*"
+          (change)="onFloorplanBackgroundFileSelected($event)">
+        <label class="custom-file-label" for="map-floorplan-background-file">Choose Custom Map File</label>
+      </div>
+    </div>
+    <div class="form-group row" title="Would you like to show the uploaded floorplan background?">
+      <div class="col-4">Layer</div>
+      <div class="col-8">
+        <p-selectButton [options]="FloorplanBackgroundTypes" [allowEmpty]="false" id="map-floorplan-background-show-hide" fluid
+          [(ngModel)]="SelectedFloorplanBackgroundTypeVariable"
+          (ngModelChange)="onFloorplanBackgroundLayerChange($event)"></p-selectButton>
+      </div>
+    </div>
+    @if (floorplanBackgroundFileName) {
+      <div class="form-group row">
+        <div class="col-4">Loaded</div>
+        <div class="col-8 map-user-geojson-summary">
+          {{ floorplanBackgroundFileName }}{{ floorplanBackgroundSummary ? ' (' + floorplanBackgroundSummary + ')' : '' }}
+        </div>
+      </div>
+    }
+    @if (commonService.session.data.geoJSON) {
+      <div class="form-group row" title="Choose the color used to draw the GeoJSON layer.">
+        <div class="col-4"><label for="map-user-geojson-color">Color</label></div>
+        <div class="col-8">
+          <input type="color" class="map-geojson-color-picker" id="map-user-geojson-color"
+            aria-label="Custom map GeoJSON color"
+            [(ngModel)]="SelectedUserGeoJSONColorVariable"
+            (ngModelChange)="onUserGeoJSONColorChange($event)">
+        </div>
+      </div>
+      <div class="form-group row" title="Choose how transparent the GeoJSON layer should be.">
+        <div class="col-4"><label for="map-user-geojson-transparency">Transparency</label></div>
+        <div class="col-8 map-geojson-transparency-control">
+          <input type="range" class="custom-range" id="map-user-geojson-transparency"
+            min="0" max="1" step="0.01"
+            aria-label="Custom map GeoJSON transparency"
+            [(ngModel)]="SelectedUserGeoJSONTransparencyVariable"
+            (ngModelChange)="onUserGeoJSONTransparencyChange($event)">
+          <span class="map-geojson-transparency-value">{{ getUserGeoJSONTransparencyPercent() }}%</span>
+        </div>
+      </div>
+      <div class="form-group row" title="Choose a GeoJSON feature property to display as labels.">
+        <div class="col-4"><label for="map-user-geojson-label-field">Labels</label></div>
+        <div class="col-8">
+          <p-select id="map-user-geojson-label-field" [options]="UserGeoJSONLabelFields"
+            [(ngModel)]="SelectedUserGeoJSONLabelField"
+            (ngModelChange)="onUserGeoJSONLabelFieldChange($event)"
+            appendTo="body"></p-select>
+        </div>
+      </div>
+    }
+    @if (floorplanBackgroundError) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanBackgroundError }}</div>
+        </div>
+      </div>
+    }
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100" [disabled]="!floorplanBackgroundFileName"
+          (click)="centerFloorplanBackground()">Center</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100" [disabled]="!floorplanBackgroundFileName"
+          (click)="clearFloorplanBackground()">Clear</button>
+      </div>
+    </div>
+    @if (commonService.session.data.floorplanImage) {
+      <div class="form-group row">
+        <div class="col-12 map-manual-position-heading">Boundary Labels</div>
+      </div>
+      <div class="form-group row" title="Choose the node field whose values should match boundary labels.">
+      <div class="col-4"><label for="map-floorplan-boundary-field">Node Field</label></div>
+      <div class="col-8">
+        <p-select id="map-floorplan-boundary-field" [options]="FieldList" appendTo="body"
+          class="width-percent-100" [disabled]="!commonService.session.data.floorplanImage || floorplanBoundaryEditorMode !== 'idle'"
+          [(ngModel)]="SelectedFloorplanBoundaryField"
+          (ngModelChange)="onFloorplanBoundaryFieldChange($event)">
+        </p-select>
+      </div>
+    </div>
+    <div class="form-group row" title="Show or hide saved boundary outlines and labels.">
+      <div class="col-4">Boundaries</div>
+      <div class="col-8">
+        <p-selectButton [options]="FloorplanBoundaryVisibilityTypes" [allowEmpty]="false"
+          id="map-floorplan-boundary-show-hide" fluid
+          [disabled]="!commonService.session.data.floorplanImage || floorplanBoundaryEditorMode !== 'idle'"
+          [(ngModel)]="SelectedFloorplanBoundaryVisibility"
+          (ngModelChange)="onFloorplanBoundaryVisibilityChange($event)"></p-selectButton>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4">Draw</div>
+      <div class="col-4">
+        <button type="button" id="map-boundary-draw-polygon" class="btn btn-sm map-btn w-100"
+          [disabled]="!canDrawFloorplanBoundary()" (click)="startFloorplanBoundaryPolygon()">Polygon</button>
+      </div>
+      <div class="col-4">
+        <button type="button" id="map-boundary-draw-freehand" class="btn btn-sm map-btn w-100"
+          [disabled]="!canDrawFloorplanBoundary()" (click)="startFloorplanBoundaryFreehand()">Freehand</button>
+      </div>
+    </div>
+    @if (floorplanBoundaryEditorMode === 'renaming') {
+      <div class="form-group row">
+        <div class="col-4"><label for="map-floorplan-boundary-label">Label</label></div>
+        <div class="col-8">
+          <input type="text" id="map-floorplan-boundary-label" class="form-control form-control-sm"
+            maxlength="120" [(ngModel)]="floorplanBoundaryDraftLabel"
+            placeholder="Value from the selected node field">
+        </div>
+      </div>
+      <div class="form-group row">
+        <div class="col-4"></div>
+        <div class="col-4">
+          <button type="button" id="map-boundary-cancel" class="btn btn-sm btn-secondary w-100"
+            (click)="cancelFloorplanBoundaryDrawing()">Cancel</button>
+        </div>
+        <div class="col-4">
+          <button type="button" id="map-boundary-save" class="btn btn-sm map-btn w-100"
+            [disabled]="!canSaveFloorplanBoundary()" (click)="saveFloorplanBoundary()">Save</button>
+        </div>
+      </div>
+    }
+    @if (floorplanBoundaries.length > 0) {
+      <div class="map-boundary-list mb-3">
+        @for (boundary of floorplanBoundaries; track boundary.id) {
+          <div class="map-boundary-list-item">
+            <div class="map-boundary-list-label" [title]="boundary.label">{{ boundary.label }}</div>
+            <div class="map-boundary-list-actions">
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                [disabled]="floorplanBoundaryEditorMode !== 'idle'"
+                (click)="beginRenameFloorplanBoundary(boundary)">Rename</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                [disabled]="floorplanBoundaryEditorMode !== 'idle' || !commonService.session.style.widgets['map-floorplan-image-show']"
+                (click)="beginEditFloorplanBoundary(boundary)">Edit</button>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                [disabled]="floorplanBoundaryEditorMode !== 'idle'"
+                (click)="deleteFloorplanBoundary(boundary)">Delete</button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+    <div class="form-group row">
+      <div class="col-4">Status</div>
+      <div class="col-8 map-manual-position-summary">
+        {{ floorplanBoundaryMatchedNodeCount }} matched / {{ floorplanBoundaryUnmatchedNodeCount }} unmatched
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-8">
+        <button type="button" id="map-boundary-reposition-all" class="btn btn-sm btn-secondary w-100"
+          [disabled]="floorplanBoundaryEditorMode !== 'idle' || SelectedFloorplanBoundaryField === 'None' || floorplanBoundaries.length === 0"
+          (click)="repositionAllFloorplanBoundaryNodes()">Reposition All</button>
+      </div>
+    </div>
+    @if (floorplanBoundaryError) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-danger py-2 mb-0" role="alert">{{ floorplanBoundaryError }}</div>
+        </div>
+      </div>
+    }
+      @if (floorplanBoundaryMessage) {
+        <div class="form-group row">
+          <div class="col-12">
+            <div class="alert alert-info py-2 mb-0" role="status">{{ floorplanBoundaryMessage }}</div>
+          </div>
+        </div>
+      }
+    }
+    <div class="form-group row">
+      <div class="col-12 map-manual-position-heading">Manual Positions</div>
+    </div>
+    <div class="form-group row" title="Turn on manual node placement for the current map.">
+      <div class="col-4">Positioning</div>
+      <div class="col-8">
+        <p-selectButton [options]="ManualPositionTypes" [allowEmpty]="false" id="map-manual-positioning" fluid
+          [disabled]="!canUseManualPositioning()"
+          [(ngModel)]="SelectedManualPositionTypeVariable"
+          (ngModelChange)="onManualPositioningChange($event)"></p-selectButton>
+      </div>
+    </div>
+    <div class="form-group row" title="Choose the visible node to place by clicking the map or floorplan.">
+      <div class="col-4"><label for="map-manual-position-node">Node</label></div>
+      <div class="col-8">
+        <p-select id="map-manual-position-node" [options]="manualPositionNodeList" appendTo="body"
+          class="width-percent-100" [disabled]="SelectedManualPositionTypeVariable !== 'On'"
+          [(ngModel)]="SelectedManualPositionNodeId"
+          (ngModelChange)="onManualPositionNodeChange($event)">
+        </p-select>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4">Status</div>
+      <div class="col-8 map-manual-position-summary">
+        {{ manualPositionPlacedCount }} placed / {{ manualPositionUnplacedCount }} not placed
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm map-btn w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On'"
+          (click)="selectNextUnplacedManualPositionNode()">Next Unplaced</button>
+      </div>
+      <div class="col-4">
+        <button type="button" class="btn btn-sm btn-secondary w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || !manualPositionSelectedCanClear"
+          (click)="clearSelectedManualPosition()">Clear Selected</button>
+      </div>
+    </div>
+    <div class="form-group row">
+      <div class="col-4"></div>
+      <div class="col-8">
+        <button type="button" class="btn btn-sm btn-secondary w-100"
+          [disabled]="SelectedManualPositionTypeVariable !== 'On' || manualPositionClearableCount === 0"
+          (click)="clearAllManualPositions()">Clear All</button>
+      </div>
+    </div>
+    @if (manualPositionMessage) {
+      <div class="form-group row">
+        <div class="col-12">
+          <div class="alert alert-info py-2 mb-0" role="status">{{ manualPositionMessage }}</div>
+        </div>
+      </div>
+    }
+</tab>
 <tab heading="{{'Nodes' | localize}}" customClass="m-tabs__item">
   <div class="form-group row">
     <div class="col-4">Color</div>
@@ -420,9 +724,9 @@
       @if (viewActive) {
         <p-dialog header="Excluded Nodes" [(visible)]="showPopupMessage" [style]="{ 'width': '35rem', 'max-height': '40rem' }">
           @if (nodesWithoutLoc.length == 0) {
-            <span class="text-surface-500 dark:text-surface-400 block mb-8">All nodes contain location data.</span>
+            <span class="text-surface-500 dark:text-surface-400 block mb-8">All nodes contain map location data.</span>
           } @else {
-            <span *ngIf="nodesWithoutLoc.length > 0" class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain location data and were omitted from Map View:
+            <span *ngIf="nodesWithoutLoc.length > 0" class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes didn't contain map location data and were omitted from Map View:
               <ol>
                 @for (node of nodesWithoutLoc; track node) {
                   <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
