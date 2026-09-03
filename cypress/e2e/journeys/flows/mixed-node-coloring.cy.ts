@@ -221,20 +221,26 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
-        ['3a', 1],
         ['2a/3a', 1],
-        ['6/7a', 1],
+        ['3a', 1],
         ['null', 2],
+        ['6/7a', 1],
       ]);
       expect(pieSlices.find((slice: any) => slice.label === '2a/3a').segments.map((segment: any) => segment.value))
         .to.deep.equal(['2a', '3a']);
       expect(pieSlices.find((slice: any) => slice.label === '6/7a').segments.map((segment: any) => segment.value))
         .to.deep.equal(['6', '7a']);
       expect(String(mixedAggregate.style('background-image'))).to.contain('data:image');
+      const normalBorderWidth = Number(twoD.widgets['node-border-width']);
+      const aggregateBorderWidth = Number(mixedAggregate.data('borderWidth'));
+      expect(aggregateBorderWidth, '2D aggregate border width')
+        .to.equal(Math.max(4, normalBorderWidth + 2));
+      expect(Number(mixedAggregate.data('aggregateRenderedSize')), '2D aggregate minimum rendered size')
+        .to.be.at.least((aggregateBorderWidth * 2) + 8);
       const aggregateSvg = atob(String(mixedAggregate.data('pieBackgroundImage')).split(',')[1]);
-      expect(aggregateSvg).to.contain("data-mt-aggregate-outline='outer'");
+      expect(aggregateSvg).not.to.contain("data-mt-aggregate-outline='outer'");
       expect(aggregateSvg).not.to.contain("data-mt-aggregate-outline='inner'");
-      expect(aggregateSvg).to.contain("data-mt-mixed-hollow-slice='true'");
+      expect(aggregateSvg).to.match(/<path[^>]*fill='none' fill-opacity='0'[^>]*data-mt-mixed-hollow-slice='true'/);
       expect(aggregateSvg).to.contain("data-mt-solid-aggregate-slice='true'");
       expect(aggregateSvg.match(/data-mt-mixed-ring-segment=/g)).to.have.length(4);
       expect(aggregateSvg.match(/data-mt-aggregate-slice-separator=/g)).to.have.length(6);
@@ -293,10 +299,10 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(aggregates[0].counts).to.deep.equal([
         { label: '1a', count: 1 },
         { label: '2a', count: 1 },
-        { label: '3a', count: 1 },
         { label: '2a/3a', count: 1 },
-        { label: '6/7a', count: 1 },
+        { label: '3a', count: 1 },
         { label: 'null', count: 2 },
+        { label: '6/7a', count: 1 },
       ]);
       expect(aggregates[1].counts).to.deep.equal([{ label: 'null', count: 2 }]);
       expect(renderedNodes.length, 'rendered collapsed Bubble count').to.equal(2);
@@ -306,16 +312,18 @@ describe('Journey Flow - mixed node coloring', () => {
         expect(renderedNode.empty(), `rendered aggregate ${aggregate.id}`).to.equal(false);
         expect(renderedNode.style('display'), `displayed aggregate ${aggregate.id}`).to.equal('element');
         expect(renderedNode.style('visibility'), `visible aggregate ${aggregate.id}`).to.equal('visible');
+        expect(parseFloat(renderedNode.style('border-width')), `aggregate border for ${aggregate.id}`).to.equal(5);
+        expect(parseFloat(renderedNode.style('width')), `aggregate minimum size for ${aggregate.id}`).to.be.at.least(18);
       });
 
       const pieSlices = bubble.getPieSlicesForCollapsedBubbleNode(aggregates[0]);
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
-        ['3a', 1],
         ['2a/3a', 1],
-        ['6/7a', 1],
+        ['3a', 1],
         ['null', 2],
+        ['6/7a', 1],
       ]);
       expect(pieSlices.find((slice: any) => slice.label === '2a/3a').segments.map((segment: any) => segment.value))
         .to.deep.equal(['2a', '3a']);

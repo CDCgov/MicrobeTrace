@@ -14,15 +14,17 @@ import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/ex
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { getMixedNodeShapeDataUri } from '@app/contactTraceCommonServices/node-shapes';
-import { buildEvenMixedPieChartRingSegments, buildPieChartPatternDef, buildPieChartSliceSeparatorPaths, buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getMixedAggregateRingInnerRadius, PIE_CHART_SLICE_SEPARATOR_WIDTH_PX, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
-import { NodeFillStyle } from '@app/contactTraceCommonServices/color-mapping.service';
+import { buildEvenMixedPieChartRingSegments, buildPieChartPatternDef, buildPieChartSliceSeparatorPaths, buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getCollapsedAggregateBorderWidth, getCollapsedAggregateMinimumRenderedSize, getMixedAggregateRingInnerRadius, MIXED_AGGREGATE_HOLLOW_FILL, MIXED_AGGREGATE_HOLLOW_FILL_OPACITY, PIE_CHART_SLICE_SEPARATOR_WIDTH_PX, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildCanonicalNodeColorCounts, NodeFillStyle } from '@app/contactTraceCommonServices/color-mapping.service';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
   getBubbleCollapseGroupKey,
   groupVisibleNodesByBubbleAxes
 } from './bubble-collapse-utils';
 
-type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any, mixedColorImage?: string }//selected: boolean }
+type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any, mixedColorImage?: string, isCollapsedAggregate?: boolean }//selected: boolean }
+
+const BUBBLE_NODE_BORDER_WIDTH_PX = 3;
 
 type BubblePieExportSlice = {
   label: string;
@@ -335,9 +337,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.SelectedNodeCollapsingTypeVariable = this.widgets['bubble-collapsed']
   }
 
+  private getCollapsedBubbleRenderedSize(totalCount: any): number {
+    const scaledSize = this.nodeSize * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+    return Math.max(
+      scaledSize,
+      getCollapsedAggregateMinimumRenderedSize(BUBBLE_NODE_BORDER_WIDTH_PX)
+    );
+  }
+
   mapDataToCytoscapElements(data: DataRecord[]): cytoscape.ElementsDefinition {
     const nodes = data.map((node) => {
-      let size = this.SelectedNodeCollapsingTypeVariable ? this.nodeSize * Math.sqrt(node.totalCount): this.nodeSize;
+      const size = this.SelectedNodeCollapsingTypeVariable
+        ? this.getCollapsedBubbleRenderedSize(node.totalCount)
+        : this.nodeSize;
       const nodeData: any = {
         id: node.id,
         nodeSize: size,
@@ -347,6 +359,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         counts: node.counts,
         totalCount: node.totalCount,
       };
+      if (this.SelectedNodeCollapsingTypeVariable === true) {
+        nodeData.isCollapsedAggregate = true;
+      }
       if (node.mixedColorImage) {
         nodeData.mixedColorImage = node.mixedColorImage;
       }
@@ -438,8 +453,14 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
             //'label': 'data(label)',
             'width': 'data(nodeSize)',
             'height': 'data(nodeSize)',
-            'border-width': 3, // Use dynamic border width
+            'border-width': BUBBLE_NODE_BORDER_WIDTH_PX,
             'border-color': '#000000',
+        }
+      },
+      {
+        selector: 'node[isCollapsedAggregate]',
+        css: {
+          'border-width': getCollapsedAggregateBorderWidth(BUBBLE_NODE_BORDER_WIDTH_PX)
         }
       },
       // Apply styles only to nodes with nodeColor defined
@@ -924,21 +945,16 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       node.counts = [];
       const previousTotal = node.totalCount;
       node.totalCount = 0;
-      currentNodes.forEach(cNode => {
-        const currentCategory = colorCategory === 'None'
-          ? 'All Nodes'
-          : this.commonService.normalizeNodeStyleCategoryValue(cNode[colorCategory]);
-        let index = node.counts.findIndex((countItem) => countItem.label == currentCategory)
-        if (index == -1) {
-          node.counts.push({
-            label: currentCategory,
-            count: 1
-          })
-        } else {
-          node.counts[index].count += 1
-        }
-        node.totalCount += 1;
-      })
+      node.counts = colorCategory === 'None'
+        ? currentNodes.length > 0
+          ? [{ label: 'All Nodes', count: currentNodes.length }]
+          : []
+        : buildCanonicalNodeColorCounts(
+            currentNodes.map(cNode => cNode[colorCategory]),
+            this.commonService.session.style.nodeColorsTableKeys?.[colorCategory] || [],
+            this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true
+          );
+      node.totalCount = currentNodes.length;
       if (previousTotal != node.totalCount || previousCounts !== JSON.stringify(node.counts)) {
         //console.log('node updated: ', node.totalCount, node.index)
         changedVisibleNodes.push(node.index)
@@ -992,7 +1008,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   private getCollapsedBubblePieDataUri(node: DataRecord, patternId: string): string {
-    const size = this.nodeSize * Math.sqrt(Math.max(1, Number(node.totalCount) || 1));
+    const size = this.getCollapsedBubbleRenderedSize(node.totalCount);
     return buildPieChartSvgDataUri(patternId, size, this.getPieSlicesForCollapsedBubbleNode(node));
   }
 
@@ -1031,7 +1047,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         return;
       }
       const stablePatternId = this.getCollapsedBubblePatternId(node);
-      const size = this.nodeSize * Math.sqrt(Math.max(1, Number(node.totalCount) || 1));
+      const size = this.getCollapsedBubbleRenderedSize(node.totalCount);
       this.svgDefs[stablePatternId] = buildPieChartPatternDef(stablePatternId, slices, size);
       this.svgDefs[`node${indexNumber}`] = buildPieChartPatternDef(`node${indexNumber}`, slices, size);
     })
@@ -1264,7 +1280,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (this.SelectedNodeCollapsingTypeVariable) {
       if (this.cy) {
         this.cy.nodes().forEach(node => {
-          node.data('nodeSize', this.nodeSize * Math.sqrt(node.data().totalCount));
+          node.data('nodeSize', this.getCollapsedBubbleRenderedSize(node.data().totalCount));
         });
         this.visibleData.forEach(node => {
           if (this.hasCollapsedBubblePie(node)) {
@@ -1535,7 +1551,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       const position = cyNode.position();
       const nodeWidth = Number(cyNode.width()) || Number(cyNode.data('nodeSize')) || 0;
       const nodeHeight = Number(cyNode.height()) || Number(cyNode.data('nodeSize')) || nodeWidth;
-      const borderWidth = Number(cyNode.numericStyle('border-width')) || 3;
+      const borderWidth = Number(cyNode.numericStyle('border-width')) || getCollapsedAggregateBorderWidth(BUBBLE_NODE_BORDER_WIDTH_PX);
       if (
         !Number.isFinite(position.x)
         || !Number.isFinite(position.y)
@@ -1710,8 +1726,10 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         path.setAttribute('data-mt-contains-mixed-infection', 'true');
         path.setAttribute('data-mt-mixed-hollow-slice', 'true');
       }
-      path.setAttribute('fill', mixedRingSegments.length > 1 ? '#ffffff' : slice.color);
-      path.setAttribute('fill-opacity', mixedRingSegments.length > 1 ? '1' : this.formatSvgNumber(slice.opacity));
+      path.setAttribute('fill', mixedRingSegments.length > 1 ? MIXED_AGGREGATE_HOLLOW_FILL : slice.color);
+      path.setAttribute('fill-opacity', mixedRingSegments.length > 1
+        ? this.formatSvgNumber(MIXED_AGGREGATE_HOLLOW_FILL_OPACITY)
+        : this.formatSvgNumber(slice.opacity));
       path.setAttribute('stroke', 'none');
       path.setAttribute('d', this.getBubblePieSlicePath(centerX, centerY, radius, sliceStart, sliceEnd));
       vectorGroup.appendChild(path);
@@ -1755,7 +1773,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     outline.setAttribute('data-mt-node-id', replacement.nodeId);
     outline.setAttribute('cx', this.formatSvgNumber(centerX));
     outline.setAttribute('cy', this.formatSvgNumber(centerY));
-    outline.setAttribute('r', this.formatSvgNumber(Math.max(0, radius - outlineStrokeWidth / 2)));
+    outline.setAttribute('r', this.formatSvgNumber(radius));
     outline.setAttribute('fill', 'none');
     outline.setAttribute('stroke', '#000000');
     outline.setAttribute('stroke-width', this.formatSvgNumber(outlineStrokeWidth));

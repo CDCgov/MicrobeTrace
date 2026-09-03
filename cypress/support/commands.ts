@@ -162,29 +162,16 @@ Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
 });
 
 Cypress.Commands.add('openGlobalSettings', () => {
-  cy.get('body').then(($body) => {
-    const isOpen = $body
-      .find('.p-dialog:visible .p-dialog-title')
-      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
-      .length > 0;
-
-    if (isOpen) return;
-    cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
+  const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
+  const dialogTitleSelector = `${dialogSelector} .p-dialog-title`;
+  cy.window().then((win: unknown) => {
+    const app = (win as any).commonService?.visuals?.microbeTrace;
+    if (app?.GlobalSettingsDialogSettings?.isVisible !== true) {
+      app?.DisplayGlobalSettingsDialog?.();
+    }
   });
-  cy.wait(250);
-  cy.get('body').then(($body) => {
-    const isOpen = $body
-      .find('.p-dialog:visible .p-dialog-title')
-      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
-      .length > 0;
-
-    if (isOpen) return;
-    cy.window().then((win: unknown) => {
-      (win as any).commonService?.visuals?.microbeTrace?.DisplayGlobalSettingsDialog?.();
-    });
-  });
-  cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings', { timeout: 15000 }).should('be.visible');
-  cy.contains('.p-dialog:visible .nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+  cy.contains(dialogTitleSelector, 'Global Settings', { timeout: 15000 }).should('be.visible');
+  cy.contains(`${dialogSelector} .nav-link`, 'Timeline', { timeout: 15000 }).should('be.visible');
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {

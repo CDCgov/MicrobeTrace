@@ -3807,7 +3807,10 @@ ${warnings.join('\n')}`,
 
         const aggregates = this.commonService.createNodeColorMap();
         const vnodes = this.commonService.getVisibleNodes();
-        const aggregateValues = Object.keys(aggregates);
+        const aggregateValues = (
+            this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable]
+            || Object.keys(aggregates)
+        ).filter(value => Object.prototype.hasOwnProperty.call(aggregates, value));
         this.nodeColorDomain = aggregateValues;
 
         const componentRows: StyleKeyTableRow[] = aggregateValues
@@ -3825,7 +3828,11 @@ ${warnings.join('\n')}`,
             }));
 
         const mixedRows: StyleKeyTableRow[] = this.SelectedNodeMixedColorsEnabledVariable
-            ? getMixedNodeColorLegendEntries(vnodes, this.SelectedColorNodesByVariable)
+            ? getMixedNodeColorLegendEntries(
+                vnodes,
+                this.SelectedColorNodesByVariable,
+                this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] || []
+            )
                 .map(entry => {
                     const fillStyle = this.commonService.getNodeFillStyle({
                         [this.SelectedColorNodesByVariable]: entry.components

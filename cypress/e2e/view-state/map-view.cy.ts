@@ -923,12 +923,9 @@ describe('Map View', () => {
       cy.closeGlobalSettings();
 
       cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
-      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
-        Object.values(layers).forEach((layer: any) => {
-          if (layer.data && layer.data.ID === 'MZ375596') {
-            expect(layer.options.fillColor).to.equal('#777777');
-          }
-        });
+      cy.window().its('commonService.visuals.gisMap.mapNodeMarkersById.MZ797519').should((marker: any) => {
+        expect(marker, 'MZ797519 marker').to.exist;
+        expect(marker.options.fillColor).to.equal('#777777');
       });
 
       cy.get('.leaflet-control-zoom-out').click({force: true});
@@ -956,13 +953,9 @@ describe('Map View', () => {
       cy.window().its('commonService.session.style.widgets.map-node-transparency').should('equal', mapTransparency);
       cy.closeSettingsPane('Geospatial Settings');
 
-      cy.window().its('commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers').should(layers => {
-        const targetLayer = Object.values(layers).find((layer: any) =>
-          layer.data && (layer.data.ID === 'MZ375596' || layer.data._id === 'MZ375596')
-        ) as any;
-
-        expect(targetLayer, 'MZ375596 marker layer').to.exist;
-        const renderedStyle = readRenderedMapNodeStyle(targetLayer);
+      cy.window().its('commonService.visuals.gisMap.mapNodeMarkersById.MZ797519').should((marker: any) => {
+        expect(marker, 'MZ797519 marker').to.exist;
+        const renderedStyle = readRenderedMapNodeStyle(marker);
         expect(renderedStyle.fillOpacity).to.be.closeTo(expectedFillOpacity, 0.001);
         expect(renderedStyle.opacity).to.equal(1);
       });

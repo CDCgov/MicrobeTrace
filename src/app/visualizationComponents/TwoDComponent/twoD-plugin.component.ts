@@ -33,7 +33,8 @@ import {
 } from '../KeyTablesComponent/style-key-table.component';
 import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
-import { buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getCollapsedAggregateBorderWidth, getCollapsedAggregateMinimumRenderedSize, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildCanonicalNodeColorCounts } from '@app/contactTraceCommonServices/color-mapping.service';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 interface CustomNodeSvgExportReplacement {
@@ -1442,7 +1443,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getCollapsedNodeRenderedSize(totalCount: number): number {
-        return this.mapNodeSize(this.getCollapsedNodeBaseSize()) * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+        const scaledSize = this.mapNodeSize(this.getCollapsedNodeBaseSize())
+            * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+        return Math.max(
+            scaledSize,
+            getCollapsedAggregateMinimumRenderedSize(this.widgets?.['node-border-width'])
+        );
     }
 
     private buildCollapsedNodeCounts(memberNodes: any[]): Array<{ label: string; count: number }> {
@@ -1452,13 +1458,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return [{ label: 'All Nodes', count: memberNodes.length }];
         }
 
-        const counts = new Map<string, number>();
-        memberNodes.forEach(node => {
-            const label = this.commonService.normalizeNodeStyleCategoryValue(node?.[colorVariable]);
-            counts.set(label, (counts.get(label) || 0) + 1);
-        });
-
-        return Array.from(counts.entries()).map(([label, count]) => ({ label, count }));
+        return buildCanonicalNodeColorCounts(
+            memberNodes.map(node => node?.[colorVariable]),
+            this.commonService.session.style.nodeColorsTableKeys?.[colorVariable] || [],
+            this.widgets['node-mixed-colors-enabled'] === true
+        );
     }
 
     private getCollapsedPieSlices(counts: Array<{ label: string; count: number }>): PieChartSlice[] {
@@ -1594,7 +1598,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             aggregateRenderedSize,
             nodeColor: hasPie ? 'transparent' : solidColor,
             bgOpacity: hasPie ? 0 : solidOpacity,
-            borderWidth: this.getNodeBorderWidth(firstMember),
+            borderWidth: this.getNodeBorderWidth({ isCollapsedAggregate: true }),
             pieBackgroundImage: hasPie
                 ? buildPieChartSvgDataUri(`twod-collapse-pie-${componentIndex}`, aggregateRenderedSize, slices)
                 : undefined
@@ -2122,6 +2126,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-opacity': 0,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[!isParent][isCollapsedAggregate]',
+                css: {
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 'data(borderWidth)'
                 }
             },
             {
@@ -3220,7 +3231,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private addCollapsedPieSvgExportOutlines(doc: XMLDocument): void {
         const svgNamespace = 'http://www.w3.org/2000/svg';
-        const borderWidth = Math.max(0, Number(this.widgets?.['node-border-width']) || 0);
+        const borderWidth = getCollapsedAggregateBorderWidth(this.widgets?.['node-border-width']);
         if (borderWidth <= 0) {
             return;
         }
@@ -3247,7 +3258,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             const imageX = this.getSvgLengthAttribute(image, 'x') ?? 0;
             const imageY = this.getSvgLengthAttribute(image, 'y') ?? 0;
-            const radius = Math.max(0.1, (Math.min(imageWidth, imageHeight) / 2) - (borderWidth / 2));
+            const radius = Math.max(0.1, Math.min(imageWidth, imageHeight) / 2);
             const outline = doc.createElementNS(svgNamespace, 'circle');
             outline.setAttribute('cx', `${imageX + (imageWidth / 2)}`);
             outline.setAttribute('cy', `${imageY + (imageHeight / 2)}`);
@@ -5296,6 +5307,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeBorderWidthChange(e) {
         this.widgets['node-border-width'] = e;
         this.updateMinMaxNode()
+        if (this.isNodeCollapseEnabled() && this.cy) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
         this.updateNodeBorders(); // Update border widths without rerendering the entire network
     }
 
@@ -7208,7 +7223,10 @@ scaleLinkWidth() {
      */
     getNodeBorderWidth(node: any): number {
         const borderWidth = Number(this.widgets['node-border-width']);
-        return Number.isFinite(borderWidth) ? borderWidth : 2;
+        const normalBorderWidth = Number.isFinite(borderWidth) ? Math.max(0, borderWidth) : 2;
+        return node?.isCollapsedAggregate === true
+            ? getCollapsedAggregateBorderWidth(normalBorderWidth)
+            : normalBorderWidth;
     }
 
 

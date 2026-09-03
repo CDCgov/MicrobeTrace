@@ -20,6 +20,16 @@ export interface MixedNodeColorLegendEntry {
   count: number;
 }
 
+export interface NodeColorCategoryCount {
+  label: string;
+  count: number;
+}
+
+const nodeColorCategoryCollator = new Intl.Collator('en', {
+  numeric: true,
+  sensitivity: 'base'
+});
+
 export function isNullLikeNodeColorValue(value: any): boolean {
   if (value === undefined || value === null) {
     return true;
@@ -78,7 +88,150 @@ export function parseMixedNodeColorValue(value: any): string[] {
   return tokens;
 }
 
-export function getMixedNodeColorLegendEntries(nodes: any[], variable: string): MixedNodeColorLegendEntry[] {
+function getPreferredNodeColorCategoryRanks(preferredOrder: any[] = []): Map<string, number> {
+  const ranks = new Map<string, number>();
+  preferredOrder.forEach((value, index) => {
+    const key = normalizeNodeStyleCategoryValue(value);
+    if (!ranks.has(key)) {
+      ranks.set(key, index);
+    }
+  });
+  return ranks;
+}
+
+function getPreferredNodeColorCategoryLabels(preferredOrder: any[] = []): Map<string, string> {
+  const labels = new Map<string, string>();
+  preferredOrder.forEach(value => {
+    const label = normalizeNodeStyleCategoryValue(value);
+    if (!labels.has(label)) {
+      labels.set(label, label);
+    }
+  });
+  return labels;
+}
+
+function compareAtomicNodeColorCategories(
+  left: string,
+  right: string,
+  preferredRanks: Map<string, number>
+): number {
+  const leftRank = preferredRanks.get(left);
+  const rightRank = preferredRanks.get(right);
+
+  if (leftRank !== undefined || rightRank !== undefined) {
+    if (leftRank === undefined) {
+      return 1;
+    }
+    if (rightRank === undefined) {
+      return -1;
+    }
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+  }
+
+  const naturalComparison = nodeColorCategoryCollator.compare(left, right);
+  return naturalComparison !== 0
+    ? naturalComparison
+    : left < right
+      ? -1
+      : left > right
+        ? 1
+        : 0;
+}
+
+export function canonicalizeMixedNodeColorComponents(
+  value: any,
+  preferredOrder: any[] = []
+): string[] {
+  const preferredRanks = getPreferredNodeColorCategoryRanks(preferredOrder);
+  const preferredLabels = getPreferredNodeColorCategoryLabels(preferredOrder);
+  return parseMixedNodeColorValue(value)
+    .map(token => preferredLabels.get(token) || token)
+    .sort((left, right) => compareAtomicNodeColorCategories(left, right, preferredRanks));
+}
+
+export function canonicalizeNodeColorCategoryValue(
+  value: any,
+  preferredOrder: any[] = []
+): string {
+  const components = canonicalizeMixedNodeColorComponents(value, preferredOrder);
+  return components.length > 0
+    ? components.join('/')
+    : normalizeNodeStyleCategoryValue(value);
+}
+
+export function compareNodeColorCategoryValues(
+  left: any,
+  right: any,
+  preferredOrder: any[] = []
+): number {
+  const preferredRanks = getPreferredNodeColorCategoryRanks(preferredOrder);
+  const getComponents = (value: any): string[] => {
+    const components = canonicalizeMixedNodeColorComponents(value, preferredOrder);
+    return components.length > 0 ? components : [normalizeNodeStyleCategoryValue(value)];
+  };
+  const leftComponents = getComponents(left);
+  const rightComponents = getComponents(right);
+  const sharedLength = Math.min(leftComponents.length, rightComponents.length);
+
+  for (let index = 0; index < sharedLength; index++) {
+    const comparison = compareAtomicNodeColorCategories(
+      leftComponents[index],
+      rightComponents[index],
+      preferredRanks
+    );
+    if (comparison !== 0) {
+      return comparison;
+    }
+  }
+
+  return leftComponents.length - rightComponents.length;
+}
+
+export function sortNodeColorCategoryValues(
+  values: any[],
+  preferredOrder: any[] = []
+): string[] {
+  return (values || [])
+    .map(value => canonicalizeNodeColorCategoryValue(value, preferredOrder))
+    .sort((left, right) => compareNodeColorCategoryValues(left, right, preferredOrder));
+}
+
+export function sortAtomicNodeColorCategoryValues(
+  values: any[],
+  preferredOrder: any[] = []
+): string[] {
+  const preferredRanks = getPreferredNodeColorCategoryRanks(preferredOrder);
+  return (values || [])
+    .map(value => normalizeNodeStyleCategoryValue(value))
+    .sort((left, right) => compareAtomicNodeColorCategories(left, right, preferredRanks));
+}
+
+export function buildCanonicalNodeColorCounts(
+  values: any[],
+  preferredOrder: any[] = [],
+  splitMixedValues: boolean = true
+): NodeColorCategoryCount[] {
+  const counts = new Map<string, number>();
+  (values || []).forEach(value => {
+    const label = splitMixedValues
+      ? canonicalizeNodeColorCategoryValue(value, preferredOrder)
+      : normalizeNodeStyleCategoryValue(value);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+
+  const orderedLabels = splitMixedValues
+    ? sortNodeColorCategoryValues(Array.from(counts.keys()), preferredOrder)
+    : sortAtomicNodeColorCategoryValues(Array.from(counts.keys()), preferredOrder);
+  return orderedLabels.map(label => ({ label, count: counts.get(label) || 0 }));
+}
+
+export function getMixedNodeColorLegendEntries(
+  nodes: any[],
+  variable: string,
+  preferredOrder: any[] = []
+): MixedNodeColorLegendEntry[] {
   if (!variable || variable === 'None') {
     return [];
   }
@@ -86,7 +239,7 @@ export function getMixedNodeColorLegendEntries(nodes: any[], variable: string): 
   const entries = new Map<string, MixedNodeColorLegendEntry>();
 
   (nodes || []).forEach(node => {
-    const components = parseMixedNodeColorValue(node?.[variable]);
+    const components = canonicalizeMixedNodeColorComponents(node?.[variable], preferredOrder);
     if (components.length < 2) {
       return;
     }
@@ -105,7 +258,8 @@ export function getMixedNodeColorLegendEntries(nodes: any[], variable: string): 
     });
   });
 
-  return Array.from(entries.values());
+  return Array.from(entries.values())
+    .sort((left, right) => compareNodeColorCategoryValues(left.value, right.value, preferredOrder));
 }
 
 export function getMixedNodeColorSegments(
@@ -113,9 +267,10 @@ export function getMixedNodeColorSegments(
   colorMap: ((value: any) => string) | null | undefined,
   alphaMap: ((value: any) => number) | null | undefined,
   fallbackColor: string,
-  fallbackAlpha: number = 1
+  fallbackAlpha: number = 1,
+  preferredOrder: any[] = []
 ): NodeColorSegment[] {
-  return parseMixedNodeColorValue(value).map(token => {
+  return canonicalizeMixedNodeColorComponents(value, preferredOrder).map(token => {
     let color = fallbackColor;
     let alpha = fallbackAlpha;
 
@@ -157,35 +312,20 @@ export class ColorMappingService {
     return normalizeNodeStyleCategoryValue(value);
   }
 
-  private parseScalarMixedColorValue(value: any): string[] {
-    if (isNullLikeNodeColorValue(value)) {
-      return [];
-    }
-
-    const textValue = String(value).trim();
-    return splitMixedNodeColorText(textValue);
-  }
-
   public parseMixedColorValue(value: any): string[] {
-    const rawValues = Array.isArray(value)
-      ? value.flatMap(item => this.parseScalarMixedColorValue(item))
-      : this.parseScalarMixedColorValue(value);
-    const seenValues = new Set<string>();
-
-    return rawValues.filter(valuePart => {
-      const key = valuePart.toLowerCase();
-      if (seenValues.has(key)) {
-        return false;
-      }
-
-      seenValues.add(key);
-      return true;
-    });
+    return parseMixedNodeColorValue(value);
   }
 
-  public getNodeColorCategoriesForValue(value: any, mixedColorsEnabled: boolean): string[] {
+  public getNodeColorCategoriesForValue(
+    value: any,
+    mixedColorsEnabled: boolean,
+    preferredOrder: any[] = []
+  ): string[] {
     if (mixedColorsEnabled) {
-      const mixedValues = this.parseMixedColorValue(value);
+      const mixedValues = sortNodeColorCategoryValues(
+        this.parseMixedColorValue(value),
+        preferredOrder
+      );
       if (mixedValues.length > 0) {
         return mixedValues;
       }
@@ -322,7 +462,11 @@ export class ColorMappingService {
         return;
       }
 
-      const categories = this.getNodeColorCategoriesForValue(d[nodeColorVariable], splitMixedValues);
+      const categories = this.getNodeColorCategoriesForValue(
+        d[nodeColorVariable],
+        splitMixedValues,
+        storedKeysForVariable
+      );
       const isMixedValue = splitMixedValues && categories.length > 1;
 
       categories.forEach(category => {
@@ -339,7 +483,9 @@ export class ColorMappingService {
       });
     });
 
-    const distinctValues = Object.keys(aggregates);
+    const distinctValues = splitMixedValues
+      ? sortNodeColorCategoryValues(Object.keys(aggregates), storedKeysForVariable)
+      : sortAtomicNodeColorCategoryValues(Object.keys(aggregates), storedKeysForVariable);
 
     const fallbackPalette = updatedNodeColors.length > 0
       ? [...updatedNodeColors]
@@ -422,7 +568,10 @@ export class ColorMappingService {
     }
 
     return {
-      aggregates,
+      aggregates: distinctValues.reduce((orderedAggregates, value) => {
+        orderedAggregates[value] = aggregates[value];
+        return orderedAggregates;
+      }, {} as Record<string, number>),
       colorMap,
       alphaMap,
       updatedNodeColors,

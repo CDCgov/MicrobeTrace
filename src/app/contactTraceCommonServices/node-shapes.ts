@@ -66,6 +66,10 @@ export const MIXED_NODE_RING_WIDTH_RADIUS_FRACTION = 0.5;
 export const MIXED_NODE_CENTER_COLOR = '#ffffff';
 const MIXED_CUSTOM_NODE_CENTER_MASK_RASTER_SIZE = 600;
 const MIXED_CUSTOM_NODE_MINIMUM_READABLE_CENTER_AREA_FRACTION = 0.25;
+const MIXED_CUSTOM_NODE_READABILITY_EXPANSION_THRESHOLD_PX = 24;
+const MIXED_CUSTOM_NODE_READABILITY_EXPANSION_RAMP_PX = 4;
+const MIXED_CUSTOM_NODE_MAX_READABILITY_EXPANSION_PX = 2;
+const MIXED_CUSTOM_NODE_MINIMUM_RETAINED_RING_PX = 0.5;
 
 export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
     { key: 'ellipse', value: '\u2b24', name: ' (Circle) ', groupKey: 'basic' },
@@ -1032,7 +1036,9 @@ function buildMixedNodeAngularSectorPath(
 function buildMixedCustomNodeShapeRingContent(
     definition: CustomNodeShapeDefinition,
     segments: MixedNodeShapeSegment[],
-    fallbackOpacity: number
+    fallbackOpacity: number,
+    renderedSize: number,
+    viewBoxUnitsPerRenderedPixel: number
 ): string {
     const evenSegments = getEvenMixedNodeShapeSegments(segments);
     if (!evenSegments.length) {
@@ -1046,12 +1052,48 @@ function buildMixedCustomNodeShapeRingContent(
     const safeShapeKey = definition.key.replace(/[^A-Za-z0-9_-]/g, '-');
     const clipId = `mt-mixed-${safeShapeKey}-clip`;
     const innerFilterId = `mt-mixed-${safeShapeKey}-inner`;
+    const readabilityFilterId = `mt-mixed-${safeShapeKey}-readability`;
     const silhouettePath = definition.fillPath ?? definition.path;
+    const safeRenderedSize = Math.max(1, Number(renderedSize) || 24);
+    const requestedReadabilityExpansionPx = Math.max(0, Math.min(
+        MIXED_CUSTOM_NODE_MAX_READABILITY_EXPANSION_PX,
+        (MIXED_CUSTOM_NODE_READABILITY_EXPANSION_THRESHOLD_PX - safeRenderedSize)
+            / MIXED_CUSTOM_NODE_READABILITY_EXPANSION_RAMP_PX
+    ));
+    const safeViewBoxUnitsPerRenderedPixel = Math.max(
+        Number.EPSILON,
+        Number(viewBoxUnitsPerRenderedPixel)
+            || Math.max(viewBox.width, viewBox.height) / safeRenderedSize
+    );
     const geometryCenterMask = getGeometryCenterMask(silhouettePath, viewBox, {
         rasterSize: MIXED_CUSTOM_NODE_CENTER_MASK_RASTER_SIZE,
         ringWidthRadiusFraction: MIXED_NODE_RING_WIDTH_RADIUS_FRACTION,
         minimumReadableCenterAreaFraction: MIXED_CUSTOM_NODE_MINIMUM_READABLE_CENTER_AREA_FRACTION
     });
+    const componentSafeExpansionRadii = geometryCenterMask?.components
+        .filter(component => (
+            !component.skippedAsTiny
+            && component.centerThresholdDistanceViewBoxUnits !== null
+        ))
+        .map(component => Math.max(
+            0,
+            (
+                component.centerThresholdDistanceViewBoxUnits!
+                - MIXED_CUSTOM_NODE_MINIMUM_RETAINED_RING_PX * safeViewBoxUnitsPerRenderedPixel
+            ) / Math.SQRT2
+        )) ?? [];
+    const componentSafeExpansionRadius = geometryCenterMask
+        ? (componentSafeExpansionRadii.length
+            ? Math.min(...componentSafeExpansionRadii)
+            : 0)
+        : Number.POSITIVE_INFINITY;
+    const requestedReadabilityExpansionRadius = requestedReadabilityExpansionPx
+        * safeViewBoxUnitsPerRenderedPixel;
+    const readabilityExpansionRadius = Math.max(
+        0,
+        Math.min(requestedReadabilityExpansionRadius, componentSafeExpansionRadius)
+    );
+    const readabilityExpansionPx = readabilityExpansionRadius / safeViewBoxUnitsPerRenderedPixel;
     const sectorPaths = evenSegments.map(({ segment, startFraction, endFraction }, index) => {
         const color = sanitizeSvgColor(segment.color);
         const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
@@ -1067,12 +1109,15 @@ function buildMixedCustomNodeShapeRingContent(
     const fallbackFilterWidth = viewBox.width + fallbackHoleClosingRadius * 2;
     const fallbackFilterHeight = viewBox.height + fallbackHoleClosingRadius * 2;
     const centerContent = geometryCenterMask
-        ? `<image x="${formatSvgFraction(geometryCenterMask.x)}" y="${formatSvgFraction(geometryCenterMask.y)}" width="${formatSvgFraction(geometryCenterMask.width)}" height="${formatSvgFraction(geometryCenterMask.height)}" preserveAspectRatio="none" href="${geometryCenterMask.imageDataUri}" clip-path="url(#${clipId})" data-mt-mixed-ring-center="geometry-distance-mask" data-mt-mixed-ring-center-components="${geometryCenterMask.components.length}" data-mt-mixed-ring-center-holes-filled="${geometryCenterMask.holesFilledPixels}" data-mt-mixed-ring-center-radius-fraction="${formatSvgFraction(geometryCenterMask.ringWidthRadiusFraction)}" data-mt-mixed-ring-center-minimum-readable-area-fraction="${formatSvgFraction(geometryCenterMask.minimumReadableCenterAreaFraction)}" data-mt-mixed-ring-center-threshold-policy="${geometryCenterMask.thresholdPolicy}" data-mt-mixed-ring-center-rasterization="${geometryCenterMask.rasterizationMethod}" data-mt-mixed-ring-center-raster-width="${geometryCenterMask.rasterWidth}" data-mt-mixed-ring-center-raster-height="${geometryCenterMask.rasterHeight}"/>`
+        ? `<image x="${formatSvgFraction(geometryCenterMask.x)}" y="${formatSvgFraction(geometryCenterMask.y)}" width="${formatSvgFraction(geometryCenterMask.width)}" height="${formatSvgFraction(geometryCenterMask.height)}" preserveAspectRatio="none" href="${geometryCenterMask.imageDataUri}" clip-path="url(#${clipId})"${readabilityExpansionRadius > 0 ? ` filter="url(#${readabilityFilterId})"` : ''} data-mt-mixed-ring-center="geometry-distance-mask" data-mt-mixed-ring-center-components="${geometryCenterMask.components.length}" data-mt-mixed-ring-center-holes-filled="${geometryCenterMask.holesFilledPixels}" data-mt-mixed-ring-center-radius-fraction="${formatSvgFraction(geometryCenterMask.ringWidthRadiusFraction)}" data-mt-mixed-ring-center-minimum-readable-area-fraction="${formatSvgFraction(geometryCenterMask.minimumReadableCenterAreaFraction)}" data-mt-mixed-ring-center-threshold-policy="${geometryCenterMask.thresholdPolicy}" data-mt-mixed-ring-center-rasterization="${geometryCenterMask.rasterizationMethod}" data-mt-mixed-ring-center-raster-width="${geometryCenterMask.rasterWidth}" data-mt-mixed-ring-center-raster-height="${geometryCenterMask.rasterHeight}" data-mt-mixed-ring-center-readability-expansion-px="${formatSvgFraction(readabilityExpansionPx)}"/>`
         : `<path d="${silhouettePath}" fill="${MIXED_NODE_CENTER_COLOR}" fill-opacity="1" stroke="none" clip-path="url(#${clipId})" filter="url(#${innerFilterId})" data-mt-mixed-ring-center="morphological-closing-fallback"/>`;
 
     return [
         '<defs>',
         `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${silhouettePath}"/></clipPath>`,
+        geometryCenterMask && readabilityExpansionRadius > 0
+            ? `<filter id="${readabilityFilterId}" x="${formatSvgFraction(viewBox.minX)}" y="${formatSvgFraction(viewBox.minY)}" width="${formatSvgFraction(viewBox.width)}" height="${formatSvgFraction(viewBox.height)}" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="${formatSvgFraction(readabilityExpansionRadius)}"/></filter>`
+            : '',
         geometryCenterMask
             ? ''
             : `<filter id="${innerFilterId}" x="${formatSvgFraction(fallbackFilterX)}" y="${formatSvgFraction(fallbackFilterY)}" width="${formatSvgFraction(fallbackFilterWidth)}" height="${formatSvgFraction(fallbackFilterHeight)}" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feMorphology in="SourceGraphic" operator="dilate" radius="${formatSvgFraction(fallbackHoleClosingRadius)}" result="closed-holes"/><feMorphology in="closed-holes" operator="erode" radius="${formatSvgFraction(fallbackErosionRadius)}"/></filter>`,
@@ -1209,8 +1254,20 @@ function buildMixedCustomNodeShapeContent(
     const customShapeSize = Math.max(1, 300 - (customShapePadding * 2));
     const requestedViewBoxPadding = Math.max(0, Number(options.customShapeViewBoxPadding ?? strokeWidth));
     const viewBoxPadding = Math.max(requestedViewBoxPadding, includeStroke ? strokeWidth / 2 : 0);
+    const renderedSize = Math.max(1, Number(options.renderedSize) || 24);
+    const nestedRenderedSize = renderedSize * customShapeSize / 300;
+    const definitionViewBox = getNodeShapeViewBoxDimensions(definition);
+    const paddedViewBoxMaxSpan = Math.max(definitionViewBox.width, definitionViewBox.height)
+        + (viewBoxPadding * 2);
+    const viewBoxUnitsPerRenderedPixel = paddedViewBoxMaxSpan / nestedRenderedSize;
     const ring = hasMixedRing
-        ? buildMixedCustomNodeShapeRingContent(definition, segments, fillOpacity)
+        ? buildMixedCustomNodeShapeRingContent(
+            definition,
+            segments,
+            fillOpacity,
+            renderedSize,
+            viewBoxUnitsPerRenderedPixel
+        )
         : '';
     const outlinePath = includeStroke
         ? `<path d="${definition.path}" fill="none" stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`

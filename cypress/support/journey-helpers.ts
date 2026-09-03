@@ -1095,15 +1095,17 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
 }
 
 export function openGlobalFilteringTab(): void {
+  const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Filtering').click({ force: true });
-  cy.get('.p-dialog:visible #filtering-config', { timeout: 15000 }).should('exist');
+  cy.contains(`${dialogSelector} .nav-link`, 'Filtering').click({ force: true });
+  cy.get(`${dialogSelector} #filtering-config`, { timeout: 15000 }).should('exist');
 }
 
 export function openGlobalStylingTab(): void {
+  const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Styling').click({ force: true });
-  cy.get('.p-dialog:visible #style-config', { timeout: 15000 }).should('exist');
+  cy.contains(`${dialogSelector} .nav-link`, 'Styling').click({ force: true });
+  cy.get(`${dialogSelector} #style-config`, { timeout: 15000 }).should('exist');
 }
 
 export function setFilteringPruneWith(value: PruneWith): void {

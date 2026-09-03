@@ -806,7 +806,8 @@ export class CommonService extends AppComponentBase implements OnInit {
                 category => colorHistory?.[String(category)] || this.temp.style.nodeColorMap?.(category),
                 this.temp.style.nodeAlphaMap,
                 fallbackColor,
-                1
+                1,
+                this.session.style.nodeColorsTableKeys?.[variable] || []
             ).map(segment => ({
                 ...segment,
                 alpha: this.clampStyleAlpha(segment.alpha, 1)

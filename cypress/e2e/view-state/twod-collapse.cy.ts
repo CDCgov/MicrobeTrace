@@ -220,7 +220,7 @@ function getCollapseRenderSummary(win: any) {
 
 describe('2D Network - Collapse Related Nodes', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
     cy.get(selectors.canvas, { timeout: 15000 }).should('be.visible');
     cy.openGlobalSettings();

@@ -34,7 +34,30 @@ export interface MixedPieChartRingPathSegment extends PieChartFillSegment {
 }
 
 export const MIXED_AGGREGATE_RING_WIDTH_RADIUS_FRACTION = MIXED_NODE_RING_WIDTH_RADIUS_FRACTION;
+export const MIXED_AGGREGATE_HOLLOW_FILL = 'none';
+export const MIXED_AGGREGATE_HOLLOW_FILL_OPACITY = 0;
 export const PIE_CHART_SLICE_SEPARATOR_WIDTH_PX = 1;
+export const COLLAPSED_AGGREGATE_MIN_BORDER_WIDTH_PX = 4;
+export const COLLAPSED_AGGREGATE_BORDER_WIDTH_INCREMENT_PX = 2;
+export const COLLAPSED_AGGREGATE_MIN_CONTENT_DIAMETER_PX = 8;
+
+export function getCollapsedAggregateBorderWidth(normalBorderWidth: any): number {
+  const parsedBorderWidth = Number(normalBorderWidth);
+  const safeNormalBorderWidth = Number.isFinite(parsedBorderWidth)
+    ? Math.max(0, parsedBorderWidth)
+    : 0;
+  return Math.max(
+    COLLAPSED_AGGREGATE_MIN_BORDER_WIDTH_PX,
+    safeNormalBorderWidth + COLLAPSED_AGGREGATE_BORDER_WIDTH_INCREMENT_PX
+  );
+}
+
+export function getCollapsedAggregateMinimumRenderedSize(normalBorderWidth: any): number {
+  // A centered outline consumes half its width inside the node. This minimum
+  // leaves a 2px colored band visible within a half-radius mixed ring.
+  return (2 * getCollapsedAggregateBorderWidth(normalBorderWidth))
+    + COLLAPSED_AGGREGATE_MIN_CONTENT_DIAMETER_PX;
+}
 
 export function getMixedAggregateRingInnerRadius(outerRadius: number): number {
   const safeOuterRadius = Math.max(0, Number(outerRadius) || 0);
@@ -302,7 +325,7 @@ export function buildPieChartPatternDef(patternId: string, slices: PieChartSlice
       return `<path d='${slice.path}' fill='${slice.color}' fill-opacity='${fillOpacity}' data-mt-solid-aggregate-slice='true' />`;
     }
 
-    const hollowSlice = `<path d='${slice.path}' fill='#ffffff' fill-opacity='1' data-mt-contains-mixed-infection='true' data-mt-mixed-hollow-slice='true' />`;
+    const hollowSlice = `<path d='${slice.path}' fill='${MIXED_AGGREGATE_HOLLOW_FILL}' fill-opacity='${MIXED_AGGREGATE_HOLLOW_FILL_OPACITY}' data-mt-contains-mixed-infection='true' data-mt-mixed-hollow-slice='true' />`;
     const ringSegments = mixedRingSegments.map((segment, index) => {
       const segmentAlpha = Number(segment.alpha ?? slice.alpha);
       const segmentOpacity = Number.isFinite(segmentAlpha) ? Math.max(0, Math.min(1, segmentAlpha)) : 1;
@@ -329,9 +352,6 @@ export function buildPieChartSvgDataUri(patternId: string, size: number, slices:
   }
 
   const center = safeSize / 2;
-  const outlineWidth = Math.min(3, Math.max(1.5, safeSize * 0.055));
-  const outerOutlineRadius = Math.max(0, center - (outlineWidth / 2));
-  const aggregateOutline = `<circle data-mt-aggregate-outline='outer' fill='none' stroke='#222222' stroke-width='${outlineWidth}' cx='${center}' cy='${center}' r='${outerOutlineRadius}'/>`;
-  const svgPattern = `<svg width='${safeSize}' height='${safeSize}' xmlns='http://www.w3.org/2000/svg'><defs>${patternDef}</defs><circle fill="url(#${patternId})" cx='${center}' cy='${center}' r='${center}'/>${aggregateOutline}</svg>`;
+  const svgPattern = `<svg width='${safeSize}' height='${safeSize}' xmlns='http://www.w3.org/2000/svg'><defs>${patternDef}</defs><circle fill="url(#${patternId})" cx='${center}' cy='${center}' r='${center}'/></svg>`;
   return 'data:image/svg+xml;base64,' + btoa(svgPattern);
 }

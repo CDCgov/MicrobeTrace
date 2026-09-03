@@ -1,4 +1,4 @@
-import { ColorMappingService, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue } from './color-mapping.service';
+import { buildCanonicalNodeColorCounts, canonicalizeMixedNodeColorComponents, ColorMappingService, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue } from './color-mapping.service';
 
 describe('mixed node color helpers', () => {
   it('normalizes null-like aliases to the shared empty category', () => {
@@ -51,6 +51,23 @@ describe('mixed node color helpers', () => {
     ]);
   });
 
+  it('uses the persisted color-domain order for mixed segments regardless of source order', () => {
+    const colors = { '2a': '#00aa00', '3a': '#ffff00' };
+
+    expect(getMixedNodeColorSegments(
+      '3a/2a',
+      value => colors[value],
+      () => 1,
+      '#000000',
+      1,
+      ['2a', '3a']
+    ).map(segment => segment.value)).toEqual(['2a', '3a']);
+  });
+
+  it('uses natural alphanumeric ordering for components absent from the color domain', () => {
+    expect(canonicalizeMixedNodeColorComponents('10a/2a', [])).toEqual(['2a', '10a']);
+  });
+
   it('builds one legend entry for each distinct mixed value', () => {
     expect(getMixedNodeColorLegendEntries([
       { Genotype: '2a/3a' },
@@ -62,6 +79,63 @@ describe('mixed node color helpers', () => {
     ], 'Genotype')).toEqual([
       { value: '2a/3a', components: ['2a', '3a'], count: 2 },
       { value: '6/7a', components: ['6', '7a'], count: 1 }
+    ]);
+  });
+
+  it('merges equivalent mixed legend values whose source order differs', () => {
+    expect(getMixedNodeColorLegendEntries([
+      { Genotype: '3a/2a' },
+      { Genotype: '2a, 3a' }
+    ], 'Genotype', ['2a', '3a'])).toEqual([
+      { value: '2a/3a', components: ['2a', '3a'], count: 2 }
+    ]);
+  });
+
+  it('uses the same case-sensitive category identity for domains, rings, and legends', () => {
+    const service = new ColorMappingService();
+    expect(parseMixedNodeColorValue('A/a/B')).toEqual(['A', 'a', 'B']);
+    expect(service.getNodeColorCategoriesForValue('A/a/B', true, ['A', 'a', 'B']))
+      .toEqual(['A', 'a', 'B']);
+    expect(getMixedNodeColorSegments(
+      'A/a/B',
+      value => value,
+      () => 1,
+      '#000000',
+      1,
+      ['A', 'a', 'B']
+    ).map(segment => segment.value)).toEqual(['A', 'a', 'B']);
+  });
+
+  it('builds stable aggregate counts when member order and mixed delimiters differ', () => {
+    const preferredOrder = ['1a', '2a', '3a'];
+    const forwardValues = ['3a', '3a/2a', '1a', '2a', '2a, 3a'];
+    const reversedValues = [...forwardValues].reverse();
+    const expected = [
+      { label: '1a', count: 1 },
+      { label: '2a', count: 1 },
+      { label: '2a/3a', count: 2 },
+      { label: '3a', count: 1 }
+    ];
+
+    expect(buildCanonicalNodeColorCounts(forwardValues, preferredOrder)).toEqual(expected);
+    expect(buildCanonicalNodeColorCounts(reversedValues, preferredOrder)).toEqual(expected);
+  });
+
+  it('keeps delimiter-containing categories atomic when mixed colors are disabled', () => {
+    expect(buildCanonicalNodeColorCounts(
+      ['Clinic, East', 'Clinic, East', 'Clinic West'],
+      [],
+      false
+    )).toEqual([
+      { label: 'Clinic West', count: 1 },
+      { label: 'Clinic, East', count: 2 }
+    ]);
+  });
+
+  it('preserves persisted ordering for integer-like genotype labels', () => {
+    expect(buildCanonicalNodeColorCounts(['2', '10'], ['10', '2'])).toEqual([
+      { label: '10', count: 1 },
+      { label: '2', count: 1 }
     ]);
   });
 

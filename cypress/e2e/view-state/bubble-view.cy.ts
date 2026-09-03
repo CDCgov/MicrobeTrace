@@ -196,7 +196,7 @@ describe('Bubble View', () => {
 
       cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
       getCy().then(cytoscapeInstance => {
-        const testNode = cytoscapeInstance.nodes('[id = "MZ375596"]')
+        const testNode = cytoscapeInstance.nodes('[id = "MZ797519"]')
         const color = testNode.style('background-color');
         expect(color).to.match(/rgb\(119,\s*119,\s*119\)/);
       })
@@ -219,7 +219,7 @@ describe('Bubble View', () => {
       cy.closeGlobalSettings();
 
       getCy().then(cytoscapeInstance => {
-        const testNode = cytoscapeInstance.nodes('[id = "MZ375596"]')
+        const testNode = cytoscapeInstance.nodes('[id = "MZ797519"]')
         expect(parseFloat(testNode.style('background-opacity'))).to.be.closeTo(alpha, 0.01);
       })
     })
@@ -575,7 +575,7 @@ describe('Bubble View', () => {
         const bubbleNodes = bubble.cy.nodes().filter(n => !n.hasClass('X_axis') && !n.hasClass('Y_axis'))
         bubbleNodes.forEach(node => {
           bubbleNodeCount += node.data('totalCount')
-          let expectedSize = bubble.nodeSize * Math.sqrt(node.data('totalCount'))
+          const expectedSize = bubble.getCollapsedBubbleRenderedSize(node.data('totalCount'))
           expect(node.data('nodeSize')).to.eq(expectedSize)
         });
         expect(visNodeCount).to.eq(bubbleNodeCount)

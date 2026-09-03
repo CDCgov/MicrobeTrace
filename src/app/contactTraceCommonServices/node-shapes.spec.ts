@@ -5,6 +5,10 @@ function decodeSvgDataUri(dataUri: string): string {
   return decodeURIComponent(dataUri.split(',')[1]);
 }
 
+function encodeSvgDataUri(svg: string): string {
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 function countPixels(
   imageData: ImageData,
   predicate: (red: number, green: number, blue: number, alpha: number) => boolean
@@ -221,7 +225,7 @@ describe('mixed node shape SVG helpers', () => {
       { color: '#00ff00', alpha: 1 }
     ];
 
-    for (const shape of ['man', 'woman', 'parasite', 'virus', 'mosquito', 'tick', 'fruits']) {
+    for (const shape of ['man', 'woman', 'person', 'parasite', 'virus', 'mosquito', 'tick', 'flea', 'fruits']) {
       const dataUri = getMixedNodeShapeDataUri(
         shape,
         '#ffffff',
@@ -247,19 +251,122 @@ describe('mixed node shape SVG helpers', () => {
         .withContext(`${shape} transparent background`)
         .toBeGreaterThan(20);
 
-      const smallImageData = await rasterizeSvgDataUri(dataUri, 32);
-      expect(countPixels(smallImageData, (r, g, b, a) => (
-        a > 200 && r > 225 && g > 225 && b > 225
-      )))
-        .withContext(`${shape} visible white center at 32px`)
-        .toBeGreaterThan(0);
-      expect(countPixels(smallImageData, (r, g, b, a) => (
-        a > 200 && ((r > 180 && g < 90 && b < 90)
-          || (b > 180 && r < 90 && g < 90)
-          || (g > 150 && r < 100 && b < 100))
-      )))
-        .withContext(`${shape} visible colored ring at 32px`)
-        .toBeGreaterThan(2);
+      const smallRenderCases = [
+        {
+          sourceRenderedSize: 16,
+          outputSize: 16,
+          customShapeViewBoxPadding: 20,
+          context: '16px fixed marker with Map padding'
+        },
+        {
+          sourceRenderedSize: 20,
+          outputSize: 10,
+          customShapeViewBoxPadding: 0,
+          context: '20px node at 0.5x zoom'
+        }
+      ];
+      for (const renderCase of smallRenderCases) {
+        const smallDataUri = getMixedNodeShapeDataUri(
+          shape,
+          '#ffffff',
+          '#000000',
+          2,
+          1,
+          opaqueSegments,
+          null,
+          {
+            customShapePadding: 0,
+            customShapeViewBoxPadding: renderCase.customShapeViewBoxPadding,
+            renderedSize: renderCase.sourceRenderedSize
+          }
+        );
+        const smallSvg = decodeSvgDataUri(smallDataUri);
+        const smallImageData = await rasterizeSvgDataUri(smallDataUri, renderCase.outputSize);
+        const withoutCenterSvg = smallSvg.replace(
+          /<image\b[^>]*data-mt-mixed-ring-center="geometry-distance-mask"[^>]*\/>/,
+          ''
+        );
+        expect(withoutCenterSvg)
+          .withContext(`${shape} removable hollow center for ${renderCase.context}`)
+          .not.toBe(smallSvg);
+        const withoutCenterImageData = await rasterizeSvgDataUri(
+          encodeSvgDataUri(withoutCenterSvg),
+          renderCase.outputSize
+        );
+        const readabilityExpansionMatch = smallSvg.match(
+          /data-mt-mixed-ring-center-readability-expansion-px="([\d.]+)"/
+        );
+        expect(readabilityExpansionMatch)
+          .withContext(`${shape} readability expansion metadata for ${renderCase.context}`)
+          .not.toBeNull();
+        const readabilityExpansion = Number(readabilityExpansionMatch?.[1]);
+        const requestedReadabilityExpansion = Math.min(
+          2,
+          Math.max(0, (24 - renderCase.sourceRenderedSize) / 4)
+        );
+        expect(readabilityExpansion)
+          .withContext(`${shape} readability expansion metadata for ${renderCase.context}`)
+          .toBeGreaterThanOrEqual(0);
+        expect(readabilityExpansion)
+          .withContext(`${shape} geometry-safe readability cap for ${renderCase.context}`)
+          .toBeLessThanOrEqual(requestedReadabilityExpansion);
+        let centerLightenedPixels = 0;
+        for (let index = 0; index < smallImageData.data.length; index += 4) {
+          const withCenter = smallImageData.data;
+          const withoutCenter = withoutCenterImageData.data;
+          const withCenterChannelMinimum = Math.min(
+            withCenter[index],
+            withCenter[index + 1],
+            withCenter[index + 2]
+          );
+          const withoutCenterChannelMinimum = Math.min(
+            withoutCenter[index],
+            withoutCenter[index + 1],
+            withoutCenter[index + 2]
+          );
+          const withCenterChannelSum = withCenter[index]
+            + withCenter[index + 1]
+            + withCenter[index + 2];
+          const withoutCenterChannelSum = withoutCenter[index]
+            + withoutCenter[index + 1]
+            + withoutCenter[index + 2];
+          if (
+            withCenter[index + 3] > 200
+            && withoutCenter[index + 3] > 100
+            && withCenterChannelMinimum - withoutCenterChannelMinimum > 20
+            && withCenterChannelSum - withoutCenterChannelSum > 60
+          ) {
+            centerLightenedPixels++;
+          }
+        }
+        expect(centerLightenedPixels)
+          .withContext(`${shape} visible hollow center for ${renderCase.context}`)
+          .toBeGreaterThan(0);
+        const smallColorCount = (dominantChannel: 'red' | 'green' | 'blue') => countPixels(
+          smallImageData,
+          (r, g, b, a) => {
+            if (a <= 100) {
+              return false;
+            }
+            if (dominantChannel === 'red') {
+              return r > g + 30 && r > b + 30;
+            }
+            if (dominantChannel === 'green') {
+              return g > r + 30 && g > b + 30;
+            }
+            return b > r + 30 && b > g + 30;
+          }
+        );
+        expect(smallColorCount('red'))
+          .withContext(`${shape} red mixed segment for ${renderCase.context}`)
+          .toBeGreaterThan(0);
+        expect(smallColorCount('blue'))
+          .withContext(`${shape} blue mixed segment for ${renderCase.context}`)
+          .toBeGreaterThan(0);
+        expect(smallColorCount('green'))
+          .withContext(`${shape} green mixed segment for ${renderCase.context}`)
+          .toBeGreaterThan(0);
+      }
     }
   });
 
