@@ -461,6 +461,20 @@ label.disabled {
   white-space: nowrap;
 }
 
+#global-settings-modal .modal-dialog {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+#global-settings-modal .modal-content {
+  border: 0;
+}
+
+#global-settings-modal .modal-body {
+  padding: 0 15px;
+}
+
 .threshold-help-icon {
   margin-left: 4px;
   font-size: 11px;
@@ -474,8 +488,18 @@ label.disabled {
   min-height: 16px;
 }
 
+.threshold-filter-controls {
+  min-width: 0;
+}
+
+.threshold-sparkline {
+  display: block;
+  width: 100%;
+  height: 58px;
+}
+
 .threshold-stability-shell {
-  margin: -4px 0 12px 33.3333%;
+  margin: 4px 0 12px;
   position: relative;
   z-index: 12;
   scroll-margin: 96px 0 160px;
@@ -539,6 +563,13 @@ label.disabled {
   gap: 4px;
 }
 
+.threshold-stability-panel__scope {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #52606d;
+}
+
 .threshold-score-recommendation {
   margin: 10px 0 12px;
   padding: 10px 12px;
@@ -595,17 +626,236 @@ label.disabled {
 .threshold-score-recommendation__metrics {
   display: flex;
   flex-wrap: wrap;
+  position: relative;
   gap: 6px;
   margin: 10px 0;
 }
 
-.threshold-score-recommendation__metrics span {
+.threshold-score-recommendation__metrics > .threshold-metric-help {
+  position: static;
+}
+
+.threshold-score-recommendation__metric {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 7px;
   border-radius: 999px;
+  border: 0;
   background: rgba(255, 255, 255, 0.86);
   color: #334e68;
   font-size: 10px;
   font-weight: 600;
+  line-height: 1.35;
+}
+
+.threshold-metric-help {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+}
+
+.threshold-metric-help__trigger,
+.threshold-metric-help__icon {
+  cursor: help;
+}
+
+.threshold-metric-help__trigger:focus-visible,
+.threshold-metric-help__icon:focus-visible {
+  outline: 2px solid #1d70d6;
+  outline-offset: 2px;
+}
+
+.threshold-metric-help__icon {
+  width: 18px;
+  height: 18px;
+  margin: -4px 0 -4px 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #6b7785;
+  font-size: 10px;
+}
+
+.threshold-metric-help__tooltip {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  bottom: calc(100% + 7px);
+  width: min(280px, calc(100vw - 64px));
+  padding: 9px 10px;
+  border-radius: 0.4rem;
+  background: #102a43;
+  box-shadow: 0 6px 18px rgba(16, 42, 67, 0.24);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.threshold-metric-help__tooltip strong {
+  display: block;
+  margin-top: 5px;
+  color: #fff;
+}
+
+.threshold-metric-help--right .threshold-metric-help__tooltip {
+  right: 0;
+  left: auto;
+}
+
+.threshold-metric-help--below .threshold-metric-help__tooltip {
+  top: calc(100% + 7px);
+  bottom: auto;
+}
+
+.threshold-metric-help__trigger:hover + .threshold-metric-help__tooltip,
+.threshold-metric-help__trigger:focus + .threshold-metric-help__tooltip,
+.threshold-metric-help__icon:hover + .threshold-metric-help__tooltip,
+.threshold-metric-help__icon:focus + .threshold-metric-help__tooltip,
+.threshold-metric-help__tooltip--visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.threshold-progressive-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: #234e70;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.threshold-progressive-disclosure:hover {
+  color: #0b5cab;
+  text-decoration: underline;
+}
+
+.threshold-progressive-disclosure:focus-visible {
+  outline: 2px solid #1d70d6;
+  outline-offset: 2px;
+}
+
+.threshold-progressive-disclosure--section {
+  margin-top: 10px;
+  padding: 9px 0 2px;
+  border-top: 1px solid rgba(82, 96, 109, 0.12);
+}
+
+.threshold-progressive-disclosure__meta {
+  margin-left: auto;
+  color: #6b7785;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.threshold-score-explanation {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.74);
+  color: #334e68;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.threshold-score-explanation p {
+  margin: 0 0 8px;
+}
+
+.threshold-score-explanation__terms {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.threshold-score-term-help {
+  position: relative;
+  min-width: 0;
+}
+
+.threshold-score-term-help__trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 0.3rem;
+  background: #eef5ef;
+  color: #334e68;
+  font: inherit;
+  line-height: 1.35;
+  text-align: center;
+  cursor: help;
+}
+
+.threshold-score-term-help__trigger:hover,
+.threshold-score-term-help__trigger:focus {
+  background: #e3efe5;
+}
+
+.threshold-score-term-help__trigger:focus-visible {
+  outline: 2px solid #1d70d6;
+  outline-offset: 2px;
+}
+
+.threshold-score-term-help__trigger:hover + .threshold-score-term-help__tooltip,
+.threshold-score-term-help__trigger:focus + .threshold-score-term-help__tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.threshold-score-term-help--right .threshold-score-term-help__tooltip {
+  right: 0;
+  left: auto;
+}
+
+.threshold-score-explanation__terms .threshold-score-term-help__tooltip {
+  padding: 9px 10px;
+  background: #102a43;
+  color: #fff;
+  text-align: left;
+}
+
+.threshold-score-explanation__terms .threshold-score-term-help__tooltip strong {
+  color: #fff;
+}
+
+.threshold-score-term-help__trigger strong,
+.threshold-score-explanation__equation,
+.threshold-score-explanation__caution {
+  display: block;
+}
+
+.threshold-score-explanation__equation {
+  color: #163d1b;
+}
+
+.threshold-score-explanation__caution {
+  margin-top: 6px;
+  color: #52606d;
 }
 
 .threshold-score-recommendation__footer > span {
@@ -627,18 +877,42 @@ label.disabled {
 }
 
 .threshold-stability-stat {
+  position: relative;
   padding: 8px;
   border-radius: 0.4rem;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(82, 96, 109, 0.12);
 }
 
+.threshold-stability-stat .threshold-metric-help--below {
+  position: static;
+}
+
+.threshold-stability-stat .threshold-metric-help--below .threshold-metric-help__tooltip {
+  right: 8px;
+  left: 8px;
+  width: auto;
+}
+
 .threshold-stability-stat__label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 18px;
+  line-height: 18px;
+  white-space: nowrap;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #7b8794;
+}
+
+.threshold-stability-stat__label .threshold-metric-help {
+  flex: 0 0 auto;
+}
+
+.threshold-stability-stat__label .threshold-metric-help__icon {
+  margin: 0;
 }
 
 .threshold-stability-stat__value {
@@ -714,10 +988,6 @@ label.disabled {
 }
 
 @media (max-width: 900px) {
-  .threshold-stability-shell {
-    margin-left: 0;
-  }
-
   .threshold-stability-toggle {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -744,5 +1014,9 @@ label.disabled {
 
   .threshold-score-recommendation__footer > span {
     max-width: none;
+  }
+
+  .threshold-score-explanation__terms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

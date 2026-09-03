@@ -324,12 +324,14 @@
 
   <p-dialog id="global-settings-modal" data-testid="app-global-settings-dialog"
     [(visible)]="GlobalSettingsDialogSettings.isVisible"
-    header="Global Settings" >
+    header="Global Settings"
+    [style]="{ width: '46rem', maxWidth: 'calc(100vw - 2rem)' }"
+    [contentStyle]="{ maxHeight: 'calc(100vh - 8rem)', overflowY: 'auto', overflowX: 'hidden' }" >
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-body">
           <tabset #globalSettingsTab class="tab-container tabbable-line" style='width: 100%; height: 100%;'>
-            <tab heading="{{'Filtering' | localize}}" customClass="m-tabs__item" style='width: 400px; height: 100%;'>
+            <tab heading="{{'Filtering' | localize}}" customClass="m-tabs__item" style='width: 100%; height: 100%;'>
 
               <div id="filtering-config" role="tabpanel" aria-labelledby="filtering-tab">
                 <div class="form-group row" title="By what metric would you like to measure distance?">
@@ -467,12 +469,12 @@
                           title="Black bars show how many links fall into each distance bin. The orange line shows how the number of multi-node clusters changes as the threshold increases."></i>
                       </label>
                     </div>
-                    <div><svg id="link-threshold-sparkline" #linkThresholdSparkline style="width: 280px; height: 48px;"></svg></div>
-                    <div class="col-8  offset-4">
+                    <div class="col-8 threshold-filter-controls">
+                      <svg id="link-threshold-sparkline" #linkThresholdSparkline class="threshold-sparkline"></svg>
                       <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getDisplayedThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdDisplayVariable" (ngModelChange)="updateThreshold($event)">
-                    </div>
-                    <div class="col-8 offset-4 threshold-sparkline-readout" id="threshold-sparkline-readout">
-                      Hover chart for cluster count
+                      <div class="threshold-sparkline-readout" id="threshold-sparkline-readout">
+                        Hover over the chart to inspect cluster counts
+                      </div>
                     </div>
                   </div>
                   <div class="threshold-stability-shell">
@@ -484,11 +486,11 @@
                       (click)="toggleThresholdStabilityPanel()">
                       <span class="threshold-stability-toggle__text">
                         <span class="threshold-stability-toggle__title">Genetic Threshold Recommendation</span>
-                        <span class="threshold-stability-toggle__subtitle">Compare component structure across genetic-distance thresholds.</span>
+                        <span class="threshold-stability-toggle__subtitle">Compare genetic component structure across thresholds.</span>
                       </span>
                       <span class="threshold-stability-toggle__meta" title="Distinct threshold values drawn from the current distance data.">
                         @if (thresholdSweepSampleCount > 0) {
-                          {{ thresholdSweepSampleCount.toLocaleString() }} distinct thresholds
+                          {{ thresholdSweepSampleCount.toLocaleString() }} thresholds analyzed
                         }
                       </span>
                       <i class="pi" [class.pi-chevron-down]="!thresholdStabilityExpanded" [class.pi-chevron-up]="thresholdStabilityExpanded"></i>
@@ -497,10 +499,10 @@
                     @if (thresholdStabilityExpanded) {
                       <div class="threshold-stability-panel" data-testid="threshold-stability-panel">
                         <div class="threshold-stability-panel__hint">
-                          Orange line = cluster count at each threshold.
+                          Genetic-link analysis only.
                           <i
                             class="pi pi-info-circle threshold-help-icon"
-                            title="The recommendation uses only threshold-controlled genetic links. Epi/contact-only links do not affect the score."></i>
+                            title="Only links with genetic-distance values participate in this sweep. Epi/contact-only links do not affect the recommendation or metrics."></i>
                         </div>
                         @if (thresholdScoreRecommendation) {
                           <div class="threshold-score-recommendation" data-testid="threshold-score-recommendation">
@@ -518,34 +520,164 @@
                               </div>
                             </div>
                             <div class="threshold-score-recommendation__metrics">
-                              <span>{{ thresholdScoreRecommendation.clusterCount.toLocaleString() }} clusters</span>
-                              <span>L1 {{ formatThresholdMetricPercent(thresholdScoreRecommendation.largestClusterFraction) }}</span>
-                              <span>Clustered {{ formatThresholdMetricPercent(thresholdScoreRecommendation.clusteredFraction) }}</span>
-                              <span>Gini {{ formatThresholdMetricDecimal(thresholdScoreRecommendation.giniCoefficient) }}</span>
-                              <span>Largest / median {{ formatThresholdMetricDecimal(thresholdScoreRecommendation.largestToMedianClusterRatio) }}</span>
+                              <span class="threshold-score-recommendation__metric">{{ thresholdScoreRecommendation.clusterCount.toLocaleString() }} genetic clusters</span>
+                              <span class="threshold-metric-help">
+                                <button
+                                  type="button"
+                                  class="threshold-score-recommendation__metric threshold-metric-help__trigger"
+                                  data-testid="recommended-largest-fraction-help"
+                                  aria-describedby="recommended-largest-fraction-tooltip"
+                                  [attr.aria-expanded]="activeThresholdMetricHelp === 'recommendedLargestFraction'"
+                                  (click)="toggleThresholdMetricHelp('recommendedLargestFraction')">
+                                  L1 {{ formatThresholdMetricPercent(thresholdScoreRecommendation.largestClusterFraction) }}
+                                  <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                </button>
+                                <span id="recommended-largest-fraction-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'recommendedLargestFraction'" role="tooltip">
+                                  The share of all nodes in the largest genetic cluster.
+                                  <strong>{{ formatThresholdMetricEquation('largestFraction', thresholdScoreRecommendation) }}</strong>
+                                </span>
+                              </span>
+                              <span class="threshold-metric-help">
+                                <button
+                                  type="button"
+                                  class="threshold-score-recommendation__metric threshold-metric-help__trigger"
+                                  data-testid="recommended-clustered-help"
+                                  aria-describedby="recommended-clustered-tooltip"
+                                  [attr.aria-expanded]="activeThresholdMetricHelp === 'recommendedClustered'"
+                                  (click)="toggleThresholdMetricHelp('recommendedClustered')">
+                                  Clustered {{ formatThresholdMetricPercent(thresholdScoreRecommendation.clusteredFraction) }}
+                                  <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                </button>
+                                <span id="recommended-clustered-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'recommendedClustered'" role="tooltip">
+                                  The share of all nodes that belong to a multi-node genetic cluster.
+                                  <strong>{{ formatThresholdMetricEquation('clustered', thresholdScoreRecommendation) }}</strong>
+                                </span>
+                              </span>
+                              <span class="threshold-metric-help">
+                                <button
+                                  type="button"
+                                  class="threshold-score-recommendation__metric threshold-metric-help__trigger"
+                                  data-testid="recommended-gini-help"
+                                  aria-describedby="recommended-gini-tooltip"
+                                  [attr.aria-expanded]="activeThresholdMetricHelp === 'recommendedGini'"
+                                  (click)="toggleThresholdMetricHelp('recommendedGini')">
+                                  Gini {{ formatThresholdMetricDecimal(thresholdScoreRecommendation.giniCoefficient) }}
+                                  <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                </button>
+                                <span id="recommended-gini-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'recommendedGini'" role="tooltip">
+                                  Inequality across all genetic component sizes. Zero means equal sizes.
+                                  <strong>{{ formatThresholdMetricEquation('gini', thresholdScoreRecommendation) }}</strong>
+                                </span>
+                              </span>
+                              <span class="threshold-metric-help threshold-metric-help--right">
+                                <button
+                                  type="button"
+                                  class="threshold-score-recommendation__metric threshold-metric-help__trigger"
+                                  data-testid="recommended-largest-median-help"
+                                  aria-describedby="recommended-largest-median-tooltip"
+                                  [attr.aria-expanded]="activeThresholdMetricHelp === 'recommendedLargestMedian'"
+                                  (click)="toggleThresholdMetricHelp('recommendedLargestMedian')">
+                                  Largest / median {{ formatThresholdMetricDecimal(thresholdScoreRecommendation.largestToMedianClusterRatio) }}
+                                  <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                </button>
+                                <span id="recommended-largest-median-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'recommendedLargestMedian'" role="tooltip">
+                                  Largest genetic cluster divided by the median genetic-cluster size. Lower is more balanced.
+                                  <strong>{{ formatThresholdMetricEquation('largestToMedian', thresholdScoreRecommendation) }}</strong>
+                                </span>
+                              </span>
                             </div>
+                            <button
+                              type="button"
+                              class="threshold-progressive-disclosure"
+                              data-testid="threshold-score-explanation-toggle"
+                              [attr.aria-expanded]="thresholdScoreExplanationExpanded"
+                              aria-controls="threshold-score-explanation"
+                              (click)="toggleThresholdScoreExplanation()">
+                              <i class="pi" [class.pi-chevron-right]="!thresholdScoreExplanationExpanded" [class.pi-chevron-down]="thresholdScoreExplanationExpanded" aria-hidden="true"></i>
+                              <span>How this score is calculated</span>
+                            </button>
+                            @if (thresholdScoreExplanationExpanded) {
+                              <div id="threshold-score-explanation" class="threshold-score-explanation" data-testid="threshold-score-explanation">
+                                <p>The equal-weight score averages five 0–1 terms. Higher values favor several participating clusters without one cluster dominating.</p>
+                                <div class="threshold-score-explanation__terms">
+                                  <span class="threshold-score-term-help">
+                                    <button type="button" class="threshold-score-term-help__trigger" data-testid="threshold-score-fragmentation-help" aria-describedby="threshold-score-fragmentation-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'scoreFragmentation'" (click)="toggleThresholdMetricHelp('scoreFragmentation')">
+                                      <span>Fragmentation</span>
+                                      <strong>{{ formatThresholdMetricDecimal(thresholdScoreRecommendation.componentStructureScoreBreakdown.fragmentation) }}</strong>
+                                    </button>
+                                    <span id="threshold-score-fragmentation-tooltip" class="threshold-metric-help__tooltip threshold-score-term-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'scoreFragmentation'" role="tooltip">
+                                      Rewards retaining multiple genetic clusters relative to the highest cluster count found anywhere in this threshold sweep.
+                                      <strong>{{ formatThresholdScoreTermEquation('fragmentation', thresholdScoreRecommendation) }}</strong>
+                                    </span>
+                                  </span>
+                                  <span class="threshold-score-term-help">
+                                    <button type="button" class="threshold-score-term-help__trigger" data-testid="threshold-score-dominance-help" aria-describedby="threshold-score-dominance-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'scoreDominance'" (click)="toggleThresholdMetricHelp('scoreDominance')">
+                                      <span>Low dominance</span>
+                                      <strong>{{ formatThresholdMetricDecimal(thresholdScoreRecommendation.componentStructureScoreBreakdown.dominance) }}</strong>
+                                    </button>
+                                    <span id="threshold-score-dominance-tooltip" class="threshold-metric-help__tooltip threshold-score-term-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'scoreDominance'" role="tooltip">
+                                      Rewards clustered participation while penalizing a largest cluster that contains a large share of all nodes.
+                                      <strong>{{ formatThresholdScoreTermEquation('dominance', thresholdScoreRecommendation) }}</strong>
+                                    </span>
+                                  </span>
+                                  <span class="threshold-score-term-help">
+                                    <button type="button" class="threshold-score-term-help__trigger" data-testid="threshold-score-balance-help" aria-describedby="threshold-score-balance-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'scoreBalance'" (click)="toggleThresholdMetricHelp('scoreBalance')">
+                                      <span>Balance</span>
+                                      <strong>{{ formatThresholdMetricDecimal(thresholdScoreRecommendation.componentStructureScoreBreakdown.balance) }}</strong>
+                                    </button>
+                                    <span id="threshold-score-balance-tooltip" class="threshold-metric-help__tooltip threshold-score-term-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'scoreBalance'" role="tooltip">
+                                      Compares the median genetic-cluster size with the largest cluster. Values near one indicate similarly sized clusters.
+                                      <strong>{{ formatThresholdScoreTermEquation('balance', thresholdScoreRecommendation) }}</strong>
+                                    </span>
+                                  </span>
+                                  <span class="threshold-score-term-help">
+                                    <button type="button" class="threshold-score-term-help__trigger" data-testid="threshold-score-participation-help" aria-describedby="threshold-score-participation-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'scoreParticipation'" (click)="toggleThresholdMetricHelp('scoreParticipation')">
+                                      <span>Participation</span>
+                                      <strong>{{ formatThresholdMetricDecimal(thresholdScoreRecommendation.componentStructureScoreBreakdown.participation) }}</strong>
+                                    </button>
+                                    <span id="threshold-score-participation-tooltip" class="threshold-metric-help__tooltip threshold-score-term-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'scoreParticipation'" role="tooltip">
+                                      Measures the share of all nodes that belong to a multi-node genetic cluster rather than remaining singletons.
+                                      <strong>{{ formatThresholdScoreTermEquation('participation', thresholdScoreRecommendation) }}</strong>
+                                    </span>
+                                  </span>
+                                  <span class="threshold-score-term-help threshold-score-term-help--right">
+                                    <button type="button" class="threshold-score-term-help__trigger" data-testid="threshold-score-equality-help" aria-describedby="threshold-score-equality-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'scoreEquality'" (click)="toggleThresholdMetricHelp('scoreEquality')">
+                                      <span>Equality</span>
+                                      <strong>{{ formatThresholdMetricDecimal(thresholdScoreRecommendation.componentStructureScoreBreakdown.equality) }}</strong>
+                                    </button>
+                                    <span id="threshold-score-equality-tooltip" class="threshold-metric-help__tooltip threshold-score-term-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'scoreEquality'" role="tooltip">
+                                      Rewards similar component sizes while weighting the result by how many nodes participate in genetic clusters.
+                                      <strong>{{ formatThresholdScoreTermEquation('equality', thresholdScoreRecommendation) }}</strong>
+                                    </span>
+                                  </span>
+                                </div>
+                                <strong class="threshold-score-explanation__equation">{{ formatThresholdScoreEquation(thresholdScoreRecommendation) }}</strong>
+                                <span class="threshold-score-explanation__caution">Decision support only; review the network and epidemiologic context before applying it.</span>
+                              </div>
+                            }
                             <div class="threshold-score-recommendation__footer">
-                              <span>Equal-weight V1 score: fragmentation, dominance, balance, participation, and equality. Decision support only.</span>
+                              <span>Highest composite score in this threshold sweep.</span>
                               <button
                                 type="button"
                                 class="btn btn-primary btn-sm"
                                 data-testid="threshold-score-apply"
                                 [attr.data-threshold]="thresholdScoreRecommendation.threshold"
                                 (click)="applyThresholdScoreRecommendation()">
-                                Use recommendation
+                                Use threshold {{ formatThresholdStabilityValue(thresholdScoreRecommendation.threshold) }}
                               </button>
                             </div>
                           </div>
                         }
                         @if (thresholdStabilityCurrent) {
-                          <div class="threshold-stability-panel__section-title">Current genetic threshold</div>
+                          <div class="threshold-stability-panel__section-title">Current threshold metrics</div>
+                          <div class="threshold-stability-panel__scope">Clusters are connected genetic components containing at least two nodes. Epi/contact-only links are excluded.</div>
                           <div class="threshold-stability-panel__current">
                             <div class="threshold-stability-stat">
                               <span class="threshold-stability-stat__label">Threshold</span>
                               <span class="threshold-stability-stat__value">{{ formatThresholdStabilityValue(thresholdStabilityCurrent.threshold) }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">Clusters</span>
+                              <span class="threshold-stability-stat__label">Genetic clusters</span>
                               <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.clusterCount.toLocaleString() }}</span>
                             </div>
                             <div class="threshold-stability-stat">
@@ -553,23 +685,78 @@
                               <span class="threshold-stability-stat__value">{{ thresholdStabilityCurrent.singletonCount.toLocaleString() }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">Score</span>
+                              <span class="threshold-stability-stat__label">
+                                Score
+                                <span class="threshold-metric-help threshold-metric-help--below">
+                                  <button type="button" class="threshold-metric-help__icon" data-testid="current-score-help" aria-label="Explain current component structure score" aria-describedby="current-score-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'currentScore'" (click)="toggleThresholdMetricHelp('currentScore')">
+                                    <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                  </button>
+                                  <span id="current-score-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'currentScore'" role="tooltip">
+                                    This is the Component Structure Score at the current threshold {{ formatThresholdStabilityValue(thresholdStabilityCurrent.threshold) }}. The recommendation above shows the score at threshold {{ formatThresholdStabilityValue(thresholdScoreRecommendation.threshold) }}, so the values can differ.
+                                    <strong>{{ formatThresholdScoreEquation(thresholdStabilityCurrent) }}</strong>
+                                  </span>
+                                </span>
+                              </span>
                               <span class="threshold-stability-stat__value">{{ formatComponentStructureScore(thresholdStabilityCurrent.componentStructureScore) }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">Largest Fraction (L1)</span>
+                              <span class="threshold-stability-stat__label">
+                                Largest Fraction (L1)
+                                <span class="threshold-metric-help threshold-metric-help--below">
+                                  <button type="button" class="threshold-metric-help__icon" data-testid="current-largest-fraction-help" aria-label="Explain largest fraction" aria-describedby="current-largest-fraction-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'currentLargestFraction'" (click)="toggleThresholdMetricHelp('currentLargestFraction')">
+                                    <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                  </button>
+                                  <span id="current-largest-fraction-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'currentLargestFraction'" role="tooltip">
+                                    The share of all nodes in the largest genetic cluster.
+                                    <strong>{{ formatThresholdMetricEquation('largestFraction', thresholdStabilityCurrent) }}</strong>
+                                  </span>
+                                </span>
+                              </span>
                               <span class="threshold-stability-stat__value">{{ formatThresholdMetricPercent(thresholdStabilityCurrent.largestClusterFraction) }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">Clustered</span>
+                              <span class="threshold-stability-stat__label">
+                                Clustered
+                                <span class="threshold-metric-help threshold-metric-help--right threshold-metric-help--below">
+                                  <button type="button" class="threshold-metric-help__icon" data-testid="current-clustered-help" aria-label="Explain clustered percentage" aria-describedby="current-clustered-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'currentClustered'" (click)="toggleThresholdMetricHelp('currentClustered')">
+                                    <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                  </button>
+                                  <span id="current-clustered-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'currentClustered'" role="tooltip">
+                                    The share of all nodes in a multi-node genetic cluster.
+                                    <strong>{{ formatThresholdMetricEquation('clustered', thresholdStabilityCurrent) }}</strong>
+                                  </span>
+                                </span>
+                              </span>
                               <span class="threshold-stability-stat__value">{{ formatThresholdMetricPercent(thresholdStabilityCurrent.clusteredFraction) }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">Gini</span>
+                              <span class="threshold-stability-stat__label">
+                                Gini
+                                <span class="threshold-metric-help threshold-metric-help--below">
+                                  <button type="button" class="threshold-metric-help__icon" data-testid="current-gini-help" aria-label="Explain component-size Gini" aria-describedby="current-gini-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'currentGini'" (click)="toggleThresholdMetricHelp('currentGini')">
+                                    <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                  </button>
+                                  <span id="current-gini-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'currentGini'" role="tooltip">
+                                    Inequality across all genetic component sizes. Zero means equal sizes.
+                                    <strong>{{ formatThresholdMetricEquation('gini', thresholdStabilityCurrent) }}</strong>
+                                  </span>
+                                </span>
+                              </span>
                               <span class="threshold-stability-stat__value">{{ formatThresholdMetricDecimal(thresholdStabilityCurrent.giniCoefficient) }}</span>
                             </div>
                             <div class="threshold-stability-stat">
-                              <span class="threshold-stability-stat__label">L2 / L1</span>
+                              <span class="threshold-stability-stat__label">
+                                L2 / L1
+                                <span class="threshold-metric-help threshold-metric-help--right threshold-metric-help--below">
+                                  <button type="button" class="threshold-metric-help__icon" data-testid="current-l2-l1-help" aria-label="Explain L2 divided by L1" aria-describedby="current-l2-l1-tooltip" [attr.aria-expanded]="activeThresholdMetricHelp === 'currentL2ToL1'" (click)="toggleThresholdMetricHelp('currentL2ToL1')">
+                                    <i class="pi pi-info-circle" aria-hidden="true"></i>
+                                  </button>
+                                  <span id="current-l2-l1-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'currentL2ToL1'" role="tooltip">
+                                    Second-largest genetic cluster divided by the largest. Values near one mean similar sizes.
+                                    <strong>{{ formatThresholdMetricEquation('l2ToL1', thresholdStabilityCurrent) }}</strong>
+                                  </span>
+                                </span>
+                              </span>
                               <span class="threshold-stability-stat__value">{{ formatThresholdMetricDecimal(thresholdStabilityCurrent.l2ToL1Ratio) }}</span>
                             </div>
                           </div>
@@ -578,34 +765,46 @@
                           <div class="threshold-stability-panel__message">{{ thresholdStabilityMessage }}</div>
                         }
                         @if (thresholdStabilityRegions.length > 0) {
-                          <div class="threshold-stability-panel__section-title">Other stable cluster-count ranges</div>
-                          <div class="threshold-stability-panel__regions">
-                            @for (region of thresholdStabilityRegions; track $index) {
-                              <div class="threshold-stability-region" [class.threshold-stability-region--current]="region.isCurrent">
-                                <div class="threshold-stability-region__summary">
-                                  <div class="threshold-stability-region__range">
-                                    {{ formatThresholdStabilityValue(region.startThreshold) }} to {{ formatThresholdStabilityValue(region.endThreshold) }}
+                          <button
+                            type="button"
+                            class="threshold-progressive-disclosure threshold-progressive-disclosure--section"
+                            data-testid="threshold-stable-ranges-toggle"
+                            [attr.aria-expanded]="thresholdStableRangesExpanded"
+                            aria-controls="threshold-stable-ranges"
+                            (click)="toggleThresholdStableRanges()">
+                            <i class="pi" [class.pi-chevron-right]="!thresholdStableRangesExpanded" [class.pi-chevron-down]="thresholdStableRangesExpanded" aria-hidden="true"></i>
+                            <span>Other stable cluster-count ranges</span>
+                            <span class="threshold-progressive-disclosure__meta">{{ thresholdStabilityRegions.length }} {{ thresholdStabilityRegions.length === 1 ? 'range' : 'ranges' }}</span>
+                          </button>
+                          @if (thresholdStableRangesExpanded) {
+                            <div id="threshold-stable-ranges" class="threshold-stability-panel__regions">
+                              @for (region of thresholdStabilityRegions; track $index) {
+                                <div class="threshold-stability-region" [class.threshold-stability-region--current]="region.isCurrent">
+                                  <div class="threshold-stability-region__summary">
+                                    <div class="threshold-stability-region__range">
+                                      {{ formatThresholdStabilityValue(region.startThreshold) }} to {{ formatThresholdStabilityValue(region.endThreshold) }}
+                                    </div>
+                                    <div class="threshold-stability-region__chips">
+                                      <span class="threshold-stability-region__chip">{{ formatThresholdStabilityClusterLabel(region.clusterCount) }}</span>
+                                      <span class="threshold-stability-region__chip">{{ formatThresholdStabilitySampleLabel(region.samples) }}</span>
+                                    </div>
+                                    <div class="threshold-stability-region__meta">{{ describeThresholdStabilityRegion(region) }}</div>
+                                    @if (region.isCurrent) {
+                                      <div class="threshold-stability-region__badge">Current range</div>
+                                    }
                                   </div>
-                                  <div class="threshold-stability-region__chips">
-                                    <span class="threshold-stability-region__chip">{{ formatThresholdStabilityClusterLabel(region.clusterCount) }}</span>
-                                    <span class="threshold-stability-region__chip">{{ formatThresholdStabilitySampleLabel(region.samples) }}</span>
-                                  </div>
-                                  <div class="threshold-stability-region__meta">{{ describeThresholdStabilityRegion(region) }}</div>
-                                  @if (region.isCurrent) {
-                                    <div class="threshold-stability-region__badge">Current range</div>
-                                  }
+                                  <button
+                                    type="button"
+                                    class="btn btn-light btn-sm threshold-stability-region__action"
+                                    data-testid="threshold-stability-apply"
+                                    [attr.data-threshold]="region.suggestedThreshold"
+                                    (click)="applyThresholdStabilitySuggestion(region)">
+                                    Use midpoint {{ formatThresholdStabilityValue(region.suggestedThreshold) }}
+                                  </button>
                                 </div>
-                                <button
-                                  type="button"
-                                  class="btn btn-light btn-sm threshold-stability-region__action"
-                                  data-testid="threshold-stability-apply"
-                                  [attr.data-threshold]="region.suggestedThreshold"
-                                  (click)="applyThresholdStabilitySuggestion(region)">
-                                  Use {{ formatThresholdStabilityValue(region.suggestedThreshold) }}
-                                </button>
-                              </div>
-                            }
-                          </div>
+                              }
+                            </div>
+                          }
                         }
                       </div>
                     }
@@ -632,7 +831,7 @@
                   </div>
                 </div>
               </tab>
-              <tab heading="{{'Styling' | localize}}" customClass="m-tabs__item" style='width: 400px; height: 100%;'>
+              <tab heading="{{'Styling' | localize}}" customClass="m-tabs__item" style='width: 100%; height: 100%;'>
 
                 <div id="style-config" role="tabpanel" aria-labelledby="style-tab">
                   <div class="form-group row" title="By what variable nodes be colored?">
@@ -760,7 +959,7 @@
                 </div>
               </tab>
 
-              <tab heading="{{'Timeline' | localize}}" customClass="m-tabs__item" style='width: 400px; height: 100%;'>
+              <tab heading="{{'Timeline' | localize}}" customClass="m-tabs__item" style='width: 100%; height: 100%;'>
                 <div id="timeline-config" role="tabpanel" aria-labelledby="timeline-tab">
                   <div class="form-group row" title="By what variable timeline applied?">
                     <div class="col-6"><label for="node-timeline-variable">Timeline By</label></div>

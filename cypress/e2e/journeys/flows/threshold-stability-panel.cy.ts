@@ -22,6 +22,21 @@ describe('Journey Flow - Threshold Stability Panel', () => {
 
     openGlobalFilteringTab();
 
+    cy.get('[data-testid="app-global-settings-dialog"] .p-dialog')
+      .should('be.visible')
+      .then(($dialog) => {
+        expect($dialog[0].getBoundingClientRect().width, 'wider Global Settings dialog').to.be.greaterThan(650);
+      });
+    cy.get('[data-testid="app-global-settings-dialog"] .p-dialog-content')
+      .then(($content) => {
+        expect($content[0].scrollWidth, 'dialog horizontal overflow').to.be.at.most($content[0].clientWidth);
+        expect(getComputedStyle($content[0]).overflowX, 'dialog horizontal scrolling').to.equal('hidden');
+      });
+    cy.get('[data-testid="app-global-settings-dialog"] .modal-body')
+      .then(($body) => {
+        expect($body[0].scrollWidth, 'settings body horizontal overflow').to.be.at.most($body[0].clientWidth);
+      });
+
     cy.get('[data-testid="threshold-stability-toggle"]')
       .should('exist')
       .scrollIntoView()
@@ -34,14 +49,86 @@ describe('Journey Flow - Threshold Stability Panel', () => {
       .should('exist')
       .scrollIntoView()
       .should('be.visible');
+    cy.get('[data-testid="app-global-settings-dialog"] .p-dialog-content')
+      .then(($content) => {
+        expect($content[0].scrollWidth, 'expanded recommendation horizontal overflow').to.be.at.most($content[0].clientWidth);
+      });
 
-    cy.contains('[data-testid="threshold-stability-panel"]', 'Orange line = cluster count at each threshold.').should('be.visible');
-    cy.get('[data-testid="threshold-stability-apply"]').its('length').should('be.greaterThan', 0);
+    cy.contains('[data-testid="threshold-stability-panel"]', 'Genetic-link analysis only.').should('be.visible');
     cy.get('[data-testid="threshold-score-recommendation"]')
       .should('be.visible')
       .and('contain.text', 'Component Structure Score')
       .and('contain.text', 'Largest / median')
-      .and('contain.text', 'Decision support');
+      .and('contain.text', 'Highest composite score');
+
+    cy.get('[data-testid="threshold-score-explanation-toggle"]')
+      .should('have.attr', 'aria-expanded', 'false')
+      .focus()
+      .type('{enter}')
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid="threshold-score-explanation"]')
+      .should('be.visible')
+      .and('contain.text', '100 × (')
+      .and('contain.text', 'Decision support only')
+      .and('not.contain.text', 'V1');
+
+    cy.get('[data-testid="threshold-score-fragmentation-help"]')
+      .focus()
+      .should('have.attr', 'aria-expanded', 'false')
+      .type('{enter}')
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('#threshold-score-fragmentation-tooltip')
+      .should('have.class', 'threshold-metric-help__tooltip--visible')
+      .and('contain.text', 'maximum clusters in sweep');
+
+    cy.get('[data-testid="threshold-score-equality-help"]')
+      .click()
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('#threshold-score-equality-tooltip')
+      .should('have.class', 'threshold-metric-help__tooltip--visible')
+      .and('contain.text', '1 −');
+
+    cy.get('[data-testid="current-score-help"]')
+      .scrollIntoView()
+      .focus()
+      .should('have.attr', 'aria-expanded', 'false')
+      .type('{enter}')
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('#current-score-tooltip')
+      .should('have.class', 'threshold-metric-help__tooltip--visible')
+      .and('contain.text', 'current threshold')
+      .and('contain.text', 'recommendation above')
+      .and('contain.text', '100 × (');
+
+    cy.get('[data-testid="current-largest-fraction-help"]')
+      .scrollIntoView()
+      .should('have.attr', 'aria-expanded', 'false')
+      .focus()
+      .type('{enter}')
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('#current-largest-fraction-tooltip')
+      .should('have.class', 'threshold-metric-help__tooltip--visible')
+      .and('contain.text', 'At threshold');
+
+    cy.get('[data-testid="threshold-stable-ranges-toggle"]')
+      .should('have.attr', 'aria-expanded', 'false')
+      .click()
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid="threshold-stability-apply"]').its('length').should('be.greaterThan', 0);
+
+    cy.get('[data-testid="threshold-stability-panel"] .threshold-stability-stat__label')
+      .each(($label) => {
+        expect($label[0].getBoundingClientRect().width, `${$label.text()} label width`).to.be.greaterThan(120);
+        expect(getComputedStyle($label[0]).overflow, `${$label.text()} label overflow`).not.to.equal('hidden');
+      });
+    cy.get('[data-testid="current-largest-fraction-help"]')
+      .then(($help) => {
+        const helpRect = $help[0].getBoundingClientRect();
+        const labelRect = $help.closest('.threshold-stability-stat__label')[0].getBoundingClientRect();
+        const helpCenter = helpRect.top + helpRect.height / 2;
+        const labelCenter = labelRect.top + labelRect.height / 2;
+        expect(Math.abs(helpCenter - labelCenter), 'largest-fraction icon vertical alignment').to.be.lessThan(1);
+      });
 
     cy.window().then((win: any) => {
       const metric = win.commonService.session.style.widgets['link-sort-variable'];
@@ -194,12 +281,12 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     cy.get('[data-testid="threshold-stability-toggle"]')
       .scrollIntoView()
       .should('be.visible')
-      .should('contain', 'distinct thresholds')
+      .should('contain', 'thresholds analyzed')
       .click({ force: true });
     cy.get('[data-testid="threshold-stability-panel"]')
       .scrollIntoView()
       .should('be.visible')
-      .and('contain', 'Orange line = cluster count at each threshold.');
+      .and('contain', 'Genetic-link analysis only.');
 
     setGlobalLinkThreshold(0);
     waitForProcessingDialogToClear();

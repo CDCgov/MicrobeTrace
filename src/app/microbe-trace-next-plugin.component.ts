@@ -43,9 +43,13 @@ import {
 type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
     sourceThreshold: number | null;
+    maximumClusterCount: number;
     componentStructureScore: number;
     componentStructureScoreBreakdown: ComponentStructureScoreBreakdown;
 };
+
+type ThresholdMetricKey = 'largestFraction' | 'clustered' | 'gini' | 'l2ToL1' | 'largestToMedian';
+type ThresholdScoreTermKey = 'fragmentation' | 'dominance' | 'balance' | 'participation' | 'equality';
 
 type ThresholdStabilityRegion = {
     startThreshold: number;
@@ -272,6 +276,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
     thresholdStabilityExpanded: boolean = false;
+    thresholdScoreExplanationExpanded: boolean = false;
+    thresholdStableRangesExpanded: boolean = false;
+    activeThresholdMetricHelp: string | null = null;
     thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
     thresholdScoreRecommendation: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
@@ -4824,6 +4831,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.syncThresholdDisplayFromStoredValue();
         setTimeout(() => this.syncThresholdDisplayFromStoredValue(), 0);
         this.thresholdStabilityExpanded = false;
+        this.thresholdScoreExplanationExpanded = false;
+        this.thresholdStableRangesExpanded = false;
+        this.activeThresholdMetricHelp = null;
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
@@ -4833,6 +4843,20 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     toggleThresholdStabilityPanel(): void {
         this.thresholdStabilityExpanded = !this.thresholdStabilityExpanded;
+    }
+
+    toggleThresholdScoreExplanation(): void {
+        this.thresholdScoreExplanationExpanded = !this.thresholdScoreExplanationExpanded;
+    }
+
+    toggleThresholdStableRanges(): void {
+        this.thresholdStableRangesExpanded = !this.thresholdStableRangesExpanded;
+    }
+
+    toggleThresholdMetricHelp(metricHelpId: string): void {
+        this.activeThresholdMetricHelp = this.activeThresholdMetricHelp === metricHelpId
+            ? null
+            : metricHelpId;
     }
 
 
@@ -5653,6 +5677,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 ...componentMetrics,
                 threshold,
                 sourceThreshold: null,
+                maximumClusterCount: summary.maximumClusterCount,
                 componentStructureScore: scoreResult.score,
                 componentStructureScoreBreakdown: scoreResult.breakdown
             };
@@ -5676,6 +5701,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             ...summary.componentMetrics[matchIndex],
             threshold,
             sourceThreshold: summary.thresholds[matchIndex],
+            maximumClusterCount: summary.maximumClusterCount,
             componentStructureScore: summary.componentStructureScores[matchIndex],
             componentStructureScoreBreakdown: summary.componentStructureScoreBreakdowns[matchIndex]
         };
@@ -5784,7 +5810,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (summary.thresholds.length === 0) {
             this.thresholdStabilityMessage = `No numeric ${this.commonService.titleize(metric)} values are available for this view.`;
         } else if (this.thresholdStabilityRegions.length === 0) {
-            this.thresholdStabilityMessage = 'No broad flat range was found for the current metric.';
+            this.thresholdStabilityMessage = 'No stable cluster-count range was found. The count changes at each neighboring threshold.';
         } else {
             this.thresholdStabilityMessage = '';
         }
@@ -5823,6 +5849,53 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     formatComponentStructureScore(value: number): string {
         return Number.isFinite(value) ? value.toFixed(1) : 'N/A';
+    }
+
+    formatThresholdMetricEquation(metric: ThresholdMetricKey, snapshot: ThresholdSweepSnapshot): string {
+        const threshold = this.formatThresholdStabilityValue(snapshot.threshold);
+        const prefix = `At threshold ${threshold}:`;
+
+        switch (metric) {
+            case 'largestFraction':
+                return `${prefix} ${snapshot.largestClusterSize} ÷ ${snapshot.nodeCount} = ${this.formatThresholdMetricPercent(snapshot.largestClusterFraction)}`;
+            case 'clustered':
+                return `${prefix} ${snapshot.clusteredNodeCount} ÷ ${snapshot.nodeCount} = ${this.formatThresholdMetricPercent(snapshot.clusteredFraction)}`;
+            case 'gini': {
+                const denominator = snapshot.componentCount * snapshot.nodeCount;
+                const pairwiseDifferenceSum = Math.round(snapshot.giniCoefficient * denominator);
+                return `${prefix} Σ|size differences| = ${pairwiseDifferenceSum}; ${pairwiseDifferenceSum} ÷ (${snapshot.componentCount} × ${snapshot.nodeCount}) = ${this.formatThresholdMetricDecimal(snapshot.giniCoefficient)}`;
+            }
+            case 'l2ToL1':
+                return `${prefix} ${snapshot.secondLargestClusterSize} ÷ ${snapshot.largestClusterSize} = ${this.formatThresholdMetricDecimal(snapshot.l2ToL1Ratio)}`;
+            case 'largestToMedian':
+                return `${prefix} ${snapshot.largestClusterSize} ÷ ${snapshot.medianClusterSize.toLocaleString(undefined, { maximumFractionDigits: 1 })} = ${this.formatThresholdMetricDecimal(snapshot.largestToMedianClusterRatio)}`;
+        }
+    }
+
+    formatThresholdScoreEquation(snapshot: ThresholdSweepSnapshot): string {
+        const terms = snapshot.componentStructureScoreBreakdown;
+        return `At threshold ${this.formatThresholdStabilityValue(snapshot.threshold)}: 100 × (${this.formatThresholdMetricDecimal(terms.fragmentation)} + ${this.formatThresholdMetricDecimal(terms.dominance)} + ${this.formatThresholdMetricDecimal(terms.balance)} + ${this.formatThresholdMetricDecimal(terms.participation)} + ${this.formatThresholdMetricDecimal(terms.equality)}) ÷ 5 = ${this.formatComponentStructureScore(snapshot.componentStructureScore)}`;
+    }
+
+    formatThresholdScoreTermEquation(term: ThresholdScoreTermKey, snapshot: ThresholdSweepSnapshot): string {
+        const threshold = this.formatThresholdStabilityValue(snapshot.threshold);
+        const prefix = `At threshold ${threshold}:`;
+        const breakdown = snapshot.componentStructureScoreBreakdown;
+
+        switch (term) {
+            case 'fragmentation':
+                return `${prefix} ${snapshot.clusterCount} clusters ÷ ${snapshot.maximumClusterCount} maximum clusters in sweep = ${this.formatThresholdMetricDecimal(breakdown.fragmentation)}`;
+            case 'dominance':
+                return `${prefix} ${this.formatThresholdMetricDecimal(snapshot.clusteredFraction)} × (1 − ${this.formatThresholdMetricDecimal(snapshot.largestClusterFraction)}) = ${this.formatThresholdMetricDecimal(breakdown.dominance)}`;
+            case 'balance':
+                return snapshot.clusterCount >= 2
+                    ? `${prefix} median size ${snapshot.medianClusterSize.toLocaleString(undefined, { maximumFractionDigits: 1 })} ÷ largest size ${snapshot.largestClusterSize} = ${this.formatThresholdMetricDecimal(breakdown.balance)}`
+                    : `${prefix} fewer than 2 genetic clusters = ${this.formatThresholdMetricDecimal(breakdown.balance)}`;
+            case 'participation':
+                return `${prefix} ${snapshot.clusteredNodeCount} clustered nodes ÷ ${snapshot.nodeCount} total nodes = ${this.formatThresholdMetricDecimal(breakdown.participation)}`;
+            case 'equality':
+                return `${prefix} ${this.formatThresholdMetricDecimal(snapshot.clusteredFraction)} × (1 − ${this.formatThresholdMetricDecimal(snapshot.giniCoefficient)}) = ${this.formatThresholdMetricDecimal(breakdown.equality)}`;
+        }
     }
 
     formatThresholdStabilityClusterLabel(clusterCount: number): string {
