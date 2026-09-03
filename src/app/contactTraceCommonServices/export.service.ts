@@ -1,12 +1,15 @@
 import { Injectable } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
 import { getNodeShapePreviewDataUri } from './node-shapes';
+import type { FileType, FileViewName } from './analytics.service';
 
 export interface ExportOptions {
   filename: string;
   filetype: string;
   scale: number;
   quality: number;
+  analyticsViewName?: FileViewName;
+  analyticsFileType?: FileType;
 }
 
 @Injectable({

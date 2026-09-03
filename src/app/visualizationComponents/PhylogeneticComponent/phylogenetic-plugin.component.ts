@@ -24,6 +24,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 import {
   applyBootstrapSupportToTree,
   BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
@@ -209,7 +210,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     private store: CommonStoreService,
     private exportService: ExportService,
     private workerComputeService: WorkerComputeService,
-    private confirmationService: ConfirmationService) {
+    private confirmationService: ConfirmationService,
+    private analyticsService: AnalyticsService) {
 
     super(elRef.nativeElement);
 
@@ -1368,6 +1370,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       filetype: this.SelectedNetworkExportFileTypeListVariable,
       scale: this.SelectedNetworkExportScaleVariable,
       quality: this.SelectedNetworkExportQualityVariable,
+      analyticsViewName: 'phylogenetic_tree',
+      analyticsFileType: 'image',
     };
 
     this.exportService.setExportOptions(exportOptions);
@@ -1378,6 +1382,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     if (!content) {
       console.error('Phylogenetic export container not found');
+      this.trackTreeExport('image', this.SelectedNetworkExportFileTypeListVariable, 'fail');
       return;
     }
 
@@ -1389,6 +1394,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       const svgContent = this.getExportSvgContent();
       if (!svgContent) {
         console.error('Phylogenetic SVG element not found');
+        this.trackTreeExport('image', 'svg', 'fail');
         return;
       }
 
@@ -1403,9 +1409,28 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   saveNewickString(event) {
-    const thisTree = this.commonService.visuals.phylogenetic.tree;
-    const newickBlob = new Blob([thisTree.data.toNewick(false)], { type: 'text/plain;charset=utf-8' });
-    saveAs(newickBlob, this.SelectedNewickStringFilenameVariable);
+    try {
+      const thisTree = this.commonService.visuals.phylogenetic.tree;
+      const newickBlob = new Blob([thisTree.data.toNewick(false)], { type: 'text/plain;charset=utf-8' });
+      saveAs(newickBlob, this.SelectedNewickStringFilenameVariable);
+      this.trackTreeExport('tree', 'newick', 'success');
+    } catch (error) {
+      this.trackTreeExport('tree', 'newick', 'fail');
+      console.error('Unable to export Newick tree:', error);
+    }
+  }
+
+  private trackTreeExport(
+    fileType: 'image' | 'tree',
+    format: string,
+    result: 'success' | 'fail'
+  ): void {
+    this.analyticsService.trackExport({
+      viewName: 'phylogenetic_tree',
+      fileType,
+      fileFormat: format,
+      result
+    });
   }
 
 

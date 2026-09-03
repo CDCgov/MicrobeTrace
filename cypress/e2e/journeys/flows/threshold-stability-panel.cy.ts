@@ -13,8 +13,44 @@ import {
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 
+type AnalyticsWindow = Window & {
+  dataLayer?: Array<ArrayLike<unknown>>;
+};
+
+type AnalysisActionCall = ['event', 'analysis_action', {
+  action: string;
+}];
+
+function enableLocalTestAnalytics(): void {
+  cy.readFile('src/assets/analytics-bootstrap.js', 'utf8').then((source) => {
+    const locallyEnabledSource = source.replace(
+      /const analyticsDisabledForLocalHost = (?:true|false);/,
+      'const analyticsDisabledForLocalHost = false;',
+    );
+    cy.intercept('GET', '**/assets/analytics-bootstrap.js', {
+      statusCode: 200,
+      headers: { 'content-type': 'application/javascript' },
+      body: locallyEnabledSource,
+    });
+  });
+  cy.intercept('GET', 'https://www.googletagmanager.com/gtag/js*', {
+    statusCode: 200,
+    body: '',
+  });
+}
+
+function getAnalysisActionCalls(win: AnalyticsWindow): AnalysisActionCall[] {
+  return (win.dataLayer || [])
+    .map((entry) => Array.from(entry))
+    .filter((entry) => entry[0] === 'event' && entry[1] === 'analysis_action') as AnalysisActionCall[];
+}
+
 describe('Journey Flow - Threshold Stability Panel', () => {
   const profile = getProfile('nn-angulartesting-tn93-edgelist');
+
+  beforeEach(() => {
+    enableLocalTestAnalytics();
+  });
 
   it('shows stable regions and applies a suggested threshold', () => {
     launchProfileToTwoD(profile);
@@ -41,6 +77,11 @@ describe('Journey Flow - Threshold Stability Panel', () => {
       cy.wrap(Number(value), { log: false }).as('beforeThreshold');
     });
 
+    cy.window().then((rawWindow) => {
+      cy.wrap(getAnalysisActionCalls(rawWindow as AnalyticsWindow).length, { log: false })
+        .as('analysisActionCountBeforeSuggestion');
+    });
+
     cy.get('[data-testid="threshold-stability-apply"]').first().then(($button) => {
       const suggestedThreshold = Number($button.attr('data-threshold'));
 
@@ -50,6 +91,19 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     });
 
     waitForProcessingDialogToClear();
+
+    cy.get('@analysisActionCountBeforeSuggestion').then((countBeforeSuggestion) => {
+      cy.window().should((rawWindow) => {
+        const newCalls = getAnalysisActionCalls(rawWindow as AnalyticsWindow)
+          .slice(Number(countBeforeSuggestion));
+
+        expect(newCalls, 'analytics emitted by applying the suggestion').to.deep.equal([
+          ['event', 'analysis_action', {
+            action: 'threshold_stability_applied',
+          }],
+        ]);
+      });
+    });
 
     cy.get('@beforeThreshold').then((beforeThreshold) => {
       cy.get('@suggestedThreshold').then((suggestedThreshold) => {

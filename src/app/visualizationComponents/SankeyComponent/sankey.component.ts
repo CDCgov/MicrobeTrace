@@ -16,6 +16,7 @@ import type { SankeyNode, SankeyLink } from './sankey-types';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 
 @Component({
@@ -96,7 +97,8 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService) {
+    private store: CommonStoreService,
+    private analyticsService: AnalyticsService) {
 
     super(elRef.nativeElement);
 
@@ -567,17 +569,18 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
   }
   openCenter(): void {}
 
-  exportVisualization(): void {
+  async exportVisualization(): Promise<void> {
     //const domId = 'sankey-container';
     const exportImageType = this.SelectedNetworkExportFileTypeListVariable ;
     //const content = document.getElementById(domId);
-    if (exportImageType === 'png') {
-      window.devicePixelRatio = 1;
-      saveSvgAsPng(this.sankeySVG.nativeElement, this.SelectedSankeyImageFilename + '.' + this.SelectedNetworkExportFileTypeListVariable, {
+    try {
+      if (exportImageType === 'png') {
+        window.devicePixelRatio = 1;
+        await saveSvgAsPng(this.sankeySVG.nativeElement, this.SelectedSankeyImageFilename + '.' + this.SelectedNetworkExportFileTypeListVariable, {
           scale: this.SankeyExportScaleVariable,
           backgroundColor: "#ffffff",
           encoderType: 'image/' + this.SelectedNetworkExportFileTypeListVariable,
-      });
+        });
     //   domToImage.toPng(content).then(
     //     dataUrl => {
     //       saveAs(dataUrl, this.SelectedSankeyImageFilename);
@@ -587,13 +590,27 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     //       dataUrl => {
     //         saveAs(dataUrl, this.SelectedSankeyImageFilename);
     //       });
-    } else if (exportImageType === 'svg') {
+      } else if (exportImageType === 'svg') {
         let svgContent = this.exportService.unparseSVG(this.sankeySVG.nativeElement);
         const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
         saveAs(blob, this.SelectedSankeyImageFilename);
+      }
+      this.trackSankeyExport(exportImageType, 'success');
+    } catch (error) {
+      this.trackSankeyExport(exportImageType, 'fail');
+      console.error('Unable to export Sankey chart:', error);
+    } finally {
+      this.ShowSankeyExportPane = false;
     }
+  }
 
-    this.ShowSankeyExportPane = false;
+  private trackSankeyExport(format: string, result: 'success' | 'fail'): void {
+    this.analyticsService.trackExport({
+      viewName: 'sankey',
+      fileType: 'image',
+      fileFormat: format,
+      result
+    });
   }
 
 }

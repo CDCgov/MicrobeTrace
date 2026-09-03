@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MicrobeTrace GA4 Initial Analytics Plan</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #0b2545;
+      --blue: #2e74b5;
+      --blue-dark: #1f4d78;
+      --ink: #17202a;
+      --muted: #586474;
+      --line: #c9d3df;
+      --paper: #ffffff;
+      --wash: #f4f7fa;
+      --callout: #e8f0f8;
+      --success: #246b45;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: #e9eef3;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #e9eef3;
+      font: 16px/1.55 Calibri, "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+      padding: 64px 72px;
+      background: var(--paper);
+      box-shadow: 0 12px 36px rgb(11 37 69 / 12%);
+    }
+
+    h1, h2, h3 {
+      color: var(--navy);
+      line-height: 1.2;
+      break-after: avoid;
+    }
+
+    h1 {
+      max-width: 850px;
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 5vw, 3rem);
+      letter-spacing: -0.035em;
+    }
+
+    h2 {
+      margin: 2.4rem 0 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid var(--blue);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 1.7rem 0 0.55rem;
+      color: var(--blue-dark);
+      font-size: 1.15rem;
+    }
+
+    p { margin: 0.45rem 0 0.9rem; }
+
+    a { color: #145f9f; }
+
+    code {
+      padding: 0.1em 0.3em;
+      border-radius: 4px;
+      background: #edf2f7;
+      font: 0.92em Consolas, "Courier New", monospace;
+      overflow-wrap: anywhere;
+    }
+
+    .subtitle {
+      max-width: 820px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.18rem;
+    }
+
+    .metadata {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 24px;
+      margin: 24px 0;
+      padding: 14px 0;
+      border-block: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .metadata strong { color: var(--ink); }
+
+    .decision,
+    .note {
+      margin: 1.25rem 0;
+      padding: 16px 20px;
+      border-left: 5px solid var(--blue);
+      background: var(--callout);
+    }
+
+    .decision strong,
+    .note strong {
+      display: block;
+      margin-bottom: 0.2rem;
+      color: var(--navy);
+    }
+
+    .decision p,
+    .note p { margin: 0; }
+
+    nav {
+      margin: 28px 0 36px;
+      padding: 20px 24px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--wash);
+    }
+
+    nav h2 {
+      margin: 0 0 10px;
+      padding: 0;
+      border: 0;
+      font-size: 1.05rem;
+    }
+
+    nav ol {
+      columns: 2;
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    nav li { margin: 0.3rem 1rem 0.3rem 0; }
+
+    ul, ol { padding-left: 1.4rem; }
+    li + li { margin-top: 0.35rem; }
+
+    .table-wrap {
+      margin: 0.8rem 0 1.4rem;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.91rem;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+
+    th {
+      color: var(--navy);
+      background: #e8eef5;
+      font-weight: 700;
+    }
+
+    tbody tr:nth-child(even) { background: #fafbfd; }
+
+    .status {
+      display: inline-block;
+      padding: 0.08rem 0.45rem;
+      border: 1px solid #9bbda9;
+      border-radius: 999px;
+      color: var(--success);
+      background: #eff8f2;
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .event-name { white-space: nowrap; }
+
+    .page-break { break-before: page; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: 100%;
+        margin: 0;
+        padding: 32px 20px;
+        box-shadow: none;
+      }
+
+      nav ol { columns: 1; }
+      .metadata { display: block; }
+      .metadata span { display: block; margin: 3px 0; }
+    }
+
+    @media print {
+      @page { size: letter; margin: 0.7in; }
+
+      html, body { background: #fff; }
+
+      body {
+        color: #000;
+        font-size: 10pt;
+      }
+
+      main {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+
+      nav { display: none; }
+      a { color: inherit; text-decoration: none; }
+      .table-wrap { overflow: visible; }
+      table { font-size: 8.2pt; }
+      th, td { padding: 5px 6px; }
+      tr { break-inside: avoid; }
+      h2 { margin-top: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>MicrobeTrace GA4 Initial Analytics Plan</h1>
+      <p class="subtitle">Focused event taxonomy, complete export coverage, and privacy-safe implementation</p>
+      <div class="metadata">
+        <span><strong>Updated:</strong> September 2, 2026</span>
+        <span><strong>Scope:</strong> MicrobeTrace web application</span>
+        <span><strong>Status:</strong> Initial code implementation complete; GA4 provisioning and live validation pending</span>
+      </div>
+      <aside class="decision">
+        <strong>Approved initial release</strong>
+        <p>Use manual page views identified only by an allowlisted <code>page_title</code> and six privacy-safe custom event families: application entry, file import, analysis launch, focused feature-use actions, exports, and redirects to MicrobeTrace Classic. Imports and exports share source-view, file-type, and file-format dimensions. Export tracking covers every current export path. GA4 automatic collection is constrained so it cannot bypass the same privacy rules.</p>
+      </aside>
+      <aside class="note">
+        <strong>Current implementation status</strong>
+        <p>The application instrumentation, environment routing, URL sanitization, and focused automated regressions are implemented. Remaining operator work is to register the five event-scoped custom dimensions in both GA4 properties, exercise controlled traffic against the dedicated test property, and complete analytics and privacy review before production rollout.</p>
+      </aside>
+    </header>
+
+    <nav aria-label="Table of contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#summary">Executive summary</a></li>
+        <li><a href="#contract">Event model and privacy contract</a></li>
+        <li><a href="#catalog">Complete initial event catalog</a></li>
+        <li><a href="#implementation">Implementation specification and status</a></li>
+        <li><a href="#reporting">Initial reporting and interpretation</a></li>
+        <li><a href="#verification">Verification and acceptance</a></li>
+        <li><a href="#rollout">Rollout status and remaining work</a></li>
+        <li><a href="#references">References</a></li>
+      </ol>
+    </nav>
+
+    <section id="summary">
+      <h2>1. Executive summary</h2>
+      <p>This first release is intentionally focused on a small set of product questions and a privacy-safe implementation. It measures application entry methods, view opens, broad file workflows, selected analysis features, complete export activity, configuration and map-file use, and redirects to MicrobeTrace Classic without collecting file contents or user-entered values.</p>
+      <p>This release limits MicrobeTrace application telemetry to seven MicrobeTrace-defined event families. The existing <code>page_view</code> event remains, and six custom events are included: <code>app_entry</code>, <code>file_import</code>, <code>analysis_launch</code>, <code>analysis_action</code>, <code>export_action</code>, and <code>classic_redirect</code>. GA4 may still generate standard automatic events such as <code>session_start</code>, <code>first_visit</code>, and <code>user_engagement</code>; those remain subject to GA4 default collection behavior and the property-level privacy controls in this plan.</p>
+
+      <h3>Questions this release will answer</h3>
+      <ul>
+        <li>Which MicrobeTrace views are opened?</li>
+        <li>Did an application load begin normally, through a partner handoff, or through a URL import?</li>
+        <li>Which hostnames are running deployed copies of MicrobeTrace?</li>
+        <li>Which broad file types and formats are imported, and do those imports succeed or fail?</li>
+        <li>How often do users start a new analysis or update an existing analysis?</li>
+        <li>Which network filtering settings are used, and is timeline mode used?</li>
+        <li>Are MicrobeTrace style files, node color-assignment files, custom maps, or floorplans imported successfully?</li>
+        <li>How often do users choose to open MicrobeTrace Classic, and from which entry point?</li>
+        <li>Which view or workspace area is exported, what kind of artifact is produced, and in what format?</li>
+      </ul>
+
+      <h3>Explicitly deferred</h3>
+      <ul>
+        <li>Search usage, 2D node grouping, node and link selections, individual manual styling controls, and specialized per-view controls.</li>
+        <li>Performance timings, retries, recovery sequences, detailed error codes, and runtime diagnostics.</li>
+        <li>Exact data, cluster, selection, and result counts.</li>
+        <li><code>release_version</code>. It is a useful future diagnostic dimension but is not required to answer the initial product questions.</li>
+        <li>Admin API provisioning, a large JSON event catalog, and catalog-specific CI automation.</li>
+      </ul>
+    </section>
+
+    <section id="contract" class="page-break">
+      <h2>2. Event model and privacy contract</h2>
+      <p>All MicrobeTrace-defined application telemetry passes through the existing <code>AnalyticsService</code>. Components do not call <code>window.gtag</code> directly. The service exposes typed helpers, validates event and parameter values against fixed allowlists, and does nothing whenever analytics is disabled or <code>gtag</code> is unavailable. GA4 standard automatic events are outside this service and therefore must be constrained through the approved tag, stream, and property settings below.</p>
+
+      <h3>Initial event families</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Event</th><th>When emitted</th><th>Parameters</th><th>Scope note</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="event-name"><code>app_entry</code> <span class="status">implemented</span></td><td>A loaded MicrobeTrace application identifies its initial entry method.</td><td><code>action</code></td><td>Emits once per application load as <code>standard</code>, <code>handoff</code>, or <code>url_import</code>, without sending query values or partner identifiers.</td></tr>
+            <tr><td class="event-name"><code>page_view</code> <span class="status">implemented</span></td><td>A view is newly opened.</td><td><code>page_title</code></td><td>The Google tag supplies the sanitized deployment-level URL context. Tab switches and Docked Key Tables remain excluded.</td></tr>
+            <tr><td class="event-name"><code>file_import</code> <span class="status">implemented</span></td><td>A user-selected data, session, configuration, custom-map, or floorplan file reaches a terminal outcome.</td><td><code>view_name</code>, <code>file_type</code>, <code>file_format</code>, <code>result</code></td><td>One event per Files-view batch or per file selected from Workspace or Map, not per row or parsing step.</td></tr>
+            <tr><td class="event-name"><code>analysis_launch</code> <span class="status">implemented</span></td><td>A new launch or update reaches a terminal outcome.</td><td><code>action</code>, <code>result</code></td><td>Distinguishes new analysis, update with settings preserved, and update with settings reset.</td></tr>
+            <tr><td class="event-name"><code>analysis_action</code> <span class="status">implemented</span></td><td>A user commits an included filtering action, changes Distance Metric, or uses timeline mode.</td><td><code>action</code></td><td>The descriptive action identifies the adopted setting without sending its value. File imports and manual styling interactions are excluded.</td></tr>
+            <tr><td class="event-name"><code>export_action</code> <span class="status">implemented</span></td><td>An artifact is generated and browser download is initiated, or generation fails.</td><td><code>view_name</code>, <code>file_type</code>, <code>file_format</code>, <code>result</code></td><td>Uses the same file dimensions as <code>file_import</code> and covers every current export path.</td></tr>
+            <tr><td class="event-name"><code>classic_redirect</code> <span class="status">implemented</span></td><td>A user activates a link or button that opens MicrobeTrace Classic.</td><td><code>action</code></td><td>Identifies the approved entry point and records the navigation attempt, not confirmation that the destination loaded.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small"><strong>Standard page context:</strong> MicrobeTrace explicitly supplies <code>page_title</code> only for <code>page_view</code>. It does not add <code>page_title</code> to the six custom-event payloads. GA4 may still associate its automatically collected document title with web events. The Google tag supplies the same sanitized deployment-base <code>page_location</code> and origin-only referrer context to all events.</p>
+
+      <h3>Parameter dictionary</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Parameter</th><th>Allowed values</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>result</code></td><td><code>success</code>, <code>fail</code>, and <code>canceled</code> only where cancellation is observable</td><td>Terminal application outcome.</td></tr>
+            <tr><td><code>action</code></td><td>Event-specific allowlist shown in Section 3</td><td>The committed operation.</td></tr>
+            <tr><td><code>view_name</code></td><td>Canonical import or export source from Sections 3.2 and 3.4</td><td>The view or workspace area where the file operation occurred.</td></tr>
+            <tr><td><code>file_type</code></td><td><code>image</code>, <code>data_table</code>, <code>network</code>, <code>session</code>, <code>style</code>, <code>sequence</code>, <code>tree</code>, <code>source_data</code>, <code>matrix</code>, <code>geospatial</code>, <code>color_assignment</code>, <code>custom_map</code>, <code>floorplan</code>, <code>mixed</code>, <code>other</code></td><td>The broad, privacy-safe kind of imported or exported file.</td></tr>
+            <tr><td><code>file_format</code></td><td>Fixed format allowlists from Sections 3.2 and 3.4, including <code>mixed</code> and <code>other</code> where documented</td><td>The normalized file format without the filename.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Never send to GA4</h3>
+      <ul>
+        <li>Filenames, file contents, uploaded field names, search text, filter values, group labels, or tooltip values.</li>
+        <li>Node IDs, link IDs, sequences, copied identifiers, session contents, or patient attributes.</li>
+        <li>Raw exception messages, stack traces, browser rejection payloads, or console output.</li>
+        <li>Latitude, longitude, ZIP codes, floorplan coordinates, or other precise locations.</li>
+        <li>Exact dataset, cluster, selection, search-result, or other potentially sensitive counts.</li>
+        <li>User IDs, advertising identifiers, or values used for remarketing or personalization.</li>
+      </ul>
+
+      <h3>GA4 automatic collection and property privacy controls</h3>
+      <p>The privacy contract applies to the Google tag and GA4 property as well as to MicrobeTrace custom-event payloads. A normal GA4 web implementation still collects standard session, approximate-location, browser/device, and first-party client-ID information. The following settings minimize that automatic collection and prevent it from duplicating or bypassing the typed application events.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Setting</th><th>Approved initial configuration</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>Enhanced Measurement</td><td>Off for the production and test web streams.</td><td>Prevents automatic outbound-click, site-search, file-download, form, scroll, video, and browser-history events from sending values outside the application allowlists.</td></tr>
+            <tr><td>Automatic page views and URL context</td><td>Set <code>send_page_view=false</code>. Keep Enhanced Measurement page changes based on browser history off. Override the tag’s default <code>page_location</code> with the query- and fragment-free deployment base URL and reduce any initial <code>page_referrer</code> to its origin.</td><td><code>AnalyticsService.trackView()</code> is the single authoritative page-view mechanism, and URL or hash parameters never enter the default GA event context.</td></tr>
+            <tr><td>Advertising personalization</td><td>Off for all regions.</td><td>No advertising or remarketing use is part of this plan.</td></tr>
+            <tr><td>User-provided data collection</td><td>Off, including automatic detection and Google-tag user-provided-data capabilities.</td><td>MicrobeTrace must not send email addresses, phone numbers, names, addresses, or other user-provided identifiers.</td></tr>
+            <tr><td>Google Ads links</td><td>None unless separately reviewed and approved.</td><td>Advertising integration is outside the product-analytics purpose of this plan.</td></tr>
+            <tr><td>Google Signals</td><td>Off for all regions.</td><td>Demographic, interest, cross-device, and advertising features are not required.</td></tr>
+            <tr><td>Granular location and device data</td><td>Off for all regions.</td><td>City, detailed device/browser attributes, and screen resolution are not required for the initial questions.</td></tr>
+            <tr><td>User-ID</td><td>Do not configure.</td><td>This plan does not identify signed-in or known users.</td></tr>
+            <tr><td>Data retention</td><td>14 months, with “Reset user data on new activity” off, subject to the organization’s approved retention policy.</td><td>Allows year-over-year exploration while placing a fixed limit on user- and event-level retention.</td></tr>
+            <tr><td>Deployed copies</td><td>Send to the production property from every non-local hostname, including <code>microbetrace.cdc.gov</code>, <code>cdcgov.github.io</code>, partner-hosted copies, and handoff sessions.</td><td>Allows aggregate usage and hostname reporting across official and open-source deployments.</td></tr>
+            <tr><td>Development and local testing</td><td>Disable localhost, loopback addresses, and file URLs by default. Deliberate local testing may be enabled only with a measurement ID belonging to the dedicated non-production GA4 property.</td><td>Excludes local MicrobeTrace development activity while keeping controlled DebugView testing isolated.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside class="note">
+        <strong>Environment routing</strong>
+        <p>All non-local deployed copies use the production measurement ID, including the CDC GitHub Pages deployment, partner-hosted open-source deployments, and handoff sessions. The GA4 Hostname dimension and sanitized base <code>page_location</code> provide deployment-level reporting without adding a custom parameter, while <code>page_title</code> identifies the newly opened view. The Google tag’s default URL context is always the deployment base URL with its query and fragment removed; any initial referrer is reduced to its origin. A developer may deliberately change <code>analyticsDisabledForLocalHost</code> for local testing; this routes local traffic only to the dedicated test destination, never to the production property.</p>
+      </aside>
+    </section>
+
+    <section id="catalog" class="page-break">
+      <h2>3. Complete initial event catalog</h2>
+      <p>The following tables enumerate every event name, trigger, and allowed parameter variation in the implemented initial release. Values outside these tables are rejected rather than forwarded to GA4.</p>
+
+      <h3>3.1 Application-entry and view-open events</h3>
+      <p>Exactly one <code>app_entry</code> event is emitted per loaded MicrobeTrace application instance. It contains only the allowlisted <code>action</code>; the Google tag supplies the sanitized deployment-base location and, when available, origin-only referrer context.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th><code>action</code></th><th>Trigger</th></tr></thead>
+          <tbody>
+            <tr><td><code>standard</code></td><td>The application loads without a pending partner handoff or <code>url</code> query input.</td></tr>
+            <tr><td><code>handoff</code></td><td>The application loads with a pending partner handoff. This classification takes precedence if a URL input is also present.</td></tr>
+            <tr><td><code>url_import</code></td><td>The application loads with a <code>url</code> query input and no pending partner handoff.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">The event classifies how the application was entered; it does not assert that a handoff, URL retrieval, file processing, or later analysis launch succeeded. Handoff IDs, imported URLs, query parameters, URL fragments, and partner identifiers are never sent. Because the handoff receiver may become the browser referrer, <code>page_referrer</code> must not be treated as a reliable partner identifier.</p>
+      <p>Each row emits exactly one manual <code>page_view</code> when that view is newly opened. <code>AnalyticsService</code> sends only the allowlisted <code>page_title</code>; it does not add the view name to <code>page_location</code> or <code>page_referrer</code>. The Google tag supplies the query- and fragment-free deployment base URL and, when available, an origin-only browser referrer. Docked Key Tables is intentionally not a page view.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Opened view</th><th><code>page_title</code></th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Files</td><td>Files View</td></tr>
+            <tr><td>2D Network</td><td>2D Network View</td></tr>
+            <tr><td>Map</td><td>Map View</td></tr>
+            <tr><td>Table</td><td>Table View</td></tr>
+            <tr><td>Network Statistics</td><td>Network Statistics View</td></tr>
+            <tr><td>Epi Curve</td><td>EpiCurve View</td></tr>
+            <tr><td>Phylogenetic Tree</td><td>Phylogenetic Tree View</td></tr>
+            <tr><td>Alignment View</td><td>Alignment View</td></tr>
+            <tr><td>Crosstab</td><td>Crosstab View</td></tr>
+            <tr><td>Aggregate</td><td>Aggregate View</td></tr>
+            <tr><td>Gantt Chart</td><td>Gantt Chart View</td></tr>
+            <tr><td>Heatmap</td><td>Heatmap View</td></tr>
+            <tr><td>Bubble</td><td>Bubble View</td></tr>
+            <tr><td>Sankey</td><td>Sankey View</td></tr>
+            <tr><td>Waterfall</td><td>Waterfall View</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>3.2 File import events</h3>
+      <p>Each row emits <code>file_import</code> with <code>result=success</code> or <code>result=fail</code>. The event never includes a filename, file contents, user fields, or imported values.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th><code>view_name</code></th><th><code>file_type</code></th><th><code>file_format</code></th><th>Covered import</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>files</code></td><td><code>data_table</code></td><td><code>csv</code>, <code>tsv</code>, <code>txt</code>, <code>xls</code>, <code>xlsx</code>, <code>json</code>, or <code>other</code></td><td>Node, link, spreadsheet, JSON-table, or other tabular data batch.</td></tr>
+            <tr><td><code>files</code></td><td><code>sequence</code></td><td><code>fasta</code>, <code>fas</code>, <code>fa</code>, or <code>other</code></td><td>FASTA or equivalent sequence data.</td></tr>
+            <tr><td><code>files</code></td><td><code>tree</code></td><td><code>newick</code>, <code>json</code>, or <code>other</code></td><td>Newick or Auspice tree data. <code>.nwk</code> is normalized to <code>newick</code>.</td></tr>
+            <tr><td><code>files</code></td><td><code>matrix</code></td><td>An allowlisted tabular format</td><td>Distance-matrix input.</td></tr>
+            <tr><td><code>files</code></td><td><code>network</code></td><td><code>graphml</code>, <code>gexf</code>, <code>xgmml</code>, <code>cx</code>, <code>cx2</code>, <code>dot</code>, <code>gv</code>, <code>gml</code>, <code>json</code>, or <code>other</code></td><td>Supported saved-network data.</td></tr>
+            <tr><td><code>files</code></td><td><code>geospatial</code></td><td><code>geojson</code>, <code>json</code>, or <code>other</code></td><td>GeoJSON or other supported geographic data used as dataset input.</td></tr>
+            <tr><td><code>files</code></td><td><code>session</code></td><td><code>microbetrace</code>, <code>hivtrace</code>, or <code>zip</code></td><td>A user-selected saved-session restore. The selected session wrapper determines <code>file_type=session</code>; files stored inside it do not change the event to another type.</td></tr>
+            <tr><td><code>files</code></td><td><code>mixed</code></td><td>One normalized format, or <code>mixed</code></td><td>One user-selected batch containing more than one broad file type. If the batch also contains multiple normalized formats, <code>file_format=mixed</code>.</td></tr>
+            <tr><td><code>files</code></td><td><code>other</code></td><td>An allowlisted format or <code>other</code></td><td>Attempted or supported input that does not fit another allowlisted type.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>style</code></td><td><code>style</code></td><td>A user-selected MicrobeTrace style file is parsed and applied.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>color_assignment</code></td><td><code>csv</code>, <code>tsv</code>, <code>txt</code>, or <code>other</code></td><td>A user-selected node color-assignment file is parsed, validated, and applied.</td></tr>
+            <tr><td><code>map</code></td><td><code>custom_map</code></td><td><code>geojson</code> or <code>json</code></td><td>A user-selected GeoJSON custom-map background is validated and loaded in Map View.</td></tr>
+            <tr><td><code>map</code></td><td><code>floorplan</code></td><td><code>png</code>, <code>jpeg</code>, <code>gif</code>, <code>webp</code>, or <code>svg</code></td><td>A user-selected image floorplan is decoded and loaded in Map View.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small"><strong>Emission rule:</strong> Files-view selections and drops emit once per non-empty <code>processFiles</code> batch after processing reaches a terminal result. Files selected separately emit separate events even if launched together. Workspace configuration files and Map backgrounds emit once per selected file after their own terminal result. Application startup, the built-in demo, URL/Auspice loading, handoff loading, later analysis launch, and configuration or map state restored inside a session do not emit <code>file_import</code>.</p>
+
+      <h3>3.3 Analysis launch and core analysis events</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Event</th><th><code>action</code></th><th><code>result</code></th><th>Trigger</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>analysis_launch</code></td><td><code>action=new</code></td><td><code>success</code>, <code>fail</code>, or <code>canceled</code></td><td>Initial analysis launch reaches a terminal outcome.</td></tr>
+            <tr><td><code>analysis_launch</code></td><td><code>action=update_preserve</code></td><td><code>success</code>, <code>fail</code>, or <code>canceled</code></td><td>Update with current settings retained reaches a terminal outcome.</td></tr>
+            <tr><td><code>analysis_launch</code></td><td><code>action=update_reset</code></td><td><code>success</code>, <code>fail</code>, or <code>canceled</code></td><td>Update with settings reset reaches a terminal outcome.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>node_subset</code></td><td>Not sent</td><td>Apply Subset is committed with only a node rule.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>link_subset</code></td><td>Not sent</td><td>Apply Subset is committed with only a link rule.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>node_and_link_subset</code></td><td>Not sent</td><td>Apply Subset is committed with both node and link rules.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>link_filter_field</code></td><td>Not sent</td><td>A user changes “Filter Links on” to a different field.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>link_threshold</code></td><td>Not sent</td><td>A user manually commits a new Filtering Threshold.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>threshold_stability_applied</code></td><td>Not sent</td><td>A user applies a Threshold Stability suggestion. The suggested threshold value is not sent.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>minimum_cluster_size</code></td><td>Not sent</td><td>A user commits a new Minimum Cluster Size.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>nearest_neighbor</code></td><td>Not sent</td><td>Emitted the first time a user enables Nearest Neighbor pruning. Disabling it or enabling it again does not emit another event.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>distance_metric</code></td><td>Not sent</td><td>Emitted the first time a user changes the Distance Metric setting. The selected metric is not sent.</td></tr>
+            <tr><td><code>analysis_action</code></td><td><code>timeline_mode</code></td><td>Not sent</td><td>Emitted the first time a user selects a non-None “Timeline By” field. If an active timeline was restored from a session, the first user interaction with playback or its range also counts. Later starts, pauses, range changes, speed changes, and resets do not emit additional events.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small"><strong>Emission rule:</strong> <code>analysis_action</code> is a feature-adoption signal, not an interaction log or a measure of use frequency. Each included filtering action, Distance Metric use, and timeline use can emit at most once per loaded MicrobeTrace application instance, meaning one loaded JavaScript application lifecycle; this is not the same as a GA4 session. Initial hydration, session restoration by itself, handoff configuration, programmatic synchronization, intermediate keystrokes or slider frames, clearing/revealing without applying a new filter, Distance Format changes, pruning epsilon changes, node/link selection, search, 2D grouping, file imports, and manual styling changes emit nothing. Filter field names, operators, entered values, selected distance metrics, thresholds, cluster sizes, and epsilon values are never sent.</p>
+
+      <h3>3.4 Complete export coverage</h3>
+      <p>Every current file-generation or download path is represented below. The output format is supplied as an explicit allowlisted value; it is never inferred by sending a user-entered filename.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th><code>view_name</code></th><th><code>file_type</code></th><th><code>file_format</code></th><th>Covered artifact</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>dashboard</code></td><td><code>image</code></td><td><code>png</code></td><td>Combined dashboard export.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>image</code></td><td><code>png</code>, <code>svg</code></td><td>Node-color, link-color, node-shape, and polygon-color key-table bundle.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>network</code></td><td><code>graphml</code></td><td>GraphML network export.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>session</code></td><td><code>microbetrace</code>, <code>zip</code></td><td>Saved MicrobeTrace session, uncompressed or compressed.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>style</code></td><td><code>style</code></td><td>Saved style configuration.</td></tr>
+            <tr><td><code>workspace</code></td><td><code>data_table</code></td><td><code>zip</code></td><td>Cluster-separated archive containing CSV node and link tables.</td></tr>
+            <tr><td><code>files</code></td><td><code>source_data</code></td><td><code>csv</code>, <code>tsv</code>, <code>xls</code>, <code>xlsx</code>, <code>json</code>, <code>geojson</code>, <code>fasta</code>, <code>fas</code>, <code>fa</code>, <code>newick</code>, <code>nwk</code>, <code>graphml</code>, <code>gexf</code>, <code>xgmml</code>, <code>cx</code>, <code>cx2</code>, <code>dot</code>, <code>gv</code>, <code>gml</code>, <code>microbetrace</code>, <code>hivtrace</code>, <code>zip</code>, <code>svg</code>, <code>other</code></td><td>Resave/download of an already loaded source file. Unknown or nonstandard extensions are normalized to <code>other</code>; the filename is never sent.</td></tr>
+            <tr><td><code>2d_network</code></td><td><code>image</code></td><td><code>png</code>, <code>jpeg</code>, <code>webp</code>, <code>svg</code></td><td>2D Network visual, optionally combined with key tables.</td></tr>
+            <tr><td><code>map</code></td><td><code>image</code></td><td><code>png</code>, <code>jpeg</code>, <code>webp</code></td><td>Map visual, optionally combined with key tables.</td></tr>
+            <tr><td><code>table</code></td><td><code>data_table</code></td><td><code>csv</code>, <code>xlsx</code></td><td>Current Table dataset export.</td></tr>
+            <tr><td><code>network_statistics</code></td><td><code>data_table</code></td><td><code>csv</code>, <code>xlsx</code></td><td>Network Statistics result export.</td></tr>
+            <tr><td><code>epi_curve</code></td><td><code>image</code></td><td><code>png</code>, <code>svg</code></td><td>Epi Curve visual export.</td></tr>
+            <tr><td><code>phylogenetic_tree</code></td><td><code>image</code></td><td><code>png</code>, <code>jpeg</code>, <code>svg</code></td><td>Phylogenetic Tree visual, optionally combined with key tables.</td></tr>
+            <tr><td><code>phylogenetic_tree</code></td><td><code>tree</code></td><td><code>newick</code></td><td>Newick tree export; <code>.nwk</code> is normalized to <code>newick</code>.</td></tr>
+            <tr><td><code>alignment</code></td><td><code>image</code></td><td><code>png</code>, <code>svg</code></td><td>Alignment visual export.</td></tr>
+            <tr><td><code>alignment</code></td><td><code>sequence</code></td><td><code>fasta</code>, <code>meg</code></td><td>Sequence or consensus export.</td></tr>
+            <tr><td><code>alignment</code></td><td><code>data_table</code></td><td><code>csv</code></td><td>Alignment position or proportion table.</td></tr>
+            <tr><td><code>crosstab</code></td><td><code>data_table</code></td><td><code>csv</code>, <code>xlsx</code>, <code>json</code>, <code>pdf</code></td><td>Crosstab data or report export.</td></tr>
+            <tr><td><code>aggregate</code></td><td><code>data_table</code></td><td><code>zip</code>, <code>xlsx</code>, <code>json</code>, <code>pdf</code></td><td>Aggregate table export; ZIP contains CSV files.</td></tr>
+            <tr><td><code>gantt</code></td><td><code>image</code></td><td><code>png</code>, <code>jpeg</code>, <code>svg</code></td><td>Gantt chart visual export.</td></tr>
+            <tr><td><code>heatmap</code></td><td><code>image</code></td><td><code>png</code>, <code>jpeg</code>, <code>svg</code></td><td>Heatmap visual export.</td></tr>
+            <tr><td><code>heatmap</code></td><td><code>data_table</code></td><td><code>csv</code></td><td>Heatmap distance-matrix export.</td></tr>
+            <tr><td><code>bubble</code></td><td><code>image</code></td><td><code>png</code>, <code>svg</code></td><td>Bubble visual export.</td></tr>
+            <tr><td><code>sankey</code></td><td><code>image</code></td><td><code>png</code>, <code>svg</code></td><td>Sankey visual export.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="small"><strong>Normalization:</strong> Imports and exports use the same <code>file_type</code> and <code>file_format</code> dimensions. UI values such as <code>jpg</code> and <code>jpeg</code> report as <code>jpeg</code>; Newick extensions report as <code>newick</code>. Waterfall has no implemented export action, so it has no <code>export_action</code> row. If an export is added later, it must be added to this allowlist and the export acceptance tests.</p>
+
+      <h3>3.5 Export result semantics</h3>
+      <ul>
+        <li><code>result=success</code>: MicrobeTrace generated the artifact and invoked the browser download mechanism.</li>
+        <li><code>result=fail</code>: an observable generation or download-initiation error occurred before that point.</li>
+        <li>The browser does not reveal whether a user ultimately accepted, renamed, canceled, or deleted the downloaded file. The analytics plan makes no claim about those outcomes and does not emit <code>canceled</code> for exports.</li>
+      </ul>
+
+      <h3>3.6 MicrobeTrace Classic redirect</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Event</th><th>Parameters</th><th>Trigger</th><th>Repeat rule</th></tr></thead>
+          <tbody>
+            <tr><td><code>classic_redirect</code></td><td><code>action=help_menu</code></td><td>A user activates the Help menu button.</td><td>Emit for each user activation immediately before opening the destination.</td></tr>
+            <tr><td><code>classic_redirect</code></td><td><code>action=welcome_screen</code></td><td>A user activates the welcome-screen “Visit MicrobeTrace Classic” link.</td><td>Emit for each user activation immediately before opening the destination.</td></tr>
+            <tr><td><code>classic_redirect</code></td><td><code>action=auspice_dialog</code></td><td>A user activates the legacy Auspice dialog link.</td><td>Emit for each user activation immediately before opening the destination.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">This event records that MicrobeTrace attempted to open Classic. It does not send the destination URL or Auspice URL, and it cannot confirm whether the new tab loaded successfully.</p>
+    </section>
+
+    <section id="implementation" class="page-break">
+      <h2>4. Implementation specification and status</h2>
+
+      <h3>4.1 Central analytics service</h3>
+      <ul>
+        <li><code>trackView</code> is the sole page-view mechanism. The Google tag configuration uses <code>send_page_view=false</code>, and Enhanced Measurement history-change page views remain off.</li>
+        <li>Send only the allowlisted <code>page_title</code> from each manual <code>page_view</code>. Do not add view names or virtual paths to <code>page_location</code> or <code>page_referrer</code>; those fields use the sanitized deployment-level context configured by the Google tag.</li>
+        <li>Typed helpers implement <code>app_entry</code>, <code>file_import</code>, <code>analysis_launch</code>, <code>analysis_action</code>, <code>export_action</code>, and <code>classic_redirect</code>.</li>
+        <li>TypeScript union types and constant sets define every event and parameter value in this document, including <code>result=success</code>, <code>result=fail</code>, and observable <code>result=canceled</code>.</li>
+        <li>Only typed helper methods can emit MicrobeTrace events. Each helper rejects non-allowlisted value combinations and never passes arbitrary component objects to <code>gtag</code>.</li>
+        <li>Every non-local hostname routes to the production measurement ID, including <code>cdcgov.github.io</code>, partner deployments, and handoff flows. A narrow local-development denylist covers localhost, loopback addresses, and file URLs; missing-<code>gtag</code> cases remain suppressed.</li>
+        <li>The Google tag is configured with a query- and fragment-free deployment base URL before any events can be sent. Raw <code>window.location.href</code> is never used as analytics context. If an initial browser referrer exists, only its origin is sent.</li>
+        <li>Deliberate local testing is permitted only when the bootstrap is configured for the dedicated non-production measurement ID. The local-test toggle never enables the production measurement ID on <code>localhost</code>, <code>127.0.0.1</code>, or <code>::1</code>.</li>
+      </ul>
+
+      <h3>4.2 Workflow instrumentation</h3>
+      <ul>
+        <li><strong>Application entry:</strong> classify the initial load before handoff query cleanup and emit <code>app_entry</code> once with <code>action=standard</code>, <code>action=handoff</code>, or <code>action=url_import</code>. Do not forward the handoff ID, imported URL, partner identifier, query string, or fragment. The tag-level sanitized page context applies to this event just as it does to every other event.</li>
+        <li><strong>File import:</strong> emit once per <code>processFiles</code> batch after all supported file-processing promises settle, and once per user-selected Workspace configuration or Map background file. Saved-session wrappers always report <code>file_type=session</code>. Normalize compressed-session helpers so the batch observes their actual completion result.</li>
+        <li><strong>Analysis launch:</strong> record the requested mode at launch and emit the terminal result from the existing load-generation and rendered-network lifecycle. Clear pending state after <code>result=success</code>, <code>result=fail</code>, <code>result=canceled</code>, or replacement by a newer launch.</li>
+        <li><strong>Analysis actions:</strong> use an in-memory "already tracked" set keyed by <code>action</code>. Emit each action at most once per loaded MicrobeTrace application instance from the committed handlers listed in Section 3.3. Do not send a separate feature category. Number and range inputs must emit after a committed value, not for every keystroke or slider frame. Emit <code>threshold_stability_applied</code> separately from a manual <code>link_threshold</code> change; emit <code>nearest_neighbor</code> only when that pruning mode is first enabled; and emit <code>distance_metric</code> only after a genuine user change rather than restoration or synchronization.</li>
+        <li><strong>Timeline:</strong> emit <code>action=timeline_mode</code> once per loaded MicrobeTrace application instance when a user first activates or deliberately interacts with timeline mode. Do not track individual starts, pauses, range changes, speed changes, or resets.</li>
+        <li><strong>Configuration and Map files:</strong> emit terminal <code>file_import</code> results for user-selected style files, color-assignment files, GeoJSON custom maps, and image floorplans. Internal configuration or Map state applied during session restoration must not emit a separate import event.</li>
+        <li><strong>Classic:</strong> route all three current Classic entry points through a shared tracked-navigation helper. Emit <code>classic_redirect</code> with the allowlisted <code>action</code> before opening the new tab, without forwarding the target or Auspice URL.</li>
+      </ul>
+
+      <h3>4.3 Export instrumentation</h3>
+      <ul>
+        <li>The typed <code>trackExport</code> helper requires <code>view_name</code>, <code>file_type</code>, <code>file_format</code>, and <code>result</code>, matching the <code>file_import</code> parameter contract.</li>
+        <li>Shared export requests include source view and file type so central PNG/JPEG/WEBP/SVG completion paths report accurately.</li>
+        <li>Direct exporters emit at artifact-completion or caught-failure points without requiring a full exporter refactor.</li>
+        <li>Pass the format as a constant or selected allowlisted value. Never forward a filename or arbitrary MIME string.</li>
+        <li>Treat Section 3.4 as the acceptance checklist. Future export code must add an allowlisted matrix entry and automated test.</li>
+      </ul>
+
+      <h3>4.4 GA4 custom definitions</h3>
+      <p>The six custom event names are sent directly by MicrobeTrace and do not need to be created in the GA4 interface. Register the same five event-scoped custom dimensions in the production property and the dedicated non-production test property so their parameter values are available in standard reports and Explorations. No custom metrics are needed because GA4 already reports event counts. <code>page_title</code>, <code>page_location</code>, <code>page_referrer</code>, Event name, and Hostname are built-in dimensions and must not be registered as custom definitions.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Event parameter</th><th>GA4 display name</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>result</code></td><td>Result</td><td>Success, failure, or observable cancellation.</td></tr>
+            <tr><td><code>action</code></td><td>Action</td><td>Allowlisted application entry method, committed analysis action, or Classic entry point within an event family.</td></tr>
+            <tr><td><code>view_name</code></td><td>View name</td><td>Allowlisted source view or workspace area for a file import or export.</td></tr>
+            <tr><td><code>file_type</code></td><td>File type</td><td>Allowlisted broad file class shared by imports and exports.</td></tr>
+            <tr><td><code>file_format</code></td><td>File format</td><td>Allowlisted normalized input or output format.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small"><strong>Provisioning still required:</strong> create these five definitions manually in each GA4 property with Event scope and the exact case-sensitive event parameter names above. The new <code>file_type</code> and <code>file_format</code> definitions replace <code>data_type</code>, <code>export_category</code>, and <code>export_format</code> for new events, while <code>feature_name</code> is no longer sent. Old definitions may be archived after historical-reporting needs are considered. Definitions are property-level, so configuring the test property does not configure production. An Admin API provisioner remains deferred until the number of definitions or environments makes manual setup materially burdensome.</p>
+
+      <h3>4.5 GA4 property and stream configuration</h3>
+      <ul>
+        <li>A dedicated non-production GA4 property is used for controlled local and QA testing. Its web stream has its own measurement ID and the same privacy settings as production.</li>
+        <li>Keep every setting in Section 2 aligned across the production and non-production properties before sending validation traffic.</li>
+        <li>Record the local-development denylist, measurement IDs, URL-sanitization behavior, Enhanced Measurement state, privacy settings, and retention choices in the deployment checklist.</li>
+        <li>Do not mark events as key events, create audiences, link advertising products, or enable user-provided data as part of this initial release.</li>
+      </ul>
+    </section>
+
+    <section id="reporting" class="page-break">
+      <h2>5. Initial reporting and interpretation</h2>
+      <p>Initial reports should answer only the approved product questions below. Counts from <code>analysis_action</code> represent feature adoption within loaded MicrobeTrace application instances, not total interaction frequency, unique people, or uses per GA4 session.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Product question</th><th>Initial measure</th><th>Interpretation</th></tr></thead>
+          <tbody>
+            <tr><td>How is MicrobeTrace entered?</td><td><code>app_entry</code> count broken down by <code>action</code>.</td><td>One application-load classification as standard, partner handoff, or URL import; not proof that imported data or a later analysis succeeded.</td></tr>
+            <tr><td>Which views matter?</td><td><code>page_view</code> event count by <code>page_title</code>.</td><td>Number of newly opened views, not tab switches.</td></tr>
+            <tr><td>Where is MicrobeTrace deployed?</td><td>Event or view counts by GA4’s built-in Hostname dimension.</td><td>Official, GitHub Pages, partner-hosted, and handoff sessions; local development remains excluded.</td></tr>
+            <tr><td>What files enter MicrobeTrace?</td><td><code>file_import</code> events where <code>result=success</code>, broken down by <code>view_name</code>, <code>file_type</code>, and <code>file_format</code>.</td><td>Broad file classes and normalized formats only; no filename, field, or content detail.</td></tr>
+            <tr><td>Are imports reliable?</td><td>Import success rate by <code>view_name</code>, <code>file_type</code>, and <code>file_format</code>: <code>result=success</code> divided by <code>result=success</code> plus <code>result=fail</code>.</td><td>Observable terminal application outcomes; no error-code diagnosis.</td></tr>
+            <tr><td>How is analysis initiated?</td><td><code>analysis_launch</code> count by <code>action</code>; success rate is <code>result=success</code> divided by <code>result=success</code> plus <code>result=fail</code>, with <code>canceled</code> reported separately.</td><td>Compares new, preserve-settings update, and reset-settings update workflows.</td></tr>
+            <tr><td>Which filtering features are adopted?</td><td><code>analysis_action</code> count broken down by the filtering <code>action</code> values in Section 3.3.</td><td>Approximate number of loaded application instances adopting each action, not every adjustment.</td></tr>
+            <tr><td>Are Timeline and Threshold Stability being adopted?</td><td><code>analysis_action</code> counts where <code>action=timeline_mode</code> or <code>action=threshold_stability_applied</code>.</td><td>One adoption signal per loaded application instance for each action.</td></tr>
+            <tr><td>Are users changing the Distance Metric?</td><td><code>analysis_action</code> count where <code>action=distance_metric</code>.</td><td>One adoption signal per loaded application instance; the selected metric and number of later changes are not collected.</td></tr>
+            <tr><td>Are configuration and Map files used?</td><td><code>file_import</code> counts where <code>file_type</code> is <code>style</code>, <code>color_assignment</code>, <code>custom_map</code>, or <code>floorplan</code>.</td><td>User-selected file applications only; session-restored state does not count separately.</td></tr>
+            <tr><td>What outputs matter, and do generation paths succeed?</td><td><code>export_action</code> count and <code>result=success</code> share by <code>view_name</code>, <code>file_type</code>, and <code>file_format</code>.</td><td>Artifact generation and browser-download initiation, not confirmation that the file was retained.</td></tr>
+            <tr><td>Are users falling back to Classic?</td><td><code>classic_redirect</code> count by <code>action</code>.</td><td>Navigation attempts by Help menu, welcome screen, or Auspice dialog.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">Do not infer individual identity, clinical behavior, dataset composition, or user intent from these aggregate measures. Add new telemetry only when it serves a documented product question and passes the privacy review in Section 2.</p>
+    </section>
+
+    <section id="verification" class="page-break">
+      <h2>6. Verification and acceptance</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Area</th><th>Required verification</th><th>Acceptance criterion</th></tr></thead>
+          <tbody>
+            <tr><td>Analytics service</td><td>Automated tests for disabled mode, missing <code>gtag</code>, allowlists, result values, and payload construction.</td><td>Only documented events and values reach the data layer; result values are limited to <code>success</code>, <code>fail</code>, and observable <code>canceled</code>.</td></tr>
+            <tr><td>Application entry</td><td>Load the application normally, through a handoff, and with a URL import while inspecting the data layer and DebugView.</td><td>Each application load emits exactly one <code>app_entry</code> with the correct allowlisted <code>action</code>; no handoff ID, imported URL, query value, fragment, or partner identifier is present.</td></tr>
+            <tr><td>Privacy</td><td>Automated denylist assertions plus browser payload inspection.</td><td>No filename, field name, entered value, identifier, coordinate, exact count, raw error, or exported content appears.</td></tr>
+            <tr><td>GA4 stream privacy</td><td>Inspect both GA4 web streams and the Google tag configuration.</td><td>Enhanced Measurement is off; automatic detection for outbound clicks, search, file downloads, forms, scrolls, and videos is off; automatic and history-change page views cannot fire.</td></tr>
+            <tr><td>GA4 property privacy</td><td>Inspect production and test property settings and document them in the deployment checklist.</td><td>Ads personalization, user-provided data, Google Signals, granular location/device collection, User-ID, and Ads links match Section 2; retention is 14 months with reset on new activity off.</td></tr>
+            <tr><td>Page views</td><td>Open each view while inspecting DebugView and network requests, including initial load and browser-history behavior.</td><td>One newly opened Section 3.1 view produces exactly one <code>page_view</code> containing only its allowlisted <code>page_title</code>; the tag-level location remains the sanitized deployment base and no internal view referrer is constructed. Tab switches and Docked Key Tables emit nothing.</td></tr>
+            <tr><td>Imports and launch</td><td>Exercise successful and failing imports, new launch, and both update modes.</td><td>Exactly one terminal event is emitted per user-initiated operation.</td></tr>
+            <tr><td>Filtering, Distance Metric, and timeline</td><td>Exercise every trigger in Section 3.3 repeatedly, plus state hydration without user input.</td><td>Each included setting and timeline use emits at most once per loaded MicrobeTrace application instance; Nearest Neighbor emits only when enabled; Distance Metric emits only after a user change; manual threshold and Threshold Stability actions are distinct; repeat interactions and programmatic changes emit nothing.</td></tr>
+            <tr><td>Configuration and Map files</td><td>Apply valid and invalid style files, color-assignment files, GeoJSON custom maps, and image floorplans, then restore a saved session containing equivalent state.</td><td>Each user-selected file emits one terminal <code>file_import</code> with the correct view, type, format, and result; internal session restoration emits no separate import.</td></tr>
+            <tr><td>Exports</td><td>Exercise every row and every format in Section 3.4 using download stubs where needed.</td><td>Each successful export reports the correct view, file type, and file format with <code>result=success</code>; caught failures report <code>result=fail</code>.</td></tr>
+            <tr><td>Classic redirect</td><td>Activate the Help menu, welcome-screen, and legacy Auspice Classic links with navigation stubbed.</td><td>Each activation emits one <code>classic_redirect</code> with the correct allowlisted <code>action</code> before navigation is attempted; no destination URL is sent.</td></tr>
+            <tr><td>Environment routing and URL privacy</td><td>Exercise the official deployment, <code>cdcgov.github.io</code>, an arbitrary partner hostname, a handoff URL containing query/hash values, localhost and loopback defaults, and deliberately enabled local testing.</td><td>All non-local deployments and handoffs use the production property with only the query- and fragment-free deployment base URL as default context; deliberate local testing uses only the test property; local development creates no analytics request.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Controlled validation</h3>
+      <ul>
+        <li>First use the dedicated test property, GA4 DebugView, and browser network inspection to verify event names and allowlisted values.</li>
+        <li>Run import, launch, core-analysis, configuration-file, Classic redirect, session-save/restore, and complete-export acceptance paths with non-sensitive fixtures.</li>
+        <li>Verify that no Enhanced Measurement event appears and that one view open produces one manual <code>page_view</code>.</li>
+        <li>Review payloads and property settings with the analytics and privacy owners before production rollout.</li>
+        <li>Compare event totals with deterministic automated journeys before using the data for product decisions.</li>
+      </ul>
+    </section>
+
+    <section id="rollout">
+      <h2>7. Rollout status and remaining work</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Step</th><th>Current status</th><th>Work / remaining work</th><th>Exit criterion</th></tr></thead>
+          <tbody>
+            <tr><td>1. GA4 configuration</td><td>Partially complete</td><td>The dedicated test property exists, property settings are configured, and Enhanced Measurement is off. Register the five Event-scoped custom dimensions in both properties and confirm the final checklist.</td><td>The test property is isolated, definitions match Section 4.4, automatic collection is constrained, and development traffic does not enter the production property.</td></tr>
+            <tr><td>2. Foundation</td><td>Implemented and locally verified</td><td>Typed service helpers, allowlists, title-only manual page views, non-local deployment routing, local-development suppression, URL sanitization, and focused privacy tests.</td><td>Controlled DebugView traffic confirms the same approved payloads with no duplicate page views.</td></tr>
+            <tr><td>3. Core workflows</td><td>Implemented; complete controlled validation pending</td><td><code>app_entry</code>, <code>file_import</code>, <code>analysis_launch</code>, <code>analysis_action</code>, and <code>classic_redirect</code>, including the final <code>result</code> vocabulary and all Section 3.2 import sources.</td><td>Controlled test-property traffic confirms every documented variation follows its repeat rule and emits only from approved paths.</td></tr>
+            <tr><td>4. Complete exports</td><td>Implemented; complete controlled validation pending</td><td>Shared and direct export paths from Section 3.4 report source view, file type, file format, and <code>success</code> or <code>fail</code>.</td><td>Every current exporter is exercised against the test property and reports the expected allowlisted values.</td></tr>
+            <tr><td>5. Validation and approval</td><td>Pending</td><td>Test-property DebugView checks, browser network inspection, deterministic automated journeys, environment-routing checks, and privacy review.</td><td>Analytics and privacy owners approve production payloads and settings.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="references">
+      <h2>8. References</h2>
+      <ul>
+        <li><a href="https://support.google.com/analytics/answer/9216061">Google Analytics Enhanced Measurement events</a>.</li>
+        <li><a href="https://developers.google.com/analytics/devguides/collection/ga4/events">Google Analytics custom-event collection with the Google tag</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/9234069">Google Analytics automatically collected events and standard web-event parameters</a>.</li>
+        <li><a href="https://developers.google.com/analytics/devguides/collection/ga4/single-page-applications">Google Analytics single-page application measurement</a>.</li>
+        <li><a href="https://developers.google.com/analytics/devguides/collection/ga4/reference/config">Google tag configuration fields, including <code>send_page_view</code>, <code>page_location</code>, and <code>page_referrer</code></a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/11593727">Google Analytics default data collection</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/12002752">Google Analytics granular location and device collection</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/9019185">Google Analytics privacy controls</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/7667196">Google Analytics data retention</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/14239696">Google Analytics event-scoped custom dimensions</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/9267744">Google Analytics event collection limits</a>.</li>
+        <li><a href="https://support.google.com/analytics/answer/13297105">HIPAA and Google Analytics</a>.</li>
+      </ul>
+    </section>
+
+    <footer>
+      MicrobeTrace GA4 Initial Analytics Plan · Updated September 1, 2026
+    </footer>
+  </main>
+</body>
+</html>

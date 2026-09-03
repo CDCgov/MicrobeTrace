@@ -30,6 +30,7 @@ import {
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
+import { AnalyticsService, FileFormat, FileType } from '@app/contactTraceCommonServices/analytics.service';
 
 interface FileTableOption {
   label: string;
@@ -178,7 +179,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private embedHandoffService: EmbedHandoffService,
     private ngZone: NgZone,
     private workerComputeService: WorkerComputeService,
-    private graphMLService: GraphMLService
+    private graphMLService: GraphMLService,
+    private analyticsService: AnalyticsService
     ) {
 
     super(elRef.nativeElement);
@@ -558,13 +560,38 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   resaveFileTableRow(row: FileTableRow): void {
     const file = this.getSessionFileForRow(row);
+    const format = this.analyticsService.normalizeSourceDataFormat(
+      file?.extension ?? file?.name?.split('.').pop()
+    );
 
     if (this.isFileContentsEmpty(file)) {
       alert('Unable to resave this file.');
+      this.analyticsService.trackExport({
+        viewName: 'files',
+        fileType: 'source_data',
+        fileFormat: format,
+        result: 'fail'
+      });
       return;
     }
 
-    saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+    try {
+      saveAs(new Blob([file.contents], { type: file.type || 'text' }), file.name);
+      this.analyticsService.trackExport({
+        viewName: 'files',
+        fileType: 'source_data',
+        fileFormat: format,
+        result: 'success'
+      });
+    } catch (error) {
+      this.analyticsService.trackExport({
+        viewName: 'files',
+        fileType: 'source_data',
+        fileFormat: format,
+        result: 'fail'
+      });
+      throw error;
+    }
   }
 
   removeFileTableRow(row: FileTableRow): void {
@@ -1443,6 +1470,14 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
      // Set to false to indicate that the network is not fully loaded  as new network is launching
      const loadGeneration = this.commonService.beginDataLoad();
      const wasAlreadyLaunched = this.commonService.session.network.launched;
+     this.analyticsService.beginAnalysisLaunch(
+       !wasAlreadyLaunched
+         ? 'new'
+         : options.resetSettings
+           ? 'update_reset'
+           : 'update_preserve',
+       loadGeneration
+     );
      this.commonService.session.network.isFullyLoaded = false;
      
     // launching new network, so set network rendered to false to start loading modal
@@ -1578,7 +1613,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           if(auspiceData["tree"]["children"][0]["data"]["div"] > 0 && auspiceData["tree"]["children"][0]["data"]["div"] < 1){
             this.commonService.session.style.widgets['default-distance-metric'] = 'tn93';
             this.SelectedDefaultDistanceMetricVariable = 'tn93';
-            this.onDistanceMetricChange('tn93');
+            this.onDistanceMetricChange('tn93', false);
             this.store.setMetricChanged('tn93');
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'tn93';
             $('#default-distance-metric').val('tn93').trigger('change');
@@ -1591,7 +1626,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             this.commonService.session.style.widgets['default-distance-metric'] = 'snps';
             this.store.setMetricChanged('snps');
             this.SelectedDefaultDistanceMetricVariable = 'snps';
-            this.onDistanceMetricChange('snps');
+            this.onDistanceMetricChange('snps', false);
             this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = 'snps';
             $('#default-distance-metric').val('SNPs').trigger('change');
             $('#default-distance-threshold').attr('step', 1).val(16).trigger('change');
@@ -1640,6 +1675,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             console.error('Auspice patristic worker error:', error);
             this.showMessage(` - Error processing Auspice tree: ${error?.message || error}`);
             this.commonService.session.network.isFullyLoaded = false;
+            this.analyticsService.completeAnalysisLaunch('fail', loadGeneration);
             return nodeCount;
           }
 
@@ -1731,6 +1767,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           console.error('Network parse error:', error);
           this.showMessage(` - Error processing Network file: ${error?.message || error}`);
           this.commonService.session.network.isFullyLoaded = false;
+          this.analyticsService.completeAnalysisLaunch('fail', loadGeneration);
         }
 
       } else if (file.format === 'link') {
@@ -2382,6 +2419,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           console.error('Newick patristic worker error:', error);
           this.showMessage(` - Error processing Newick tree: ${error?.message || error}`);
           this.commonService.session.network.isFullyLoaded = false;
+          this.analyticsService.completeAnalysisLaunch('fail', loadGeneration);
         });
       }
     });
@@ -2555,6 +2593,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   async processFiles(files?: FileList): Promise<void> {
     const fileArray = files ? Array.from(files) : [];
+    const sessionFileCountBeforeImport = this.commonService.session.files.length;
     this.isLoadingFiles = fileArray.length > 0;
     this.refreshTemplateState();
 
@@ -2566,6 +2605,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     try {
       await Promise.all(fileArray.map(file => this.processFile(file)));
+      const importedFiles = this.commonService.session.files.slice(sessionFileCountBeforeImport);
+      const analytics = this.classifyFileImport(fileArray, importedFiles);
+      this.analyticsService.trackFileImport({
+        viewName: 'files',
+        ...analytics,
+        result: 'success'
+      });
+    } catch (error) {
+      const analytics = this.classifyFileImport(fileArray, []);
+      this.analyticsService.trackFileImport({
+        viewName: 'files',
+        ...analytics,
+        result: 'fail'
+      });
+      throw error;
     } finally {
       this.isLoadingFiles = false;
       this.refreshTemplateState();
@@ -2573,14 +2627,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   };
 
-  private applySerializedSession(payload: any, extension: string) {
-    Promise.resolve(this.commonService.processJSON(payload, extension))
-      .then(() => this.populateTable())
-      .catch(error => console.error('Unable to load MicrobeTrace session file.', error));
+  private applySerializedSession(payload: any, extension: string): Promise<void> {
+    return Promise.resolve(this.commonService.processJSON(payload, extension))
+      .then(() => this.populateTable());
   }
 
-  private loadCompressedSession(rawfile: File) {
-    JSZip.loadAsync(rawfile)
+  private loadCompressedSession(rawfile: File): Promise<void> {
+    return JSZip.loadAsync(rawfile)
       .then(zip => {
         const sessionEntries = Object.values(zip.files).filter(entry => {
           if (entry.dir) return false;
@@ -2603,8 +2656,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           entryExtension
         }));
       })
-      .then(({ contents, entryExtension }) => this.applySerializedSession(contents, entryExtension))
-      .catch(error => console.error('Unable to load compressed MicrobeTrace session file.', error));
+      .then(({ contents, entryExtension }) => this.applySerializedSession(contents, entryExtension));
   }
 
   /**
@@ -2636,7 +2688,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('process file end');
     if (extension === 'zip') {
-      this.loadCompressedSession(rawfile);
+      await this.loadCompressedSession(rawfile);
       this.refreshTemplateState();
       return;
     }
@@ -2729,6 +2781,57 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.addToTable(file);
       this.refreshTemplateState();
     });
+  }
+
+  private classifyFileImport(
+    rawFiles: any[],
+    importedFiles: any[]
+  ): { fileType: FileType; fileFormat: FileFormat } {
+    const fileTypes = new Set<FileType>();
+    const rawFileFormats = new Set<FileFormat>(rawFiles.map(file => (
+      this.analyticsService.fileFormatFromName(file?.name, file?.type)
+    )));
+    const sessionFormats = new Set<FileFormat>(['microbetrace', 'hivtrace', 'zip']);
+
+    if (rawFiles.some(file => sessionFormats.has(this.analyticsService.fileFormatFromName(file?.name, file?.type)))) {
+      rawFiles.forEach(file => {
+        const fileFormat = this.analyticsService.fileFormatFromName(file?.name, file?.type);
+        fileTypes.add(sessionFormats.has(fileFormat) ? 'session' : 'other');
+      });
+    }
+
+    const addTypeForFormat = (format: string): void => {
+      const normalized = `${format ?? ''}`.trim().toLowerCase();
+      if (['node', 'link', 'tabular', 'data_table'].includes(normalized)) fileTypes.add('data_table');
+      else if (['fasta', 'sequence'].includes(normalized)) fileTypes.add('sequence');
+      else if (['newick', 'auspice', 'tree'].includes(normalized)) fileTypes.add('tree');
+      else if (normalized === 'matrix') fileTypes.add('matrix');
+      else if (['network', 'graphml'].includes(normalized)) fileTypes.add('network');
+      else if (['geojson', 'geospatial'].includes(normalized)) fileTypes.add('geospatial');
+      else if (['session', 'microbetrace', 'hivtrace'].includes(normalized)) fileTypes.add('session');
+    };
+
+    if (fileTypes.size === 0) {
+      importedFiles.forEach(file => addTypeForFormat(file?.format ?? file?.datatype));
+    }
+
+    if (fileTypes.size === 0) {
+      rawFiles.forEach(file => {
+        const fileFormat = this.analyticsService.fileFormatFromName(file?.name, file?.type);
+        if (['microbetrace', 'hivtrace', 'zip'].includes(fileFormat)) fileTypes.add('session');
+        else if (['fasta', 'fas', 'fa'].includes(fileFormat)) fileTypes.add('sequence');
+        else if (fileFormat === 'newick') fileTypes.add('tree');
+        else if (['graphml', 'gexf', 'xgmml', 'cx', 'cx2', 'dot', 'gv', 'gml'].includes(fileFormat)) fileTypes.add('network');
+        else if (fileFormat === 'geojson') fileTypes.add('geospatial');
+        else if (['csv', 'tsv', 'xls', 'xlsx', 'json'].includes(fileFormat)) fileTypes.add('data_table');
+        else fileTypes.add('other');
+      });
+    }
+
+    return {
+      fileType: fileTypes.size > 1 ? 'mixed' : fileTypes.values().next().value ?? 'other',
+      fileFormat: rawFileFormats.size > 1 ? 'mixed' : rawFileFormats.values().next().value ?? 'other'
+    };
   }
 
   /**
@@ -3228,7 +3331,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Updates link-threshold variable to default values and updates clusters, nodes, links as well as visualizations and statitistics
    * @param {string} e such as 'snps' 
    */
-  onDistanceMetricChange = (metric: string) => {
+  onDistanceMetricChange = (metric: string, trackAnalytics: boolean = true) => {
     if(this.commonService.debugMode) {
       console.log('distance ch:', metric);
     }
@@ -3237,6 +3340,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const selectedMetric = String(metric || 'snps').toLowerCase();
     const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
     this.SelectedDefaultDistanceMetricVariable = selectedMetric;
+
+    if (trackAnalytics) {
+      this.analyticsService.trackAnalysisAction('distance_metric');
+    }
 
     // 2. Update the session state and notify the store (maintains original functionality)
     this.commonService.session.style.widgets['default-distance-metric'] = calculationMetric;

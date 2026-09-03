@@ -14,6 +14,7 @@ import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { values } from 'lodash';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 @Component({
     selector: 'CrosstabComponent',
@@ -71,7 +72,8 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService) {
+    private store: CommonStoreService,
+    private analyticsService: AnalyticsService) {
 
       super(elRef.nativeElement);
 
@@ -441,12 +443,15 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   async exportVisualization() {
     try {
       if (this.SelectedCrossTabExportFileType == 'xlsx') {
-        this.saveAsExcelFile();
+        await this.saveAsExcelFile();
       } else if (this.SelectedCrossTabExportFileType == 'csv') {
         this.dataTable.exportFilename = this.SelectedCrossTabExportFilename;
         this.dataTable.value.push(this.totalRow)
-        this.dataTable.exportCSV()
-        this.dataTable.value.pop()
+        try {
+          this.dataTable.exportCSV()
+        } finally {
+          this.dataTable.value.pop()
+        }
       } else if (this.SelectedCrossTabExportFileType == 'json') {
         let keys = Object.keys(this.SelectedTableData.data[0])
         let data = this.SelectedTableData.data.map(row => {
@@ -524,7 +529,9 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
         }
       }).download(this.SelectedCrossTabExportFilename + '.pdf');
       }
+      this.trackCrosstabExport(this.SelectedCrossTabExportFileType, 'success');
     } catch (error) {
+      this.trackCrosstabExport(this.SelectedCrossTabExportFileType, 'fail');
       console.error('Unable to export crosstab: ', error); 
     } finally {
       this.exportOpen = false;
@@ -535,20 +542,31 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   /**
    * Exports the data as an excel file
    */
-  saveAsExcelFile() {
-    import("xlsx").then(xlsx => {
+  async saveAsExcelFile(): Promise<void> {
+    const xlsx = await import("xlsx");
       this.dataTable.value.push(this.totalRow);
-      let headers = [];
-      this.SelectedTableData.tableColumns.forEach(item => headers.push(item.field))
-      let worksheet = xlsx.utils.json_to_sheet(this.dataTable.value, { header: headers}) ; 
-      const workbook = { Sheets: { 'data': worksheet }, SheetNames: ['data'] }
-      const excelBuffer: any = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const EXCEL_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
-      const data: Blob = new Blob([excelBuffer], { type: EXCEL_TYPE });
-      saveAs(data, this.SelectedCrossTabExportFilename + '.xlsx');
-      this.dataTable.value.pop()
-  })
-}
+      try {
+        let headers = [];
+        this.SelectedTableData.tableColumns.forEach(item => headers.push(item.field))
+        let worksheet = xlsx.utils.json_to_sheet(this.dataTable.value, { header: headers});
+        const workbook = { Sheets: { 'data': worksheet }, SheetNames: ['data'] }
+        const excelBuffer: any = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const EXCEL_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8';
+        const data: Blob = new Blob([excelBuffer], { type: EXCEL_TYPE });
+        saveAs(data, this.SelectedCrossTabExportFilename + '.xlsx');
+      } finally {
+        this.dataTable.value.pop()
+      }
+  }
+
+  private trackCrosstabExport(format: string, result: 'success' | 'fail'): void {
+    this.analyticsService.trackExport({
+      viewName: 'crosstab',
+      fileType: 'data_table',
+      fileFormat: format,
+      result
+    });
+  }
 
   /**
    * Resizes the component as need based on how the goldenlayout dashboard is resized

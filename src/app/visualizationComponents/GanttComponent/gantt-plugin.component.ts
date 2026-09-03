@@ -16,6 +16,7 @@ import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 
 @Component({
@@ -105,7 +106,8 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
               ganttChartService: GanttChartService,
               private cdref: ChangeDetectorRef,
               private exportService: ExportService,
-              private store: CommonStoreService) {
+              private store: CommonStoreService,
+              private analyticsService: AnalyticsService) {
 
     super(elRef.nativeElement);
 
@@ -450,24 +452,22 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
     this.isExportClosed = true;
   }
 
-  saveImage(event): void {
+  async saveImage(event): Promise<void> {
     const fileName = this.SelectedGanttChartImageFilenameVariable;
     const domId = 'gantt';
     const exportImageType = this.SelectedNetworkExportFileTypeListVariable ;
     const content = document.getElementById(domId);
-    if (exportImageType === 'png') {
-      domToImage.toPng(content).then(
-        dataUrl => {
-          saveAs(dataUrl, fileName);
-          this.closeExportPane();
-      });
-    } else if (exportImageType === 'jpeg') {
-        domToImage.toJpeg(content, { quality: 0.85 }).then(
-          dataUrl => {
-            saveAs(dataUrl, fileName);
-            this.closeExportPane();
-          });
-    } else if (exportImageType === 'svg') {
+    try {
+      if (!content) {
+        throw new Error('Gantt export container not found');
+      }
+      if (exportImageType === 'png') {
+        const dataUrl = await domToImage.toPng(content);
+        saveAs(dataUrl, fileName);
+      } else if (exportImageType === 'jpeg') {
+        const dataUrl = await domToImage.toJpeg(content, { quality: 0.85 });
+        saveAs(dataUrl, fileName);
+      } else if (exportImageType === 'svg') {
         // The tooltips were being displayed as black bars, so I add a rule to hide them.
         // Have to parse the string into a document, get the right element, add the rule, and reserialize it
         let svgContent = this.exportService.unparseSVG(content);
@@ -481,9 +481,23 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
         svgContent = serializer.serializeToString(deserialized);
         const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
         saveAs(blob, fileName);
-        this.closeExportPane();
+      }
+      this.analyticsService.trackExport({
+        viewName: 'gantt',
+        fileType: 'image',
+        fileFormat: exportImageType,
+        result: 'success'
+      });
+      this.closeExportPane();
+    } catch (error) {
+      this.analyticsService.trackExport({
+        viewName: 'gantt',
+        fileType: 'image',
+        fileFormat: exportImageType,
+        result: 'fail'
+      });
+      console.error('Unable to export Gantt chart:', error);
     }
-
   }
 }
 

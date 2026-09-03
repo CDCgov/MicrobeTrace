@@ -23,6 +23,7 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 import { getMapNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
@@ -392,7 +393,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
-        private exportService: ExportService) {
+        private exportService: ExportService,
+        private analyticsService: AnalyticsService) {
 
             super(elRef.nativeElement);
 
@@ -1780,9 +1782,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private readGeoJSONBackgroundFile(file: File): void {
+        const fileFormat = this.analyticsService.fileFormatFromName(file.name, file.type);
         const reader = new FileReader();
         reader.onerror = () => {
             this.setFloorplanBackgroundError(`Unable to read ${file.name}.`);
+            this.analyticsService.trackFileImport({
+                viewName: 'map',
+                fileType: 'custom_map',
+                fileFormat,
+                result: 'fail'
+            });
             this.syncFloorplanBackgroundControls();
             this.cdref.detectChanges();
         };
@@ -1793,10 +1802,22 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 this.setUserGeoJSON(data, file.name);
                 this.syncFloorplanBackgroundControls();
                 this.refreshRenderedCoordinates(true);
+                this.analyticsService.trackFileImport({
+                    viewName: 'map',
+                    fileType: 'custom_map',
+                    fileFormat,
+                    result: 'success'
+                });
                 this.cdref.detectChanges();
             } catch (error) {
                 const message = error instanceof Error ? error.message : `Unable to parse ${file.name}.`;
                 this.setFloorplanBackgroundError(message);
+                this.analyticsService.trackFileImport({
+                    viewName: 'map',
+                    fileType: 'custom_map',
+                    fileFormat,
+                    result: 'fail'
+                });
                 this.syncFloorplanBackgroundControls();
                 this.cdref.detectChanges();
             }
@@ -1805,9 +1826,16 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private readFloorplanImageFile(file: File): void {
+        const fileFormat = this.analyticsService.fileFormatFromName(file.name, file.type);
         const reader = new FileReader();
         reader.onerror = () => {
             this.setFloorplanBackgroundError(`Unable to read ${file.name}.`);
+            this.analyticsService.trackFileImport({
+                viewName: 'map',
+                fileType: 'floorplan',
+                fileFormat,
+                result: 'fail'
+            });
             this.syncFloorplanBackgroundControls();
             this.cdref.detectChanges();
         };
@@ -1821,10 +1849,22 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 this.setFloorplanImage(dataUrl, file.name, bounds, width, height);
                 this.syncFloorplanBackgroundControls();
                 this.refreshRenderedCoordinates(true);
+                this.analyticsService.trackFileImport({
+                    viewName: 'map',
+                    fileType: 'floorplan',
+                    fileFormat,
+                    result: 'success'
+                });
                 this.cdref.detectChanges();
             };
             image.onerror = () => {
                 this.setFloorplanBackgroundError(`Unable to load ${file.name} as an image.`);
+                this.analyticsService.trackFileImport({
+                    viewName: 'map',
+                    fileType: 'floorplan',
+                    fileFormat,
+                    result: 'fail'
+                });
                 this.syncFloorplanBackgroundControls();
                 this.cdref.detectChanges();
             };
@@ -3767,6 +3807,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 filetype: this.SelectedNetworkExportFileTypeListVariable,
                 scale: this.SelectedNetworkExportScaleVariable,
                 quality: this.SelectedNetworkExportQualityVariable,
+                analyticsViewName: 'map',
+                analyticsFileType: 'image',
             }
             this.exportService.setExportOptions(exportOptions);
             let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement]

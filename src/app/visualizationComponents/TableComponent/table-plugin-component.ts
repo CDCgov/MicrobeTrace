@@ -25,6 +25,7 @@
   import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanitization';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
   
   /**
    * @title Complex Example
@@ -143,7 +144,8 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
       private cdref: ChangeDetectorRef,
       private eventManager: EventManager,
       private commonService: CommonService,
-      private store: CommonStoreService
+      private store: CommonStoreService,
+      private analyticsService: AnalyticsService
     ) {
       super(elRef.nativeElement);
   
@@ -232,14 +234,18 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
      *
      * For exporting as a csv it uses exportCSV() which is built into primeNG table object
      */
-    exportVisualization() {
-      if (this.SelectedTableExportFileTypeListVariable == 'xlsx') {
-        this.saveAsExcelFile();
-      } else {
-        void this.saveAsCsvFile();
+    async exportVisualization(): Promise<void> {
+      try {
+        if (this.SelectedTableExportFileTypeListVariable == 'xlsx') {
+          await this.saveAsExcelFile();
+        } else {
+          await this.saveAsCsvFile();
+        }
+      } catch (error) {
+        console.error('Unable to export table:', error);
+      } finally {
+        this.ShowTableExportPane = !this.ShowTableExportPane;
       }
-  
-      this.ShowTableExportPane = !this.ShowTableExportPane;
     }
 
     private buildExportRows(): any[] {
@@ -259,25 +265,32 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
     }
 
     private async saveAsCsvFile(fileName?: string): Promise<void> {
-      const resolvedFileName = fileName ?? this.SelectedTableExportFilenameVariable;
-      const rows = this.buildExportRows();
-      const xlsx = await import('xlsx');
-      const worksheet = xlsx.utils.json_to_sheet(rows);
-      const csvText = xlsx.utils.sheet_to_csv(worksheet);
-      const csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
+      try {
+        const resolvedFileName = fileName ?? this.SelectedTableExportFilenameVariable;
+        const rows = this.buildExportRows();
+        const xlsx = await import('xlsx');
+        const worksheet = xlsx.utils.json_to_sheet(rows);
+        const csvText = xlsx.utils.sheet_to_csv(worksheet);
+        const csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
 
-      saveAs(csvBlob, `${resolvedFileName}.csv`);
+        saveAs(csvBlob, `${resolvedFileName}.csv`);
+        this.trackTableExport('csv', 'success');
+      } catch (error) {
+        this.trackTableExport('csv', 'fail');
+        throw error;
+      }
     }
   
     /**
      * Allows users to export the table as an excel file
      * @param fileName optional if not given will use this.SelectedtableExportFilenameVariable
      */
-    saveAsExcelFile(fileName?: string): void {
-      if (fileName == undefined) {
-        fileName = this.SelectedTableExportFilenameVariable;
-      }
-      import('xlsx').then((xlsx) => {
+    async saveAsExcelFile(fileName?: string): Promise<void> {
+      try {
+        if (fileName == undefined) {
+          fileName = this.SelectedTableExportFilenameVariable;
+        }
+        const xlsx = await import('xlsx');
         const rowData = this.buildExportRows();
   
         let worksheet = xlsx.utils.json_to_sheet(rowData);
@@ -291,6 +304,19 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
         const EXCEL_EXTENSION = '.xlsx';
         const data: Blob = new Blob([excelBuffer], { type: EXCEL_TYPE });
         saveAs(data, fileName + EXCEL_EXTENSION);
+        this.trackTableExport('xlsx', 'success');
+      } catch (error) {
+        this.trackTableExport('xlsx', 'fail');
+        throw error;
+      }
+    }
+
+    private trackTableExport(format: 'csv' | 'xlsx', result: 'success' | 'fail'): void {
+      this.analyticsService.trackExport({
+        viewName: 'table',
+        fileType: 'data_table',
+        fileFormat: format,
+        result
       });
     }
   

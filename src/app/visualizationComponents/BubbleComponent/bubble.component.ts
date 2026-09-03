@@ -14,6 +14,7 @@ import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { buildPieChartPatternDef, buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 type DataRecord = { index: number, id: string, x: number; y: number, color: string, opacity: number, Xgroup: number, Ygroup: number, strokeColor: string, totalCount?: number, counts ?: any }//selected: boolean }
 
@@ -103,7 +104,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private store: CommonStoreService,
-    private exportService: ExportService
+    private exportService: ExportService,
+    private analyticsService: AnalyticsService
   ) {
     super(elRef.nativeElement);
 
@@ -1688,15 +1690,31 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   private exportRasterVisualization(): void {
-    const scale = Number(this.SelectedBubbleExportScaleVariable) || 1;
-    const dataUrl = this.cy.png({
-      full: true,
-      scale,
-      bg: '#ffffff',
-      output: 'base64uri',
-    });
+    try {
+      const scale = Number(this.SelectedBubbleExportScaleVariable) || 1;
+      const dataUrl = this.cy.png({
+        full: true,
+        scale,
+        bg: '#ffffff',
+        output: 'base64uri',
+      });
 
-    this.saveGeneratedFile(this.dataUrlToBlob(dataUrl), `${this.BubbleExportFileName}.png`);
+      this.saveGeneratedFile(this.dataUrlToBlob(dataUrl), `${this.BubbleExportFileName}.png`);
+      this.analyticsService.trackExport({
+        viewName: 'bubble',
+        fileType: 'image',
+        fileFormat: 'png',
+        result: 'success'
+      });
+    } catch (error) {
+      this.analyticsService.trackExport({
+        viewName: 'bubble',
+        fileType: 'image',
+        fileFormat: 'png',
+        result: 'fail'
+      });
+      throw error;
+    }
   }
 
   exportVisualization() {
@@ -1705,6 +1723,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       filetype: this.BubbleExportFileType,
       scale: this.SelectedBubbleExportScaleVariable,
       quality: 1,
+      analyticsViewName: 'bubble',
+      analyticsFileType: 'image',
     };
 
     // Set export options in the service

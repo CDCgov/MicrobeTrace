@@ -13,6 +13,7 @@ import { svgAsPngUri } from 'save-svg-as-png';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 @Component({
     selector: 'AlignmentViewComponent',
@@ -150,7 +151,8 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private store: CommonStoreService,
-    private exportService: ExportService) {
+    private exportService: ExportService,
+    private analyticsService: AnalyticsService) {
 
     super(elRef.nativeElement);
 
@@ -1720,50 +1722,50 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
   /**
    * Exports the alignmentTop and main canvas as png image
    */
-  exportPNG() {
-    let that = this;
+  async exportPNG(): Promise<void> {
     let alignmentTop = document.querySelector('#alignmentTop svg');
     let mainCanvas = $('.canvasHolder canvas').get(0) as HTMLCanvasElement
     let exportWidth = mainCanvas.width
     let exportHeight = mainCanvas.height + 140;
-    svgAsPngUri(alignmentTop, {
+    const topB64string = await svgAsPngUri(alignmentTop, {
       scale: 1,
       backgroundColor: '#ffffff',
       encoderType: 'image/png',
       encoderOptions: 0.8
-    }).then((topB64string) => {
-      let imageDataUrl;
-
-      let exportCanvas = document.createElement("canvas");
-      exportCanvas.height = exportHeight;
-      exportCanvas.width = exportWidth;
-      let ctx = exportCanvas.getContext("2d");
-
-      let iTop = new Image();
-      let iMain = new Image();
-      iTop.src = topB64string;
-      iTop.onload = function() {
-        iMain.src = mainCanvas.toDataURL()
-        iMain.onload = function() {
-
-          ctx.drawImage(iTop, 0, 0)
-          ctx.drawImage(iMain, 0, 140)
-
-          imageDataUrl = exportCanvas.toDataURL("image/png")
-          saveAs(imageDataUrl, that.AlignmentExportFileName + '.png')
-        }
-      }
-  }); 
+    });
+    const loadImage = (source: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Unable to render alignment export image'));
+      image.src = source;
+    });
+    const [iTop, iMain] = await Promise.all([
+      loadImage(topB64string),
+      loadImage(mainCanvas.toDataURL())
+    ]);
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.height = exportHeight;
+    exportCanvas.width = exportWidth;
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Unable to create alignment export canvas');
+    }
+    ctx.drawImage(iTop, 0, 0);
+    ctx.drawImage(iMain, 0, 140);
+    const imageDataUrl = exportCanvas.toDataURL('image/png');
+    saveAs(imageDataUrl, this.AlignmentExportFileName + '.png');
   }
 
   /**
    * Exports the alignment top and main canvas as svg or png image
    */
-  exportVisualization() {
+  async exportVisualization(): Promise<void> {
     $("body").css("cursor", "progress");
-    if (this.AlignmentExportFileTypeVis == 'png') {
-      this.exportPNG();
-    } else {
+    const format = this.AlignmentExportFileTypeVis;
+    try {
+      if (format == 'png') {
+        await this.exportPNG();
+      } else {
       
     let canvas = $('.canvasHolder canvas').get(0) as HTMLCanvasElement
     let canvasDataURL = canvas.toDataURL();
@@ -1785,15 +1787,23 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
     top.style.height = 150+canvas.height+'px';
     top.removeChild(foreignObj)
+      }
+      this.trackAlignmentExport('image', format, 'success');
+    } catch (error) {
+      this.trackAlignmentExport('image', format, 'fail');
+      console.error('Unable to export alignment image:', error);
+    } finally {
+      $("body").css("cursor", "default");
     }
-    $("body").css("cursor", "default");
   }
 
   /**
    * Exports sequencing data (id + seq string) as fasta or mega file
    */
   exportData(includeConsensus=false) {
-    let data, consensus, megaFormat;
+    const format = this.AlignmentExportFileTypeData == 'mega' ? 'meg' : 'fasta';
+    try {
+      let data, consensus, megaFormat;
     if (this.selectedSeqType == 'aa') {
       let labels = this.getData(this.nodesWithSeq, '_id')
       data = labels.map((id, index) => ({ '_id': id, seq: this.seqArray[index] }));
@@ -1814,9 +1824,15 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
       let blob = new Blob([headers, consensusString, data.map(node => "#" + node._id + "\r\n" + node.seq).join("\r\n")])
       saveAs(blob, this.AlignmentExportFileName+'.meg')
     }
+      this.trackAlignmentExport('sequence', format, 'success');
+    } catch (error) {
+      this.trackAlignmentExport('sequence', format, 'fail');
+      console.error('Unable to export alignment sequence:', error);
+    }
   }
 
   exportDataTable(option='basic', includeConsensus) {
+    try {
     // basic 5 number for each position     // may not use basic option but keeping it for now
     // advances includes proportion for gaps and each ambiguous nucleotide option
     // [A, C, G, T, #other/ambig]
@@ -1877,6 +1893,24 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
     let blob = new Blob([csvString], { type: 'text/csv' })
     saveAs(blob, this.AlignmentExportFileName + '.csv')
+      this.trackAlignmentExport('data_table', 'csv', 'success');
+    } catch (error) {
+      this.trackAlignmentExport('data_table', 'csv', 'fail');
+      console.error('Unable to export alignment data table:', error);
+    }
+  }
+
+  private trackAlignmentExport(
+    fileType: 'image' | 'sequence' | 'data_table',
+    format: string,
+    result: 'success' | 'fail'
+  ): void {
+    this.analyticsService.trackExport({
+      viewName: 'alignment',
+      fileType,
+      fileFormat: format,
+      result
+    });
   }
 
   /** Gets the consensus sequence of a NT or AA sequence, defined by most common char at a position (not based on meeting a threshold);

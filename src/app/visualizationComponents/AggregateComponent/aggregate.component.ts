@@ -16,6 +16,7 @@ import * as XLSX from 'xlsx';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { sanitizeExportRows } from '@app/contactTraceCommonServices/export-sanitization';
 import { Subject, takeUntil } from 'rxjs';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 @Component({
     selector: 'AggregateComponent',
@@ -76,7 +77,8 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService) {
+    private store: CommonStoreService,
+    private analyticsService: AnalyticsService) {
 
       super(elRef.nativeElement);
 
@@ -332,8 +334,11 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
   }
 
   async exportVisualization() {
-    console.log(this.SelectedAggregateExportFilename + '.' + this.SelectedAggregateExportFileType);
-    if (this.SelectedAggregateExportFileType == 'csv.zip') {
+    const format = this.SelectedAggregateExportFileType === 'csv.zip'
+      ? 'zip'
+      : this.SelectedAggregateExportFileType;
+    try {
+      if (this.SelectedAggregateExportFileType == 'csv.zip') {
       let zip = new JSZip();
       this.SelectedDataTables.forEach(table => {
         let tmpData = sanitizeExportRows(table.data.map(item => {
@@ -344,7 +349,8 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
         zip.file(table.label + '.csv', Papa.unparse(tmpData))
         console.log(Papa.unparse(tmpData));
       })
-      zip.generateAsync({type: 'blob'}).then(content => saveAs(content, this.SelectedAggregateExportFilename + '.zip'))
+      const content = await zip.generateAsync({type: 'blob'});
+      saveAs(content, this.SelectedAggregateExportFilename + '.zip');
     } else if (this.SelectedAggregateExportFileType == 'xlsx') {
       let wb = XLSX.utils.book_new();
       this.SelectedDataTables.forEach(table => {
@@ -374,7 +380,6 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
       saveAs(blob, this.SelectedAggregateExportFilename+'.json');
     } else if ( this.SelectedAggregateExportFileType == 'pdf') {
 
-      try {
         const { default: pdfMake } = await import('pdfmake/build/pdfmake.js');
         const { default: pdfFonts } = await import('pdfmake/build/vfs_fonts.js');
         pdfMake.vfs = pdfFonts;
@@ -434,13 +439,21 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
         };
 
         pdfMake.createPdf(documentDefinition).download(`${this.SelectedAggregateExportFilename}.pdf`);
-        
-      } catch (error) {
-        console.error("Failed to load pdfmake modules", error);
-        // Optionally, notify the user about the failure using a toast or alert
       }
-
+      this.trackAggregateExport(format, 'success');
+    } catch (error) {
+      this.trackAggregateExport(format, 'fail');
+      console.error('Unable to export aggregate data:', error);
     }
+  }
+
+  private trackAggregateExport(format: string, result: 'success' | 'fail'): void {
+    this.analyticsService.trackExport({
+      viewName: 'aggregate',
+      fileType: 'data_table',
+      fileFormat: format,
+      result
+    });
   }
 
   reordered(e) {

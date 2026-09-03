@@ -274,7 +274,7 @@
         <div id="welcome-description" class="bottom primary">The Visualization Multitool for Molecular Epidemiology and Bioinformatics</div>
       </div>
       <div id="add-data-container" class="add-data-container">
-        <a class="here-link primary" appendTo="body" href="https://microbetrace.cdc.gov/MicrobeTraceClassic/" target="_blank" rel="noreferrer noopener">Visit MicrobeTrace Classic</a>
+        <a class="here-link primary" appendTo="body" href="https://microbetrace.cdc.gov/MicrobeTraceClassic/" target="_blank" rel="noreferrer noopener" (click)="trackClassicRedirect('welcome_screen')">Visit MicrobeTrace Classic</a>
         <div class="files-msg">
           <span class="primary">Click </span>
           <a class="here-link primary" for="fileDropRef">here</a>
@@ -807,7 +807,7 @@
         <div class="modal-content">
           <div class="modal-body">
             Welcome to the newest version of MicrobeTrace! If you'd like to open your auspice JSON file in the previous version of MicrobeTrace, please click this link: <br />
-            <a href="https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}">https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}</a>
+            <a href="https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}" (click)="trackClassicRedirect('auspice_dialog')">https://microbetrace.cdc.gov/MicrobeTrace/?url={{auspiceUrlVal}}</a>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn" (click)="DisplayMTDialog('Cancel')">Close</button>

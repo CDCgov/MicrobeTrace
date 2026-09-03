@@ -25,6 +25,7 @@ import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
 import { Subject, takeUntil } from 'rxjs';
 import { saveAs } from 'file-saver';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 type NetworkStatisticsSection = 'summary' | 'centrality' | 'components' | 'degree';
 
@@ -151,6 +152,7 @@ export class NetworkStatisticsComponent
     private commonService: CommonService,
     private store: CommonStoreService,
     private workerComputeService: WorkerComputeService,
+    private analyticsService: AnalyticsService,
   ) {
     super(elRef.nativeElement);
     this.visuals = commonService.visuals;
@@ -285,28 +287,33 @@ export class NetworkStatisticsComponent
       return;
     }
 
-    const xlsx = await import('xlsx');
-    const workbook = xlsx.utils.book_new();
-    buildNetworkStatisticsExportSections(this.networkStatisticsResult).forEach((section) => {
-      const worksheet = xlsx.utils.aoa_to_sheet(section.rows);
-      xlsx.utils.book_append_sheet(workbook, worksheet, section.sheetName);
-    });
+    try {
+      const xlsx = await import('xlsx');
+      const workbook = xlsx.utils.book_new();
+      buildNetworkStatisticsExportSections(this.networkStatisticsResult).forEach((section) => {
+        const worksheet = xlsx.utils.aoa_to_sheet(section.rows);
+        xlsx.utils.book_append_sheet(workbook, worksheet, section.sheetName);
+      });
 
-    const excelBuffer = xlsx.write(workbook, {
-      bookType: 'xlsx',
-      type: 'array',
-    });
-    const blob = new Blob([excelBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
-    });
-    const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.xlsx`;
-    const testSaveAs = (window as any).__mtTestSaveAs;
-    if (typeof testSaveAs === 'function') {
-      testSaveAs(blob, fileName);
-      return;
+      const excelBuffer = xlsx.write(workbook, {
+        bookType: 'xlsx',
+        type: 'array',
+      });
+      const blob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8',
+      });
+      const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.xlsx`;
+      const testSaveAs = (window as any).__mtTestSaveAs;
+      if (typeof testSaveAs === 'function') {
+        testSaveAs(blob, fileName);
+      } else {
+        saveAs(blob, fileName);
+      }
+      this.trackNetworkStatisticsExport('xlsx', 'success');
+    } catch (error) {
+      this.trackNetworkStatisticsExport('xlsx', 'fail');
+      throw error;
     }
-
-    saveAs(blob, fileName);
   }
 
   exportNetworkStatisticsCsv(): void {
@@ -314,16 +321,30 @@ export class NetworkStatisticsComponent
       return;
     }
 
-    const csv = serializeNetworkStatisticsCsv(this.networkStatisticsResult);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.csv`;
-    const testSaveAs = (window as any).__mtTestSaveAs;
-    if (typeof testSaveAs === 'function') {
-      testSaveAs(blob, fileName);
-      return;
+    try {
+      const csv = serializeNetworkStatisticsCsv(this.networkStatisticsResult);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.csv`;
+      const testSaveAs = (window as any).__mtTestSaveAs;
+      if (typeof testSaveAs === 'function') {
+        testSaveAs(blob, fileName);
+      } else {
+        saveAs(blob, fileName);
+      }
+      this.trackNetworkStatisticsExport('csv', 'success');
+    } catch (error) {
+      this.trackNetworkStatisticsExport('csv', 'fail');
+      throw error;
     }
+  }
 
-    saveAs(blob, fileName);
+  private trackNetworkStatisticsExport(format: 'csv' | 'xlsx', result: 'success' | 'fail'): void {
+    this.analyticsService.trackExport({
+      viewName: 'network_statistics',
+      fileType: 'data_table',
+      fileFormat: format,
+      result
+    });
   }
 
   formatCellValue(field: string, value: any): string {

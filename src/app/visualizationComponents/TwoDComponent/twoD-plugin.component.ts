@@ -3179,6 +3179,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             filetype: this.SelectedNetworkExportFileTypeListVariable,
             scale: this.SelectedNetworkExportScaleVariable,
             quality: this.SelectedNetworkExportQualityVariable,
+            analyticsViewName: '2d_network',
+            analyticsFileType: 'image',
         };
     
         // Set export options in the service

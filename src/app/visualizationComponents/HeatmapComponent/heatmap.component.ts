@@ -18,6 +18,7 @@ import { buildSafeCsvRow } from '@app/contactTraceCommonServices/export-sanitiza
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 //import * as plotlyjs from 'plotly.js-dist-min';
 
 
@@ -81,6 +82,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         private exportService: ExportService,
         private plotlyModule: PlotlyModule,
         private store: CommonStoreService,
+        private analyticsService: AnalyticsService,
       ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
@@ -447,28 +449,31 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.redrawHeatmap();
   }
 
-  saveImage(): void {
+  async saveImage(): Promise<void> {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
     const exportImageType = this.SelectedNetworkExportFileTypeVariable;
     const content = document.getElementById(domId);
-    if (content) {
+    try {
+      if (!content) {
+        throw new Error('Heatmap export container not found');
+      }
       const fixedContent = this.fixGradient(content);
       if (exportImageType === 'png') {
-        domToImage.toPng(content).then(
-          dataUrl => {
-            saveAs(dataUrl, fileName+"."+exportImageType);
-        });
+        const dataUrl = await domToImage.toPng(content);
+        saveAs(dataUrl, fileName+"."+exportImageType);
       } else if (exportImageType === 'jpeg') {
-          domToImage.toJpeg(content, { quality: 0.85 }).then(
-            dataUrl => {
-              saveAs(dataUrl, fileName+"."+exportImageType);
-            });
+        const dataUrl = await domToImage.toJpeg(content, { quality: 0.85 });
+        saveAs(dataUrl, fileName+"."+exportImageType);
       } else if (exportImageType === 'svg') {
-          const svgContent = this.exportService.unparseSVG(fixedContent);
-          const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-          saveAs(blob, fileName+"."+exportImageType);
+        const svgContent = this.exportService.unparseSVG(fixedContent);
+        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+        saveAs(blob, fileName+"."+exportImageType);
       }
+      this.trackHeatmapExport('image', exportImageType, 'success');
+    } catch (error) {
+      this.trackHeatmapExport('image', exportImageType, 'fail');
+      console.error('Unable to export heatmap image:', error);
     }
   }
 
@@ -488,9 +493,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     return el;
   }
 
-  saveDistanceMatrix(): void {
+  async saveDistanceMatrix(): Promise<void> {
     const fileName = this.SelectedDistanceMatrixFilenameVariable;
-    this.commonService.getDM().then(({dm, labels}) => {
+    try {
+      const {dm, labels} = await this.commonService.getDM();
       const xLabels = (labels || []).map((label) => String(label));
       const yLabels = cloneDeep(xLabels);
       let matrix = cloneDeep(dm);
@@ -522,8 +528,24 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       }
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
       saveAs(blob, fileName);
+      this.trackHeatmapExport('data_table', 'csv', 'success');
+    } catch (error) {
+      this.trackHeatmapExport('data_table', 'csv', 'fail');
+      console.error('Unable to export heatmap distance matrix:', error);
+    }
+  }
+
+  private trackHeatmapExport(
+    fileType: 'image' | 'data_table',
+    format: string,
+    result: 'success' | 'fail'
+  ): void {
+    this.analyticsService.trackExport({
+      viewName: 'heatmap',
+      fileType,
+      fileFormat: format,
+      result
     });
-    
   }
 
   ngOnDestroy(): void {

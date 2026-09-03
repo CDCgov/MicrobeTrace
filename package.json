@@ -17,6 +17,7 @@
     "verify:dist": "node scripts/verify-production-artifacts.js && npm run verify:embed-security",
     "verify:embed-security": "node scripts/validate-partner-allowlist.js",
     "test": "ng test",
+    "test:analytics-bootstrap": "node --test scripts/analytics-bootstrap.test.js",
     "test:embed-security": "node --test scripts/embed-security.test.js",
     "lint": "ng lint",
     "e2e": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:journeys:all:local:chrome",

@@ -54,7 +54,12 @@ import {
     GlobalSettingsDialogRequest,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
-import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
+import {
+    AnalyticsService,
+    ClassicRedirectAction,
+    FileType,
+    FileViewName
+} from './contactTraceCommonServices/analytics.service';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -518,6 +523,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.check_eula_acceptance();
 
         this.auspiceUrlVal = this.commonService.getURL();
+        const appEntryAction = this.embedHandoffService.hasPendingHandoffInUrl()
+            ? 'handoff'
+            : (this.auspiceUrlVal ? 'url_import' : 'standard');
+        this.analyticsService.trackAppEntry(appEntryAction);
         if(this.commonService.debugMode) {
             console.log(this.auspiceUrlVal);
         }
@@ -577,6 +586,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       .pipe(takeUntil(this.destroy$))
       .subscribe(rendered => {
         if (rendered) {
+          this.analyticsService.completeAnalysisLaunch(
+            'success',
+            this.commonService.getDataLoadGeneration()
+          );
           this.clearLoadingInformationModal();
 
           this.networkRendered = true;
@@ -648,7 +661,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.store.metricChanged$.subscribe((metric: string) => {
             this.metric = metric;
             this.SelectedDistanceMetricVariable = metric;
-            this.onDistanceMetricChanged();
+            this.onDistanceMetricChanged(false);
         });
 
         // Subscribe to table cleared event
@@ -800,11 +813,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     
     // New method to handle the actual threshold change logic
-    private executeThresholdChange(newThreshold: number): void {
+    private executeThresholdChange(
+        newThreshold: number,
+        analyticsAction: 'link_threshold' | 'threshold_stability_applied' = 'link_threshold'
+    ): void {
         if(this.commonService.debugMode) {
             console.log('loading settingss1: ', this.commonService.session.style.widgets["link-threshold"]);
         }
         
+        this.analyticsService.trackAnalysisAction(analyticsAction);
+
         // Execute the actual threshold change
         this.onLinkThresholdChanged(newThreshold);
     }
@@ -1155,14 +1173,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         exportLinkTable: boolean = false,
         exportNodeShapeTable: boolean = false
     ): Promise<void> {
+        const options: ExportOptions = this.exportService.getExportOptions();
         if (!elementsForExport[0] && !exportNodeTable && !exportLinkTable && !exportNodeShapeTable) {
             console.error('Visual wrapper container not found');
+            this.trackSharedExport(options, 'fail');
             return;
         }
     
         try {
             // Retrieve export options from the service
-            const options: ExportOptions = this.exportService.getExportOptions();
             let settings = {
                 scale: Number(options.scale) || 1,
                 useCORS: true, // Enable CORS if images are loaded from external sources,
@@ -1207,6 +1226,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             elementsForExport.splice(pos, 0, ...globalTablesForExport);
             if (elementsForExport.length === 0) {
                 console.error('No export elements found');
+                this.trackSharedExport(options, 'fail');
                 return;
             }
 
@@ -1223,6 +1243,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const context = canvas.getContext('2d');
             if (!context) {
                 console.error('Unable to create export canvas context.');
+                this.trackSharedExport(options, 'fail');
                 return;
             }
 
@@ -1296,6 +1317,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 quality = options.quality || 0.92;
             } else {
                 console.error('Unsupported file type:', filetype);
+                this.trackSharedExport(options, 'fail');
                 return;
             }
 
@@ -1304,14 +1326,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             });
             if (!blob) {
                 console.error('Unable to create export blob.');
+                this.trackSharedExport(options, 'fail');
                 return;
             }
 
             this.saveGeneratedFile(blob, `${filename}.${filetype}`);
+            this.trackSharedExport(options, 'success');
     
             console.log('Export completed successfully.');
         } catch (error) {
             console.error('Error during export:', error);
+            this.trackSharedExport(options, 'fail');
         }
     }
 
@@ -1323,6 +1348,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         exportNodeShapeTable: boolean = false
     ): Promise<void> {
         console.log('Exporting SVG');
+        const options: ExportOptions = this.exportService.getExportOptions();
+        try {
         const hasMainVisual = mainSVGString !== '';
         if (mainSVGString == '') {
             mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>'
@@ -1332,11 +1359,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         elementsForExport.unshift(...globalTablesForExport);
         if (elementsForExport.length === 0 && !hasMainVisual) {
             console.error('No table elements found for SVG export');
+            this.trackSharedExport(options, 'fail');
             return;
         }
 
-        const options: ExportOptions = this.exportService.getExportOptions();
-        
         const parser = new DOMParser();
         const doc = parser.parseFromString(mainSVGString, 'image/svg+xml');
         const svg1 = doc.documentElement;
@@ -1415,6 +1441,24 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         let blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
         
         this.saveGeneratedFile(blob, `${options.filename}.svg`);
+        this.trackSharedExport(options, 'success');
+        } catch (error) {
+            console.error('Error during SVG export:', error);
+            this.trackSharedExport(options, 'fail');
+        }
+    }
+
+    private trackSharedExport(options: ExportOptions, result: 'success' | 'fail'): void {
+        if (!options.analyticsViewName || !options.analyticsFileType) {
+            return;
+        }
+
+        this.analyticsService.trackExport({
+            viewName: options.analyticsViewName,
+            fileType: options.analyticsFileType,
+            fileFormat: options.filetype,
+            result
+        });
     }
 
     /**
@@ -1656,7 +1700,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * @param value - metric selected
      */
      public updateMetric( value: string ) : void {
+        const previousMetric = String(this.metric || '').toLowerCase();
         this.metric = value;
+        if (String(value || '').toLowerCase() !== previousMetric) {
+            this.analyticsService.trackAnalysisAction('distance_metric');
+        }
         if(this.commonService.debugMode) {
             console.log('updating metric: ', this.metric);
         }
@@ -1792,7 +1840,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Updates GlobalSetingModel variable and cluster-minimum-size widget. Removes and adds clusters when needed
      */
-    onMinimumClusterSizeChanged(silent: boolean = false) {
+    onMinimumClusterSizeChanged(silent: boolean = false, trackAnalytics: boolean = true) {
 
         console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
         this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
@@ -1808,6 +1856,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (val === this._lastClusterMinimum && this.store.settingsLoadedValue) {
             console.log("Cluster minimum unchanged; no update needed.");
             return;
+        }
+
+        if (!silent && trackAnalytics) {
+            this.analyticsService.trackAnalysisAction('minimum_cluster_size');
         }
 
         if(!silent) {
@@ -1842,6 +1894,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.SelectedLinkSortVariable === this._lastLinkSortValue && this.store.settingsLoadedValue) {
             console.log("Link sort variable unchanged; skipping update.");
             return;
+        }
+
+        if (!silent) {
+            this.analyticsService.trackAnalysisAction('link_filter_field');
         }
 
         
@@ -1888,9 +1944,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             return;
         }
 
+        const fileFormat = this.analyticsService.fileFormatFromName(file.name, file.type);
         const reader = new FileReader();
         reader.onerror = () => {
             this.setNodeColorAssignmentStatus('error', `Unable to read "${file.name}".`);
+            this.analyticsService.trackFileImport({
+                viewName: 'workspace',
+                fileType: 'color_assignment',
+                fileFormat,
+                result: 'fail'
+            });
             input.value = '';
         };
         reader.onload = () => {
@@ -1903,12 +1966,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     selectedField,
                     this.commonService.session.data.nodes || []
                 );
-                this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
+                const result = this.applyParsedNodeColorAssignments(parsed, selectedField, file.name)
+                    ? 'success'
+                    : 'fail';
+                this.analyticsService.trackFileImport({
+                    viewName: 'workspace',
+                    fileType: 'color_assignment',
+                    fileFormat,
+                    result
+                });
             } catch (error) {
                 const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
                     ? error.message
                     : 'The color assignment file could not be parsed.';
                 this.setNodeColorAssignmentStatus('error', message);
+                this.analyticsService.trackFileImport({
+                    viewName: 'workspace',
+                    fileType: 'color_assignment',
+                    fileFormat,
+                    result: 'fail'
+                });
             } finally {
                 input.value = '';
             }
@@ -1950,7 +2027,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         parsed: ParsedNodeColorAssignments,
         selectedField: string,
         fileName: string
-    ): void {
+    ): boolean {
         try {
             this.commonService.applyNodeColorAssignments(selectedField, parsed.assignments);
 
@@ -1983,11 +2060,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
                 `${retainedForFutureCount} retained for future data.`
             );
+            return true;
         } catch (error) {
             this.setNodeColorAssignmentStatus(
                 'error',
                 error instanceof Error ? error.message : 'The color assignments could not be applied.'
             );
+            return false;
         }
     }
 
@@ -2001,13 +2080,44 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * 
      */
     public onApplyStyle( file: any ){
-        $('.custom-file-label').text(this.SelectedApplyStyleVariable.substring(12))
-        const reader = new FileReader();
-        reader.onload = e => {
-            this.commonService.applyStyle(JSON.parse((e as any).target.result)); 
-            this.applyStyleFileSettings();
+        const input = file.target as HTMLInputElement;
+        const selectedFile = input.files?.[0];
+        if (!selectedFile) {
+            return;
         }
-        reader.readAsText(file.target.files[0]);
+
+        $('.custom-file-label').text(this.SelectedApplyStyleVariable.substring(12))
+        const fileFormat = this.analyticsService.fileFormatFromName(selectedFile.name, selectedFile.type);
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.analyticsService.trackFileImport({
+                viewName: 'workspace',
+                fileType: 'style',
+                fileFormat,
+                result: 'fail'
+            });
+        };
+        reader.onload = e => {
+            try {
+                this.commonService.applyStyle(JSON.parse((e as any).target.result));
+                this.applyStyleFileSettings();
+                this.analyticsService.trackFileImport({
+                    viewName: 'workspace',
+                    fileType: 'style',
+                    fileFormat,
+                    result: 'success'
+                });
+            } catch (error) {
+                this.analyticsService.trackFileImport({
+                    viewName: 'workspace',
+                    fileType: 'style',
+                    fileFormat,
+                    result: 'fail'
+                });
+                console.error('Unable to apply MicrobeTrace style file:', error);
+            }
+        }
+        reader.readAsText(selectedFile);
 
     }
 
@@ -2016,7 +2126,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         if (this.SelectedClusterMinimumSizeVariable != this.widgets['cluster-minimum-size']){
             this.SelectedClusterMinimumSizeVariable = this.widgets['cluster-minimum-size'];
-            this.onMinimumClusterSizeChanged();
+            this.onMinimumClusterSizeChanged(false, false);
             // not triggering render clus-vis correctly, may be relate to bug with onMinimumClusterSizeChanged()
         }
 
@@ -2131,10 +2241,14 @@ ${warnings.join('\n')}`,
             }
         }
 
+        const previousPruneMethod = this.commonService.GlobalSettingsModel.SelectedPruneWithTypesVariable;
         console.log('onPruneWithTypesChanged: ', newValue);
 
         this.SelectedPruneWithTypesVariable = newValue;
         this.commonService.GlobalSettingsModel.SelectedPruneWithTypesVariable = this.SelectedPruneWithTypesVariable;
+        if (newValue === 'Nearest Neighbor' && newValue !== previousPruneMethod) {
+            this.analyticsService.trackAnalysisAction('nearest_neighbor');
+        }
 
         if (this.SelectedPruneWithTypesVariable == "None") {
             $('#filtering-epsilon-row').slideUp();
@@ -3062,6 +3176,12 @@ ${warnings.join('\n')}`,
         d3.select("#timeline-play-button").text("Play");
     }
 
+    private trackTimelineUse(): void {
+        if (this.SelectedTimelineVariable && this.SelectedTimelineVariable !== 'None') {
+            this.analyticsService.trackAnalysisAction('timeline_mode');
+        }
+    }
+
     private parseTimelineDate(value: any): Date | null {
         if (value instanceof Date) {
             return Number.isFinite(value.getTime()) ? value : null;
@@ -3323,10 +3443,12 @@ ${warnings.join('\n')}`,
     }
 
     public onTimelineRangeStartInputChanged(value: string): void {
+        this.trackTimelineUse();
         this.setTimelineRange(value, this.commonService.session.state.timeTarget, 'start');
     }
 
     public onTimelineRangeEndInputChanged(value: string): void {
+        this.trackTimelineUse();
         this.setTimelineRange(this.commonService.session.state.timeStart, value, 'end');
     }
 
@@ -3335,6 +3457,7 @@ ${warnings.join('\n')}`,
             return;
         }
 
+        this.trackTimelineUse();
         this.setTimelineRange(this.timelineDomainStart, this.timelineDomainEnd, 'both');
     }
 
@@ -3349,6 +3472,9 @@ ${warnings.join('\n')}`,
         this.timelineDomainEnd = null;
         let variable = e;  
         let loadingJsonFile = this.commonService.session.style.widgets["node-timeline-variable"] == variable;
+        if (variable !== 'None' && !loadingJsonFile) {
+            this.analyticsService.trackAnalysisAction('timeline_mode');
+        }
         if (this.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
             // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
             if (moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
@@ -3619,6 +3745,7 @@ ${warnings.join('\n')}`,
 
     public playTimeline() : void {
 
+            this.trackTimelineUse();
             if (this.playBtnText == "Pause") {
                 this.stopTimelinePlayback(true);
             } else {
@@ -4520,20 +4647,36 @@ ${warnings.join('\n')}`,
     }
 
     applyNetworkSubsetFilter(): void {
+        const hasNodeRule = this.hasNetworkSubsetRule(
+            this.SelectedNetworkSubsetNodeField,
+            this.SelectedNetworkSubsetNodeValue
+        );
+        const hasLinkRule = this.hasNetworkSubsetRule(
+            this.SelectedNetworkSubsetLinkField,
+            this.SelectedNetworkSubsetLinkValue
+        );
         this.commonService.setNetworkSubsetFilterState({
             node: {
-                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetNodeField, this.SelectedNetworkSubsetNodeValue),
+                enabled: hasNodeRule,
                 field: this.SelectedNetworkSubsetNodeField,
                 operator: this.SelectedNetworkSubsetNodeOperator,
                 value: this.SelectedNetworkSubsetNodeValue
             },
             link: {
-                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetLinkField, this.SelectedNetworkSubsetLinkValue),
+                enabled: hasLinkRule,
                 field: this.SelectedNetworkSubsetLinkField,
                 operator: this.SelectedNetworkSubsetLinkOperator,
                 value: this.SelectedNetworkSubsetLinkValue
             }
         });
+
+        if (hasNodeRule && hasLinkRule) {
+            this.analyticsService.trackAnalysisAction('node_and_link_subset');
+        } else if (hasNodeRule) {
+            this.analyticsService.trackAnalysisAction('node_subset');
+        } else if (hasLinkRule) {
+            this.analyticsService.trackAnalysisAction('link_subset');
+        }
     }
 
     clearNetworkSubsetFilter(): void {
@@ -4862,6 +5005,8 @@ ${warnings.join('\n')}`,
             filetype: 'png',
             scale: this.ExportDashboardScale,
             quality: 1,
+            analyticsViewName: 'dashboard',
+            analyticsFileType: 'image',
         };
     
         // Set export options in the service
@@ -4880,6 +5025,8 @@ ${warnings.join('\n')}`,
             filetype: this.ExportTablesFileType,
             scale: this.ExportTablesScale,
             quality: 1,
+            analyticsViewName: 'workspace',
+            analyticsFileType: 'image',
         };
         this.exportService.setExportOptions(exportOptions);
 
@@ -4909,7 +5056,11 @@ ${warnings.join('\n')}`,
     ExportGraphML() {
         const graphMLExport = this.graphMLService.exportSession(this.commonService.session);
         const blob = new Blob([graphMLExport.contents], { type: 'application/graphml+xml;charset=utf-8' });
-        this.saveGeneratedFile(blob, 'microbetrace.graphml');
+        this.saveGeneratedFile(blob, 'microbetrace.graphml', {
+            viewName: 'workspace',
+            fileType: 'network',
+            fileFormat: 'graphml'
+        });
     }
 
     updateExportResolution() {
@@ -4929,17 +5080,31 @@ ${warnings.join('\n')}`,
 
     }
 
-    private saveGeneratedFile(content: Blob | string, filename: string) {
+    private saveGeneratedFile(
+        content: Blob | string,
+        filename: string,
+        analytics?: { viewName: FileViewName; fileType: FileType; fileFormat: string }
+    ) {
         const browserWindow = window as Window & {
             __mtTestSaveAs?: (content: Blob | string, filename: string) => void;
         };
 
-        if (typeof browserWindow.__mtTestSaveAs === 'function') {
-            browserWindow.__mtTestSaveAs(content, filename);
-            return;
-        }
+        try {
+            if (typeof browserWindow.__mtTestSaveAs === 'function') {
+                browserWindow.__mtTestSaveAs(content, filename);
+            } else {
+                saveAs(content as any, filename);
+            }
 
-        saveAs(content as any, filename);
+            if (analytics) {
+                this.analyticsService.trackExport({ ...analytics, result: 'success' });
+            }
+        } catch (error) {
+            if (analytics) {
+                this.analyticsService.trackExport({ ...analytics, result: 'fail' });
+            }
+            throw error;
+        }
     }
 
     DisplayStashDialog(saveStash: string) {
@@ -4949,7 +5114,11 @@ ${warnings.join('\n')}`,
                 if (this.selectedSaveFileType == 'style') {
                     const data = JSON.stringify(this.commonService.session.style);
                     const blob = new Blob([data], { type: "application/json;charset=utf-8" });
-                    this.saveGeneratedFile(blob, this.saveFileName+'.style')
+                    this.saveGeneratedFile(blob, this.saveFileName+'.style', {
+                        viewName: 'workspace',
+                        fileType: 'style',
+                        fileFormat: 'style'
+                    })
                     this.displayStashDialog = false;
                     return;
                 }
@@ -5056,7 +5225,19 @@ ${warnings.join('\n')}`,
                       // generate zip repsetnation in memory
                       zip.generateAsync({type:"blob"}).then(function(content) {
                           // see FileSaver.js
-                          that.saveGeneratedFile(content, `${that.saveFileName}.zip`);
+                          that.saveGeneratedFile(content, `${that.saveFileName}.zip`, {
+                              viewName: 'workspace',
+                              fileType: 'data_table',
+                              fileFormat: 'zip'
+                          });
+                      }, function(error) {
+                          that.analyticsService.trackExport({
+                              viewName: 'workspace',
+                              fileType: 'data_table',
+                              fileFormat: 'zip',
+                              result: 'fail'
+                          });
+                          console.error('Unable to generate cluster export archive:', error);
                       });
                 } else {
                     this.commonService.session.files.forEach(file => {
@@ -5092,10 +5273,26 @@ ${warnings.join('\n')}`,
                                 level: 9
                             }
                         })
-                        .then(content => that.saveGeneratedFile(content, `${that.saveFileName}.zip`));
+                        .then(content => that.saveGeneratedFile(content, `${that.saveFileName}.zip`, {
+                            viewName: 'workspace',
+                            fileType: 'session',
+                            fileFormat: 'zip'
+                        }), error => {
+                            that.analyticsService.trackExport({
+                                viewName: 'workspace',
+                                fileType: 'session',
+                                fileFormat: 'zip',
+                                result: 'fail'
+                            });
+                            console.error('Unable to generate compressed session export:', error);
+                        });
                     } else {
                         const blob = new Blob([JSON.stringify(stash)], { type: "application/json;charset=utf-8" });
-                        this.saveGeneratedFile(blob, `${this.saveFileName}.microbetrace`);
+                        this.saveGeneratedFile(blob, `${this.saveFileName}.microbetrace`, {
+                            viewName: 'workspace',
+                            fileType: 'session',
+                            fileFormat: 'microbetrace'
+                        });
                     }
     
                    
@@ -5593,12 +5790,17 @@ ${warnings.join('\n')}`,
      * Opens MicroTrace Classic in a new tab and retains the Auspice URL if it exists
      */
     openMT_Classic() {
+        this.trackClassicRedirect('help_menu');
         if (this.auspiceUrlVal) {
             let mt_url = "https://microbetrace.cdc.gov/MicrobeTraceClassic/?url=" + this.auspiceUrlVal.replace(/\//g, "%2F");
             window.open(mt_url, "_blank")
         } else {
             window.open("https://microbetrace.cdc.gov/MicrobeTraceClassic/", "_blank")
         }
+    }
+
+    trackClassicRedirect(action: ClassicRedirectAction): void {
+        this.analyticsService.trackClassicRedirect(action);
     }
 
     HelpClick(actionName: any) {
@@ -6349,12 +6551,15 @@ ${warnings.join('\n')}`,
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
      */
-  onDistanceMetricChanged = async () => {
+  onDistanceMetricChanged = async (trackAnalytics: boolean = true) => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     const selectedMetric = String(this.SelectedDistanceMetricVariable).toLowerCase();
     const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
     this.SelectedDistanceMetricVariable = selectedMetric;
     this.metric = calculationMetric;
+    if (trackAnalytics) {
+      this.analyticsService.trackAnalysisAction('distance_metric');
+    }
     this.store.updatecurrentThresholdStepSize(calculationMetric);
     let didRecomputeSequenceLinks = false;
     if (calculationMetric === 'snps') {
@@ -6563,7 +6768,7 @@ ${warnings.join('\n')}`,
         this.threshold = String(region.suggestedThreshold);
         this.SelectedLinkThresholdVariable = region.suggestedThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
-        this.executeThresholdChange(region.suggestedThreshold);
+        this.executeThresholdChange(region.suggestedThreshold, 'threshold_stability_applied');
     }
 
     formatThresholdStabilityClusterLabel(clusterCount: number): string {

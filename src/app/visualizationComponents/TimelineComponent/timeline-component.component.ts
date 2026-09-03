@@ -13,6 +13,7 @@ import { SelectItem } from 'primeng/api';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { AnalyticsService } from '@app/contactTraceCommonServices/analytics.service';
 
 @Component({
     selector: 'app-timeline-component',
@@ -93,7 +94,8 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
     private store: CommonStoreService,
-    private exportService: ExportService) {
+    private exportService: ExportService,
+    private analyticsService: AnalyticsService) {
 
       super(elRef.nativeElement);
       this.visuals = commonService.visuals;
@@ -1485,20 +1487,37 @@ openExport() {
   this.ShowEpiExportPane = !this.ShowEpiExportPane;
 }
 
-exportVisualization() {
-  if (this.EpiExportFileType == 'svg') {
+async exportVisualization(): Promise<void> {
+  const format = this.EpiExportFileType;
+  try {
+    if (format == 'svg') {
       let content = this.exportService.unparseSVG(this.epiCurveSVGElement.nativeElement);
       let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-      saveAs(blob, this.EpiExportFileName + '.' + this.EpiExportFileType);
-  } else {
-      saveSvgAsPng(this.epiCurveSVGElement.nativeElement, this.EpiExportFileName + '.' + this.EpiExportFileType, {
+      saveAs(blob, this.EpiExportFileName + '.' + format);
+    } else {
+      await saveSvgAsPng(this.epiCurveSVGElement.nativeElement, this.EpiExportFileName + '.' + format, {
           scale: this.SelectedNetworkExportScaleVariable,
           backgroundColor: "#ffffff",
-          encoderType: 'image/' + this.EpiExportFileType,
+          encoderType: 'image/' + format,
           //encoderOptions: this.SelectedNetworkExportQualityVariable
       });
+    }
+    this.trackEpiCurveExport(format, 'success');
+  } catch (error) {
+    this.trackEpiCurveExport(format, 'fail');
+    console.error('Unable to export Epi Curve:', error);
+  } finally {
+    this.ShowEpiExportPane = false;
   }
-  this.ShowEpiExportPane = false;
+}
+
+private trackEpiCurveExport(format: string, result: 'success' | 'fail'): void {
+  this.analyticsService.trackExport({
+    viewName: 'epi_curve',
+    fileType: 'image',
+    fileFormat: format,
+    result
+  });
 }
 
 openRefreshScreen() {
